@@ -12,9 +12,15 @@ class DashboardLayoutCreate(BaseModel):
     name: str = Field(..., description="Layout name", max_length=255)
     description: str | None = Field(None, description="Layout description")
     project_id: UUID | None = Field(None, description="Project scope (null = global)")
-    is_template: bool = Field(False, description="Whether this layout is a reusable template")
-    is_default: bool = Field(False, description="Whether this is the user's default layout for this scope")
-    widgets: list[dict[str, object]] = Field(default_factory=list, description="Widget instances array")
+    is_template: bool = Field(
+        False, description="Whether this layout is a reusable template"
+    )
+    is_default: bool = Field(
+        False, description="Whether this is the user's default layout for this scope"
+    )
+    widgets: list[dict[str, object]] = Field(
+        default_factory=list, description="Widget instances array"
+    )
 
 
 class DashboardLayoutUpdate(BaseModel):
@@ -22,9 +28,15 @@ class DashboardLayoutUpdate(BaseModel):
 
     name: str | None = Field(None, description="Layout name", max_length=255)
     description: str | None = Field(None, description="Layout description")
-    is_template: bool | None = Field(None, description="Whether this layout is a reusable template")
-    is_default: bool | None = Field(None, description="Whether this is the user's default layout")
-    widgets: list[dict[str, object]] | None = Field(None, description="Widget instances array")
+    is_template: bool | None = Field(
+        None, description="Whether this layout is a reusable template"
+    )
+    is_default: bool | None = Field(
+        None, description="Whether this is the user's default layout"
+    )
+    widgets: list[dict[str, object]] | None = Field(
+        None, description="Widget instances array"
+    )
 
 
 class DashboardLayoutRead(BaseModel):
@@ -47,4 +59,6 @@ class DashboardLayoutRead(BaseModel):
 class CloneTemplateRequest(BaseModel):
     """Schema for cloning a template layout."""
 
-    project_id: UUID | None = Field(None, description="Project scope for the cloned layout")
+    project_id: UUID | None = Field(
+        None, description="Project scope for the cloned layout"
+    )

@@ -82,8 +82,6 @@ async def test_update_provider(db_session: AsyncSession) -> None:
     assert isinstance(provider_public.updated_at, datetime)
 
 
-
-
 @pytest.mark.asyncio
 async def test_update_provider_not_found(db_session: AsyncSession) -> None:
     """Test updating a non-existent provider raises ValueError."""
@@ -100,9 +98,7 @@ async def test_list_providers(db_session: AsyncSession) -> None:
 
     # Create multiple providers
     await service.create_provider(
-        AIProviderCreate(
-            provider_type="openai", name="OpenAI Provider", is_active=True
-        )
+        AIProviderCreate(provider_type="openai", name="OpenAI Provider", is_active=True)
     )
     await service.create_provider(
         AIProviderCreate(provider_type="ollama", name="Ollama Provider", is_active=True)
@@ -847,4 +843,3 @@ async def test_count_sessions(db_session: AsyncSession) -> None:
 
     # Verify count
     assert count == 7
-

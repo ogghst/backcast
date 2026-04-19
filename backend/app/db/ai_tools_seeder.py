@@ -109,7 +109,9 @@ class AIToolsTestDataSeeder:
         # Get the actual project ID from the database (by code)
         project = await proj_service.get_by_code(data["project"]["code"])
         if not project:
-            raise ValueError(f"Project {data['project']['code']} not found. WBEs require a parent project.")
+            raise ValueError(
+                f"Project {data['project']['code']} not found. WBEs require a parent project."
+            )
 
         actual_project_id = project.project_id
 
@@ -124,9 +126,7 @@ class AIToolsTestDataSeeder:
                 try:
                     # Check if WBE already exists by code (use actual project ID)
                     existing = await wbe_service.get_by_code(
-                        wbe_data["code"],
-                        project_id=actual_project_id,
-                        branch="main"
+                        wbe_data["code"], project_id=actual_project_id, branch="main"
                     )
                     if existing:
                         logger.debug(f"WBE {wbe_data['code']} exists, skipping")
@@ -146,7 +146,9 @@ class AIToolsTestDataSeeder:
 
                     # Update parent_wbe_id if it exists
                     if wbe_data.get("parent_wbe_id"):
-                        wbe_data["parent_wbe_id"] = str(id_mapping[wbe_data["parent_wbe_id"]])
+                        wbe_data["parent_wbe_id"] = str(
+                            id_mapping[wbe_data["parent_wbe_id"]]
+                        )
 
                     wbe_in = WBECreate(**wbe_data)
                     await wbe_service.create_wbe(wbe_in, actor_id)
@@ -184,13 +186,17 @@ class AIToolsTestDataSeeder:
         # Get the actual project ID from the database (by code)
         project = await proj_service.get_by_code(data["project"]["code"])
         if not project:
-            raise ValueError(f"Project {data['project']['code']} not found. Cost elements require a parent project.")
+            raise ValueError(
+                f"Project {data['project']['code']} not found. Cost elements require a parent project."
+            )
 
         actual_project_id = project.project_id
 
         # Load all WBEs to build code->ID mapping (use actual project ID)
         for wbe_data in data["wbes"]:
-            wbe = await wbe_service.get_by_code(wbe_data["code"], actual_project_id, branch="main")
+            wbe = await wbe_service.get_by_code(
+                wbe_data["code"], actual_project_id, branch="main"
+            )
             if wbe:
                 wbe_code_to_id[wbe_data["code"]] = wbe.wbe_id
                 logger.debug(f"Mapped WBE {wbe_data['code']} -> {wbe.wbe_id}")
@@ -215,7 +221,9 @@ class AIToolsTestDataSeeder:
                 try:
                     # Check if cost element already exists by code
                     if ce_data["code"] in existing_codes:
-                        logger.debug(f"Cost Element {ce_data['code']} already exists, skipping")
+                        logger.debug(
+                            f"Cost Element {ce_data['code']} already exists, skipping"
+                        )
                         continue
 
                     # Extract forecast data before creating cost element
@@ -234,12 +242,18 @@ class AIToolsTestDataSeeder:
                             new_wbe_id = wbe_code_to_id.get(wbe_data["code"])
                             if new_wbe_id:
                                 ce_data["wbe_id"] = str(new_wbe_id)
-                                logger.debug(f"Mapped WBE ID for {ce_data['code']}: {original_wbe_id} -> {new_wbe_id}")
+                                logger.debug(
+                                    f"Mapped WBE ID for {ce_data['code']}: {original_wbe_id} -> {new_wbe_id}"
+                                )
                             else:
-                                logger.warning(f"WBE {wbe_data['code']} not found in mapping")
+                                logger.warning(
+                                    f"WBE {wbe_data['code']} not found in mapping"
+                                )
                             break
                     else:
-                        logger.warning(f"Could not find WBE with ID {original_wbe_id} in test data")
+                        logger.warning(
+                            f"Could not find WBE with ID {original_wbe_id} in test data"
+                        )
 
                     ce_in = CostElementCreate(**ce_data)
                     created_ce = await ce_service.create_cost_element(
@@ -259,9 +273,13 @@ class AIToolsTestDataSeeder:
                 except Exception as e:
                     # Check if it's an overlap error (version already exists)
                     if "overlap" in str(e).lower() or "overlapping" in str(e).lower():
-                        logger.debug(f"Cost Element {ce_data.get('code')} already exists (overlap), skipping")
+                        logger.debug(
+                            f"Cost Element {ce_data.get('code')} already exists (overlap), skipping"
+                        )
                         continue
-                    logger.error(f"Failed to seed Cost Element {ce_data.get('code')}: {e}")
+                    logger.error(
+                        f"Failed to seed Cost Element {ce_data.get('code')}: {e}"
+                    )
                     raise
 
     async def _create_forecast(
@@ -314,7 +332,9 @@ class AIToolsTestDataSeeder:
                 f"Created forecast for cost element {cost_element_id}: {forecast_data['eac_amount']}"
             )
 
-    async def seed_cost_registrations(self, session: AsyncSession, data: dict[str, Any]) -> None:
+    async def seed_cost_registrations(
+        self, session: AsyncSession, data: dict[str, Any]
+    ) -> None:
         """Seed cost registrations.
 
         Args:
@@ -341,28 +361,37 @@ class AIToolsTestDataSeeder:
         cost_elements = result.scalars().all()
 
         # Build code -> ID mapping
-        ce_code_to_id: dict[str, UUID] = {ce.code: ce.cost_element_id for ce in cost_elements}
+        ce_code_to_id: dict[str, UUID] = {
+            ce.code: ce.cost_element_id for ce in cost_elements
+        }
 
         # Build original ID -> code mapping from test data
         ce_id_to_code: dict[str, str] = {
-            ce_data["cost_element_id"]: ce_data["code"] for ce_data in data["cost_elements"]
+            ce_data["cost_element_id"]: ce_data["code"]
+            for ce_data in data["cost_elements"]
         }
 
         # Get existing cost registrations to avoid duplicates
         # Build mapping of cost_element_id -> code
-        ce_id_to_code_map: dict[UUID, str] = {ce.cost_element_id: ce.code for ce in cost_elements}
+        ce_id_to_code_map: dict[UUID, str] = {
+            ce.cost_element_id: ce.code for ce in cost_elements
+        }
 
         # Query all cost registrations
         stmt_cr = select(
             CostRegistration.cost_element_id,
             CostRegistration.registration_date,
             CostRegistration.amount,
-            CostRegistration.description
+            CostRegistration.description,
         )
         result_cr = await session.execute(stmt_cr)
         # Use a simpler key: code + amount + description (ignore exact timestamp due to timezone issues)
         existing_regs = {
-            (ce_id_to_code_map.get(r.cost_element_id, ""), float(r.amount), r.description)
+            (
+                ce_id_to_code_map.get(r.cost_element_id, ""),
+                float(r.amount),
+                r.description,
+            )
             for r in result_cr.all()
         }
         logger.debug(f"Found {len(existing_regs)} existing cost registrations")
@@ -376,7 +405,9 @@ class AIToolsTestDataSeeder:
                     cost_element_id = ce_code_to_id.get(ce_code) if ce_code else None
 
                     if not cost_element_id:
-                        logger.warning(f"Could not find cost element for registration: {cr_data.get('description')}")
+                        logger.warning(
+                            f"Could not find cost element for registration: {cr_data.get('description')}"
+                        )
                         continue
 
                     # Check if this registration already exists
@@ -384,7 +415,9 @@ class AIToolsTestDataSeeder:
                     ce_code = ce_id_to_code.get(str(original_ce_id))
                     reg_key = (ce_code, cr_data["amount"], cr_data["description"])
                     if reg_key in existing_regs:
-                        logger.debug(f"Cost Registration already exists: {ce_code} - {cr_data.get('description')[:50]}")
+                        logger.debug(
+                            f"Cost Registration already exists: {ce_code} - {cr_data.get('description')[:50]}"
+                        )
                         continue
 
                     # Generate new UUID for the registration
@@ -405,7 +438,9 @@ class AIToolsTestDataSeeder:
                     )
                     raise
 
-    async def seed_progress_entries(self, session: AsyncSession, data: dict[str, Any]) -> None:
+    async def seed_progress_entries(
+        self, session: AsyncSession, data: dict[str, Any]
+    ) -> None:
         """Seed progress entries.
 
         Args:
@@ -432,26 +467,35 @@ class AIToolsTestDataSeeder:
         cost_elements = result.scalars().all()
 
         # Build code -> ID mapping
-        ce_code_to_id: dict[str, UUID] = {ce.code: ce.cost_element_id for ce in cost_elements}
+        ce_code_to_id: dict[str, UUID] = {
+            ce.code: ce.cost_element_id for ce in cost_elements
+        }
 
         # Build original ID -> code mapping from test data
         ce_id_to_code: dict[str, str] = {
-            ce_data["cost_element_id"]: ce_data["code"] for ce_data in data["cost_elements"]
+            ce_data["cost_element_id"]: ce_data["code"]
+            for ce_data in data["cost_elements"]
         }
 
         # Get existing progress entries to avoid duplicates
         # Build mapping of cost_element_id -> code
-        ce_id_to_code_map: dict[UUID, str] = {ce.cost_element_id: ce.code for ce in cost_elements}
+        ce_id_to_code_map: dict[UUID, str] = {
+            ce.cost_element_id: ce.code for ce in cost_elements
+        }
 
         # Query all progress entries
         stmt_pe = select(
             ProgressEntry.cost_element_id,
             ProgressEntry.progress_percentage,
-            ProgressEntry.notes
+            ProgressEntry.notes,
         )
         result_pe = await session.execute(stmt_pe)
         existing_entries = {
-            (ce_id_to_code_map.get(e.cost_element_id, ""), float(e.progress_percentage), e.notes)
+            (
+                ce_id_to_code_map.get(e.cost_element_id, ""),
+                float(e.progress_percentage),
+                e.notes,
+            )
             for e in result_pe.all()
         }
 
@@ -464,15 +508,23 @@ class AIToolsTestDataSeeder:
                     cost_element_id = ce_code_to_id.get(ce_code) if ce_code else None
 
                     if not cost_element_id:
-                        logger.warning(f"Could not find cost element for progress entry: {pe_data.get('notes')}")
+                        logger.warning(
+                            f"Could not find cost element for progress entry: {pe_data.get('notes')}"
+                        )
                         continue
 
                     # Check if this progress entry already exists
                     # Use cost element code instead of ID for stability across runs
                     ce_code = ce_id_to_code.get(str(original_ce_id))
-                    entry_key = (ce_code, pe_data["progress_percentage"], pe_data["notes"])
+                    entry_key = (
+                        ce_code,
+                        pe_data["progress_percentage"],
+                        pe_data["notes"],
+                    )
                     if entry_key in existing_entries:
-                        logger.debug(f"Progress Entry already exists: {pe_data.get('notes')}")
+                        logger.debug(
+                            f"Progress Entry already exists: {pe_data.get('notes')}"
+                        )
                         continue
 
                     # Generate new UUID for the progress entry
@@ -480,15 +532,15 @@ class AIToolsTestDataSeeder:
                     pe_data["cost_element_id"] = str(cost_element_id)
 
                     pe_in = ProgressEntryCreate(**pe_data)
-                    await pe_service.create(
-                        actor_id=actor_id, progress_in=pe_in
-                    )
+                    await pe_service.create(actor_id=actor_id, progress_in=pe_in)
                     logger.info(
                         f"Created Progress Entry: {pe_in.progress_percentage}% for {pe_in.cost_element_id}"
                     )
 
                 except Exception as e:
-                    logger.error(f"Failed to seed Progress Entry {pe_data.get('notes')}: {e}")
+                    logger.error(
+                        f"Failed to seed Progress Entry {pe_data.get('notes')}: {e}"
+                    )
                     raise
 
     async def seed_all(self, session: AsyncSession) -> None:
@@ -530,7 +582,9 @@ class AIToolsTestDataSeeder:
             for query_name, query_data in data["expected_query_results"].items():
                 logger.info(f"\n{query_name}:")
                 logger.info(f"  Query: {query_data['query']}")
-                logger.info(f"  Expected: {json.dumps(query_data['expected_result'], indent=2)}")
+                logger.info(
+                    f"  Expected: {json.dumps(query_data['expected_result'], indent=2)}"
+                )
 
         except Exception as e:
             logger.error(f"AI Tools Test Data seeding failed: {e}")

@@ -113,7 +113,9 @@ async def get_forecast(
             "id": str(forecast.forecast_id),
             "eac_amount": float(forecast.eac_amount) if forecast.eac_amount else None,
             "basis_of_estimate": forecast.basis_of_estimate,
-            "approved_date": forecast.approved_date.isoformat() if forecast.approved_date else None,
+            "approved_date": forecast.approved_date.isoformat()
+            if forecast.approved_date
+            else None,
             "approved_by": str(forecast.approved_by) if forecast.approved_by else None,
             "branch": forecast.branch,
         }
@@ -734,7 +736,9 @@ async def get_cost_registration(
         registration = await service.get_as_of(UUID(cost_registration_id))
 
         if registration is None:
-            error_result = {"error": f"Cost registration not found: {cost_registration_id}"}
+            error_result = {
+                "error": f"Cost registration not found: {cost_registration_id}"
+            }
             return add_temporal_metadata(error_result, context)
 
         # Convert to AI-friendly format and add temporal metadata
@@ -1737,7 +1741,9 @@ async def get_cost_element_summary(
             if forecast:
                 forecast_data = {
                     "id": str(forecast.forecast_id),
-                    "eac_amount": float(forecast.eac_amount) if forecast.eac_amount else None,
+                    "eac_amount": float(forecast.eac_amount)
+                    if forecast.eac_amount
+                    else None,
                     "basis_of_estimate": forecast.basis_of_estimate,
                     "branch": forecast.branch,
                 }

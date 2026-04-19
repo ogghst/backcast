@@ -125,7 +125,9 @@ class DeepAgentOrchestrator:
         # Log tool filtering
         original_tool_count = len(all_tools)
         # Filter by execution mode - this prevents LLM from seeing tools it can't use
-        all_tools = filter_tools_by_execution_mode(all_tools, self.context.execution_mode)
+        all_tools = filter_tools_by_execution_mode(
+            all_tools, self.context.execution_mode
+        )
         filtered_tool_count = len(all_tools)
         logger.info(
             f"[TOOL_FILTERING] create_agent | "
@@ -151,7 +153,9 @@ class DeepAgentOrchestrator:
 
         if self.enable_subagents:
             # Build subagent compiled graphs and the task tool
-            subagent_configs = subagents if subagents is not None else get_all_subagents()
+            subagent_configs = (
+                subagents if subagents is not None else get_all_subagents()
+            )
             subagent_dicts = self._build_subagent_dicts(
                 subagent_configs,
                 all_tools,
@@ -162,11 +166,15 @@ class DeepAgentOrchestrator:
                 # Main agent delegates via task tool, but also gets get_temporal_context
                 # for direct access to temporal context information (LOW risk, read-only)
                 task_tool = build_task_tool(subagent_dicts)
-                temporal_context_tool = next((t for t in all_tools if t.name == "get_temporal_context"), None)
+                temporal_context_tool = next(
+                    (t for t in all_tools if t.name == "get_temporal_context"), None
+                )
                 tools: list[BaseTool] = [task_tool]
                 if temporal_context_tool:
                     tools.append(temporal_context_tool)
-                final_system_prompt = base_prompt + TASK_SYSTEM_PROMPT + subagent_prompt_suffix
+                final_system_prompt = (
+                    base_prompt + TASK_SYSTEM_PROMPT + subagent_prompt_suffix
+                )
                 middleware = [TodoListMiddleware(), *backcast_middleware]
                 logger.info(
                     f"Creating agent with subagents - "
@@ -187,9 +195,7 @@ class DeepAgentOrchestrator:
             tools = all_tools
             final_system_prompt = base_prompt
             middleware = list(backcast_middleware)
-            logger.info(
-                f"Creating agent with {len(tools)} tools (subagents disabled)"
-            )
+            logger.info(f"Creating agent with {len(tools)} tools (subagents disabled)")
 
         # Create the agent via langchain.agents.create_agent()
         agent = langchain_create_agent(
@@ -208,7 +214,9 @@ class DeepAgentOrchestrator:
                 f"enable_subagents={self.enable_subagents}"
             )
             if self.enable_subagents:
-                subagent_configs = subagents if subagents is not None else get_all_subagents()
+                subagent_configs = (
+                    subagents if subagents is not None else get_all_subagents()
+                )
                 subagent_dicts_debug = self._build_subagent_dicts(
                     subagent_configs,
                     all_tools,
@@ -258,9 +266,7 @@ class DeepAgentOrchestrator:
                     tool_names.append(t.get("name", str(t)))
                 else:
                     # Callable - use function name
-                    tool_names.append(
-                        t.__name__ if hasattr(t, "__name__") else str(t)
-                    )
+                    tool_names.append(t.__name__ if hasattr(t, "__name__") else str(t))
             subagent_info.append(
                 f"- {sa_name}: {', '.join(tool_names[:5])}"
                 f"{'...' if len(tool_names) > 5 else ''}"
@@ -342,7 +348,9 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
                 filtered_tool_names = allowed_tool_names
 
             # Filter tools by the filtered tool names
-            subagent_tools = [t for t in available_tools if t.name in filtered_tool_names]
+            subagent_tools = [
+                t for t in available_tools if t.name in filtered_tool_names
+            ]
 
             if not subagent_tools:
                 logger.warning(
@@ -360,15 +368,15 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
 
             schema = config.get("structured_output_schema")
 
-            subagent_dicts.append({
-                "name": name,
-                "description": description,
-                "runnable": runnable,
-                "structured_output_schema": schema,
-            })
-            logger.info(
-                f"Compiled subagent '{name}' with {len(subagent_tools)} tools"
+            subagent_dicts.append(
+                {
+                    "name": name,
+                    "description": description,
+                    "runnable": runnable,
+                    "structured_output_schema": schema,
+                }
             )
+            logger.info(f"Compiled subagent '{name}' with {len(subagent_tools)} tools")
 
         return subagent_dicts
 

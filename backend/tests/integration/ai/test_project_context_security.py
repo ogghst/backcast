@@ -24,7 +24,9 @@ from app.core.rbac import RBACServiceABC
 class MockRBACService(RBACServiceABC):
     """Mock RBAC service for testing that returns predefined values."""
 
-    def __init__(self, user_projects: list[UUID] | None = None, project_role: str | None = None):
+    def __init__(
+        self, user_projects: list[UUID] | None = None, project_role: str | None = None
+    ):
         self._user_projects = user_projects or []
         self._project_role = project_role
         self.session = MagicMock()  # Non-None to avoid session injection
@@ -153,7 +155,9 @@ class TestProjectContextSecurity:
         ):
             with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
                 # Act: Call the raw function (not LangChain wrapper)
-                result = await context_tools.get_project_context.coroutine(context=context)
+                result = await context_tools.get_project_context.coroutine(
+                    context=context
+                )
 
         # Assert: Verify tool returns current state
         assert result["project_id"] == str(test_project_id)
@@ -184,7 +188,9 @@ class TestProjectContextSecurity:
         schema_fields = tool_schema.model_fields
 
         # Assert: project_id is NOT in the schema (it's injected via ToolContext)
-        assert "project_id" not in schema_fields, "project_id should not be in tool schema"
+        assert "project_id" not in schema_fields, (
+            "project_id should not be in tool schema"
+        )
 
         # Verify some expected params are present (context is injected, not in schema)
         # The schema should have search, limit, etc. but NOT project_id

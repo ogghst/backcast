@@ -89,8 +89,6 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
     assert current_main is not None
     assert current_main.id == reverted.id
 
-    current_feature = await service.get_as_of(
-        root_id, branch="feature/scope-increase"
-    )
+    current_feature = await service.get_as_of(root_id, branch="feature/scope-increase")
     assert current_feature is not None
     assert current_feature.id == v3_id

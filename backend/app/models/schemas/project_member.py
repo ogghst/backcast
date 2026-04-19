@@ -19,7 +19,9 @@ class ProjectMemberCreate(ProjectMemberBase):
 
     user_id: UUID = Field(..., description="UUID of the user to assign")
     project_id: UUID = Field(..., description="UUID of the project")
-    assigned_by: UUID | None = Field(None, description="UUID of the user assigning the role")
+    assigned_by: UUID | None = Field(
+        None, description="UUID of the user assigning the role"
+    )
 
 
 class ProjectMemberUpdate(BaseModel):

@@ -172,7 +172,9 @@ class RBACServiceABC(ABC):
 P = ParamSpec("P")
 
 
-def require_permission(*required_permissions: str) -> Callable[[Callable[P, Any]], Callable[P, Any]]:
+def require_permission(
+    *required_permissions: str,
+) -> Callable[[Callable[P, Any]], Callable[P, Any]]:
     """Decorator to check if user has required permissions before function execution.
 
     This decorator can be used for both AI tools and API routes to enforce RBAC.
@@ -207,6 +209,7 @@ def require_permission(*required_permissions: str) -> Callable[[Callable[P, Any]
         - `user_role: str` - Direct role parameter
         - `context: dict` or `context: Any` - Dict-like object with user_role key
     """
+
     def decorator(func: Callable[P, Any]) -> Callable[P, Any]:
         # Attach metadata for inspection
         func._required_permissions = list(required_permissions)  # type: ignore[attr-defined]
@@ -285,6 +288,7 @@ def require_permission(*required_permissions: str) -> Callable[[Callable[P, Any]
 
         # Return appropriate wrapper based on whether function is async
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         else:
@@ -550,8 +554,7 @@ class JsonRBACService(RBACServiceABC):
         # Non-admin users: get their project memberships
         if self.session is None:
             logger.warning(
-                f"Cannot get projects for user {user_id}: "
-                "no database session provided"
+                f"Cannot get projects for user {user_id}: no database session provided"
             )
             return []
 
@@ -561,9 +564,7 @@ class JsonRBACService(RBACServiceABC):
         from app.models.domain.project_member import ProjectMember
 
         result = await self.session.execute(
-            select(ProjectMember.project_id).where(
-                ProjectMember.user_id == user_id
-            )
+            select(ProjectMember.project_id).where(ProjectMember.user_id == user_id)
         )
         return [row[0] for row in result.all()]
 

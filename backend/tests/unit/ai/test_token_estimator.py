@@ -81,7 +81,9 @@ class TestGetContextWindowSize:
 class TestLogContextUsageEstimate:
     """Test suite for log_context_usage_estimate function."""
 
-    def test_log_contains_required_fields(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_log_contains_required_fields(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Log contains all required fields."""
         messages = [HumanMessage(content="a" * 400)]
         with caplog.at_level(logging.INFO):
@@ -101,7 +103,9 @@ class TestLogContextUsageEstimate:
         assert "context_window_size=128000" in caplog.text
         assert "usage_percentage=" in caplog.text
 
-    def test_log_format_matches_convention(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_log_format_matches_convention(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Log uses pipe-separated key=value format."""
         messages = [HumanMessage(content="test")]
         with caplog.at_level(logging.INFO):
@@ -138,7 +142,11 @@ class TestAccumulateUsageFromEvent:
         event_data: dict[str, object] = {
             "output": AIMessage(
                 content="test",
-                usage_metadata={"input_tokens": 500, "output_tokens": 200, "total_tokens": 700},
+                usage_metadata={
+                    "input_tokens": 500,
+                    "output_tokens": 200,
+                    "total_tokens": 700,
+                },
             ),
         }
         acc.accumulate_from_event(event_data)
@@ -148,11 +156,15 @@ class TestAccumulateUsageFromEvent:
     def test_accumulate_multiple_events(self) -> None:
         """Multiple events accumulate correctly."""
         acc = TokenUsageAccumulator()
-        for i in range(3):
+        for _ in range(3):
             event_data: dict[str, object] = {
                 "output": AIMessage(
                     content="test",
-                    usage_metadata={"input_tokens": 100, "output_tokens": 50, "total_tokens": 150},
+                    usage_metadata={
+                        "input_tokens": 100,
+                        "output_tokens": 50,
+                        "total_tokens": 150,
+                    },
                 ),
             }
             acc.accumulate_from_event(event_data)
@@ -201,7 +213,11 @@ class TestAccumulateUsageFromEvent:
         event_data: dict[str, object] = {
             "output": AIMessage(
                 content="test",
-                usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+                usage_metadata={
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "total_tokens": 15,
+                },
                 response_metadata={
                     "token_usage": {
                         "prompt_tokens": 999,
@@ -218,13 +234,19 @@ class TestAccumulateUsageFromEvent:
 class TestLogActualUsage:
     """Test suite for log_actual_usage function."""
 
-    def test_log_contains_required_fields(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_log_contains_required_fields(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Log contains all required fields."""
         acc = TokenUsageAccumulator()
         event_data: dict[str, object] = {
             "output": AIMessage(
                 content="test",
-                usage_metadata={"input_tokens": 100, "output_tokens": 50, "total_tokens": 150},
+                usage_metadata={
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                    "total_tokens": 150,
+                },
             ),
         }
         acc.accumulate_from_event(event_data)
@@ -277,7 +299,11 @@ class TestTokenUsageAccumulator:
         event_data: dict[str, object] = {
             "output": AIMessage(
                 content="test",
-                usage_metadata={"input_tokens": 100, "output_tokens": 50, "total_tokens": 150},
+                usage_metadata={
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                    "total_tokens": 150,
+                },
             ),
         }
         acc.accumulate_from_event(event_data)

@@ -164,10 +164,10 @@ class TestUpdateChangeOrderStatusCommand:
         mock_session.get = AsyncMock(return_value=mock_change_order)
 
         cmd = UpdateChangeOrderStatusCommand(
-           change_order_id=mock_change_order.change_order_id,
-           new_status="Approved",
-           actor_id=actor_id,
-           control_date=datetime(2026, 3, 1, 10, 0, 0, tzinfo=UTC),
+            change_order_id=mock_change_order.change_order_id,
+            new_status="Approved",
+            actor_id=actor_id,
+            control_date=datetime(2026, 3, 1, 10, 0, 0, tzinfo=UTC),
         )
 
         await cmd.execute(mock_session)

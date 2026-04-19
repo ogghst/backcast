@@ -59,6 +59,7 @@ class TestCRUDTemplateExisting:
         """Test that the CRUD template can be imported without errors."""
         try:
             from app.ai.tools.templates import crud_template
+
             assert crud_template is not None
         except Exception as e:
             pytest.fail(f"Failed to import CRUD template: {e}")
@@ -94,5 +95,9 @@ class TestCRUDTemplateExisting:
         for func_name in functions:
             func = getattr(crud_template, func_name)
             # All should have _is_ai_tool attribute from decorator
-            assert hasattr(func, "_is_ai_tool"), f"{func_name} missing @ai_tool decorator"
-            assert func._is_ai_tool is True, f"{func_name} decorator not properly applied"
+            assert hasattr(func, "_is_ai_tool"), (
+                f"{func_name} missing @ai_tool decorator"
+            )
+            assert func._is_ai_tool is True, (
+                f"{func_name} decorator not properly applied"
+            )

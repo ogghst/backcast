@@ -44,9 +44,7 @@ async def list_dashboard_layouts(
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> list[DashboardLayoutRead]:
     """List dashboard layouts for the current user, optionally filtered by project."""
-    layouts = await service.get_for_user_project(
-        current_user.user_id, project_id
-    )
+    layouts = await service.get_for_user_project(current_user.user_id, project_id)
     return [DashboardLayoutRead.model_validate(layout) for layout in layouts]
 
 
@@ -131,9 +129,7 @@ async def update_dashboard_layout(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=msg
             ) from e
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=msg
-        ) from e
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg) from e
     return DashboardLayoutRead.model_validate(layout)
 
 
@@ -151,9 +147,7 @@ async def delete_dashboard_layout(
     try:
         deleted = await service.delete(layout_id, user_id=current_user.user_id)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
-        ) from e
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -189,7 +183,9 @@ async def clone_dashboard_layout_template(
     "/templates/{layout_id}",
     response_model=DashboardLayoutRead,
     operation_id="update_dashboard_layout_template",
-    dependencies=[Depends(RoleChecker(required_permission="dashboard-template-update"))],
+    dependencies=[
+        Depends(RoleChecker(required_permission="dashboard-template-update"))
+    ],
 )
 async def update_dashboard_layout_template(
     layout_id: UUID,
@@ -208,7 +204,5 @@ async def update_dashboard_layout_template(
             **layout_update.model_dump(exclude_unset=True),
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
-        ) from e
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     return DashboardLayoutRead.model_validate(layout)

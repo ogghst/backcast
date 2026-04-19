@@ -1,17 +1,14 @@
 """Tests for refresh token functionality."""
 
-from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock
-from uuid import UUID, uuid4
+from datetime import UTC, datetime, timedelta
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.refresh_token import RefreshToken
 from app.models.domain.user import User
-from app.models.schemas.user import TokenResponse, RefreshRequest
+from app.models.schemas.user import TokenResponse
 from app.services.auth import AuthService
 
 
@@ -27,8 +24,12 @@ class TestRefreshTokenCreation:
         auth_service = AuthService(db_session)
 
         # Act
-        token1 = await auth_service.create_refresh_token(test_user.user_id, test_user.id)
-        token2 = await auth_service.create_refresh_token(test_user.user_id, test_user.id)
+        token1 = await auth_service.create_refresh_token(
+            test_user.user_id, test_user.id
+        )
+        token2 = await auth_service.create_refresh_token(
+            test_user.user_id, test_user.id
+        )
 
         # Assert
         assert token1 != token2
@@ -42,11 +43,16 @@ class TestRefreshTokenCreation:
         """Test that refresh tokens are stored hashed in database."""
         # Arrange
         auth_service = AuthService(db_session)
-        raw_token = await auth_service.create_refresh_token(test_user.user_id, test_user.id)
+        raw_token = await auth_service.create_refresh_token(
+            test_user.user_id, test_user.id
+        )
 
         # Act
         from sqlalchemy import select
-        stmt = select(RefreshToken).where(RefreshToken.user_root_id == test_user.user_id)
+
+        stmt = select(RefreshToken).where(
+            RefreshToken.user_root_id == test_user.user_id
+        )
         result = await db_session.execute(stmt)
         stored_token = result.scalar_one()
 
@@ -69,13 +75,17 @@ class TestRefreshTokenCreation:
 
         # Fetch stored token
         from sqlalchemy import select
+
         from app.core.config import settings
-        stmt = select(RefreshToken).where(RefreshToken.user_root_id == test_user.user_id)
+
+        stmt = select(RefreshToken).where(
+            RefreshToken.user_root_id == test_user.user_id
+        )
         result = await db_session.execute(stmt)
         stored_token = result.scalar_one()
 
         # Assert - check expiration is approximately 30 days from now
-        expected_expiry = datetime.now(timezone.utc) + timedelta(
+        expected_expiry = datetime.now(UTC) + timedelta(
             days=settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
         time_diff = abs((stored_token.expires_at - expected_expiry).total_seconds())
@@ -92,7 +102,9 @@ class TestRefreshTokenVerification:
         """Test that verify_refresh_token returns user_id for valid token."""
         # Arrange
         auth_service = AuthService(db_session)
-        raw_token = await auth_service.create_refresh_token(test_user.user_id, test_user.id)
+        raw_token = await auth_service.create_refresh_token(
+            test_user.user_id, test_user.id
+        )
 
         # Act
         result = await auth_service.verify_refresh_token(raw_token)
@@ -121,7 +133,9 @@ class TestRefreshTokenVerification:
         """Test that verify_refresh_token returns None for revoked token."""
         # Arrange
         auth_service = AuthService(db_session)
-        raw_token = await auth_service.create_refresh_token(test_user.user_id, test_user.id)
+        raw_token = await auth_service.create_refresh_token(
+            test_user.user_id, test_user.id
+        )
 
         # Revoke the token
         await auth_service.revoke_refresh_token(raw_token)
@@ -139,14 +153,19 @@ class TestRefreshTokenVerification:
         """Test that verify_refresh_token returns None for expired token."""
         # Arrange
         auth_service = AuthService(db_session)
-        raw_token = await auth_service.create_refresh_token(test_user.user_id, test_user.id)
+        raw_token = await auth_service.create_refresh_token(
+            test_user.user_id, test_user.id
+        )
 
         # Manually set expiration to past
-        from sqlalchemy import select, update
-        stmt = select(RefreshToken).where(RefreshToken.user_root_id == test_user.user_id)
+        from sqlalchemy import select
+
+        stmt = select(RefreshToken).where(
+            RefreshToken.user_root_id == test_user.user_id
+        )
         result = await db_session.execute(stmt)
         token = result.scalar_one()
-        token.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+        token.expires_at = datetime.now(UTC) - timedelta(days=1)
         await db_session.commit()
 
         # Act
@@ -166,7 +185,9 @@ class TestRefreshTokenRevocation:
         """Test that revoke_refresh_token sets revoked_at timestamp."""
         # Arrange
         auth_service = AuthService(db_session)
-        raw_token = await auth_service.create_refresh_token(test_user.user_id, test_user.id)
+        raw_token = await auth_service.create_refresh_token(
+            test_user.user_id, test_user.id
+        )
 
         # Act
         success = await auth_service.revoke_refresh_token(raw_token)
@@ -174,7 +195,10 @@ class TestRefreshTokenRevocation:
         # Assert
         assert success is True
         from sqlalchemy import select
-        stmt = select(RefreshToken).where(RefreshToken.user_root_id == test_user.user_id)
+
+        stmt = select(RefreshToken).where(
+            RefreshToken.user_root_id == test_user.user_id
+        )
         result = await db_session.execute(stmt)
         token = result.scalar_one()
         assert token.revoked_at is not None
@@ -200,20 +224,25 @@ class TestRefreshTokenRevocation:
         """Test that revoking an already revoked token returns False."""
         # Arrange
         auth_service = AuthService(db_session)
-        raw_token = await auth_service.create_refresh_token(test_user.user_id, test_user.id)
+        raw_token = await auth_service.create_refresh_token(
+            test_user.user_id, test_user.id
+        )
 
         # First revocation
         await auth_service.revoke_refresh_token(raw_token)
 
         # Act - try to revoke again
-        success = await auth_service.revoke_refresh_token(raw_token)
+        _success = await auth_service.revoke_refresh_token(raw_token)
 
         # Assert - should still succeed (idempotent) but token remains revoked
         # Actually, based on implementation, it should return False because
         # verify_password won't match after revocation (different hash comparison)
         # Let's check the actual behavior
         from sqlalchemy import select
-        stmt = select(RefreshToken).where(RefreshToken.user_root_id == test_user.user_id)
+
+        stmt = select(RefreshToken).where(
+            RefreshToken.user_root_id == test_user.user_id
+        )
         result = await db_session.execute(stmt)
         token = result.scalar_one()
         assert token.revoked_at is not None
@@ -258,8 +287,7 @@ class TestRefreshTokenAPI:
 
         # Act
         response = await client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": raw_token}
+            "/api/v1/auth/refresh", json={"refresh_token": raw_token}
         )
 
         # Assert
@@ -275,8 +303,7 @@ class TestRefreshTokenAPI:
         """Test POST /auth/refresh rejects invalid refresh token."""
         # Act
         response = await client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": "invalid_token"}
+            "/api/v1/auth/refresh", json={"refresh_token": "invalid_token"}
         )
 
         # Assert
@@ -296,8 +323,7 @@ class TestRefreshTokenAPI:
 
         # Act
         response = await client.post(
-            "/api/v1/auth/logout",
-            json={"refresh_token": raw_token}
+            "/api/v1/auth/logout", json={"refresh_token": raw_token}
         )
 
         # Assert
@@ -316,10 +342,7 @@ class TestRefreshTokenAPI:
         # Act
         response = await client.post(
             "/api/v1/auth/login",
-            data={
-                "username": test_user.email,
-                "password": test_password
-            }
+            data={"username": test_user.email, "password": test_password},
         )
 
         # Assert

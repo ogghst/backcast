@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # MERMAID DIAGRAM TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="generate_mermaid_diagram",
     description="Generate a Mermaid diagram from a description. "
@@ -79,7 +80,7 @@ async def generate_mermaid_diagram(
         if diagram_type not in supported_types:
             return {
                 "error": f"Unsupported diagram type: {diagram_type}. "
-                       f"Supported types: {', '.join(supported_types)}"
+                f"Supported types: {', '.join(supported_types)}"
             }
 
         # Generate Mermaid code based on type and description
@@ -152,37 +153,39 @@ def _generate_flowchart(description: str) -> str:
 
     # Common patterns
     if "login" in desc_lower or "authentication" in desc_lower:
-        nodes.extend([
-            "A[Start]",
-            "B{Is user logged in?}",
-            "C[Show login form]",
-            "D[Authenticate credentials]",
-            "E[Grant access]",
-            "F[Deny access]"
-        ])
-        edges.extend([
-            "A --> B",
-            "B -- No --> C",
-            "C --> D",
-            "D -- Valid --> E",
-            "D -- Invalid --> F",
-            "B -- Yes --> E"
-        ])
+        nodes.extend(
+            [
+                "A[Start]",
+                "B{Is user logged in?}",
+                "C[Show login form]",
+                "D[Authenticate credentials]",
+                "E[Grant access]",
+                "F[Deny access]",
+            ]
+        )
+        edges.extend(
+            [
+                "A --> B",
+                "B -- No --> C",
+                "C --> D",
+                "D -- Valid --> E",
+                "D -- Invalid --> F",
+                "B -- Yes --> E",
+            ]
+        )
     elif "approval" in desc_lower:
-        nodes.extend([
-            "A[Start]",
-            "B{Is approved?}",
-            "C[Request changes]",
-            "D[Proceed with work]",
-            "E[End]"
-        ])
-        edges.extend([
-            "A --> B",
-            "B -- No --> C",
-            "C --> B",
-            "B -- Yes --> D",
-            "D --> E"
-        ])
+        nodes.extend(
+            [
+                "A[Start]",
+                "B{Is approved?}",
+                "C[Request changes]",
+                "D[Proceed with work]",
+                "E[End]",
+            ]
+        )
+        edges.extend(
+            ["A --> B", "B -- No --> C", "C --> B", "B -- Yes --> D", "D --> E"]
+        )
     else:
         # Generic flowchart
         nodes = [
@@ -190,14 +193,9 @@ def _generate_flowchart(description: str) -> str:
             "B[Process Step 1]",
             "C[Process Step 2]",
             "D[Decision Point]",
-            "E[End]"
+            "E[End]",
         ]
-        edges = [
-            "A --> B",
-            "B --> C",
-            "C --> D",
-            "D --> E"
-        ]
+        edges = ["A --> B", "B --> C", "C --> D", "D --> E"]
 
     # Build Mermaid code
     code = f"flowchart {direction}\n"
@@ -298,11 +296,13 @@ def _generate_class_diagram(description: str) -> str:
 """
 
     # Add relationships
-    if "project" in desc_lower and ("wbe" in desc_lower or "work breakdown" in desc_lower):
-        code += "    Project \"1\" -- \"*\" WBE : contains\n"
+    if "project" in desc_lower and (
+        "wbe" in desc_lower or "work breakdown" in desc_lower
+    ):
+        code += '    Project "1" -- "*" WBE : contains\n'
 
     if "user" in desc_lower and "project" in desc_lower:
-        code += "    User \"1\" -- \"*\" Project : manages\n"
+        code += '    User "1" -- "*" Project : manages\n'
 
     return code
 

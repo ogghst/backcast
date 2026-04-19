@@ -18,6 +18,7 @@ class TestAnalysisTemplateExisting:
         """Test that the Analysis template can be imported without errors."""
         try:
             from app.ai.tools.templates import analysis_template
+
             assert analysis_template is not None
         except Exception as e:
             pytest.fail(f"Failed to import Analysis template: {e}")
@@ -55,5 +56,9 @@ class TestAnalysisTemplateExisting:
         for func_name in functions:
             func = getattr(analysis_template, func_name)
             # All should have _is_ai_tool attribute from decorator
-            assert hasattr(func, "_is_ai_tool"), f"{func_name} missing @ai_tool decorator"
-            assert func._is_ai_tool is True, f"{func_name} decorator not properly applied"
+            assert hasattr(func, "_is_ai_tool"), (
+                f"{func_name} missing @ai_tool decorator"
+            )
+            assert func._is_ai_tool is True, (
+                f"{func_name} decorator not properly applied"
+            )

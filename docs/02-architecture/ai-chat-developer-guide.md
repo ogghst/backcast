@@ -1235,7 +1235,7 @@ Search `backend/logs/app.log` for these markers to trace request flow:
    - → `[TOOL_FILTERING]` → `Agent created successfully` (only on cache miss)
    - → `on_tool_start` → `[SUBAGENT_DELEGATION]` or `[APPROVAL_*]`
    - → `on_tool_end` → `on_chat_model_stream` → `[CHAT_STREAM_COMPLETE]`
-4. **Check OpenTelemetry** if Jaeger is running (OTLP endpoint at `localhost:4317`)
+4. **Check OpenTelemetry** if Phoenix is running (OTLP endpoint at `localhost:6006`)
 
 ### Database Queries for Debugging
 
@@ -1285,20 +1285,18 @@ ORDER BY s.updated_at DESC;
 
 ### Telemetry Setup
 
-For distributed tracing with Jaeger:
+For AI observability with Arize Phoenix:
 
 ```bash
 # Set environment variables
-export OTLP_ENDPOINT=http://localhost:4317
+export OTEL_ENABLED=true
+export OTLP_ENDPOINT=http://localhost:6006/v1/traces
 export OTEL_CONSOLE_EXPORT=true  # Also log spans to console
 
-# Ensure Jaeger is running
-docker run -d --name jaeger \
-  -p 4317:4317 \
-  -p 16686:16686 \
-  jaegertracing/all-in-one:latest
+# Start Phoenix
+docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 
-# View traces at http://localhost:16686
+# View traces at http://localhost:6006
 ```
 
 ---

@@ -32,6 +32,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from langgraph.types import Command
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.subagents import (
@@ -121,7 +122,9 @@ class TestOrchestratorStructuredOutput:
     """T-102: Orchestrator applies with_structured_output() when schema defined."""
 
     @patch("app.ai.deep_agent_orchestrator.langchain_create_agent")
-    def test_applies_structured_output_wrapper(self, mock_create_agent: MagicMock) -> None:
+    def test_applies_structured_output_wrapper(
+        self, mock_create_agent: MagicMock
+    ) -> None:
         """Orchestrator calls with_structured_output() on runnable when schema defined."""
         # Setup mock
         mock_runnable = MagicMock()
@@ -152,10 +155,13 @@ class TestOrchestratorStructuredOutput:
 
         # Provide mock tools so the subagent doesn't get skipped
         from langchain_core.tools import StructuredTool
+
         mock_tool = MagicMock(spec=StructuredTool)
         mock_tool.name = "list_projects"
 
-        result = orchestrator._build_subagent_dicts(subagents, [mock_tool], allowed_tools=None)
+        result = orchestrator._build_subagent_dicts(
+            subagents, [mock_tool], allowed_tools=None
+        )
 
         # Verify with_structured_output was called
         mock_runnable.with_structured_output.assert_called_once_with(EVMMetricsRead)
@@ -193,10 +199,13 @@ class TestOrchestratorStructuredOutput:
 
         # Provide mock tools so the subagent doesn't get skipped
         from langchain_core.tools import StructuredTool
+
         mock_tool = MagicMock(spec=StructuredTool)
         mock_tool.name = "list_projects"
 
-        result = orchestrator._build_subagent_dicts(subagents, [mock_tool], allowed_tools=None)
+        result = orchestrator._build_subagent_dicts(
+            subagents, [mock_tool], allowed_tools=None
+        )
 
         # Verify with_structured_output was NOT called
         mock_runnable.with_structured_output.assert_not_called()
@@ -393,9 +402,7 @@ class TestStructuredOutputAttachment:
         mock_message.content = evm_model  # Pydantic model as content (not string)
 
         mock_runnable = MagicMock()
-        mock_runnable.invoke.return_value = {
-            "messages": [mock_message]
-        }
+        mock_runnable.invoke.return_value = {"messages": [mock_message]}
 
         subagents = [
             {
@@ -549,9 +556,7 @@ class TestAsyncPath:
         mock_message.content = evm_model  # Pydantic model as content (not string)
 
         mock_runnable = MagicMock()
-        mock_runnable.ainvoke = AsyncMock(
-            return_value={"messages": [mock_message]}
-        )
+        mock_runnable.ainvoke = AsyncMock(return_value={"messages": [mock_message]})
 
         subagents = [
             {
@@ -643,8 +648,9 @@ class TestMakeJsonSerializable:
         self, db_session: AsyncSession
     ) -> None:
         """ToolMessage with JSON string content is parsed correctly."""
-        from app.ai.agent_service import AgentService
         from langchain_core.messages import ToolMessage
+
+        from app.ai.agent_service import AgentService
 
         service = AgentService(db_session)
 
@@ -676,7 +682,7 @@ class TestMakeJsonSerializable:
         service = AgentService(db_session)
 
         # Test invalid JSON
-        invalid_json = '{this is not valid JSON'
+        invalid_json = "{this is not valid JSON"
         result = service._make_json_serializable(invalid_json)
 
         # Should return the string as-is

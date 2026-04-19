@@ -1,7 +1,7 @@
 """Integration tests for Project API endpoints."""
 
 from collections.abc import Generator
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -9,8 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from uuid import UUID
-
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
 from app.models.domain.user import User

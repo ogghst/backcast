@@ -21,11 +21,14 @@ mock_admin_user = User(
     created_by=uuid4(),
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 class MockRBACService(RBACServiceABC):
     """Mock RBAC service for API tests."""
@@ -38,6 +41,7 @@ class MockRBACService(RBACServiceABC):
 
     def get_user_permissions(self, user_role: str) -> list[str]:
         return ["*"]  # Admin has all permissions
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
@@ -54,6 +58,7 @@ def override_auth() -> Generator[None, None, None]:
     app.dependency_overrides = {}
     # Reset RBAC service to prevent test pollution
     set_rbac_service(None)
+
 
 @pytest.mark.asyncio
 async def test_getting_ai_tools_list_returns_valid_schemas(

@@ -51,7 +51,9 @@ def mock_slow_llm_with_tool_call():
         await asyncio.sleep(0.1)  # 100ms LLM delay
         return AIMessage(
             content="",
-            tool_calls=[{"name": "complex_tool", "args": {"query": "complex"}, "id": "1"}],
+            tool_calls=[
+                {"name": "complex_tool", "args": {"query": "complex"}, "id": "1"}
+            ],
         )
 
     llm = MagicMock()
@@ -129,9 +131,9 @@ async def test_simple_tool_execution_p50(mock_fast_llm_with_tool_call, simple_to
     assert len(tool_messages) > 0, "Tool should have been executed"
 
     # Performance assertion
-    assert (
-        latency_ms < SIMPLE_TOOL_TARGET_P50
-    ), f"Simple tool execution latency {latency_ms:.2f}ms exceeds target {SIMPLE_TOOL_TARGET_P50}ms"
+    assert latency_ms < SIMPLE_TOOL_TARGET_P50, (
+        f"Simple tool execution latency {latency_ms:.2f}ms exceeds target {SIMPLE_TOOL_TARGET_P50}ms"
+    )
 
     # Log for reporting
     print(
@@ -143,7 +145,9 @@ async def test_simple_tool_execution_p50(mock_fast_llm_with_tool_call, simple_to
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
-async def test_simple_tool_execution_percentiles(mock_fast_llm_with_tool_call, simple_tool):
+async def test_simple_tool_execution_percentiles(
+    mock_fast_llm_with_tool_call, simple_tool
+):
     """Benchmark: Measure simple tool execution latency across multiple runs.
 
     Runs the simple tool benchmark 50 times to calculate p50, p95, and p99
@@ -171,7 +175,9 @@ async def test_simple_tool_execution_percentiles(mock_fast_llm_with_tool_call, s
     latencies = []
 
     for i in range(iterations):
-        iter_config = {"configurable": {"thread_id": f"perf-test-simple-tool-percentiles-{i}"}}
+        iter_config = {
+            "configurable": {"thread_id": f"perf-test-simple-tool-percentiles-{i}"}
+        }
         start_time = time.perf_counter()
         await graph.ainvoke(initial_state, config=iter_config)
         end_time = time.perf_counter()
@@ -184,9 +190,7 @@ async def test_simple_tool_execution_percentiles(mock_fast_llm_with_tool_call, s
     p99 = latencies_sorted[int(len(latencies_sorted) * 0.99)]
 
     # Assert
-    assert (
-        p50 < 150
-    ), f"p50 latency {p50:.2f}ms exceeds target 150ms"
+    assert p50 < 150, f"p50 latency {p50:.2f}ms exceeds target 150ms"
     assert p95 < 200, f"p95 latency {p95:.2f}ms exceeds target 200ms"
     assert p99 < 250, f"p99 latency {p99:.2f}ms exceeds target 250ms"
 
@@ -236,9 +240,9 @@ async def test_complex_tool_execution_p50(mock_slow_llm_with_tool_call, complex_
     assert len(tool_messages) > 0, "Tool should have been executed"
 
     # Performance assertion
-    assert (
-        latency_ms < COMPLEX_TOOL_TARGET_P50
-    ), f"Complex tool execution latency {latency_ms:.2f}ms exceeds target {COMPLEX_TOOL_TARGET_P50}ms"
+    assert latency_ms < COMPLEX_TOOL_TARGET_P50, (
+        f"Complex tool execution latency {latency_ms:.2f}ms exceeds target {COMPLEX_TOOL_TARGET_P50}ms"
+    )
 
     # Log for reporting
     print(
@@ -258,6 +262,7 @@ async def test_tool_chaining_performance(simple_tool):
 
     Target: Each additional tool should add <100ms overhead
     """
+
     # Arrange - Create tools for chaining
     @tool
     async def tool_a(input: str) -> str:
@@ -291,7 +296,9 @@ async def test_tool_chaining_performance(simple_tool):
         elif tool_call_count == 1:
             return AIMessage(
                 content="",
-                tool_calls=[{"name": "tool_b", "args": {"input": "continue"}, "id": "2"}],
+                tool_calls=[
+                    {"name": "tool_b", "args": {"input": "continue"}, "id": "2"}
+                ],
             )
         elif tool_call_count == 2:
             return AIMessage(
@@ -324,7 +331,9 @@ async def test_tool_chaining_performance(simple_tool):
 
     # Assert - All tools should have executed
     tool_messages = [msg for msg in result["messages"] if isinstance(msg, ToolMessage)]
-    assert len(tool_messages) == 3, f"Expected 3 tool executions, got {len(tool_messages)}"
+    assert len(tool_messages) == 3, (
+        f"Expected 3 tool executions, got {len(tool_messages)}"
+    )
 
     # Performance assertion
     # 3 tools with ~10ms each = ~30ms, plus graph overhead
@@ -350,10 +359,12 @@ async def test_concurrent_tool_execution(simple_tool):
     # Arrange - Create multiple tools
     tools = []
     for i in range(10):
+
         async def tool_func(input: str, index: int = i) -> str:
             """Tool function for concurrent execution test."""
             await asyncio.sleep(0.01)
             return f"Tool {index}: {input}"
+
         tool_func.__name__ = f"tool_{i}"
         tools.append(tool(tool_func))
 
@@ -460,7 +471,9 @@ async def test_tool_context_injection_overhead():
     async def inject_context():
         # Simulate context creation
         mock_session = MagicMock(spec=AsyncSession)
-        context = ToolContext(session=mock_session, user_id="test-user", user_role="admin")
+        context = ToolContext(
+            session=mock_session, user_id="test-user", user_role="admin"
+        )
         return context
 
     iterations = 100

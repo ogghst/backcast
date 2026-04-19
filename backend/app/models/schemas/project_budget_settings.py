@@ -54,12 +54,8 @@ class BudgetWarning(BaseModel):
     exceeds_threshold: bool = Field(
         ..., description="Whether the cost exceeds the warning threshold"
     )
-    threshold_percent: Decimal = Field(
-        ..., description="Warning threshold percentage"
-    )
-    current_percent: Decimal = Field(
-        ..., description="Current budget usage percentage"
-    )
+    threshold_percent: Decimal = Field(..., description="Warning threshold percentage")
+    current_percent: Decimal = Field(..., description="Current budget usage percentage")
     message: str = Field(..., description="Human-readable warning message")
 
 
@@ -69,16 +65,10 @@ class BudgetExceededError(BaseModel):
     cost_element_id: UUID = Field(
         ..., description="Cost element that would exceed budget"
     )
-    budget: Decimal = Field(
-        ..., description="Cost element budget amount"
-    )
-    used: Decimal = Field(
-        ..., description="Current total spend on this cost element"
-    )
+    budget: Decimal = Field(..., description="Cost element budget amount")
+    used: Decimal = Field(..., description="Current total spend on this cost element")
     projected: Decimal = Field(
         ..., description="Projected total after new registration"
     )
-    over_by: Decimal = Field(
-        ..., description="Amount over budget"
-    )
+    over_by: Decimal = Field(..., description="Amount over budget")
     message: str = Field(..., description="Human-readable error message")

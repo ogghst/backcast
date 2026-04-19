@@ -26,7 +26,7 @@ from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 # Skip tests that require actual API access if no API key is set
 needs_api_key = pytest.mark.skipif(
     not os.environ.get("OPENAI_API_KEY"),
-    reason="Requires OPENAI_API_KEY environment variable"
+    reason="Requires OPENAI_API_KEY environment variable",
 )
 
 
@@ -187,7 +187,9 @@ async def test_backcast_security_middleware_check_risk_high_safe_mode(tool_conte
 
 
 @pytest.mark.asyncio
-async def test_backcast_security_middleware_check_risk_critical_standard_mode(tool_context):
+async def test_backcast_security_middleware_check_risk_critical_standard_mode(
+    tool_context,
+):
     """Test that critical tools are blocked in standard mode."""
     mock_tool = MagicMock()
     mock_tool.name = "critical_tool"
@@ -204,7 +206,9 @@ async def test_backcast_security_middleware_check_risk_critical_standard_mode(to
 
 
 @pytest.mark.asyncio
-async def test_backcast_security_middleware_check_risk_critical_expert_mode(tool_context):
+async def test_backcast_security_middleware_check_risk_critical_expert_mode(
+    tool_context,
+):
     """Test that critical tools are allowed in expert mode."""
     mock_tool = MagicMock()
     mock_tool.name = "critical_tool"
@@ -245,7 +249,6 @@ async def test_temporal_context_middleware_inject_temporal_context(tool_context)
     assert result["branch_name"] == "feature-branch"
     assert result["branch_mode"] == "isolated"
     assert result["project_id"] == "project-123"
-
 
 
 @pytest.mark.asyncio
@@ -337,7 +340,6 @@ async def test_subagents_get_by_name_not_found():
     assert result is None
 
 
-
 @pytest.mark.asyncio
 async def test_deep_agent_sdk_tools_always_allowed(tool_context):
     """Test that Deep Agents SDK built-in tools are always allowed by security middleware."""
@@ -356,7 +358,9 @@ async def test_deep_agent_sdk_tools_always_allowed(tool_context):
 
         # Risk check should pass (external tool)
         allowed, risk_error = middleware._check_risk_level(tool_name)
-        assert allowed is True, f"Deep Agent SDK tool {tool_name} should pass risk check"
+        assert allowed is True, (
+            f"Deep Agent SDK tool {tool_name} should pass risk check"
+        )
         assert risk_error is None
 
 
@@ -384,7 +388,6 @@ async def test_task_tool_allowed(tool_context):
     assert error is None, "task tool should be allowed"
 
 
-
 # ---------------------------------------------------------------------------
 # Migration tests (deepagents -> langchain.agents)
 # ---------------------------------------------------------------------------
@@ -410,7 +413,9 @@ async def test_no_deepagents_imports_in_app_code():
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_create_agent_returns_compiled_graph(model_string, tool_context):
+async def test_orchestrator_create_agent_returns_compiled_graph(
+    model_string, tool_context
+):
     """T-002: Mock langchain_create_agent and verify create_agent() returns compiled graph.
 
     Tests both with and without subagents to ensure the orchestrator correctly
@@ -423,7 +428,10 @@ async def test_orchestrator_create_agent_returns_compiled_graph(model_string, to
 
     mock_compiled_graph = MagicMock(name="CompiledStateGraph")
 
-    with patch("app.ai.deep_agent_orchestrator.langchain_create_agent", return_value=mock_compiled_graph) as mock_create:
+    with patch(
+        "app.ai.deep_agent_orchestrator.langchain_create_agent",
+        return_value=mock_compiled_graph,
+    ) as mock_create:
         # --- with subagents enabled ---
         orchestrator = DeepAgentOrchestrator(
             model=model_string,
@@ -453,7 +461,9 @@ async def test_orchestrator_create_agent_returns_compiled_graph(model_string, to
 
 
 @pytest.mark.asyncio
-async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(model_string, tool_context):
+async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(
+    model_string, tool_context
+):
     """T-008: Verify TodoListMiddleware provides write_todos tool to main agent.
 
     When subagents are enabled, the main agent should have access to the
@@ -464,7 +474,10 @@ async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(mod
 
     mock_compiled_graph = MagicMock()
 
-    with patch("app.ai.deep_agent_orchestrator.langchain_create_agent", return_value=mock_compiled_graph) as mock_create:
+    with patch(
+        "app.ai.deep_agent_orchestrator.langchain_create_agent",
+        return_value=mock_compiled_graph,
+    ) as mock_create:
         orchestrator = DeepAgentOrchestrator(
             model=model_string,
             context=tool_context,
@@ -499,7 +512,10 @@ async def test_subagent_dicts_have_required_keys(model_string, tool_context):
     )
 
     mock_compiled_graph = MagicMock()
-    with patch("app.ai.deep_agent_orchestrator.langchain_create_agent", return_value=mock_compiled_graph):
+    with patch(
+        "app.ai.deep_agent_orchestrator.langchain_create_agent",
+        return_value=mock_compiled_graph,
+    ):
         # Calling create_agent will trigger _build_subagent_dicts internally
         orchestrator.create_agent()
 
@@ -510,13 +526,21 @@ async def test_subagent_dicts_have_required_keys(model_string, tool_context):
     for config in subagent_configs:
         # The raw configs have: name, description, system_prompt, allowed_tools
         assert "name" in config, f"Subagent missing 'name': {config}"
-        assert "description" in config, f"Subagent {config.get('name')} missing 'description'"
-        assert "system_prompt" in config, f"Subagent {config.get('name')} missing 'system_prompt'"
-        assert "allowed_tools" in config, f"Subagent {config.get('name')} missing 'allowed_tools'"
+        assert "description" in config, (
+            f"Subagent {config.get('name')} missing 'description'"
+        )
+        assert "system_prompt" in config, (
+            f"Subagent {config.get('name')} missing 'system_prompt'"
+        )
+        assert "allowed_tools" in config, (
+            f"Subagent {config.get('name')} missing 'allowed_tools'"
+        )
 
 
 @pytest.mark.asyncio
-async def test_subagent_token_streaming_through_parent_astream_events(model_string, tool_context):
+async def test_subagent_token_streaming_through_parent_astream_events(
+    model_string, tool_context
+):
     """T-004: Verify event propagation infrastructure for subagent token streaming.
 
     Tests that the ToolRuntime pattern correctly wires up stream_writer and
@@ -531,12 +555,18 @@ async def test_subagent_token_streaming_through_parent_astream_events(model_stri
 
     # Create a mock subagent with astream_events
     mock_runnable = MagicMock()
-    mock_runnable.invoke = MagicMock(return_value={"messages": [AIMessage(content="streamed result")]})
-    mock_runnable.ainvoke = AsyncMock(return_value={"messages": [AIMessage(content="streamed result")]})
+    mock_runnable.invoke = MagicMock(
+        return_value={"messages": [AIMessage(content="streamed result")]}
+    )
+    mock_runnable.ainvoke = AsyncMock(
+        return_value={"messages": [AIMessage(content="streamed result")]}
+    )
     mock_runnable.astream_events = MagicMock(return_value=AsyncMock())
 
     # Verify the mock subagent has the astream_events method (the real compiled graphs do)
-    assert hasattr(mock_runnable, "astream_events"), "Compiled subagent must have astream_events"
+    assert hasattr(mock_runnable, "astream_events"), (
+        "Compiled subagent must have astream_events"
+    )
 
     # Build task tool with the mock subagent
     subagents = [
@@ -570,20 +600,26 @@ async def test_subagent_token_streaming_through_parent_astream_events(model_stri
     )
 
     # Invoke synchronously to verify state is passed through
-    task_tool.invoke({
-        "description": "Test streaming",
-        "subagent_type": "streaming_test_agent",
-        "runtime": runtime,
-    })
+    task_tool.invoke(
+        {
+            "description": "Test streaming",
+            "subagent_type": "streaming_test_agent",
+            "runtime": runtime,
+        }
+    )
 
     # Verify the subagent was invoked with parent state (minus excluded keys)
     mock_runnable.invoke.assert_called_once()
     call_state = mock_runnable.invoke.call_args[0][0]
-    assert call_state["custom_data"] == "from_parent", "Parent state should pass through to subagent"
+    assert call_state["custom_data"] == "from_parent", (
+        "Parent state should pass through to subagent"
+    )
 
     # Verify astream_events is available on the subagent runnable
     # (real compiled graphs expose this for token streaming through parent)
-    assert callable(mock_runnable.astream_events), "Subagent must support astream_events for token streaming"
+    assert callable(mock_runnable.astream_events), (
+        "Subagent must support astream_events for token streaming"
+    )
 
 
 # Run tests with: uv run pytest tests/ai/test_deep_agents_integration.py -v

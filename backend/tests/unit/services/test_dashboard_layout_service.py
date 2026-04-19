@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.dashboard_layout_service import DashboardLayoutService
 
-
 # ---------------------------------------------------------------------------
 # Fixture
 # ---------------------------------------------------------------------------
@@ -90,9 +89,7 @@ class TestGetForUserProject:
         user_b = uuid4()
 
         await service.create(user_id=user_a, name="User A Layout")
-        await service.create(
-            user_id=user_a, name="User A Template", is_template=True
-        )
+        await service.create(user_id=user_a, name="User A Template", is_template=True)
         await service.create(user_id=user_b, name="User B Layout")
 
         result = await service.get_for_user_project(user_a)
@@ -126,9 +123,7 @@ class TestGetForUserProject:
         other_project_id = uuid4()
 
         await service.create(user_id=user_id, name="Global")
-        await service.create(
-            user_id=user_id, name="Project A", project_id=project_id
-        )
+        await service.create(user_id=user_id, name="Project A", project_id=project_id)
         await service.create(
             user_id=user_id, name="Project B", project_id=other_project_id
         )
@@ -170,9 +165,7 @@ class TestGetDefaultForUserProject:
         """Returns None if the user has no default layout for the project."""
         user_id = uuid4()
         project_id = uuid4()
-        await service.create(
-            user_id=user_id, name="Not Default", project_id=project_id
-        )
+        await service.create(user_id=user_id, name="Not Default", project_id=project_id)
 
         result = await service.get_default_for_user_project(user_id, project_id)
         assert result is None
@@ -185,9 +178,7 @@ class TestGetDefaultForUserProject:
         user_id = uuid4()
         project_id = uuid4()
 
-        await service.create(
-            user_id=user_id, name="Regular", project_id=project_id
-        )
+        await service.create(user_id=user_id, name="Regular", project_id=project_id)
         default_layout = await service.create(
             user_id=user_id,
             name="Default",
@@ -267,12 +258,8 @@ class TestGetTemplates:
         """Returns layouts with is_template=True only."""
         user_id = uuid4()
         await service.create(user_id=user_id, name="Regular")
-        await service.create(
-            user_id=user_id, name="Template A", is_template=True
-        )
-        await service.create(
-            user_id=user_id, name="Template B", is_template=True
-        )
+        await service.create(user_id=user_id, name="Template A", is_template=True)
+        await service.create(user_id=user_id, name="Template B", is_template=True)
 
         result = await service.get_templates()
         assert len(result) == 2
@@ -285,12 +272,8 @@ class TestGetTemplates:
     ) -> None:
         """Templates are returned ordered alphabetically by name."""
         user_id = uuid4()
-        await service.create(
-            user_id=user_id, name="Zebra Template", is_template=True
-        )
-        await service.create(
-            user_id=user_id, name="Alpha Template", is_template=True
-        )
+        await service.create(user_id=user_id, name="Zebra Template", is_template=True)
+        await service.create(user_id=user_id, name="Alpha Template", is_template=True)
 
         result = await service.get_templates()
         assert result[0].name == "Alpha Template"
@@ -410,9 +393,7 @@ class TestCreate:
             project_id=project_id,
             is_default=True,
         )
-        await service.create(
-            user_id=user_id, name="Global Default", is_default=True
-        )
+        await service.create(user_id=user_id, name="Global Default", is_default=True)
 
         await service.session.flush()
         await service.session.refresh(project_default)
@@ -428,22 +409,16 @@ class TestUpdate:
     """Tests for DashboardLayoutService.update."""
 
     @pytest.mark.asyncio
-    async def test_updates_name(
-        self, service: DashboardLayoutService
-    ) -> None:
+    async def test_updates_name(self, service: DashboardLayoutService) -> None:
         """Update changes the name field."""
         user_id = uuid4()
         layout = await service.create(user_id=user_id, name="Original")
 
-        updated = await service.update(
-            layout.id, user_id, name="Updated"
-        )
+        updated = await service.update(layout.id, user_id, name="Updated")
         assert updated.name == "Updated"
 
     @pytest.mark.asyncio
-    async def test_updates_widgets(
-        self, service: DashboardLayoutService
-    ) -> None:
+    async def test_updates_widgets(self, service: DashboardLayoutService) -> None:
         """Update replaces the widgets array."""
         user_id = uuid4()
         layout = await service.create(
@@ -454,9 +429,7 @@ class TestUpdate:
             {"typeId": "evm-summary"},
             {"typeId": "variance-chart"},
         ]
-        updated = await service.update(
-            layout.id, user_id, widgets=new_widgets
-        )
+        updated = await service.update(layout.id, user_id, widgets=new_widgets)
         assert updated.widgets == new_widgets
 
     @pytest.mark.asyncio
@@ -528,18 +501,14 @@ class TestUpdateTemplate:
     """Tests for DashboardLayoutService.update_template (admin-only)."""
 
     @pytest.mark.asyncio
-    async def test_updates_template_name(
-        self, service: DashboardLayoutService
-    ) -> None:
+    async def test_updates_template_name(self, service: DashboardLayoutService) -> None:
         """update_template changes fields on a template layout."""
         owner = uuid4()
         template = await service.create(
             user_id=owner, name="Original Template", is_template=True
         )
 
-        updated = await service.update_template(
-            template.id, name="Updated Template"
-        )
+        updated = await service.update_template(template.id, name="Updated Template")
         assert updated.name == "Updated Template"
 
     @pytest.mark.asyncio
@@ -641,9 +610,7 @@ class TestDelete:
         await service.delete(default_layout.id, user_id)
 
         # Check that 'Backup' was auto-promoted
-        new_default = await service.get_default_for_user_project(
-            user_id, project_id
-        )
+        new_default = await service.get_default_for_user_project(user_id, project_id)
         assert new_default is not None
         assert new_default.name == "Backup"
         assert new_default.is_default is True
@@ -712,16 +679,12 @@ class TestCloneTemplate:
         assert cloned.widgets == widgets
 
     @pytest.mark.asyncio
-    async def test_clone_with_project_id(
-        self, service: DashboardLayoutService
-    ) -> None:
+    async def test_clone_with_project_id(self, service: DashboardLayoutService) -> None:
         """Clone accepts an optional project_id."""
         user_id = uuid4()
         project_id = uuid4()
 
-        template = await service.create(
-            user_id=user_id, name="T", is_template=True
-        )
+        template = await service.create(user_id=user_id, name="T", is_template=True)
         cloned = await service.clone_template(template.id, user_id, project_id)
 
         assert cloned.project_id == project_id
@@ -794,9 +757,7 @@ class TestSeedTemplates:
             assert template.is_template is True
 
     @pytest.mark.asyncio
-    async def test_idempotent_seeding(
-        self, service: DashboardLayoutService
-    ) -> None:
+    async def test_idempotent_seeding(self, service: DashboardLayoutService) -> None:
         """Calling seed twice does not create duplicates."""
         system_user = uuid4()
         first_count = await service.seed_templates(system_user)

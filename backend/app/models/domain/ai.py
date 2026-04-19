@@ -177,10 +177,16 @@ class AIConversationSession(SimpleEntityBase):
         PG_UUID, nullable=True, index=True, comment="Optional project context"
     )
     branch_id: Mapped[str | None] = mapped_column(
-        PG_UUID, nullable=True, index=True, comment="Optional branch or change order context"
+        PG_UUID,
+        nullable=True,
+        index=True,
+        comment="Optional branch or change order context",
     )
     context: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB(), nullable=False, default={"type": "general"}, comment="Session context (type, id, name)"
+        JSONB(),
+        nullable=False,
+        default={"type": "general"},
+        comment="Session context (type, id, name)",
     )
     active_execution_id: Mapped[str | None] = mapped_column(
         PG_UUID,
@@ -235,7 +241,9 @@ class AIConversationMessage(SimpleEntityBase):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tool_calls: Mapped[dict[str, Any] | None] = mapped_column(JSONB(), nullable=True)
     tool_results: Mapped[dict[str, Any] | None] = mapped_column(JSONB(), nullable=True)
-    message_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB(), nullable=True)
+    message_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB(), nullable=True
+    )
 
     # Relationships
     session: Mapped["AIConversationSession"] = relationship(
@@ -259,6 +267,7 @@ class AIConversationAttachment(SimpleEntityBase):
     (images, PDFs, CSVs, etc.). File content is stored directly in the
     database as extracted text or base64-encoded image data.
     """
+
     __tablename__ = "ai_conversation_attachments"
 
     message_id: Mapped[str] = mapped_column(
@@ -302,9 +311,7 @@ class AIAgentExecution(SimpleEntityBase):
         nullable=False,
         index=True,
     )
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="running"
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
     started_at: Mapped[str] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -315,12 +322,8 @@ class AIAgentExecution(SimpleEntityBase):
     execution_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, default="standard"
     )
-    total_tokens: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
-    tool_calls_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tool_calls_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Relationships
     session: Mapped["AIConversationSession"] = relationship(

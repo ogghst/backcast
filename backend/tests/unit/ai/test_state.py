@@ -31,7 +31,9 @@ class TestAgentState:
 
     def test_agentstate_has_next_field(self) -> None:
         """Test that AgentState has a next field."""
-        state = AgentState(messages=[], tool_call_count=0, max_tool_iterations=5, next="agent")
+        state = AgentState(
+            messages=[], tool_call_count=0, max_tool_iterations=5, next="agent"
+        )
         assert "next" in state
         assert state["next"] == "agent"
 
@@ -39,7 +41,9 @@ class TestAgentState:
         """Test that AgentState accepts valid next values."""
         valid_values = ["agent", "tools", "end"]
         for value in valid_values:
-            state = AgentState(messages=[], tool_call_count=0, max_tool_iterations=5, next=value)
+            state = AgentState(
+                messages=[], tool_call_count=0, max_tool_iterations=5, next=value
+            )
             assert state["next"] == value
 
     def test_agentstate_messages_append_behavior(self) -> None:

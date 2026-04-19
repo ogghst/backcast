@@ -78,9 +78,7 @@ async def client(
         return MockRBACService()
 
     app.dependency_overrides[get_current_user] = override_get_current_user
-    app.dependency_overrides[get_current_active_user] = (
-        override_get_current_active_user
-    )
+    app.dependency_overrides[get_current_active_user] = override_get_current_active_user
     app.dependency_overrides[get_rbac_service] = override_get_rbac_service
     app.dependency_overrides[get_db] = lambda: db_session
 
@@ -271,9 +269,7 @@ async def test_get_dashboard_recent_activity_limit(
     await db_session.commit()
 
     # Get dashboard data with limit
-    response = await client.get(
-        "/api/v1/dashboard/recent-activity?activity_limit=3"
-    )
+    response = await client.get("/api/v1/dashboard/recent-activity?activity_limit=3")
     assert response.status_code == 200
 
     data = response.json()

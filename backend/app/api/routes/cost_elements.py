@@ -177,14 +177,19 @@ async def read_cost_element(
         as_of = datetime.now(tz=UTC)
 
     from app.core.versioning.enums import BranchMode
+
     branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     if as_of:
         # Time travel query
-        item = await service.get_cost_element_as_of(cost_element_id, as_of, branch=branch, branch_mode=branch_mode)
+        item = await service.get_cost_element_as_of(
+            cost_element_id, as_of, branch=branch, branch_mode=branch_mode
+        )
     else:
         # Current version
-        item = await service.get_by_id(cost_element_id, branch=branch, branch_mode=branch_mode)
+        item = await service.get_by_id(
+            cost_element_id, branch=branch, branch_mode=branch_mode
+        )
 
     if not item:
         raise HTTPException(

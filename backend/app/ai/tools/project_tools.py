@@ -95,7 +95,9 @@ async def list_projects(
         from app.core.versioning.enums import BranchMode
 
         branch = context.branch_name or "main"
-        branch_mode = BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+        branch_mode = (
+            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+        )
 
         # Auto-scope to project if project_id is set in context
         # When in project-scoped chat, automatically filter to that project
@@ -208,7 +210,9 @@ async def get_project(
 
         # Use temporal parameters from context
         branch = context.branch_name or "main"
-        branch_mode = BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+        branch_mode = (
+            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+        )
 
         # Use get_as_of to support temporal queries
         project = await context.project_service.get_as_of(

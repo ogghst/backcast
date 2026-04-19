@@ -78,9 +78,7 @@ class ToolRegistry:
         ]
 
     def as_langchain_tools(
-        self,
-        context: ToolContext,
-        permissions: list[str] | None = None
+        self, context: ToolContext, permissions: list[str] | None = None
     ) -> list[BaseTool]:
         """Convert registered tools to LangChain BaseTool instances.
 
@@ -185,8 +183,7 @@ def get_tools_by_category(category: str) -> list[ToolMetadata]:
 
 
 def as_langchain_tools(
-    context: ToolContext,
-    permissions: list[str] | None = None
+    context: ToolContext, permissions: list[str] | None = None
 ) -> list[BaseTool]:
     """Get all tools as LangChain BaseTool instances.
 

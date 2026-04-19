@@ -73,15 +73,19 @@ def format_temporal_range_for_api(
 
     # Handle PostgreSQL range object (with .lower and .upper attributes)
     if hasattr(range_value, "lower") and range_value.lower:
-        lower_dt = datetime.fromisoformat(
-            range_value.lower.isoformat()
-        ) if isinstance(range_value.lower, datetime) else range_value.lower
+        lower_dt = (
+            datetime.fromisoformat(range_value.lower.isoformat())
+            if isinstance(range_value.lower, datetime)
+            else range_value.lower
+        )
 
         upper_dt = None
         if hasattr(range_value, "upper") and range_value.upper:
-            upper_dt = datetime.fromisoformat(
-                range_value.upper.isoformat()
-            ) if isinstance(range_value.upper, datetime) else range_value.upper
+            upper_dt = (
+                datetime.fromisoformat(range_value.upper.isoformat())
+                if isinstance(range_value.upper, datetime)
+                else range_value.upper
+            )
 
         return {
             "lower": lower_dt.isoformat(),
@@ -122,7 +126,7 @@ def _parse_postgresql_range_string(range_str: str) -> dict[str, str | bool | Non
         # Extract upper bound (after comma, before closing bracket)
         # PostgreSQL ranges can end with ) for exclusive or ] for inclusive
         # Also handle case where range might be followed by ] (JSON array)
-        upper_str = range_str[comma_index + 1:].strip()
+        upper_str = range_str[comma_index + 1 :].strip()
 
         # Find the actual closing bracket (either ) or ])
         if upper_str.endswith(")]"):
@@ -148,9 +152,9 @@ def _parse_postgresql_range_string(range_str: str) -> dict[str, str | bool | Non
             "lower": lower_dt.isoformat() if lower_dt else None,
             "upper": upper_dt.isoformat() if upper_dt else None,
             "lower_formatted": _format_datetime(lower_dt) if lower_dt else "Unknown",
-            "upper_formatted": "Present" if is_unbounded else (
-                _format_datetime(upper_dt) if upper_dt else "Unknown"
-            ),
+            "upper_formatted": "Present"
+            if is_unbounded
+            else (_format_datetime(upper_dt) if upper_dt else "Unknown"),
             "is_currently_valid": is_unbounded,
         }
     except (ValueError, IndexError):

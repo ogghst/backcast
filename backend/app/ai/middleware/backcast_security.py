@@ -35,8 +35,8 @@ _current_context: contextvars.ContextVar[ToolContext | None] = contextvars.Conte
 
 # Context variable to store the current InterruptNode for this async context
 # This allows the middleware to interact with the approval system
-_current_interrupt_node: contextvars.ContextVar[InterruptNode | None] = contextvars.ContextVar(
-    "_current_interrupt_node", default=None
+_current_interrupt_node: contextvars.ContextVar[InterruptNode | None] = (
+    contextvars.ContextVar("_current_interrupt_node", default=None)
 )
 
 
@@ -136,7 +136,11 @@ class BackcastSecurityMiddleware(AgentMiddleware):
 
         if not allowed:
             # If not allowed, return error (this handles both risk blocks and rejections)
-            error_content = risk_error if isinstance(risk_error, str) else "Tool execution not allowed"
+            error_content = (
+                risk_error
+                if isinstance(risk_error, str)
+                else "Tool execution not allowed"
+            )
             tool_call_duration_ms = (time.time() - tool_call_start) * 1000
             logger.info(
                 f"[TOOL_CALL_EXIT] awrap_tool_call | "
@@ -145,10 +149,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                 f"status=denied | "
                 f"error={error_content[:100]}"
             )
-            return ToolMessage(
-                content=error_content,
-                tool_call_id=tool_id
-            )
+            return ToolMessage(content=error_content, tool_call_id=tool_id)
 
         # 3. Store context in context variable for tool to retrieve
         # This avoids putting non-serializable objects (AsyncSession) in the state
@@ -226,7 +227,9 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         # This handles external tools like Deep Agents SDK built-in tools (write_todos, task)
         # These tools have their own security and don't need Backcast-specific checks
         if tool is None:
-            logger.debug(f"Tool '{tool_name}' not in Backcast tools list, allowing as external tool")
+            logger.debug(
+                f"Tool '{tool_name}' not in Backcast tools list, allowing as external tool"
+            )
             return None
 
         # Get tool metadata
@@ -255,7 +258,11 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                         from uuid import UUID
 
                         try:
-                            project_uuid = UUID(project_id) if isinstance(project_id, str) else project_id
+                            project_uuid = (
+                                UUID(project_id)
+                                if isinstance(project_id, str)
+                                else project_id
+                            )
                             user_uuid = UUID(ctx.user_id)
 
                             has_access = await rbac_service.has_project_access(
@@ -324,7 +331,9 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         # This handles external tools like Deep Agents SDK built-in tools (write_todos, task)
         # These tools have their own security and don't need Backcast-specific risk checks
         if tool is None:
-            logger.debug(f"Tool '{tool_name}' not in Backcast tools list, allowing as external tool")
+            logger.debug(
+                f"Tool '{tool_name}' not in Backcast tools list, allowing as external tool"
+            )
             return True, None
 
         # Get tool metadata
@@ -342,22 +351,26 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         mode = ctx.execution_mode
 
         # DEBUG: Log execution mode and risk level
-        logger.info(f"RISK_CHECK: tool='{tool_name}', mode={mode.value}, risk_level={risk_level.value}")
+        logger.info(
+            f"RISK_CHECK: tool='{tool_name}', mode={mode.value}, risk_level={risk_level.value}"
+        )
 
         if mode == ExecutionMode.SAFE:
             if risk_level != RiskLevel.LOW:
-                logger.warning(f"BLOCKING tool '{tool_name}' in SAFE mode (risk_level={risk_level.value})")
+                logger.warning(
+                    f"BLOCKING tool '{tool_name}' in SAFE mode (risk_level={risk_level.value})"
+                )
                 return (
                     False,
                     f"Tool '{tool_name}' requires {risk_level.value} risk level. "
-                    f"Safe mode only allows low-risk tools."
+                    f"Safe mode only allows low-risk tools.",
                 )
         elif mode == ExecutionMode.STANDARD:
             if risk_level == RiskLevel.CRITICAL:
                 return (
                     False,
                     f"Tool '{tool_name}' has critical risk level. "
-                    f"Standard mode blocks critical tools. Switch to expert mode."
+                    f"Standard mode blocks critical tools. Switch to expert mode.",
                 )
         # Expert mode allows all tools
 
@@ -420,13 +433,15 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         # Check if we need approval (HIGH in STANDARD mode)
         mode = ctx.execution_mode
         needs_approval = (
-            risk_level >= RiskLevel.HIGH and
-            mode == ExecutionMode.STANDARD and
-            interrupt_node is not None
+            risk_level >= RiskLevel.HIGH
+            and mode == ExecutionMode.STANDARD
+            and interrupt_node is not None
         )
 
         if needs_approval:
-            logger.info(f"APPROVAL_NEEDED: tool='{tool_name}', risk_level={risk_level.value}")
+            logger.info(
+                f"APPROVAL_NEEDED: tool='{tool_name}', risk_level={risk_level.value}"
+            )
 
             # Ensure interrupt_node is not None
             if interrupt_node is None:
@@ -473,7 +488,12 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                         raise asyncio.CancelledError()
 
                     # Check if WebSocket is still connected - user cannot approve if disconnected
-                    if interrupt_node.websocket and not interrupt_node._is_websocket_connected(interrupt_node.websocket):
+                    if (
+                        interrupt_node.websocket
+                        and not interrupt_node._is_websocket_connected(
+                            interrupt_node.websocket
+                        )
+                    ):
                         waited_seconds = time.time() - polling_start_time
                         logger.warning(
                             f"[APPROVAL_WEBSOCKET_DISCONNECTED] _check_risk_level_with_approval | "
@@ -481,7 +501,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                             f"tool_name={tool_name} | "
                             f"waited_seconds={waited_seconds:.2f}"
                         )
-                        return False, "WebSocket connection lost. Approval request cancelled. Please reconnect and try again."
+                        return (
+                            False,
+                            "WebSocket connection lost. Approval request cancelled. Please reconnect and try again.",
+                        )
 
                     await asyncio.sleep(poll_interval)
 
@@ -490,7 +513,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
 
                     # Send heartbeat to keep WebSocket connection alive
                     # Prevents connection timeout due to inactivity (typically 20-30 seconds)
-                    if elapsed_seconds - (last_heartbeat_time - polling_start_time) >= heartbeat_interval:
+                    if (
+                        elapsed_seconds - (last_heartbeat_time - polling_start_time)
+                        >= heartbeat_interval
+                    ):
                         remaining = max_wait_time - elapsed_seconds
                         await interrupt_node._send_heartbeat(
                             approval_id=approval_id,
@@ -499,7 +525,9 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                         )
                         last_heartbeat_time = time.time()
 
-                    approved, approval_error = interrupt_node._check_approval(approval_id)
+                    approved, approval_error = interrupt_node._check_approval(
+                        approval_id
+                    )
 
                     if approved:
                         # User approved - clean up and let normal handler execute the tool

@@ -52,9 +52,7 @@ class RefreshToken(SimpleEntityBase):
     )
 
     # Security (store only hashed tokens)
-    token_hash: Mapped[str] = mapped_column(
-        String(255), nullable=False, unique=True
-    )
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
 
     # Expiration
     expires_at: Mapped[datetime] = mapped_column(
@@ -67,9 +65,7 @@ class RefreshToken(SimpleEntityBase):
     )
 
     # Constraints
-    __table_args__ = (
-        UniqueConstraint("token_hash", name="uq_refresh_token_hash"),
-    )
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_refresh_token_hash"),)
 
     def __repr__(self) -> str:
         return f"<RefreshToken(id={self.id}, user_root_id={self.user_root_id}, expires_at={self.expires_at}, revoked_at={self.revoked_at})>"

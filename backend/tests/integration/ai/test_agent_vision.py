@@ -6,22 +6,20 @@ to the LLM.
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 import pytest
-from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.ai.agent_service import AgentService
 from app.models.domain.ai import (
+    AIAssistantConfig,
     AIConversationAttachment,
     AIConversationMessage,
     AIConversationSession,
-    AIProvider,
     AIModel,
-    AIAssistantConfig,
+    AIProvider,
 )
 
 
@@ -210,7 +208,7 @@ async def test_agent_handles_mixed_attachments(
                 "content_type": "text/csv",
                 "content": csv_content,
                 "size": 2048,
-            }
+            },
         ],
     )
 

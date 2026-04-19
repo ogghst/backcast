@@ -25,7 +25,9 @@ class DashboardActivity(BaseModel):
     )
     timestamp: datetime = Field(..., description="When the action occurred")
     actor_id: UUID | None = Field(None, description="User who performed the action")
-    actor_name: str | None = Field(None, description="Name of user who performed action")
+    actor_name: str | None = Field(
+        None, description="Name of user who performed action"
+    )
     project_id: UUID | None = Field(
         None,
         description="Parent project ID (for child entities)",

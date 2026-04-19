@@ -56,8 +56,12 @@ def _make_runtime(
 def _make_mock_runnable(return_messages: list[Any] | None = None) -> MagicMock:
     """Create a mock runnable that simulates a compiled subagent graph."""
     runnable = MagicMock()
-    runnable.invoke = MagicMock(return_value=return_messages or {"messages": [AIMessage(content="result")]})
-    runnable.ainvoke = AsyncMock(return_value=return_messages or {"messages": [AIMessage(content="result")]})
+    runnable.invoke = MagicMock(
+        return_value=return_messages or {"messages": [AIMessage(content="result")]}
+    )
+    runnable.ainvoke = AsyncMock(
+        return_value=return_messages or {"messages": [AIMessage(content="result")]}
+    )
     return runnable
 
 
@@ -132,7 +136,9 @@ class TestBuildTaskToolInvalidSubagent:
 
         runtime = _make_runtime(tool_call_id="test-call-id")
 
-        result = tool.invoke({"description": "test", "subagent_type": "nonexistent", "runtime": runtime})
+        result = tool.invoke(
+            {"description": "test", "subagent_type": "nonexistent", "runtime": runtime}
+        )
 
         assert isinstance(result, str)
         assert "nonexistent" in result
@@ -145,7 +151,9 @@ class TestBuildTaskToolInvalidSubagent:
 
         runtime = _make_runtime(tool_call_id="test-call-id")
 
-        result = tool.invoke({"description": "test", "subagent_type": "fake", "runtime": runtime})
+        result = tool.invoke(
+            {"description": "test", "subagent_type": "fake", "runtime": runtime}
+        )
 
         assert "test_agent" in result
         assert "other_agent" in result
@@ -161,7 +169,13 @@ class TestBuildTaskToolValidInvocation:
 
         runtime = _make_runtime()
 
-        result = tool.invoke({"description": "Do something", "subagent_type": "test_agent", "runtime": runtime})
+        result = tool.invoke(
+            {
+                "description": "Do something",
+                "subagent_type": "test_agent",
+                "runtime": runtime,
+            }
+        )
 
         assert isinstance(result, Command)
 
@@ -172,7 +186,13 @@ class TestBuildTaskToolValidInvocation:
 
         runtime = _make_runtime()
 
-        result = tool.invoke({"description": "Do something", "subagent_type": "test_agent", "runtime": runtime})
+        result = tool.invoke(
+            {
+                "description": "Do something",
+                "subagent_type": "test_agent",
+                "runtime": runtime,
+            }
+        )
 
         assert isinstance(result, Command)
         messages = result.update["messages"]
@@ -187,7 +207,13 @@ class TestBuildTaskToolValidInvocation:
 
         runtime = _make_runtime()
 
-        result = tool.invoke({"description": "Do something", "subagent_type": "test_agent", "runtime": runtime})
+        result = tool.invoke(
+            {
+                "description": "Do something",
+                "subagent_type": "test_agent",
+                "runtime": runtime,
+            }
+        )
 
         assert isinstance(result, Command)
         tool_msg = result.update["messages"][0]
@@ -201,7 +227,13 @@ class TestBuildTaskToolValidInvocation:
         runtime = _make_runtime(tool_call_id=None)
 
         with pytest.raises(ValueError, match="Tool call ID is required"):
-            tool.invoke({"description": "Do something", "subagent_type": "test_agent", "runtime": runtime})
+            tool.invoke(
+                {
+                    "description": "Do something",
+                    "subagent_type": "test_agent",
+                    "runtime": runtime,
+                }
+            )
 
     def test_subagent_invoked_with_human_message(self) -> None:
         """Subagent is invoked with a HumanMessage containing the description."""
@@ -210,7 +242,13 @@ class TestBuildTaskToolValidInvocation:
 
         runtime = _make_runtime()
 
-        tool.invoke({"description": "Analyze the EVM data", "subagent_type": "test_agent", "runtime": runtime})
+        tool.invoke(
+            {
+                "description": "Analyze the EVM data",
+                "subagent_type": "test_agent",
+                "runtime": runtime,
+            }
+        )
 
         # Verify the subagent was invoked
         subagents[0]["runnable"].invoke.assert_called_once()
@@ -233,7 +271,13 @@ class TestBuildTaskToolAsyncInvocation:
 
         runtime = _make_runtime(tool_call_id="call-async-123")
 
-        result = await tool.ainvoke({"description": "Do async task", "subagent_type": "test_agent", "runtime": runtime})
+        result = await tool.ainvoke(
+            {
+                "description": "Do async task",
+                "subagent_type": "test_agent",
+                "runtime": runtime,
+            }
+        )
 
         assert isinstance(result, Command)
 
@@ -245,7 +289,13 @@ class TestBuildTaskToolAsyncInvocation:
 
         runtime = _make_runtime(tool_call_id="call-async-123")
 
-        await tool.ainvoke({"description": "Do async task", "subagent_type": "test_agent", "runtime": runtime})
+        await tool.ainvoke(
+            {
+                "description": "Do async task",
+                "subagent_type": "test_agent",
+                "runtime": runtime,
+            }
+        )
 
         # Verify ainvoke was called, not invoke
         subagents[0]["runnable"].ainvoke.assert_called_once()
@@ -259,7 +309,9 @@ class TestBuildTaskToolAsyncInvocation:
 
         runtime = _make_runtime(tool_call_id="call-async-123")
 
-        result = await tool.ainvoke({"description": "test", "subagent_type": "nonexistent", "runtime": runtime})
+        result = await tool.ainvoke(
+            {"description": "test", "subagent_type": "nonexistent", "runtime": runtime}
+        )
 
         assert isinstance(result, str)
         assert "does not exist" in result
@@ -273,15 +325,19 @@ class TestBuildTaskToolExcludesStateKeys:
         subagents = _make_subagents()
         tool = build_task_tool(subagents)
 
-        runtime = _make_runtime(state={
-            "messages": [HumanMessage(content="existing")],
-            "todos": [{"task": "old task"}],
-            "structured_response": {"key": "value"},
-            "some_other_key": "preserved",
-            "custom_data": 42,
-        })
+        runtime = _make_runtime(
+            state={
+                "messages": [HumanMessage(content="existing")],
+                "todos": [{"task": "old task"}],
+                "structured_response": {"key": "value"},
+                "some_other_key": "preserved",
+                "custom_data": 42,
+            }
+        )
 
-        tool.invoke({"description": "test", "subagent_type": "test_agent", "runtime": runtime})
+        tool.invoke(
+            {"description": "test", "subagent_type": "test_agent", "runtime": runtime}
+        )
 
         call_args = subagents[0]["runnable"].invoke.call_args[0][0]
 
@@ -290,7 +346,9 @@ class TestBuildTaskToolExcludesStateKeys:
             if key in ["messages"]:
                 # messages is replaced, not passed through
                 continue
-            assert key not in call_args, f"Excluded key '{key}' should not be passed to subagent"
+            assert key not in call_args, (
+                f"Excluded key '{key}' should not be passed to subagent"
+            )
 
         # Non-excluded keys SHOULD be passed through
         assert call_args["some_other_key"] == "preserved"
@@ -301,11 +359,22 @@ class TestBuildTaskToolExcludesStateKeys:
         subagents = _make_subagents()
         tool = build_task_tool(subagents)
 
-        runtime = _make_runtime(state={
-            "messages": [HumanMessage(content="existing message"), AIMessage(content="old response")],
-        })
+        runtime = _make_runtime(
+            state={
+                "messages": [
+                    HumanMessage(content="existing message"),
+                    AIMessage(content="old response"),
+                ],
+            }
+        )
 
-        tool.invoke({"description": "New task description", "subagent_type": "test_agent", "runtime": runtime})
+        tool.invoke(
+            {
+                "description": "New task description",
+                "subagent_type": "test_agent",
+                "runtime": runtime,
+            }
+        )
 
         call_args = subagents[0]["runnable"].invoke.call_args[0][0]
 
@@ -319,16 +388,20 @@ class TestBuildTaskToolExcludesStateKeys:
         tool = build_task_tool(subagents)
 
         # Create a subagent that returns extra state keys
-        subagents[0]["runnable"].invoke = MagicMock(return_value={
-            "messages": [AIMessage(content="result")],
-            "todos": [{"task": "subagent todo"}],
-            "structured_response": {"summary": "done"},
-            "custom_key": "custom_value",
-        })
+        subagents[0]["runnable"].invoke = MagicMock(
+            return_value={
+                "messages": [AIMessage(content="result")],
+                "todos": [{"task": "subagent todo"}],
+                "structured_response": {"summary": "done"},
+                "custom_key": "custom_value",
+            }
+        )
 
         runtime = _make_runtime()
 
-        result = tool.invoke({"description": "test", "subagent_type": "test_agent", "runtime": runtime})
+        result = tool.invoke(
+            {"description": "test", "subagent_type": "test_agent", "runtime": runtime}
+        )
 
         assert isinstance(result, Command)
         update = result.update
@@ -347,13 +420,21 @@ class TestBuildTaskToolErrorPaths:
     def test_subagent_result_missing_messages_raises_value_error(self) -> None:
         """Subagent result without 'messages' key raises ValueError (line 211)."""
         subagents = _make_subagents()
-        subagents[0]["runnable"].invoke = MagicMock(return_value={"no_messages_key": "oops"})
+        subagents[0]["runnable"].invoke = MagicMock(
+            return_value={"no_messages_key": "oops"}
+        )
 
         tool = build_task_tool(subagents)
         runtime = _make_runtime()
 
         with pytest.raises(ValueError, match="messages"):
-            tool.invoke({"description": "test", "subagent_type": "test_agent", "runtime": runtime})
+            tool.invoke(
+                {
+                    "description": "test",
+                    "subagent_type": "test_agent",
+                    "runtime": runtime,
+                }
+            )
 
     @pytest.mark.asyncio
     async def test_async_missing_tool_call_id_raises_value_error(self) -> None:
@@ -364,7 +445,13 @@ class TestBuildTaskToolErrorPaths:
         runtime = _make_runtime(tool_call_id=None)
 
         with pytest.raises(ValueError, match="Tool call ID is required"):
-            await tool.ainvoke({"description": "Do async task", "subagent_type": "test_agent", "runtime": runtime})
+            await tool.ainvoke(
+                {
+                    "description": "Do async task",
+                    "subagent_type": "test_agent",
+                    "runtime": runtime,
+                }
+            )
 
 
 class TestExcludedStateKeys:
@@ -372,7 +459,13 @@ class TestExcludedStateKeys:
 
     def test_excluded_keys_match_sdk(self) -> None:
         """_EXCLUDED_STATE_KEYS contains the same keys as the SDK."""
-        expected = {"messages", "todos", "structured_response", "skills_metadata", "memory_contents"}
+        expected = {
+            "messages",
+            "todos",
+            "structured_response",
+            "skills_metadata",
+            "memory_contents",
+        }
         assert _EXCLUDED_STATE_KEYS == expected
 
 
@@ -414,15 +507,19 @@ class TestToolMessageContentStripping:
     def test_trailing_whitespace_stripped(self) -> None:
         """ToolMessage content has trailing whitespace stripped."""
         subagents = _make_subagents()
-        subagents[0]["runnable"].invoke = MagicMock(return_value={
-            "messages": [AIMessage(content="result with trailing space   \n\n")],
-        })
+        subagents[0]["runnable"].invoke = MagicMock(
+            return_value={
+                "messages": [AIMessage(content="result with trailing space   \n\n")],
+            }
+        )
 
         tool = build_task_tool(subagents)
 
         runtime = _make_runtime()
 
-        result = tool.invoke({"description": "test", "subagent_type": "test_agent", "runtime": runtime})
+        result = tool.invoke(
+            {"description": "test", "subagent_type": "test_agent", "runtime": runtime}
+        )
 
         assert isinstance(result, Command)
         tool_msg = result.update["messages"][0]

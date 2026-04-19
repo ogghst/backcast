@@ -350,7 +350,11 @@ class AIConfigService:
     # === Conversation Session Operations ===
 
     async def list_sessions(
-        self, user_id: UUID, limit: int = 50, context_type: str | None = None, context_id: str | None = None
+        self,
+        user_id: UUID,
+        limit: int = 50,
+        context_type: str | None = None,
+        context_id: str | None = None,
     ) -> list[AIConversationSession]:
         """List conversation sessions for a user.
 
@@ -363,14 +367,15 @@ class AIConfigService:
         Returns:
             List of conversation sessions
         """
-        stmt = (
-            select(AIConversationSession)
-            .where(AIConversationSession.user_id == user_id)
+        stmt = select(AIConversationSession).where(
+            AIConversationSession.user_id == user_id
         )
         if context_type:
-            stmt = stmt.where(AIConversationSession.context['type'].astext == context_type)
+            stmt = stmt.where(
+                AIConversationSession.context["type"].astext == context_type
+            )
         if context_id:
-            stmt = stmt.where(AIConversationSession.context['id'].astext == context_id)
+            stmt = stmt.where(AIConversationSession.context["id"].astext == context_id)
         stmt = stmt.order_by(AIConversationSession.updated_at.desc()).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -397,14 +402,15 @@ class AIConfigService:
             sessions exist beyond this page.
         """
         # Fetch requested sessions plus one extra to check for more
-        stmt = (
-            select(AIConversationSession)
-            .where(AIConversationSession.user_id == user_id)
+        stmt = select(AIConversationSession).where(
+            AIConversationSession.user_id == user_id
         )
         if context_type:
-            stmt = stmt.where(AIConversationSession.context['type'].astext == context_type)
+            stmt = stmt.where(
+                AIConversationSession.context["type"].astext == context_type
+            )
         if context_id:
-            stmt = stmt.where(AIConversationSession.context['id'].astext == context_id)
+            stmt = stmt.where(AIConversationSession.context["id"].astext == context_id)
         stmt = (
             stmt.order_by(AIConversationSession.updated_at.desc())
             .offset(skip)
@@ -482,7 +488,7 @@ class AIConfigService:
             session_context = context
 
         # Convert SessionContext to dict for JSONB storage
-        context_dict = session_context.model_dump(mode='json', exclude_none=True)
+        context_dict = session_context.model_dump(mode="json", exclude_none=True)
 
         session = AIConversationSession(
             user_id=user_id,

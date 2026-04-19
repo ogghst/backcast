@@ -58,9 +58,7 @@ class AgentRunnerManager:
             ValueError: If a bus already exists for *execution_id*.
         """
         if execution_id in self._buses:
-            raise ValueError(
-                f"Event bus already exists for execution {execution_id}"
-            )
+            raise ValueError(f"Event bus already exists for execution {execution_id}")
 
         bus = AgentEventBus(execution_id=execution_id)
         self._buses[execution_id] = bus
@@ -100,9 +98,7 @@ class AgentRunnerManager:
                 len(self._buses),
             )
         else:
-            logger.debug(
-                "No event bus to remove for execution %s", execution_id
-            )
+            logger.debug("No event bus to remove for execution %s", execution_id)
 
 
 # Module-level singleton (same pattern as shared_checkpointer in graph_cache).

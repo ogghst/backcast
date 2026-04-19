@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 # EVM ANALYSIS TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="calculate_evm_metrics",
     description="Calculate Earned Value Management (EVM) metrics for a project. "
@@ -124,13 +125,25 @@ async def calculate_evm_metrics(
             "actual_cost": float(evm_data.ac),
             "cost_variance": float(evm_data.cv),
             "schedule_variance": float(evm_data.sv),
-            "cost_performance_index": float(evm_data.cpi) if evm_data.cpi is not None else 0.0,
-            "schedule_performance_index": float(evm_data.spi) if evm_data.spi is not None else 0.0,
-            "variance_at_completion": float(evm_data.vac) if evm_data.vac is not None else 0.0,
-            "estimate_to_complete": float(evm_data.etc) if evm_data.etc is not None else 0.0,
-            "estimate_at_completion": float(evm_data.eac) if evm_data.eac is not None else 0.0,
+            "cost_performance_index": float(evm_data.cpi)
+            if evm_data.cpi is not None
+            else 0.0,
+            "schedule_performance_index": float(evm_data.spi)
+            if evm_data.spi is not None
+            else 0.0,
+            "variance_at_completion": float(evm_data.vac)
+            if evm_data.vac is not None
+            else 0.0,
+            "estimate_to_complete": float(evm_data.etc)
+            if evm_data.etc is not None
+            else 0.0,
+            "estimate_at_completion": float(evm_data.eac)
+            if evm_data.eac is not None
+            else 0.0,
             "budget_at_completion": float(evm_data.bac),
-            "progress_percentage": float(evm_data.progress_percentage) if evm_data.progress_percentage is not None else 0.0,
+            "progress_percentage": float(evm_data.progress_percentage)
+            if evm_data.progress_percentage is not None
+            else 0.0,
             "warning": evm_data.warning,
         }
         return add_temporal_metadata(result, context)
@@ -203,7 +216,9 @@ async def get_evm_performance_summary(
             recommendation = "Performance declining. Monitor closely and consider corrective actions."
         else:
             performance_status = "Off Track"
-            recommendation = "Significant performance issues. Immediate corrective action required."
+            recommendation = (
+                "Significant performance issues. Immediate corrective action required."
+            )
 
         return {
             "project_id": project_id,
@@ -283,7 +298,9 @@ async def analyze_cost_variance(
             "actual_cost": float(evm_data.ac),
             "earned_value": float(evm_data.ev),
             "status": "Under Budget" if cv >= 0 else "Over Budget",
-            "root_causes": ["Cost variance identified at project level. Further breakdown required for root cause analysis."],
+            "root_causes": [
+                "Cost variance identified at project level. Further breakdown required for root cause analysis."
+            ],
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -364,6 +381,7 @@ async def analyze_schedule_variance(
 # FORECASTING TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="generate_project_forecast",
     description="Generate a forecast for project completion based on current "
@@ -423,9 +441,15 @@ async def generate_project_forecast(
         return {
             "project_id": project_id,
             "forecast_method": forecast_method,
-            "estimated_final_cost": float(evm_data.eac) if evm_data.eac is not None else 0.0,
-            "cost_variance_at_completion": float(evm_data.vac) if evm_data.vac is not None else 0.0,
-            "estimate_to_complete": float(evm_data.etc) if evm_data.etc is not None else 0.0,
+            "estimated_final_cost": float(evm_data.eac)
+            if evm_data.eac is not None
+            else 0.0,
+            "cost_variance_at_completion": float(evm_data.vac)
+            if evm_data.vac is not None
+            else 0.0,
+            "estimate_to_complete": float(evm_data.etc)
+            if evm_data.etc is not None
+            else 0.0,
             "budget_at_completion": float(evm_data.bac),
             "actual_cost_to_date": float(evm_data.ac),
             "confidence_level": "Medium (Based on current performance trends)",
@@ -484,12 +508,20 @@ async def compare_forecast_scenarios(
             control_date=datetime.now(),
         )
 
-        scenarios = [{
-            "method": "Current Trend",
-            "estimated_final_cost": float(evm_data.eac) if evm_data.eac is not None else 0.0,
-            "cost_variance_at_completion": float(evm_data.vac) if evm_data.vac is not None else 0.0,
-            "estimate_to_complete": float(evm_data.etc) if evm_data.etc is not None else 0.0,
-        }]
+        scenarios = [
+            {
+                "method": "Current Trend",
+                "estimated_final_cost": float(evm_data.eac)
+                if evm_data.eac is not None
+                else 0.0,
+                "cost_variance_at_completion": float(evm_data.vac)
+                if evm_data.vac is not None
+                else 0.0,
+                "estimate_to_complete": float(evm_data.etc)
+                if evm_data.etc is not None
+                else 0.0,
+            }
+        ]
 
         return {
             "project_id": project_id,
@@ -554,12 +586,18 @@ async def get_forecast_accuracy(
         )
 
         # Simplified assessment
-        status = "Reliable" if evm_data.cpi is not None and 0.9 <= evm_data.cpi <= 1.1 else "Needs review"
+        status = (
+            "Reliable"
+            if evm_data.cpi is not None and 0.9 <= evm_data.cpi <= 1.1
+            else "Needs review"
+        )
 
         return {
             "project_id": project_id,
             "assessment": status,
-            "recommendation": "Confidence is high for project performing near budget" if status == "Reliable" else "High variance detected; monitor forecast closely.",
+            "recommendation": "Confidence is high for project performing near budget"
+            if status == "Reliable"
+            else "High variance detected; monitor forecast closely.",
             "note": "Historical accuracy tracking is currently being implemented.",
         }
     except ValueError as e:
@@ -572,6 +610,7 @@ async def get_forecast_accuracy(
 # =============================================================================
 # KPI AND DASHBOARD TOOLS
 # =============================================================================
+
 
 @ai_tool(
     name="get_project_kpis",
@@ -652,11 +691,13 @@ async def get_project_kpis(
                 "schedule_variance": round(float(evm_data.sv), 2),
             },
             "recommendations": [
-                rec for rec in [
+                rec
+                for rec in [
                     "Monitor CPI closely" if cpi < 0.95 else None,
                     "Monitor SPI closely" if spi < 0.95 else None,
                     "Performance is excellent" if cpi >= 0.95 and spi >= 0.95 else None,
-                ] if rec is not None
+                ]
+                if rec is not None
             ],
         }
     except ValueError as e:

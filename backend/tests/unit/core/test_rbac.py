@@ -68,11 +68,13 @@ class TestRequirePermissionDecorator:
             The result is returned as expected
         """
         # Arrange: Set up mock RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-read", "project-write", "project-delete"],
-            "viewer": ["project-read"],
-            "guest": []
-        })
+        mock_service = MockRBACService(
+            {
+                "admin": ["project-read", "project-write", "project-delete"],
+                "viewer": ["project-read"],
+                "guest": [],
+            }
+        )
         set_rbac_service(mock_service)
 
         # Define a test function with the decorator
@@ -83,6 +85,7 @@ class TestRequirePermissionDecorator:
 
         # Act: Call the function with admin role
         import asyncio
+
         result = asyncio.run(test_function(user_role="admin"))
 
         # Assert: Function should execute successfully
@@ -101,11 +104,13 @@ class TestRequirePermissionDecorator:
             Error message contains "Permission denied" and the required permission
         """
         # Arrange: Set up mock RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-read", "project-write", "project-delete"],
-            "viewer": ["project-read"],
-            "guest": []
-        })
+        mock_service = MockRBACService(
+            {
+                "admin": ["project-read", "project-write", "project-delete"],
+                "viewer": ["project-read"],
+                "guest": [],
+            }
+        )
         set_rbac_service(mock_service)
 
         # Define a test function with the decorator
@@ -116,6 +121,7 @@ class TestRequirePermissionDecorator:
 
         # Act & Assert: Function should raise PermissionError
         import asyncio
+
         with pytest.raises(PermissionError) as exc_info:
             asyncio.run(test_function(user_role="viewer"))
 
@@ -136,10 +142,9 @@ class TestRequirePermissionDecorator:
             Permission check succeeds for authorized user
         """
         # Arrange: Set up mock RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-write"],
-            "viewer": ["project-read"]
-        })
+        mock_service = MockRBACService(
+            {"admin": ["project-write"], "viewer": ["project-read"]}
+        )
         set_rbac_service(mock_service)
 
         @require_permission("project-write")
@@ -149,6 +154,7 @@ class TestRequirePermissionDecorator:
 
         # Act: Call with context dict containing user_role
         import asyncio
+
         result = asyncio.run(test_function(context={"user_role": "admin"}))
 
         # Assert: Function should execute
@@ -165,6 +171,7 @@ class TestRequirePermissionDecorator:
             The function has _required_permissions attribute
             The attribute contains the required permission list
         """
+
         # Arrange & Act: Define decorated function
         @require_permission("project-read")
         async def test_function(user_role: str, context: Any = None) -> str:
@@ -187,10 +194,9 @@ class TestRequirePermissionDecorator:
             PermissionError is raised if any permission is missing
         """
         # Arrange: Set up mock RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-read", "project-write"],
-            "viewer": ["project-read"]
-        })
+        mock_service = MockRBACService(
+            {"admin": ["project-read", "project-write"], "viewer": ["project-read"]}
+        )
         set_rbac_service(mock_service)
 
         # Define function requiring multiple permissions
@@ -201,6 +207,7 @@ class TestRequirePermissionDecorator:
 
         # Act & Assert: Viewer lacks project-write permission
         import asyncio
+
         with pytest.raises(PermissionError) as exc_info:
             asyncio.run(test_function(user_role="viewer"))
 
@@ -226,10 +233,9 @@ class TestRequirePermissionDecoratorEdgeCases:
             Permission check uses user_role from dict
         """
         # Arrange: Set up mock RBAC service
-        mock_service = MockRBACService({
-            "admin": ["admin-only"],
-            "viewer": ["read-only"]
-        })
+        mock_service = MockRBACService(
+            {"admin": ["admin-only"], "viewer": ["read-only"]}
+        )
         set_rbac_service(mock_service)
 
         # Define function with dict context
@@ -240,9 +246,8 @@ class TestRequirePermissionDecoratorEdgeCases:
 
         # Act: Call with dict context
         import asyncio
-        result = asyncio.run(
-            test_function(context={"user_role": "admin"})
-        )
+
+        result = asyncio.run(test_function(context={"user_role": "admin"}))
 
         # Assert: Should succeed
         assert result == "Success"
@@ -259,9 +264,7 @@ class TestRequirePermissionDecoratorEdgeCases:
             Permission check uses user_role from object attribute
         """
         # Arrange: Set up mock RBAC service
-        mock_service = MockRBACService({
-            "admin": ["admin-only"]
-        })
+        mock_service = MockRBACService({"admin": ["admin-only"]})
         set_rbac_service(mock_service)
 
         # Define function with object context
@@ -277,9 +280,8 @@ class TestRequirePermissionDecoratorEdgeCases:
 
         # Act: Call with object context
         import asyncio
-        result = asyncio.run(
-            test_function(context=MockContext("admin"))
-        )
+
+        result = asyncio.run(test_function(context=MockContext("admin")))
 
         # Assert: Should succeed
         assert result == "Success"
@@ -307,6 +309,7 @@ class TestRequirePermissionDecoratorEdgeCases:
 
         # Act & Assert: Should raise PermissionError
         import asyncio
+
         with pytest.raises(PermissionError) as exc_info:
             asyncio.run(test_function(context={}))
 
@@ -335,6 +338,7 @@ class TestRequirePermissionDecoratorEdgeCases:
 
         # Act & Assert: Should raise PermissionError for non-string user_role
         import asyncio
+
         with pytest.raises(PermissionError) as exc_info:
             asyncio.run(test_function(context={"user_role": 123}))
 
@@ -357,10 +361,9 @@ class TestRequirePermissionDecoratorSyncFunctions:
             The function executes successfully
         """
         # Arrange: Set up mock RBAC service
-        mock_service = MockRBACService({
-            "admin": ["admin-action"],
-            "viewer": ["read-only"]
-        })
+        mock_service = MockRBACService(
+            {"admin": ["admin-action"], "viewer": ["read-only"]}
+        )
         set_rbac_service(mock_service)
 
         # Define a sync function (not async)
@@ -387,10 +390,9 @@ class TestRequirePermissionDecoratorSyncFunctions:
             PermissionError is raised
         """
         # Arrange: Set up mock RBAC service
-        mock_service = MockRBACService({
-            "admin": ["admin-action"],
-            "viewer": ["read-only"]
-        })
+        mock_service = MockRBACService(
+            {"admin": ["admin-action"], "viewer": ["read-only"]}
+        )
         set_rbac_service(mock_service)
 
         @require_permission("admin-action")
@@ -430,11 +432,11 @@ class TestJsonRBACServiceEdgeCases:
         config = {
             "roles": {
                 "admin": {"permissions": ["all"]},
-                "viewer": {"permissions": ["read"]}
+                "viewer": {"permissions": ["read"]},
             }
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()  # Ensure data is written
             temp_path = Path(f.name)
@@ -466,6 +468,7 @@ class TestJsonRBACServiceEdgeCases:
 
         # Act & Assert: Should raise FileNotFoundError
         from app.core.rbac import JsonRBACService
+
         with pytest.raises(FileNotFoundError) as exc_info:
             JsonRBACService(config_path=non_existent_path)
 
@@ -491,11 +494,11 @@ class TestJsonRBACServiceEdgeCases:
         config = {
             "roles": {
                 "admin": {"permissions": ["all"]},
-                "viewer": {"permissions": ["read"]}
+                "viewer": {"permissions": ["read"]},
             }
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)
@@ -529,11 +532,11 @@ class TestJsonRBACServiceEdgeCases:
         config = {
             "roles": {
                 "admin": {"permissions": ["all"]},
-                "guest": {}  # No permissions key
+                "guest": {},  # No permissions key
             }
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)
@@ -567,11 +570,11 @@ class TestJsonRBACServiceEdgeCases:
         config = {
             "roles": {
                 "admin": {"permissions": ["all"]},
-                "custom": {"description": "Custom role"}  # No permissions key
+                "custom": {"description": "Custom role"},  # No permissions key
             }
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)

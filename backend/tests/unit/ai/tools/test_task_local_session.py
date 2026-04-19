@@ -7,10 +7,8 @@ This test module verifies that:
 """
 
 import asyncio
-from unittest.mock import MagicMock
 
 import pytest
-import sqlalchemy
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_tool_session, tool_scoped_session_factory
@@ -115,7 +113,9 @@ class TestTaskLocalSession:
         session_2 = get_tool_session()
         session_2_id = id(session_2)
 
-        assert session_1_id != session_2_id, "New session should be created after remove"
+        assert session_1_id != session_2_id, (
+            "New session should be created after remove"
+        )
 
         # Clean up
         await tool_scoped_session_factory.remove()
@@ -170,7 +170,7 @@ class TestTaskLocalSession:
     @pytest.mark.asyncio
     async def test_scoped_session_factory_integration(self) -> None:
         """Test that tool_scoped_session_factory works with asyncio.current_task."""
-        from app.db.session import tool_scoped_session_factory, get_tool_session
+        from app.db.session import get_tool_session, tool_scoped_session_factory
 
         # Get session in current task
         session_1 = tool_scoped_session_factory()

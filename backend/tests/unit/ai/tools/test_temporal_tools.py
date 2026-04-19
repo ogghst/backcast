@@ -23,6 +23,7 @@ def _get_undecorated_function():
     The @ai_tool decorator wraps the function in a StructuredTool object.
     For unit testing, we need to access the original function logic.
     """
+
     # Define the function inline (same implementation as in temporal_tools.py)
     async def get_temporal_context_impl(context: ToolContext) -> dict:
         return {
@@ -30,6 +31,7 @@ def _get_undecorated_function():
             "branch_name": context.branch_name or "main",
             "branch_mode": context.branch_mode or "merged",
         }
+
     return get_temporal_context_impl
 
 

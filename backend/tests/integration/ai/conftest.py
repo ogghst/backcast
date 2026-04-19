@@ -26,16 +26,32 @@ class MockRBACService(RBACServiceABC):
         # Define test permissions
         role_permissions: dict[str, list[str]] = {
             "admin": [
-                "project-read", "project-create", "project-update", "project-delete",
-                "wbe-read", "wbe-create", "wbe-update", "wbe-delete",
-                "change-order-read", "change-order-create", "change-order-update",
-                "evm-read", "evm-create",
+                "project-read",
+                "project-create",
+                "project-update",
+                "project-delete",
+                "wbe-read",
+                "wbe-create",
+                "wbe-update",
+                "wbe-delete",
+                "change-order-read",
+                "change-order-create",
+                "change-order-update",
+                "evm-read",
+                "evm-create",
             ],
             "manager": [
-                "project-read", "project-create", "project-update",
-                "wbe-read", "wbe-create", "wbe-update",
-                "change-order-read", "change-order-create", "change-order-update",
-                "evm-read", "evm-create",
+                "project-read",
+                "project-create",
+                "project-update",
+                "wbe-read",
+                "wbe-create",
+                "wbe-update",
+                "change-order-read",
+                "change-order-create",
+                "change-order-update",
+                "evm-read",
+                "evm-create",
             ],
             "viewer": [
                 "project-read",
@@ -53,16 +69,32 @@ class MockRBACService(RBACServiceABC):
         """Get all permissions for a given role."""
         role_permissions: dict[str, list[str]] = {
             "admin": [
-                "project-read", "project-create", "project-update", "project-delete",
-                "wbe-read", "wbe-create", "wbe-update", "wbe-delete",
-                "change-order-read", "change-order-create", "change-order-update",
-                "evm-read", "evm-create",
+                "project-read",
+                "project-create",
+                "project-update",
+                "project-delete",
+                "wbe-read",
+                "wbe-create",
+                "wbe-update",
+                "wbe-delete",
+                "change-order-read",
+                "change-order-create",
+                "change-order-update",
+                "evm-read",
+                "evm-create",
             ],
             "manager": [
-                "project-read", "project-create", "project-update",
-                "wbe-read", "wbe-create", "wbe-update",
-                "change-order-read", "change-order-create", "change-order-update",
-                "evm-read", "evm-create",
+                "project-read",
+                "project-create",
+                "project-update",
+                "wbe-read",
+                "wbe-create",
+                "wbe-update",
+                "change-order-read",
+                "change-order-create",
+                "change-order-update",
+                "evm-read",
+                "evm-create",
             ],
             "viewer": [
                 "project-read",
@@ -124,6 +156,7 @@ def setup_mock_rbac():
 
     # Store and replace the global service
     from app.core import rbac as rbac_module
+
     original_service = rbac_module._rbac_service
     set_rbac_service(mock_service)
 

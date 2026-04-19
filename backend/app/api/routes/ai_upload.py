@@ -50,7 +50,9 @@ ALLOWED_DOCUMENT_TYPES = {
     dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
 )
 async def upload_image(
-    file: Annotated[UploadFile, File(description="Image file (PNG, JPG, JPEG, max 5MB)")],
+    file: Annotated[
+        UploadFile, File(description="Image file (PNG, JPG, JPEG, max 5MB)")
+    ],
     current_user: User = Depends(get_current_active_user),
 ) -> ImageUploadResponse:
     """Upload an image for AI chat.
@@ -80,7 +82,7 @@ async def upload_image(
     if len(content) > MAX_IMAGE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image too large. Maximum size: {MAX_IMAGE_SIZE / (1024*1024):.0f}MB",
+            detail=f"Image too large. Maximum size: {MAX_IMAGE_SIZE / (1024 * 1024):.0f}MB",
         )
 
     # Base64-encode image content
@@ -143,7 +145,7 @@ async def upload_file(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large. Maximum size: {MAX_FILE_SIZE / (1024*1024):.0f}MB",
+            detail=f"File too large. Maximum size: {MAX_FILE_SIZE / (1024 * 1024):.0f}MB",
         )
 
     # Determine file category

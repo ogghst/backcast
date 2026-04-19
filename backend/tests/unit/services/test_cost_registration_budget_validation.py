@@ -685,4 +685,3 @@ class TestBudgetEnforcement:
             actor_id=uuid4(),
         )
         assert result.amount == Decimal("500.00")
-

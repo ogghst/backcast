@@ -266,6 +266,7 @@ async def test_unique_constraint_per_user_per_project(db_session: AsyncSession) 
     # Attempt to create second membership for same user/project
     # This should violate the unique constraint at database level
     from sqlalchemy.exc import IntegrityError
+
     with pytest.raises(IntegrityError):
         await service.create(
             user_id=user_id,

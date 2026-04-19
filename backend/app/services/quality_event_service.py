@@ -70,10 +70,7 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
         event_data["quality_event_id"] = root_id
 
         # Default event_date to current datetime (control date) if not provided
-        if (
-            "event_date" not in event_data
-            or event_data["event_date"] is None
-        ):
+        if "event_date" not in event_data or event_data["event_date"] is None:
             event_data["event_date"] = datetime.now(tz=UTC)
 
         # CRITICAL: Use control_date for valid_time (defaults to now for production)
@@ -216,9 +213,7 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
             Tuple of (list of quality events, total count)
         """
         # Build base query
-        stmt = select(QualityEvent).where(
-            QualityEvent.cost_element_id.isnot(None)
-        )
+        stmt = select(QualityEvent).where(QualityEvent.cost_element_id.isnot(None))
 
         # Apply bitemporal filter for time-travel support
         if as_of is not None:
@@ -249,9 +244,7 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
                 )
                 .correlate(QualityEvent)
             )
-            stmt = stmt.where(
-                QualityEvent.cost_element_id.in_(ce_subq)
-            )
+            stmt = stmt.where(QualityEvent.cost_element_id.in_(ce_subq))
 
         # Join through CostElement -> WBE to filter by Project
         if project_id is not None:
@@ -267,9 +260,7 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
                 )
                 .correlate(QualityEvent)
             )
-            stmt = stmt.where(
-                QualityEvent.cost_element_id.in_(wbe_subq)
-            )
+            stmt = stmt.where(QualityEvent.cost_element_id.in_(wbe_subq))
 
         # Get total count
         count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -401,9 +392,7 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
 
         # Build base query with time-travel support
         stmt = select(
-            func.date_trunc(pg_period, QualityEvent.event_date).label(
-                "period_start"
-            ),
+            func.date_trunc(pg_period, QualityEvent.event_date).label("period_start"),
             func.sum(QualityEvent.cost_impact).label("total_cost_impact"),
         ).where(
             QualityEvent.cost_element_id == cost_element_id,

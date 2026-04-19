@@ -300,9 +300,7 @@ class DashboardLayoutService:
         """
         if fields.get("is_default"):
             project_id_val: UUID | None = fields.get("project_id")  # type: ignore[assignment]
-            await self._clear_default_for_user_project(
-                user_id, project_id_val
-            )
+            await self._clear_default_for_user_project(user_id, project_id_val)
 
         layout = DashboardLayout(user_id=user_id, **fields)
         self.session.add(layout)
@@ -332,20 +330,14 @@ class DashboardLayoutService:
         """
         layout = await self.get(entity_id)
         if layout is None:
-            raise ValueError(
-                f"DashboardLayout with id {entity_id} not found"
-            )
+            raise ValueError(f"DashboardLayout with id {entity_id} not found")
         if layout.is_template:
             raise ValueError("Cannot modify a template layout")
         if layout.user_id != user_id:
-            raise ValueError(
-                "Not authorized to update this dashboard layout"
-            )
+            raise ValueError("Not authorized to update this dashboard layout")
 
         if updates.get("is_default"):
-            await self._clear_default_for_user_project(
-                user_id, layout.project_id
-            )
+            await self._clear_default_for_user_project(user_id, layout.project_id)
 
         for key, value in updates.items():
             setattr(layout, key, value)
@@ -375,9 +367,7 @@ class DashboardLayoutService:
         """
         layout = await self.get(entity_id)
         if layout is None:
-            raise ValueError(
-                f"DashboardLayout with id {entity_id} not found"
-            )
+            raise ValueError(f"DashboardLayout with id {entity_id} not found")
         if not layout.is_template:
             raise ValueError("Layout is not a template")
 
@@ -409,9 +399,7 @@ class DashboardLayoutService:
         if layout is None:
             return False
         if layout.user_id != user_id:
-            raise ValueError(
-                "Not authorized to delete this dashboard layout"
-            )
+            raise ValueError("Not authorized to delete this dashboard layout")
 
         was_default = layout.is_default
         project_id = layout.project_id
@@ -576,9 +564,7 @@ async def seed_dashboard_templates() -> None:
         )
         admin = result.scalar_one_or_none()
         if admin is None:
-            logger.warning(
-                "Admin user not found; skipping dashboard template seeding"
-            )
+            logger.warning("Admin user not found; skipping dashboard template seeding")
             return
 
         service = DashboardLayoutService(db)

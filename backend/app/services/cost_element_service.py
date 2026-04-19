@@ -276,7 +276,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         # Check if version exists in target branch
         # We need to manage the query manually to avoid TemporalService issues and handle branching
         # Use STRICT mode to avoid falling back to parent branches
-        current = await self.get_by_id(cost_element_id, branch=target_branch, branch_mode=BranchMode.STRICT)
+        current = await self.get_by_id(
+            cost_element_id, branch=target_branch, branch_mode=BranchMode.STRICT
+        )
 
         if current:
             # Linear update in same branch: Close old, Open new
@@ -463,7 +465,10 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
     async def get_by_id(
-        self, cost_element_id: UUID, branch: str = "main", branch_mode: BranchMode = BranchMode.MERGE
+        self,
+        cost_element_id: UUID,
+        branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
     ) -> CostElement | None:
         """Get cost element by root ID and branch with WBE name."""
         stmt = (
@@ -698,12 +703,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 self.session.execute(branch_stmt),
                 self.session.execute(main_stmt),
             )
-            branch_elements = {
-                e.cost_element_id: e for e in branch_results.scalars()
-            }
-            main_elements = {
-                e.cost_element_id: e for e in main_results.scalars()
-            }
+            branch_elements = {e.cost_element_id: e for e in branch_results.scalars()}
+            main_elements = {e.cost_element_id: e for e in main_results.scalars()}
 
             merged = main_elements.copy()
             merged.update(branch_elements)
@@ -1068,9 +1069,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         # Eager load WBE and project relationships if requested (for dashboard optimization)
         if eager_load_wbe_and_project:
-            stmt = stmt.options(
-                selectinload(CostElement.wbe).selectinload(WBE.project)
-            )
+            stmt = stmt.options(selectinload(CostElement.wbe).selectinload(WBE.project))
 
         # Order by transaction_time descending (most recent first)
         stmt = stmt.order_by(desc(cast(Any, CostElement).transaction_time)).limit(limit)

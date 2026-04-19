@@ -100,7 +100,9 @@ def ai_tool(
         tool_description = description or func.__doc__ or "No description"
         tool_permissions = permissions or []
         tool_category = category
-        tool_risk_level = risk_level or RiskLevel.HIGH  # Default to HIGH for backward compatibility
+        tool_risk_level = (
+            risk_level or RiskLevel.HIGH
+        )  # Default to HIGH for backward compatibility
 
         # Create ToolMetadata for RBAC and risk checking
         metadata = ToolMetadata(
@@ -124,7 +126,9 @@ def ai_tool(
                 context_obj = context_obj_arg
             elif context_obj_arg is not None:
                 # Try to cast if it has the right attributes
-                if hasattr(context_obj_arg, "session") and hasattr(context_obj_arg, "user_id"):
+                if hasattr(context_obj_arg, "session") and hasattr(
+                    context_obj_arg, "user_id"
+                ):
                     context_obj = context_obj_arg  # type: ignore[assignment]
 
             # If context not in kwargs, try to get from context variable
@@ -132,6 +136,7 @@ def ai_tool(
             # non-serializable objects (AsyncSession) in the state
             if context_obj is None:
                 from app.ai.middleware.backcast_security import get_context
+
                 context_obj = get_context()
 
             # Validate context
@@ -144,6 +149,7 @@ def ai_tool(
 
             # Check permissions via RBAC service
             from app.core.rbac import get_rbac_service
+
             rbac_service = get_rbac_service()
 
             for permission in tool_permissions:
@@ -163,11 +169,16 @@ def ai_tool(
                 # Commit task-local session after successful tool execution
                 # This ensures the tool's database changes are persisted
                 from app.ai.tools.session_manager import ToolSessionManager
+
                 try:
                     await ToolSessionManager.commit()
-                    logger.debug(f"Committed task-local session after tool execution: {tool_name}")
+                    logger.debug(
+                        f"Committed task-local session after tool execution: {tool_name}"
+                    )
                 except Exception as commit_error:
-                    logger.warning(f"Failed to commit session after tool {tool_name}: {commit_error}")
+                    logger.warning(
+                        f"Failed to commit session after tool {tool_name}: {commit_error}"
+                    )
 
                 return result
             except Exception as e:
@@ -175,11 +186,16 @@ def ai_tool(
 
                 # Rollback task-local session on error
                 from app.ai.tools.session_manager import ToolSessionManager
+
                 try:
                     await ToolSessionManager.rollback()
-                    logger.debug(f"Rolled back task-local session after tool error: {tool_name}")
+                    logger.debug(
+                        f"Rolled back task-local session after tool error: {tool_name}"
+                    )
                 except Exception as rollback_error:
-                    logger.warning(f"Failed to rollback session after tool {tool_name} error: {rollback_error}")
+                    logger.warning(
+                        f"Failed to rollback session after tool {tool_name} error: {rollback_error}"
+                    )
 
                 return {"error": str(e)}
 

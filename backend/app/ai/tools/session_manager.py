@@ -4,7 +4,6 @@ This module provides the ToolSessionManager class for managing commit/rollback
 operations on task-local sessions created by async_scoped_session.
 """
 
-
 from app.db.session import tool_scoped_session_factory
 
 

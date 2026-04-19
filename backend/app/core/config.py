@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # OpenTelemetry
     OTEL_ENABLED: bool = False
-    OTLP_ENDPOINT: str = "http://localhost:4317"
+    OTLP_ENDPOINT: str = "http://localhost:6006/v1/traces"
 
 
 settings = Settings()

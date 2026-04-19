@@ -52,9 +52,7 @@ class QualityEvent(EntityBase, VersionableMixin):
     __tablename__ = "quality_events"
 
     # Root ID (stable identity across versions)
-    quality_event_id: Mapped[UUID] = mapped_column(
-        PG_UUID, nullable=False, index=True
-    )
+    quality_event_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
     # Foreign key to cost element (application-level integrity, no DB FK)
     cost_element_id: Mapped[UUID] = mapped_column(

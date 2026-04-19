@@ -62,9 +62,7 @@ def mock_tool_context_with_temporal_params():
 
 
 @pytest.mark.asyncio
-async def test_list_projects_logs_temporal_context(
-    mock_tool_context, caplog
-):
+async def test_list_projects_logs_temporal_context(mock_tool_context, caplog):
     """Test that list_projects logs temporal context at tool start."""
     # Import after all mocks are set up
     from app.ai.tools.project_tools import list_projects
@@ -94,8 +92,7 @@ async def test_list_projects_logs_temporal_context(
     temporal_logs = [
         record
         for record in caplog.records
-        if "TEMPORAL_CONTEXT" in record.message
-        and "list_projects" in record.message
+        if "TEMPORAL_CONTEXT" in record.message and "list_projects" in record.message
     ]
     assert len(temporal_logs) >= 1, "Temporal context should be logged"
     assert "as_of=None (current time)" in temporal_logs[0].message
@@ -128,8 +125,8 @@ async def test_list_projects_logs_temporal_context_with_params(
         mock_project.start_date = None
         mock_project.end_date = None
 
-        mock_tool_context_with_temporal_params.project_service.get_projects = (
-            AsyncMock(return_value=([mock_project], 1))
+        mock_tool_context_with_temporal_params.project_service.get_projects = AsyncMock(
+            return_value=([mock_project], 1)
         )
 
         with caplog.at_level(logging.INFO):
@@ -149,8 +146,7 @@ async def test_list_projects_logs_temporal_context_with_params(
     temporal_logs = [
         record
         for record in caplog.records
-        if "TEMPORAL_CONTEXT" in record.message
-        and "list_projects" in record.message
+        if "TEMPORAL_CONTEXT" in record.message and "list_projects" in record.message
     ]
     assert len(temporal_logs) >= 1
     assert "2025-06-15" in temporal_logs[0].message
@@ -278,7 +274,10 @@ async def test_get_project_logs_temporal_context(mock_tool_context, caplog):
 
         with caplog.at_level(logging.INFO):
             await get_project.ainvoke(  # type: ignore
-                {"project_id": str(mock_project.project_id), "context": mock_tool_context}
+                {
+                    "project_id": str(mock_project.project_id),
+                    "context": mock_tool_context,
+                }
             )
 
     # Verify temporal context was logged

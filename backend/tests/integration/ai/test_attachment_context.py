@@ -5,8 +5,7 @@ when processing messages with file attachments. Uses the new content-based stora
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 import pytest
 from langchain_core.messages import HumanMessage
@@ -35,7 +34,7 @@ async def test_build_conversation_history_loads_attachments(
         - Image attachments are identified for vision processing
     """
     # Arrange: Create a user, provider, model, assistant config, and session
-    from app.models.domain.ai import AIProvider, AIModel, AIAssistantConfig
+    from app.models.domain.ai import AIAssistantConfig, AIModel, AIProvider
 
     provider = AIProvider(
         provider_type="openai",
@@ -152,7 +151,10 @@ async def test_format_multimodal_message_with_image(db_session: Any) -> None:
     # Second item should be image_url with data URL
     assert formatted_content[1]["type"] == "image_url"
     assert "url" in formatted_content[1]["image_url"]
-    assert formatted_content[1]["image_url"]["url"] == f"data:image/png;base64,{base64_content}"
+    assert (
+        formatted_content[1]["image_url"]["url"]
+        == f"data:image/png;base64,{base64_content}"
+    )
 
 
 @pytest.mark.asyncio
@@ -185,7 +187,7 @@ async def test_format_multimodal_message_with_multiple_images(db_session: Any) -
             "content_type": "image/jpeg",
             "content": "base64data2",
             "size": 204800,
-        }
+        },
     ]
 
     # Act
@@ -201,12 +203,18 @@ async def test_format_multimodal_message_with_multiple_images(db_session: Any) -
     assert formatted_content[2]["type"] == "image_url"
 
     # Verify data URLs
-    assert formatted_content[1]["image_url"]["url"] == "data:image/png;base64,base64data1"
-    assert formatted_content[2]["image_url"]["url"] == "data:image/jpeg;base64,base64data2"
+    assert (
+        formatted_content[1]["image_url"]["url"] == "data:image/png;base64,base64data1"
+    )
+    assert (
+        formatted_content[2]["image_url"]["url"] == "data:image/jpeg;base64,base64data2"
+    )
 
 
 @pytest.mark.asyncio
-async def test_format_multimodal_message_inlines_document_content(db_session: Any) -> None:
+async def test_format_multimodal_message_inlines_document_content(
+    db_session: Any,
+) -> None:
     """Test that non-image attachments get inline text blocks with content.
 
     Context: Documents should have their content inlined as text blocks
@@ -261,7 +269,7 @@ async def test_add_message_with_attachment_ids(db_session: Any) -> None:
         - Content is stored in the content field
     """
     # Arrange: Create session
-    from app.models.domain.ai import AIProvider, AIModel, AIAssistantConfig
+    from app.models.domain.ai import AIAssistantConfig, AIModel, AIProvider
 
     provider = AIProvider(
         provider_type="openai",

@@ -7,7 +7,6 @@ These tests verify that template files follow the new pattern with:
 - Correct imports
 """
 
-
 import pytest
 from langchain_core.tools import BaseTool
 
@@ -36,15 +35,17 @@ class TestCrudTemplateMigration:
     def test_tool_is_basetool(self, tool_name: str):
         """Test that all tools are LangChain BaseTool instances."""
         tool = getattr(crud_template, tool_name)
-        assert isinstance(
-            tool, BaseTool
-        ), f"{tool_name} should be a BaseTool instance"
+        assert isinstance(tool, BaseTool), f"{tool_name} should be a BaseTool instance"
 
     def test_tools_have_injected_context(self):
         """Test that tools use InjectedToolArg for context parameter."""
         # Check that the module has the correct imports
-        assert hasattr(crud_template, "InjectedToolArg"), "Should import InjectedToolArg"
-        assert hasattr(crud_template, "Annotated"), "Should import Annotated from typing"
+        assert hasattr(crud_template, "InjectedToolArg"), (
+            "Should import InjectedToolArg"
+        )
+        assert hasattr(crud_template, "Annotated"), (
+            "Should import Annotated from typing"
+        )
 
     def test_tools_have_metadata(self):
         """Test that tools have _tool_metadata attached."""
@@ -59,9 +60,9 @@ class TestCrudTemplateMigration:
         ]
 
         for tool in tools:
-            assert hasattr(
-                tool, "_tool_metadata"
-            ), f"{tool.name} should have _tool_metadata"
+            assert hasattr(tool, "_tool_metadata"), (
+                f"{tool.name} should have _tool_metadata"
+            )
             assert hasattr(tool, "_is_ai_tool"), f"{tool.name} should have _is_ai_tool"
             assert tool._is_ai_tool is True, f"{tool.name}._is_ai_tool should be True"
 
@@ -85,18 +86,16 @@ class TestAnalysisTemplateMigration:
     def test_tool_is_basetool(self, tool_name: str):
         """Test that all tools are LangChain BaseTool instances."""
         tool = getattr(analysis_template, tool_name)
-        assert isinstance(
-            tool, BaseTool
-        ), f"{tool_name} should be a BaseTool instance"
+        assert isinstance(tool, BaseTool), f"{tool_name} should be a BaseTool instance"
 
     def test_tools_have_injected_context(self):
         """Test that tools use InjectedToolArg for context parameter."""
-        assert hasattr(
-            analysis_template, "InjectedToolArg"
-        ), "Should import InjectedToolArg"
-        assert hasattr(
-            analysis_template, "Annotated"
-        ), "Should import Annotated from typing"
+        assert hasattr(analysis_template, "InjectedToolArg"), (
+            "Should import InjectedToolArg"
+        )
+        assert hasattr(analysis_template, "Annotated"), (
+            "Should import Annotated from typing"
+        )
 
     def test_tools_have_metadata(self):
         """Test that tools have _tool_metadata attached."""
@@ -112,9 +111,9 @@ class TestAnalysisTemplateMigration:
         ]
 
         for tool in tools:
-            assert hasattr(
-                tool, "_tool_metadata"
-            ), f"{tool.name} should have _tool_metadata"
+            assert hasattr(tool, "_tool_metadata"), (
+                f"{tool.name} should have _tool_metadata"
+            )
             assert hasattr(tool, "_is_ai_tool"), f"{tool.name} should have _is_ai_tool"
             assert tool._is_ai_tool is True, f"{tool.name}._is_ai_tool should be True"
 
@@ -138,18 +137,16 @@ class TestChangeOrderTemplateMigration:
     def test_tool_is_basetool(self, tool_name: str):
         """Test that all tools are LangChain BaseTool instances."""
         tool = getattr(change_order_template, tool_name)
-        assert isinstance(
-            tool, BaseTool
-        ), f"{tool_name} should be a BaseTool instance"
+        assert isinstance(tool, BaseTool), f"{tool_name} should be a BaseTool instance"
 
     def test_tools_have_injected_context(self):
         """Test that tools use InjectedToolArg for context parameter."""
-        assert hasattr(
-            change_order_template, "InjectedToolArg"
-        ), "Should import InjectedToolArg"
-        assert hasattr(
-            change_order_template, "Annotated"
-        ), "Should import Annotated from typing"
+        assert hasattr(change_order_template, "InjectedToolArg"), (
+            "Should import InjectedToolArg"
+        )
+        assert hasattr(change_order_template, "Annotated"), (
+            "Should import Annotated from typing"
+        )
 
     def test_tools_have_metadata(self):
         """Test that tools have _tool_metadata attached."""
@@ -165,9 +162,9 @@ class TestChangeOrderTemplateMigration:
         ]
 
         for tool in tools:
-            assert hasattr(
-                tool, "_tool_metadata"
-            ), f"{tool.name} should have _tool_metadata"
+            assert hasattr(tool, "_tool_metadata"), (
+                f"{tool.name} should have _tool_metadata"
+            )
             assert hasattr(tool, "_is_ai_tool"), f"{tool.name} should have _is_ai_tool"
             assert tool._is_ai_tool is True, f"{tool.name}._is_ai_tool should be True"
 
@@ -185,40 +182,63 @@ class TestTemplateDocstrings:
 
         for tool in tools:
             docstring = tool.description
-            assert (
-                "Context:" in docstring or docstring == tool.description
-            ), f"{tool.name} should have Context section in docstring"
+            assert "Context:" in docstring or docstring == tool.description, (
+                f"{tool.name} should have Context section in docstring"
+            )
 
     def test_tools_have_permissions(self):
         """Test that all tools have permissions defined."""
         all_tools = [
-            (crud_template, [
-                "list_projects", "get_project", "create_project", "update_project",
-                "list_wbes", "get_wbe", "create_wbe"
-            ]),
-            (analysis_template, [
-                "calculate_evm_metrics", "get_evm_performance_summary",
-                "analyze_cost_variance", "analyze_schedule_variance",
-                "generate_project_forecast", "compare_forecast_scenarios",
-                "get_forecast_accuracy", "get_project_kpis"
-            ]),
-            (change_order_template, [
-                "list_change_orders", "get_change_order", "create_change_order",
-                "generate_change_order_draft", "submit_change_order_for_approval",
-                "approve_change_order", "reject_change_order", "analyze_change_order_impact"
-            ]),
+            (
+                crud_template,
+                [
+                    "list_projects",
+                    "get_project",
+                    "create_project",
+                    "update_project",
+                    "list_wbes",
+                    "get_wbe",
+                    "create_wbe",
+                ],
+            ),
+            (
+                analysis_template,
+                [
+                    "calculate_evm_metrics",
+                    "get_evm_performance_summary",
+                    "analyze_cost_variance",
+                    "analyze_schedule_variance",
+                    "generate_project_forecast",
+                    "compare_forecast_scenarios",
+                    "get_forecast_accuracy",
+                    "get_project_kpis",
+                ],
+            ),
+            (
+                change_order_template,
+                [
+                    "list_change_orders",
+                    "get_change_order",
+                    "create_change_order",
+                    "generate_change_order_draft",
+                    "submit_change_order_for_approval",
+                    "approve_change_order",
+                    "reject_change_order",
+                    "analyze_change_order_impact",
+                ],
+            ),
         ]
 
         for module, tool_names in all_tools:
             for tool_name in tool_names:
                 tool = getattr(module, tool_name)
-                assert hasattr(
-                    tool, "_tool_metadata"
-                ), f"{tool.name} should have _tool_metadata"
+                assert hasattr(tool, "_tool_metadata"), (
+                    f"{tool.name} should have _tool_metadata"
+                )
                 metadata = tool._tool_metadata
-                assert (
-                    len(metadata.permissions) > 0
-                ), f"{tool.name} should have at least one permission"
+                assert len(metadata.permissions) > 0, (
+                    f"{tool.name} should have at least one permission"
+                )
 
 
 class TestTemplateImports:
@@ -239,5 +259,7 @@ class TestTemplateImports:
     def test_change_order_template_imports(self):
         """Test that change_order_template has required imports."""
         assert hasattr(change_order_template, "ai_tool"), "Should import ai_tool"
-        assert hasattr(change_order_template, "ToolContext"), "Should import ToolContext"
+        assert hasattr(change_order_template, "ToolContext"), (
+            "Should import ToolContext"
+        )
         # Note: BaseTool is not directly imported in templates; @ai_tool decorator handles it

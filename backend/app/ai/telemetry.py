@@ -1,6 +1,6 @@
 """OpenTelemetry initialization for LangGraph/LangChain monitoring.
 
-Exports traces to Jaeger for distributed tracing with OpenInference semantic conventions.
+Exports traces to Arize Phoenix for AI observability with OpenInference semantic conventions.
 """
 
 import logging
@@ -8,16 +8,16 @@ import os
 from collections.abc import Generator
 from contextlib import contextmanager
 
-from app.core.config import settings
-
-logger = logging.getLogger(__name__)
-
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Environment variables (read at import time, before logging is configured)
 OTEL_ENABLED = settings.OTEL_ENABLED
@@ -36,7 +36,7 @@ def initialize_telemetry(
     """
     Initialize OpenTelemetry with OpenInference instrumentors.
 
-    Exports to Jaeger via OTLP with OpenInference semantic conventions.
+    Exports to Arize Phoenix via OTLP HTTP with OpenInference semantic conventions.
 
     Controlled by the OTEL_ENABLED environment variable (default: "false").
     When disabled, returns None and no instrumentation is set up.
@@ -58,16 +58,18 @@ def initialize_telemetry(
     # Set up trace provider with resource attributes
     from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
-    resource = Resource(attributes={
-        SERVICE_NAME: service_name,
-        "service.version": "1.0.0",
-        "deployment.environment": os.getenv("ENVIRONMENT", "development"),
-    })
+    resource = Resource(
+        attributes={
+            SERVICE_NAME: service_name,
+            "service.version": "1.0.0",
+            "deployment.environment": os.getenv("ENVIRONMENT", "development"),
+        }
+    )
 
     tracer_provider = TracerProvider(resource=resource)
     trace.set_tracer_provider(tracer_provider)
 
-    # Add OTLP exporter for Jaeger
+    # Add OTLP HTTP exporter for Phoenix
     otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint or OTLP_ENDPOINT)
     tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 
@@ -82,7 +84,9 @@ def initialize_telemetry(
     # Instrument OpenAI (for token usage tracking)
     OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    logger.info(f"[OPEN_TELEMETRY] Initialized with OTLP endpoint: {otlp_endpoint or OTLP_ENDPOINT}")
+    logger.info(
+        f"[OPEN_TELEMETRY] Initialized with OTLP endpoint: {otlp_endpoint or OTLP_ENDPOINT}"
+    )
 
     return tracer_provider
 

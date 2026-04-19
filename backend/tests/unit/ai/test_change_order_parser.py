@@ -73,20 +73,25 @@ async def test_parse_requirements_success(parser, mock_provider, mock_model):
     mock_choice.message = mock_message
     mock_completion.choices = [mock_choice]
 
-    with patch(
-        "app.ai.change_order_parser.LLMClientFactory.create_client",
-    ) as mock_create_client, patch(
-        "app.ai.change_order_parser.AIConfigService.list_providers",
-        new_callable=AsyncMock,
-        return_value=[mock_provider],
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_provider_configs",
-        new_callable=AsyncMock,
-        return_value=[],
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_models",
-        new_callable=AsyncMock,
-        return_value=[mock_model],
+    with (
+        patch(
+            "app.ai.change_order_parser.LLMClientFactory.create_client",
+        ) as mock_create_client,
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_providers",
+            new_callable=AsyncMock,
+            return_value=[mock_provider],
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_provider_configs",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_models",
+            new_callable=AsyncMock,
+            return_value=[mock_model],
+        ),
     ):
         mock_client = AsyncMock()
         mock_client.chat.completions.create = AsyncMock(return_value=mock_completion)
@@ -101,7 +106,9 @@ async def test_parse_requirements_success(parser, mock_provider, mock_model):
 
         # Verify parsing results
         assert result["title"] == "Upgrade Controller System"
-        assert result["description"] == "Replace legacy PLC controllers with modern system"
+        assert (
+            result["description"] == "Replace legacy PLC controllers with modern system"
+        )
         assert result["reason"] == "Legacy system end-of-life, need modern features"
         assert result["budget_impact"] == Decimal("50000")
         assert result["schedule_impact_days"] == 10
@@ -124,20 +131,25 @@ async def test_parse_requirements_invalid_json(parser, mock_provider, mock_model
     mock_choice.message = mock_message
     mock_completion.choices = [mock_choice]
 
-    with patch(
-        "app.ai.change_order_parser.LLMClientFactory.create_client",
-    ) as mock_create_client, patch(
-        "app.ai.change_order_parser.AIConfigService.list_providers",
-        new_callable=AsyncMock,
-        return_value=[mock_provider],
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_provider_configs",
-        new_callable=AsyncMock,
-        return_value=[],
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_models",
-        new_callable=AsyncMock,
-        return_value=[mock_model],
+    with (
+        patch(
+            "app.ai.change_order_parser.LLMClientFactory.create_client",
+        ) as mock_create_client,
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_providers",
+            new_callable=AsyncMock,
+            return_value=[mock_provider],
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_provider_configs",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_models",
+            new_callable=AsyncMock,
+            return_value=[mock_model],
+        ),
     ):
         mock_client = AsyncMock()
         mock_client.chat.completions.create = AsyncMock(return_value=mock_completion)
@@ -185,18 +197,22 @@ async def test_parse_requirements_no_provider(parser):
 @pytest.mark.asyncio
 async def test_parse_requirements_no_model(parser, mock_provider):
     """Test requirement parsing when no AI model is configured."""
-    with patch(
-        "app.ai.change_order_parser.AIConfigService.list_providers",
-        new_callable=AsyncMock,
-        return_value=[mock_provider],
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_provider_configs",
-        new_callable=AsyncMock,
-        return_value=[],
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_models",
-        new_callable=AsyncMock,
-        return_value=[],
+    with (
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_providers",
+            new_callable=AsyncMock,
+            return_value=[mock_provider],
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_provider_configs",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_models",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
     ):
         with pytest.raises(ValueError, match="No AI model configured"):
             await parser.parse_requirements(
@@ -231,20 +247,25 @@ async def test_analyze_with_impact_only(parser, mock_provider, mock_model):
     mock_choice.message = mock_message
     mock_completion.choices = [mock_choice]
 
-    with patch(
-        "app.ai.change_order_parser.LLMClientFactory.create_client",
-    ) as mock_create_client, patch(
-        "app.ai.change_order_parser.AIConfigService.list_providers",
-        new_callable=AsyncMock,
-        return_value=[mock_provider],
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_provider_configs",
-        new_callable=AsyncMock,
-        return_value=[],
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_models",
-        new_callable=AsyncMock,
-        return_value=[mock_model],
+    with (
+        patch(
+            "app.ai.change_order_parser.LLMClientFactory.create_client",
+        ) as mock_create_client,
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_providers",
+            new_callable=AsyncMock,
+            return_value=[mock_provider],
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_provider_configs",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_models",
+            new_callable=AsyncMock,
+            return_value=[mock_model],
+        ),
     ):
         mock_client = AsyncMock()
         mock_client.chat.completions.create = AsyncMock(return_value=mock_completion)

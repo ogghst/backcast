@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TokenBuffer:
     """Buffer for tokens from a single agent."""
+
     content: list[str] = field(default_factory=list)
     session_id: str | None = None
     source: str = "main"
@@ -57,7 +58,9 @@ class TokenBufferManager:
         self.enabled = enabled
         self.buffers: dict[str, TokenBuffer] = defaultdict(self._create_buffer)
         self.flush_task: asyncio.Task[None] | None = None
-        self.flush_callback: Callable[[str, TokenBuffer], None | Awaitable[None]] | None = None
+        self.flush_callback: (
+            Callable[[str, TokenBuffer], None | Awaitable[None]] | None
+        ) = None
         self._lock = asyncio.Lock()
         self._stop_event = asyncio.Event()
 
@@ -65,7 +68,9 @@ class TokenBufferManager:
         """Factory function for defaultdict."""
         return TokenBuffer()
 
-    def _get_buffer_key(self, source: str, subagent_name: str | None, invocation_id: str | None = None) -> str:
+    def _get_buffer_key(
+        self, source: str, subagent_name: str | None, invocation_id: str | None = None
+    ) -> str:
         """Generate buffer key from agent identifier."""
         if source == "subagent" and invocation_id:
             # Use invocation_id for unique subagent identification
@@ -178,7 +183,9 @@ class TokenBufferManager:
             return
 
         self.flush_task = asyncio.create_task(self._flush_loop())
-        logger.info(f"Token buffer manager started (interval={self.flush_interval_ms}ms)")
+        logger.info(
+            f"Token buffer manager started (interval={self.flush_interval_ms}ms)"
+        )
 
     async def stop(self) -> None:
         """Stop the buffer manager and flush all pending buffers.

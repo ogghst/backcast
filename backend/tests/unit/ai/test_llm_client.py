@@ -50,6 +50,7 @@ class MockServiceUnavailableError(Exception):
 # PHASE 4: EDGE CASES & VERIFICATION - TASK 1: LLM CLIENT ERROR HANDLING
 # =============================================================================
 
+
 class TestLLMClientEdgeCases:
     """Test LLM client edge cases and error handling."""
 
@@ -130,7 +131,9 @@ class TestLLMClientEdgeCases:
         )
 
         # Act & Assert: Should raise LLMStreamingError
-        with pytest.raises(LLMStreamingError, match="Unexpected error during streaming"):
+        with pytest.raises(
+            LLMStreamingError, match="Unexpected error during streaming"
+        ):
             async for _ in stream_with_error_handling(
                 client=mock_client,
                 model="gpt-4",
@@ -158,7 +161,9 @@ class TestLLMClientEdgeCases:
         )
 
         # Act & Assert: Should raise LLMStreamingError
-        with pytest.raises(LLMStreamingError, match="Unexpected error during streaming"):
+        with pytest.raises(
+            LLMStreamingError, match="Unexpected error during streaming"
+        ):
             async for _ in stream_with_error_handling(
                 client=mock_client,
                 model="gpt-4",
@@ -185,7 +190,9 @@ class TestLLMClientEdgeCases:
         )
 
         # Act & Assert: Should raise LLMStreamingError
-        with pytest.raises(LLMStreamingError, match="Unexpected error during streaming"):
+        with pytest.raises(
+            LLMStreamingError, match="Unexpected error during streaming"
+        ):
             async for _ in stream_with_error_handling(
                 client=mock_client,
                 model="gpt-4",
@@ -220,7 +227,9 @@ class TestLLMClientEdgeCases:
 
         # Act & Assert: Should handle malformed response gracefully or raise error
         # The stream_with_error_handling should catch errors during iteration
-        with pytest.raises(LLMStreamingError, match="Unexpected error during streaming"):
+        with pytest.raises(
+            LLMStreamingError, match="Unexpected error during streaming"
+        ):
             async for chunk in stream_with_error_handling(
                 client=mock_client,
                 model="gpt-4",
@@ -287,7 +296,9 @@ class TestLLMClientEdgeCases:
         )
 
         # Act & Assert: Should raise LLMStreamingError
-        with pytest.raises(LLMStreamingError, match="Unexpected error during streaming verification"):
+        with pytest.raises(
+            LLMStreamingError, match="Unexpected error during streaming verification"
+        ):
             await verify_streaming_capability(mock_client)
 
 
@@ -402,7 +413,9 @@ async def test_verify_streaming_capability_api_error() -> None:
         side_effect=MockAPIError("API Error")
     )
 
-    with pytest.raises(LLMStreamingError, match="Unexpected error during streaming verification"):
+    with pytest.raises(
+        LLMStreamingError, match="Unexpected error during streaming verification"
+    ):
         await verify_streaming_capability(mock_client)
 
 
@@ -416,7 +429,9 @@ async def test_verify_streaming_capability_connection_error() -> None:
         side_effect=MockConnectionError("Connection failed")
     )
 
-    with pytest.raises(LLMStreamingError, match="Unexpected error during streaming verification"):
+    with pytest.raises(
+        LLMStreamingError, match="Unexpected error during streaming verification"
+    ):
         await verify_streaming_capability(mock_client)
 
 
@@ -430,7 +445,9 @@ async def test_verify_streaming_capability_rate_limit_error() -> None:
         side_effect=MockRateLimitError("Rate limit exceeded")
     )
 
-    with pytest.raises(LLMStreamingError, match="Unexpected error during streaming verification"):
+    with pytest.raises(
+        LLMStreamingError, match="Unexpected error during streaming verification"
+    ):
         await verify_streaming_capability(mock_client)
 
 
@@ -476,9 +493,7 @@ async def test_stream_with_error_handling_connection_error() -> None:
         side_effect=MockConnectionError("Connection failed")
     )
 
-    with pytest.raises(
-        LLMStreamingError, match="Unexpected error during streaming"
-    ):
+    with pytest.raises(LLMStreamingError, match="Unexpected error during streaming"):
         async for _ in stream_with_error_handling(
             client=mock_client,
             model="gpt-4",

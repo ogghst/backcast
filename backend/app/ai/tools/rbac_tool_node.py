@@ -106,7 +106,9 @@ class RBACToolNode(ToolNode):
                 from uuid import UUID
 
                 try:
-                    project_uuid = UUID(project_id) if isinstance(project_id, str) else project_id
+                    project_uuid = (
+                        UUID(project_id) if isinstance(project_id, str) else project_id
+                    )
                     user_uuid = UUID(self.context.user_id)
 
                     has_access = await rbac_service.has_project_access(
@@ -179,14 +181,14 @@ class RBACToolNode(ToolNode):
                 return (
                     False,
                     f"Tool '{tool_name}' requires {risk_level.value} risk level. "
-                    f"Safe mode only allows low-risk tools."
+                    f"Safe mode only allows low-risk tools.",
                 )
         elif mode == ExecutionMode.STANDARD:
             if risk_level == RiskLevel.CRITICAL:
                 return (
                     False,
                     f"Tool '{tool_name}' has critical risk level. "
-                    f"Standard mode blocks critical tools. Switch to expert mode."
+                    f"Standard mode blocks critical tools. Switch to expert mode.",
                 )
         # Expert mode allows all tools
 
@@ -214,17 +216,14 @@ class RBACToolNode(ToolNode):
         # 1. Check permissions (async now)
         error_message = await self._check_tool_permission(tool_name, tool_args)
         if error_message:
-            return ToolMessage(
-                content=error_message,
-                tool_call_id=tool_id
-            )
+            return ToolMessage(content=error_message, tool_call_id=tool_id)
 
         # 2. Check risk level (only if permission granted)
         allowed, risk_error = self.check_tool_risk(tool_name)
         if not allowed:
             return ToolMessage(
                 content=risk_error or "Tool execution not allowed based on risk level",
-                tool_call_id=tool_id
+                tool_call_id=tool_id,
             )
 
         # 3. Inject context into args

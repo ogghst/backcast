@@ -95,8 +95,9 @@ async def test_export_graphviz_includes_node_information():
     # The exact format depends on implementation, but should include:
     # - Agent node
     # - Tools node
-    assert "agent" in dot_output.lower() or "node" in dot_output.lower(), \
+    assert "agent" in dot_output.lower() or "node" in dot_output.lower(), (
         "DOT output should reference graph nodes"
+    )
 
 
 @pytest.mark.asyncio
@@ -118,8 +119,9 @@ async def test_export_graphviz_handles_empty_gracefully():
     assert dot_output is not None, "Should return output even for empty tool list"
     assert isinstance(dot_output, str), "Should return string"
     # Should still be valid DOT format
-    assert "digraph" in dot_output.lower() or "graph" in dot_output.lower(), \
+    assert "digraph" in dot_output.lower() or "graph" in dot_output.lower(), (
         "Should contain graph declaration"
+    )
 
 
 @pytest.mark.asyncio
@@ -151,5 +153,6 @@ async def test_export_graphviz_is_deterministic():
     dot_output_2 = export_graphviz(graph)
 
     # Assert: Should be identical
-    assert dot_output_1 == dot_output_2, \
+    assert dot_output_1 == dot_output_2, (
         "export_graphviz should produce deterministic output"
+    )

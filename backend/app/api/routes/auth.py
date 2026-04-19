@@ -118,7 +118,9 @@ async def refresh_token(
     auth_service = AuthService(session)
 
     # Verify refresh token and get user_root_id
-    user_root_id = await auth_service.verify_refresh_token(refresh_request.refresh_token)
+    user_root_id = await auth_service.verify_refresh_token(
+        refresh_request.refresh_token
+    )
 
     if not user_root_id:
         raise HTTPException(
@@ -129,6 +131,7 @@ async def refresh_token(
 
     # Get user by root_id
     from app.services.user import UserService
+
     user_service = UserService(session)
     user = await user_service.get_user(user_root_id)
 

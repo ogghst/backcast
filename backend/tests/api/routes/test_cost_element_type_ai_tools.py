@@ -14,6 +14,7 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools.registry import get_registry
 from app.ai.tools.templates.cost_element_template import (
@@ -29,14 +30,12 @@ from app.core.rbac import RBACServiceABC, set_rbac_service
 from app.main import app
 from app.models.domain.department import Department
 from app.models.domain.user import User
-from app.models.schemas.department import DepartmentCreate
 from app.models.schemas.cost_element_type import (
     CostElementTypeCreate,
-    CostElementTypeUpdate,
 )
+from app.models.schemas.department import DepartmentCreate
 from app.services.cost_element_type_service import CostElementTypeService
 from app.services.department import DepartmentService
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -118,6 +117,7 @@ async def test_department(db_session: AsyncSession) -> Department:
 # TOOL DISCOVERY TESTS
 # =============================================================================
 
+
 def test_cost_element_type_tools_are_discovered() -> None:
     """Test that all 5 Cost Element Type tools are discovered and registered."""
     registry = get_registry()
@@ -132,11 +132,19 @@ def test_cost_element_type_tools_are_discovered() -> None:
     tool_names = [tool.name for tool in tools]
 
     # Verify all 5 Cost Element Type tools are present
-    assert "list_cost_element_types" in tool_names, "Missing list_cost_element_types tool"
+    assert "list_cost_element_types" in tool_names, (
+        "Missing list_cost_element_types tool"
+    )
     assert "get_cost_element_type" in tool_names, "Missing get_cost_element_type tool"
-    assert "create_cost_element_type" in tool_names, "Missing create_cost_element_type tool"
-    assert "update_cost_element_type" in tool_names, "Missing update_cost_element_type tool"
-    assert "delete_cost_element_type" in tool_names, "Missing delete_cost_element_type tool"
+    assert "create_cost_element_type" in tool_names, (
+        "Missing create_cost_element_type tool"
+    )
+    assert "update_cost_element_type" in tool_names, (
+        "Missing update_cost_element_type tool"
+    )
+    assert "delete_cost_element_type" in tool_names, (
+        "Missing delete_cost_element_type tool"
+    )
 
 
 def test_cost_element_type_tools_metadata() -> None:
@@ -153,7 +161,10 @@ def test_cost_element_type_tools_metadata() -> None:
     assert list_tool is not None
     assert list_tool.category == "cost-element-types"
     assert "cost-element-type-read" in list_tool.permissions
-    assert "department" in list_tool.description.lower() or "filter" in list_tool.description.lower()
+    assert (
+        "department" in list_tool.description.lower()
+        or "filter" in list_tool.description.lower()
+    )
 
     # Test get_cost_element_type metadata
     get_tool = tools_dict.get("get_cost_element_type")
@@ -184,6 +195,7 @@ def test_cost_element_type_tools_metadata() -> None:
 # TOOL FUNCTIONALITY TESTS
 # =============================================================================
 
+
 @pytest.mark.asyncio
 async def test_list_cost_element_types_returns_dict_with_simple_types(
     db_session: AsyncSession, test_department: Department
@@ -207,9 +219,11 @@ async def test_list_cost_element_types_returns_dict_with_simple_types(
     )
 
     # Call the tool via ainvoke (LangChain BaseTool pattern)
-    result = await list_cost_element_types.ainvoke({
-        "context": context,
-    })
+    result = await list_cost_element_types.ainvoke(
+        {
+            "context": context,
+        }
+    )
 
     # Verify result structure
     assert "cost_element_types" in result
@@ -251,10 +265,12 @@ async def test_list_cost_element_types_with_department_filter(
     )
 
     # Test filtering by department
-    result = await list_cost_element_types.ainvoke({
-        "department_id": str(test_department.department_id),
-        "context": context,
-    })
+    result = await list_cost_element_types.ainvoke(
+        {
+            "department_id": str(test_department.department_id),
+            "context": context,
+        }
+    )
 
     assert "error" not in result
     assert result["total"] >= 1
@@ -285,10 +301,12 @@ async def test_list_cost_element_types_with_search(
     )
 
     # Test search
-    result = await list_cost_element_types.ainvoke({
-        "search": "Equip",
-        "context": context,
-    })
+    result = await list_cost_element_types.ainvoke(
+        {
+            "search": "Equip",
+            "context": context,
+        }
+    )
 
     assert "error" not in result
     # Should find the "Equipment" type
@@ -318,10 +336,12 @@ async def test_get_cost_element_type_returns_dict_with_simple_types(
     )
 
     # Call the tool via ainvoke
-    result = await get_cost_element_type.ainvoke({
-        "cost_element_type_id": str(created_type.cost_element_type_id),
-        "context": context,
-    })
+    result = await get_cost_element_type.ainvoke(
+        {
+            "cost_element_type_id": str(created_type.cost_element_type_id),
+            "context": context,
+        }
+    )
 
     # Verify result structure and AI-friendly format
     assert "error" not in result
@@ -345,10 +365,12 @@ async def test_get_cost_element_type_not_found_error(db_session: AsyncSession) -
 
     # Call with non-existent ID
     fake_id = str(uuid4())
-    result = await get_cost_element_type.ainvoke({
-        "cost_element_type_id": fake_id,
-        "context": context,
-    })
+    result = await get_cost_element_type.ainvoke(
+        {
+            "cost_element_type_id": fake_id,
+            "context": context,
+        }
+    )
 
     # Verify error response
     assert "error" in result
@@ -368,13 +390,15 @@ async def test_create_cost_element_type_success(
     )
 
     # Call the tool via ainvoke
-    result = await create_cost_element_type.ainvoke({
-        "code": "TEST",
-        "name": "Test Type",
-        "description": "Test cost element type",
-        "department_id": str(test_department.department_id),
-        "context": context,
-    })
+    result = await create_cost_element_type.ainvoke(
+        {
+            "code": "TEST",
+            "name": "Test Type",
+            "description": "Test cost element type",
+            "department_id": str(test_department.department_id),
+            "context": context,
+        }
+    )
 
     # Verify result structure and AI-friendly format
     assert "error" not in result
@@ -400,12 +424,14 @@ async def test_create_cost_element_type_invalid_department_error(
 
     # Call with non-existent department
     fake_dept_id = str(uuid4())
-    result = await create_cost_element_type.ainvoke({
-        "code": "TEST",
-        "name": "Test Type",
-        "department_id": fake_dept_id,
-        "context": context,
-    })
+    result = await create_cost_element_type.ainvoke(
+        {
+            "code": "TEST",
+            "name": "Test Type",
+            "department_id": fake_dept_id,
+            "context": context,
+        }
+    )
 
     # Verify error response
     assert "error" in result
@@ -434,12 +460,14 @@ async def test_update_cost_element_type_success(
     )
 
     # Call the tool to update via ainvoke
-    result = await update_cost_element_type.ainvoke({
-        "cost_element_type_id": str(created_type.cost_element_type_id),
-        "name": "Updated Name",
-        "description": "Updated description",
-        "context": context,
-    })
+    result = await update_cost_element_type.ainvoke(
+        {
+            "cost_element_type_id": str(created_type.cost_element_type_id),
+            "name": "Updated Name",
+            "description": "Updated description",
+            "context": context,
+        }
+    )
 
     # Verify result structure and AI-friendly format
     assert "error" not in result
@@ -449,7 +477,9 @@ async def test_update_cost_element_type_success(
 
 
 @pytest.mark.asyncio
-async def test_update_cost_element_type_not_found_error(db_session: AsyncSession) -> None:
+async def test_update_cost_element_type_not_found_error(
+    db_session: AsyncSession,
+) -> None:
     """Test that update_cost_element_type returns error for non-existent ID."""
     # Create tool context
     context = ToolContext(
@@ -460,11 +490,13 @@ async def test_update_cost_element_type_not_found_error(db_session: AsyncSession
 
     # Call with non-existent ID
     fake_id = str(uuid4())
-    result = await update_cost_element_type.ainvoke({
-        "cost_element_type_id": fake_id,
-        "name": "Updated Name",
-        "context": context,
-    })
+    result = await update_cost_element_type.ainvoke(
+        {
+            "cost_element_type_id": fake_id,
+            "name": "Updated Name",
+            "context": context,
+        }
+    )
 
     # Verify error response
     assert "error" in result
@@ -493,10 +525,12 @@ async def test_delete_cost_element_type_success(
     )
 
     # Call the tool to delete via ainvoke
-    result = await delete_cost_element_type.ainvoke({
-        "cost_element_type_id": str(created_type.cost_element_type_id),
-        "context": context,
-    })
+    result = await delete_cost_element_type.ainvoke(
+        {
+            "cost_element_type_id": str(created_type.cost_element_type_id),
+            "context": context,
+        }
+    )
 
     # Verify deletion response
     assert "error" not in result
@@ -509,7 +543,9 @@ async def test_delete_cost_element_type_success(
 
 
 @pytest.mark.asyncio
-async def test_delete_cost_element_type_not_found_error(db_session: AsyncSession) -> None:
+async def test_delete_cost_element_type_not_found_error(
+    db_session: AsyncSession,
+) -> None:
     """Test that delete_cost_element_type returns error for non-existent ID."""
     # Create tool context
     context = ToolContext(
@@ -520,10 +556,12 @@ async def test_delete_cost_element_type_not_found_error(db_session: AsyncSession
 
     # Call with non-existent ID
     fake_id = str(uuid4())
-    result = await delete_cost_element_type.ainvoke({
-        "cost_element_type_id": fake_id,
-        "context": context,
-    })
+    result = await delete_cost_element_type.ainvoke(
+        {
+            "cost_element_type_id": fake_id,
+            "context": context,
+        }
+    )
 
     # Verify error response
     assert "error" in result
@@ -532,6 +570,7 @@ async def test_delete_cost_element_type_not_found_error(db_session: AsyncSession
 # =============================================================================
 # RISK LEVEL TESTS
 # =============================================================================
+
 
 class TestCostElementToolRiskLevels:
     """Test that cost element tools have appropriate risk levels.
@@ -570,7 +609,9 @@ class TestCostElementToolRiskLevels:
             ("delete_cost_element_type", RiskLevel.CRITICAL),
         ],
     )
-    def test_tool_has_correct_risk_level(self, tool_name: str, expected_risk: RiskLevel) -> None:
+    def test_tool_has_correct_risk_level(
+        self, tool_name: str, expected_risk: RiskLevel
+    ) -> None:
         """Test that each tool has the correct risk level annotation.
 
         Args:
@@ -589,9 +630,9 @@ class TestCostElementToolRiskLevels:
         metadata = tool._tool_metadata  # type: ignore[attr-defined]
 
         # Verify risk level
-        assert (
-            metadata.risk_level == expected_risk
-        ), f"{tool_name} has risk_level={metadata.risk_level}, expected {expected_risk}"
+        assert metadata.risk_level == expected_risk, (
+            f"{tool_name} has risk_level={metadata.risk_level}, expected {expected_risk}"
+        )
 
     def test_all_cost_element_type_tools_have_risk_level_metadata(self) -> None:
         """Test that all exported cost element type tools have risk_level metadata.
@@ -611,16 +652,19 @@ class TestCostElementToolRiskLevels:
 
         for tool_name in tool_names:
             tool = getattr(templates.cost_element_template, tool_name)
-            assert hasattr(tool, "_tool_metadata"), f"{tool_name} missing _tool_metadata"
+            assert hasattr(tool, "_tool_metadata"), (
+                f"{tool_name} missing _tool_metadata"
+            )
             metadata = tool._tool_metadata  # type: ignore[attr-defined]
-            assert isinstance(
-                metadata.risk_level, RiskLevel
-            ), f"{tool_name} has invalid risk_level type"
+            assert isinstance(metadata.risk_level, RiskLevel), (
+                f"{tool_name} has invalid risk_level type"
+            )
 
 
 # =============================================================================
 # INTEGRATION TEST
 # =============================================================================
+
 
 @pytest.mark.asyncio
 async def test_cost_element_type_tools_endpoint_discovery(client: AsyncClient) -> None:

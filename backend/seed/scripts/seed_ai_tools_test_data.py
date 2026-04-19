@@ -42,7 +42,9 @@ async def main() -> None:
                 logger.info("✓ AI Tools Test Data seeded successfully!")
                 logger.info("\nYou can now test AI tools with this data:")
                 logger.info("  Project: AI-TEST-001 (AI Test Project 2026)")
-                logger.info("  Cost Elements: 4 (CE-CONV-MAIN, CE-CONV-SEC, CE-PANEL-MAIN, CE-CTRL-SYS)")
+                logger.info(
+                    "  Cost Elements: 4 (CE-CONV-MAIN, CE-CONV-SEC, CE-PANEL-MAIN, CE-CTRL-SYS)"
+                )
                 logger.info("  WBEs: 7 (3-level hierarchy)")
                 logger.info("  Cost Registrations: 8")
                 logger.info("  Progress Entries: 9")

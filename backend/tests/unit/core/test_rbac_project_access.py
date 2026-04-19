@@ -36,7 +36,7 @@ class TestJsonRBACServiceProjectAccess:
         from pathlib import Path
 
         config = {"roles": {"admin": {"permissions": ["all"]}}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)
@@ -170,7 +170,7 @@ class TestJsonRBACServiceProjectAccess:
         from pathlib import Path
 
         config = {"roles": {"admin": {"permissions": ["all"]}}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)
@@ -179,27 +179,102 @@ class TestJsonRBACServiceProjectAccess:
             service = JsonRBACService(config_path=temp_path)
 
             # Assert - Project admin has all permissions via wildcards
-            assert service._role_has_permission(EnumProjectRole.PROJECT_ADMIN.value, "project-read") is True
-            assert service._role_has_permission(EnumProjectRole.PROJECT_ADMIN.value, "project-update") is True
-            assert service._role_has_permission(EnumProjectRole.PROJECT_ADMIN.value, "project-delete") is True
-            assert service._role_has_permission(EnumProjectRole.PROJECT_ADMIN.value, "change-order-approve") is True
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_ADMIN.value, "project-read"
+                )
+                is True
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_ADMIN.value, "project-update"
+                )
+                is True
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_ADMIN.value, "project-delete"
+                )
+                is True
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_ADMIN.value, "change-order-approve"
+                )
+                is True
+            )
 
             # Project manager has read/write but not delete
-            assert service._role_has_permission(EnumProjectRole.PROJECT_MANAGER.value, "project-read") is True
-            assert service._role_has_permission(EnumProjectRole.PROJECT_MANAGER.value, "project-update") is True
-            assert service._role_has_permission(EnumProjectRole.PROJECT_MANAGER.value, "project-delete") is False
-            assert service._role_has_permission(EnumProjectRole.PROJECT_MANAGER.value, "change-order-approve") is False
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_MANAGER.value, "project-read"
+                )
+                is True
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_MANAGER.value, "project-update"
+                )
+                is True
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_MANAGER.value, "project-delete"
+                )
+                is False
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_MANAGER.value, "change-order-approve"
+                )
+                is False
+            )
 
             # Project editor has read and limited write
-            assert service._role_has_permission(EnumProjectRole.PROJECT_EDITOR.value, "project-read") is True
-            assert service._role_has_permission(EnumProjectRole.PROJECT_EDITOR.value, "project-update") is True
-            assert service._role_has_permission(EnumProjectRole.PROJECT_EDITOR.value, "project-delete") is False
-            assert service._role_has_permission(EnumProjectRole.PROJECT_EDITOR.value, "cost-element-create") is True
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_EDITOR.value, "project-read"
+                )
+                is True
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_EDITOR.value, "project-update"
+                )
+                is True
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_EDITOR.value, "project-delete"
+                )
+                is False
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_EDITOR.value, "cost-element-create"
+                )
+                is True
+            )
 
             # Project viewer only has read
-            assert service._role_has_permission(EnumProjectRole.PROJECT_VIEWER.value, "project-read") is True
-            assert service._role_has_permission(EnumProjectRole.PROJECT_VIEWER.value, "project-update") is False
-            assert service._role_has_permission(EnumProjectRole.PROJECT_VIEWER.value, "cost-element-create") is False
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_VIEWER.value, "project-read"
+                )
+                is True
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_VIEWER.value, "project-update"
+                )
+                is False
+            )
+            assert (
+                service._role_has_permission(
+                    EnumProjectRole.PROJECT_VIEWER.value, "cost-element-create"
+                )
+                is False
+            )
 
             # Invalid role has no permissions
             assert service._role_has_permission("invalid", "project-read") is False
@@ -235,7 +310,7 @@ class TestHasProjectAccess:
         from pathlib import Path
 
         config = {"roles": {"admin": {"permissions": ["all"]}}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)
@@ -245,7 +320,9 @@ class TestHasProjectAccess:
         temp_path.unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_admin_bypasses_project_checks(self, service: JsonRBACService) -> None:
+    async def test_admin_bypasses_project_checks(
+        self, service: JsonRBACService
+    ) -> None:
         """Test that system admins always have project access.
 
         Given:
@@ -317,7 +394,10 @@ class TestHasProjectAccess:
         cache_key = (user_id, project_id)
 
         # Populate cache with valid entry (project_manager has write permission)
-        service._project_cache[cache_key] = (EnumProjectRole.PROJECT_MANAGER.value, datetime.now(UTC))
+        service._project_cache[cache_key] = (
+            EnumProjectRole.PROJECT_MANAGER.value,
+            datetime.now(UTC),
+        )
 
         # Act
         has_access = await service.has_project_access(
@@ -348,7 +428,10 @@ class TestHasProjectAccess:
         cache_key = (user_id, project_id)
 
         # Populate cache with project_viewer role
-        service._project_cache[cache_key] = (EnumProjectRole.PROJECT_VIEWER.value, datetime.now(UTC))
+        service._project_cache[cache_key] = (
+            EnumProjectRole.PROJECT_VIEWER.value,
+            datetime.now(UTC),
+        )
 
         # Act
         has_access = await service.has_project_access(
@@ -362,7 +445,9 @@ class TestHasProjectAccess:
         assert has_access is False
 
     @pytest.mark.asyncio
-    async def test_cache_expired_triggers_db_lookup(self, service: JsonRBACService) -> None:
+    async def test_cache_expired_triggers_db_lookup(
+        self, service: JsonRBACService
+    ) -> None:
         """Test that expired cache triggers database lookup.
 
         Given:
@@ -416,31 +501,43 @@ class TestHasProjectAccess:
         cache_key = (user_id, project_id)
 
         # Populate cache with project_viewer role
-        service._project_cache[cache_key] = (EnumProjectRole.PROJECT_VIEWER.value, datetime.now(UTC))
+        service._project_cache[cache_key] = (
+            EnumProjectRole.PROJECT_VIEWER.value,
+            datetime.now(UTC),
+        )
 
         # Act & Assert - project_viewer can read
-        assert await service.has_project_access(
-            user_id=user_id,
-            user_role="user",
-            project_id=project_id,
-            required_permission="project-read",
-        ) is True
+        assert (
+            await service.has_project_access(
+                user_id=user_id,
+                user_role="user",
+                project_id=project_id,
+                required_permission="project-read",
+            )
+            is True
+        )
 
         # Act & Assert - project_viewer cannot update
-        assert await service.has_project_access(
-            user_id=user_id,
-            user_role="user",
-            project_id=project_id,
-            required_permission="project-update",
-        ) is False
+        assert (
+            await service.has_project_access(
+                user_id=user_id,
+                user_role="user",
+                project_id=project_id,
+                required_permission="project-update",
+            )
+            is False
+        )
 
         # Act & Assert - project_viewer cannot delete
-        assert await service.has_project_access(
-            user_id=user_id,
-            user_role="user",
-            project_id=project_id,
-            required_permission="project-delete",
-        ) is False
+        assert (
+            await service.has_project_access(
+                user_id=user_id,
+                user_role="user",
+                project_id=project_id,
+                required_permission="project-delete",
+            )
+            is False
+        )
 
     @pytest.mark.asyncio
     async def test_cache_editor_permissions(self, service: JsonRBACService) -> None:
@@ -460,39 +557,54 @@ class TestHasProjectAccess:
         cache_key = (user_id, project_id)
 
         # Populate cache with project_editor role
-        service._project_cache[cache_key] = (EnumProjectRole.PROJECT_EDITOR.value, datetime.now(UTC))
+        service._project_cache[cache_key] = (
+            EnumProjectRole.PROJECT_EDITOR.value,
+            datetime.now(UTC),
+        )
 
         # Act & Assert - project_editor can read
-        assert await service.has_project_access(
-            user_id=user_id,
-            user_role="user",
-            project_id=project_id,
-            required_permission="project-read",
-        ) is True
+        assert (
+            await service.has_project_access(
+                user_id=user_id,
+                user_role="user",
+                project_id=project_id,
+                required_permission="project-read",
+            )
+            is True
+        )
 
         # Act & Assert - project_editor can update
-        assert await service.has_project_access(
-            user_id=user_id,
-            user_role="user",
-            project_id=project_id,
-            required_permission="project-update",
-        ) is True
+        assert (
+            await service.has_project_access(
+                user_id=user_id,
+                user_role="user",
+                project_id=project_id,
+                required_permission="project-update",
+            )
+            is True
+        )
 
         # Act & Assert - project_editor cannot delete
-        assert await service.has_project_access(
-            user_id=user_id,
-            user_role="user",
-            project_id=project_id,
-            required_permission="project-delete",
-        ) is False
+        assert (
+            await service.has_project_access(
+                user_id=user_id,
+                user_role="user",
+                project_id=project_id,
+                required_permission="project-delete",
+            )
+            is False
+        )
 
         # Act & Assert - project_editor cannot approve change orders
-        assert await service.has_project_access(
-            user_id=user_id,
-            user_role="user",
-            project_id=project_id,
-            required_permission="change-order-approve",
-        ) is False
+        assert (
+            await service.has_project_access(
+                user_id=user_id,
+                user_role="user",
+                project_id=project_id,
+                required_permission="change-order-approve",
+            )
+            is False
+        )
 
 
 class TestGetUserProjects:
@@ -510,7 +622,7 @@ class TestGetUserProjects:
         from pathlib import Path
 
         config = {"roles": {"admin": {"permissions": ["all"]}}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)
@@ -520,7 +632,9 @@ class TestGetUserProjects:
         temp_path.unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_no_session_returns_empty_list(self, service: JsonRBACService) -> None:
+    async def test_no_session_returns_empty_list(
+        self, service: JsonRBACService
+    ) -> None:
         """Test that missing database session returns empty list.
 
         Given:
@@ -542,7 +656,9 @@ class TestGetUserProjects:
         assert projects == []
 
     @pytest.mark.asyncio
-    async def test_admin_no_session_returns_empty(self, service: JsonRBACService) -> None:
+    async def test_admin_no_session_returns_empty(
+        self, service: JsonRBACService
+    ) -> None:
         """Test that admin without database session returns empty list.
 
         Given:
@@ -595,7 +711,7 @@ class TestGetProjectRole:
         from pathlib import Path
 
         config = {"roles": {"admin": {"permissions": ["all"]}}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)
@@ -627,7 +743,9 @@ class TestGetProjectRole:
         assert role is None
 
     @pytest.mark.asyncio
-    async def test_cache_hit_returns_cached_role(self, service: JsonRBACService) -> None:
+    async def test_cache_hit_returns_cached_role(
+        self, service: JsonRBACService
+    ) -> None:
         """Test that cache hit returns cached role without DB lookup.
 
         Given:
@@ -653,7 +771,9 @@ class TestGetProjectRole:
         assert role == cached_role
 
     @pytest.mark.asyncio
-    async def test_cache_expired_without_session(self, service: JsonRBACService) -> None:
+    async def test_cache_expired_without_session(
+        self, service: JsonRBACService
+    ) -> None:
         """Test that expired cache without session returns None.
 
         Given:
@@ -706,7 +826,7 @@ class TestRBACServiceAbstractMethods:
         from pathlib import Path
 
         config = {"roles": {"admin": {"permissions": ["all"]}}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config, f)
             f.flush()
             temp_path = Path(f.name)

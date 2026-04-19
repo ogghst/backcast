@@ -56,9 +56,7 @@ class _MockRBAC(RBACServiceABC):
     async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
         return []
 
-    async def get_project_role(
-        self, user_id: UUID, project_id: UUID
-    ) -> str | None:
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
         return None
 
 
@@ -230,12 +228,8 @@ async def test_list_layouts_returns_only_user_layouts(
     db_session: AsyncSession,
 ) -> None:
     """Listing returns layouts owned by the authenticated user only."""
-    await _create_layout(
-        db_session, user_id=owner_user.user_id, name="Owner Layout"
-    )
-    await _create_layout(
-        db_session, user_id=other_user.user_id, name="Other Layout"
-    )
+    await _create_layout(db_session, user_id=owner_user.user_id, name="Owner Layout")
+    await _create_layout(db_session, user_id=other_user.user_id, name="Other Layout")
 
     response = await auth_client.get(BASE_URL)
     assert response.status_code == 200
@@ -566,9 +560,7 @@ async def test_update_layout(
     )
 
     payload = {"name": "Updated", "description": "Changed desc"}
-    response = await auth_client.put(
-        f"{BASE_URL}/{created['id']}", json=payload
-    )
+    response = await auth_client.put(f"{BASE_URL}/{created['id']}", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated"
@@ -588,9 +580,7 @@ async def test_update_layout_widgets(
 
     new_widgets = [{"typeId": "chart", "config": {"color": "blue"}}]
     payload = {"widgets": new_widgets}
-    response = await auth_client.put(
-        f"{BASE_URL}/{created['id']}", json=payload
-    )
+    response = await auth_client.put(f"{BASE_URL}/{created['id']}", json=payload)
     assert response.status_code == 200
     assert response.json()["widgets"] == new_widgets
 

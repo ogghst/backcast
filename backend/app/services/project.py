@@ -134,9 +134,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         )
 
         result = await self.session.execute(stmt)
-        budget_map: dict[UUID, Decimal] = {
-            row[0]: row[1] for row in result.all()
-        }
+        budget_map: dict[UUID, Decimal] = {row[0]: row[1] for row in result.all()}
 
         for project in projects:
             project.budget = budget_map.get(project.project_id, Decimal("0"))
@@ -285,8 +283,8 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             project.created_by_name = created_by_name
 
             # Populate created_at from transaction_time lower bound
-            if hasattr(project, 'transaction_time') and project.transaction_time:
-                if hasattr(project.transaction_time, 'lower'):
+            if hasattr(project, "transaction_time") and project.transaction_time:
+                if hasattr(project.transaction_time, "lower"):
                     project.created_at = project.transaction_time.lower
 
             projects.append(project)
@@ -488,8 +486,8 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         project.created_by_name = creator_name  # type: ignore
 
         # Populate created_at from transaction_time lower bound
-        if hasattr(project, 'transaction_time') and project.transaction_time:
-            if hasattr(project.transaction_time, 'lower'):
+        if hasattr(project, "transaction_time") and project.transaction_time:
+            if hasattr(project.transaction_time, "lower"):
                 project.created_at = project.transaction_time.lower  # type: ignore
 
     async def _apply_project_creation_defaults(

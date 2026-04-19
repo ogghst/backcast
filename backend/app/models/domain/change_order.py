@@ -127,9 +127,7 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
     # 2. PostgreSQL FKs require PK or UNIQUE references
     # 3. Application-level validation in service layer ensures referential integrity
     # See ADR-005: "Foreign Key Constraints in Temporal Entities"
-    assigned_approver_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID, nullable=True
-    )
+    assigned_approver_id: Mapped[UUID | None] = mapped_column(PG_UUID, nullable=True)
     sla_assigned_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )

@@ -116,7 +116,9 @@ async def get_project_context(
         from app.core.versioning.enums import BranchMode
 
         branch = context.branch_name or "main"
-        branch_mode = BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+        branch_mode = (
+            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+        )
 
         project = await context.project_service.get_as_of(
             entity_id=project_uuid,
@@ -347,15 +349,17 @@ async def get_project_structure(
         for ce in all_ces:
             if str(ce.wbe_id) in wbe_ids:
                 ce_list = cost_elements_by_wbe.setdefault(str(ce.wbe_id), [])
-                ce_list.append({
-                    "id": str(ce.cost_element_id),
-                    "code": ce.code,
-                    "name": ce.name,
-                    "budget_amount": (
-                        float(ce.budget_amount) if ce.budget_amount else 0
-                    ),
-                    "type": getattr(ce, "cost_element_type_name", None),
-                })
+                ce_list.append(
+                    {
+                        "id": str(ce.cost_element_id),
+                        "code": ce.code,
+                        "name": ce.name,
+                        "budget_amount": (
+                            float(ce.budget_amount) if ce.budget_amount else 0
+                        ),
+                        "type": getattr(ce, "cost_element_type_name", None),
+                    }
+                )
 
         # Build tree
         wbe_tree = _build_wbe_tree(wbes, cost_elements_by_wbe)

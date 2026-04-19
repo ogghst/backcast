@@ -435,6 +435,7 @@ def mock_rbac_service_no_ai() -> MockRBACService:
     Returns:
         MockRBACService instance without ai-chat permission.
     """
+
     class NoAIRBACService(RBACServiceABC):
         def has_role(self, user_role: str, required_roles: list[str]) -> bool:
             return True

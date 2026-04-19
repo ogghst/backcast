@@ -96,6 +96,7 @@ def setup_mock_rbac():
 
     # Store and replace the global service
     from app.core import rbac as rbac_module
+
     original_service = rbac_module._rbac_service
     set_rbac_service(mock_service)
 
@@ -138,7 +139,9 @@ async def test_permission_denied_without_required_permission(
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await secure_tool.ainvoke({"input": "test", "context": mock_context_without_permissions})
+    result = await secure_tool.ainvoke(
+        {"input": "test", "context": mock_context_without_permissions}
+    )
 
     # Assert
     assert "error" in result
@@ -178,7 +181,9 @@ async def test_permission_granted_with_required_permission(
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await secure_tool.ainvoke({"input": "test", "context": mock_context_with_permissions})
+    result = await secure_tool.ainvoke(
+        {"input": "test", "context": mock_context_with_permissions}
+    )
 
     # Assert
     assert "error" not in result
@@ -221,7 +226,9 @@ async def test_multiple_permissions_and_logic(
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await multi_perm_tool.ainvoke({"input": "test", "context": mock_context_with_permissions})
+    result = await multi_perm_tool.ainvoke(
+        {"input": "test", "context": mock_context_with_permissions}
+    )
 
     # Assert
     assert "error" in result
@@ -265,7 +272,9 @@ async def test_unauthorized_access_blocked_at_tool_level(
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await secure_tool.ainvoke({"input": "test", "context": mock_context_without_permissions})
+    result = await secure_tool.ainvoke(
+        {"input": "test", "context": mock_context_without_permissions}
+    )
 
     # Assert
     assert "error" in result
@@ -344,7 +353,9 @@ async def test_rbac_enforcement_with_no_permissions_required(
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await open_tool.ainvoke({"input": "test", "context": mock_context_without_permissions})
+    result = await open_tool.ainvoke(
+        {"input": "test", "context": mock_context_without_permissions}
+    )
 
     # Assert
     assert "error" not in result
@@ -459,7 +470,9 @@ async def test_permission_check_exception_handling(
     # Act & Assert
     # The decorator doesn't catch RBAC service exceptions, so they propagate
     with pytest.raises(Exception, match="Database connection failed"):
-        await secure_tool.ainvoke({"input": "test", "context": mock_context_without_permissions})
+        await secure_tool.ainvoke(
+            {"input": "test", "context": mock_context_without_permissions}
+        )
 
 
 # Run security tests with pytest:

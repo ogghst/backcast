@@ -116,7 +116,14 @@ class TestSCurveTimeSeriesGeneration:
         schedule_end = datetime(2024, 6, 30, tzinfo=UTC)
 
         self._create_schedule_baseline(
-            db_session, wbe_id, cet_id, "main", schedule_start, schedule_end, "LINEAR", Decimal("50000.00")
+            db_session,
+            wbe_id,
+            cet_id,
+            "main",
+            schedule_start,
+            schedule_end,
+            "LINEAR",
+            Decimal("50000.00"),
         )
         self._create_schedule_baseline(
             db_session,
@@ -240,7 +247,14 @@ class TestSCurveTimeSeriesGeneration:
         schedule_end = datetime(2024, 6, 30, tzinfo=UTC)
 
         self._create_schedule_baseline(
-            db_session, wbe_1_id, cet_id, "main", schedule_start, schedule_end, "LINEAR", Decimal("100000.00")
+            db_session,
+            wbe_1_id,
+            cet_id,
+            "main",
+            schedule_start,
+            schedule_end,
+            "LINEAR",
+            Decimal("100000.00"),
         )
         self._create_schedule_baseline(
             db_session,
@@ -360,10 +374,19 @@ class TestSCurveTimeSeriesGeneration:
 
         # Create schedule baselines with DIFFERENT progression types
         schedule_start = datetime(2024, 1, 1, tzinfo=UTC)
-        schedule_end = datetime(2024, 12, 31, tzinfo=UTC)  # Full year for better S-curve visibility
+        schedule_end = datetime(
+            2024, 12, 31, tzinfo=UTC
+        )  # Full year for better S-curve visibility
 
         self._create_schedule_baseline(
-            db_session, wbe_id, cet_id, "main", schedule_start, schedule_end, "LINEAR", Decimal("100000.00")
+            db_session,
+            wbe_id,
+            cet_id,
+            "main",
+            schedule_start,
+            schedule_end,
+            "LINEAR",
+            Decimal("100000.00"),
         )
         self._create_schedule_baseline(
             db_session,
@@ -396,8 +419,12 @@ class TestSCurveTimeSeriesGeneration:
         # Verify we have both main and change values
         # (The exact curve shape comparison is complex and depends on weekly aggregation,
         # so we just verify that data is generated for both branches)
-        assert any(p.main_value > 0 for p in data_points), "Should have non-zero main values"
-        assert any(p.change_value > 0 for p in data_points), "Should have non-zero change values"
+        assert any(p.main_value > 0 for p in data_points), (
+            "Should have non-zero main values"
+        )
+        assert any(p.change_value > 0 for p in data_points), (
+            "Should have non-zero change values"
+        )
 
     async def test_s_curve_with_schedule_extension(
         self, db_session: AsyncSession
@@ -473,10 +500,24 @@ class TestSCurveTimeSeriesGeneration:
         change_end = datetime(2024, 9, 30, tzinfo=UTC)  # 9 months (50% longer)
 
         self._create_schedule_baseline(
-            db_session, wbe_id, cet_id, "main", main_start, main_end, "LINEAR", Decimal("100000.00")
+            db_session,
+            wbe_id,
+            cet_id,
+            "main",
+            main_start,
+            main_end,
+            "LINEAR",
+            Decimal("100000.00"),
         )
         self._create_schedule_baseline(
-            db_session, wbe_id, cet_id, branch_name, change_start, change_end, "LINEAR", Decimal("100000.00")
+            db_session,
+            wbe_id,
+            cet_id,
+            branch_name,
+            change_start,
+            change_end,
+            "LINEAR",
+            Decimal("100000.00"),
         )
 
         await db_session.commit()
@@ -495,8 +536,12 @@ class TestSCurveTimeSeriesGeneration:
         assert len(data_points) > 1, "Should generate multiple weekly data points"
 
         # Verify that both branches have data
-        assert any(p.main_value > 0 for p in data_points), "Should have non-zero main values"
-        assert any(p.change_value > 0 for p in data_points), "Should have non-zero change values"
+        assert any(p.main_value > 0 for p in data_points), (
+            "Should have non-zero main values"
+        )
+        assert any(p.change_value > 0 for p in data_points), (
+            "Should have non-zero change values"
+        )
 
     async def test_s_curve_empty_project(self, db_session: AsyncSession) -> None:
         """Test S-curve generation when project has no WBEs or schedules.
@@ -520,7 +565,9 @@ class TestSCurveTimeSeriesGeneration:
         assert len(result) >= 1, "Should return at least 1 time series (budget)"
         budget_series = next((ts for ts in result if ts.metric_name == "budget"), None)
         assert budget_series is not None, "Should have budget time series"
-        assert all(dp.main_value == Decimal("0") for dp in budget_series.data_points), "All budget values should be 0 for empty project"
+        assert all(dp.main_value == Decimal("0") for dp in budget_series.data_points), (
+            "All budget values should be 0 for empty project"
+        )
 
     async def test_s_curve_no_schedule_baselines(
         self, db_session: AsyncSession
@@ -573,7 +620,9 @@ class TestSCurveTimeSeriesGeneration:
         assert len(result) >= 1, "Should return at least 1 time series (budget)"
         budget_series = next((ts for ts in result if ts.metric_name == "budget"), None)
         assert budget_series is not None, "Should have budget time series"
-        assert all(dp.main_value == Decimal("0") for dp in budget_series.data_points), "All budget values should be 0 when no schedule baselines exist"
+        assert all(dp.main_value == Decimal("0") for dp in budget_series.data_points), (
+            "All budget values should be 0 when no schedule baselines exist"
+        )
 
     def _create_schedule_baseline(
         self,

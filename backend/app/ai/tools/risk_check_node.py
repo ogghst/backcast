@@ -136,14 +136,14 @@ class RiskCheckNode(ToolNode):
                 return (
                     False,
                     f"Tool '{tool_name}' requires {risk_level.value} risk level. "
-                    f"Safe mode only allows low-risk tools."
+                    f"Safe mode only allows low-risk tools.",
                 )
         elif mode == ExecutionMode.STANDARD:
             if risk_level == RiskLevel.CRITICAL:
                 return (
                     False,
                     f"Tool '{tool_name}' has critical risk level. "
-                    f"Standard mode blocks critical tools. Switch to expert mode."
+                    f"Standard mode blocks critical tools. Switch to expert mode.",
                 )
         # Expert mode allows all tools
 

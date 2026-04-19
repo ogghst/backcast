@@ -61,7 +61,8 @@ async def read_quality_events(
         description="Filter by Project ID (returns all events under this project)",
     ),
     event_type: str | None = Query(
-        None, description="Filter by event type (defect, rework, scrap, warranty, other)"
+        None,
+        description="Filter by event type (defect, rework, scrap, warranty, other)",
     ),
     severity: str | None = Query(
         None, description="Filter by severity (low, medium, high, critical)"
@@ -187,9 +188,7 @@ async def get_quality_event_total(
         as_of = datetime.now(tz=UTC)
 
     try:
-        total = await service.get_total_for_cost_element(
-            cost_element_id, as_of=as_of
-        )
+        total = await service.get_total_for_cost_element(cost_element_id, as_of=as_of)
         return {
             "cost_element_id": str(cost_element_id),
             "total_cost_impact": float(total),

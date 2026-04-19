@@ -5,16 +5,14 @@ Validates that filtering sessions by context_type performs efficiently
 even with 1000+ sessions across different context types.
 """
 
-import asyncio
 import statistics
 import time
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.ai import AIConversationSession
 from app.models.domain.user import User
 from app.models.schemas.ai import (
     AIAssistantConfigCreate,
@@ -40,9 +38,7 @@ async def test_context_filtering_performance_with_1000_sessions(
 
     # Create provider and model
     provider = await config_service.create_provider(
-        AIProviderCreate(
-            provider_type="openai", name="Test Provider", is_active=True
-        )
+        AIProviderCreate(provider_type="openai", name="Test Provider", is_active=True)
     )
     model = await config_service.create_model(
         AIModelCreate(
@@ -72,7 +68,11 @@ async def test_context_filtering_performance_with_1000_sessions(
             if context_type == "general":
                 context = {"type": "general"}
             elif context_type == "project":
-                context = {"type": "project", "id": str(uuid4()), "name": f"Project {i}"}
+                context = {
+                    "type": "project",
+                    "id": str(uuid4()),
+                    "name": f"Project {i}",
+                }
             elif context_type == "wbe":
                 project_id = str(uuid4())
                 context = {
@@ -146,15 +146,15 @@ async def test_context_filtering_performance_with_1000_sessions(
     max_time = max(filtering_times)
     min_time = min(filtering_times)
 
-    print(f"\n=== PERFORMANCE RESULTS ===")
+    print("\n=== PERFORMANCE RESULTS ===")
     print(f"Average: {avg_time:.2f}ms")
     print(f"Min: {min_time:.2f}ms")
     print(f"Max: {max_time:.2f}ms")
 
     # Performance assertion: filtering should be <100ms on average
-    assert (
-        avg_time < 100
-    ), f"Context filtering too slow: {avg_time:.2f}ms average (target: <100ms)"
+    assert avg_time < 100, (
+        f"Context filtering too slow: {avg_time:.2f}ms average (target: <100ms)"
+    )
 
     # Ensure all queries complete in reasonable time
     assert max_time < 200, f"Slowest query too slow: {max_time:.2f}ms (limit: 200ms)"
@@ -173,9 +173,7 @@ async def test_context_filtering_index_efficiency(
 
     # Create provider and model
     provider = await config_service.create_provider(
-        AIProviderCreate(
-            provider_type="openai", name="Test Provider", is_active=True
-        )
+        AIProviderCreate(provider_type="openai", name="Test Provider", is_active=True)
     )
     model = await config_service.create_model(
         AIModelCreate(
@@ -198,7 +196,11 @@ async def test_context_filtering_index_efficiency(
             if context_type == "general":
                 context = {"type": "general"}
             elif context_type == "project":
-                context = {"type": "project", "id": str(uuid4()), "name": f"Project {i}"}
+                context = {
+                    "type": "project",
+                    "id": str(uuid4()),
+                    "name": f"Project {i}",
+                }
             elif context_type == "wbe":
                 project_id = str(uuid4())
                 context = {
@@ -243,7 +245,7 @@ async def test_context_filtering_index_efficiency(
 
     # The query should use the composite index
     # Look for "Index Scan" or "Bitmap Index Scan"
-    uses_index = (
+    uses_index = (  # noqa: F841
         "index scan" in plan_str
         or "bitmap index scan" in plan_str
         or "index only scan" in plan_str
@@ -255,9 +257,9 @@ async def test_context_filtering_index_efficiency(
 
     # For a composite index on (user_id, context->>'type'), we expect
     # the plan to use an index scan
-    assert (
-        "seq scan" not in plan_str or "parallel seq scan" not in plan_str
-    ), "Query should use index scan, not sequential scan for context filtering"
+    assert "seq scan" not in plan_str or "parallel seq scan" not in plan_str, (
+        "Query should use index scan, not sequential scan for context filtering"
+    )
 
 
 @pytest.mark.asyncio
@@ -272,9 +274,7 @@ async def test_context_count_performance(
 
     # Create provider and model
     provider = await config_service.create_provider(
-        AIProviderCreate(
-            provider_type="openai", name="Test Provider", is_active=True
-        )
+        AIProviderCreate(provider_type="openai", name="Test Provider", is_active=True)
     )
     model = await config_service.create_model(
         AIModelCreate(
@@ -293,7 +293,7 @@ async def test_context_count_performance(
 
     # Create 500 sessions across context types
     for context_type in ["general", "project", "wbe", "cost_element"]:
-        for i in range(125):
+        for _ in range(125):
             if context_type == "general":
                 context = {"type": "general"}
             elif context_type == "project":
@@ -344,6 +344,6 @@ async def test_context_count_performance(
     print(f"\nAverage COUNT time: {avg_count_time:.2f}ms")
 
     # COUNT queries should be very fast with index
-    assert (
-        avg_count_time < 50
-    ), f"COUNT query too slow: {avg_count_time:.2f}ms (target: <50ms)"
+    assert avg_count_time < 50, (
+        f"COUNT query too slow: {avg_count_time:.2f}ms (target: <50ms)"
+    )

@@ -39,7 +39,7 @@ class TestChangeOrderMergeOrchestration:
             code="123",
             status="Approved",
             change_order_id=change_order_id,
-            project_id=project_id
+            project_id=project_id,
         )
 
         # Mock the service methods
@@ -118,7 +118,7 @@ class TestChangeOrderMergeOrchestration:
             code="456",
             status="Approved",
             change_order_id=change_order_id,
-            project_id=project_id
+            project_id=project_id,
         )
 
         # Create mock WBEs (not deleted)
@@ -307,7 +307,7 @@ class TestChangeOrderMergeOrchestration:
             code="999",
             status="Approved",
             change_order_id=change_order_id,
-            project_id=uuid4()
+            project_id=uuid4(),
         )
 
         # Create mock WBE (not deleted, so merge will be attempted)
@@ -374,7 +374,7 @@ class TestChangeOrderMergeOrchestration:
             code="888",
             status="Approved",
             change_order_id=change_order_id,
-            project_id=uuid4()
+            project_id=uuid4(),
         )
 
         service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)

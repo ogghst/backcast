@@ -117,10 +117,9 @@ class TestGetForecast:
         forecast, cost_element_id = test_forecast
 
         # Act
-        result = await get_forecast.ainvoke({
-            "cost_element_id": str(cost_element_id),
-            "context": tool_context
-        })
+        result = await get_forecast.ainvoke(
+            {"cost_element_id": str(cost_element_id), "context": tool_context}
+        )
 
         # Assert
         assert "error" not in result
@@ -130,7 +129,9 @@ class TestGetForecast:
         assert "branch" in result
         assert "_temporal_context" in result
         assert result["eac_amount"] == 105000.00
-        assert result["basis_of_estimate"] == "Initial forecast based on historical data"
+        assert (
+            result["basis_of_estimate"] == "Initial forecast based on historical data"
+        )
         assert result["branch"] == "main"
 
     @pytest.mark.asyncio
@@ -140,10 +141,9 @@ class TestGetForecast:
         cost_element_id = str(uuid4())
 
         # Act
-        result = await get_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_forecast.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         assert "error" in result
@@ -156,10 +156,9 @@ class TestGetForecast:
         cost_element_id = "invalid-uuid-format"
 
         # Act
-        result = await get_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_forecast.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         assert "error" in result
@@ -177,6 +176,7 @@ class TestCreateForecast:
         # Arrange
         # First delete any existing forecast
         from app.services.forecast_service import ForecastService
+
         service = ForecastService(tool_context.session)
         existing = await service.get_for_cost_element(
             test_cost_element.cost_element_id, branch="main"
@@ -194,12 +194,14 @@ class TestCreateForecast:
         basis_of_estimate = "Updated forecast after re-estimation"
 
         # Act
-        result = await create_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "eac_amount": eac_amount,
-            "basis_of_estimate": basis_of_estimate,
-            "context": tool_context,
-        })
+        result = await create_forecast.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "eac_amount": eac_amount,
+                "basis_of_estimate": basis_of_estimate,
+                "context": tool_context,
+            }
+        )
 
         # Assert
         assert "error" not in result
@@ -226,12 +228,14 @@ class TestUpdateForecast:
         new_basis = "Updated forecast after reviewing cost trends"
 
         # Act
-        result = await update_forecast.ainvoke({
-            "forecast_id": forecast_id,
-            "eac_amount": new_eac_amount,
-            "basis_of_estimate": new_basis,
-            "context": tool_context,
-        })
+        result = await update_forecast.ainvoke(
+            {
+                "forecast_id": forecast_id,
+                "eac_amount": new_eac_amount,
+                "basis_of_estimate": new_basis,
+                "context": tool_context,
+            }
+        )
 
         # Assert
         assert "error" not in result
@@ -248,16 +252,21 @@ class TestUpdateForecast:
         forecast_id = str(uuid4())
 
         # Act
-        result = await update_forecast.ainvoke({
-            "forecast_id": forecast_id,
-            "eac_amount": 100000.00,
-            "basis_of_estimate": "Test",
-            "context": tool_context,
-        })
+        result = await update_forecast.ainvoke(
+            {
+                "forecast_id": forecast_id,
+                "eac_amount": 100000.00,
+                "basis_of_estimate": "Test",
+                "context": tool_context,
+            }
+        )
 
         # Assert
         assert "error" in result
-        assert "invalid" in result["error"].lower() or "not found" in result["error"].lower()
+        assert (
+            "invalid" in result["error"].lower()
+            or "not found" in result["error"].lower()
+        )
 
 
 class TestCompareForecastToBudget:
@@ -272,10 +281,12 @@ class TestCompareForecastToBudget:
         forecast, cost_element_id = test_forecast
 
         # Act
-        result = await compare_forecast_to_budget.ainvoke({
-            "cost_element_id": str(cost_element_id),
-            "context": tool_context,
-        })
+        result = await compare_forecast_to_budget.ainvoke(
+            {
+                "cost_element_id": str(cost_element_id),
+                "context": tool_context,
+            }
+        )
 
         # Assert
         assert "error" not in result
@@ -293,6 +304,7 @@ class TestCompareForecastToBudget:
         """Test comparing forecast when no forecast exists returns error."""
         # Arrange - Delete existing forecast
         from app.services.forecast_service import ForecastService
+
         service = ForecastService(tool_context.session)
         existing = await service.get_for_cost_element(
             test_cost_element.cost_element_id, branch="main"
@@ -308,10 +320,12 @@ class TestCompareForecastToBudget:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await compare_forecast_to_budget.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context,
-        })
+        result = await compare_forecast_to_budget.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "context": tool_context,
+            }
+        )
 
         # Assert
         assert "error" in result
@@ -335,10 +349,9 @@ class TestGetBudgetStatus:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await get_budget_status.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_budget_status.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         assert "error" not in result
@@ -384,10 +397,9 @@ class TestGetLatestProgress:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await get_latest_progress.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_latest_progress.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         assert "error" not in result
@@ -431,10 +443,12 @@ class TestGetCostElementSummary:
         await tool_context.session.commit()
 
         # Act
-        result = await get_cost_element_summary.ainvoke({
-            "cost_element_id": str(cost_element_id),
-            "context": tool_context,
-        })
+        result = await get_cost_element_summary.ainvoke(
+            {
+                "cost_element_id": str(cost_element_id),
+                "context": tool_context,
+            }
+        )
 
         # Assert
         assert "error" not in result
@@ -467,10 +481,9 @@ class TestTemporalLogging:
 
         # Act & Assert - Tool should execute without errors
         # (log_temporal_context is called at the start of each tool)
-        result = await get_forecast.ainvoke({
-            "cost_element_id": str(cost_element_id),
-            "context": tool_context
-        })
+        result = await get_forecast.ainvoke(
+            {"cost_element_id": str(cost_element_id), "context": tool_context}
+        )
 
         # Verify tool executed successfully (logging didn't cause errors)
         assert "error" not in result, "Tool should execute successfully"
@@ -485,10 +498,9 @@ class TestTemporalLogging:
         forecast, cost_element_id = test_forecast
 
         # Act
-        result = await get_forecast.ainvoke({
-            "cost_element_id": str(cost_element_id),
-            "context": tool_context
-        })
+        result = await get_forecast.ainvoke(
+            {"cost_element_id": str(cost_element_id), "context": tool_context}
+        )
 
         # Assert
         assert "_temporal_context" in result
@@ -512,10 +524,9 @@ class TestErrorHandling:
         cost_element_id = "not-a-uuid"
 
         # Act
-        result = await get_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_forecast.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         assert "error" in result
@@ -528,10 +539,9 @@ class TestErrorHandling:
         cost_element_id = ""
 
         # Act
-        result = await get_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_forecast.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         assert "error" in result
@@ -543,20 +553,22 @@ class TestErrorHandling:
         cost_element_id = "   "
 
         # Act
-        result = await get_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_forecast.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_create_forecast_invalid_eac_amount(self, tool_context: ToolContext, test_cost_element):
+    async def test_create_forecast_invalid_eac_amount(
+        self, tool_context: ToolContext, test_cost_element
+    ):
         """Test creating forecast with invalid EAC amount."""
         # Arrange
         # Delete existing forecast
         from app.services.forecast_service import ForecastService
+
         service = ForecastService(tool_context.session)
         existing = await service.get_for_cost_element(
             test_cost_element.cost_element_id, branch="main"
@@ -573,21 +585,26 @@ class TestErrorHandling:
         invalid_eac = -1000.00  # Negative amount
 
         # Act
-        result = await create_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "eac_amount": invalid_eac,
-            "basis_of_estimate": "Test",
-            "context": tool_context,
-        })
+        result = await create_forecast.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "eac_amount": invalid_eac,
+                "basis_of_estimate": "Test",
+                "context": tool_context,
+            }
+        )
 
         # Assert - Should return error for negative amount
         assert "error" in result or "eac_amount" in result
 
     @pytest.mark.asyncio
-    async def test_create_forecast_zero_eac_amount(self, tool_context: ToolContext, test_cost_element):
+    async def test_create_forecast_zero_eac_amount(
+        self, tool_context: ToolContext, test_cost_element
+    ):
         """Test creating forecast with zero EAC amount."""
         # Arrange
         from app.services.forecast_service import ForecastService
+
         service = ForecastService(tool_context.session)
         existing = await service.get_for_cost_element(
             test_cost_element.cost_element_id, branch="main"
@@ -604,21 +621,26 @@ class TestErrorHandling:
         zero_eac = 0.00
 
         # Act
-        result = await create_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "eac_amount": zero_eac,
-            "basis_of_estimate": "Zero forecast",
-            "context": tool_context,
-        })
+        result = await create_forecast.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "eac_amount": zero_eac,
+                "basis_of_estimate": "Zero forecast",
+                "context": tool_context,
+            }
+        )
 
         # Assert - Should handle zero amount (may succeed or fail based on validation)
         assert "error" in result or "id" in result
 
     @pytest.mark.asyncio
-    async def test_create_forecast_empty_basis(self, tool_context: ToolContext, test_cost_element):
+    async def test_create_forecast_empty_basis(
+        self, tool_context: ToolContext, test_cost_element
+    ):
         """Test creating forecast with empty basis of estimate."""
         # Arrange
         from app.services.forecast_service import ForecastService
+
         service = ForecastService(tool_context.session)
         existing = await service.get_for_cost_element(
             test_cost_element.cost_element_id, branch="main"
@@ -635,67 +657,81 @@ class TestErrorHandling:
         empty_basis = ""
 
         # Act
-        result = await create_forecast.ainvoke({
-            "cost_element_id": cost_element_id,
-            "eac_amount": 100000.00,
-            "basis_of_estimate": empty_basis,
-            "context": tool_context,
-        })
+        result = await create_forecast.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "eac_amount": 100000.00,
+                "basis_of_estimate": empty_basis,
+                "context": tool_context,
+            }
+        )
 
         # Assert - Should return error for empty required field
         assert "error" in result or "basis" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_create_progress_entry_invalid_percentage(self, tool_context: ToolContext, test_cost_element):
+    async def test_create_progress_entry_invalid_percentage(
+        self, tool_context: ToolContext, test_cost_element
+    ):
         """Test creating progress entry with invalid percentage."""
         # Arrange
         cost_element_id = str(test_cost_element.cost_element_id)
         invalid_percentage = 150.00  # Over 100%
 
         # Act
-        result = await create_progress_entry.ainvoke({
-            "cost_element_id": cost_element_id,
-            "progress_percentage": invalid_percentage,
-            "notes": "Test",
-            "context": tool_context,
-        })
+        result = await create_progress_entry.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "progress_percentage": invalid_percentage,
+                "notes": "Test",
+                "context": tool_context,
+            }
+        )
 
         # Assert - Should handle invalid percentage
         assert "error" in result or "percentage" in result
 
     @pytest.mark.asyncio
-    async def test_create_progress_entry_negative_percentage(self, tool_context: ToolContext, test_cost_element):
+    async def test_create_progress_entry_negative_percentage(
+        self, tool_context: ToolContext, test_cost_element
+    ):
         """Test creating progress entry with negative percentage."""
         # Arrange
         cost_element_id = str(test_cost_element.cost_element_id)
         negative_percentage = -10.00
 
         # Act
-        result = await create_progress_entry.ainvoke({
-            "cost_element_id": cost_element_id,
-            "progress_percentage": negative_percentage,
-            "notes": "Test",
-            "context": tool_context,
-        })
+        result = await create_progress_entry.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "progress_percentage": negative_percentage,
+                "notes": "Test",
+                "context": tool_context,
+            }
+        )
 
         # Assert - Should handle negative percentage
         assert "error" in result or "percentage" in result
 
     @pytest.mark.asyncio
-    async def test_get_budget_status_missing_cost_element(self, tool_context: ToolContext):
+    async def test_get_budget_status_missing_cost_element(
+        self, tool_context: ToolContext
+    ):
         """Test getting budget status for non-existent cost element."""
         # Arrange
         cost_element_id = str(uuid4())
 
         # Act
-        result = await get_budget_status.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_budget_status.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         assert "error" in result
-        assert "not found" in result["error"].lower() or "no cost element" in result["error"].lower()
+        assert (
+            "not found" in result["error"].lower()
+            or "no cost element" in result["error"].lower()
+        )
 
     @pytest.mark.asyncio
     async def test_update_forecast_invalid_forecast_id(self, tool_context: ToolContext):
@@ -704,23 +740,28 @@ class TestErrorHandling:
         forecast_id = "invalid-uuid"
 
         # Act
-        result = await update_forecast.ainvoke({
-            "forecast_id": forecast_id,
-            "eac_amount": 100000.00,
-            "basis_of_estimate": "Test",
-            "context": tool_context,
-        })
+        result = await update_forecast.ainvoke(
+            {
+                "forecast_id": forecast_id,
+                "eac_amount": 100000.00,
+                "basis_of_estimate": "Test",
+                "context": tool_context,
+            }
+        )
 
         # Assert
         assert "error" in result
         assert "invalid" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_compare_forecast_to_budget_missing_forecast(self, tool_context: ToolContext, test_cost_element):
+    async def test_compare_forecast_to_budget_missing_forecast(
+        self, tool_context: ToolContext, test_cost_element
+    ):
         """Test comparing forecast when no forecast exists."""
         # Arrange
         # Delete existing forecast
         from app.services.forecast_service import ForecastService
+
         service = ForecastService(tool_context.session)
         existing = await service.get_for_cost_element(
             test_cost_element.cost_element_id, branch="main"
@@ -736,21 +777,29 @@ class TestErrorHandling:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await compare_forecast_to_budget.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context,
-        })
+        result = await compare_forecast_to_budget.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "context": tool_context,
+            }
+        )
 
         # Assert
         assert "error" in result
-        assert "not found" in result["error"].lower() or "no forecast" in result["error"].lower()
+        assert (
+            "not found" in result["error"].lower()
+            or "no forecast" in result["error"].lower()
+        )
 
     @pytest.mark.asyncio
-    async def test_get_cost_element_summary_missing_data(self, tool_context: ToolContext, test_cost_element):
+    async def test_get_cost_element_summary_missing_data(
+        self, tool_context: ToolContext, test_cost_element
+    ):
         """Test getting summary when some data is missing."""
         # Arrange
         # Delete forecast to test missing data handling
         from app.services.forecast_service import ForecastService
+
         service = ForecastService(tool_context.session)
         existing = await service.get_for_cost_element(
             test_cost_element.cost_element_id, branch="main"
@@ -766,10 +815,12 @@ class TestErrorHandling:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await get_cost_element_summary.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context,
-        })
+        result = await get_cost_element_summary.ainvoke(
+            {
+                "cost_element_id": cost_element_id,
+                "context": tool_context,
+            }
+        )
 
         # Assert - Should return partial data with missing fields as null/none
         assert "error" in result or "cost_element_id" in result
@@ -777,21 +828,30 @@ class TestErrorHandling:
             # Should have budget status even without forecast/progress
             assert "budget_status" in result
             # Forecast and progress may be null/None when missing
-            assert result.get("forecast") is None or "eac_amount" in result.get("forecast", {})
-            assert result.get("progress") is None or "progress_percentage" in result.get("progress", {})
+            assert result.get("forecast") is None or "eac_amount" in result.get(
+                "forecast", {}
+            )
+            assert result.get(
+                "progress"
+            ) is None or "progress_percentage" in result.get("progress", {})
 
     @pytest.mark.asyncio
-    async def test_get_latest_progress_no_progress_entries(self, tool_context: ToolContext, test_cost_element):
+    async def test_get_latest_progress_no_progress_entries(
+        self, tool_context: ToolContext, test_cost_element
+    ):
         """Test getting latest progress when no entries exist."""
         # Arrange
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await get_latest_progress.ainvoke({
-            "cost_element_id": cost_element_id,
-            "context": tool_context
-        })
+        result = await get_latest_progress.ainvoke(
+            {"cost_element_id": cost_element_id, "context": tool_context}
+        )
 
         # Assert
         # Should either return error for no progress or return null/empty data
-        assert "error" in result or "progress_entry_id" in result or result.get("progress_entry_id") is None
+        assert (
+            "error" in result
+            or "progress_entry_id" in result
+            or result.get("progress_entry_id") is None
+        )

@@ -187,7 +187,9 @@ async def read_project(
         None,
         description="Time travel: get project state as of this timestamp (ISO 8601)",
     ),
-    current_user: User = Depends(ProjectRoleChecker(required_permission="project-read")),
+    current_user: User = Depends(
+        ProjectRoleChecker(required_permission="project-read")
+    ),
     service: ProjectService = Depends(get_project_service),
 ) -> Project:
     """Get a specific project by id. Requires read permission.
@@ -224,7 +226,9 @@ async def read_project(
 async def update_project(
     project_id: UUID,
     project_in: ProjectUpdate,
-    current_user: User = Depends(ProjectRoleChecker(required_permission="project-update")),
+    current_user: User = Depends(
+        ProjectRoleChecker(required_permission="project-update")
+    ),
     service: ProjectService = Depends(get_project_service),
 ) -> Project:
     """Update a project. Requires update permission."""
@@ -254,7 +258,9 @@ async def delete_project(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(ProjectRoleChecker(required_permission="project-delete")),
+    current_user: User = Depends(
+        ProjectRoleChecker(required_permission="project-delete")
+    ),
     service: ProjectService = Depends(get_project_service),
 ) -> None:
     """Soft delete a project. Requires delete permission."""

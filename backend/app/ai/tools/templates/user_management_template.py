@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 # USER CRUD TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="list_users",
     description="List all users with pagination. "
@@ -166,7 +167,9 @@ async def get_user(
             "role": user.role,
             "is_active": user.is_active,
             "preferences": user.preferences if user.preferences else None,
-            "password_changed_at": user.password_changed_at.isoformat() if user.password_changed_at else None,
+            "password_changed_at": user.password_changed_at.isoformat()
+            if user.password_changed_at
+            else None,
         }
     except ValueError:
         return {"error": f"Invalid user ID: {user_id}"}
@@ -413,6 +416,7 @@ async def delete_user(
 # =============================================================================
 # DEPARTMENT CRUD TOOLS
 # =============================================================================
+
 
 @ai_tool(
     name="list_departments",

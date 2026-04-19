@@ -96,8 +96,12 @@ def get_ai_config_service(session: AsyncSession = Depends(get_db)) -> AIConfigSe
 async def list_sessions(
     current_user: User = Depends(get_current_active_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
-    context_type: str | None = Query(None, description="Filter by context type (general, project, wbe, cost_element)"),
-    context_id: str | None = Query(None, description="Filter by specific entity ID (e.g., project UUID, WBE ID)"),
+    context_type: str | None = Query(
+        None, description="Filter by context type (general, project, wbe, cost_element)"
+    ),
+    context_id: str | None = Query(
+        None, description="Filter by specific entity ID (e.g., project UUID, WBE ID)"
+    ),
 ) -> list[AIConversationSessionPublic]:
     """List conversation sessions for the current user.
 
@@ -151,8 +155,12 @@ async def list_sessions_paginated(
     limit: int = 10,
     current_user: User = Depends(get_current_active_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
-    context_type: str | None = Query(None, description="Filter by context type (general, project, wbe, cost_element)"),
-    context_id: str | None = Query(None, description="Filter by specific entity ID (e.g., project UUID, WBE ID)"),
+    context_type: str | None = Query(
+        None, description="Filter by context type (general, project, wbe, cost_element)"
+    ),
+    context_id: str | None = Query(
+        None, description="Filter by specific entity ID (e.g., project UUID, WBE ID)"
+    ),
 ) -> AIConversationSessionPaginated:
     """List chat sessions with pagination.
 
@@ -298,18 +306,12 @@ async def invoke_agent(
             status_code=500, detail="Session has no associated assistant config"
         )
     if not assistant_config.is_active:
-        raise HTTPException(
-            status_code=400, detail="Assistant config is not active"
-        )
+        raise HTTPException(status_code=400, detail="Assistant config is not active")
 
     agent_service = AgentService(db)
     # Session model stores UUIDs as str (PG_UUID mapping); cast for typed service layer
-    project_uuid: UUID | None = (
-        UUID(session.project_id) if session.project_id else None
-    )
-    branch_uuid: UUID | None = (
-        UUID(session.branch_id) if session.branch_id else None
-    )
+    project_uuid: UUID | None = UUID(session.project_id) if session.project_id else None
+    branch_uuid: UUID | None = UUID(session.branch_id) if session.branch_id else None
     execution_id = await agent_service.start_execution(
         message=body.message,
         assistant_config=assistant_config,
@@ -321,9 +323,7 @@ async def invoke_agent(
     )
 
     # Fetch the created execution record
-    exec_stmt = select(AIAgentExecution).where(
-        AIAgentExecution.id == execution_id
-    )
+    exec_stmt = select(AIAgentExecution).where(AIAgentExecution.id == execution_id)
     exec_result = await db.execute(exec_stmt)
     execution = exec_result.scalar_one()
     return AgentExecutionPublic.model_validate(execution)
@@ -376,10 +376,7 @@ async def get_execution_status(
     the current user.
     """
     # Fetch execution with session for ownership check
-    stmt = (
-        select(AIAgentExecution)
-        .where(AIAgentExecution.id == execution_id)
-    )
+    stmt = select(AIAgentExecution).where(AIAgentExecution.id == execution_id)
     result = await db.execute(stmt)
     execution = result.scalar_one_or_none()
 
@@ -448,9 +445,7 @@ async def approve_execution(
 
     # Look up InterruptNode for the session via AgentService class-level dict
     agent_service = AgentService(db)
-    interrupt_node = agent_service.get_interrupt_node(
-        UUID(str(execution.session_id))
-    )
+    interrupt_node = agent_service.get_interrupt_node(UUID(str(execution.session_id)))
 
     if interrupt_node is None:
         raise HTTPException(
@@ -533,13 +528,15 @@ async def chat_stream(
     # Create database session after token validation using context manager
     # This ensures proper cleanup even with early returns
     async with async_session_maker() as db:
-
         # Extract user_id from email subject (assuming sub is email)
         from app.services.user import UserService
+
         user_service = UserService(db)
         user = await user_service.get_by_email(subject)
         if user is None:
-            logger.warning(f"WebSocket connection rejected: user not found for email {subject}")
+            logger.warning(
+                f"WebSocket connection rejected: user not found for email {subject}"
+            )
             await websocket.close(code=1008, reason="User not found")
             return
 
@@ -548,8 +545,12 @@ async def chat_stream(
         # Step 2: Check RBAC permission
         rbac_service = get_rbac_service()
         if not rbac_service.has_permission(user.role, "ai-chat"):
-            logger.warning(f"WebSocket connection rejected: user {user_id} lacks ai-chat permission")
-            await websocket.close(code=1008, reason="Insufficient permissions: ai-chat required")
+            logger.warning(
+                f"WebSocket connection rejected: user {user_id} lacks ai-chat permission"
+            )
+            await websocket.close(
+                code=1008, reason="Insufficient permissions: ai-chat required"
+            )
             return
 
         # Step 3: Now accept the connection since authentication and authorization passed
@@ -648,7 +649,8 @@ async def chat_stream(
                             while not bus.is_completed:
                                 try:
                                     event = await asyncio.wait_for(
-                                        sub_queue.get(), timeout=1.0,
+                                        sub_queue.get(),
+                                        timeout=1.0,
                                     )
                                     if not _is_websocket_connected(websocket):
                                         break
@@ -682,7 +684,9 @@ async def chat_stream(
                 # Handle approval response messages immediately (non-blocking)
                 if message_type == "approval_response":
                     try:
-                        approval_response = WSApprovalResponseMessage.model_validate(data)
+                        approval_response = WSApprovalResponseMessage.model_validate(
+                            data
+                        )
                         # Use session_holder.value -- updated when session is created
                         active_session_id = session_holder.value
                         if active_session_id is None:
@@ -718,7 +722,10 @@ async def chat_stream(
                             f"approved={approval_response.approved}"
                         )
                     except Exception as approval_err:
-                        logger.error(f"Error handling approval response: {approval_err}", exc_info=True)
+                        logger.error(
+                            f"Error handling approval response: {approval_err}",
+                            exc_info=True,
+                        )
                         await websocket.send_json(
                             WSErrorMessage(
                                 type="error",
@@ -769,7 +776,9 @@ async def chat_stream(
                 effective_session_id: UUID | None = request.session_id
                 if effective_session_id:
                     # Verify existing session
-                    existing_session = await config_service.get_session(effective_session_id)
+                    existing_session = await config_service.get_session(
+                        effective_session_id
+                    )
                     if not existing_session:
                         await websocket.send_json(
                             WSErrorMessage(
@@ -883,7 +892,8 @@ async def chat_stream(
                             while True:
                                 try:
                                     event = await asyncio.wait_for(
-                                        queue.get(), timeout=1.0,
+                                        queue.get(),
+                                        timeout=1.0,
                                     )
                                 except TimeoutError:
                                     if not _is_websocket_connected(ws):
@@ -925,10 +935,12 @@ async def chat_stream(
 
                 # --- Send execution_started immediately ---
                 try:
-                    await websocket.send_json({
-                        "type": "execution_started",
-                        "execution_id": exec_id,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "execution_started",
+                            "execution_id": exec_id,
+                        }
+                    )
                 except Exception:
                     logger.warning(
                         f"Failed to send execution_started for user {user_id}"
@@ -937,7 +949,9 @@ async def chat_stream(
 
                 # --- Forward events from bus to WebSocket (non-blocking) ---
                 forwarding_task = create_event_forwarding_task(
-                    exec_bus, websocket, user_id,
+                    exec_bus,
+                    websocket,
+                    user_id,
                 )
                 execution_tasks.add(forwarding_task)
                 forwarding_task.add_done_callback(execution_tasks.discard)
@@ -956,12 +970,16 @@ async def chat_stream(
             await message_task
 
         except WebSocketDisconnect as e:
-            logger.info(f"WebSocket disconnected normally for user {user_id}: code={e.code}, reason={e.reason}")
+            logger.info(
+                f"WebSocket disconnected normally for user {user_id}: code={e.code}, reason={e.reason}"
+            )
         except RuntimeError as e:
             # Starlette raises RuntimeError when receive_json() is called on a closed WebSocket
             # This happens when the client disconnects during streaming and the loop continues
             if "not connected" in str(e).lower():
-                logger.info(f"WebSocket disconnected (RuntimeError) for user {user_id}: {e}")
+                logger.info(
+                    f"WebSocket disconnected (RuntimeError) for user {user_id}: {e}"
+                )
             else:
                 # Re-raise unexpected RuntimeErrors
                 await db.rollback()
@@ -992,7 +1010,9 @@ async def chat_stream(
                     task.cancel()
             # Wait for infrastructure tasks to finish cancellation (with timeout)
             if tasks:
-                await asyncio.wait(tasks, timeout=2.0, return_when=asyncio.ALL_COMPLETED)
+                await asyncio.wait(
+                    tasks, timeout=2.0, return_when=asyncio.ALL_COMPLETED
+                )
             tasks.clear()
 
             # Execution tasks are intentionally NOT cancelled here.

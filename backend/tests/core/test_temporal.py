@@ -4,8 +4,6 @@ Tests the format_temporal_range_for_api function which converts
 PostgreSQL TSTZRANGE values to display-ready format for API responses.
 """
 
-import pytest
-
 from app.core.temporal import format_temporal_range_for_api
 
 

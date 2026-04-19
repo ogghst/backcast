@@ -333,7 +333,9 @@ async def test_cost_element_zombie_check_deleted_not_visible(db_session):
     assert result_before is not None, "CostElement should be visible before deletion"
 
     # 2. Delete CostElement (CostElementService has custom signature with cost_element_id)
-    await cost_element_service.soft_delete(cost_element_id=cost_element_id, actor_id=actor_id)
+    await cost_element_service.soft_delete(
+        cost_element_id=cost_element_id, actor_id=actor_id
+    )
     await db_session.commit()
 
     # Verify deletion was recorded - query the database directly since get_by_id filters deleted
@@ -357,7 +359,9 @@ async def test_cost_element_zombie_check_deleted_not_visible(db_session):
         as_of=datetime.now(UTC) + timedelta(seconds=1),
         branch="main",
     )
-    assert result_after is None, "Deleted CostElement should NOT be visible after deletion"
+    assert result_after is None, (
+        "Deleted CostElement should NOT be visible after deletion"
+    )
 
 
 # ============================================================================
@@ -402,7 +406,9 @@ async def test_cost_element_type_zombie_check_deleted_not_visible(db_session):
     result_before = await cet_service.get_as_of(
         entity_id=cost_element_type_id, as_of=datetime.now(UTC), branch="main"
     )
-    assert result_before is not None, "CostElementType should be visible before deletion"
+    assert result_before is not None, (
+        "CostElementType should be visible before deletion"
+    )
 
     # 2. Delete CostElementType (CostElementTypeService has custom signature)
     await cet_service.soft_delete(
@@ -429,9 +435,9 @@ async def test_cost_element_type_zombie_check_deleted_not_visible(db_session):
         as_of=datetime.now(UTC) + timedelta(seconds=1),
         branch="main",
     )
-    assert (
-        result_after is None
-    ), "Deleted CostElementType should NOT be visible after deletion"
+    assert result_after is None, (
+        "Deleted CostElementType should NOT be visible after deletion"
+    )
 
 
 # ============================================================================
@@ -493,7 +499,9 @@ async def test_department_zombie_check_deleted_not_visible(db_session):
         as_of=datetime.now(UTC) + timedelta(seconds=1),
         branch="main",
     )
-    assert result_after is None, "Deleted department should NOT be visible after deletion"
+    assert result_after is None, (
+        "Deleted department should NOT be visible after deletion"
+    )
 
 
 # ============================================================================

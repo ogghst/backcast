@@ -119,7 +119,9 @@ class WebSocketTestHelpers:
         return messages
 
     @staticmethod
-    def create_mock_token_events(content: str = "Test response") -> Generator[dict[str, Any], None, None]:
+    def create_mock_token_events(
+        content: str = "Test response",
+    ) -> Generator[dict[str, Any], None, None]:
         """Create mock LangGraph token streaming events.
 
         Args:
@@ -214,7 +216,9 @@ class WebSocketTestHelpers:
         }
 
     @staticmethod
-    def create_mock_error_events(error_message: str) -> Generator[dict[str, Any], None, None]:
+    def create_mock_error_events(
+        error_message: str,
+    ) -> Generator[dict[str, Any], None, None]:
         """Create mock LangGraph error events.
 
         Args:
@@ -235,7 +239,9 @@ class WebSocketTestHelpers:
 class MockASTreamEvents:
     """Mock LangGraph astream_events() for testing."""
 
-    def __init__(self, events: list[dict[str, Any]] | Generator[dict[str, Any], None, None]):
+    def __init__(
+        self, events: list[dict[str, Any]] | Generator[dict[str, Any], None, None]
+    ):
         """Initialize mock stream with events.
 
         Args:
@@ -738,7 +744,9 @@ async def test_ws_st_01_text_generation_streams_tokens(
     # Mock AIConfigService to return test assistant
     from app.services.ai_config_service import AIConfigService
 
-    async def mock_get_assistant_config(self, config_id: UUID) -> AIAssistantConfig | None:
+    async def mock_get_assistant_config(
+        self, config_id: UUID
+    ) -> AIAssistantConfig | None:
         if str(config_id) == str(test_ai_assistant.id):
             return test_ai_assistant
         return None
@@ -776,7 +784,9 @@ async def test_ws_st_01_text_generation_streams_tokens(
             ).model_dump(mode="json")
         )
 
-    with patch.object(AIConfigService, "get_assistant_config", new=mock_get_assistant_config):
+    with patch.object(
+        AIConfigService, "get_assistant_config", new=mock_get_assistant_config
+    ):
         with patch("app.api.routes.ai_chat.AgentService") as mock_agent_service:
             mock_agent_service.return_value.chat_stream = mock_chat_stream
 
@@ -842,7 +852,9 @@ async def test_ws_st_02_tool_execution_streams_tool_messages(
     # Mock AIConfigService to return test assistant
     from app.services.ai_config_service import AIConfigService
 
-    async def mock_get_assistant_config(self, config_id: UUID) -> AIAssistantConfig | None:
+    async def mock_get_assistant_config(
+        self, config_id: UUID
+    ) -> AIAssistantConfig | None:
         if str(config_id) == str(test_ai_assistant.id):
             return test_ai_assistant
         return None
@@ -891,7 +903,9 @@ async def test_ws_st_02_tool_execution_streams_tool_messages(
             ).model_dump(mode="json")
         )
 
-    with patch.object(AIConfigService, "get_assistant_config", new=mock_get_assistant_config):
+    with patch.object(
+        AIConfigService, "get_assistant_config", new=mock_get_assistant_config
+    ):
         with patch("app.api.routes.ai_chat.AgentService") as mock_agent_service:
             mock_agent_service.return_value.chat_stream = mock_chat_stream
 
@@ -940,7 +954,9 @@ async def test_ws_st_03_multiple_messages_maintain_session(
     # Mock AIConfigService to return test assistant
     from app.services.ai_config_service import AIConfigService
 
-    async def mock_get_assistant_config(self, config_id: UUID) -> AIAssistantConfig | None:
+    async def mock_get_assistant_config(
+        self, config_id: UUID
+    ) -> AIAssistantConfig | None:
         if str(config_id) == str(test_ai_assistant.id):
             return test_ai_assistant
         return None
@@ -970,7 +986,9 @@ async def test_ws_st_03_multiple_messages_maintain_session(
             ).model_dump(mode="json")
         )
 
-    with patch.object(AIConfigService, "get_assistant_config", new=mock_get_assistant_config):
+    with patch.object(
+        AIConfigService, "get_assistant_config", new=mock_get_assistant_config
+    ):
         with patch("app.api.routes.ai_chat.AgentService") as mock_agent_service:
             mock_agent_service.return_value.chat_stream = mock_chat_stream
 
@@ -1114,10 +1132,14 @@ async def test_ws_err_02_invalid_assistant_config_id(
     # Mock AIConfigService to return None (not found)
     from app.services.ai_config_service import AIConfigService
 
-    async def mock_get_assistant_config(self, config_id: UUID) -> AIAssistantConfig | None:
+    async def mock_get_assistant_config(
+        self, config_id: UUID
+    ) -> AIAssistantConfig | None:
         return None  # Not found
 
-    with patch.object(AIConfigService, "get_assistant_config", new=mock_get_assistant_config):
+    with patch.object(
+        AIConfigService, "get_assistant_config", new=mock_get_assistant_config
+    ):
         # Call the endpoint directly
         await chat_stream(
             websocket=mock_websocket,
@@ -1174,12 +1196,16 @@ async def test_ws_err_03_inactive_assistant_config(
     # Mock AIConfigService to return inactive assistant
     from app.services.ai_config_service import AIConfigService
 
-    async def mock_get_assistant_config(self, config_id: UUID) -> AIAssistantConfig | None:
+    async def mock_get_assistant_config(
+        self, config_id: UUID
+    ) -> AIAssistantConfig | None:
         if str(config_id) == str(inactive_ai_assistant.id):
             return inactive_ai_assistant
         return None
 
-    with patch.object(AIConfigService, "get_assistant_config", new=mock_get_assistant_config):
+    with patch.object(
+        AIConfigService, "get_assistant_config", new=mock_get_assistant_config
+    ):
         # Call the endpoint directly
         await chat_stream(
             websocket=mock_websocket,
@@ -1236,7 +1262,9 @@ async def test_ws_err_04_streaming_error_sends_error_message(
     # Mock AIConfigService to return test assistant
     from app.services.ai_config_service import AIConfigService
 
-    async def mock_get_assistant_config(self, config_id: UUID) -> AIAssistantConfig | None:
+    async def mock_get_assistant_config(
+        self, config_id: UUID
+    ) -> AIAssistantConfig | None:
         if str(config_id) == str(test_ai_assistant.id):
             return test_ai_assistant
         return None
@@ -1252,7 +1280,9 @@ async def test_ws_err_04_streaming_error_sends_error_message(
             ).model_dump(mode="json")
         )
 
-    with patch.object(AIConfigService, "get_assistant_config", new=mock_get_assistant_config):
+    with patch.object(
+        AIConfigService, "get_assistant_config", new=mock_get_assistant_config
+    ):
         with patch("app.api.routes.ai_chat.AgentService") as mock_agent_service:
             mock_agent_service.return_value.chat_stream = mock_chat_stream_error
 
@@ -1358,7 +1388,9 @@ async def test_db_persist_session_and_messages(
     # Mock AIConfigService to return test assistant
     from app.services.ai_config_service import AIConfigService
 
-    async def mock_get_assistant_config(self, config_id: UUID) -> AIAssistantConfig | None:
+    async def mock_get_assistant_config(
+        self, config_id: UUID
+    ) -> AIAssistantConfig | None:
         if str(config_id) == str(test_ai_assistant.id):
             return test_ai_assistant
         return None
@@ -1388,7 +1420,9 @@ async def test_db_persist_session_and_messages(
             ).model_dump(mode="json")
         )
 
-    with patch.object(AIConfigService, "get_assistant_config", new=mock_get_assistant_config):
+    with patch.object(
+        AIConfigService, "get_assistant_config", new=mock_get_assistant_config
+    ):
         with patch("app.api.routes.ai_chat.AgentService") as mock_agent_service:
             mock_agent_service.return_value.chat_stream = mock_chat_stream_persist
 
@@ -1459,6 +1493,7 @@ async def test_ws_token_missing_subject(
 
     # Create token without subject
     from jose import jwt
+
     token_data = {
         "exp": datetime.utcnow() + timedelta(hours=1),
         # Missing "sub" key
@@ -1476,7 +1511,9 @@ async def test_ws_token_missing_subject(
     )
 
     # Verify connection was rejected with policy violation
-    mock_websocket.close.assert_called_once_with(code=1008, reason="Invalid token: missing subject")
+    mock_websocket.close.assert_called_once_with(
+        code=1008, reason="Invalid token: missing subject"
+    )
 
 
 @pytest.mark.asyncio
@@ -1528,8 +1565,6 @@ async def test_ws_user_not_found(
 # REST API Endpoint Tests
 # These test the HTTP GET/DELETE endpoints for session management.
 # =============================================================================
-
-
 
 
 @pytest.mark.asyncio

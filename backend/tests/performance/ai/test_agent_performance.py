@@ -36,6 +36,7 @@ def mock_fast_llm():
 @pytest.fixture
 def mock_slow_llm():
     """Mock LLM that responds slowly (simulating complex reasoning)."""
+
     async def slow_invoke(*args, **kwargs):
         await asyncio.sleep(0.1)  # 100ms delay
         return AIMessage(content="Detailed response after thinking")
@@ -84,12 +85,14 @@ async def test_simple_query_latency_p50(mock_fast_llm):
     assert len(result["messages"]) == 2  # Initial + response
 
     # Performance assertion
-    assert (
-        latency_ms < SIMPLE_QUERY_TARGET_P50
-    ), f"Simple query latency {latency_ms:.2f}ms exceeds target {SIMPLE_QUERY_TARGET_P50}ms"
+    assert latency_ms < SIMPLE_QUERY_TARGET_P50, (
+        f"Simple query latency {latency_ms:.2f}ms exceeds target {SIMPLE_QUERY_TARGET_P50}ms"
+    )
 
     # Log for reporting
-    print(f"\n✓ Simple query latency: {latency_ms:.2f}ms (target: <{SIMPLE_QUERY_TARGET_P50}ms)")
+    print(
+        f"\n✓ Simple query latency: {latency_ms:.2f}ms (target: <{SIMPLE_QUERY_TARGET_P50}ms)"
+    )
 
 
 @pytest.mark.asyncio
@@ -138,9 +141,9 @@ async def test_simple_query_latency_percentiles(mock_fast_llm):
     p99 = latencies_sorted[int(len(latencies_sorted) * 0.99)]
 
     # Assert
-    assert (
-        p50 < SIMPLE_QUERY_TARGET_P50
-    ), f"p50 latency {p50:.2f}ms exceeds target {SIMPLE_QUERY_TARGET_P50}ms"
+    assert p50 < SIMPLE_QUERY_TARGET_P50, (
+        f"p50 latency {p50:.2f}ms exceeds target {SIMPLE_QUERY_TARGET_P50}ms"
+    )
     assert p95 < 750, f"p95 latency {p95:.2f}ms exceeds target 750ms"
     assert p99 < 1000, f"p99 latency {p99:.2f}ms exceeds target 1000ms"
 
@@ -207,9 +210,9 @@ async def test_complex_query_latency_p50(mock_slow_llm):
     assert "messages" in result
 
     # Performance assertion
-    assert (
-        latency_ms < COMPLEX_QUERY_TARGET_P50
-    ), f"Complex query latency {latency_ms:.2f}ms exceeds target {COMPLEX_QUERY_TARGET_P50}ms"
+    assert latency_ms < COMPLEX_QUERY_TARGET_P50, (
+        f"Complex query latency {latency_ms:.2f}ms exceeds target {COMPLEX_QUERY_TARGET_P50}ms"
+    )
 
     # Log for reporting
     print(
@@ -253,7 +256,7 @@ async def test_concurrent_requests_scaling(mock_fast_llm):
     tasks = [
         graph.ainvoke(
             initial_state,
-            config={"configurable": {"thread_id": f"perf-test-concurrent-{i}"}}
+            config={"configurable": {"thread_id": f"perf-test-concurrent-{i}"}},
         )
         for i in range(concurrency)
     ]
@@ -266,9 +269,9 @@ async def test_concurrent_requests_scaling(mock_fast_llm):
     # Average latency should not increase by >50%
     scaling_factor = avg_latency / single_latency
 
-    assert (
-        scaling_factor < 1.5
-    ), f"Scaling factor {scaling_factor:.2f}x exceeds 1.5x target"
+    assert scaling_factor < 1.5, (
+        f"Scaling factor {scaling_factor:.2f}x exceeds 1.5x target"
+    )
 
     # Log for reporting
     print(
@@ -340,7 +343,9 @@ async def test_graph_compilation_overhead(mock_fast_llm):
     compilation_time = (time.perf_counter() - start_time) * 1000
 
     # Assert - Compilation should be fast
-    assert compilation_time < 100, f"Compilation time {compilation_time:.2f}ms exceeds 100ms target"
+    assert compilation_time < 100, (
+        f"Compilation time {compilation_time:.2f}ms exceeds 100ms target"
+    )
 
     # Log for reporting
     print(f"\n✓ Graph compilation overhead: {compilation_time:.2f}ms (target: <100ms)")

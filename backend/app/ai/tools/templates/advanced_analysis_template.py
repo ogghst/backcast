@@ -176,9 +176,7 @@ def _calculate_budget_health(
     if vac < 0:
         vac_pct = abs(vac) / bac * 100 if bac > 0 else 0
         if vac_pct > 10:
-            issues.append(
-                f"Projected overrun at completion: {vac_pct:.1f}% of budget"
-            )
+            issues.append(f"Projected overrun at completion: {vac_pct:.1f}% of budget")
 
     # Determine status
     if score >= 90:
@@ -192,7 +190,9 @@ def _calculate_budget_health(
 
     # Add specific recommendations
     if cpi < 0.9:
-        issues.append("Critical: Cost performance index below 0.9 - immediate action required")
+        issues.append(
+            "Critical: Cost performance index below 0.9 - immediate action required"
+        )
     elif cpi < 0.95:
         issues.append("Warning: Cost performance declining - monitor closely")
 
@@ -254,7 +254,9 @@ def _calculate_schedule_health(
 
     # Add specific recommendations
     if spi < 0.9:
-        issues.append("Critical: Schedule performance index below 0.9 - immediate action required")
+        issues.append(
+            "Critical: Schedule performance index below 0.9 - immediate action required"
+        )
     elif spi < 0.95:
         issues.append("Warning: Schedule performance declining - monitor closely")
 
@@ -272,7 +274,11 @@ def _calculate_schedule_health(
 
 def _calculate_quality_health(evm_data: Any) -> dict[str, Any]:
     """Calculate quality health score based on progress consistency."""
-    progress = float(evm_data.progress_percentage) if evm_data.progress_percentage is not None else 0.0
+    progress = (
+        float(evm_data.progress_percentage)
+        if evm_data.progress_percentage is not None
+        else 0.0
+    )
 
     # Quality score based on consistency and progress
     # Higher progress is generally better if it aligns with plan
@@ -355,7 +361,11 @@ def _calculate_risk_health(evm_data: Any, wbes: list[Any]) -> dict[str, Any]:
         "status": status,
         "issues": issues,
         "metrics": {
-            "complexity_level": "High" if len(wbes) > 20 else "Medium" if len(wbes) > 10 else "Low",
+            "complexity_level": "High"
+            if len(wbes) > 20
+            else "Medium"
+            if len(wbes) > 10
+            else "Low",
             "cpi_spi_divergence": round(divergence, 2),
         },
     }
@@ -443,9 +453,7 @@ async def detect_evm_anomalies(
         anomalies.extend(performance_anomalies)
 
         # Calculate overall trends
-        cost_trend = _calculate_trend(
-            [float(p.ac) for p in timeseries.points]
-        )
+        cost_trend = _calculate_trend([float(p.ac) for p in timeseries.points])
         schedule_trend = _calculate_schedule_trend(
             [float(p.spi) if p.spi else 0.0 for p in timeseries.points]
         )
@@ -467,7 +475,9 @@ async def detect_evm_anomalies(
             "statistical_summary": {
                 "data_points": len(timeseries.points),
                 "anomaly_count": len(anomalies),
-                "high_severity_count": sum(1 for a in anomalies if a["severity"] == "high"),
+                "high_severity_count": sum(
+                    1 for a in anomalies if a["severity"] == "high"
+                ),
             },
         }
     except ValueError as e:
@@ -507,14 +517,16 @@ def _detect_cost_anomalies(points: list[Any]) -> list[dict[str, Any]]:
             z_score = abs((change - mean_change) / std_change)
             if z_score > 2.0:
                 severity = "high" if z_score > 3.0 else "medium"
-                anomalies.append({
-                    "type": "cost_spike",
-                    "severity": severity,
-                    "description": f"Cost {'increased' if change > 0 else 'decreased'} by "
-                    f"{abs(change):.2f} (z-score: {z_score:.2f})",
-                    "affected": f"Week {i + 1}",
-                    "z_score": round(z_score, 2),
-                })
+                anomalies.append(
+                    {
+                        "type": "cost_spike",
+                        "severity": severity,
+                        "description": f"Cost {'increased' if change > 0 else 'decreased'} by "
+                        f"{abs(change):.2f} (z-score: {z_score:.2f})",
+                        "affected": f"Week {i + 1}",
+                        "z_score": round(z_score, 2),
+                    }
+                )
 
     return anomalies
 
@@ -527,11 +539,7 @@ def _detect_schedule_anomalies(points: list[Any]) -> list[dict[str, Any]]:
         return anomalies
 
     # Analyze SPI trends
-    spis = [
-        float(p.spi)
-        for p in points
-        if p.spi is not None
-    ]
+    spis = [float(p.spi) for p in points if p.spi is not None]
 
     if len(spis) < 3:
         return anomalies
@@ -541,13 +549,15 @@ def _detect_schedule_anomalies(points: list[Any]) -> list[dict[str, Any]]:
         spi_drop = spis[i - 1] - spis[i]
         if spi_drop > 0.1:  # 10% drop threshold
             severity = "high" if spi_drop > 0.2 else "medium"
-            anomalies.append({
-                "type": "schedule_variance",
-                "severity": severity,
-                "description": f"SPI dropped from {spis[i - 1]:.2f} to {spis[i]:.2f}",
-                "affected": f"Week {i + 1}",
-                "drop_amount": round(spi_drop, 2),
-            })
+            anomalies.append(
+                {
+                    "type": "schedule_variance",
+                    "severity": severity,
+                    "description": f"SPI dropped from {spis[i - 1]:.2f} to {spis[i]:.2f}",
+                    "affected": f"Week {i + 1}",
+                    "drop_amount": round(spi_drop, 2),
+                }
+            )
 
     return anomalies
 
@@ -564,13 +574,15 @@ def _detect_performance_anomalies(points: list[Any]) -> list[dict[str, Any]]:
             divergence = abs(cpi - spi)
             if divergence > 0.3:  # Significant divergence threshold
                 severity = "high" if divergence > 0.5 else "medium"
-                anomalies.append({
-                    "type": "performance_divergence",
-                    "severity": severity,
-                    "description": f"High divergence between CPI ({cpi:.2f}) and SPI ({spi:.2f})",
-                    "affected": f"Week {i + 1}",
-                    "divergence": round(divergence, 2),
-                })
+                anomalies.append(
+                    {
+                        "type": "performance_divergence",
+                        "severity": severity,
+                        "description": f"High divergence between CPI ({cpi:.2f}) and SPI ({spi:.2f})",
+                        "affected": f"Week {i + 1}",
+                        "divergence": round(divergence, 2),
+                    }
+                )
 
     return anomalies
 
@@ -763,7 +775,9 @@ def _calculate_forecast_scenarios(
     worst_eac = ac + (bac - ev) / worst_cpi if worst_cpi > 0 else bac * 2.0
 
     # Most likely: Current trend continues
-    likely_eac = float(evm_data.eac) if evm_data.eac is not None else ac + (bac - ev) / cpi
+    likely_eac = (
+        float(evm_data.eac) if evm_data.eac is not None else ac + (bac - ev) / cpi
+    )
 
     return {
         "best": {
@@ -1028,16 +1042,25 @@ async def generate_optimization_suggestions(
 
         # Combine and prioritize
         all_suggestions = (
-            cost_suggestions + schedule_suggestions + resource_suggestions + quality_suggestions
+            cost_suggestions
+            + schedule_suggestions
+            + resource_suggestions
+            + quality_suggestions
         )
 
         # Sort by priority and estimated impact
         priority_order = {"high": 0, "medium": 1, "low": 2}
-        all_suggestions.sort(key=lambda x: (priority_order.get(x["priority"], 3), -x.get("estimated_impact_value", 0)))
+        all_suggestions.sort(
+            key=lambda x: (
+                priority_order.get(x["priority"], 3),
+                -x.get("estimated_impact_value", 0),
+            )
+        )
 
         # Identify quick wins
         quick_wins = [
-            s for s in all_suggestions
+            s
+            for s in all_suggestions
             if s.get("effort_level") == "low" and s.get("priority") == "high"
         ]
 
@@ -1073,7 +1096,9 @@ async def generate_optimization_suggestions(
         return {"error": str(e)}
 
 
-def _generate_cost_optimizations(evm_data: Any, wbes: list[Any]) -> list[dict[str, Any]]:
+def _generate_cost_optimizations(
+    evm_data: Any, wbes: list[Any]
+) -> list[dict[str, Any]]:
     """Generate cost optimization suggestions."""
     suggestions = []
     cpi = float(evm_data.cpi) if evm_data.cpi is not None else 1.0
@@ -1083,48 +1108,56 @@ def _generate_cost_optimizations(evm_data: Any, wbes: list[Any]) -> list[dict[st
     # Check for cost overruns
     if cpi < 0.95:
         potential_savings = abs(cv) * 0.3  # Assume 30% can be recovered
-        suggestions.append({
-            "priority": "high" if cpi < 0.9 else "medium",
-            "category": "cost",
-            "action": "Review and renegotiate supplier contracts",
-            "rationale": f"CPI of {cpi:.2f} indicates cost inefficiency. "
-            "Contract renegotiation can reduce rates.",
-            "estimated_impact": f"${potential_savings:.2f}",
-            "estimated_impact_value": float(potential_savings),
-            "effort_level": "medium",
-        })
+        suggestions.append(
+            {
+                "priority": "high" if cpi < 0.9 else "medium",
+                "category": "cost",
+                "action": "Review and renegotiate supplier contracts",
+                "rationale": f"CPI of {cpi:.2f} indicates cost inefficiency. "
+                "Contract renegotiation can reduce rates.",
+                "estimated_impact": f"${potential_savings:.2f}",
+                "estimated_impact_value": float(potential_savings),
+                "effort_level": "medium",
+            }
+        )
 
     # Check scope creep
     if cv < 0:
         overrun_pct = abs(cv) / bac * 100
         if overrun_pct > 15:
-            suggestions.append({
-                "priority": "high",
-                "category": "cost",
-                "action": "Conduct scope audit and eliminate non-essential work",
-                "rationale": f"{overrun_pct:.1f}% budget overrun suggests scope creep. "
-                "Audit and cut non-essential activities.",
-                "estimated_impact": f"${abs(cv) * 0.2:.2f}",
-                "estimated_impact_value": float(abs(cv) * 0.2),
-                "effort_level": "low",
-            })
+            suggestions.append(
+                {
+                    "priority": "high",
+                    "category": "cost",
+                    "action": "Conduct scope audit and eliminate non-essential work",
+                    "rationale": f"{overrun_pct:.1f}% budget overrun suggests scope creep. "
+                    "Audit and cut non-essential activities.",
+                    "estimated_impact": f"${abs(cv) * 0.2:.2f}",
+                    "estimated_impact_value": float(abs(cv) * 0.2),
+                    "effort_level": "low",
+                }
+            )
 
     # Suggest value engineering
-    suggestions.append({
-        "priority": "low" if cpi >= 0.95 else "medium",
-        "category": "cost",
-        "action": "Implement value engineering review",
-        "rationale": "Value engineering can identify cost-effective alternatives "
-        "without sacrificing quality.",
-        "estimated_impact": f"${bac * 0.05:.2f}",
-        "estimated_impact_value": float(bac * 0.05),
-        "effort_level": "medium",
-    })
+    suggestions.append(
+        {
+            "priority": "low" if cpi >= 0.95 else "medium",
+            "category": "cost",
+            "action": "Implement value engineering review",
+            "rationale": "Value engineering can identify cost-effective alternatives "
+            "without sacrificing quality.",
+            "estimated_impact": f"${bac * 0.05:.2f}",
+            "estimated_impact_value": float(bac * 0.05),
+            "effort_level": "medium",
+        }
+    )
 
     return suggestions
 
 
-def _generate_schedule_optimizations(evm_data: Any, wbes: list[Any]) -> list[dict[str, Any]]:
+def _generate_schedule_optimizations(
+    evm_data: Any, wbes: list[Any]
+) -> list[dict[str, Any]]:
     """Generate schedule optimization suggestions."""
     suggestions = []
     spi = float(evm_data.spi) if evm_data.spi is not None else 1.0
@@ -1134,90 +1167,109 @@ def _generate_schedule_optimizations(evm_data: Any, wbes: list[Any]) -> list[dic
     # Check for schedule delays
     if spi < 0.95:
         delay_weeks = abs(sv) / pv * 52 if pv > 0 else 0  # Convert to weeks
-        suggestions.append({
-            "priority": "high" if spi < 0.9 else "medium",
-            "category": "schedule",
-            "action": "Reallocate resources to critical path activities",
-            "rationale": f"SPI of {spi:.2f} indicates schedule delays. "
-            "Adding resources to critical path can recover lost time.",
-            "estimated_impact": f"{delay_weeks * 0.5:.1f} weeks",
-            "estimated_impact_value": float(delay_weeks * 0.5),
-            "effort_level": "medium",
-        })
+        suggestions.append(
+            {
+                "priority": "high" if spi < 0.9 else "medium",
+                "category": "schedule",
+                "action": "Reallocate resources to critical path activities",
+                "rationale": f"SPI of {spi:.2f} indicates schedule delays. "
+                "Adding resources to critical path can recover lost time.",
+                "estimated_impact": f"{delay_weeks * 0.5:.1f} weeks",
+                "estimated_impact_value": float(delay_weeks * 0.5),
+                "effort_level": "medium",
+            }
+        )
 
     # Suggest parallel work
-    delayed_wbes = [w for w in wbes if hasattr(w, "planned_end_date")
-                    and w.planned_end_date and w.planned_end_date < datetime.now()]
+    delayed_wbes = [
+        w
+        for w in wbes
+        if hasattr(w, "planned_end_date")
+        and w.planned_end_date
+        and w.planned_end_date < datetime.now()
+    ]
 
     if len(delayed_wbes) > 2:
-        suggestions.append({
-            "priority": "medium",
-            "category": "schedule",
-            "action": "Identify opportunities for parallel work execution",
-            "rationale": f"{len(delayed_wbes)} delayed WBEs detected. "
-            "Parallel execution can recover schedule.",
-            "estimated_impact": f"{len(delayed_wbes) * 0.5:.1f} weeks",
-            "estimated_impact_value": float(len(delayed_wbes) * 0.5),
-            "effort_level": "low",
-        })
+        suggestions.append(
+            {
+                "priority": "medium",
+                "category": "schedule",
+                "action": "Identify opportunities for parallel work execution",
+                "rationale": f"{len(delayed_wbes)} delayed WBEs detected. "
+                "Parallel execution can recover schedule.",
+                "estimated_impact": f"{len(delayed_wbes) * 0.5:.1f} weeks",
+                "estimated_impact_value": float(len(delayed_wbes) * 0.5),
+                "effort_level": "low",
+            }
+        )
 
     # Suggest schedule compression
     if spi < 1.0:
-        suggestions.append({
-            "priority": "medium",
-            "category": "schedule",
-            "action": "Evaluate fast-tracking or crashing for remaining work",
-            "rationale": "Schedule compression techniques can recover lost time "
-            "at increased cost.",
-            "estimated_impact": "2-4 weeks",
-            "estimated_impact_value": 3.0,
-            "effort_level": "high",
-        })
+        suggestions.append(
+            {
+                "priority": "medium",
+                "category": "schedule",
+                "action": "Evaluate fast-tracking or crashing for remaining work",
+                "rationale": "Schedule compression techniques can recover lost time "
+                "at increased cost.",
+                "estimated_impact": "2-4 weeks",
+                "estimated_impact_value": 3.0,
+                "effort_level": "high",
+            }
+        )
 
     return suggestions
 
 
-def _generate_resource_optimizations(evm_data: Any, wbes: list[Any]) -> list[dict[str, Any]]:
+def _generate_resource_optimizations(
+    evm_data: Any, wbes: list[Any]
+) -> list[dict[str, Any]]:
     """Generate resource optimization suggestions."""
     suggestions = []
 
     # Check for underutilized resources
     if len(wbes) > 0:
-        suggestions.append({
-            "priority": "medium",
-            "category": "resource",
-            "action": "Conduct resource utilization analysis",
-            "rationale": "Identify underutilized resources and reallocate to critical activities.",
-            "estimated_impact": "15-20% efficiency improvement",
-            "estimated_impact_value": 17.5,
-            "effort_level": "low",
-        })
+        suggestions.append(
+            {
+                "priority": "medium",
+                "category": "resource",
+                "action": "Conduct resource utilization analysis",
+                "rationale": "Identify underutilized resources and reallocate to critical activities.",
+                "estimated_impact": "15-20% efficiency improvement",
+                "estimated_impact_value": 17.5,
+                "effort_level": "low",
+            }
+        )
 
     # Suggest skills cross-training
-    suggestions.append({
-        "priority": "low",
-        "category": "resource",
-        "action": "Implement cross-training program for team members",
-        "rationale": "Cross-trained team provides flexibility and reduces bottlenecks.",
-        "estimated_impact": "10-15% schedule resilience",
-        "estimated_impact_value": 12.5,
-        "effort_level": "medium",
-    })
+    suggestions.append(
+        {
+            "priority": "low",
+            "category": "resource",
+            "action": "Implement cross-training program for team members",
+            "rationale": "Cross-trained team provides flexibility and reduces bottlenecks.",
+            "estimated_impact": "10-15% schedule resilience",
+            "estimated_impact_value": 12.5,
+            "effort_level": "medium",
+        }
+    )
 
     # Suggest workload balancing
     cpi = float(evm_data.cpi) if evm_data.cpi is not None else 1.0
     spi = float(evm_data.spi) if evm_data.spi is not None else 1.0
 
     if cpi < 1.0 or spi < 1.0:
-        suggestions.append({
-            "priority": "medium",
-            "category": "resource",
-            "action": "Rebalance workload across team members",
-            "rationale": "Workload imbalances can cause bottlenecks and delays.",
-            "estimated_impact": "5-10% performance improvement",
-            "estimated_impact_value": 7.5,
-            "effort_level": "low",
-        })
+        suggestions.append(
+            {
+                "priority": "medium",
+                "category": "resource",
+                "action": "Rebalance workload across team members",
+                "rationale": "Workload imbalances can cause bottlenecks and delays.",
+                "estimated_impact": "5-10% performance improvement",
+                "estimated_impact_value": 7.5,
+                "effort_level": "low",
+            }
+        )
 
     return suggestions
 
@@ -1226,30 +1278,36 @@ def _generate_quality_optimizations(evm_data: Any) -> list[dict[str, Any]]:
     """Generate quality optimization suggestions."""
     suggestions = []
 
-    progress = float(evm_data.progress_percentage) if evm_data.progress_percentage else 0.0
+    progress = (
+        float(evm_data.progress_percentage) if evm_data.progress_percentage else 0.0
+    )
 
     # Suggest quality reviews
     if progress < 80:
-        suggestions.append({
-            "priority": "medium",
-            "category": "quality",
-            "action": "Schedule mid-project quality review",
-            "rationale": "Early quality reviews prevent rework and ensure deliverables meet standards.",
-            "estimated_impact": "10-15% rework reduction",
-            "estimated_impact_value": 12.5,
-            "effort_level": "low",
-        })
+        suggestions.append(
+            {
+                "priority": "medium",
+                "category": "quality",
+                "action": "Schedule mid-project quality review",
+                "rationale": "Early quality reviews prevent rework and ensure deliverables meet standards.",
+                "estimated_impact": "10-15% rework reduction",
+                "estimated_impact_value": 12.5,
+                "effort_level": "low",
+            }
+        )
 
     # Suggest process improvements
-    suggestions.append({
-        "priority": "low",
-        "category": "quality",
-        "action": "Document and standardize successful processes",
-        "rationale": "Process standardization improves consistency and reduces errors.",
-        "estimated_impact": "5-10% quality improvement",
-        "estimated_impact_value": 7.5,
-        "effort_level": "medium",
-    })
+    suggestions.append(
+        {
+            "priority": "low",
+            "category": "quality",
+            "action": "Document and standardize successful processes",
+            "rationale": "Process standardization improves consistency and reduces errors.",
+            "estimated_impact": "5-10% quality improvement",
+            "estimated_impact_value": 7.5,
+            "effort_level": "medium",
+        }
+    )
 
     return suggestions
 

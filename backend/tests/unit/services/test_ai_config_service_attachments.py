@@ -1,7 +1,10 @@
 """Tests for AI config service attachment handling."""
+
+from uuid import uuid4
+
 import pytest
-from uuid import uuid4, UUID
 from sqlalchemy import select
+
 from app.models.domain.ai import AIConversationAttachment
 from app.services.ai_config_service import AIConfigService
 
@@ -51,7 +54,9 @@ async def test_add_message_with_attachments(db_session, ai_assistant_config_fact
 
 
 @pytest.mark.asyncio
-async def test_add_message_with_multiple_attachments(db_session, ai_assistant_config_factory):
+async def test_add_message_with_multiple_attachments(
+    db_session, ai_assistant_config_factory
+):
     """Test that multiple attachments with mixed content types are saved correctly."""
     service = AIConfigService(db_session)
 

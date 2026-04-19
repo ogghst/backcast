@@ -12,9 +12,8 @@ from uuid import uuid4
 import pytest
 from langchain_core.tools import tool
 
-from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.ai.tools.risk_check_node import RiskCheckNode
-
+from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 
 # Test fixtures
 
@@ -243,7 +242,7 @@ def test_large_toolset_filtering_overhead(tool_context, benchmark):
         # Create tool with proper docstring
         def tool_func() -> str:
             """Tool function for performance testing."""
-            return f"tool result"
+            return "tool result"
 
         tool_instance = create_tool(tool_func)
         tool_instance.name = f"tool_{i}"
@@ -278,7 +277,6 @@ def test_risk_check_memory_overhead(tool_context, sample_tools):
     """
 
     import gc
-    import sys
 
     # Get baseline memory
     gc.collect()
@@ -326,7 +324,7 @@ def test_end_to_end_risk_check_latency(tool_context, sample_tools):
         node = RiskCheckNode(sample_tools, tool_context)
 
         # Check risk for each tool
-        for tool in sample_tools:
+        for tool in sample_tools:  # noqa: F402
             tool_name = getattr(tool, "name", "unknown")
             node.check_tool_risk(tool_name)
 
@@ -342,7 +340,7 @@ def test_end_to_end_risk_check_latency(tool_context, sample_tools):
     p99 = latencies_sorted[990]
 
     # Print statistics for visibility
-    print(f"\nRisk Check Latency Statistics (n=1000):")
+    print("\nRisk Check Latency Statistics (n=1000):")
     print(f"  p50 (median): {p50:.2f}ms")
     print(f"  p95: {p95:.2f}ms")
     print(f"  p99: {p99:.2f}ms")
@@ -399,7 +397,7 @@ def test_risk_check_overhead_not_degraded(tool_context, sample_tools):
 
     median_check = statistics.median(check_times)
 
-    print(f"\nPerformance Regression Check:")
+    print("\nPerformance Regression Check:")
     print(f"  Node creation median: {median_creation:.2f}ms (baseline: < 5ms)")
     print(f"  Risk check median: {median_check:.2f}ms (baseline: < 0.5ms)")
 

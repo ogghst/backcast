@@ -486,9 +486,7 @@ class TestProgressEntryServiceAggregation:
 
         # Assert - should find the entry through the WBE -> cost_element join
         assert total >= 1
-        assert any(
-            entry.cost_element_id == cost_element_id for entry in history
-        )
+        assert any(entry.cost_element_id == cost_element_id for entry in history)
 
     @pytest.mark.asyncio
     async def test_filter_by_project_id(
@@ -530,13 +528,14 @@ class TestProgressEntryServiceAggregation:
 
         # Assert - should find the entry through project -> wbe -> cost_element join
         assert total >= 1
-        assert any(
-            entry.cost_element_id == cost_element_id for entry in history
-        )
+        assert any(entry.cost_element_id == cost_element_id for entry in history)
 
     @pytest.mark.asyncio
     async def test_filter_by_wbe_id_excludes_other_wbes(
-        self, db_session: AsyncSession, sample_wbe, sample_department  # noqa: F811
+        self,
+        db_session: AsyncSession,
+        sample_wbe,  # noqa: F811
+        sample_department,  # noqa: F811
     ) -> None:
         """Test that WBE filtering excludes cost elements from other WBEs.
 
@@ -612,9 +611,7 @@ class TestProgressEntryServiceAggregation:
         )
 
         # Act - filter by first WBE only
-        history, total = await service.get_progress_history(
-            wbe_id=sample_wbe.wbe_id
-        )
+        history, total = await service.get_progress_history(wbe_id=sample_wbe.wbe_id)
 
         # Assert - should only get entries from ce1
         assert total == 1

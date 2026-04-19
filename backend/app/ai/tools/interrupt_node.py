@@ -184,10 +184,13 @@ class InterruptNode(ToolNode):
             approval_id UUID string for tracking this approval request
         """
         from app.ai.agent_service import logger
+
         approval_id = str(uuid4())
         expires_at = datetime.now() + timedelta(minutes=5)
 
-        logger.info(f"SENDING_APPROVAL_REQUEST: approval_id={approval_id}, tool='{tool_name}', risk_level={risk_level.value}")
+        logger.info(
+            f"SENDING_APPROVAL_REQUEST: approval_id={approval_id}, tool='{tool_name}', risk_level={risk_level.value}"
+        )
 
         approval_request = WSApprovalRequestMessage(
             type="approval_request",
@@ -202,6 +205,7 @@ class InterruptNode(ToolNode):
         # Publish to event bus if available (decoupled execution path)
         if self.event_bus:
             from app.ai.execution.agent_event import AgentEvent
+
             self.event_bus.publish(
                 AgentEvent(
                     event_type="approval_request",
@@ -209,16 +213,22 @@ class InterruptNode(ToolNode):
                     timestamp=datetime.now(),
                 )
             )
-            logger.info(f"APPROVAL_REQUEST_PUBLISHED_TO_BUS: approval_id={approval_id}, tool='{tool_name}'")
+            logger.info(
+                f"APPROVAL_REQUEST_PUBLISHED_TO_BUS: approval_id={approval_id}, tool='{tool_name}'"
+            )
 
         if self.websocket and self._is_websocket_connected(self.websocket):
             try:
                 await self.websocket.send_json(approval_request.model_dump(mode="json"))
-                logger.info(f"APPROVAL_REQUEST_SENT: approval_id={approval_id}, tool='{tool_name}'")
+                logger.info(
+                    f"APPROVAL_REQUEST_SENT: approval_id={approval_id}, tool='{tool_name}'"
+                )
             except Exception as e:
                 # WebSocket may be closed, but we still track the approval
                 # The approval will timeout after 5 minutes
-                logger.error(f"FAILED_TO_SEND_APPROVAL_REQUEST: approval_id={approval_id}, error={e}")
+                logger.error(
+                    f"FAILED_TO_SEND_APPROVAL_REQUEST: approval_id={approval_id}, error={e}"
+                )
                 pass
         else:
             logger.debug("WebSocket not connected, skipping approval request send")
@@ -230,7 +240,9 @@ class InterruptNode(ToolNode):
             "tool_args": tool_args,
             "expires_at": expires_at,
         }
-        logger.debug(f"APPROVAL_STORED: approval_id={approval_id}, pending_approvals_count={len(self.pending_approvals)}")
+        logger.debug(
+            f"APPROVAL_STORED: approval_id={approval_id}, pending_approvals_count={len(self.pending_approvals)}"
+        )
 
         return approval_id
 
@@ -264,6 +276,7 @@ class InterruptNode(ToolNode):
         # Publish to event bus if available (decoupled execution path)
         if self.event_bus:
             from app.ai.execution.agent_event import AgentEvent
+
             self.event_bus.publish(
                 AgentEvent(
                     event_type="polling_heartbeat",
@@ -285,7 +298,9 @@ class InterruptNode(ToolNode):
                 )
             except Exception as e:
                 # WebSocket may be closed, log but don't raise
-                logger.warning(f"FAILED_TO_SEND_HEARTBEAT: approval_id={approval_id}, error={e}")
+                logger.warning(
+                    f"FAILED_TO_SEND_HEARTBEAT: approval_id={approval_id}, error={e}"
+                )
         else:
             logger.debug("WebSocket not connected, skipping heartbeat send")
 
@@ -376,7 +391,7 @@ class InterruptNode(ToolNode):
             tool_id = tool_call.get("id", "")
             return ToolMessage(
                 content=error_message or "Tool execution not approved",
-                tool_call_id=tool_id
+                tool_call_id=tool_id,
             )
 
         # Execute the tool directly using the stored execute function
@@ -409,8 +424,7 @@ class InterruptNode(ToolNode):
             # Ensure result has proper tool_call_id
             if isinstance(result, ToolMessage) and result.tool_call_id == "":
                 result = ToolMessage(
-                    content=result.content,
-                    tool_call_id=tool_call.get("id", "")
+                    content=result.content, tool_call_id=tool_call.get("id", "")
                 )
 
             return result
@@ -418,8 +432,7 @@ class InterruptNode(ToolNode):
             # Return error message if execution fails
             tool_id = tool_call.get("id", "")
             return ToolMessage(
-                content=f"Tool execution failed: {str(e)}",
-                tool_call_id=tool_id
+                content=f"Tool execution failed: {str(e)}", tool_call_id=tool_id
             )
 
     async def _awrap_tool_call(
@@ -468,8 +481,9 @@ class InterruptNode(ToolNode):
             if not approved:
                 # Return error message
                 return ToolMessage(
-                    content=error_message or f"Tool '{tool_name}' requires approval before execution.",
-                    tool_call_id=tool_id
+                    content=error_message
+                    or f"Tool '{tool_name}' requires approval before execution.",
+                    tool_call_id=tool_id,
                 )
 
             # If approved, remove from pending and continue to execution

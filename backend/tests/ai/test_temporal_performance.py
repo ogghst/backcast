@@ -5,6 +5,7 @@ the <5ms requirement from the AI Tools Temporal Context Integration iteration.
 
 Requirement: Temporal parameter overhead < 5ms per request
 """
+
 from datetime import datetime
 from uuid import uuid4
 
@@ -57,9 +58,7 @@ class TestTemporalContextPerformance:
         assert result[2] == "isolated"
 
     @pytest.mark.benchmark(group="temporal_extraction", min_rounds=100)
-    def test_extract_temporal_params_with_defaults_benchmark(
-        self, benchmark
-    ) -> None:
+    def test_extract_temporal_params_with_defaults_benchmark(self, benchmark) -> None:
         """Benchmark temporal parameter extraction with default values.
 
         Measures the time to extract temporal params when they are not provided
@@ -185,9 +184,7 @@ class TestTemporalContextPerformance:
         assert "You are an AI assistant for project management." in result
 
     @pytest.mark.benchmark(group="temporal_extraction", min_rounds=100)
-    def test_build_temporal_params_dict_benchmark(
-        self, benchmark
-    ) -> None:
+    def test_build_temporal_params_dict_benchmark(self, benchmark) -> None:
         """Benchmark building temporal params dictionary.
 
         Measures the time to build the temporal_params dictionary that gets
@@ -253,12 +250,16 @@ class TestTemporalContextPerformanceAssertions:
             base_prompt = "You are an AI assistant for project management."
             temporal_context_parts = []
             if temporal_params["branch_name"] != "main":
-                temporal_context_parts.append(f"branch '{temporal_params['branch_name']}'")
+                temporal_context_parts.append(
+                    f"branch '{temporal_params['branch_name']}'"
+                )
             if temporal_params["as_of"] is not None:
                 formatted_date = temporal_params["as_of"].strftime("%B %d, %Y")
                 temporal_context_parts.append(f"as of {formatted_date}")
             if temporal_params["branch_mode"] != "merged":
-                temporal_context_parts.append(f"mode ({temporal_params['branch_mode']})")
+                temporal_context_parts.append(
+                    f"mode ({temporal_params['branch_mode']})"
+                )
 
             if temporal_context_parts:
                 temporal_context = ", ".join(temporal_context_parts)

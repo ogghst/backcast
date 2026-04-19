@@ -11,10 +11,9 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.tools import ToolContext, create_project_tools
+from app.ai.tools import ToolContext
 from app.ai.tools.decorator import ai_tool
 from app.db.session import get_tool_session, tool_scoped_session_factory
 from app.models.schemas.project import ProjectCreate
@@ -115,7 +114,7 @@ async def test_concurrent_create_wbe_tools(db_session: AsyncSession) -> None:
             project_id = str(uuid4())
 
             # Create a ToolContext for this execution
-            tool_context = ToolContext(
+            _tool_context = ToolContext(
                 session=db_session,  # Used as _root_session
                 user_id=str(uuid4()),
                 user_role="admin",
@@ -127,7 +126,7 @@ async def test_concurrent_create_wbe_tools(db_session: AsyncSession) -> None:
                 {
                     "name": wbe_name,
                     "code": f"WBE-{index:03d}",
-                    "context": tool_context,
+                    "context": _tool_context,
                 }
             )
 
@@ -160,7 +159,9 @@ async def test_concurrent_create_wbe_tools(db_session: AsyncSession) -> None:
     assert len(errors) == 0, f"No errors should occur, got: {errors}"
 
     # Verify all WBEs were created successfully
-    assert len(created_wbe_ids) == 5, f"All 5 WBEs should be created, got {len(created_wbe_ids)}"
+    assert len(created_wbe_ids) == 5, (
+        f"All 5 WBEs should be created, got {len(created_wbe_ids)}"
+    )
 
     # The key verification: we executed 5 concurrent tools without
     # the "Session is already flushing" error that would occur with
@@ -187,7 +188,7 @@ async def test_tool_session_isolation(db_session: AsyncSession) -> None:
         actor_id=uuid4(),
     )
 
-    tool_context = ToolContext(
+    _tool_context = ToolContext(
         session=db_session,
         user_id=str(uuid4()),
         user_role="admin",
@@ -219,7 +220,9 @@ async def test_tool_session_isolation(db_session: AsyncSession) -> None:
     )
 
     # Verify each task got a unique session
-    assert len(set(session_ids)) == 3, "Each concurrent execution should get a unique session"
+    assert len(set(session_ids)) == 3, (
+        "Each concurrent execution should get a unique session"
+    )
 
 
 @pytest.mark.integration
@@ -234,7 +237,7 @@ async def test_session_cleanup_after_tool_execution(db_session: AsyncSession) ->
     from app.db.session import tool_scoped_session_factory
 
     # Create a tool context
-    tool_context = ToolContext(
+    _tool_context = ToolContext(
         session=db_session,
         user_id=str(uuid4()),
         user_role="admin",
@@ -267,7 +270,7 @@ async def test_error_handling_with_scoped_sessions(db_session: AsyncSession) -> 
     from app.ai.tools.session_manager import ToolSessionManager
     from app.db.session import tool_scoped_session_factory
 
-    tool_context = ToolContext(
+    _tool_context = ToolContext(
         session=db_session,
         user_id=str(uuid4()),
         user_role="admin",
@@ -284,7 +287,9 @@ async def test_error_handling_with_scoped_sessions(db_session: AsyncSession) -> 
     session_after = tool_scoped_session_factory()
     session_id_after = id(session_after)
 
-    assert session_id_before != session_id_after, "New session should be created after rollback"
+    assert session_id_before != session_id_after, (
+        "New session should be created after rollback"
+    )
 
     # Clean up
     await ToolSessionManager.rollback()

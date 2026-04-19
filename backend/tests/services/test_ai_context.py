@@ -3,25 +3,19 @@
 Tests context creation, filtering, and system prompt injection.
 """
 
+from uuid import uuid4
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID, uuid4
 
-from app.models.domain.ai import (
-    AIAssistantConfig,
-    AIConversationSession,
-    AIModel,
-    AIProvider,
-)
+from app.ai.agent_service import AgentService
 from app.models.domain.user import User
 from app.models.schemas.ai import (
     AIAssistantConfigCreate,
-    AIConversationSessionPublic,
     AIModelCreate,
     AIProviderCreate,
 )
 from app.services.ai_config_service import AIConfigService
-from app.ai.agent_service import AgentService
 
 
 @pytest.mark.asyncio

@@ -41,7 +41,9 @@ class AuthService:
         )
         return Token(access_token=access_token, token_type="bearer")
 
-    async def create_refresh_token(self, user_root_id: UUID, user_version_id: UUID) -> str:
+    async def create_refresh_token(
+        self, user_root_id: UUID, user_version_id: UUID
+    ) -> str:
         """Generate, hash, and store refresh token for user.
 
         Args:

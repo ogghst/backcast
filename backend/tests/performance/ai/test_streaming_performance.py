@@ -78,7 +78,9 @@ async def test_first_token_latency_p50(mock_streaming_llm):
     start_time = time.perf_counter()
     first_token_time = None
 
-    async for _event in graph.astream_events(initial_state, config=config, version="v1"):
+    async for _event in graph.astream_events(
+        initial_state, config=config, version="v1"
+    ):
         if first_token_time is None:
             first_token_time = time.perf_counter()
 
@@ -95,9 +97,9 @@ async def test_first_token_latency_p50(mock_streaming_llm):
     latency_ms = (first_token_time - start_time) * 1000
 
     # Assert - Check target
-    assert (
-        latency_ms < FIRST_TOKEN_TARGET_P50
-    ), f"First token latency {latency_ms:.2f}ms exceeds target {FIRST_TOKEN_TARGET_P50}ms"
+    assert latency_ms < FIRST_TOKEN_TARGET_P50, (
+        f"First token latency {latency_ms:.2f}ms exceeds target {FIRST_TOKEN_TARGET_P50}ms"
+    )
 
     # Log for reporting
     print(
@@ -138,7 +140,9 @@ async def test_first_token_latency_percentiles(mock_streaming_llm):
         start_time = time.perf_counter()
         first_token_time = None
 
-        async for _event in graph.astream_events(initial_state, config=config, version="v1"):
+        async for _event in graph.astream_events(
+            initial_state, config=config, version="v1"
+        ):
             if first_token_time is None:
                 first_token_time = time.perf_counter()
                 break
@@ -155,9 +159,9 @@ async def test_first_token_latency_percentiles(mock_streaming_llm):
     p99 = latencies_sorted[int(len(latencies_sorted) * 0.99)]
 
     # Assert
-    assert (
-        p50 < FIRST_TOKEN_TARGET_P50
-    ), f"p50 latency {p50:.2f}ms exceeds target {FIRST_TOKEN_TARGET_P50}ms"
+    assert p50 < FIRST_TOKEN_TARGET_P50, (
+        f"p50 latency {p50:.2f}ms exceeds target {FIRST_TOKEN_TARGET_P50}ms"
+    )
     assert p95 < 150, f"p95 latency {p95:.2f}ms exceeds target 150ms"
     assert p99 < 200, f"p99 latency {p99:.2f}ms exceeds target 200ms"
 
@@ -200,7 +204,7 @@ async def test_token_throughput(mock_streaming_llm):
             token_count += 1
 
     end_time = time.perf_counter()
-    elapsed_seconds = (end_time - start_time)
+    elapsed_seconds = end_time - start_time
 
     # Calculate throughput
     if token_count > 0 and elapsed_seconds > 0:
@@ -209,9 +213,9 @@ async def test_token_throughput(mock_streaming_llm):
         throughput = 0
 
     # Assert - Check throughput target
-    assert (
-        throughput >= TOKEN_THROUGHPUT_TARGET
-    ), f"Token throughput {throughput:.2f} tokens/sec below target {TOKEN_THROUGHPUT_TARGET} tokens/sec"
+    assert throughput >= TOKEN_THROUGHPUT_TARGET, (
+        f"Token throughput {throughput:.2f} tokens/sec below target {TOKEN_THROUGHPUT_TARGET} tokens/sec"
+    )
 
     # Log for reporting
     print(
@@ -246,7 +250,9 @@ async def test_concurrent_streams(mock_streaming_llm):
     start_time = time.perf_counter()
     first_token_time = None
 
-    async for _event in graph.astream_events(initial_state, config=config, version="v1"):
+    async for _event in graph.astream_events(
+        initial_state, config=config, version="v1"
+    ):
         if first_token_time is None:
             first_token_time = time.perf_counter()
             break
@@ -260,7 +266,9 @@ async def test_concurrent_streams(mock_streaming_llm):
         cfg = {"configurable": {"thread_id": f"test-thread-{thread_id}"}}
         start = time.perf_counter()
         first = None
-        async for _event in graph.astream_events(initial_state, config=cfg, version="v1"):
+        async for _event in graph.astream_events(
+            initial_state, config=cfg, version="v1"
+        ):
             if first is None:
                 first = time.perf_counter()
                 break
@@ -277,9 +285,9 @@ async def test_concurrent_streams(mock_streaming_llm):
     # Average latency should not increase by >100%
     scaling_factor = avg_latency / single_latency if single_latency > 0 else 1.0
 
-    assert (
-        scaling_factor < 2.5
-    ), f"Scaling factor {scaling_factor:.2f}x exceeds 2.5x target"
+    assert scaling_factor < 2.5, (
+        f"Scaling factor {scaling_factor:.2f}x exceeds 2.5x target"
+    )
 
     # Log for reporting
     print(
@@ -339,7 +347,9 @@ async def test_websocket_message_overhead(mock_streaming_llm):
         avg_overhead = 0
 
     # Assert - Overhead should be minimal
-    assert avg_overhead < 10, f"Message overhead {avg_overhead:.2f}ms exceeds 10ms target"
+    assert avg_overhead < 10, (
+        f"Message overhead {avg_overhead:.2f}ms exceeds 10ms target"
+    )
 
     # Log for reporting
     print(f"\n✓ WebSocket message overhead: {avg_overhead:.2f}ms (target: <10ms)")

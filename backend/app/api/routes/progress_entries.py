@@ -44,9 +44,7 @@ async def read_progress_entries(
         pattern="^(merged|isolated)$",
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
-    cost_element_id: UUID | None = Query(
-        None, description="Filter by Cost Element ID"
-    ),
+    cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
     wbe_id: UUID | None = Query(
         None, description="Filter by WBE ID (aggregates across all cost elements)"
     ),

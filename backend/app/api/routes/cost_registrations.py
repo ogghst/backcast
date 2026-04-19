@@ -333,9 +333,7 @@ async def get_budget_status(
 )
 async def get_project_budget_status(
     project_id: UUID,
-    branch: str = Query(
-        "main", description="Branch context to resolve Project budget"
-    ),
+    branch: str = Query("main", description="Branch context to resolve Project budget"),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
     """Get project-level budget status (aggregated across all cost elements).
@@ -372,9 +370,7 @@ async def get_project_budget_status(
 )
 async def get_wbe_budget_status(
     wbe_id: UUID,
-    branch: str = Query(
-        "main", description="Branch context to resolve WBE budget"
-    ),
+    branch: str = Query("main", description="Branch context to resolve WBE budget"),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
     """Get WBE-level budget status (aggregated across WBE hierarchy).

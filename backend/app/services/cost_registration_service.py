@@ -117,7 +117,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             project = project_result_main.scalar_one_or_none()
 
         if project is None:
-            raise ValueError(f"Project {project_id} not found on branch {branch} or main")
+            raise ValueError(
+                f"Project {project_id} not found on branch {branch} or main"
+            )
 
         # Use the branch where the project was actually found
         effective_branch = project.branch
@@ -144,7 +146,10 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         # Cost registrations are global (not branchable), so we don't need to check multiple branches
         total_spend_stmt = (
             select(func.sum(CostRegistration.amount))
-            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+            .join(
+                CostElement,
+                CostRegistration.cost_element_id == CostElement.cost_element_id,
+            )
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
@@ -163,7 +168,11 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         # Calculate remaining and percentage
         remaining = project_budget - total_spend
-        percentage = (total_spend / project_budget * Decimal("100")) if project_budget > 0 else Decimal("0")
+        percentage = (
+            (total_spend / project_budget * Decimal("100"))
+            if project_budget > 0
+            else Decimal("0")
+        )
 
         return ProjectBudgetStatus(
             project_id=project_id,
@@ -251,7 +260,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         total_spend = Decimal(str(spend_result.scalar_one()))
 
         remaining = budget - total_spend
-        percentage = (total_spend / budget * Decimal("100")) if budget > 0 else Decimal("0")
+        percentage = (
+            (total_spend / budget * Decimal("100")) if budget > 0 else Decimal("0")
+        )
 
         return WBEBudgetStatus(
             wbe_id=wbe_id,
@@ -364,7 +375,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             return None  # No budget set, no enforcement
 
         # Get current total spend
-        current_spend = Decimal(str(await self.get_total_for_cost_element(cost_element_id)))
+        current_spend = Decimal(
+            str(await self.get_total_for_cost_element(cost_element_id))
+        )
 
         # Calculate projected total
         effective_spend = current_spend
@@ -566,20 +579,24 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             if current is not None:
                 # Resolve CE -> WBE -> project_id chain
                 ce_result = await self.session.execute(
-                    select(CostElement).where(
+                    select(CostElement)
+                    .where(
                         CostElement.cost_element_id == current.cost_element_id,
                         func.upper(cast(Any, CostElement).valid_time).is_(None),
                         cast(Any, CostElement).deleted_at.is_(None),
-                    ).limit(1)
+                    )
+                    .limit(1)
                 )
                 cost_element = ce_result.scalar_one_or_none()
                 if cost_element:
                     wbe_result = await self.session.execute(
-                        select(WBE).where(
+                        select(WBE)
+                        .where(
                             WBE.wbe_id == cost_element.wbe_id,
                             func.upper(cast(Any, WBE).valid_time).is_(None),
                             cast(Any, WBE).deleted_at.is_(None),
-                        ).limit(1)
+                        )
+                        .limit(1)
                     )
                     wbe_obj = wbe_result.scalar_one_or_none()
                     if wbe_obj:
@@ -698,9 +715,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                 )
                 .correlate(CostRegistration)
             )
-            stmt = stmt.where(
-                CostRegistration.cost_element_id.in_(ce_subq)
-            )
+            stmt = stmt.where(CostRegistration.cost_element_id.in_(ce_subq))
 
         # Join through CostElement -> WBE to filter by Project
         if project_id is not None:
@@ -716,9 +731,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                 )
                 .correlate(CostRegistration)
             )
-            stmt = stmt.where(
-                CostRegistration.cost_element_id.in_(wbe_subq)
-            )
+            stmt = stmt.where(CostRegistration.cost_element_id.in_(wbe_subq))
 
         # Get total count
         count_stmt = select(func.count()).select_from(stmt.subquery())

@@ -69,10 +69,13 @@ async def test_send_heartbeat_sends_message(interrupt_node, mock_websocket):
 
 
 @pytest.mark.asyncio
-async def test_send_heartbeat_when_websocket_disconnected(interrupt_node, mock_websocket):
+async def test_send_heartbeat_when_websocket_disconnected(
+    interrupt_node, mock_websocket
+):
     """Test that _send_heartbeat handles disconnected WebSocket gracefully."""
     # Simulate disconnected WebSocket by setting to DISCONNECTED state
     from starlette.websockets import WebSocketState
+
     mock_websocket.client_state = WebSocketState.DISCONNECTED
 
     approval_id = "test-approval-id"

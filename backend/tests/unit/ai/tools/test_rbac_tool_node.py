@@ -66,25 +66,20 @@ class TestRBACToolNode:
         """Create a mock database session."""
         from unittest.mock import AsyncMock
 
-
         return AsyncMock(spec=AsyncSession)
 
     @pytest.fixture
     def admin_context(self, mock_session: AsyncMock) -> ToolContext:
         """Create a ToolContext with admin role."""
         return ToolContext(
-            session=mock_session,
-            user_id=str(uuid4()),
-            user_role="admin"
+            session=mock_session, user_id=str(uuid4()), user_role="admin"
         )
 
     @pytest.fixture
     def viewer_context(self, mock_session: AsyncMock) -> ToolContext:
         """Create a ToolContext with viewer role."""
         return ToolContext(
-            session=mock_session,
-            user_id=str(uuid4()),
-            user_role="viewer"
+            session=mock_session, user_id=str(uuid4()), user_role="viewer"
         )
 
     @pytest.fixture
@@ -103,7 +98,7 @@ class TestRBACToolNode:
             func=test_func,
             name="test_tool",
             description="Test tool",
-            args_schema=TestInput
+            args_schema=TestInput,
         )
 
         # Attach metadata
@@ -112,16 +107,14 @@ class TestRBACToolNode:
             description="Test tool",
             permissions=["project-read"],
             category="test",
-            version="1.0.0"
+            version="1.0.0",
         )
 
         return test_tool
 
     @pytest.mark.asyncio
     async def test_rbac_tool_node_permission_denied(
-        self,
-        sample_tool: BaseTool,
-        viewer_context: ToolContext
+        self, sample_tool: BaseTool, viewer_context: ToolContext
     ) -> None:
         """Test that RBACToolNode returns error when permission denied.
 
@@ -135,10 +128,12 @@ class TestRBACToolNode:
             The tool is not executed
         """
         # Arrange: Set up RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-read", "project-write", "project-delete"],
-            "viewer": ["project-read"]
-        })
+        mock_service = MockRBACService(
+            {
+                "admin": ["project-read", "project-write", "project-delete"],
+                "viewer": ["project-read"],
+            }
+        )
         set_rbac_service(mock_service)
 
         # Create tool with delete permission
@@ -155,7 +150,7 @@ class TestRBACToolNode:
             func=delete_project_func,
             name="delete_project",
             description="Delete a project",
-            args_schema=DeleteProjectInput
+            args_schema=DeleteProjectInput,
         )
 
         delete_project._tool_metadata = ToolMetadata(  # type: ignore[attr-defined]
@@ -163,7 +158,7 @@ class TestRBACToolNode:
             description="Delete a project",
             permissions=["project-delete"],
             category="projects",
-            version="1.0.0"
+            version="1.0.0",
         )
 
         # Create RBACToolNode
@@ -180,9 +175,7 @@ class TestRBACToolNode:
 
     @pytest.mark.asyncio
     async def test_rbac_tool_node_permission_granted(
-        self,
-        sample_tool: BaseTool,
-        admin_context: ToolContext
+        self, sample_tool: BaseTool, admin_context: ToolContext
     ) -> None:
         """Test that RBACToolNode allows execution when permitted.
 
@@ -195,10 +188,12 @@ class TestRBACToolNode:
             Permission check returns None (allowed)
         """
         # Arrange: Set up RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-read", "project-write", "project-delete"],
-            "viewer": ["project-read"]
-        })
+        mock_service = MockRBACService(
+            {
+                "admin": ["project-read", "project-write", "project-delete"],
+                "viewer": ["project-read"],
+            }
+        )
         set_rbac_service(mock_service)
 
         # Create RBACToolNode
@@ -211,9 +206,7 @@ class TestRBACToolNode:
         assert error_message is None
 
     def test_rbac_tool_node_stores_context(
-        self,
-        sample_tool: BaseTool,
-        admin_context: ToolContext
+        self, sample_tool: BaseTool, admin_context: ToolContext
     ) -> None:
         """Test that RBACToolNode stores context for permission checks.
 
@@ -231,13 +224,10 @@ class TestRBACToolNode:
         assert node.context == admin_context
         assert node.context.user_role == "admin"
 
-
     # === T-RBAC-01: test_rbac_check_called_before_execution ===
     @pytest.mark.asyncio
     async def test_rbac_check_called_before_execution(
-        self,
-        sample_tool: BaseTool,
-        admin_context: ToolContext
+        self, sample_tool: BaseTool, admin_context: ToolContext
     ) -> None:
         """Test that permission check happens before tool execution.
 
@@ -251,10 +241,9 @@ class TestRBACToolNode:
             The _check_tool_permission method is called
         """
         # Arrange: Set up RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-read"],
-            "viewer": ["project-read"]
-        })
+        mock_service = MockRBACService(
+            {"admin": ["project-read"], "viewer": ["project-read"]}
+        )
         set_rbac_service(mock_service)
 
         # Create RBACToolNode
@@ -268,13 +257,10 @@ class TestRBACToolNode:
         # Verify that the check was performed (no exception raised)
         assert isinstance(result, str | None)
 
-
     # === T-RBAC-02: test_rbac_denied_returns_error_message ===
     @pytest.mark.asyncio
     async def test_rbac_denied_returns_error_message(
-        self,
-        sample_tool: BaseTool,
-        viewer_context: ToolContext
+        self, sample_tool: BaseTool, viewer_context: ToolContext
     ) -> None:
         """Test that permission denied returns proper error ToolMessage.
 
@@ -288,10 +274,12 @@ class TestRBACToolNode:
             Error message format is correct
         """
         # Arrange: Set up RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-read", "project-write", "project-delete"],
-            "viewer": ["project-read"]  # Missing project-delete
-        })
+        mock_service = MockRBACService(
+            {
+                "admin": ["project-read", "project-write", "project-delete"],
+                "viewer": ["project-read"],  # Missing project-delete
+            }
+        )
         set_rbac_service(mock_service)
 
         # Create tool with delete permission
@@ -308,7 +296,7 @@ class TestRBACToolNode:
             func=delete_project_func,
             name="delete_project",
             description="Delete a project",
-            args_schema=DeleteProjectInput
+            args_schema=DeleteProjectInput,
         )
 
         delete_project._tool_metadata = ToolMetadata(  # type: ignore[attr-defined]
@@ -316,7 +304,7 @@ class TestRBACToolNode:
             description="Delete a project",
             permissions=["project-delete"],
             category="projects",
-            version="1.0.0"
+            version="1.0.0",
         )
 
         # Create RBACToolNode
@@ -332,13 +320,10 @@ class TestRBACToolNode:
         assert "viewer" in error_message
         assert "delete_project" in error_message
 
-
     # === T-RBAC-03: test_rbac_multiple_permissions_all_required ===
     @pytest.mark.asyncio
     async def test_rbac_multiple_permissions_all_required(
-        self,
-        mock_session: AsyncMock,
-        admin_context: ToolContext
+        self, mock_session: AsyncMock, admin_context: ToolContext
     ) -> None:
         """Test that ALL required permissions are checked (AND logic).
 
@@ -352,10 +337,12 @@ class TestRBACToolNode:
             Error message indicates the missing permission
         """
         # Arrange: Set up RBAC service
-        mock_service = MockRBACService({
-            "admin": ["project-read", "project-write"],
-            "editor": ["project-read"],  # Missing project-write
-        })
+        mock_service = MockRBACService(
+            {
+                "admin": ["project-read", "project-write"],
+                "editor": ["project-read"],  # Missing project-write
+            }
+        )
         set_rbac_service(mock_service)
 
         # Create tool requiring BOTH permissions
@@ -372,7 +359,7 @@ class TestRBACToolNode:
             func=update_project_func,
             name="update_project",
             description="Update a project",
-            args_schema=UpdateProjectInput
+            args_schema=UpdateProjectInput,
         )
 
         update_project._tool_metadata = ToolMetadata(  # type: ignore[attr-defined]
@@ -380,14 +367,12 @@ class TestRBACToolNode:
             description="Update a project",
             permissions=["project-read", "project-write"],  # Requires BOTH
             category="projects",
-            version="1.0.0"
+            version="1.0.0",
         )
 
         # Create RBACToolNode with editor context (only has project-read)
         editor_context = ToolContext(
-            session=mock_session,
-            user_id=str(uuid4()),
-            user_role="editor"
+            session=mock_session, user_id=str(uuid4()), user_role="editor"
         )
 
         node = RBACToolNode([update_project], editor_context)
@@ -401,13 +386,10 @@ class TestRBACToolNode:
         # Should mention one of the missing permissions
         assert "project-write" in error_message or "project-read" in error_message
 
-
     # === T-RBAC-04: test_rbac_no_permissions_allows_execution ===
     @pytest.mark.asyncio
     async def test_rbac_no_permissions_allows_execution(
-        self,
-        mock_session: AsyncMock,
-        admin_context: ToolContext
+        self, mock_session: AsyncMock, admin_context: ToolContext
     ) -> None:
         """Test that tools without permissions execute freely.
 
@@ -420,10 +402,12 @@ class TestRBACToolNode:
             Access is granted without RBAC check
         """
         # Arrange: Set up RBAC service with minimal permissions
-        mock_service = MockRBACService({
-            "guest": [],  # No permissions
-            "admin": ["project-read"]
-        })
+        mock_service = MockRBACService(
+            {
+                "guest": [],  # No permissions
+                "admin": ["project-read"],
+            }
+        )
         set_rbac_service(mock_service)
 
         # Create tool WITHOUT metadata (no permissions required)
@@ -440,7 +424,7 @@ class TestRBACToolNode:
             func=public_tool_func,
             name="public_tool",
             description="A public tool that anyone can use.",
-            args_schema=PublicToolInput
+            args_schema=PublicToolInput,
         )
 
         # Intentionally don't set _tool_metadata
@@ -448,9 +432,7 @@ class TestRBACToolNode:
 
         # Create RBACToolNode with guest context (no permissions)
         guest_context = ToolContext(
-            session=mock_session,
-            user_id=str(uuid4()),
-            user_role="guest"
+            session=mock_session, user_id=str(uuid4()), user_role="guest"
         )
 
         node = RBACToolNode([public_tool], guest_context)
@@ -462,13 +444,10 @@ class TestRBACToolNode:
         assert error_message is None
         # Tool should execute without RBAC check
 
-
     # === Additional test: tool not found handling ===
     @pytest.mark.asyncio
     async def test_rbac_tool_not_found_returns_error(
-        self,
-        mock_session: AsyncMock,
-        admin_context: ToolContext
+        self, mock_session: AsyncMock, admin_context: ToolContext
     ) -> None:
         """Test that non-existent tools return appropriate error.
 
@@ -480,9 +459,7 @@ class TestRBACToolNode:
             Error message indicates tool not found
         """
         # Arrange: Set up RBAC service
-        mock_service = MockRBACService({
-            "admin": ["*"]
-        })
+        mock_service = MockRBACService({"admin": ["*"]})
         set_rbac_service(mock_service)
 
         # Create RBACToolNode with one tool
@@ -494,7 +471,7 @@ class TestRBACToolNode:
         existing_tool = StructuredTool.from_function(
             func=existing_tool_func,
             name="existing_tool",
-            description="An existing tool."
+            description="An existing tool.",
         )
 
         node = RBACToolNode([existing_tool], admin_context)

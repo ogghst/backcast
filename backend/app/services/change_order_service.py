@@ -2011,9 +2011,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             "Medium": "MEDIUM",
             "High": "HIGH",
         }
-        impact_level = risk_to_impact.get(
-            parsed_data["risk_level"], "MEDIUM"
-        )
+        impact_level = risk_to_impact.get(parsed_data["risk_level"], "MEDIUM")
 
         # Prepare change order data
         co_data = {

@@ -77,7 +77,9 @@ class DashboardService:
         # In the future, this could be used to filter dashboard data by user permissions
 
         # Get recent activity for all entities with eager loading to avoid N+1 queries
-        recent_projects: list[Project] = await self.project_service.get_recently_updated(
+        recent_projects: list[
+            Project
+        ] = await self.project_service.get_recently_updated(
             user_id=None,  # Get all projects, not just user's
             limit=activity_limit,
             branch="main",
@@ -90,31 +92,27 @@ class DashboardService:
             eager_load_project=True,  # Eager load project to avoid N+1 queries
         )
 
-        recent_cost_elements: list[CostElement] = (
-            await self.cost_element_service.get_recently_updated(
-                user_id=None,
-                limit=activity_limit,
-                branch="main",
-                eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
-            )
+        recent_cost_elements: list[
+            CostElement
+        ] = await self.cost_element_service.get_recently_updated(
+            user_id=None,
+            limit=activity_limit,
+            branch="main",
+            eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
         )
 
-        recent_change_orders: list[ChangeOrder] = (
-            await self.change_order_service.get_recently_updated(
-                user_id=None,
-                limit=activity_limit,
-                branch="main",
-                eager_load_project=True,  # Eager load project to avoid N+1 queries
-            )
+        recent_change_orders: list[
+            ChangeOrder
+        ] = await self.change_order_service.get_recently_updated(
+            user_id=None,
+            limit=activity_limit,
+            branch="main",
+            eager_load_project=True,  # Eager load project to avoid N+1 queries
         )
 
         # Convert to dashboard activities
-        project_activities = [
-            self._project_to_activity(p) for p in recent_projects
-        ]
-        wbe_activities = [
-            await self._wbe_to_activity(w) for w in recent_wbes
-        ]
+        project_activities = [self._project_to_activity(p) for p in recent_projects]
+        wbe_activities = [await self._wbe_to_activity(w) for w in recent_wbes]
         cost_element_activities = [
             await self._cost_element_to_activity(ce)
             for ce in recent_cost_elements or []
@@ -315,9 +313,7 @@ class DashboardService:
             branch=change_order.branch,
         )
 
-    async def _get_project_spotlight(
-        self, project_id: UUID
-    ) -> ProjectSpotlight | None:
+    async def _get_project_spotlight(self, project_id: UUID) -> ProjectSpotlight | None:
         """Get project spotlight with metrics.
 
         Args:
@@ -366,39 +362,53 @@ class DashboardService:
             raise ValueError(f"Project {project_id} not found")
 
         # Count WBEs
-        wbe_stmt = select(func.count()).select_from(WBE).where(
-            WBE.project_id == project_id,
-            WBE.branch == "main",
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
+        wbe_stmt = (
+            select(func.count())
+            .select_from(WBE)
+            .where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
         )
         wbe_result = await self.session.execute(wbe_stmt)
         total_wbes = wbe_result.scalar() or 0
 
         # Count Cost Elements
-        ce_stmt = select(func.count()).select_from(CostElement).where(
-            CostElement.wbe_id.in_(
-                select(WBE.wbe_id).where(
-                    WBE.project_id == project_id,
-                    WBE.branch == "main",
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                )
-            ),
-            CostElement.branch == "main",
-            func.upper(cast(Any, CostElement).valid_time).is_(None),
-            cast(Any, CostElement).deleted_at.is_(None),
+        ce_stmt = (
+            select(func.count())
+            .select_from(CostElement)
+            .where(
+                CostElement.wbe_id.in_(
+                    select(WBE.wbe_id).where(
+                        WBE.project_id == project_id,
+                        WBE.branch == "main",
+                        func.upper(cast(Any, WBE).valid_time).is_(None),
+                        cast(Any, WBE).deleted_at.is_(None),
+                    )
+                ),
+                CostElement.branch == "main",
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
         )
         ce_result = await self.session.execute(ce_stmt)
         total_cost_elements = ce_result.scalar() or 0
 
         # Count active change orders
-        co_stmt = select(func.count()).select_from(ChangeOrder).where(
-            ChangeOrder.project_id == project_id,
-            ChangeOrder.branch == "main",
-            ChangeOrder.status.in_(["Draft", "Submitted for Approval", "Under Review"]),
-            func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-            cast(Any, ChangeOrder).deleted_at.is_(None),
+        co_stmt = (
+            select(func.count())
+            .select_from(ChangeOrder)
+            .where(
+                ChangeOrder.project_id == project_id,
+                ChangeOrder.branch == "main",
+                ChangeOrder.status.in_(
+                    ["Draft", "Submitted for Approval", "Under Review"]
+                ),
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            )
         )
         co_result = await self.session.execute(co_stmt)
         active_change_orders = co_result.scalar() or 0

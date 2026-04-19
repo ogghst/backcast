@@ -89,9 +89,7 @@ def mock_rbac_service(monkeypatch):
     # Monkey patch the get_rbac_service function in rbac module
     import app.core.rbac as rbac_module
 
-    monkeypatch.setattr(
-        rbac_module, "get_rbac_service", mock_get_rbac_service
-    )
+    monkeypatch.setattr(rbac_module, "get_rbac_service", mock_get_rbac_service)
 
 
 @pytest.mark.asyncio
@@ -167,7 +165,11 @@ async def test_tools_have_correct_permissions():
         "get_latest_progress": ["progress-entry-read"],
         "create_progress_entry": ["progress-entry-create"],
         "get_progress_history": ["progress-entry-read"],
-        "get_cost_element_summary": ["forecast-read", "cost-registration-read", "progress-entry-read"],
+        "get_cost_element_summary": [
+            "forecast-read",
+            "cost-registration-read",
+            "progress-entry-read",
+        ],
     }
 
     # Import all tools
@@ -191,8 +193,12 @@ async def test_tools_have_correct_permissions():
     for tool_name, tool in tools.items():
         expected = expected_permissions[tool_name]
         # Decorator stores permissions in _tool_metadata.permissions
-        assert hasattr(tool, "_tool_metadata"), f"{tool_name} should have _tool_metadata"
-        assert tool._tool_metadata.permissions == expected, f"{tool_name} has incorrect permissions: {tool._tool_metadata.permissions} != {expected}"
+        assert hasattr(tool, "_tool_metadata"), (
+            f"{tool_name} should have _tool_metadata"
+        )
+        assert tool._tool_metadata.permissions == expected, (
+            f"{tool_name} has incorrect permissions: {tool._tool_metadata.permissions} != {expected}"
+        )
 
 
 @pytest.mark.asyncio
@@ -234,10 +240,12 @@ async def test_tool_execution_via_langgraph(db_session, test_cost_element):
     await db_session.commit()
 
     # Act - Call get_forecast via LangGraph's ainvoke pattern
-    result = await get_forecast.ainvoke({
-        "cost_element_id": str(test_cost_element.cost_element_id),
-        "context": context,
-    })
+    result = await get_forecast.ainvoke(
+        {
+            "cost_element_id": str(test_cost_element.cost_element_id),
+            "context": context,
+        }
+    )
 
     # Assert
     assert "error" not in result
@@ -298,10 +306,12 @@ async def test_end_to_end_summary_workflow(db_session, test_cost_element):
     await db_session.commit()
 
     # Act - Get complete summary
-    result = await get_cost_element_summary.ainvoke({
-        "cost_element_id": str(test_cost_element.cost_element_id),
-        "context": context,
-    })
+    result = await get_cost_element_summary.ainvoke(
+        {
+            "cost_element_id": str(test_cost_element.cost_element_id),
+            "context": context,
+        }
+    )
 
     # Assert - Summary should include all three data types
     assert "error" not in result

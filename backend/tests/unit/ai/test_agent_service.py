@@ -1,7 +1,6 @@
 """Tests for AgentService - comprehensive coverage for orchestration, session management, and error handling."""
 
 import json
-import logging
 from collections.abc import AsyncIterator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -62,7 +61,9 @@ class TestExtractClientConfig:
         assert result["api_key"] == "sk-test-key"
         assert result["base_url"] == "https://api.openai.com/v1"
 
-    async def test_extract_config_with_timeout_and_retries(self, db_session: AsyncSession) -> None:
+    async def test_extract_config_with_timeout_and_retries(
+        self, db_session: AsyncSession
+    ) -> None:
         """Verify extraction of timeout and max_retries configuration."""
         provider = AIProvider(
             id=uuid4(),
@@ -99,7 +100,9 @@ class TestExtractClientConfig:
         assert result["timeout"] == 30.0
         assert result["max_retries"] == 3
 
-    async def test_extract_config_azure_deployment(self, db_session: AsyncSession) -> None:
+    async def test_extract_config_azure_deployment(
+        self, db_session: AsyncSession
+    ) -> None:
         """Verify Azure-specific configuration extraction."""
         provider = AIProvider(
             id=uuid4(),
@@ -161,7 +164,9 @@ class TestExtractClientConfig:
 class TestGetLLMClientConfig:
     """Test _get_llm_client_config method."""
 
-    async def test_get_llm_client_config_success(self, db_session: AsyncSession) -> None:
+    async def test_get_llm_client_config_success(
+        self, db_session: AsyncSession
+    ) -> None:
         """Verify successful LLM client configuration retrieval."""
         service = AgentService(db_session)
 
@@ -196,12 +201,16 @@ class TestGetLLMClientConfig:
             with patch("app.ai.agent_service._extract_client_config") as mock_extract:
                 mock_extract.return_value = {"api_key": "sk-test"}
 
-                client_config, model_name = await service._get_llm_client_config(model_id)
+                client_config, model_name = await service._get_llm_client_config(
+                    model_id
+                )
 
                 assert model_name == "gpt-4"
                 assert client_config == {"api_key": "sk-test"}
 
-    async def test_get_llm_client_config_model_not_found(self, db_session: AsyncSession) -> None:
+    async def test_get_llm_client_config_model_not_found(
+        self, db_session: AsyncSession
+    ) -> None:
         """Verify error when model is not found."""
         service = AgentService(db_session)
 
@@ -241,7 +250,9 @@ class TestGetLLMClientConfig:
 class TestCreateLangChainLLM:
     """Test _create_langchain_llm method."""
 
-    async def test_create_langchain_llm_with_defaults(self, db_session: AsyncSession) -> None:
+    async def test_create_langchain_llm_with_defaults(
+        self, db_session: AsyncSession
+    ) -> None:
         """Verify LLM creation with default parameters."""
         service = AgentService(db_session)
 
@@ -362,9 +373,7 @@ class TestBuildConversationHistory:
 
         session_id = uuid4()
 
-        with patch.object(
-            service, "_get_session_messages", AsyncMock(return_value=[])
-        ):
+        with patch.object(service, "_get_session_messages", AsyncMock(return_value=[])):
             history = await service._build_conversation_history(session_id)
 
             assert len(history) == 0
@@ -394,7 +403,9 @@ class TestGetSessionMessages:
         )
 
         mock_result = Mock()
-        mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=[msg1, msg2])))
+        mock_result.scalars = Mock(
+            return_value=Mock(all=Mock(return_value=[msg1, msg2]))
+        )
 
         with patch.object(db_session, "execute", return_value=mock_result):
             messages = await service._get_session_messages(session_id)
@@ -432,9 +443,7 @@ class TestChatMethod:
         assert new_session.assistant_config_id == str(assistant_config.id)
 
         # Test history building
-        with patch.object(
-            service, "_get_session_messages", AsyncMock(return_value=[])
-        ):
+        with patch.object(service, "_get_session_messages", AsyncMock(return_value=[])):
             history = await service._build_conversation_history(session_id)
             assert isinstance(history, list)
             assert len(history) == 0
@@ -467,9 +476,10 @@ class TestChatMethod:
         session_id = uuid4()
         assistant_config = Mock()
 
-        with patch.object(
-            service, "_get_session", AsyncMock(return_value=None)
-        ), pytest.raises(ValueError, match="Session .* not found"):
+        with (
+            patch.object(service, "_get_session", AsyncMock(return_value=None)),
+            pytest.raises(ValueError, match="Session .* not found"),
+        ):
             await service.chat(
                 message="Hello",
                 assistant_config=assistant_config,
@@ -482,7 +492,9 @@ class TestChatMethod:
 class TestChatStreamMethod:
     """Test chat_stream method for WebSocket streaming."""
 
-    async def test_chat_stream_creates_new_session(self, db_session: AsyncSession) -> None:
+    async def test_chat_stream_creates_new_session(
+        self, db_session: AsyncSession
+    ) -> None:
         """Verify new session creation components for streaming."""
         service = AgentService(db_session)
 
@@ -506,9 +518,7 @@ class TestChatStreamMethod:
         assert new_session.assistant_config_id == str(assistant_config.id)
 
         # Test that history building works
-        with patch.object(
-            service, "_get_session_messages", AsyncMock(return_value=[])
-        ):
+        with patch.object(service, "_get_session_messages", AsyncMock(return_value=[])):
             history = await service._build_conversation_history(session_id)
             assert history == []
 
@@ -521,6 +531,7 @@ class TestChatStreamMethod:
 
     def _mock_stream_events(self, events: list[dict[str, Any]]) -> Mock:
         """Create a mock astream_events generator."""
+
         async def async_generator() -> Any:
             for event in events:
                 yield event
@@ -579,7 +590,9 @@ class TestToolResultSerialization:
 
         # Simulate the extraction logic from chat_stream
         tool_output = tool_msg
-        result_content: str | list[str | dict[str, Any]] | dict[str, Any] = tool_output.content
+        result_content: str | list[str | dict[str, Any]] | dict[str, Any] = (
+            tool_output.content
+        )
 
         # Verify the content is extracted
         assert result_content == "Tool execution result"
@@ -596,7 +609,9 @@ class TestToolResultSerialization:
 
         # Simulate the extraction logic
         tool_output = tool_msg
-        result_content: str | list[str | dict[str, Any]] | dict[str, Any] = tool_output.content
+        result_content: str | list[str | dict[str, Any]] | dict[str, Any] = (
+            tool_output.content
+        )
 
         # Verify the content is extracted and is a string
         assert result_content == '{"result": "success", "data": [1, 2, 3]}'
@@ -648,7 +663,10 @@ class TestToolResultSerialization:
         AgentService(db_session)
 
         # Simulate a dict output with content field
-        tool_output: dict[str, Any] = {"content": "Extracted content", "metadata": "extra"}
+        tool_output: dict[str, Any] = {
+            "content": "Extracted content",
+            "metadata": "extra",
+        }
 
         result_content: str | dict[str, Any] = tool_output
         if isinstance(tool_output, ToolMessage):
@@ -822,9 +840,7 @@ class TestDisconnectDetection:
 
         assert AgentService._is_websocket_connected(mock_ws) is False
 
-    async def test_disconnect_logs_warning(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_disconnect_logs_warning(self, db_session: AsyncSession) -> None:
         """Verify a warning is logged when WebSocket disconnects during streaming."""
         from app.services.ai_config_service import AIConfigService
 
@@ -870,7 +886,10 @@ class TestDisconnectDetection:
         async def mock_astream_events(
             *args: object, **kwargs: object
         ) -> AsyncIterator[dict[str, Any]]:
-            yield {"event": "on_chat_model_stream", "data": {"chunk": MagicMock(text="x", content="x")}}
+            yield {
+                "event": "on_chat_model_stream",
+                "data": {"chunk": MagicMock(text="x", content="x")},
+            }
 
         mock_graph = MagicMock()
         mock_graph.astream_events = mock_astream_events
@@ -895,12 +914,8 @@ class TestDisconnectDetection:
             )
 
         # Verify the warning about aborting agent execution was logged
-        warning_calls = [
-            str(call) for call in mock_logger.warning.call_args_list
-        ]
-        abort_warnings = [
-            w for w in warning_calls if "aborting agent execution" in w
-        ]
+        warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
+        abort_warnings = [w for w in warning_calls if "aborting agent execution" in w]
         assert len(abort_warnings) >= 1, (
             f"Expected warning about aborting agent execution, "
             f"got warnings: {warning_calls}"

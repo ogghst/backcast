@@ -136,6 +136,7 @@ async def _extract_client_config(
 
     return client_config
 
+
 logger = logging.getLogger(__name__)
 
 # Caches (shared across all requests)
@@ -196,7 +197,9 @@ class AgentService:
             self._config_service = AIConfigService(self.session)
         return self._config_service
 
-    async def _get_llm_client_config(self, model_id: UUID) -> tuple[dict[str, Any], str, str]:
+    async def _get_llm_client_config(
+        self, model_id: UUID
+    ) -> tuple[dict[str, Any], str, str]:
         """Get LLM client configuration, model name, and provider type for a model.
 
         Context: Internal helper to resolve the configuration for LangChain's ChatOpenAI.
@@ -345,8 +348,11 @@ class AgentService:
         interrupt_node = None
         if available_tools and session_id and (websocket or event_bus):
             interrupt_node = InterruptNode(
-                available_tools, tool_context, websocket=websocket,
-                session_id=session_id, event_bus=event_bus,
+                available_tools,
+                tool_context,
+                websocket=websocket,
+                session_id=session_id,
+                event_bus=event_bus,
             )
 
         # Compute cache key from invariant properties
@@ -368,12 +374,16 @@ class AgentService:
         # Check cache
         cached_graph = _graph_cache.get(cache_key)
         if cached_graph is not None:
-            logger.info(f"[GRAPH_CACHE_HIT] Reusing cached graph for session {session_id}")
+            logger.info(
+                f"[GRAPH_CACHE_HIT] Reusing cached graph for session {session_id}"
+            )
             return cached_graph, interrupt_node
 
         # Cache miss — compile new graph
         try:
-            logger.info(f"[GRAPH_CACHE_MISS] Compiling new graph for session {session_id}")
+            logger.info(
+                f"[GRAPH_CACHE_MISS] Compiling new graph for session {session_id}"
+            )
             graph_creation_start = time.time()
 
             orchestrator = DeepAgentOrchestrator(
@@ -405,10 +415,22 @@ class AgentService:
 
         except ImportError:
             logger.warning("Deep Agents SDK not available, falling back to LangGraph")
-            return create_graph(llm, create_project_tools(tool_context), tool_context, websocket, session_id)
+            return create_graph(
+                llm,
+                create_project_tools(tool_context),
+                tool_context,
+                websocket,
+                session_id,
+            )
         except Exception as e:
             logger.error(f"Error creating Deep Agent: {e}, falling back to LangGraph")
-            return create_graph(llm, create_project_tools(tool_context), tool_context, websocket, session_id)
+            return create_graph(
+                llm,
+                create_project_tools(tool_context),
+                tool_context,
+                websocket,
+                session_id,
+            )
 
     async def chat(
         self,
@@ -440,7 +462,7 @@ class AgentService:
                 "session_id": str(session_id) if session_id else "new",
                 "user_id": str(user_id),
                 "assistant_id": str(assistant_config.id),
-            }
+            },
         ):
             return await self._chat_impl(message, assistant_config, session_id, user_id)
 
@@ -530,10 +552,16 @@ class AgentService:
             }
 
         # Create graph with context for RBAC
-        graph, _interrupt_node = create_graph(llm=llm, tools=list(tools_dict.values()), context=tool_context)
+        graph, _interrupt_node = create_graph(
+            llm=llm, tools=list(tools_dict.values()), context=tool_context
+        )
 
         # Extract recursion_limit from assistant config with fallback to default
-        recursion_limit = assistant_config.recursion_limit if assistant_config.recursion_limit is not None else 25
+        recursion_limit = (
+            assistant_config.recursion_limit
+            if assistant_config.recursion_limit is not None
+            else 25
+        )
 
         # Invoke the graph
         # Note: Task-local sessions are created per tool execution and cleaned up below
@@ -547,7 +575,7 @@ class AgentService:
                 },
                 config={
                     "recursion_limit": recursion_limit,
-                    "configurable": {"thread_id": str(session_id)}
+                    "configurable": {"thread_id": str(session_id)},
                 },
             )
         finally:
@@ -555,9 +583,13 @@ class AgentService:
             # This ensures sessions are properly removed even if tools didn't clean up
             try:
                 await ToolSessionManager.commit()
-                logger.debug(f"Cleaned up task-local sessions after graph invocation for session {session_id}")
+                logger.debug(
+                    f"Cleaned up task-local sessions after graph invocation for session {session_id}"
+                )
             except Exception as cleanup_error:
-                logger.debug(f"No task-local sessions to clean up or cleanup failed: {cleanup_error}")
+                logger.debug(
+                    f"No task-local sessions to clean up or cleanup failed: {cleanup_error}"
+                )
                 # Ignore cleanup errors - sessions may have already been removed
 
         # Extract final AI response
@@ -578,11 +610,13 @@ class AgentService:
             if isinstance(msg, AIMessage) and msg.tool_calls:
                 # Convert ToolCall objects to dict format
                 for tc in msg.tool_calls:
-                    tool_calls_data.append({
-                        "id": tc.get("id", ""),
-                        "name": tc.get("name", ""),
-                        "args": tc.get("args", {}),
-                    })
+                    tool_calls_data.append(
+                        {
+                            "id": tc.get("id", ""),
+                            "name": tc.get("name", ""),
+                            "args": tc.get("args", {}),
+                        }
+                    )
             # Note: Tool messages are not directly accessible from the result
             # In a real implementation, you might want to track these separately
 
@@ -591,7 +625,9 @@ class AgentService:
         content_str = (
             final_message.content
             if isinstance(final_message.content, str)
-            else str(final_message.content) if final_message.content else ""
+            else str(final_message.content)
+            if final_message.content
+            else ""
         )
         assistant_msg = await self.config_service.add_message(
             session_id=session_id,
@@ -607,7 +643,6 @@ class AgentService:
             message=AIConversationMessagePublic.model_validate(assistant_msg),
             tool_calls=tool_calls_data if tool_calls_data else None,
         )
-
 
     async def _run_agent_graph(
         self,
@@ -734,14 +769,21 @@ class AgentService:
         )
 
         # Extract recursion_limit
-        recursion_limit = assistant_config.recursion_limit if assistant_config.recursion_limit is not None else 25
+        recursion_limit = (
+            assistant_config.recursion_limit
+            if assistant_config.recursion_limit is not None
+            else 25
+        )
 
         accumulated_content = ""
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
         main_agent_segments: dict[str, list[str]] = {}
         from collections import defaultdict
-        subagent_messages_by_main_invocation: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+        subagent_messages_by_main_invocation: dict[str, list[dict[str, Any]]] = (
+            defaultdict(list)
+        )
 
         current_step = 0
         estimated_total_steps: int | None = None
@@ -839,7 +881,11 @@ class AgentService:
                             total_output_chars += len(content)
 
                             # Accumulate tokens per invocation for batched publish
-                            invocation_id_to_use = current_invocation_id if current_subagent_name else main_invocation_id
+                            invocation_id_to_use = (
+                                current_invocation_id
+                                if current_subagent_name
+                                else main_invocation_id
+                            )
                             if invocation_id_to_use is not None:
                                 if invocation_id_to_use not in _token_accumulator:
                                     _token_accumulator[invocation_id_to_use] = []
@@ -860,19 +906,28 @@ class AgentService:
                     current_step += 1
 
                     if tool_name == "task":
-                        current_subagent_name = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
+                        current_subagent_name = (
+                            tool_input.get("subagent_type")
+                            if isinstance(tool_input, dict)
+                            else None
+                        )
                         current_invocation_id = str(uuid.uuid4())
                         task_initiating_main_invocation_id = main_invocation_id
 
                     # Planning event
                     if tool_name == "write_todos":
-                        plan = tool_input.get("plan") if isinstance(tool_input, dict) else None
+                        plan = (
+                            tool_input.get("plan")
+                            if isinstance(tool_input, dict)
+                            else None
+                        )
                         steps = None
                         if isinstance(tool_input, dict):
                             raw_steps = tool_input.get("steps")
                             if isinstance(raw_steps, list):
                                 steps = [
-                                    PlanningStep(text=str(s), done=False) for s in raw_steps
+                                    PlanningStep(text=str(s), done=False)
+                                    for s in raw_steps
                                 ]
                                 estimated_total_steps = len(steps)
                         _publish(
@@ -889,8 +944,16 @@ class AgentService:
 
                     # Subagent delegation event
                     elif tool_name == "task":
-                        subagent_type = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
-                        description = tool_input.get("description") if isinstance(tool_input, dict) else None
+                        subagent_type = (
+                            tool_input.get("subagent_type")
+                            if isinstance(tool_input, dict)
+                            else None
+                        )
+                        description = (
+                            tool_input.get("description")
+                            if isinstance(tool_input, dict)
+                            else None
+                        )
                         if subagent_type:
                             _publish(
                                 "subagent",
@@ -913,7 +976,9 @@ class AgentService:
                             args=tool_input,
                             step_number=current_step,
                             total_steps=estimated_total_steps,
-                            invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
+                            invocation_id=current_invocation_id
+                            if current_subagent_name
+                            else main_invocation_id,
                         ).model_dump(mode="json"),
                     )
 
@@ -931,7 +996,11 @@ class AgentService:
 
                         if isinstance(tool_output, ToolMessage):
                             raw_content = tool_output.content
-                            subagent_content = raw_content if isinstance(raw_content, str) else str(raw_content)
+                            subagent_content = (
+                                raw_content
+                                if isinstance(raw_content, str)
+                                else str(raw_content)
+                            )
                         elif isinstance(tool_output, Command):
                             update_dict = tool_output.update
                             if isinstance(update_dict, dict):
@@ -957,17 +1026,27 @@ class AgentService:
                             if subagent_type not in self._subagent_invocation_counts:
                                 self._subagent_invocation_counts[subagent_type] = 0
                             self._subagent_invocation_counts[subagent_type] += 1
-                            invocation_number = self._subagent_invocation_counts[subagent_type]
+                            invocation_number = self._subagent_invocation_counts[
+                                subagent_type
+                            ]
 
-                            target_invocation_id = task_initiating_main_invocation_id or main_invocation_id
-                            subagent_messages_by_main_invocation[target_invocation_id].append({
-                                "role": "assistant",
-                                "content": subagent_content,
-                                "message_metadata": {
-                                    "subagent_name": subagent_type,
-                                    "invocation_number": invocation_number,
-                                } if current_subagent_name else None,
-                            })
+                            target_invocation_id = (
+                                task_initiating_main_invocation_id or main_invocation_id
+                            )
+                            subagent_messages_by_main_invocation[
+                                target_invocation_id
+                            ].append(
+                                {
+                                    "role": "assistant",
+                                    "content": subagent_content,
+                                    "message_metadata": {
+                                        "subagent_name": subagent_type,
+                                        "invocation_number": invocation_number,
+                                    }
+                                    if current_subagent_name
+                                    else None,
+                                }
+                            )
 
                             _publish(
                                 "subagent_result",
@@ -1033,7 +1112,9 @@ class AgentService:
                                 type="tool_result",
                                 tool=tool_name,
                                 result=jsonable_encoder(tool_result_dict),
-                                invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
+                                invocation_id=current_invocation_id
+                                if current_subagent_name
+                                else main_invocation_id,
                             ).model_dump(mode="json"),
                         )
 
@@ -1057,7 +1138,9 @@ class AgentService:
                                 type="tool_result",
                                 tool=tool_name,
                                 result=jsonable_encoder(error_result_dict),
-                                invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
+                                invocation_id=current_invocation_id
+                                if current_subagent_name
+                                else main_invocation_id,
                             ).model_dump(mode="json"),
                         )
 
@@ -1069,13 +1152,17 @@ class AgentService:
                     for msg in messages:
                         if isinstance(msg, AIMessage) and msg.tool_calls:
                             for tc in msg.tool_calls:
-                                all_tool_calls.append({
-                                    "id": tc.get("id", ""),
-                                    "name": tc.get("name", ""),
-                                    "args": tc.get("args", {}),
-                                })
+                                all_tool_calls.append(
+                                    {
+                                        "id": tc.get("id", ""),
+                                        "name": tc.get("name", ""),
+                                        "args": tc.get("args", {}),
+                                    }
+                                )
 
-                    logger.info(f"Graph execution completed for execution event_bus {event_bus.execution_id}")
+                    logger.info(
+                        f"Graph execution completed for execution event_bus {event_bus.execution_id}"
+                    )
 
             # Flush all remaining accumulated tokens after stream ends
             for inv_id in list(_token_accumulator.keys()):
@@ -1111,8 +1198,12 @@ class AgentService:
                     "total_segments": total_main_segments,
                 }
 
-                segment_tool_calls = all_tool_calls if idx == 0 and all_tool_calls else None
-                segment_tool_results = all_tool_results if idx == 0 and all_tool_results else None
+                segment_tool_calls = (
+                    all_tool_calls if idx == 0 and all_tool_calls else None
+                )
+                segment_tool_results = (
+                    all_tool_results if idx == 0 and all_tool_results else None
+                )
 
                 segment_msg = await self.config_service.add_message(
                     session_id=session_id,
@@ -1127,7 +1218,9 @@ class AgentService:
                 assistant_msg = segment_msg
 
                 if inv_id in subagent_messages_by_main_invocation:
-                    for subagent_msg_data in subagent_messages_by_main_invocation[inv_id]:
+                    for subagent_msg_data in subagent_messages_by_main_invocation[
+                        inv_id
+                    ]:
                         subagent_msg = await self.config_service.add_message(
                             session_id=session_id,
                             **subagent_msg_data,
@@ -1137,7 +1230,9 @@ class AgentService:
                         assistant_msg = subagent_msg
 
         except Exception as msg_error:
-            logger.error(f"Error saving messages in _run_agent_graph: {msg_error}", exc_info=True)
+            logger.error(
+                f"Error saving messages in _run_agent_graph: {msg_error}", exc_info=True
+            )
             try:
                 await self.session.rollback()
             except Exception:
@@ -1314,7 +1409,9 @@ class AgentService:
                     await db.commit()
 
             except Exception as e:
-                logger.error(f"Error in start_execution {execution_id}: {e}", exc_info=True)
+                logger.error(
+                    f"Error in start_execution {execution_id}: {e}", exc_info=True
+                )
                 # Update execution tracking row with error
                 try:
                     execution.status = "error"
@@ -1451,7 +1548,6 @@ class AgentService:
         return base_prompt
 
     async def _build_conversation_history(self, session_id: UUID) -> list[BaseMessage]:
-
         """Build conversation history from session messages.
 
         Context: Converts DB messages into LangChain message objects for context window.
@@ -1488,12 +1584,15 @@ class AgentService:
 
                     # Use format_multimodal_messages for proper LLM formatting
                     content_blocks = await self.format_multimodal_messages(
-                        msg.content,
-                        attachments=attachment_dicts
+                        msg.content, attachments=attachment_dicts
                     )
                     # Type cast needed: list[dict[str, Any]] -> list[str | dict[Any, Any]]
                     # for HumanMessage compatibility with MyPy strict mode
-                    messages.append(HumanMessage(content=cast(list[str | dict[Any, Any]], content_blocks)))
+                    messages.append(
+                        HumanMessage(
+                            content=cast(list[str | dict[Any, Any]], content_blocks)
+                        )
+                    )
                 else:
                     # Plain text message without attachments
                     messages.append(HumanMessage(content=msg.content))
@@ -1548,29 +1647,36 @@ class AgentService:
                 if attachment_content:
                     content_type = attachment.get("content_type", "image/png")
                     data_url = f"data:{content_type};base64,{attachment_content}"
-                    content_blocks.append({
-                        "type": "image_url",
-                        "image_url": {"url": data_url},
-                    })
+                    content_blocks.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": data_url},
+                        }
+                    )
 
             # Process non-image attachments: inline as text blocks
             non_image_attachments = [
-                a for a in attachments
+                a
+                for a in attachments
                 if not a.get("content_type", "").startswith("image/")
             ]
             for attachment in non_image_attachments:
                 filename = attachment.get("filename", "unknown file")
                 attachment_content = attachment.get("content")
                 if attachment_content:
-                    content_blocks.append({
-                        "type": "text",
-                        "text": f"[File: {filename}]\n{attachment_content}",
-                    })
+                    content_blocks.append(
+                        {
+                            "type": "text",
+                            "text": f"[File: {filename}]\n{attachment_content}",
+                        }
+                    )
                 else:
-                    content_blocks.append({
-                        "type": "text",
-                        "text": f"[User attached: {filename}]",
-                    })
+                    content_blocks.append(
+                        {
+                            "type": "text",
+                            "text": f"[User attached: {filename}]",
+                        }
+                    )
 
         return content_blocks
 
@@ -1629,7 +1735,9 @@ class AgentService:
     # Key: session_id, Value: InterruptNode instance
     _interrupt_nodes: dict[UUID, "InterruptNode"] = {}
 
-    def register_interrupt_node(self, session_id: UUID, interrupt_node: "InterruptNode") -> None:
+    def register_interrupt_node(
+        self, session_id: UUID, interrupt_node: "InterruptNode"
+    ) -> None:
         """Register an InterruptNode for a session.
 
         Args:
@@ -1656,7 +1764,9 @@ class AgentService:
             interrupt_node.pending_approvals.clear()
             interrupt_node.interrupt_state.clear()
 
-    def register_approval_response(self, session_id: UUID, approval_id: str, approved: bool) -> bool:
+    def register_approval_response(
+        self, session_id: UUID, approval_id: str, approved: bool
+    ) -> bool:
         """Register an approval response from the user.
 
         Args:
@@ -1673,7 +1783,9 @@ class AgentService:
             return False
 
         interrupt_node.register_approval_response(approval_id, approved)
-        logger.info(f"Registered approval response for session {session_id}, approval_id={approval_id}, approved={approved}")
+        logger.info(
+            f"Registered approval response for session {session_id}, approval_id={approval_id}, approved={approved}"
+        )
         return True
 
     async def resume_graph_after_approval(
@@ -1708,7 +1820,9 @@ class AgentService:
             result = await interrupt_node.execute_after_approval(approval_id)
 
             if result is None:
-                logger.error(f"Failed to execute tool after approval for approval_id={approval_id}")
+                logger.error(
+                    f"Failed to execute tool after approval for approval_id={approval_id}"
+                )
                 return False
 
             # Send the result via WebSocket
@@ -1728,16 +1842,25 @@ class AgentService:
                         tool=tool_result["tool"],
                         result=jsonable_encoder(tool_result),
                     ).model_dump(mode="json")
-                    logger.debug(f"Sending tool_result after approval: tool={tool_result['tool']}, result_type={type(result.content).__name__}")
+                    logger.debug(
+                        f"Sending tool_result after approval: tool={tool_result['tool']}, result_type={type(result.content).__name__}"
+                    )
                     await websocket.send_json(msg_data)
                 except Exception as e:
                     logger.warning(f"Failed to send tool_result after approval: {e}")
             else:
-                logger.debug("WebSocket not connected, skipping tool_result send in resume")
+                logger.debug(
+                    "WebSocket not connected, skipping tool_result send in resume"
+                )
 
-            logger.info(f"Successfully resumed and executed tool for approval_id={approval_id}")
+            logger.info(
+                f"Successfully resumed and executed tool for approval_id={approval_id}"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Error resuming graph for approval_id={approval_id}: {e}", exc_info=True)
+            logger.error(
+                f"Error resuming graph for approval_id={approval_id}: {e}",
+                exc_info=True,
+            )
             return False

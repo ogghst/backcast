@@ -101,7 +101,7 @@ class ProjectRead(ProjectBase):
         """
         if v and not isinstance(v, str):
             # Extract lower bound from TSTZRANGE and format as ISO 8601
-            if hasattr(v, 'lower') and v.lower:
+            if hasattr(v, "lower") and v.lower:
                 return v.lower.isoformat()
             return str(v)
         return v  # type: ignore

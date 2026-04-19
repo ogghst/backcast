@@ -3,15 +3,12 @@
 Tests verify that the LLM client can handle multi-modal messages with image_url content.
 """
 
-from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from openai import AsyncOpenAI
 
 from app.ai.llm_client import stream_with_error_handling
-from app.models.domain.ai import AIProvider
 
 
 class MockAsyncIterator:
@@ -66,9 +63,9 @@ async def test_llm_client_supports_multimodal_messages() -> None:
                     "type": "image_url",
                     "image_url": {
                         "url": "http://localhost:8020/api/v1/ai/chat/images/abc123.png"
-                    }
-                }
-            ]
+                    },
+                },
+            ],
         }
     ]
 
@@ -142,13 +139,17 @@ async def test_llm_client_supports_multiple_images() -> None:
                 {"type": "text", "text": "Compare these:"},
                 {
                     "type": "image_url",
-                    "image_url": {"url": "http://localhost:8020/api/v1/ai/chat/images/img1.png"}
+                    "image_url": {
+                        "url": "http://localhost:8020/api/v1/ai/chat/images/img1.png"
+                    },
                 },
                 {
                     "type": "image_url",
-                    "image_url": {"url": "http://localhost:8020/api/v1/ai/chat/images/img2.jpg"}
+                    "image_url": {
+                        "url": "http://localhost:8020/api/v1/ai/chat/images/img2.jpg"
+                    },
                 },
-            ]
+            ],
         }
     ]
 
@@ -193,12 +194,7 @@ async def test_llm_client_backward_compatible_with_string_content() -> None:
     mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     # Create message with simple string content (old style)
-    messages = [
-        {
-            "role": "user",
-            "content": "What is the capital of France?"
-        }
-    ]
+    messages = [{"role": "user", "content": "What is the capital of France?"}]
 
     # Act
     chunks = []

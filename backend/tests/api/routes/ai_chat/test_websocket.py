@@ -100,7 +100,7 @@ async def test_websocket_schemas_serialization() -> None:
         session_id=None,
         assistant_config_id=uuid4(),
     )
-    request_dict = request.model_dump(mode='json')
+    request_dict = request.model_dump(mode="json")
     assert request_dict["type"] == "chat"
     assert request_dict["message"] == "Hello"
 
@@ -110,7 +110,7 @@ async def test_websocket_schemas_serialization() -> None:
         content="Hello",
         session_id=uuid4(),
     )
-    token_dict = token_msg.model_dump(mode='json')
+    token_dict = token_msg.model_dump(mode="json")
     assert token_dict["type"] == "token"
     assert token_dict["content"] == "Hello"
 
@@ -120,7 +120,7 @@ async def test_websocket_schemas_serialization() -> None:
         tool="list_projects",
         args={"status": "ACT"},
     )
-    tool_call_dict = tool_call_msg.model_dump(mode='json')
+    tool_call_dict = tool_call_msg.model_dump(mode="json")
     assert tool_call_dict["type"] == "tool_call"
     assert tool_call_dict["tool"] == "list_projects"
 
@@ -130,7 +130,7 @@ async def test_websocket_schemas_serialization() -> None:
         tool="list_projects",
         result={"projects": []},
     )
-    tool_result_dict = tool_result_msg.model_dump(mode='json')
+    tool_result_dict = tool_result_msg.model_dump(mode="json")
     assert tool_result_dict["type"] == "tool_result"
 
     # Test WSCompleteMessage
@@ -139,7 +139,7 @@ async def test_websocket_schemas_serialization() -> None:
         session_id=uuid4(),
         message_id=uuid4(),
     )
-    complete_dict = complete_msg.model_dump(mode='json')
+    complete_dict = complete_msg.model_dump(mode="json")
     assert complete_dict["type"] == "complete"
 
     # Test WSErrorMessage
@@ -148,7 +148,7 @@ async def test_websocket_schemas_serialization() -> None:
         message="Test error",
         code=500,
     )
-    error_dict = error_msg.model_dump(mode='json')
+    error_dict = error_msg.model_dump(mode="json")
     assert error_dict["type"] == "error"
     assert error_dict["message"] == "Test error"
 
@@ -305,7 +305,9 @@ async def test_ai_config_service_inactive_assistant(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_ai_config_service_nonexistent_assistant(db_session: AsyncSession) -> None:
+async def test_ai_config_service_nonexistent_assistant(
+    db_session: AsyncSession,
+) -> None:
     """Test that AIConfigService returns None for non-existent configs."""
     from app.services.ai_config_service import AIConfigService
 
@@ -491,7 +493,9 @@ async def test_websocket_handles_disconnect(db_session: AsyncSession) -> None:
 
 # === T-WS-04: test_websocket_handles_runtime_error_disconnect ===
 @pytest.mark.asyncio
-async def test_websocket_handles_runtime_error_disconnect(db_session: AsyncSession) -> None:
+async def test_websocket_handles_runtime_error_disconnect(
+    db_session: AsyncSession,
+) -> None:
     """Test that WebSocket handles RuntimeError when client disconnects during streaming.
 
     This tests the fix for the bug where Starlette raises RuntimeError instead of
@@ -518,7 +522,9 @@ async def test_websocket_handles_runtime_error_disconnect(db_session: AsyncSessi
     websocket.close = AsyncMock()
 
     # Simulate Starlette's RuntimeError when receive_json is called on closed WebSocket
-    runtime_error = RuntimeError('WebSocket is not connected. Need to call "accept" first.')
+    runtime_error = RuntimeError(
+        'WebSocket is not connected. Need to call "accept" first.'
+    )
     websocket.receive_json = AsyncMock(side_effect=runtime_error)
 
     # Verify the error message contains expected text

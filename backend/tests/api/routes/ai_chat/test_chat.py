@@ -95,7 +95,9 @@ def override_admin_auth() -> Generator[None, None, None]:
 def override_regular_auth() -> Generator[None, None, None]:
     """Override authentication for regular user tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_regular_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_regular_user
+    app.dependency_overrides[get_current_active_user] = (
+        mock_get_current_active_regular_user
+    )
     yield
     app.dependency_overrides = {}
 
@@ -230,7 +232,9 @@ async def test_chat_session_ownership_validation(
 
     # Try to access admin session as regular user
     app.dependency_overrides[get_current_user] = mock_get_current_regular_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_regular_user
+    app.dependency_overrides[get_current_active_user] = (
+        mock_get_current_active_regular_user
+    )
 
     response = await client.get(f"/api/v1/ai/chat/sessions/{admin_session.id}/messages")
     assert response.status_code == 403
@@ -313,7 +317,9 @@ async def test_get_session_messages_validates_ownership(
 
     # Try to access as regular user
     app.dependency_overrides[get_current_user] = mock_get_current_regular_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_regular_user
+    app.dependency_overrides[get_current_active_user] = (
+        mock_get_current_active_regular_user
+    )
 
     response = await client.get(f"/api/v1/ai/chat/sessions/{admin_session.id}/messages")
     assert response.status_code == 403
@@ -365,7 +371,9 @@ async def test_delete_session_validates_ownership(
 
     # Try to delete as regular user
     app.dependency_overrides[get_current_user] = mock_get_current_regular_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_regular_user
+    app.dependency_overrides[get_current_active_user] = (
+        mock_get_current_active_regular_user
+    )
 
     response = await client.delete(f"/api/v1/ai/chat/sessions/{admin_session.id}")
     assert response.status_code == 403

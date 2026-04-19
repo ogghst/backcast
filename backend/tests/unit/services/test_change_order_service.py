@@ -221,7 +221,9 @@ class TestChangeOrderServiceGetCurrent:
         await db_session.commit()
 
         # Assert - Verify get_as_of finds it (using open upper bound pattern)
-        found = await service.get_as_of(created.change_order_id, as_of=None, branch="main")
+        found = await service.get_as_of(
+            created.change_order_id, as_of=None, branch="main"
+        )
         assert found is not None
         assert found.code == "CO-2026-FUTURE"
         assert found.change_order_id == created.change_order_id
@@ -265,7 +267,9 @@ class TestChangeOrderServiceGetCurrent:
         await db_session.commit()
 
         # Assert
-        found = await service.get_as_of(created.change_order_id, as_of=None, branch="main")
+        found = await service.get_as_of(
+            created.change_order_id, as_of=None, branch="main"
+        )
         assert found is not None
         assert found.code == "CO-2026-PAST"
 

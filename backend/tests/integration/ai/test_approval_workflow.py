@@ -8,18 +8,14 @@ Tests T-007 to T-009, T-015 to T-016:
 - T-016: Approval response message format
 """
 
-import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import StructuredTool
-from langgraph.checkpoint.memory import MemorySaver
 
-from app.ai.agent_service import AgentService
-from app.ai.graph import create_graph
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext, ToolMetadata
 from app.models.schemas.ai import (
@@ -56,6 +52,7 @@ def mock_websocket():
 @pytest.fixture
 def critical_tool(tool_context):
     """Create a critical-risk tool for testing."""
+
     async def delete_all_data(context: ToolContext) -> str:
         return "All data deleted"
 
@@ -76,6 +73,7 @@ def critical_tool(tool_context):
 @pytest.fixture
 def high_risk_tool(tool_context):
     """Create a high-risk tool for testing."""
+
     async def update_project(context: ToolContext, project_id: str) -> str:
         return f"Project {project_id} updated"
 
@@ -190,7 +188,6 @@ async def test_user_approval_resumes_execution(
     - Tool result is returned to the user
     """
     # Arrange
-    from langchain_openai import ChatOpenAI
 
     session_id = uuid4()
 
@@ -215,8 +212,12 @@ async def test_user_approval_resumes_execution(
 
     # Act - Mock _send_approval_request to return our pre-registered approval_id
     original_send = interrupt_node._send_approval_request
-    async def mock_send_request(tool_name, tool_args, risk_level, tool_call=None, execute=None):
+
+    async def mock_send_request(
+        tool_name, tool_args, risk_level, tool_call=None, execute=None
+    ):
         return approval_id
+
     interrupt_node._send_approval_request = mock_send_request
 
     # Create tool call request
@@ -228,7 +229,11 @@ async def test_user_approval_resumes_execution(
     }
 
     # Mock execute function that returns success
-    execute = AsyncMock(return_value=ToolMessage(content="All data deleted", tool_call_id="test_tool_call_002"))
+    execute = AsyncMock(
+        return_value=ToolMessage(
+            content="All data deleted", tool_call_id="test_tool_call_002"
+        )
+    )
 
     # Call the interrupt node's wrapper
     result = await interrupt_node._awrap_tool_call(tool_call_request, execute)
@@ -247,9 +252,7 @@ async def test_user_approval_resumes_execution(
 
 # T-009: test_user_rejection_skips_tool
 @pytest.mark.asyncio
-async def test_user_rejection_skips_tool(
-    tool_context, critical_tool, mock_websocket
-):
+async def test_user_rejection_skips_tool(tool_context, critical_tool, mock_websocket):
     """Test that rejected tool is skipped and returns error.
 
     Expected behavior:
@@ -280,8 +283,12 @@ async def test_user_rejection_skips_tool(
 
     # Act - Mock _send_approval_request to return our pre-registered approval_id
     original_send = interrupt_node._send_approval_request
-    async def mock_send_request(tool_name, tool_args, risk_level, tool_call=None, execute=None):
+
+    async def mock_send_request(
+        tool_name, tool_args, risk_level, tool_call=None, execute=None
+    ):
         return approval_id
+
     interrupt_node._send_approval_request = mock_send_request
 
     tool_call_request = MagicMock()
@@ -303,7 +310,9 @@ async def test_user_rejection_skips_tool(
 
     # 2. Result should be an error ToolMessage
     assert isinstance(result, ToolMessage)
-    assert "rejected" in result.content.lower() or "not approved" in result.content.lower()
+    assert (
+        "rejected" in result.content.lower() or "not approved" in result.content.lower()
+    )
 
     # Restore original method
     interrupt_node._send_approval_request = original_send
@@ -413,10 +422,9 @@ def test_approval_response_message_format():
 
 # Additional tests for edge cases
 
+
 @pytest.mark.asyncio
-async def test_graph_resume_after_approval(
-    tool_context, critical_tool, mock_websocket
-):
+async def test_graph_resume_after_approval(tool_context, critical_tool, mock_websocket):
     """Test that graph resumes execution after user approval.
 
     This tests the complete resume flow:
@@ -444,7 +452,9 @@ async def test_graph_resume_after_approval(
     }
 
     # Mock execute function
-    execute = AsyncMock(return_value=ToolMessage(content="All data deleted", tool_call_id=tool_call_id))
+    execute = AsyncMock(
+        return_value=ToolMessage(content="All data deleted", tool_call_id=tool_call_id)
+    )
 
     # Act - Call the interrupt node's wrapper (sends approval request)
     result = await interrupt_node._awrap_tool_call(tool_call_request, execute)
@@ -502,7 +512,9 @@ async def test_graph_resume_rejection_skips_execution(
         "args": {},
     }
 
-    execute = AsyncMock(return_value=ToolMessage(content="All data deleted", tool_call_id=tool_call_id))
+    execute = AsyncMock(
+        return_value=ToolMessage(content="All data deleted", tool_call_id=tool_call_id)
+    )
 
     # Act - Call the interrupt node's wrapper
     await interrupt_node._awrap_tool_call(tool_call_request, execute)
@@ -548,7 +560,11 @@ async def test_high_risk_tool_triggers_interrupt(
         "args": {"project_id": "proj-123"},
     }
 
-    execute = AsyncMock(return_value=ToolMessage(content="Project updated", tool_call_id="test_tool_call_005"))
+    execute = AsyncMock(
+        return_value=ToolMessage(
+            content="Project updated", tool_call_id="test_tool_call_005"
+        )
+    )
     result = await interrupt_node._awrap_tool_call(tool_call_request, execute)
 
     # Assert
@@ -590,8 +606,12 @@ async def test_approval_timeout(tool_context, critical_tool, mock_websocket):
 
     # Act - Mock _send_approval_request to return our expired approval_id
     original_send = interrupt_node._send_approval_request
-    async def mock_send_request(tool_name, tool_args, risk_level, tool_call=None, execute=None):
+
+    async def mock_send_request(
+        tool_name, tool_args, risk_level, tool_call=None, execute=None
+    ):
         return approval_id
+
     interrupt_node._send_approval_request = mock_send_request
 
     tool_call_request = MagicMock()

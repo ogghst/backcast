@@ -39,7 +39,9 @@ class ProjectMember(SimpleEntityBase):
     __tablename__ = "project_members"
     __table_args__ = (
         # Ensure one role per user per project
-        UniqueConstraint("user_id", "project_id", name="uq_project_members_user_project"),
+        UniqueConstraint(
+            "user_id", "project_id", name="uq_project_members_user_project"
+        ),
     )
 
     # Foreign keys to root IDs (not version PKs)

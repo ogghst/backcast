@@ -12,7 +12,6 @@ from uuid import uuid4
 
 import pytest
 from langchain_core.tools import StructuredTool
-from langgraph.checkpoint.memory import MemorySaver
 
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext, ToolMetadata
@@ -135,8 +134,7 @@ async def test_low_risk_tool_no_approval_in_standard_mode(
 
     async def mock_execute(request):
         return ToolMessage(
-            content="Read-only operation completed",
-            tool_call_id=tool_call_id
+            content="Read-only operation completed", tool_call_id=tool_call_id
         )
 
     execute = AsyncMock(side_effect=mock_execute)
@@ -179,10 +177,7 @@ async def test_high_risk_tool_requires_approval_in_standard_mode(
     from langchain_core.messages import ToolMessage
 
     async def mock_execute(request):
-        return ToolMessage(
-            content="Project created",
-            tool_call_id=tool_call_id
-        )
+        return ToolMessage(content="Project created", tool_call_id=tool_call_id)
 
     execute = AsyncMock(side_effect=mock_execute)
 
@@ -225,10 +220,7 @@ async def test_critical_tool_requires_approval_in_standard_mode(
     from langchain_core.messages import ToolMessage
 
     async def mock_execute(request):
-        return ToolMessage(
-            content="Project deleted",
-            tool_call_id=tool_call_id
-        )
+        return ToolMessage(content="Project deleted", tool_call_id=tool_call_id)
 
     execute = AsyncMock(side_effect=mock_execute)
 
@@ -281,10 +273,9 @@ async def test_all_risk_tools_no_approval_in_expert_mode(
         }
 
         # Mock execute function
-        async def mock_execute(request):
+        async def mock_execute(request, _tool=tool, _tool_call_id=tool_call_id):
             return ToolMessage(
-                content=f"{tool.name} executed",
-                tool_call_id=tool_call_id
+                content=f"{_tool.name} executed", tool_call_id=_tool_call_id
             )
 
         execute = AsyncMock(side_effect=mock_execute)

@@ -28,9 +28,7 @@ class QualityEventBase(BaseModel):
         max_length=20,
         description="Impact severity level (e.g., low, medium, high, critical)",
     )
-    root_cause: str | None = Field(
-        None, description="Optional root cause analysis"
-    )
+    root_cause: str | None = Field(None, description="Optional root cause analysis")
     resolution_notes: str | None = Field(
         None, description="Optional resolution description"
     )

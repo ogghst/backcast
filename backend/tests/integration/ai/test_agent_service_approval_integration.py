@@ -7,10 +7,9 @@ Tests the full end-to-end approval flow:
 4. Graph resumes and tool executes or returns error
 """
 
-import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from fastapi import WebSocket
@@ -22,7 +21,6 @@ from app.ai.graph import create_graph
 from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode, RiskLevel
-from app.models.domain.ai import AIAssistantConfig, AIProvider, AIModel
 from app.models.schemas.ai import WSApprovalRequestMessage
 
 
@@ -30,6 +28,7 @@ from app.models.schemas.ai import WSApprovalRequestMessage
 def mock_websocket():
     """Create a mock WebSocket connection."""
     from starlette.websockets import WebSocketState
+
     websocket = AsyncMock(spec=WebSocket)
     websocket.send_json = AsyncMock()
     websocket.client_state = WebSocketState.CONNECTED  # Simulate connected state
@@ -142,11 +141,8 @@ async def test_interrupt_node_sends_approval_request(
     interrupt_node = InterruptNode(tools, tool_context, mock_websocket, session_id)
 
     # Act
-    from app.ai.tools.types import RiskLevel
     approval_id = await interrupt_node._send_approval_request(
-        "test_tool",
-        {"arg1": "value1"},
-        RiskLevel.HIGH
+        "test_tool", {"arg1": "value1"}, RiskLevel.HIGH
     )
 
     # Assert
@@ -228,10 +224,9 @@ async def test_full_approval_flow(mock_session, mock_websocket, mock_llm, tool_c
 
         # Simulate critical tool call
         from app.ai.tools.types import RiskLevel
+
         approval_id = await interrupt_node._send_approval_request(
-            "critical_tool",
-            {"param": "value"},
-            RiskLevel.CRITICAL
+            "critical_tool", {"param": "value"}, RiskLevel.CRITICAL
         )
 
         # Verify approval request was sent
@@ -241,7 +236,9 @@ async def test_full_approval_flow(mock_session, mock_websocket, mock_llm, tool_c
         assert message.approval_id == approval_id
 
         # Simulate user approval
-        success = agent_service.register_approval_response(session_id, approval_id, True)
+        success = agent_service.register_approval_response(
+            session_id, approval_id, True
+        )
         assert success is True
 
         # Verify approval was registered

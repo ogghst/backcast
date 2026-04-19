@@ -270,7 +270,9 @@ class TestWBERevenueAllocationAPI:
         )
 
         # Assert: Returns error (API returns 404 for validation error)
-        assert response3.status_code in (400, 404), f"Expected 400 or 404, got {response3.status_code}"
+        assert response3.status_code in (400, 404), (
+            f"Expected 400 or 404, got {response3.status_code}"
+        )
         data = response3.json()
         assert "detail" in data
         assert "exceeds" in data["detail"].lower()
@@ -327,7 +329,9 @@ class TestWBERevenueAllocationAPI:
 
         # Assert: Both WBEs created successfully
         if response2.status_code != 201:
-            print(f"Unexpected status: {response2.status_code}, response: {response2.text}")
+            print(
+                f"Unexpected status: {response2.status_code}, response: {response2.text}"
+            )
         assert response2.status_code == 201
         data = response2.json()
         assert data["revenue_allocation"] == "100000.00"

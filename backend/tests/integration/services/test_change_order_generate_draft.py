@@ -45,14 +45,18 @@ async def test_generate_draft_success(
     mock_choice.message = mock_message
     mock_completion.choices = [mock_choice]
 
-    with patch(
-        "app.ai.change_order_parser.LLMClientFactory.create_client",
-    ) as mock_create_client, patch(
-        "app.ai.change_order_parser.AIConfigService.list_providers",
-        new_callable=AsyncMock,
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_models",
-        new_callable=AsyncMock,
+    with (
+        patch(
+            "app.ai.change_order_parser.LLMClientFactory.create_client",
+        ) as mock_create_client,
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_providers",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_models",
+            new_callable=AsyncMock,
+        ),
     ):
         # Setup mocks
         from app.models.domain.ai import AIModel, AIProvider
@@ -111,13 +115,16 @@ async def test_generate_draft_ai_fallback(
     """Test draft generation falls back to manual data when AI fails."""
     service = ChangeOrderService(db_session)
 
-    with patch(
-        "app.ai.change_order_parser.LLMClientFactory.create_client",
-        side_effect=Exception("AI service unavailable"),
-    ), patch(
-        "app.ai.change_order_parser.AIConfigService.list_providers",
-        new_callable=AsyncMock,
-        return_value=[],
+    with (
+        patch(
+            "app.ai.change_order_parser.LLMClientFactory.create_client",
+            side_effect=Exception("AI service unavailable"),
+        ),
+        patch(
+            "app.ai.change_order_parser.AIConfigService.list_providers",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
     ):
         draft = await service.generate_draft(
             project_id=test_project.project_id,

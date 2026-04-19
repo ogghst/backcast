@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 # CHANGE ORDER CRUD TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="list_change_orders",
     description="List all change orders with optional filtering by project, status, "
@@ -118,10 +119,18 @@ async def list_change_orders(
                     "title": co.title,
                     "description": co.description,
                     "status": co.status,
-                    "approval_status": co.approval_status if hasattr(co, 'approval_status') else None,
-                    "budget_impact": float(co.budget_impact) if hasattr(co, 'budget_impact') and co.budget_impact else 0.0,
-                    "schedule_impact_days": co.schedule_impact_days if hasattr(co, 'schedule_impact_days') else None,
-                    "created_at": co.created_at.isoformat() if hasattr(co, 'created_at') and co.created_at else None,
+                    "approval_status": co.approval_status
+                    if hasattr(co, "approval_status")
+                    else None,
+                    "budget_impact": float(co.budget_impact)
+                    if hasattr(co, "budget_impact") and co.budget_impact
+                    else 0.0,
+                    "schedule_impact_days": co.schedule_impact_days
+                    if hasattr(co, "schedule_impact_days")
+                    else None,
+                    "created_at": co.created_at.isoformat()
+                    if hasattr(co, "created_at") and co.created_at
+                    else None,
                 }
                 for co in change_orders
             ],
@@ -191,12 +200,22 @@ async def get_change_order(
             "title": change_order.title,
             "description": change_order.description,
             "status": change_order.status,
-            "approval_status": change_order.approval_status if hasattr(change_order, 'approval_status') else None,
-            "budget_impact": float(change_order.budget_impact) if hasattr(change_order, 'budget_impact') and change_order.budget_impact else 0.0,
-            "schedule_impact_days": change_order.schedule_impact_days if hasattr(change_order, 'schedule_impact_days') else None,
-            "reason": change_order.reason if hasattr(change_order, 'reason') else None,
-            "created_at": change_order.created_at.isoformat() if hasattr(change_order, 'created_at') and change_order.created_at else None,
-            "updated_at": change_order.updated_at.isoformat() if hasattr(change_order, 'updated_at') and change_order.updated_at else None,
+            "approval_status": change_order.approval_status
+            if hasattr(change_order, "approval_status")
+            else None,
+            "budget_impact": float(change_order.budget_impact)
+            if hasattr(change_order, "budget_impact") and change_order.budget_impact
+            else 0.0,
+            "schedule_impact_days": change_order.schedule_impact_days
+            if hasattr(change_order, "schedule_impact_days")
+            else None,
+            "reason": change_order.reason if hasattr(change_order, "reason") else None,
+            "created_at": change_order.created_at.isoformat()
+            if hasattr(change_order, "created_at") and change_order.created_at
+            else None,
+            "updated_at": change_order.updated_at.isoformat()
+            if hasattr(change_order, "updated_at") and change_order.updated_at
+            else None,
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -280,8 +299,12 @@ async def create_change_order(
             "title": change_order.title,
             "description": change_order.description,
             "status": change_order.status,
-            "budget_impact": float(change_order.budget_impact) if hasattr(change_order, 'budget_impact') and change_order.budget_impact else 0.0,
-            "schedule_impact_days": change_order.schedule_impact_days if hasattr(change_order, 'schedule_impact_days') else None,
+            "budget_impact": float(change_order.budget_impact)
+            if hasattr(change_order, "budget_impact") and change_order.budget_impact
+            else 0.0,
+            "schedule_impact_days": change_order.schedule_impact_days
+            if hasattr(change_order, "schedule_impact_days")
+            else None,
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -356,7 +379,7 @@ async def generate_change_order_draft(
 
         # Extract AI analysis results from impact_analysis_results
         ai_analysis: dict[str, Any] = {}
-        if hasattr(draft, 'impact_analysis_results') and draft.impact_analysis_results:
+        if hasattr(draft, "impact_analysis_results") and draft.impact_analysis_results:
             ai_data = draft.impact_analysis_results
             if isinstance(ai_data, dict) and "ai_analysis" in ai_data:
                 ai_analysis = ai_data["ai_analysis"]
@@ -372,7 +395,9 @@ async def generate_change_order_draft(
             "impact_level": draft.impact_level,
             "branch": draft.branch,
             "estimated_budget_impact": ai_analysis.get("estimated_budget_impact", 0.0),
-            "estimated_schedule_impact_days": ai_analysis.get("estimated_schedule_impact_days", 0),
+            "estimated_schedule_impact_days": ai_analysis.get(
+                "estimated_schedule_impact_days", 0
+            ),
             "risk_assessment": ai_analysis.get("risk_assessment", "Medium"),
             "recommendation": ai_analysis.get("recommendation", "Review required"),
             "confidence_score": ai_analysis.get("confidence_score", 0.0),
@@ -435,7 +460,9 @@ async def submit_change_order_for_approval(
         return {
             "id": str(change_order.change_order_id),
             "status": change_order.status,
-            "approval_status": change_order.approval_status if hasattr(change_order, 'approval_status') else None,
+            "approval_status": change_order.approval_status
+            if hasattr(change_order, "approval_status")
+            else None,
             "message": "Change order submitted for approval",
         }
     except ValueError as e:
@@ -502,7 +529,9 @@ async def approve_change_order(
         return {
             "id": str(change_order.change_order_id),
             "status": change_order.status,
-            "approval_status": change_order.approval_status if hasattr(change_order, 'approval_status') else None,
+            "approval_status": change_order.approval_status
+            if hasattr(change_order, "approval_status")
+            else None,
             "message": "Change order approved",
         }
     except ValueError as e:
@@ -570,7 +599,9 @@ async def reject_change_order(
         return {
             "id": str(change_order.change_order_id),
             "status": change_order.status,
-            "approval_status": change_order.approval_status if hasattr(change_order, 'approval_status') else None,
+            "approval_status": change_order.approval_status
+            if hasattr(change_order, "approval_status")
+            else None,
             "message": "Change order rejected",
         }
     except ValueError as e:
@@ -583,6 +614,7 @@ async def reject_change_order(
 # =============================================================================
 # CHANGE ORDER ANALYSIS TOOLS
 # =============================================================================
+
 
 @ai_tool(
     name="analyze_change_order_impact",
@@ -635,8 +667,17 @@ async def analyze_change_order_impact(
 
         # Perform impact analysis (simplified example)
         # In production, this would involve complex calculations
-        budget_impact = float(change_order.budget_impact) if hasattr(change_order, 'budget_impact') and change_order.budget_impact else 0.0
-        schedule_impact = change_order.schedule_impact_days if hasattr(change_order, 'schedule_impact_days') and change_order.schedule_impact_days else 0
+        budget_impact = (
+            float(change_order.budget_impact)
+            if hasattr(change_order, "budget_impact") and change_order.budget_impact
+            else 0.0
+        )
+        schedule_impact = (
+            change_order.schedule_impact_days
+            if hasattr(change_order, "schedule_impact_days")
+            and change_order.schedule_impact_days
+            else 0
+        )
 
         # Determine risk level based on impact
         if budget_impact > 100000 or schedule_impact > 30:

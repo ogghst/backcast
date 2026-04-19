@@ -1,12 +1,19 @@
 """Unit tests for AI conversation attachments."""
 
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from uuid import uuid4, UUID
 
-from app.models.domain.ai import AIConversationAttachment, AIConversationMessage, AIConversationSession, AIAssistantConfig, AIModel, AIProvider
+from app.models.domain.ai import (
+    AIAssistantConfig,
+    AIConversationAttachment,
+    AIConversationMessage,
+    AIConversationSession,
+    AIModel,
+    AIProvider,
+)
 
 
 @pytest.mark.asyncio
@@ -151,7 +158,9 @@ async def test_attachment_content_stored_correctly(db_session: Any) -> None:
 
     # Assert: Verify content field is stored and retrievable
     retrieved = await db_session.execute(
-        select(AIConversationAttachment).where(AIConversationAttachment.id == attachment.id)
+        select(AIConversationAttachment).where(
+            AIConversationAttachment.id == attachment.id
+        )
     )
     attachment_obj = retrieved.scalar_one()
 

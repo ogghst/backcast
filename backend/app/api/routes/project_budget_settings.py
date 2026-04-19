@@ -31,11 +31,15 @@ def get_project_budget_settings_service(
     "/{project_id}/budget-settings",
     response_model=ProjectBudgetSettingsRead,
     operation_id="get_project_budget_settings",
-    dependencies=[Depends(RoleChecker(required_permission="project-budget-settings-read"))],
+    dependencies=[
+        Depends(RoleChecker(required_permission="project-budget-settings-read"))
+    ],
 )
 async def get_project_budget_settings(
     project_id: UUID,
-    service: ProjectBudgetSettingsService = Depends(get_project_budget_settings_service),
+    service: ProjectBudgetSettingsService = Depends(
+        get_project_budget_settings_service
+    ),
 ) -> ProjectBudgetSettings:
     """Get budget settings for a project.
 
@@ -59,13 +63,17 @@ async def get_project_budget_settings(
     response_model=ProjectBudgetSettingsRead,
     status_code=status.HTTP_200_OK,
     operation_id="update_project_budget_settings",
-    dependencies=[Depends(RoleChecker(required_permission="project-budget-settings-write"))],
+    dependencies=[
+        Depends(RoleChecker(required_permission="project-budget-settings-write"))
+    ],
 )
 async def update_project_budget_settings(
     project_id: UUID,
     settings_in: ProjectBudgetSettingsCreate,
     current_user: User = Depends(get_current_active_user),
-    service: ProjectBudgetSettingsService = Depends(get_project_budget_settings_service),
+    service: ProjectBudgetSettingsService = Depends(
+        get_project_budget_settings_service
+    ),
 ) -> ProjectBudgetSettings:
     """Create or update budget settings for a project.
 

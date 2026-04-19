@@ -28,7 +28,10 @@ class TestProjectCreationDefaults:
     def test_default_budget_config(self) -> None:
         """Test that ProjectCreationDefaults includes budget config."""
         defaults = ProjectCreationDefaults()
-        assert defaults.budget.warning_threshold_percent == DEFAULT_BUDGET_WARNING_THRESHOLD
+        assert (
+            defaults.budget.warning_threshold_percent
+            == DEFAULT_BUDGET_WARNING_THRESHOLD
+        )
         assert defaults.budget.allow_project_admin_override is True
 
     def test_custom_budget_config(self) -> None:
@@ -61,7 +64,10 @@ class TestGetProjectCreationDefaults:
     def test_default_values(self) -> None:
         """Test that function returns correct default values."""
         defaults = get_project_creation_defaults()
-        assert defaults.budget.warning_threshold_percent == DEFAULT_BUDGET_WARNING_THRESHOLD
+        assert (
+            defaults.budget.warning_threshold_percent
+            == DEFAULT_BUDGET_WARNING_THRESHOLD
+        )
         assert defaults.budget.allow_project_admin_override is True
 
     def test_custom_threshold(self) -> None:
@@ -74,11 +80,12 @@ class TestGetProjectCreationDefaults:
 
     def test_custom_override(self) -> None:
         """Test that function accepts custom override setting."""
-        defaults = get_project_creation_defaults(
-            allow_project_admin_override=False
-        )
+        defaults = get_project_creation_defaults(allow_project_admin_override=False)
         assert defaults.budget.allow_project_admin_override is False
-        assert defaults.budget.warning_threshold_percent == DEFAULT_BUDGET_WARNING_THRESHOLD
+        assert (
+            defaults.budget.warning_threshold_percent
+            == DEFAULT_BUDGET_WARNING_THRESHOLD
+        )
 
     def test_both_custom(self) -> None:
         """Test that function accepts both custom values."""
@@ -94,9 +101,7 @@ class TestApplyProjectCreationDefaults:
     """Test apply_project_creation_defaults function."""
 
     @pytest.mark.asyncio
-    async def test_creates_budget_settings(
-        self, db_session, user_factory
-    ) -> None:
+    async def test_creates_budget_settings(self, db_session, user_factory) -> None:
         """Test that function creates budget settings for project."""
         from app.services.project_budget_settings_service import (
             ProjectBudgetSettingsService,
@@ -119,9 +124,7 @@ class TestApplyProjectCreationDefaults:
         assert settings.allow_project_admin_override is True
 
     @pytest.mark.asyncio
-    async def test_applies_custom_defaults(
-        self, db_session, user_factory
-    ) -> None:
+    async def test_applies_custom_defaults(self, db_session, user_factory) -> None:
         """Test that function applies custom default values."""
         from app.services.project_budget_settings_service import (
             ProjectBudgetSettingsService,

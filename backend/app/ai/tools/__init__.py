@@ -224,9 +224,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     tools.extend(forecast_cost_progress_tools)
 
     # Filter to only BaseTool instances
-    base_tools: list[BaseTool] = [
-        tool for tool in tools if isinstance(tool, BaseTool)
-    ]
+    base_tools: list[BaseTool] = [tool for tool in tools if isinstance(tool, BaseTool)]
 
     _cached_tools = base_tools
     logger.info(f"Created and cached {len(base_tools)} tools for AI chat")

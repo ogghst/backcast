@@ -17,11 +17,14 @@ mock_admin_user = User(
     hashed_password="hash",
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 class MockRBACService(RBACServiceABC):
     def has_role(self, user_role: str, required_roles: list[str]) -> bool:
@@ -39,15 +42,19 @@ class MockRBACService(RBACServiceABC):
             "change-order-delete",
         ]
 
+
 def mock_get_rbac_service() -> RBACServiceABC:
     return MockRBACService()
+
 
 app.dependency_overrides[get_current_user] = mock_get_current_user
 app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
 
+
 async def main():
     from httpx import ASGITransport, AsyncClient
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Create project
@@ -84,6 +91,7 @@ async def main():
         resp2 = await client.post("/api/v1/change-orders", json=co2)
         print(f"\nCO2 Status: {resp2.status_code}")
         print(f"CO2 Response: {resp2.text}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

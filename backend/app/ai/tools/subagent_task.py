@@ -30,13 +30,15 @@ logger = logging.getLogger(__name__)
 # - todos / structured_response: no defined reducer, no clear meaning for subagent
 # - skills_metadata / memory_contents: auto-excluded via PrivateStateAttr but
 #   must also be filtered from runtime.state to prevent parent state leakage
-_EXCLUDED_STATE_KEYS: frozenset[str] = frozenset({
-    "messages",
-    "todos",
-    "structured_response",
-    "skills_metadata",
-    "memory_contents",
-})
+_EXCLUDED_STATE_KEYS: frozenset[str] = frozenset(
+    {
+        "messages",
+        "todos",
+        "structured_response",
+        "skills_metadata",
+        "memory_contents",
+    }
+)
 
 TASK_TOOL_DESCRIPTION: str = """Launch an ephemeral subagent to handle complex, multi-step independent tasks with isolated context windows.
 
@@ -358,9 +360,7 @@ def build_task_tool(
             available_agents=subagent_description_str
         )
     elif "{available_agents}" in task_description:
-        description = task_description.format(
-            available_agents=subagent_description_str
-        )
+        description = task_description.format(available_agents=subagent_description_str)
     else:
         description = task_description
 
@@ -392,9 +392,7 @@ def build_task_tool(
 
         # Filter out excluded keys from the subagent result
         state_update = {
-            k: v
-            for k, v in result.items()
-            if k not in _EXCLUDED_STATE_KEYS
+            k: v for k, v in result.items() if k not in _EXCLUDED_STATE_KEYS
         }
 
         # Extract the last message from subagent
@@ -424,9 +422,7 @@ def build_task_tool(
                 else:
                     # Content is not a Pydantic model, treat as regular text
                     message_text = (
-                        last_message.content.rstrip()
-                        if last_message.content
-                        else ""
+                        last_message.content.rstrip() if last_message.content else ""
                     )
                     logger.debug(
                         f"Subagent schema {subagent_schema.__name__} was "
@@ -439,17 +435,11 @@ def build_task_tool(
                     f"Falling back to text content."
                 )
                 message_text = (
-                    last_message.content.rstrip()
-                    if last_message.content
-                    else ""
+                    last_message.content.rstrip() if last_message.content else ""
                 )
         else:
             # Regular text content (no structured output)
-            message_text = (
-                last_message.content.rstrip()
-                if last_message.content
-                else ""
-            )
+            message_text = last_message.content.rstrip() if last_message.content else ""
 
         # Build ToolMessage with or without additional_kwargs
         tool_message_kwargs: dict[str, Any] = {
@@ -485,9 +475,7 @@ def build_task_tool(
         schema = subagent_schemas.get(subagent_type)
         # Filter excluded keys from parent state
         subagent_state = {
-            k: v
-            for k, v in runtime.state.items()
-            if k not in _EXCLUDED_STATE_KEYS
+            k: v for k, v in runtime.state.items() if k not in _EXCLUDED_STATE_KEYS
         }
         # Replace messages with the task description
         subagent_state["messages"] = [HumanMessage(content=description)]
@@ -508,9 +496,7 @@ def build_task_tool(
         runtime: ToolRuntime,
     ) -> str | Command[Any]:
         if subagent_type not in subagent_graphs:
-            allowed_types = ", ".join(
-                f"`{k}`" for k in subagent_graphs
-            )
+            allowed_types = ", ".join(f"`{k}`" for k in subagent_graphs)
             return (
                 f"We cannot invoke subagent {subagent_type} because it does "
                 f"not exist, the only allowed types are {allowed_types}"
@@ -540,9 +526,7 @@ def build_task_tool(
         runtime: ToolRuntime,
     ) -> str | Command[Any]:
         if subagent_type not in subagent_graphs:
-            allowed_types = ", ".join(
-                f"`{k}`" for k in subagent_graphs
-            )
+            allowed_types = ", ".join(f"`{k}`" for k in subagent_graphs)
             return (
                 f"We cannot invoke subagent {subagent_type} because it does "
                 f"not exist, the only allowed types are {allowed_types}"

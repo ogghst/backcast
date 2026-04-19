@@ -18,6 +18,7 @@ class TestAIToolDecoratorComposition:
         from unittest.mock import AsyncMock
 
         from sqlalchemy.ext.asyncio import AsyncSession
+
         return AsyncMock(spec=AsyncSession)
 
     def test_ai_tool_decorator_composes_with_langchain_tool(self) -> None:
@@ -31,12 +32,13 @@ class TestAIToolDecoratorComposition:
             The result is a LangChain BaseTool instance
             The tool has proper schema and metadata
         """
+
         # Arrange & Act: Define a function with @ai_tool
         @ai_tool(
             name="test_tool",
             description="Test description",
             permissions=["test-read"],
-            category="test"
+            category="test",
         )
         async def test_function(param1: str, context: ToolContext) -> dict[str, Any]:
             """Test function.
@@ -65,12 +67,13 @@ class TestAIToolDecoratorComposition:
             The tool has _tool_metadata attribute
             Metadata contains correct permissions, category, version
         """
+
         # Arrange & Act: Define function with metadata
         @ai_tool(
             name="metadata_test",
             description="Test metadata attachment",
             permissions=["project-read", "project-write"],
-            category="projects"
+            category="projects",
         )
         async def test_function(param: str, context: ToolContext) -> str:
             """Test function.
@@ -103,6 +106,7 @@ class TestAIToolDecoratorComposition:
         Then:
             The tool has _is_ai_tool attribute set to True
         """
+
         # Arrange & Act
         @ai_tool(name="flag_test")
         async def test_function(param: str, context: ToolContext) -> str:
@@ -133,12 +137,13 @@ class TestAIToolDecoratorComposition:
             Parameter descriptions are extracted from Args section
             Schema fields have descriptions
         """
+
         # Arrange & Act: Create tool with detailed docstring
         @ai_tool(
             name="search_projects",
             description="Search projects with filters",
             permissions=["project-read"],
-            category="projects"
+            category="projects",
         )
         async def search_projects(
             search: str,
@@ -196,7 +201,7 @@ class TestAIToolDecoratorComposition:
             name="context_test",
             description="Test context injection",
             permissions=["test-read"],
-            category="test"
+            category="test",
         )
         async def test_function(
             param1: str,
@@ -234,6 +239,7 @@ class TestAIToolDecoratorComposition:
         Then:
             Schema correctly reflects default values
         """
+
         # Arrange & Act
         @ai_tool(name="defaults_test")
         async def test_function(
@@ -272,6 +278,7 @@ class TestAIToolDecoratorComposition:
             Returns BaseTool instance from langchain_core.tools
             Can be used directly in LangGraph
         """
+
         # Arrange & Act
         @ai_tool(name="base_tool_test")
         async def test_function(param: str, context: ToolContext) -> str:
@@ -288,6 +295,7 @@ class TestAIToolDecoratorComposition:
 
         # Assert: Should be a BaseTool
         from langchain_core.tools import BaseTool
+
         assert isinstance(test_function, BaseTool)
 
         # Should have LangChain tool attributes
@@ -305,6 +313,7 @@ class TestAIToolDecoratorErrorPaths:
         from unittest.mock import AsyncMock
 
         from sqlalchemy.ext.asyncio import AsyncSession
+
         return AsyncMock(spec=AsyncSession)
 
     @pytest.mark.asyncio
@@ -319,6 +328,7 @@ class TestAIToolDecoratorErrorPaths:
             An error dictionary is returned
             The error message is included
         """
+
         # Arrange: Create a tool that raises an exception
         @ai_tool(name="error_tool")
         async def failing_tool(context: ToolContext) -> dict[str, Any]:
@@ -336,7 +346,9 @@ class TestAIToolDecoratorErrorPaths:
             raise ValueError("Test error message")
 
         # Act: Invoke the tool
-        context = ToolContext(session=mock_session, user_id="test-user", user_role="admin")
+        context = ToolContext(
+            session=mock_session, user_id="test-user", user_role="admin"
+        )
         result = await failing_tool.ainvoke({"context": context})
 
         # Assert: Should return error dict
@@ -356,11 +368,9 @@ class TestAIToolDecoratorErrorPaths:
         Then:
             A permission denied error is returned
         """
+
         # Arrange: Create a tool with admin-only permission
-        @ai_tool(
-            name="admin_tool",
-            permissions=["admin-only"]
-        )
+        @ai_tool(name="admin_tool", permissions=["admin-only"])
         async def admin_tool(context: ToolContext) -> dict[str, Any]:
             """Admin-only tool.
 
@@ -373,7 +383,9 @@ class TestAIToolDecoratorErrorPaths:
             return {"success": True}
 
         # Act: Invoke with guest role (no permissions)
-        context = ToolContext(session=mock_session, user_id="test-user", user_role="guest")
+        context = ToolContext(
+            session=mock_session, user_id="test-user", user_role="guest"
+        )
         result = await admin_tool.ainvoke({"context": context})
 
         # Assert: Should return permission denied error
@@ -394,11 +406,9 @@ class TestAIToolDecoratorErrorPaths:
         Then:
             The tool executes successfully
         """
+
         # Arrange: Create a tool with project-read permission
-        @ai_tool(
-            name="viewer_tool",
-            permissions=["project-read"]
-        )
+        @ai_tool(name="viewer_tool", permissions=["project-read"])
         async def viewer_tool(context: ToolContext) -> dict[str, Any]:
             """Viewer tool.
 
@@ -411,7 +421,9 @@ class TestAIToolDecoratorErrorPaths:
             return {"success": True, "data": "some data"}
 
         # Act: Invoke with viewer role (has project-read permission)
-        context = ToolContext(session=mock_session, user_id="test-user", user_role="viewer")
+        context = ToolContext(
+            session=mock_session, user_id="test-user", user_role="viewer"
+        )
         result = await viewer_tool.ainvoke({"context": context})
 
         # Assert: Should return success
@@ -430,6 +442,7 @@ class TestAIToolDecoratorErrorPaths:
         Then:
             The tool executes successfully
         """
+
         # Arrange: Create a tool
         @ai_tool(name="context_tool")
         async def context_tool(context: ToolContext) -> dict[str, Any]:
@@ -444,7 +457,9 @@ class TestAIToolDecoratorErrorPaths:
             return {"success": True}
 
         # Act: Invoke with proper context
-        context = ToolContext(session=mock_session, user_id="test-user", user_role="viewer")
+        context = ToolContext(
+            session=mock_session, user_id="test-user", user_role="viewer"
+        )
         result = await context_tool.ainvoke({"context": context})
 
         # Assert: Tool should work with proper context
@@ -464,6 +479,7 @@ class TestAIToolDecoratorErrorPaths:
             The decorator accepts the object as context
             The tool executes successfully
         """
+
         # Arrange: Create a tool
         @ai_tool(name="context_fallback_tool")
         async def context_tool(context: ToolContext) -> dict[str, Any]:
@@ -479,9 +495,7 @@ class TestAIToolDecoratorErrorPaths:
 
         # Create a proper ToolContext instance (LangChain Pydantic validation requires exact type)
         proper_context = ToolContext(
-            session=mock_session,
-            user_id="mock-user",
-            user_role="admin"
+            session=mock_session, user_id="mock-user", user_role="admin"
         )
 
         # Act: Invoke with proper context
@@ -559,6 +573,7 @@ class TestToLangChainToolBackwardCompatibility:
         Then:
             The same BaseTool instance is returned
         """
+
         # Arrange: Create an @ai_tool decorated function (returns BaseTool)
         @ai_tool(name="test_tool")
         async def test_tool(param: str, context: ToolContext) -> str:
@@ -578,6 +593,7 @@ class TestToLangChainToolBackwardCompatibility:
 
         # Assert: Should return the same BaseTool instance
         from langchain_core.tools import BaseTool
+
         assert isinstance(result, BaseTool)
         assert result is test_tool  # Same object reference
 
@@ -592,8 +608,11 @@ class TestToLangChainToolBackwardCompatibility:
             A new BaseTool is created wrapping the function
             The wrapper includes context in calls
         """
+
         # Arrange: Create an old-style decorated function with metadata
-        async def old_style_tool(context: ToolContext, search: str = "") -> dict[str, Any]:
+        async def old_style_tool(
+            context: ToolContext, search: str = ""
+        ) -> dict[str, Any]:
             """Old style tool function.
 
             Args:
@@ -611,7 +630,7 @@ class TestToLangChainToolBackwardCompatibility:
             description="Old style tool",
             permissions=[],
             category="test",
-            version="1.0.0"
+            version="1.0.0",
         )
 
         # Act: Convert to LangChain tool
@@ -619,11 +638,14 @@ class TestToLangChainToolBackwardCompatibility:
 
         # Assert: Should return a BaseTool (created via @tool decorator)
         from langchain_core.tools import BaseTool
+
         assert isinstance(result, BaseTool)
         # Note: The @tool decorator uses function name, not metadata name
         # This is acceptable behavior for the deprecated function
 
-    def test_to_langchain_tool_with_no_metadata_uses_function_name(self, mock_context) -> None:
+    def test_to_langchain_tool_with_no_metadata_uses_function_name(
+        self, mock_context
+    ) -> None:
         """Test that to_langchain_tool handles functions without metadata.
 
         Given:
@@ -633,6 +655,7 @@ class TestToLangChainToolBackwardCompatibility:
         Then:
             A BaseTool is created using function name and docstring
         """
+
         # Arrange: Create a plain function without metadata
         async def plain_function(context: ToolContext, value: int) -> dict[str, Any]:
             """Plain function without metadata.
@@ -651,6 +674,7 @@ class TestToLangChainToolBackwardCompatibility:
 
         # Assert: Should return a BaseTool with function name
         from langchain_core.tools import BaseTool
+
         assert isinstance(result, BaseTool)
         # Note: @tool decorator uses function name
         assert result.name == "plain_function"

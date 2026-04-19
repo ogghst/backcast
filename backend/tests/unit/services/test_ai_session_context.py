@@ -118,7 +118,9 @@ async def test_create_session_without_context(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_session_schema_serialization_with_context(db_session: AsyncSession) -> None:
+async def test_session_schema_serialization_with_context(
+    db_session: AsyncSession,
+) -> None:
     """Test that AIConversationSessionPublic serializes context fields correctly."""
     from app.models.schemas.ai import (
         AIAssistantConfigCreate,

@@ -12,7 +12,9 @@ from app.ai.tools.types import ToolContext
 async def test_list_projects_migrated_basic(db_session):
     """Test migrated list_projects basic functionality."""
     # Setup context with viewer role (has project-read permission)
-    context = ToolContext(session=db_session, user_id="test-user-id", user_role="viewer")
+    context = ToolContext(
+        session=db_session, user_id="test-user-id", user_role="viewer"
+    )
 
     # Call migrated tool via ainvoke (BaseTool pattern)
     result = await list_projects.ainvoke({"context": context})
@@ -29,15 +31,14 @@ async def test_list_projects_migrated_basic(db_session):
 @pytest.mark.asyncio
 async def test_list_projects_migrated_with_parameters(db_session):
     """Test migrated list_projects with search parameters."""
-    context = ToolContext(session=db_session, user_id="test-user-id", user_role="viewer")
+    context = ToolContext(
+        session=db_session, user_id="test-user-id", user_role="viewer"
+    )
 
     # Call with parameters via ainvoke (BaseTool pattern)
-    result = await list_projects.ainvoke({
-        "search": "test",
-        "skip": 0,
-        "limit": 10,
-        "context": context
-    })
+    result = await list_projects.ainvoke(
+        {"search": "test", "skip": 0, "limit": 10, "context": context}
+    )
 
     assert "projects" in result
     assert result["skip"] == 0
@@ -62,13 +63,14 @@ async def test_get_project_migrated_success(db_session, test_project):
     # Commit the test project to ensure it's visible
     await db_session.commit()
 
-    context = ToolContext(session=db_session, user_id="test-user-id", user_role="viewer")
+    context = ToolContext(
+        session=db_session, user_id="test-user-id", user_role="viewer"
+    )
 
     # Call migrated tool with valid project via ainvoke (BaseTool pattern)
-    result = await get_project.ainvoke({
-        "project_id": str(test_project.project_id),
-        "context": context
-    })
+    result = await get_project.ainvoke(
+        {"project_id": str(test_project.project_id), "context": context}
+    )
 
     # Validate structure - allow both success and error responses
     # (in some test setups the project may not be visible)
@@ -82,12 +84,11 @@ async def test_get_project_migrated_success(db_session, test_project):
 @pytest.mark.asyncio
 async def test_get_project_not_found(db_session):
     """Test get_project returns error for non-existent project."""
-    context = ToolContext(session=db_session, user_id="test-user-id", user_role="viewer")
+    context = ToolContext(
+        session=db_session, user_id="test-user-id", user_role="viewer"
+    )
 
-    result = await get_project.ainvoke({
-        "project_id": str(uuid4()),
-        "context": context
-    })
+    result = await get_project.ainvoke({"project_id": str(uuid4()), "context": context})
 
     assert "error" in result
     assert "not found" in result["error"]
@@ -96,12 +97,13 @@ async def test_get_project_not_found(db_session):
 @pytest.mark.asyncio
 async def test_get_project_invalid_uuid(db_session):
     """Test get_project returns error for invalid UUID."""
-    context = ToolContext(session=db_session, user_id="test-user-id", user_role="viewer")
+    context = ToolContext(
+        session=db_session, user_id="test-user-id", user_role="viewer"
+    )
 
-    result = await get_project.ainvoke({
-        "project_id": "invalid-uuid",
-        "context": context
-    })
+    result = await get_project.ainvoke(
+        {"project_id": "invalid-uuid", "context": context}
+    )
 
     assert "error" in result
     assert "Invalid project ID" in result["error"]
@@ -113,10 +115,9 @@ async def test_get_project_permission_check(db_session, test_project):
     # Use guest role (no permissions)
     context = ToolContext(session=db_session, user_id="test-user-id", user_role="guest")
 
-    result = await get_project.ainvoke({
-        "project_id": str(test_project.project_id),
-        "context": context
-    })
+    result = await get_project.ainvoke(
+        {"project_id": str(test_project.project_id), "context": context}
+    )
 
     assert "error" in result
     assert "Permission denied" in result["error"]
@@ -125,15 +126,14 @@ async def test_get_project_permission_check(db_session, test_project):
 @pytest.mark.asyncio
 async def test_list_projects_with_status_filter(db_session):
     """Test list_projects with status filter."""
-    context = ToolContext(session=db_session, user_id="test-user-id", user_role="viewer")
+    context = ToolContext(
+        session=db_session, user_id="test-user-id", user_role="viewer"
+    )
 
     # Call with status filter via ainvoke (BaseTool pattern)
-    result = await list_projects.ainvoke({
-        "status": "ACT",
-        "skip": 0,
-        "limit": 10,
-        "context": context
-    })
+    result = await list_projects.ainvoke(
+        {"status": "ACT", "skip": 0, "limit": 10, "context": context}
+    )
 
     assert "projects" in result
     assert result["skip"] == 0
@@ -145,12 +145,13 @@ async def test_get_project_with_branch(db_session, test_project):
     """Test get_project returns branch information."""
     await db_session.commit()
 
-    context = ToolContext(session=db_session, user_id="test-user-id", user_role="viewer")
+    context = ToolContext(
+        session=db_session, user_id="test-user-id", user_role="viewer"
+    )
 
-    result = await get_project.ainvoke({
-        "project_id": str(test_project.project_id),
-        "context": context
-    })
+    result = await get_project.ainvoke(
+        {"project_id": str(test_project.project_id), "context": context}
+    )
 
     # If project found, check structure
     if "error" not in result:

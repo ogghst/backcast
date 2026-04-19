@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 # PROJECT CRUD TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="list_projects",
     description="List all projects with optional search, filtering, and pagination. "
@@ -194,7 +195,9 @@ async def get_project(
             "description": project.description,
             "status": project.status,
             "budget": float(project.budget) if project.budget else None,
-            "start_date": project.start_date.isoformat() if project.start_date else None,
+            "start_date": project.start_date.isoformat()
+            if project.start_date
+            else None,
             "end_date": project.end_date.isoformat() if project.end_date else None,
         }
         return add_temporal_metadata(result, context)
@@ -268,7 +271,9 @@ async def create_project(
         )
 
         # Call service method (Entity-specific method handles EVCS root_id)
-        project = await service.create_project(project_data, actor_id=UUID(context.user_id))
+        project = await service.create_project(
+            project_data, actor_id=UUID(context.user_id)
+        )
 
         # Convert to AI-friendly format
         return {
@@ -377,6 +382,7 @@ async def update_project(
 # WBE CRUD TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="list_wbes",
     description="List all Work Breakdown Elements (WBEs) with optional filtering. "
@@ -439,7 +445,9 @@ async def list_wbes(
                     "name": w.name,
                     "code": w.code,
                     "project_id": str(w.project_id),
-                    "budget": float(w.budget) if hasattr(w, 'budget') and w.budget else None,
+                    "budget": float(w.budget)
+                    if hasattr(w, "budget") and w.budget
+                    else None,
                 }
                 for w in wbes
             ],
@@ -503,8 +511,10 @@ async def get_wbe(
             "name": wbe.name,
             "code": wbe.code,
             "project_id": str(wbe.project_id),
-            "budget": float(wbe.budget) if hasattr(wbe, 'budget') and wbe.budget else None,
-            "description": wbe.description if hasattr(wbe, 'description') else None,
+            "budget": float(wbe.budget)
+            if hasattr(wbe, "budget") and wbe.budget
+            else None,
+            "description": wbe.description if hasattr(wbe, "description") else None,
         }
     except ValueError:
         return {"error": f"Invalid WBE ID: {wbe_id}"}
@@ -586,9 +596,13 @@ async def create_wbe(
             "name": wbe.name,
             "code": wbe.code,
             "project_id": str(wbe.project_id),
-            "budget": float(wbe.budget) if hasattr(wbe, 'budget') and wbe.budget else None,
-            "description": wbe.description if hasattr(wbe, 'description') else None,
-            "parent_wbe_id": str(wbe.parent_wbe_id) if hasattr(wbe, 'parent_wbe_id') and wbe.parent_wbe_id else None,
+            "budget": float(wbe.budget)
+            if hasattr(wbe, "budget") and wbe.budget
+            else None,
+            "description": wbe.description if hasattr(wbe, "description") else None,
+            "parent_wbe_id": str(wbe.parent_wbe_id)
+            if hasattr(wbe, "parent_wbe_id") and wbe.parent_wbe_id
+            else None,
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -675,7 +689,9 @@ async def update_wbe(
             "name": wbe.name,
             "code": wbe.code,
             "project_id": str(wbe.project_id),
-            "budget": float(wbe.budget) if hasattr(wbe, "budget") and wbe.budget else None,
+            "budget": float(wbe.budget)
+            if hasattr(wbe, "budget") and wbe.budget
+            else None,
             "description": wbe.description if hasattr(wbe, "description") else None,
         }
     except ValueError as e:

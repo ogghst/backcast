@@ -67,6 +67,7 @@ class _LRUCache(dict[str, bool]):
         self._usage_order.clear()
         super().clear()
 
+
 # Module-level ordering dict for RiskLevel (outside the enum to avoid it becoming a member)
 _RISK_LEVEL_ORDERING = {
     "low": 1,
@@ -233,6 +234,7 @@ class ToolContext:
             AsyncSession: Task-local session for the current tool execution
         """
         from app.db.session import get_tool_session
+
         return get_tool_session()
 
     @property

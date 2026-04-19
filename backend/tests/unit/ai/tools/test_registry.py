@@ -26,11 +26,7 @@ class TestToolRegistry:
         async def test_func() -> dict:
             return {"test": True}
 
-        metadata = ToolMetadata(
-            name="test_tool",
-            description="Test",
-            permissions=[]
-        )
+        metadata = ToolMetadata(name="test_tool", description="Test", permissions=[])
 
         registry.register(test_func, metadata)
 
@@ -48,15 +44,9 @@ class TestToolRegistry:
         async def func2() -> dict:
             return {}
 
-        metadata1 = ToolMetadata(
-            name="tool1",
-            description="Tool 1",
-            permissions=[]
-        )
+        metadata1 = ToolMetadata(name="tool1", description="Tool 1", permissions=[])
         metadata2 = ToolMetadata(
-            name="tool2",
-            description="Tool 2",
-            permissions=["admin"]
+            name="tool2", description="Tool 2", permissions=["admin"]
         )
 
         registry.register(func1, metadata1)
@@ -78,14 +68,10 @@ class TestToolRegistry:
             return {}
 
         metadata1 = ToolMetadata(
-            name="tool1",
-            description="Tool 1",
-            permissions=["project-read"]
+            name="tool1", description="Tool 1", permissions=["project-read"]
         )
         metadata2 = ToolMetadata(
-            name="tool2",
-            description="Tool 2",
-            permissions=["admin"]
+            name="tool2", description="Tool 2", permissions=["admin"]
         )
 
         registry.register(func1, metadata1)
@@ -107,9 +93,7 @@ class TestToolRegistry:
             return {}
 
         metadata1 = ToolMetadata(
-            name="tool1",
-            description="Tool 1",
-            permissions=["read", "write", "admin"]
+            name="tool1", description="Tool 1", permissions=["read", "write", "admin"]
         )
 
         registry.register(func1, metadata1)
@@ -135,16 +119,10 @@ class TestToolRegistry:
             return {}
 
         metadata1 = ToolMetadata(
-            name="tool1",
-            description="Tool 1",
-            permissions=[],
-            category="projects"
+            name="tool1", description="Tool 1", permissions=[], category="projects"
         )
         metadata2 = ToolMetadata(
-            name="tool2",
-            description="Tool 2",
-            permissions=[],
-            category="analysis"
+            name="tool2", description="Tool 2", permissions=[], category="analysis"
         )
 
         registry.register(func1, metadata1)
@@ -165,11 +143,7 @@ class TestToolRegistry:
         async def func1() -> dict:
             return {}
 
-        metadata1 = ToolMetadata(
-            name="tool1",
-            description="Tool 1",
-            permissions=[]
-        )
+        metadata1 = ToolMetadata(name="tool1", description="Tool 1", permissions=[])
 
         registry.register(func1, metadata1)
 
@@ -179,23 +153,22 @@ class TestToolRegistry:
     @pytest.mark.asyncio
     async def test_as_langchain_tools(self):
         """Test converting to LangChain tools."""
+
         @ai_tool(name="test_tool", description="Test description")
         async def test_func(value: str) -> dict:
-            '''Test function description.
+            """Test function description.
 
             Args:
                 value: Input value to process
 
             Returns:
                 Dictionary with result
-            '''
+            """
             return {"result": value}
 
         registry = ToolRegistry()
         metadata = ToolMetadata(
-            name="test_tool",
-            description="Test description",
-            permissions=[]
+            name="test_tool", description="Test description", permissions=[]
         )
         registry.register(test_func, metadata)
 
@@ -209,22 +182,23 @@ class TestToolRegistry:
     @pytest.mark.asyncio
     async def test_as_langchain_tools_with_permission_filter(self):
         """Test converting to LangChain tools with permission filter."""
+
         @ai_tool(name="tool1", description="Tool 1", permissions=["read"])
         async def func1() -> dict:
-            '''First test function.
+            """First test function.
 
             Returns:
                 Empty dictionary
-            '''
+            """
             return {}
 
         @ai_tool(name="tool2", description="Tool 2", permissions=["admin"])
         async def func2() -> dict:
-            '''Second test function.
+            """Second test function.
 
             Returns:
                 Empty dictionary
-            '''
+            """
             return {}
 
         registry = ToolRegistry()
@@ -252,13 +226,12 @@ class TestToolRegistry:
 
     def test_global_register_tool(self):
         """Test global register_tool function."""
+
         async def test_func() -> dict:
             return {}
 
         metadata = ToolMetadata(
-            name="global_test_tool",
-            description="Global test",
-            permissions=[]
+            name="global_test_tool", description="Global test", permissions=[]
         )
 
         # Clear registry first
@@ -285,7 +258,7 @@ class TestToolRegistry:
         metadata = ToolMetadata(
             name="perm_test_tool",
             description="Permission test",
-            permissions=["test-perm"]
+            permissions=["test-perm"],
         )
 
         register_tool(test_func, metadata)
@@ -308,7 +281,7 @@ class TestToolRegistry:
             name="category_test_tool",
             description="Category test",
             permissions=[],
-            category="test-category"
+            category="test-category",
         )
 
         register_tool(test_func, metadata)

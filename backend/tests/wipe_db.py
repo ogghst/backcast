@@ -14,7 +14,9 @@ async def create_db_if_not_exists(original_url: str, test_url: str) -> None:
     try:
         async with engine.connect() as conn:
             print("Connected to original database")
-            result = await conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"))
+            result = await conn.execute(
+                text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'")
+            )
             exists = result.scalar() is not None
             if not exists:
                 print(f"Creating test database: {db_name}")
@@ -66,7 +68,9 @@ async def wipe() -> None:
             enum_types = [row[0] for row in result]
             for enum_type in enum_types:
                 try:
-                    await conn.execute(text(f'DROP TYPE IF EXISTS "{enum_type}" CASCADE'))
+                    await conn.execute(
+                        text(f'DROP TYPE IF EXISTS "{enum_type}" CASCADE')
+                    )
                     print(f"Dropped enum type: {enum_type}")
                 except Exception as e:
                     print(f"Warning: Could not drop type {enum_type}: {e}")

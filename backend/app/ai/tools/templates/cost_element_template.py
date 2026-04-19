@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # COST ELEMENT CRUD TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="list_cost_elements",
     description="List all cost elements with optional filtering by WBE, type, "
@@ -136,13 +137,19 @@ async def list_cost_elements(
                     "id": str(ce.cost_element_id),
                     "code": ce.code,
                     "name": ce.name,
-                    "budget_amount": float(ce.budget_amount) if ce.budget_amount else None,
+                    "budget_amount": float(ce.budget_amount)
+                    if ce.budget_amount
+                    else None,
                     "description": ce.description,
                     "wbe_id": str(ce.wbe_id),
-                    "wbe_name": getattr(ce, 'wbe_name', None),
+                    "wbe_name": getattr(ce, "wbe_name", None),
                     "cost_element_type_id": str(ce.cost_element_type_id),
-                    "cost_element_type_name": getattr(ce, 'cost_element_type_name', None),
-                    "cost_element_type_code": getattr(ce, 'cost_element_type_code', None),
+                    "cost_element_type_name": getattr(
+                        ce, "cost_element_type_name", None
+                    ),
+                    "cost_element_type_code": getattr(
+                        ce, "cost_element_type_code", None
+                    ),
                     "branch": ce.branch,
                 }
                 for ce in cost_elements
@@ -210,16 +217,26 @@ async def get_cost_element(
             "id": str(cost_element.cost_element_id),
             "code": cost_element.code,
             "name": cost_element.name,
-            "budget_amount": float(cost_element.budget_amount) if cost_element.budget_amount else None,
+            "budget_amount": float(cost_element.budget_amount)
+            if cost_element.budget_amount
+            else None,
             "description": cost_element.description,
             "wbe_id": str(cost_element.wbe_id),
-            "wbe_name": getattr(cost_element, 'wbe_name', None),
+            "wbe_name": getattr(cost_element, "wbe_name", None),
             "cost_element_type_id": str(cost_element.cost_element_type_id),
-            "cost_element_type_name": getattr(cost_element, 'cost_element_type_name', None),
-            "cost_element_type_code": getattr(cost_element, 'cost_element_type_code', None),
+            "cost_element_type_name": getattr(
+                cost_element, "cost_element_type_name", None
+            ),
+            "cost_element_type_code": getattr(
+                cost_element, "cost_element_type_code", None
+            ),
             "branch": cost_element.branch,
-            "schedule_baseline_id": str(cost_element.schedule_baseline_id) if cost_element.schedule_baseline_id else None,
-            "forecast_id": str(cost_element.forecast_id) if cost_element.forecast_id else None,
+            "schedule_baseline_id": str(cost_element.schedule_baseline_id)
+            if cost_element.schedule_baseline_id
+            else None,
+            "forecast_id": str(cost_element.forecast_id)
+            if cost_element.forecast_id
+            else None,
         }
     except ValueError:
         return {"error": f"Invalid cost element ID: {cost_element_id}"}
@@ -304,13 +321,19 @@ async def create_cost_element(
             "id": str(cost_element.cost_element_id),
             "code": cost_element.code,
             "name": cost_element.name,
-            "budget_amount": float(cost_element.budget_amount) if cost_element.budget_amount else None,
+            "budget_amount": float(cost_element.budget_amount)
+            if cost_element.budget_amount
+            else None,
             "description": cost_element.description,
             "wbe_id": str(cost_element.wbe_id),
             "cost_element_type_id": str(cost_element.cost_element_type_id),
             "branch": cost_element.branch,
-            "schedule_baseline_id": str(cost_element.schedule_baseline_id) if cost_element.schedule_baseline_id else None,
-            "forecast_id": str(cost_element.forecast_id) if cost_element.forecast_id else None,
+            "schedule_baseline_id": str(cost_element.schedule_baseline_id)
+            if cost_element.schedule_baseline_id
+            else None,
+            "forecast_id": str(cost_element.forecast_id)
+            if cost_element.forecast_id
+            else None,
             "message": "Cost element created with default schedule baseline and forecast",
         }
     except ValueError as e:
@@ -380,7 +403,9 @@ async def update_cost_element(
             name=name,
             budget_amount=budget_amount,
             description=description,
-            cost_element_type_id=UUID(cost_element_type_id) if cost_element_type_id else None,
+            cost_element_type_id=UUID(cost_element_type_id)
+            if cost_element_type_id
+            else None,
             branch=branch,
         )
 
@@ -396,7 +421,9 @@ async def update_cost_element(
             "id": str(cost_element.cost_element_id),
             "code": cost_element.code,
             "name": cost_element.name,
-            "budget_amount": float(cost_element.budget_amount) if cost_element.budget_amount else None,
+            "budget_amount": float(cost_element.budget_amount)
+            if cost_element.budget_amount
+            else None,
             "description": cost_element.description,
             "wbe_id": str(cost_element.wbe_id),
             "cost_element_type_id": str(cost_element.cost_element_type_id),
@@ -473,6 +500,7 @@ async def delete_cost_element(
 # SCHEDULE BASELINE CRUD TOOLS
 # =============================================================================
 
+
 @ai_tool(
     name="get_schedule_baseline",
     description="Get the schedule baseline for a specific cost element. "
@@ -514,14 +542,20 @@ async def get_schedule_baseline(
         baseline = await service.get_for_cost_element(UUID(cost_element_id))
 
         if not baseline:
-            return {"error": f"Schedule baseline for cost element {cost_element_id} not found"}
+            return {
+                "error": f"Schedule baseline for cost element {cost_element_id} not found"
+            }
 
         # Convert to AI-friendly format
         return {
             "id": str(baseline.schedule_baseline_id),
             "name": baseline.name,
-            "cost_element_id": str(baseline.cost_element_id) if baseline.cost_element_id else None,
-            "start_date": baseline.start_date.isoformat() if baseline.start_date else None,
+            "cost_element_id": str(baseline.cost_element_id)
+            if baseline.cost_element_id
+            else None,
+            "start_date": baseline.start_date.isoformat()
+            if baseline.start_date
+            else None,
             "end_date": baseline.end_date.isoformat() if baseline.end_date else None,
             "progression_type": baseline.progression_type,
             "description": baseline.description,
@@ -610,8 +644,12 @@ async def update_schedule_baseline(
         return {
             "id": str(baseline.schedule_baseline_id),
             "name": baseline.name,
-            "cost_element_id": str(baseline.cost_element_id) if baseline.cost_element_id else None,
-            "start_date": baseline.start_date.isoformat() if baseline.start_date else None,
+            "cost_element_id": str(baseline.cost_element_id)
+            if baseline.cost_element_id
+            else None,
+            "start_date": baseline.start_date.isoformat()
+            if baseline.start_date
+            else None,
             "end_date": baseline.end_date.isoformat() if baseline.end_date else None,
             "progression_type": baseline.progression_type,
             "description": baseline.description,
@@ -687,6 +725,7 @@ async def delete_schedule_baseline(
 # =============================================================================
 # COST ELEMENT TYPE CRUD TOOLS
 # =============================================================================
+
 
 @ai_tool(
     name="list_cost_element_types",

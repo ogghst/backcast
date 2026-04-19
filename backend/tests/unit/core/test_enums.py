@@ -49,7 +49,9 @@ class TestChangeOrderStatus:
     def test_status_values(self) -> None:
         """Test that ChangeOrderStatus has correct string values."""
         assert ChangeOrderStatus.DRAFT.value == "Draft"
-        assert ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value == "Submitted for Approval"
+        assert (
+            ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value == "Submitted for Approval"
+        )
         assert ChangeOrderStatus.UNDER_REVIEW.value == "Under Review"
         assert ChangeOrderStatus.APPROVED.value == "Approved"
         assert ChangeOrderStatus.IMPLEMENTED.value == "Implemented"

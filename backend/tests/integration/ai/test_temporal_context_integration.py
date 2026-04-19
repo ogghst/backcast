@@ -79,7 +79,9 @@ class TestTemporalContextIntegration:
         # When branch_name is None, get_temporal_context returns "main" as default
         assert result["branch_name"] == "main", "branch_name should default to 'main'"
         # When branch_mode is None, get_temporal_context returns "merged" as default
-        assert result["branch_mode"] == "merged", "branch_mode should default to 'merged'"
+        assert result["branch_mode"] == "merged", (
+            "branch_mode should default to 'merged'"
+        )
 
     @pytest.mark.asyncio
     async def test_temporal_metadata_in_tool_results(self):
@@ -176,8 +178,12 @@ class TestTemporalContextIntegration:
         )
 
         # Mock both ProjectService and RBAC service
-        with patch("app.services.project.ProjectService.get_projects", mock_get_projects), \
-             patch("app.core.rbac.get_rbac_service") as mock_rbac_get:
+        with (
+            patch(
+                "app.services.project.ProjectService.get_projects", mock_get_projects
+            ),
+            patch("app.core.rbac.get_rbac_service") as mock_rbac_get,
+        ):
             mock_rbac = AsyncMock()
             mock_rbac.get_user_projects = AsyncMock(return_value=project_ids)
             mock_rbac.session = None
@@ -195,6 +201,7 @@ class TestTemporalContextIntegration:
     @pytest.mark.asyncio
     async def test_temporal_metadata_in_error_results(self):
         """Verify temporal metadata is included even in error results."""
+
         # Setup: Make service return None (project not found)
         async def mock_get_by_id(*args, **kwargs):
             return None
@@ -328,8 +335,10 @@ class TestTemporalContextIntegration:
         )
 
         # Mock both ProjectService and RBAC service
-        with patch("app.services.project.ProjectService.get_as_of", mock_get_by_id), \
-             patch("app.core.rbac.get_rbac_service") as mock_rbac_get:
+        with (
+            patch("app.services.project.ProjectService.get_as_of", mock_get_by_id),
+            patch("app.core.rbac.get_rbac_service") as mock_rbac_get,
+        ):
             mock_rbac = AsyncMock()
             mock_rbac.has_project_access = AsyncMock(return_value=True)
             mock_rbac.session = None
@@ -379,7 +388,9 @@ class TestTemporalContextIntegration:
         )
 
         # Act: Call the raw function
-        temporal_info = await temporal_tools.get_temporal_context.coroutine(context=context)
+        temporal_info = await temporal_tools.get_temporal_context.coroutine(
+            context=context
+        )
 
         # Assert: Verify LLM has accurate information to provide to user
         assert temporal_info["as_of"] == "2026-03-15T00:00:00"
@@ -425,15 +436,21 @@ class TestTemporalContextIntegration:
             branch_mode="merged",
         )
 
-        with patch("app.services.project.ProjectService.get_projects", mock_get_projects), \
-             patch("app.services.project.ProjectService.get_as_of", mock_get_by_id):
+        with (
+            patch(
+                "app.services.project.ProjectService.get_projects", mock_get_projects
+            ),
+            patch("app.services.project.ProjectService.get_as_of", mock_get_by_id),
+        ):
             # Act: Call multiple tools using raw functions
             list_result = await project_tools.list_projects.coroutine(context=context)
             get_result = await project_tools.get_project.coroutine(
                 project_id="00000000-0000-0000-0000-000000000002",
                 context=context,
             )
-            temporal_result = await temporal_tools.get_temporal_context.coroutine(context=context)
+            temporal_result = await temporal_tools.get_temporal_context.coroutine(
+                context=context
+            )
 
         # Assert: Verify all tools have consistent temporal context
         assert list_result["_temporal_context"]["as_of"] == "2026-03-15T00:00:00"

@@ -76,42 +76,29 @@ async def test_chat_stream_sends_tokens(db_session: AsyncSession) -> None:
     event_stream = []
 
     # Create on_chat_model_stream event for chunk1
-    event1 = {
-        "event": "on_chat_model_stream",
-        "data": {
-            "chunk": chunk1
-        }
-    }
+    event1 = {"event": "on_chat_model_stream", "data": {"chunk": chunk1}}
     event_stream.append(event1)
 
     # Create on_chat_model_stream event for chunk2
-    event2 = {
-        "event": "on_chat_model_stream",
-        "data": {
-            "chunk": chunk2
-        }
-    }
+    event2 = {"event": "on_chat_model_stream", "data": {"chunk": chunk2}}
     event_stream.append(event2)
 
     # Create on_end event
-    event3 = {
-        "event": "on_end",
-        "data": {
-            "output": {
-                "messages": []
-            }
-        }
-    }
+    event3 = {"event": "on_end", "data": {"output": {"messages": []}}}
     event_stream.append(event3)
 
-    async def mock_astream_events(*args: object, **kwargs: object) -> AsyncIterator[dict]:
+    async def mock_astream_events(
+        *args: object, **kwargs: object
+    ) -> AsyncIterator[dict]:
         for event in event_stream:
             yield event
 
     mock_graph.astream_events = mock_astream_events
 
-    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
-         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
+    with (
+        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
+        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
+    ):
         await service.chat_stream(
             message="Hello",
             assistant_config=assistant_config,
@@ -179,14 +166,18 @@ async def test_chat_stream_handles_streaming_error(db_session: AsyncSession) -> 
     # Mock graph and streaming events with error
     mock_graph = MagicMock()
 
-    async def mock_astream_events_with_error(*args: object, **kwargs: object) -> AsyncIterator[dict]:
+    async def mock_astream_events_with_error(
+        *args: object, **kwargs: object
+    ) -> AsyncIterator[dict]:
         raise LLMStreamingError("Connection failed")
         yield  # Never reached
 
     mock_graph.astream_events = mock_astream_events_with_error
 
-    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
-         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
+    with (
+        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
+        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
+    ):
         await service.chat_stream(
             message="Hello",
             assistant_config=assistant_config,
@@ -262,22 +253,17 @@ async def test_chat_stream_sends_complete_message(db_session: AsyncSession) -> N
     mock_graph = MagicMock()
 
     # Create event stream with on_end event
-    event = {
-        "event": "on_end",
-        "data": {
-            "output": {
-                "messages": []
-            }
-        }
-    }
+    event = {"event": "on_end", "data": {"output": {"messages": []}}}
 
     async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
         yield event
 
     mock_graph.astream_events = mock_stream
 
-    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
-         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
+    with (
+        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
+        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
+    ):
         await service.chat_stream(
             message="Hello",
             assistant_config=assistant_config,
@@ -299,7 +285,9 @@ async def test_chat_stream_sends_complete_message(db_session: AsyncSession) -> N
 
 
 @pytest.mark.asyncio
-async def test_chat_stream_handles_websocket_disconnect(db_session: AsyncSession) -> None:
+async def test_chat_stream_handles_websocket_disconnect(
+    db_session: AsyncSession,
+) -> None:
     """Test that chat_stream handles WebSocket disconnection gracefully."""
     service = AgentService(db_session)
 
@@ -355,22 +343,17 @@ async def test_chat_stream_handles_websocket_disconnect(db_session: AsyncSession
     mock_graph = MagicMock()
 
     # Create event stream with on_end event
-    event = {
-        "event": "on_end",
-        "data": {
-            "output": {
-                "messages": []
-            }
-        }
-    }
+    event = {"event": "on_end", "data": {"output": {"messages": []}}}
 
     async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
         yield event
 
     mock_graph.astream_events = mock_stream
 
-    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
-         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
+    with (
+        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
+        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
+    ):
         # Should not raise exception even though WebSocket fails
         await service.chat_stream(
             message="Hello",
@@ -450,22 +433,17 @@ async def test_chat_stream_uses_existing_session(db_session: AsyncSession) -> No
     mock_graph = MagicMock()
 
     # Create event stream with on_end event
-    event = {
-        "event": "on_end",
-        "data": {
-            "output": {
-                "messages": []
-            }
-        }
-    }
+    event = {"event": "on_end", "data": {"output": {"messages": []}}}
 
     async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
         yield event
 
     mock_graph.astream_events = mock_stream
 
-    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
-         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
+    with (
+        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
+        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
+    ):
         await service.chat_stream(
             message="Hello",
             assistant_config=assistant_config,

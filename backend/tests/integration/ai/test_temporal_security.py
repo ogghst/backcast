@@ -56,7 +56,9 @@ class TestPromptInjectionResistance:
             captured_as_of = as_of
             return [], 0
 
-        with patch("app.services.project.ProjectService.get_projects", mock_get_projects):
+        with patch(
+            "app.services.project.ProjectService.get_projects", mock_get_projects
+        ):
             # Act: Call the raw function (not the LangChain tool wrapper)
             result = await project_tools.list_projects.coroutine(
                 search="test",
@@ -102,7 +104,9 @@ class TestPromptInjectionResistance:
             captured_branch = branch
             return [], 0
 
-        with patch("app.services.project.ProjectService.get_projects", mock_get_projects):
+        with patch(
+            "app.services.project.ProjectService.get_projects", mock_get_projects
+        ):
             # Act: Execute raw function
             result = await project_tools.list_projects.coroutine(context=context)
 
@@ -147,7 +151,9 @@ class TestPromptInjectionResistance:
             captured_mode = branch_mode
             return [], 0
 
-        with patch("app.services.project.ProjectService.get_projects", mock_get_projects):
+        with patch(
+            "app.services.project.ProjectService.get_projects", mock_get_projects
+        ):
             # Act: Execute raw function
             result = await project_tools.list_projects.coroutine(context=context)
 
@@ -176,7 +182,9 @@ class TestPromptInjectionResistance:
         # Test with all temporal params set
         # Since _build_system_prompt just returns base_prompt unchanged,
         # we can test the behavior directly
-        prompt_with_temporal = base_prompt  # The implementation returns base_prompt unchanged
+        prompt_with_temporal = (
+            base_prompt  # The implementation returns base_prompt unchanged
+        )
 
         # Assert: Verify temporal context is NOT in system prompt
         assert "2026-03-15" not in prompt_with_temporal, (
@@ -244,8 +252,12 @@ class TestPromptInjectionResistance:
 
         # Assert: Temporal params are NOT in the schema
         assert "as_of" not in schema_fields, "as_of should not be in tool schema"
-        assert "branch_name" not in schema_fields, "branch_name should not be in tool schema"
-        assert "branch_mode" not in schema_fields, "branch_mode should not be in tool schema"
+        assert "branch_name" not in schema_fields, (
+            "branch_name should not be in tool schema"
+        )
+        assert "branch_mode" not in schema_fields, (
+            "branch_mode should not be in tool schema"
+        )
 
         # Verify some expected params are present (context is injected, not in schema)
         # The schema should have search, limit, etc. but NOT temporal params
@@ -282,13 +294,17 @@ class TestPromptInjectionResistance:
 
         from app.core.versioning.enums import BranchMode
 
-        async def mock_get_projects(*args, as_of=None, branch=None, branch_mode=None, **kwargs):
+        async def mock_get_projects(
+            *args, as_of=None, branch=None, branch_mode=None, **kwargs
+        ):
             captured_params["as_of"] = as_of
             captured_params["branch"] = branch
             captured_params["mode"] = branch_mode
             return [], 0
 
-        with patch("app.services.project.ProjectService.get_projects", mock_get_projects):
+        with patch(
+            "app.services.project.ProjectService.get_projects", mock_get_projects
+        ):
             # Act: Execute raw function (LLM might call this after processing the malicious prompt)
             result = await project_tools.list_projects.coroutine(context=context)
 

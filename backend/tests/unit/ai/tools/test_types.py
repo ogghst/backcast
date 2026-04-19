@@ -27,7 +27,9 @@ class TestToolContext:
         """Test permission checking with caching."""
         mock_session = MagicMock()
         # Use "admin" role which has all permissions in the RBAC config
-        context = ToolContext(session=mock_session, user_id="user123", user_role="admin")
+        context = ToolContext(
+            session=mock_session, user_id="user123", user_role="admin"
+        )
 
         # First check
         result1 = await context.check_permission("project-read")
@@ -45,7 +47,9 @@ class TestToolContext:
         """Test permission checking for different permissions."""
         mock_session = MagicMock()
         # Use "admin" role which has all permissions in the RBAC config
-        context = ToolContext(session=mock_session, user_id="user123", user_role="admin")
+        context = ToolContext(
+            session=mock_session, user_id="user123", user_role="admin"
+        )
 
         # Check different permissions
         result1 = await context.check_permission("project-read")
@@ -82,7 +86,7 @@ class TestToolMetadata:
             description="Test description",
             permissions=["project-read"],
             category="projects",
-            version="1.0.0"
+            version="1.0.0",
         )
 
         assert metadata.name == "test_tool"
@@ -94,9 +98,7 @@ class TestToolMetadata:
     def test_metadata_defaults(self):
         """Test ToolMetadata with default values."""
         metadata = ToolMetadata(
-            name="test_tool",
-            description="Test description",
-            permissions=[]
+            name="test_tool", description="Test description", permissions=[]
         )
 
         assert metadata.category is None
@@ -107,7 +109,7 @@ class TestToolMetadata:
         metadata = ToolMetadata(
             name="test_tool",
             description="Test description",
-            permissions=["project-read", "admin"]
+            permissions=["project-read", "admin"],
         )
 
         data = metadata.to_dict()
@@ -123,7 +125,7 @@ class TestToolMetadata:
             name="test_tool",
             description="Test description",
             permissions=["project-read"],
-            category="projects"
+            category="projects",
         )
 
         data = metadata.to_dict()
@@ -135,7 +137,7 @@ class TestToolMetadata:
             name="admin_tool",
             description="Admin tool",
             permissions=["read", "write", "delete"],
-            category="admin"
+            category="admin",
         )
 
         assert len(metadata.permissions) == 3

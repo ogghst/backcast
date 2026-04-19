@@ -190,13 +190,19 @@ Provide structured analysis as JSON."""
                 "reason": str(parsed_data.get("reason", reason))[:500],
                 "budget_impact": Decimal(str(parsed_data.get("budget_impact", 0))),
                 "schedule_impact_days": int(parsed_data.get("schedule_impact_days", 0)),
-                "risk_level": self._validate_risk_level(parsed_data.get("risk_level", "Medium")),
+                "risk_level": self._validate_risk_level(
+                    parsed_data.get("risk_level", "Medium")
+                ),
                 "affected_entities": list(parsed_data.get("affected_entities", [])),
-                "recommendation": str(parsed_data.get("recommendation", "Review required")),
+                "recommendation": str(
+                    parsed_data.get("recommendation", "Review required")
+                ),
                 "confidence_score": float(parsed_data.get("confidence_score", 0.7)),
             }
 
-            logger.info(f"Successfully parsed requirements with confidence: {result['confidence_score']}")
+            logger.info(
+                f"Successfully parsed requirements with confidence: {result['confidence_score']}"
+            )
             return result
 
         except Exception as e:

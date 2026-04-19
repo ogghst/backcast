@@ -12,7 +12,9 @@ print("Origins:")
 for i, origin in enumerate(settings.BACKEND_CORS_ORIGINS, 1):
     print(f"  {i}. {repr(origin)}")
 print()
-print(f"'http://localhost:5173' in origins: {'http://localhost:5173' in settings.BACKEND_CORS_ORIGINS}")
+print(
+    f"'http://localhost:5173' in origins: {'http://localhost:5173' in settings.BACKEND_CORS_ORIGINS}"
+)
 print()
 print(f"BACKEND_CORS_METHODS: {settings.BACKEND_CORS_METHODS}")
 print(f"BACKEND_CORS_HEADERS: {settings.BACKEND_CORS_HEADERS}")

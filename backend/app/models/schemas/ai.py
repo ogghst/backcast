@@ -111,7 +111,7 @@ class AIProviderConfigPublic(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def mask_encrypted_value(self) -> Self:
         """Mask encrypted values."""
         if self.is_encrypted and self.value:
@@ -141,7 +141,9 @@ class AIModelCreate(AIModelBase):
     parameter and is injected by the route handler.
     """
 
-    provider_id: UUID | None = Field(None, description="Provider ID (injected from path)")
+    provider_id: UUID | None = Field(
+        None, description="Provider ID (injected from path)"
+    )
 
 
 class AIModelUpdate(BaseModel):
@@ -175,7 +177,12 @@ class AIAssistantConfigBase(BaseModel):
     system_prompt: str | None = Field(None, max_length=10000)
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
-    recursion_limit: int | None = Field(None, ge=1, le=500, description="LangGraph recursion limit (maximum steps in agent execution loop)")
+    recursion_limit: int | None = Field(
+        None,
+        ge=1,
+        le=500,
+        description="LangGraph recursion limit (maximum steps in agent execution loop)",
+    )
     allowed_tools: list[str] | None = Field(
         None, description="List of tool names this assistant can use"
     )
@@ -270,7 +277,9 @@ class AgentExecutionPublic(BaseModel):
 class InvokeAgentRequest(BaseModel):
     """Request body for invoking an agent via REST API."""
 
-    message: str = Field(..., min_length=1, max_length=10000, description="User message content")
+    message: str = Field(
+        ..., min_length=1, max_length=10000, description="User message content"
+    )
     execution_mode: Literal["safe", "standard", "expert"] = Field(
         "standard", description="AI tool execution mode (default: 'standard')"
     )
@@ -296,12 +305,19 @@ class SessionContext(BaseModel):
     Uses discriminated union pattern to validate context-specific fields.
     Ensures type safety and prevents invalid context combinations.
     """
-    type: SessionContextType = Field(..., description="Context type discriminator")
-    id: str | None = Field(None, description="Entity ID (required for non-general contexts)")
-    project_id: str | None = Field(None, description="Project ID (for WBE and cost_element contexts)")
-    name: str | None = Field(None, description="Optional human-readable name for the context")
 
-    @model_validator(mode='after')
+    type: SessionContextType = Field(..., description="Context type discriminator")
+    id: str | None = Field(
+        None, description="Entity ID (required for non-general contexts)"
+    )
+    project_id: str | None = Field(
+        None, description="Project ID (for WBE and cost_element contexts)"
+    )
+    name: str | None = Field(
+        None, description="Optional human-readable name for the context"
+    )
+
+    @model_validator(mode="after")
     def validate_context_fields(self) -> Self:
         """Validate that required fields are present based on context type."""
         if self.type == "general":
@@ -332,7 +348,9 @@ class AIConversationSessionPublic(BaseModel):
     assistant_config_id: UUID
     title: str | None
     project_id: UUID | None = Field(None, description="Optional project context")
-    branch_id: UUID | None = Field(None, description="Optional branch or change order context")
+    branch_id: UUID | None = Field(
+        None, description="Optional branch or change order context"
+    )
     context: SessionContext | None = Field(
         None, description="Session context (general, project, wbe, cost_element)"
     )
@@ -359,7 +377,9 @@ class AIConversationSessionCreate(BaseModel):
     assistant_config_id: UUID
     title: str | None = Field(None, max_length=255)
     project_id: UUID | None = Field(None, description="Optional project context")
-    branch_id: UUID | None = Field(None, description="Optional branch or change order context")
+    branch_id: UUID | None = Field(
+        None, description="Optional branch or change order context"
+    )
     context: SessionContext | None = Field(None, description="Session context")
 
 
@@ -371,9 +391,13 @@ class FileAttachment(BaseModel):
 
     file_id: str = Field(..., description="Unique file identifier")
     filename: str = Field(..., max_length=255, description="Original filename")
-    file_type: str = Field(..., max_length=100, description="MIME type or file extension")
+    file_type: str = Field(
+        ..., max_length=100, description="MIME type or file extension"
+    )
     file_size: int = Field(..., ge=0, description="File size in bytes")
-    content: str | None = Field(None, description="Extracted text or base64-encoded content")
+    content: str | None = Field(
+        None, description="Extracted text or base64-encoded content"
+    )
     uploaded_at: datetime = Field(..., description="Upload timestamp")
 
 
@@ -392,9 +416,7 @@ class AIConversationMessagePublic(BaseModel):
     attachments: list[FileAttachment] = Field(
         default_factory=list, description="File attachments"
     )
-    images: list[str] = Field(
-        default_factory=list, description="Image URLs"
-    )
+    images: list[str] = Field(default_factory=list, description="Image URLs")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional message metadata"
     )
@@ -402,7 +424,7 @@ class AIConversationMessagePublic(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def ignore_sqlalchemy_metadata(cls, data: Any) -> Any:
         """Ignore SQLAlchemy's built-in metadata attribute during validation.
@@ -414,24 +436,24 @@ class AIConversationMessagePublic(BaseModel):
         # Handle dict input (e.g., from API requests)
         if isinstance(data, dict):
             # Ensure metadata is a dict, not SQLAlchemy's MetaData
-            if 'metadata' in data and not isinstance(data.get('metadata'), dict):
+            if "metadata" in data and not isinstance(data.get("metadata"), dict):
                 data = dict(data)  # Make a copy
-                data['metadata'] = {}
+                data["metadata"] = {}
             return data
 
         # Handle SQLAlchemy model input (from_attributes=True)
-        if hasattr(data, '__table__'):
+        if hasattr(data, "__table__"):
             # Create a dict copy, using message_metadata if available
             result: dict[str, Any] = {}
             for key in cls.model_fields:
-                if key == 'metadata':
+                if key == "metadata":
                     # Use message_metadata from the database model
                     # Explicitly handle None vs empty dict to preserve metadata content
-                    metadata_value = getattr(data, 'message_metadata', None)
+                    metadata_value = getattr(data, "message_metadata", None)
                     result[key] = metadata_value if metadata_value is not None else {}
-                elif key == 'attachments':
+                elif key == "attachments":
                     # Map ORM AIConversationAttachment -> FileAttachment
-                    orm_attachments = getattr(data, 'attachments', [])
+                    orm_attachments = getattr(data, "attachments", [])
                     result[key] = [
                         FileAttachment(
                             file_id=str(att.id),
@@ -472,17 +494,33 @@ class WSChatRequest(BaseModel):
     """
 
     type: str = Field(default="chat", description="Message type discriminator")
-    message: str = Field(..., min_length=1, max_length=10000, description="User message content")
-    session_id: UUID | None = Field(None, description="Existing session ID or None for new session")
+    message: str = Field(
+        ..., min_length=1, max_length=10000, description="User message content"
+    )
+    session_id: UUID | None = Field(
+        None, description="Existing session ID or None for new session"
+    )
     assistant_config_id: UUID | None = Field(
         None, description="Assistant config to use (required for new sessions)"
     )
-    title: str | None = Field(None, max_length=255, description="Optional session title (for new sessions)")
-    project_id: UUID | None = Field(None, description="Optional project context for the session")
-    branch_id: UUID | None = Field(None, description="Optional branch or change order context for the session")
-    context: SessionContext | None = Field(None, description="Session context (type, id, name)")
-    as_of: datetime | None = Field(None, description="Optional historical date for temporal queries")
-    branch_name: str | None = Field("main", description="Branch name for temporal queries (default: 'main')")
+    title: str | None = Field(
+        None, max_length=255, description="Optional session title (for new sessions)"
+    )
+    project_id: UUID | None = Field(
+        None, description="Optional project context for the session"
+    )
+    branch_id: UUID | None = Field(
+        None, description="Optional branch or change order context for the session"
+    )
+    context: SessionContext | None = Field(
+        None, description="Session context (type, id, name)"
+    )
+    as_of: datetime | None = Field(
+        None, description="Optional historical date for temporal queries"
+    )
+    branch_name: str | None = Field(
+        "main", description="Branch name for temporal queries (default: 'main')"
+    )
     branch_mode: Literal["merged", "isolated"] | None = Field(
         "merged", description="Branch mode for temporal queries (default: 'merged')"
     )
@@ -543,10 +581,14 @@ class WSSubagentResultMessage(BaseModel):
     final response text.
     """
 
-    type: str = Field(default="subagent_result", description="Message type discriminator")
+    type: str = Field(
+        default="subagent_result", description="Message type discriminator"
+    )
     subagent_name: str = Field(..., description="Name of the subagent that completed")
     content: str = Field(..., description="Subagent's final response text")
-    invocation_id: str = Field(..., description="Unique invocation ID for this subagent instance")
+    invocation_id: str = Field(
+        ..., description="Unique invocation ID for this subagent instance"
+    )
 
 
 class WSAgentCompleteMessage(BaseModel):
@@ -555,6 +597,7 @@ class WSAgentCompleteMessage(BaseModel):
     Sent when an agent (main or subagent) stream completes visually.
     Provides a completion indicator for the UI without delivering new content.
     """
+
     type: Literal["agent_complete"] = Field(
         default="agent_complete", description="Message type discriminator"
     )
@@ -595,7 +638,9 @@ class WSToolCallMessage(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
     step_number: int | None = Field(None, description="Current step number (1-indexed)")
     total_steps: int | None = Field(None, description="Estimated total steps")
-    invocation_id: str | None = Field(None, description="Invocation ID for this tool call")
+    invocation_id: str | None = Field(
+        None, description="Invocation ID for this tool call"
+    )
 
 
 class WSToolResultMessage(BaseModel):
@@ -607,7 +652,9 @@ class WSToolResultMessage(BaseModel):
     type: str = Field(default="tool_result", description="Message type discriminator")
     tool: str = Field(..., description="Tool function name")
     result: dict[str, Any] = Field(..., description="Tool execution result data")
-    invocation_id: str | None = Field(None, description="Invocation ID for this tool result")
+    invocation_id: str | None = Field(
+        None, description="Invocation ID for this tool result"
+    )
 
 
 class WSCompleteMessage(BaseModel):
@@ -654,7 +701,8 @@ class WSApprovalRequestMessage(BaseModel):
         default_factory=dict, description="Arguments that will be passed to the tool"
     )
     risk_level: Literal[RISK_LEVEL_LOW, RISK_LEVEL_HIGH, RISK_LEVEL_CRITICAL] = Field(  # type: ignore[valid-type]
-        ..., description="Risk level of the tool requiring approval ('low', 'high', or 'critical')"
+        ...,
+        description="Risk level of the tool requiring approval ('low', 'high', or 'critical')",
     )
     expires_at: datetime = Field(
         ...,
@@ -720,7 +768,9 @@ class WSPlanningMessage(BaseModel):
     )
     step_number: int | None = Field(None, description="Current step number (1-indexed)")
     total_steps: int | None = Field(None, description="Total steps in plan")
-    invocation_id: str | None = Field(None, description="Invocation ID for this planning event")
+    invocation_id: str | None = Field(
+        None, description="Invocation ID for this planning event"
+    )
 
 
 class WSSubagentMessage(BaseModel):
@@ -738,7 +788,9 @@ class WSSubagentMessage(BaseModel):
     )
     step_number: int | None = Field(None, description="Current step number (1-indexed)")
     total_steps: int | None = Field(None, description="Estimated total steps")
-    invocation_id: str = Field(..., description="Unique invocation ID for this subagent instance")
+    invocation_id: str = Field(
+        ..., description="Unique invocation ID for this subagent instance"
+    )
 
 
 class WSPollingHeartbeatMessage(BaseModel):
@@ -755,8 +807,12 @@ class WSPollingHeartbeatMessage(BaseModel):
         default="polling_heartbeat", description="Message type discriminator"
     )
     approval_id: str = Field(..., description="Approval ID being polled")
-    elapsed_seconds: float = Field(..., description="Time elapsed since approval request (seconds)")
-    remaining_seconds: float = Field(..., description="Time remaining until timeout (seconds)")
+    elapsed_seconds: float = Field(
+        ..., description="Time elapsed since approval request (seconds)"
+    )
+    remaining_seconds: float = Field(
+        ..., description="Time remaining until timeout (seconds)"
+    )
 
 
 class WSSubscribeMessage(BaseModel):
@@ -833,10 +889,15 @@ class FileUploadResponse(BaseModel):
 
     file_id: str = Field(..., description="Unique file identifier")
     filename: str = Field(..., description="Original filename")
-    content: str | None = Field(None, description="Extracted text content (None if unsupported or extraction failed)")
+    content: str | None = Field(
+        None,
+        description="Extracted text content (None if unsupported or extraction failed)",
+    )
     file_size: int = Field(..., description="File size in bytes")
     content_type: str = Field(..., description="MIME type of the file")
-    file_type: str = Field(..., description="Category of file (document, spreadsheet, etc.)")
+    file_type: str = Field(
+        ..., description="Category of file (document, spreadsheet, etc.)"
+    )
     uploaded_at: datetime = Field(..., description="Upload timestamp")
 
 
@@ -846,13 +907,18 @@ class FileUploadResponse(BaseModel):
 class MermaidDiagramRequest(BaseModel):
     """Schema for requesting Mermaid diagram generation."""
 
-    diagram_type: Literal["flowchart", "sequence", "class", "state", "er", "gantt"] = Field(
-        ..., description="Type of diagram to generate"
+    diagram_type: Literal["flowchart", "sequence", "class", "state", "er", "gantt"] = (
+        Field(..., description="Type of diagram to generate")
     )
     description: str = Field(
-        ..., min_length=1, max_length=5000, description="Natural language description of the diagram"
+        ...,
+        min_length=1,
+        max_length=5000,
+        description="Natural language description of the diagram",
     )
-    title: str | None = Field(None, max_length=255, description="Optional diagram title")
+    title: str | None = Field(
+        None, max_length=255, description="Optional diagram title"
+    )
     context: str | None = Field(
         None, max_length=2000, description="Additional context for diagram generation"
     )
@@ -865,5 +931,6 @@ class MermaidDiagramResponse(BaseModel):
     diagram_type: str = Field(..., description="Type of diagram generated")
     title: str | None = Field(None, description="Diagram title")
     description: str = Field(..., description="Original description")
-    rendered_url: str | None = Field(None, description="URL to render the diagram (if applicable)")
-
+    rendered_url: str | None = Field(
+        None, description="URL to render the diagram (if applicable)"
+    )

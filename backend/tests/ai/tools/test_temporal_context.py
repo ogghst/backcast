@@ -102,9 +102,7 @@ class TestToolContextTemporalParams:
         assert result["branch_mode"] == "isolated"
 
     @pytest.mark.asyncio
-    async def test_get_temporal_context_with_none_as_of(
-        self, db_session: AsyncSession
-    ):
+    async def test_get_temporal_context_with_none_as_of(self, db_session: AsyncSession):
         """Test that get_temporal_context uses system time for current_date when as_of is None."""
         # Arrange
         context = ToolContext(
@@ -125,9 +123,11 @@ class TestToolContextTemporalParams:
         # Verify format: "DayOfWeek, MonthName DD, YYYY at HH:MM AM/PM"
         # Examples: "Monday, March 31, 2026 at 03:45 PM"
         import re
+
         date_pattern = r"^[A-Za-z]+, [A-Za-z]+ \d{1,2}, \d{4} at \d{1,2}:\d{2} [AP]M$"
-        assert re.match(date_pattern, result["current_date"]), \
+        assert re.match(date_pattern, result["current_date"]), (
             f"current_date '{result['current_date']}' does not match expected format"
+        )
         # Other fields should have defaults
         assert result["branch_name"] == "main"
         assert result["branch_mode"] == "merged"
@@ -154,9 +154,7 @@ class TestToolContextTemporalParams:
         assert result["current_date"] == "Sunday, June 15, 2025 at 12:00 AM"
 
     @pytest.mark.asyncio
-    async def test_get_temporal_context_with_noon_time(
-        self, db_session: AsyncSession
-    ):
+    async def test_get_temporal_context_with_noon_time(self, db_session: AsyncSession):
         """Test that get_temporal_context formats noon time correctly."""
         # Arrange
         as_of = datetime(2025, 6, 15, 12, 0, 0)

@@ -134,7 +134,9 @@ def create_agent_node(
         # Return delta for tool_call_count (operator.add accumulates across nodes)
         return {
             "messages": [response_message],
-            "tool_call_count": 1 if isinstance(response_message, AIMessage) and response_message.tool_calls else 0,
+            "tool_call_count": 1
+            if isinstance(response_message, AIMessage) and response_message.tool_calls
+            else 0,
         }
 
     return agent_node
@@ -310,11 +312,11 @@ def export_graphviz(graph: Any) -> str:
 
         # Conditional edges from agent
         # should_continue routes to "tools" or "end"
-        dot_lines.append("  agent -> tools [label=\"has tool_calls\"];")
-        dot_lines.append("  agent -> __end__ [label=\"no tool_calls / max iterations\"];")
+        dot_lines.append('  agent -> tools [label="has tool_calls"];')
+        dot_lines.append('  agent -> __end__ [label="no tool_calls / max iterations"];')
 
         # Edge from tools back to agent (creates the loop)
-        dot_lines.append("  tools -> agent [label=\"tool result\"];")
+        dot_lines.append('  tools -> agent [label="tool result"];')
 
         dot_lines.append("}")
 

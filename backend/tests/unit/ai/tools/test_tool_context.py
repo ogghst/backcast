@@ -29,7 +29,7 @@ class TestToolContextUserRole:
         context = ToolContext(
             session=mock_session,  # type: ignore[arg-type]
             user_id=user_id,
-            user_role=user_role
+            user_role=user_role,
         )
 
         # Assert: user_role is stored correctly
@@ -48,6 +48,7 @@ class TestToolContextUserRole:
         """
         # Arrange & Act: Get type hints
         import typing
+
         hints = typing.get_type_hints(ToolContext)
 
         # Assert: user_role should be annotated as str
@@ -71,7 +72,7 @@ class TestToolContextUserRole:
         # Act: Create ToolContext without user_role (should use default)
         context = ToolContext(
             session=mock_session,  # type: ignore[arg-type]
-            user_id=user_id
+            user_id=user_id,
         )
 
         # Assert: user_role should have a default value
@@ -97,7 +98,7 @@ class TestToolContextUserRole:
         context = ToolContext(
             session=mock_session,  # type: ignore[arg-type]
             user_id=user_id,
-            user_role=user_role
+            user_role=user_role,
         )
 
         # Assert

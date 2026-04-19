@@ -86,11 +86,13 @@ class MonitoringContext:
             }
 
         # Group by tool name
-        tools_by_name: dict[str, dict[str, Any]] = defaultdict(lambda: {
-            "count": 0,
-            "total_time_ms": 0.0,
-            "errors": 0,
-        })
+        tools_by_name: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {
+                "count": 0,
+                "total_time_ms": 0.0,
+                "errors": 0,
+            }
+        )
 
         for execution in self.executions:
             tool_name = execution.tool_name
@@ -110,7 +112,8 @@ class MonitoringContext:
         return {
             "total_tools_called": self.total_tools_called,
             "total_execution_time_ms": self.total_execution_time_ms,
-            "average_execution_time_ms": self.total_execution_time_ms / self.total_tools_called,
+            "average_execution_time_ms": self.total_execution_time_ms
+            / self.total_tools_called,
             "success_rate": success_rate,
             "tools_by_name": dict(tools_by_name),
         }
@@ -168,9 +171,7 @@ def monitor_tool_execution(
 
         # Log execution
         if success:
-            logger.info(
-                f"Tool {tool_name} executed in {execution_time_ms:.2f}ms"
-            )
+            logger.info(f"Tool {tool_name} executed in {execution_time_ms:.2f}ms")
         else:
             logger.warning(
                 f"Tool {tool_name} failed after {execution_time_ms:.2f}ms: {error_message}"

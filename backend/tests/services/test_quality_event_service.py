@@ -5,8 +5,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.schemas.quality_event import QualityEventCreate, QualityEventUpdate
 from app.services.quality_event_service import QualityEventService
@@ -19,57 +19,70 @@ async def create_test_project(db_session: AsyncSession, admin_user, project_id: 
         VALUES (:id, :project_id, :name, :code, :status, :branch, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
         RETURNING id
     """)
-    result = await db_session.execute(stmt, {
-        "id": uuid4(),
-        "project_id": str(project_id),
-        "name": "Test Project",
-        "code": "TEST-PROJ",
-        "status": "Active",
-        "branch": "main",
-        "now": datetime.now(UTC),
-        "created_by": str(admin_user.id)
-    })
+    result = await db_session.execute(
+        stmt,
+        {
+            "id": uuid4(),
+            "project_id": str(project_id),
+            "name": "Test Project",
+            "code": "TEST-PROJ",
+            "status": "Active",
+            "branch": "main",
+            "now": datetime.now(UTC),
+            "created_by": str(admin_user.id),
+        },
+    )
     return result.scalar_one()
 
 
-async def create_test_wbe(db_session: AsyncSession, admin_user, wbe_id: uuid4, project_id: uuid4):
+async def create_test_wbe(
+    db_session: AsyncSession, admin_user, wbe_id: uuid4, project_id: uuid4
+):
     """Create a test WBE with proper temporal fields."""
     stmt = text("""
         INSERT INTO wbes (id, wbe_id, project_id, name, code, level, branch, valid_time, transaction_time, created_by)
         VALUES (:id, :wbe_id, :project_id, :name, :code, :level, :branch, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
         RETURNING id
     """)
-    result = await db_session.execute(stmt, {
-        "id": uuid4(),
-        "wbe_id": str(wbe_id),
-        "project_id": str(project_id),
-        "name": "Test WBE",
-        "code": "TEST-WBE",
-        "level": 1,
-        "branch": "main",
-        "now": datetime.now(UTC),
-        "created_by": str(admin_user.id)
-    })
+    result = await db_session.execute(
+        stmt,
+        {
+            "id": uuid4(),
+            "wbe_id": str(wbe_id),
+            "project_id": str(project_id),
+            "name": "Test WBE",
+            "code": "TEST-WBE",
+            "level": 1,
+            "branch": "main",
+            "now": datetime.now(UTC),
+            "created_by": str(admin_user.id),
+        },
+    )
     return result.scalar_one()
 
 
-async def create_test_cost_element(db_session: AsyncSession, admin_user, cost_element_id: uuid4, wbe_id: uuid4):
+async def create_test_cost_element(
+    db_session: AsyncSession, admin_user, cost_element_id: uuid4, wbe_id: uuid4
+):
     """Create a test cost element with proper temporal fields."""
     stmt = text("""
         INSERT INTO cost_elements (id, cost_element_id, wbe_id, name, budget_amount, branch, valid_time, transaction_time, created_by)
         VALUES (:id, :cost_element_id, :wbe_id, :name, :budget_amount, :branch, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
         RETURNING id
     """)
-    result = await db_session.execute(stmt, {
-        "id": uuid4(),
-        "cost_element_id": str(cost_element_id),
-        "wbe_id": str(wbe_id),
-        "name": "Test Cost Element",
-        "budget_amount": Decimal("10000.00"),
-        "branch": "main",
-        "now": datetime.now(UTC),
-        "created_by": str(admin_user.id)
-    })
+    result = await db_session.execute(
+        stmt,
+        {
+            "id": uuid4(),
+            "cost_element_id": str(cost_element_id),
+            "wbe_id": str(wbe_id),
+            "name": "Test Cost Element",
+            "budget_amount": Decimal("10000.00"),
+            "branch": "main",
+            "now": datetime.now(UTC),
+            "created_by": str(admin_user.id),
+        },
+    )
     return result.scalar_one()
 
 
@@ -141,7 +154,7 @@ async def test_update_quality_event(db_session: AsyncSession, admin_user):
         severity="low",
     )
 
-    created = await service.create_quality_event(
+    _created = await service.create_quality_event(
         event_in=event_in,
         actor_id=admin_user.id,
         branch="main",
@@ -225,8 +238,8 @@ async def test_get_quality_events(db_session: AsyncSession, admin_user):
     for i in range(3):
         event_in = QualityEventCreate(
             cost_element_id=cost_element_id,
-            description=f"Event {i+1}",
-            cost_impact=Decimal(f"{100 * (i+1)}.00"),
+            description=f"Event {i + 1}",
+            cost_impact=Decimal(f"{100 * (i + 1)}.00"),
             event_type="defect",
         )
         await service.create_quality_event(
@@ -301,7 +314,7 @@ async def test_get_quality_events_by_period(db_session: AsyncSession, admin_user
     for i in range(3):
         event_in = QualityEventCreate(
             cost_element_id=cost_element_id,
-            description=f"Event {i+1}",
+            description=f"Event {i + 1}",
             cost_impact=Decimal("100.00"),
             event_date=start_date + timedelta(days=i),
         )

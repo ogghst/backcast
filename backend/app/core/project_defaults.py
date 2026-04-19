@@ -30,6 +30,7 @@ class BudgetSettingsService(Protocol):
         enforce_budget: bool | None = None,
     ) -> object: ...  # Returns ProjectBudgetSettings, but we use object to avoid import
 
+
 # Default budget warning threshold percentage
 DEFAULT_BUDGET_WARNING_THRESHOLD = Decimal("80.0")
 
