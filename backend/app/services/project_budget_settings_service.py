@@ -107,8 +107,8 @@ class ProjectBudgetSettingsService(TemporalService[ProjectBudgetSettings]):  # t
         if existing:
             # Update existing settings
             class ProjectBudgetSettingsUpdateCommand(
-                UpdateVersionCommand[ProjectBudgetSettings]
-            ):  # type: ignore[type-var,unused-ignore]
+                UpdateVersionCommand[ProjectBudgetSettings],  # type: ignore[type-var,unused-ignore]
+            ):
                 def _root_field_name(self) -> str:
                     return "project_budget_settings_id"
 
