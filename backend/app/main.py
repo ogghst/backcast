@@ -33,6 +33,7 @@ from app.api.routes import (
     projects,
     quality_events,
     schedule_baselines,
+    search,
     users,
     wbes,
 )
@@ -298,6 +299,11 @@ app.include_router(
     dashboard_layouts.router,
     prefix=f"{settings.API_V1_STR}/dashboard-layouts",
     tags=["Dashboard Layouts"],
+)
+app.include_router(
+    search.router,
+    prefix=f"{settings.API_V1_STR}/search",
+    tags=["Search"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)

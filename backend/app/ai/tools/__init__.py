@@ -102,6 +102,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     tools: list[BaseTool] = [
         project_tools.list_projects,
         project_tools.get_project,
+        project_tools.global_search,
     ]
 
     # Add context tools (read-only for LLM awareness)

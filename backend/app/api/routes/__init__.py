@@ -17,6 +17,7 @@ from app.api.routes import (
     projects,
     quality_events,
     schedule_baselines,
+    search,
     users,
     wbes,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "projects",
     "quality_events",
     "schedule_baselines",
+    "search",
     "users",
     "wbes",
 ]

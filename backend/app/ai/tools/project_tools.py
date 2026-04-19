@@ -249,3 +249,83 @@ async def get_project(
     except Exception as e:
         logger.error(f"Error in get_project: {e}")
         return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="global_search",
+    description="Search across all entity types (projects, WBEs, cost elements, change orders, etc.) for a given query. Returns a flat ranked list with entity type labels. Respects project scoping from session context.",
+    permissions=["project-read"],
+    category="search",
+    risk_level=RiskLevel.LOW,
+)
+async def global_search(
+    query: str,
+    project_id: str | None = None,
+    wbe_id: str | None = None,
+    limit: int = 20,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Search across all entity types for a given query string.
+
+    Returns a flat ranked list of results with entity type labels and relevance
+    scores. Respects project scoping from the session context and user RBAC
+    permissions.
+
+    Args:
+        query: Search string to match against entity codes, names, descriptions, etc.
+        project_id: Optional project UUID to scope results to a single project.
+        wbe_id: Optional WBE UUID to scope results to a WBE and its descendants.
+        limit: Maximum number of results to return (default 20).
+        context: Injected tool execution context.
+
+    Returns:
+        Dictionary containing:
+            - results: List of search result objects with entity_type, id, code, name,
+              description, status, relevance_score, project_id, wbe_id
+            - total: Number of results returned
+            - query: Original query string
+            - _temporal_context: Temporal parameters used for the query
+    """
+    log_temporal_context("global_search", context)
+    log_project_context("global_search", context)
+
+    try:
+        from uuid import UUID
+
+        from app.core.versioning.enums import BranchMode
+        from app.services.global_search_service import GlobalSearchService
+
+        service = GlobalSearchService(context.session)
+
+        branch = context.branch_name or "main"
+        branch_mode = (
+            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+        )
+
+        # Auto-scope to session project if available
+        effective_project_id = UUID(project_id) if project_id else None
+        if context.project_id and not effective_project_id:
+            effective_project_id = UUID(context.project_id)
+
+        effective_wbe_id = UUID(wbe_id) if wbe_id else None
+
+        response = await service.search(
+            query,
+            user_id=UUID(context.user_id),
+            user_role=context.user_role,
+            project_id=effective_project_id,
+            wbe_id=effective_wbe_id,
+            branch=branch,
+            branch_mode=branch_mode,
+            as_of=context.as_of,
+            limit=limit,
+        )
+
+        result = response.model_dump()
+
+        with_project_metadata = add_project_metadata(result, context)
+        return add_temporal_metadata(with_project_metadata, context)
+    except Exception as e:
+        logger.error(f"Error in global_search: {e}")
+        with_project_metadata = add_project_metadata({"error": str(e)}, context)
+        return add_temporal_metadata(with_project_metadata, context)

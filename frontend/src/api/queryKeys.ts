@@ -292,6 +292,12 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     detail: (id: string) => ["dashboard-layouts", "detail", id] as const,
   },
 
+  // Search
+  search: {
+    global: (params: unknown, asOf?: string, branch?: string, mode?: string) =>
+      ["search", "global", params, asOf, branch, mode] as const,
+  },
+
   // Quality Events
   qualityEvents: {
     all: ["quality-events"] as const,

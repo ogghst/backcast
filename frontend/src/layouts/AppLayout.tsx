@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { Layout, theme, Space } from "antd";
+import React, { useState, useEffect, useCallback } from "react";
+import { Layout, theme, Space, Button, Tooltip } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
 import { Outlet, useParams } from "react-router-dom";
 
 import { UserProfile } from "@/components/UserProfile";
 import { HeaderNavigation } from "@/components/navigation/HeaderNavigation";
+import { SearchDialog, useSearchShortcut } from "@/features/search";
 
 const BUILD_SHA = import.meta.env.VITE_GIT_SHA || "dev";
 const BUILD_DATE = import.meta.env.VITE_BUILD_DATE || "dev";
@@ -25,6 +27,9 @@ const MOBILE_BREAKPOINT = 768;
 
 const AppLayout: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const openSearch = useCallback(() => setIsSearchOpen(true), []);
+  useSearchShortcut(openSearch);
 
   const {
     token: {
@@ -98,7 +103,7 @@ const AppLayout: React.FC = () => {
           <HeaderNavigation />
         </Space>
 
-        {/* Center: TimeMachine (temporal menu) - always visible */}
+        {/* Center: TimeMachine (temporal menu) + Search - always visible */}
         <div
           style={{
             display: "flex",
@@ -108,6 +113,13 @@ const AppLayout: React.FC = () => {
             justifyContent: "flex-end",
           }}
         >
+          <Tooltip title="Search (Ctrl+K)">
+            <Button
+              icon={<SearchOutlined />}
+              onClick={openSearch}
+              size="small"
+            />
+          </Tooltip>
           {projectId && <TimeMachineCompact projectId={projectId} />}
         </div>
 
@@ -153,6 +165,8 @@ const AppLayout: React.FC = () => {
           )}
         </Space>
       </Footer>
+
+      <SearchDialog open={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </Layout>
   );
 };
