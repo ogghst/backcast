@@ -62,14 +62,10 @@ class _MockRBACService(RBACServiceABC):
     ) -> bool:
         return True
 
-    async def get_user_projects(
-        self, user_id: UUID, user_role: str
-    ) -> list[UUID]:
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
         return []
 
-    async def get_project_role(
-        self, user_id: UUID, project_id: UUID
-    ) -> str | None:
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
         return None
 
 
@@ -184,9 +180,7 @@ async def test_search_endpoint_rejects_query_too_long(
     client: AsyncClient,
 ) -> None:
     """Endpoint returns 422 when 'q' exceeds max_length=200."""
-    response = await client.get(
-        "/api/v1/search", params={"q": "a" * 201}
-    )
+    response = await client.get("/api/v1/search", params={"q": "a" * 201})
 
     assert response.status_code == 422
 
@@ -197,15 +191,11 @@ async def test_search_endpoint_validates_limit_bounds(
 ) -> None:
     """Endpoint returns 422 when limit is outside 1-200 range."""
     # limit=0 is below minimum
-    resp_zero = await client.get(
-        "/api/v1/search", params={"q": "test", "limit": 0}
-    )
+    resp_zero = await client.get("/api/v1/search", params={"q": "test", "limit": 0})
     assert resp_zero.status_code == 422
 
     # limit=201 exceeds maximum
-    resp_over = await client.get(
-        "/api/v1/search", params={"q": "test", "limit": 201}
-    )
+    resp_over = await client.get("/api/v1/search", params={"q": "test", "limit": 201})
     assert resp_over.status_code == 422
 
 

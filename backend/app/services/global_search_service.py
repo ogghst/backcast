@@ -187,22 +187,105 @@ def _apply_branch_mode_filter(
 
 # Each entry: (entity_type_label, model_class, root_field, primary_fields,
 #              description_fields, secondary_fields, is_branchable, is_global)
-_ENTITY_CONFIG: list[tuple[str, type[Any], str, list[str], list[str], list[str], bool, bool]] = [
+_ENTITY_CONFIG: list[
+    tuple[str, type[Any], str, list[str], list[str], list[str], bool, bool]
+] = [
     # Branchable entities
-    ("project", Project, "project_id", ["code", "name"], ["description"], ["status"], True, False),
+    (
+        "project",
+        Project,
+        "project_id",
+        ["code", "name"],
+        ["description"],
+        ["status"],
+        True,
+        False,
+    ),
     ("wbe", WBE, "wbe_id", ["code", "name"], ["description"], [], True, False),
-    ("cost_element", CostElement, "cost_element_id", ["code", "name"], ["description"], [], True, False),
-    ("schedule_baseline", ScheduleBaseline, "schedule_baseline_id", ["name"], ["description"], [], True, False),
-    ("change_order", ChangeOrder, "change_order_id", ["code", "title"], ["description", "justification"], ["status"], True, False),
+    (
+        "cost_element",
+        CostElement,
+        "cost_element_id",
+        ["code", "name"],
+        ["description"],
+        [],
+        True,
+        False,
+    ),
+    (
+        "schedule_baseline",
+        ScheduleBaseline,
+        "schedule_baseline_id",
+        ["name"],
+        ["description"],
+        [],
+        True,
+        False,
+    ),
+    (
+        "change_order",
+        ChangeOrder,
+        "change_order_id",
+        ["code", "title"],
+        ["description", "justification"],
+        ["status"],
+        True,
+        False,
+    ),
     ("forecast", Forecast, "forecast_id", [], ["basis_of_estimate"], [], True, False),
     # Versionable entities
-    ("cost_registration", CostRegistration, "cost_registration_id", [], ["description"], ["invoice_number", "vendor_reference"], False, False),
-    ("quality_event", QualityEvent, "quality_event_id", [], ["description"], ["event_type", "root_cause", "resolution_notes"], False, False),
-    ("progress_entry", ProgressEntry, "progress_entry_id", [], ["notes"], [], False, False),
+    (
+        "cost_registration",
+        CostRegistration,
+        "cost_registration_id",
+        [],
+        ["description"],
+        ["invoice_number", "vendor_reference"],
+        False,
+        False,
+    ),
+    (
+        "quality_event",
+        QualityEvent,
+        "quality_event_id",
+        [],
+        ["description"],
+        ["event_type", "root_cause", "resolution_notes"],
+        False,
+        False,
+    ),
+    (
+        "progress_entry",
+        ProgressEntry,
+        "progress_entry_id",
+        [],
+        ["notes"],
+        [],
+        False,
+        False,
+    ),
     # Global entities (no project scoping)
     ("user", User, "user_id", ["email", "full_name"], [], [], False, True),
-    ("department", Department, "department_id", ["code", "name"], ["description"], [], False, True),
-    ("cost_element_type", CostElementType, "cost_element_type_id", ["code", "name"], ["description"], [], False, True),
+    (
+        "department",
+        Department,
+        "department_id",
+        ["code", "name"],
+        ["description"],
+        [],
+        False,
+        True,
+    ),
+    (
+        "cost_element_type",
+        CostElementType,
+        "cost_element_type_id",
+        ["code", "name"],
+        ["description"],
+        [],
+        False,
+        True,
+    ),
 ]
 
 
@@ -246,14 +329,14 @@ class GlobalSearchService:
             GlobalSearchResponse with ranked results.
         """
         # 1. Resolve accessible project IDs via RBAC
-        accessible_project_ids = await self._get_accessible_projects(
-            user_id, user_role
-        )
+        accessible_project_ids = await self._get_accessible_projects(user_id, user_role)
 
         # 2. If wbe_id provided, resolve descendant WBE IDs
         wbe_ids: list[UUID] | None = None
         if wbe_id is not None:
-            wbe_ids = await self._resolve_wbe_descendants(wbe_id, branch, branch_mode, as_of)
+            wbe_ids = await self._resolve_wbe_descendants(
+                wbe_id, branch, branch_mode, as_of
+            )
             wbe_ids.append(wbe_id)
 
         # 3. Run all entity searches in parallel
@@ -478,7 +561,9 @@ class GlobalSearchService:
             return stmt
 
         # Entity has wbe_id -> join to WBE for project_id
-        if hasattr(entity_class, "wbe_id") and not hasattr(entity_class, "cost_element_id"):
+        if hasattr(entity_class, "wbe_id") and not hasattr(
+            entity_class, "cost_element_id"
+        ):
             # WBE itself
             if wbe_ids is not None:
                 stmt = stmt.where(entity_class.wbe_id.in_(wbe_ids))
@@ -495,20 +580,17 @@ class GlobalSearchService:
         if hasattr(entity_class, "cost_element_id"):
             if wbe_ids is not None:
                 # If WBE-scoped, resolve CE IDs under those WBEs
-                ce_subq = (
-                    select(CostElement.cost_element_id)
-                    .where(CostElement.wbe_id.in_(wbe_ids))
+                ce_subq = select(CostElement.cost_element_id).where(
+                    CostElement.wbe_id.in_(wbe_ids)
                 )
                 stmt = stmt.where(entity_class.cost_element_id.in_(ce_subq))
             else:
                 # Full chain: CE -> WBE -> project
-                wbe_subq = (
-                    select(WBE.wbe_id)
-                    .where(WBE.project_id.in_(target_project_ids))
+                wbe_subq = select(WBE.wbe_id).where(
+                    WBE.project_id.in_(target_project_ids)
                 )
-                ce_subq = (
-                    select(CostElement.cost_element_id)
-                    .where(CostElement.wbe_id.in_(wbe_subq))
+                ce_subq = select(CostElement.cost_element_id).where(
+                    CostElement.wbe_id.in_(wbe_subq)
                 )
                 stmt = stmt.where(entity_class.cost_element_id.in_(ce_subq))
             return stmt

@@ -30,9 +30,15 @@ def get_global_search_service(
     dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def global_search(
-    q: str = Query(..., min_length=1, max_length=200, description="Search query string"),
-    project_id: UUID | None = Query(None, description="Scope results to a specific project"),
-    wbe_id: UUID | None = Query(None, description="Scope results to a specific WBE and descendants"),
+    q: str = Query(
+        ..., min_length=1, max_length=200, description="Search query string"
+    ),
+    project_id: UUID | None = Query(
+        None, description="Scope results to a specific project"
+    ),
+    wbe_id: UUID | None = Query(
+        None, description="Scope results to a specific WBE and descendants"
+    ),
     branch: str = Query("main", description="Branch name for branchable entities"),
     mode: str = Query(
         "merged",

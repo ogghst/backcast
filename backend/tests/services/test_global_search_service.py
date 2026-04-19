@@ -178,7 +178,9 @@ class TestGlobalSearchService:
         service._resolve_wbe_descendants = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
         # Mock _search_entity to return controlled results based on config
-        async def _mock_search_entity(config: object, **_kw: object) -> list[SearchResultItem]:
+        async def _mock_search_entity(
+            config: object, **_kw: object
+        ) -> list[SearchResultItem]:
             assert isinstance(config, tuple) and len(config) >= 1
             entity_type = config[0]
             assert isinstance(entity_type, str)
@@ -198,9 +200,7 @@ class TestGlobalSearchService:
         self, mock_session: AsyncMock
     ) -> None:
         """Search with no matching results returns empty list."""
-        result = await self._run_search(
-            mock_session, query="zzznonexistent"
-        )
+        result = await self._run_search(mock_session, query="zzznonexistent")
         assert isinstance(result, GlobalSearchResponse)
         assert result.query == "zzznonexistent"
         assert result.results == []
@@ -468,15 +468,11 @@ class TestGlobalSearchService:
         self, mock_session: AsyncMock
     ) -> None:
         """Response echoes back the original query string."""
-        result = await self._run_search(
-            mock_session, query="my-query"
-        )
+        result = await self._run_search(mock_session, query="my-query")
         assert result.query == "my-query"
 
     @pytest.mark.asyncio
-    async def test_search_result_item_fields(
-        self, mock_session: AsyncMock
-    ) -> None:
+    async def test_search_result_item_fields(self, mock_session: AsyncMock) -> None:
         """SearchResultItem contains expected fields from the matched row."""
         proj_id = uuid4()
 
