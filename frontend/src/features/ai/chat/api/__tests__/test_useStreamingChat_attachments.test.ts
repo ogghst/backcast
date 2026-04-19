@@ -5,11 +5,9 @@
  * Verifies that attachments are properly uploaded and included in chat messages.
  */
 
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useStreamingChat } from "../useStreamingChat";
-import { WSConnectionState } from "../../types";
-import axios from "axios";
 
 // Track WebSocket instances
 interface MockWebSocketInstance {
@@ -118,7 +116,7 @@ describe("useStreamingChat - Attachment Upload Integration", () => {
       getSelectedTime: () => string | null;
       getSelectedBranch: () => string;
       getViewMode: () => "merged" | "isolated";
-    }) => any) => selector({
+    }) => Record<string, unknown>) => selector({
       getSelectedTime: () => null,
       getSelectedBranch: () => "main",
       getViewMode: () => "merged",
@@ -161,18 +159,8 @@ describe("useStreamingChat - Attachment Upload Integration", () => {
         type: "application/pdf",
       });
 
-      // Mock successful upload
-      const mockUploadResponse = {
-        data: {
-          file_id: "file-123",
-          filename: "document.pdf",
-          content: "Extracted text content from PDF",
-          file_size: 1024000,
-          content_type: "application/pdf",
-          file_type: "document",
-          uploaded_at: "2026-04-11T00:00:00Z",
-        },
-      };
+      // Mock successful upload response structure:
+      // { data: { file_id, filename, content, file_size, content_type, file_type, uploaded_at } }
 
       // Document expected axios.post call
       // axios.post(
@@ -199,17 +187,8 @@ describe("useStreamingChat - Attachment Upload Integration", () => {
         type: "image/png",
       });
 
-      // Mock successful upload
-      const mockUploadResponse = {
-        data: {
-          file_id: "img-123",
-          filename: "chart.png",
-          content: "iVBORw0KGgo=",
-          file_size: 512000,
-          content_type: "image/png",
-          uploaded_at: "2026-04-11T00:00:00Z",
-        },
-      };
+      // Mock successful upload response structure:
+      // { data: { file_id, filename, content, file_size, content_type, uploaded_at } }
 
       // Document expected axios.post call
       // axios.post(

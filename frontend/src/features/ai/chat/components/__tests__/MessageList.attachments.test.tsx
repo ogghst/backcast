@@ -38,7 +38,8 @@ vi.mock("@/features/ai/chat/components/MarkdownRenderer", () => ({
 }));
 
 describe("MessageList - Attachment Display (Task A)", () => {
-  const mockMessages: ChatMessage[] = [];
+  // Mock messages fixture for future attachment display tests
+  void {} as unknown as ChatMessage[];
 
   beforeEach(() => {
     vi.clearAllMocks();

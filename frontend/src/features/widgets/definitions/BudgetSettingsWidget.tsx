@@ -9,9 +9,7 @@ import type { WidgetComponentProps } from "../types";
 
 const { Text } = Typography;
 
-interface BudgetSettingsConfig {
-  // No additional config needed - projectId comes from dashboard context
-}
+type BudgetSettingsConfig = Record<string, never>;
 
 /**
  * Budget Settings Dashboard Widget

@@ -227,7 +227,6 @@ export const useStreamingChat = (
     contextRef.current = context;
     assistantIdRef.current = assistantId;
     sessionIdRef.current = sessionId;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, context, assistantId, sessionId]);
 
   // Track last seen sequence number for resubscription after reconnect
@@ -294,7 +293,6 @@ export const useStreamingChat = (
       onRawMessage,
       onExecutionStatus,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   });
 
   // Track if this is the first mount to handle React Strict Mode

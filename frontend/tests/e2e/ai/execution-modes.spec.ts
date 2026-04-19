@@ -46,7 +46,7 @@ async function setupChatInterface(page) {
         page.locator('[style*="background-color:#52c41a"]')
       )
     ).toBeVisible({ timeout: 15000 });
-  } catch (error) {
+  } catch {
     // If connection dot not found, continue anyway - the interface might work without it
     console.log("WebSocket connection dot not found, continuing test...");
   }
@@ -69,7 +69,7 @@ async function selectAssistant(page, assistantName = "Default Assistant") {
     const assistantOption = page.locator(`.ant-select-item-option:has-text("${assistantName}")`).first();
     await expect(assistantOption).toBeVisible({ timeout: 5000 });
     await assistantOption.click();
-  } catch (error) {
+  } catch {
     // If assistant selector not found, try to continue - maybe it's already selected
     console.log("Assistant selector not found or already selected, continuing...");
   }
@@ -294,7 +294,7 @@ test.describe("AI Tool Execution Modes", () => {
       await selectAssistant(page);
 
       // Start with "standard" mode (default)
-      let standardBadge = page.locator('.execution-mode-badge.mode-standard');
+      const standardBadge = page.locator('.execution-mode-badge.mode-standard');
       await expect(standardBadge).toBeVisible();
 
       // Change to "safe" mode
@@ -303,7 +303,7 @@ test.describe("AI Tool Execution Modes", () => {
       await page.locator('.ant-select-item-option:has-text("Safe")').click();
 
       // Verify badge updated to "safe"
-      let safeBadge = page.locator('.execution-mode-badge.mode-safe');
+      const safeBadge = page.locator('.execution-mode-badge.mode-safe');
       await expect(safeBadge).toBeVisible();
       await expect(standardBadge).not.toBeVisible();
 
