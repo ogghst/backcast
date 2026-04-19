@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Open-source project budget management with AI-powered Earned Value Analysis</strong><br>
-  Git-style versioning for your project data. Ask questions in plain English. Navigate through project timeline.
+  <strong>Develop projects together with AI-powered team experts</strong><br>
+Change Control, Earned Value Management, Chat with data. Navigate project timeline. Understand decision impacts simulating events across time. 
 </p>
 
 <p align="center">
