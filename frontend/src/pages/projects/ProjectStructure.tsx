@@ -10,7 +10,7 @@ export const ProjectStructure = () => {
   const handleSelect = useCallback(
     (node: TreeNodeData) => {
       if (node.type === "project" && projectId) {
-        navigate(`/projects/${projectId}/overview`);
+        navigate(`/projects/${projectId}`);
       } else if (node.type === "wbe" && projectId) {
         navigate(`/projects/${projectId}/wbes/${node.id}`);
       } else if (node.type === "cost_element") {
