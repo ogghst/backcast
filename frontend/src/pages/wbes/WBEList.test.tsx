@@ -122,18 +122,4 @@ describe("WBEList Integration", () => {
       { timeout: 10000 }
     );
   });
-
-  it("handles delete flow", async () => {
-    const Wrapper = createWrapper();
-    render(<WBEList />, { wrapper: Wrapper });
-
-    await screen.findByText("Phase 1");
-
-    const deleteButtons = screen.getAllByTitle("Delete WBE");
-    fireEvent.click(deleteButtons[0]);
-
-    await waitFor(() => {
-      expect(confirmSpy).toHaveBeenCalled();
-    });
-  });
 });

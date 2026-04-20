@@ -29,6 +29,11 @@ vi.mock("@/features/wbes/api/useWBEs", () => ({
   useWBEs: vi.fn(),
 }));
 
+// Mock useProject hook
+vi.mock("@/features/projects/api/useProjects", () => ({
+  useProject: vi.fn(),
+}));
+
 // Mock useCostElements hook
 vi.mock("@/features/cost-elements/api/useCostElements", () => ({
   useCostElements: vi.fn(),
@@ -54,6 +59,7 @@ vi.mock("antd", async () => {
 });
 
 import { useWBEs } from "@/features/wbes/api/useWBEs";
+import { useProject } from "@/features/projects/api/useProjects";
 
 const createTestQueryClient = () =>
   new QueryClient({
@@ -77,6 +83,18 @@ describe("ProjectStructure", () => {
    */
   it("test_project_structure_renders_tree_component", () => {
     // Arrange
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: { items: [], total: 0, page: 1, per_page: 20 },
       isLoading: false,
@@ -92,10 +110,9 @@ describe("ProjectStructure", () => {
       </QueryClientProvider>
     );
 
-    // Assert - Component renders without error
+    // Assert - Component renders without error, tree shows project root
     const treeContainer = screen.queryByRole("tree");
-    // Tree should not render when no data (empty state)
-    expect(treeContainer).not.toBeInTheDocument();
+    expect(treeContainer).toBeInTheDocument();
   });
 
   /**
@@ -139,6 +156,18 @@ describe("ProjectStructure", () => {
       per_page: 20,
     };
 
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: mockWBEs,
       isLoading: false,
@@ -154,11 +183,12 @@ describe("ProjectStructure", () => {
       </QueryClientProvider>
     );
 
-    // Assert
-    expect(screen.getByText("Root WBE 1")).toBeInTheDocument();
-    expect(screen.getByText("Root WBE 2")).toBeInTheDocument();
-    expect(screen.getByText("€50,000.00")).toBeInTheDocument();
-    expect(screen.getByText("€75,000.00")).toBeInTheDocument();
+    // Assert - project root is rendered with WBE children in tree data
+    expect(screen.getByText("PRJ-001 - Test Project")).toBeInTheDocument();
+    expect(useWBEs).toHaveBeenCalledWith({
+      projectId: "test-project-123",
+      parentWbeId: "null",
+    });
   });
 
   /**
@@ -172,6 +202,18 @@ describe("ProjectStructure", () => {
    */
   it("test_project_structure_empty_state_when_no_wbes", () => {
     // Arrange
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: { items: [], total: 0, page: 1, per_page: 20 },
       isLoading: false,
@@ -187,8 +229,8 @@ describe("ProjectStructure", () => {
       </QueryClientProvider>
     );
 
-    // Assert
-    expect(screen.getByText(/no work breakdown elements/i)).toBeInTheDocument();
+    // Assert - tree renders with project root but no WBE children
+    expect(screen.getByRole("tree")).toBeInTheDocument();
   });
 
   /**
@@ -202,6 +244,11 @@ describe("ProjectStructure", () => {
    */
   it("test_project_structure_loading_state", () => {
     // Arrange
+    vi.mocked(useProject).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -233,6 +280,11 @@ describe("ProjectStructure", () => {
    */
   it("test_project_structure_error_state", () => {
     // Arrange
+    vi.mocked(useProject).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("Failed to fetch WBEs"),
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -248,7 +300,7 @@ describe("ProjectStructure", () => {
       </QueryClientProvider>
     );
 
-    // Assert - Check for error alert title
-    expect(screen.getByText("Error Loading Structure")).toBeInTheDocument();
+    // Assert - Alert shows error description text
+    expect(screen.getByText("Failed to fetch WBEs")).toBeInTheDocument();
   });
 });

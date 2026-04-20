@@ -30,12 +30,18 @@ vi.mock("@/features/wbes/api/useWBEs", () => ({
   useWBEs: vi.fn(),
 }));
 
+// Mock useProject hook
+vi.mock("@/features/projects/api/useProjects", () => ({
+  useProject: vi.fn(),
+}));
+
 // Mock useCostElements hook
 vi.mock("@/features/cost-elements/api/useCostElements", () => ({
   useCostElements: vi.fn(),
 }));
 
 import { useWBEs } from "@/features/wbes/api/useWBEs";
+import { useProject } from "@/features/projects/api/useProjects";
 import { useCostElements } from "@/features/cost-elements/api/useCostElements";
 
 const createTestQueryClient = () =>
@@ -90,6 +96,18 @@ describe("ProjectStructure Integration Tests", () => {
       per_page: 20,
     };
 
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: mockRootWBEs,
       isLoading: false,
@@ -152,8 +170,8 @@ describe("ProjectStructure Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    // Assert - Root WBE is rendered
-    expect(screen.getByText("Parent WBE")).toBeInTheDocument();
+    // Assert - Project root is rendered with WBE data loaded
+    expect(screen.getByText("PRJ-001 - Test Project")).toBeInTheDocument();
 
     // Note: The actual lazy loading trigger through Ant Design Tree's loadData
     // requires the Tree component to be rendered and interacted with.
@@ -174,6 +192,18 @@ describe("ProjectStructure Integration Tests", () => {
    */
   it("test_project_structure_respects_timemachine_context", () => {
     // Arrange
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: { items: [], total: 0, page: 1, per_page: 20 },
       isLoading: false,
@@ -228,6 +258,18 @@ describe("ProjectStructure Integration Tests", () => {
       per_page: 20,
     };
 
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: mockRootWBEs,
       isLoading: false,
@@ -250,8 +292,8 @@ describe("ProjectStructure Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    // Assert - Component should still render root WBE despite fetch error
-    expect(screen.getByText("Parent WBE")).toBeInTheDocument();
+    // Assert - Component should still render project root despite fetch error
+    expect(screen.getByText("PRJ-001 - Test Project")).toBeInTheDocument();
 
     // Note: The actual error handling in loadChildren (lines 163-166) would be
     // triggered when the Tree's loadData callback calls fetch and it fails.
@@ -292,6 +334,18 @@ describe("ProjectStructure Integration Tests", () => {
       per_page: 20,
     };
 
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: mockRootWBEs,
       isLoading: false,
@@ -315,8 +369,8 @@ describe("ProjectStructure Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    // Assert - Root WBE is rendered
-    expect(screen.getByText("Parent WBE")).toBeInTheDocument();
+    // Assert - Project root is rendered with WBE data loaded
+    expect(screen.getByText("PRJ-001 - Test Project")).toBeInTheDocument();
 
     // Note: Testing the actual "already loaded" early return requires
     // triggering the loadChildren callback multiple times, which is
@@ -355,6 +409,18 @@ describe("ProjectStructure Integration Tests", () => {
       per_page: 20,
     };
 
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: mockRootWBEs,
       isLoading: false,
@@ -410,8 +476,8 @@ describe("ProjectStructure Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    // Assert - Root WBE is rendered
-    expect(screen.getByText("Parent WBE")).toBeInTheDocument();
+    // Assert - Project root is rendered with WBE data loaded
+    expect(screen.getByText("PRJ-001 - Test Project")).toBeInTheDocument();
 
     // Simulate the lazy loading by directly calling fetch with the exact URLs
     // that would be called when loadChildren is executed
@@ -468,6 +534,18 @@ describe("ProjectStructure Integration Tests", () => {
       per_page: 20,
     };
 
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: mockRootWBEs,
       isLoading: false,
@@ -583,6 +661,18 @@ describe("ProjectStructure Integration Tests", () => {
       per_page: 20,
     };
 
+    vi.mocked(useProject).mockReturnValue({
+      data: {
+        project_id: "test-project-123",
+        name: "Test Project",
+        code: "PRJ-001",
+        budget: "150000.00",
+        start_date: null,
+        end_date: null,
+      },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useProject>);
     vi.mocked(useWBEs).mockReturnValue({
       data: mockRootWBEs,
       isLoading: false,
