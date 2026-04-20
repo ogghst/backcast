@@ -54,7 +54,7 @@ When using the Task tool, you must specify a subagent_type parameter to select w
 4. The agent's outputs should generally be trusted
 5. Clearly tell the agent whether you expect it to create content, perform analysis, or just do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
 6. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
-7. When only the general-purpose agent is provided, you should use it for all tasks. It is great for isolating context and token usage, and completing specific, complex tasks, as it has all the same capabilities as the main agent.
+7. When no specialist subagent fits a task, use the general-purpose agent. It has access to all available tools and is suitable as a fallback for tasks that don't clearly map to a specialist domain.
 
 ## CRITICAL: Launch Multiple Subagents for Cross-Domain Requests
 
@@ -80,88 +80,16 @@ Assistant: Launches BOTH `change_order_manager` AND `forecast_manager` in parall
 - `forecast_manager`: Analyzes budget/schedule impact
 Then synthesizes impact assessment with change order context
 
-### Example usage of the general-purpose agent:
-
-<example_agent_descriptions>
-"general-purpose": use this agent for general purpose tasks, it has access to all tools as the main agent.
-</example_agent_descriptions>
+### Example usage with the general-purpose agent:
 
 <example>
-User: "I want to conduct research on the accomplishments of Lebron James, Michael Jordan, and Kobe Bryant, and then compare them."
-Assistant: *Uses the task tool in parallel to conduct isolated research on each of the three players*
-Assistant: *Synthesizes the results of the three isolated research tasks and responds to the User*
+User: "Search for all elements related to conveyor belt assembly in the project"
+Assistant: Launches `general_purpose` subagent with instructions to use global_search
+- `general_purpose`: Uses global_search to find matching WBEs, cost elements, and other entities
+Returns search results to the user
 <commentary>
-Research is a complex, multi-step task in it of itself.
-The research of each individual player is not dependent on the research of the other players.
-The assistant uses the task tool to break down the complex objective into three isolated tasks.
-Each research task only needs to worry about context and tokens about one player, then returns synthesized information about each player as the Tool Result.
-This means each research task can dive deep and spend tokens and context deeply researching each player, but the final result is synthesized information, and saves us tokens in the long run when comparing the players to each other.
+Search is a cross-cutting concern that doesn't fit a single specialist. The general-purpose agent handles it.
 </commentary>
-</example>
-
-<example>
-User: "Analyze a single large code repository for security vulnerabilities and generate a report."
-Assistant: *Launches a single `task` subagent for the repository analysis*
-Assistant: *Receives report and integrates results into final summary*
-<commentary>
-Subagent is used to isolate a large, context-heavy task, even though there is only one. This prevents the main thread from being overloaded with details.
-If the user then asks followup questions, we have a concise report to reference instead of the entire history of analysis and tool calls, which is good and saves us time and money.
-</commentary>
-</example>
-
-<example>
-User: "I want to order a pizza from Dominos, order a burger from McDonald's, and order a salad from Subway."
-Assistant: *Calls tools directly in parallel to order a pizza from Dominos, a burger from McDonald's, and a salad from Subway*
-<commentary>
-The assistant did not use the task tool because the objective is super simple and clear and only requires a few trivial tool calls.
-It is better to just complete the task directly and NOT use the `task`tool.
-</commentary>
-</example>
-
-### Example usage with custom agents:
-
-<example_agent_descriptions>
-"content-reviewer": use this agent after you are done creating significant content or documents
-"greeting-responder": use this agent when to respond to user greetings with a friendly joke
-"research-analyst": use this agent to conduct thorough research on complex topics
-</example_agent_description>
-
-<example>
-user: "Please write a function that checks if a number is prime"
-assistant: Sure let me write a function that checks if a number is prime
-assistant: First let me use the Write tool to write a function that checks if a number is prime
-assistant: I'm going to use the Write tool to write the following code:
-<code>
-function isPrime(n) {{
-  if (n <= 1) return false
-  for (let i = 2; i * i <= n; i++) {{
-    if (n % i === 0) return false
-  }}
-  return true
-}}
-</code>
-<commentary>
-Since significant content was created and the task was completed, now use the content-reviewer agent to review the work
-</commentary>
-assistant: Now let me use the content-reviewer agent to review the code
-assistant: Uses the Task tool to launch with the content-reviewer agent
-</example>
-
-<example>
-user: "Can you help me research the environmental impact of different renewable energy sources and create a comprehensive report?"
-<commentary>
-This is a complex research task that would benefit from using the research-analyst agent to conduct thorough analysis
-</commentary>
-assistant: I'll help you research the environmental impact of renewable energy sources. Let me use the research-analyst agent to conduct comprehensive research on this topic.
-assistant: Uses the Task tool to launch with the research-analyst agent, providing detailed instructions about what research to conduct and what format the report should take
-</example>
-
-<example>
-user: "Hello"
-<commentary>
-Since the user is greeting, use the greeting-responder agent to respond with a friendly joke
-</commentary>
-assistant: "I'm going to use the Task tool to launch with the greeting-responder agent"
 </example>"""  # noqa: E501
 
 TASK_SYSTEM_PROMPT: str = """## `task` (subagent spawner)
@@ -169,54 +97,23 @@ TASK_SYSTEM_PROMPT: str = """## `task` (subagent spawner)
 You have access to a `task` tool to launch short-lived subagents that handle isolated tasks. These agents are ephemeral -- they live only for the duration of the task and return a single result.
 
 When to use the task tool:
-- When a task is complex and multi-step, and can be fully delegated in isolation
-- When a task is independent of other tasks and can run in parallel
-- When a task requires focused reasoning or heavy token/context usage that would bloat the orchestrator thread
-- When sandboxing improves reliability (e.g. code execution, structured searches, data formatting)
-- When you only care about the output of the subagent, and not the intermediate steps (ex. performing a lot of research and then returned a synthesized report, performing a series of computations or lookups to achieve a concise, relevant answer.)
-
-## CRITICAL: When to Call MULTIPLE Subagents
-
-When a user request spans multiple domains or data types, you MUST delegate to ALL relevant subagents in parallel. Common scenarios:
-
-1. **WBE + Cost Elements**: If the user asks for WBE structure AND cost elements/financial data:
-   - Call `project_manager` for WBE hierarchy, structure, and cost element details
-   - Present WBE tree with integrated cost breakdown
-
-2. **Project + Forecasts**: If the user asks for project details AND forecast data:
-   - Call `project_manager` for project metadata
-   - Call `forecast_manager` for forecast projections and trends
-   - Combine project context with forecast analysis
-
-3. **WBE + EVM Metrics**: If the user asks for WBEs AND performance metrics (CPI, SPI, etc.):
-   - Call `project_manager` for WBE structure
-   - Call `evm_analyst` for EVM calculations and performance analysis
-   - Present WBE hierarchy with EVM metrics integrated
-
-4. **Change Order + Impact**: If the user asks for change orders AND their impact:
-   - Call `change_order_manager` for change order details
-   - Call `forecast_manager` for budget/schedule impact analysis
-   - Synthesize change order information with impact assessment
-
-**Rule of thumb**: Each subagent specializes in a specific domain. If the user's request spans multiple domains, delegate to ALL relevant subagents in parallel, then synthesize their results.
+- Complex, multi-step tasks that can be fully delegated in isolation
+- Tasks independent of other tasks that can run in parallel
+- Tasks requiring focused reasoning or heavy token/context usage
+- Tasks where you only care about the final output, not intermediate steps
 
 Subagent lifecycle:
-1. **Spawn** -> Provide clear role, instructions, and expected output (for multiple subagents, spawn them in parallel)
-2. **Run** -> The subagent completes the task autonomously (all subagents run concurrently)
-3. **Return** -> The subagent provides a single structured result
-4. **Reconcile** -> Incorporate or synthesize the result into the main thread (combine results from multiple subagents into a unified response)
+1. **Spawn** -> Provide clear instructions and expected output (spawn multiple in parallel when possible)
+2. **Run** -> Subagent completes the task autonomously (all run concurrently)
+3. **Return** -> Subagent provides a single structured result
+4. **Reconcile** -> Synthesize results into the main thread
 
 When NOT to use the task tool:
-- If you need to see the intermediate reasoning or steps after the subagent has completed (the task tool hides them)
-- If the task is trivial (a few tool calls or simple lookup)
-- If delegating does not reduce token usage, complexity, or context switching
-- If splitting would add latency without benefit
+- You need to see intermediate reasoning or steps after completion
+- The task is trivial (a few tool calls or simple lookup)
+- Delegating does not reduce token usage, complexity, or context switching
 
-## Important Task Tool Usage Notes to Remember
-- Whenever possible, parallelize the work that you do. This is true for both tool_calls, and for tasks. Whenever you have independent steps to complete - make tool_calls, or kick off tasks (subagents) in parallel to accomplish them faster. This saves time for the user, which is incredibly important.
-- Remember to use the `task` tool to silo independent tasks within a multi-part objective.
-- You should use the `task` tool whenever you have a complex task that will take multiple steps, and is independent from other tasks that the agent needs to complete. These agents are highly competent and efficient.
-- **Cross-domain requests**: When a user asks for information that spans multiple subagent domains, launch ALL relevant subagents in parallel, then synthesize their results into a cohesive response."""  # noqa: E501
+**Key rules**: Parallelize independent work. Use the task tool for complex, multi-step tasks that benefit from isolated context. Launch ALL relevant subagents in parallel for cross-domain requests (see tool description for examples)."""  # noqa: E501
 
 
 def _summarize_structured_output(model: BaseModel) -> str:

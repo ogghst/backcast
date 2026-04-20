@@ -1,19 +1,11 @@
-import { Button, Space, Tag, theme } from "antd";
-import {
-  EditOutlined,
-  DeleteOutlined,
-  RightOutlined,
-  DollarOutlined,
-} from "@ant-design/icons";
+import { Tag, theme } from "antd";
+import { DollarOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import type { WBERead } from "@/api/generated";
-import { Can } from "@/components/auth/Can";
 import { EntityCard } from "@/components/common/EntityCard";
 
 interface WBECardProps {
   wbe: WBERead;
-  onEdit: (wbe: WBERead) => void;
-  onDelete: (wbe: WBERead) => void;
-  onOpen: (wbe: WBERead) => void;
 }
 
 const formatCurrency = (value: string | number | null | undefined) => {
@@ -26,15 +18,18 @@ const formatCurrency = (value: string | number | null | undefined) => {
   }).format(num);
 };
 
-export const WBECard = ({ wbe, onEdit, onDelete, onOpen }: WBECardProps) => {
+export const WBECard = ({ wbe }: WBECardProps) => {
   const { token } = theme.useToken();
+  const navigate = useNavigate();
 
   return (
     <EntityCard
       title={wbe.name}
       subtitle={wbe.code}
       badge={<Tag color="cyan">L{wbe.level}</Tag>}
-      onClick={() => onOpen(wbe)}
+      onClick={() =>
+        navigate(`/projects/${wbe.project_id}/wbes/${wbe.wbe_id}`)
+      }
       metrics={
         <div
           style={{
@@ -53,44 +48,6 @@ export const WBECard = ({ wbe, onEdit, onDelete, onOpen }: WBECardProps) => {
         wbe.branch && wbe.branch !== "main" ? (
           <Tag style={{ fontSize: token.fontSizeSM }}>{wbe.branch}</Tag>
         ) : undefined
-      }
-      actions={
-        <Space size="small">
-          <Can permission="wbe-update">
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(wbe);
-              }}
-              title="Edit WBE"
-            />
-          </Can>
-          <Can permission="wbe-delete">
-            <Button
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(wbe);
-              }}
-              title="Delete WBE"
-            />
-          </Can>
-          <Button
-            size="small"
-            type="primary"
-            ghost
-            icon={<RightOutlined />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen(wbe);
-            }}
-            title="Open"
-          />
-        </Space>
       }
     />
   );

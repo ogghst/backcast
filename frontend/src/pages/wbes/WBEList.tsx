@@ -1,10 +1,9 @@
-import { App, Button, Select, Tag } from "antd";
+import { Button, Select, Tag } from "antd";
 import {
   NodeIndexOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
 import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
 import { useTableParams } from "@/hooks/useTableParams";
@@ -24,7 +23,6 @@ import {
   useWBEs,
   useCreateWBE,
   useUpdateWBE,
-  useDeleteWBE,
 } from "@/features/wbes/api/useWBEs";
 
 import { WBEFilters } from "@/types/filters";
@@ -41,8 +39,6 @@ interface WBEListProps {
 }
 
 export const WBEList = ({ projectId }: WBEListProps) => {
-  const navigate = useNavigate();
-
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     WBERead,
     WBEFilters
@@ -68,8 +64,6 @@ export const WBEList = ({ projectId }: WBEListProps) => {
     }
   );
 
-  const { modal } = App.useApp();
-
   const { mutateAsync: createWBE } = useCreateWBE({
     onSuccess: () => {
       refetch();
@@ -83,26 +77,6 @@ export const WBEList = ({ projectId }: WBEListProps) => {
       setModalOpen(false);
     },
   });
-
-  const { mutate: deleteWBE } = useDeleteWBE({ onSuccess: () => refetch() });
-
-  const handleDelete = (wbe: WBERead) => {
-    modal.confirm({
-      title: "Are you sure you want to delete this WBE?",
-      content: "This action cannot be undone.",
-      okText: "Yes, Delete",
-      okType: "danger",
-      onOk: () => deleteWBE(wbe.wbe_id),
-    });
-  };
-
-  const handleOpen = (wbe: WBERead) => {
-    if (projectId) {
-      navigate(`/projects/${projectId}/wbes/${wbe.wbe_id}`);
-    } else {
-      navigate(`/projects/${wbe.project_id}/wbes/${wbe.wbe_id}`);
-    }
-  };
 
   const handleGridSortChange = (field: string, order: "ascend" | "descend") => {
     handleTableChange(
@@ -129,12 +103,6 @@ export const WBEList = ({ projectId }: WBEListProps) => {
         renderCard={(wbe) => (
           <WBECard
             wbe={wbe}
-            onEdit={(w) => {
-              setSelectedWBE(w);
-              setModalOpen(true);
-            }}
-            onDelete={handleDelete}
-            onOpen={handleOpen}
           />
         )}
         keyExtractor={(w) => w.wbe_id}

@@ -149,23 +149,29 @@ class DeepAgentOrchestrator:
 
         # Build system prompt
         base_prompt = self.system_prompt or DEFAULT_SYSTEM_PROMPT
-        subagent_prompt_suffix = self._build_system_prompt_suffix()
+
+        # Track compiled subagents (built once, reused for prompt + task tool + logging)
+        compiled_subagents: list[dict[str, Any]] | None = None
 
         if self.enable_subagents:
-            # Build subagent compiled graphs and the task tool
+            # Build subagent compiled graphs — SINGLE compilation
             subagent_configs = (
                 subagents if subagents is not None else get_all_subagents()
             )
-            subagent_dicts = self._build_subagent_dicts(
+            compiled_subagents = self._build_subagent_dicts(
                 subagent_configs,
                 all_tools,
                 allowed_tools=allowed_tools,
             )
 
-            if subagent_dicts:
+            if compiled_subagents:
+                # Build prompt suffix from already-compiled dicts (no recompilation)
+                subagent_prompt_suffix = self._build_system_prompt_suffix(
+                    compiled_subagents
+                )
                 # Main agent delegates via task tool, but also gets get_temporal_context
                 # for direct access to temporal context information (LOW risk, read-only)
-                task_tool = build_task_tool(subagent_dicts)
+                task_tool = build_task_tool(compiled_subagents)
                 temporal_context_tool = next(
                     (t for t in all_tools if t.name == "get_temporal_context"), None
                 )
@@ -179,7 +185,7 @@ class DeepAgentOrchestrator:
                 logger.info(
                     f"Creating agent with subagents - "
                     f"main agent delegates via task tool, "
-                    f"{len(subagent_dicts)} subagents compiled"
+                    f"{len(compiled_subagents)} subagents compiled"
                 )
             else:
                 # Fallback: no valid subagents, use direct tools mode
@@ -207,66 +213,48 @@ class DeepAgentOrchestrator:
             context_schema=context_schema,
         )
 
-        # DEBUG: Log what the main agent has access to
+        # DEBUG: Log what the main agent has access to (uses already-compiled dicts)
         if logger.isEnabledFor(20):  # INFO level
             logger.info(
                 f"DEBUG: Main agent created with {len(tools)} tools, "
                 f"enable_subagents={self.enable_subagents}"
             )
-            if self.enable_subagents:
-                subagent_configs = (
-                    subagents if subagents is not None else get_all_subagents()
+            if compiled_subagents:
+                logger.info(
+                    f"DEBUG: Created {len(compiled_subagents)} subagents with tools:"
                 )
-                subagent_dicts_debug = self._build_subagent_dicts(
-                    subagent_configs,
-                    all_tools,
-                    allowed_tools=allowed_tools,
-                )
-                if subagent_dicts_debug:
+                for sa in compiled_subagents:
+                    sa_tools = sa.get("tools", [])
                     logger.info(
-                        f"DEBUG: Created {len(subagent_dicts_debug)} subagents with tools:"
+                        f"DEBUG:   - {sa.get('name')}: {len(sa_tools)} tools"
                     )
-                    for sa in subagent_dicts_debug:
-                        sa_tools = sa.get("tools", [])
-                        logger.info(
-                            f"DEBUG:   - {sa.get('name')}: {len(sa_tools)} tools"
-                        )
 
         logger.info("Agent created successfully")
         return agent
 
-    def _build_system_prompt_suffix(self) -> str:
+    def _build_system_prompt_suffix(
+        self, subagent_dicts: list[dict[str, Any]] | None = None
+    ) -> str:
         """Build system prompt suffix for subagent-only access.
 
         When subagents are enabled, the main agent MUST delegate all
         Backcast operations to subagents. The main agent has NO direct
         access to Backcast tools.
 
+        Args:
+            subagent_dicts: Pre-built subagent dicts (each has a "tools" key).
+                When None or empty, returns an empty string.
+
         Returns:
             System prompt suffix with subagent delegation instructions
         """
-        if not self.enable_subagents:
+        if not subagent_dicts:
             return ""
 
-        # Get subagent info for the prompt
         subagent_info = []
-        for sa in self._build_subagent_dicts(
-            get_all_subagents(),
-            create_project_tools(self.context),
-            allowed_tools=None,  # Get full tool lists for descriptions
-        ):
+        for sa in subagent_dicts:
             sa_name = sa.get("name", "")
-            sa_tools = sa.get("tools", [])
-            # Get tool names safely - tools can be BaseTool, callable, or dict
-            tool_names = []
-            for t in sa_tools:
-                if hasattr(t, "name"):
-                    tool_names.append(t.name)
-                elif isinstance(t, dict):
-                    tool_names.append(t.get("name", str(t)))
-                else:
-                    # Callable - use function name
-                    tool_names.append(t.__name__ if hasattr(t, "__name__") else str(t))
+            tool_names = [t.name for t in sa.get("tools", [])]
             subagent_info.append(
                 f"- {sa_name}: {', '.join(tool_names[:5])}"
                 f"{'...' if len(tool_names) > 5 else ''}"
@@ -310,7 +298,9 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
         Args:
             subagent_configs: List of subagent configuration dictionaries
             available_tools: List of all available tools for filtering
-            allowed_tools: Optional whitelist of tool names from the assistant config
+            allowed_tools: Optional whitelist of tool names from the assistant config.
+                When a subagent config has allowed_tools=None, it receives all available
+                tools (intersected with this whitelist if provided).
 
         Returns:
             List of dicts with 'name', 'description', and 'runnable' keys
@@ -331,21 +321,26 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
             name = config.get("name", "")
             description = config.get("description", "")
             system_prompt = config.get("system_prompt", "")
-            allowed_tool_names = config.get("allowed_tools", [])
+            allowed_tool_names = config.get("allowed_tools")
 
             # Filter tools by subagent's allowed_tool_names AND assistant's whitelist
-            if allowed_tools is not None:
-                filtered_tool_names = [
-                    tool_name
-                    for tool_name in allowed_tool_names
-                    if tool_name in allowed_tools
-                ]
-                logger.debug(
-                    f"Subagent '{name}': filtered {len(filtered_tool_names)} tools "
-                    f"(from {len(allowed_tool_names)} requested) based on assistant whitelist"
-                )
+            if allowed_tool_names is None:
+                # General-purpose agent: gets all available tools
+                # (intersected with assistant whitelist)
+                if allowed_tools is not None:
+                    filtered_tool_names = list(allowed_tools)
+                else:
+                    filtered_tool_names = [t.name for t in available_tools]
             else:
-                filtered_tool_names = allowed_tool_names
+                # Specialist agent: filter by its specific tool list
+                if allowed_tools is not None:
+                    filtered_tool_names = [
+                        tool_name
+                        for tool_name in allowed_tool_names
+                        if tool_name in allowed_tools
+                    ]
+                else:
+                    filtered_tool_names = allowed_tool_names
 
             # Filter tools by the filtered tool names
             subagent_tools = [
@@ -374,6 +369,7 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
                     "description": description,
                     "runnable": runnable,
                     "structured_output_schema": schema,
+                    "tools": subagent_tools,
                 }
             )
             logger.info(f"Compiled subagent '{name}' with {len(subagent_tools)} tools")

@@ -1,11 +1,10 @@
 """Global cross-entity search service.
 
-Searches across all 12 searchable entity types in parallel via asyncio.gather,
-applies tier-appropriate temporal/branch/permission filters, scores by relevance,
-and returns a flat ranked list.
+Searches across all 12 searchable entity types sequentially (SQLAlchemy AsyncSession
+does not support concurrent operations), applies tier-appropriate temporal/branch/
+permission filters, scores by relevance, and returns a flat ranked list.
 """
 
-import asyncio
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
@@ -343,24 +342,21 @@ class GlobalSearchService:
         search_term = f"%{query}%"
         query_lower = query.lower()
 
-        coroutines = []
+        all_results_lists: list[list[SearchResultItem]] = []
         for config in _ENTITY_CONFIG:
-            coroutines.append(
-                self._search_entity(
-                    config=config,
-                    search_term=search_term,
-                    query_lower=query_lower,
-                    accessible_project_ids=accessible_project_ids,
-                    project_id=project_id,
-                    wbe_ids=wbe_ids,
-                    branch=branch,
-                    branch_mode=branch_mode,
-                    as_of=as_of,
-                    limit=limit,
-                )
+            results = await self._search_entity(
+                config=config,
+                search_term=search_term,
+                query_lower=query_lower,
+                accessible_project_ids=accessible_project_ids,
+                project_id=project_id,
+                wbe_ids=wbe_ids,
+                branch=branch,
+                branch_mode=branch_mode,
+                as_of=as_of,
+                limit=limit,
             )
-
-        all_results_lists = await asyncio.gather(*coroutines)
+            all_results_lists.append(results)
 
         # 4. Merge, sort by score, take top limit
         all_results: list[SearchResultItem] = []

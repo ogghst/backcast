@@ -61,6 +61,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await seed_dashboard_templates()
 
+    # Warm AI agent graph cache to eliminate cold-start latency
+    from app.ai.agent_service import warm_graph_cache
+    from app.db.session import async_session_maker
+
+    async with async_session_maker() as session:
+        await warm_graph_cache(session)
+
     # Startup: could check db connection here
     yield
     # Shutdown: clean up resources
