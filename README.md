@@ -16,6 +16,19 @@ Change Control, Earned Value Management, Chat with data. Navigate project timeli
 
 ---
 
+## Live Demo
+
+Try Backcast without installing anything: **[app.backcast.duckdns.org](https://app.backcast.duckdns.org)**
+
+```
+Email:    admin@backcast.org
+Password: adminadmin
+```
+
+The demo instance is pre-loaded with sample projects you can explore.
+
+---
+
 ## Screenshots
 
 <p align="center">
