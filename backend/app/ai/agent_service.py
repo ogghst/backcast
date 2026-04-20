@@ -143,6 +143,39 @@ logger = logging.getLogger(__name__)
 _llm_cache = LLMClientCache()
 _graph_cache = CompiledGraphCache()
 
+# LLM client config cache (avoids 3 DB queries per chat message)
+_llm_config_cache: dict[UUID, tuple[float, dict[str, Any], str, str]] = {}
+_LLM_CONFIG_TTL = 300  # 5 minutes
+
+
+def invalidate_llm_config_cache() -> None:
+    """Clear the LLM client config cache. Called when provider/model configs change."""
+    _llm_config_cache.clear()
+    logger.info("LLM config cache invalidated")
+
+
+# User role cache (avoids DB query per chat message)
+_user_role_cache: dict[UUID, tuple[float, str]] = {}  # user_id -> (expires_at, role)
+_USER_ROLE_TTL = 300  # 5 minutes
+
+
+async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
+    """Get user role with TTL caching."""
+    cached = _user_role_cache.get(user_id)
+    if cached is not None:
+        expires_at, role = cached
+        if time.time() < expires_at:
+            return role
+        del _user_role_cache[user_id]
+
+    from app.services.user import UserService
+
+    user_service = UserService(session)
+    user = await user_service.get_user(user_id)
+    role = user.role if user else "guest"
+    _user_role_cache[user_id] = (time.time() + _USER_ROLE_TTL, role)
+    return role
+
 
 # Constants
 DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast project budget management system.
@@ -163,6 +196,85 @@ When using tools:
 - For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
 - Use search to find projects by code or name
 """
+
+
+async def warm_graph_cache(db_session: AsyncSession) -> None:
+    """Pre-compile default agent graph on startup to eliminate cold-start.
+
+    Queries the first active ``AIAssistantConfig``, builds the LLM client,
+    compiles the graph via :class:`DeepAgentOrchestrator`, and stores the
+    result in the module-level ``_graph_cache`` so the first user request
+    after a server restart hits a warm cache.
+
+    Wrapped in try/except so a warming failure never prevents startup.
+
+    Args:
+        db_session: Async database session for querying assistant config.
+    """
+    try:
+        # Find the first active assistant config
+        result = await db_session.execute(
+            select(AIAssistantConfig).where(AIAssistantConfig.is_active == True).limit(1)  # noqa: E712
+        )
+        assistant_config = result.scalar_one_or_none()
+        if not assistant_config:
+            logger.info("No active assistant config found, skipping graph warming")
+            return
+
+        # Build cache key components
+        model_id = UUID(str(assistant_config.model_id))
+
+        # Get LLM config (will be cached for future use)
+        agent_service = AgentService(db_session)
+        client_config, model_name, provider_type = await agent_service._get_llm_client_config(model_id)
+
+        # Create LLM
+        llm = await agent_service._create_langchain_llm(
+            client_config, model_name, assistant_config.temperature, assistant_config.max_tokens
+        )
+
+        # Create tool context (minimal, for graph structure -- real context set per-request)
+        tool_context = ToolContext(
+            db_session, "system", user_role="admin", execution_mode=ExecutionMode.STANDARD
+        )
+
+        # Compile and cache the graph
+        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        allowed_tools = assistant_config.allowed_tools
+
+        orchestrator = DeepAgentOrchestrator(
+            model=llm,
+            context=tool_context,
+            system_prompt=system_prompt,
+            enable_subagents=True,
+        )
+
+        graph = orchestrator.create_agent(
+            allowed_tools=allowed_tools,
+            checkpointer=shared_checkpointer,
+            context_schema=BackcastRuntimeContext,
+        )
+
+        # Build cache key and store
+        tools_frozen = frozenset(allowed_tools) if allowed_tools else frozenset(["all"])
+        cache_key = GraphCacheKey(
+            model_name=model_name,
+            allowed_tools=tools_frozen,
+            execution_mode=ExecutionMode.STANDARD.value,
+            system_prompt_hash=str(hash(system_prompt)),
+        )
+        _graph_cache.put(cache_key, graph)
+
+        logger.info(
+            "[GRAPH_WARMING] Warmed default graph cache for model=%s, tools=%s",
+            model_name,
+            len(allowed_tools) if allowed_tools else "all",
+        )
+    except Exception as e:
+        logger.warning(
+            "[GRAPH_WARMING] Failed to warm graph cache: %s. Will compile on first request.",
+            e,
+        )
 
 
 class AgentService:
@@ -204,7 +316,8 @@ class AgentService:
 
         Context: Internal helper to resolve the configuration for LangChain's ChatOpenAI.
         Returns configuration dict instead of a client to allow LangChain to create
-        its own properly initialized client.
+        its own properly initialized client. Results are cached by model_id with a
+        5-minute TTL to avoid repeated DB queries for stable configuration.
 
         Args:
             model_id: UUID of the AI model to instantiate
@@ -215,6 +328,17 @@ class AgentService:
         Raises:
             ValueError: If the model or its associated provider cannot be found
         """
+        # Check cache first
+        cached = _llm_config_cache.get(model_id)
+        if cached is not None:
+            expires_at, client_config, model_name, provider_type = cached
+            if time.time() < expires_at:
+                logger.debug("LLM config cache hit for model %s", model_id)
+                return client_config, model_name, provider_type
+            else:
+                del _llm_config_cache[model_id]
+
+        # Cache miss — query DB
         config_service = AIConfigService(self.session)
         model = await config_service.get_model(model_id)
         if not model:
@@ -227,7 +351,19 @@ class AgentService:
 
         # Extract configuration for LangChain
         client_config = await _extract_client_config(provider, config_service)
-        return client_config, str(model.model_id), provider.provider_type
+        model_name = str(model.model_id)
+        provider_type = provider.provider_type
+
+        # Store in cache
+        _llm_config_cache[model_id] = (
+            time.time() + _LLM_CONFIG_TTL,
+            client_config,
+            model_name,
+            provider_type,
+        )
+        logger.debug("LLM config cache miss for model %s, cached", model_id)
+
+        return client_config, model_name, provider_type
 
     async def _create_langchain_llm(
         self,
@@ -530,14 +666,8 @@ class AgentService:
             assistant_config.max_tokens,
         )
 
-        # Create tools
-        # Fetch user to get their role for RBAC
-        # Use UserService to properly handle temporal versioning
-        from app.services.user import UserService
-
-        user_service = UserService(self.session)
-        user = await user_service.get_user(user_id)
-        user_role = user.role if user else "guest"
+        # Create tools with RBAC
+        user_role = await _get_user_role(self.session, user_id)
 
         tool_context = ToolContext(self.session, str(user_id), user_role=user_role)
         available_tools = create_project_tools(tool_context)
@@ -711,11 +841,7 @@ class AgentService:
         )
 
         # Create tools with RBAC
-        from app.services.user import UserService
-
-        user_service = UserService(self.session)
-        user = await user_service.get_user(user_id)
-        user_role = user.role if user else "guest"
+        user_role = await _get_user_role(self.session, user_id)
 
         tool_context = ToolContext(
             self.session,
@@ -828,6 +954,15 @@ class AgentService:
                     invocation_id=invocation_id,
                 ).model_dump(mode="json"),
             )
+
+        # Background task to flush tokens periodically for real-time streaming
+        async def _periodic_flush() -> None:
+            while True:
+                await asyncio.sleep(0.1)  # 100ms interval
+                for inv_id in list(_token_accumulator.keys()):
+                    _flush_accumulated_tokens(inv_id)
+
+        _flush_task = asyncio.create_task(_periodic_flush())
 
         try:
             main_invocation_id = str(uuid.uuid4())
@@ -1178,6 +1313,7 @@ class AgentService:
                 )
             )
         finally:
+            _flush_task.cancel()
             # Flush any remaining tokens (covers error path)
             for inv_id in list(_token_accumulator.keys()):
                 _flush_accumulated_tokens(inv_id)
