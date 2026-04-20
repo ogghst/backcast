@@ -253,15 +253,7 @@ Explain the impact of forecasts vs. budgets.""",
 GENERAL_PURPOSE_SUBAGENT: dict[str, Any] = {
     "name": "general_purpose",
     "description": "General-purpose agent for tasks that don't fit a specialist. Has access to all tools. Use as fallback when no specialized agent is suitable.",
-    "system_prompt": """You are a general-purpose assistant for the Backcast project budget management system.
-
-You handle tasks that don't clearly fit a specialist domain, including:
-- Global search across all entity types
-- Cross-domain queries that span multiple areas
-- General information retrieval and analysis
-- Any task not covered by specialized subagents
-
-Use the tools available to you to accomplish the task. Provide clear, concise results.""",
+    "system_prompt": "You are a fallback assistant for the Backcast project budget management system, invoked when no specialist subagent matches the user's request. Use any available tools to complete the task. Be concise.",
     "allowed_tools": None,  # None means "all available tools"
     "structured_output_schema": None,
 }
