@@ -1,11 +1,10 @@
-import { App, Button, Select } from "antd";
+import { Button, Select } from "antd";
 import {
   PlusOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect, useMemo } from "react";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
 import {
-  CostElementsService,
   WbEsService,
   CostElementTypesService,
 } from "@/api/generated";
@@ -21,15 +20,12 @@ import {
   useCostElements,
   useCreateCostElement,
   useUpdateCostElement,
-  useDeleteCostElement,
   CreateWithBranch,
 } from "@/features/cost-elements/api/useCostElements";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
 import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
 import { useTableParams } from "@/hooks/useTableParams";
-import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
-import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Extended types for Branch support
 // type CreateWithBranch = CostElementCreate & { branch?: string };
@@ -98,7 +94,6 @@ export const CostElementManagement = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedElement, setSelectedElement] =
     useState<CostElementRead | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Lookup data
   const [wbes, setWbes] = useState<WBERead[]>([]);
@@ -130,16 +125,6 @@ export const CostElementManagement = ({
     return m;
   }, [types]);
 
-  // History hook
-  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
-    {
-      resource: "cost_elements",
-      entityId: selectedElement?.cost_element_id,
-      fetchFn: (id) => CostElementsService.getCostElementHistory(id, branch),
-      enabled: historyOpen,
-    },
-  );
-
   const { mutateAsync: createCostElement } = useCreateCostElement({
     onSuccess: () => {
       refetch();
@@ -153,22 +138,6 @@ export const CostElementManagement = ({
       setModalOpen(false);
     },
   });
-
-  const { mutate: deleteCostElement } = useDeleteCostElement({
-    onSuccess: () => refetch(),
-  });
-
-  const { modal } = App.useApp();
-
-  const handleDelete = (id: string) => {
-    modal.confirm({
-      title: "Are you sure you want to delete this Cost Element?",
-      content: `This will delete it from branch '${branch}'.`,
-      okText: "Yes, Delete",
-      okType: "danger",
-      onOk: () => deleteCostElement(`${id}:::${branch}`),
-    });
-  };
 
   const handleGridSortChange = (field: string, order: "ascend" | "descend") => {
     handleTableChange(
@@ -248,15 +217,6 @@ export const CostElementManagement = ({
           <CostElementCard
             costElement={ce}
             typeNames={typeMap}
-            onEdit={(el) => {
-              setSelectedElement(el);
-              setModalOpen(true);
-            }}
-            onDelete={handleDelete}
-            onViewHistory={(el) => {
-              setSelectedElement(el);
-              setHistoryOpen(true);
-            }}
           />
         )}
         keyExtractor={(ce) => ce.cost_element_id}
@@ -313,36 +273,6 @@ export const CostElementManagement = ({
         currentBranch={branch}
         wbeId={wbeId}
         wbeName={wbeName || selectedElement?.wbe_name || undefined}
-      />
-
-      <VersionHistoryDrawer
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        versions={(historyVersions || []).map((version, idx, arr) => {
-          type HistoryItem = {
-            valid_from?: string;
-            valid_time?: string | { lower: string };
-            transaction_time?: string | { lower: string };
-            created_by_name?: string;
-          };
-          const v = version as unknown as HistoryItem;
-
-          return {
-            id: `v${arr.length - idx}`,
-            valid_from:
-              v.valid_from ||
-              (typeof v.valid_time === "object" ? v.valid_time?.lower : v.valid_time) ||
-              "",
-            transaction_time:
-              (typeof v.transaction_time === "object"
-                ? v.transaction_time?.lower
-                : v.transaction_time) || "",
-            valid_to: null,
-            changed_by: v.created_by_name || "System",
-          };
-        })}
-        entityName={`Cost Element: ${selectedElement?.name || ""}`}
-        isLoading={historyLoading}
       />
     </div>
   );
