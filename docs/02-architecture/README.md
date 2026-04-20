@@ -15,6 +15,7 @@ Quick reference for finding architecture documents. Start here when working on t
 | **Implement API endpoints** | [`cross-cutting/api-conventions.md`](cross-cutting/api-conventions.md) - REST patterns, RBAC |
 | **Write database queries** | [`cross-cutting/database-strategy.md`](cross-cutting/database-strategy.md) - PostgreSQL, bitemporal |
 | **Handle authentication** | [`cross-cutting/security-practices.md`](cross-cutting/security-practices.md) - JWT, RBAC |
+| **Configure Telegram alerts** | [`cross-cutting/telegram-notifications.md`](cross-cutting/telegram-notifications.md) - Admin event notifications |
 | **Write tests** | [`testing/test-strategy-guide.md`](testing/test-strategy-guide.md) - Testing patterns |
 | **Run tests** | [`testing/test-execution-runbook.md`](testing/test-execution-runbook.md) - How to execute tests |
 | **Build EVM features** | [`evm-calculation-guide.md`](evm-calculation-guide.md) - Earned Value Management |
@@ -96,6 +97,7 @@ Quick reference for finding architecture documents. Start here when working on t
 │   ├── automated-filter-types-migration.md # Filter types migration
 │   ├── database-strategy.md           # PostgreSQL, migrations
 │   ├── security-practices.md          # Auth, RBAC
+│   ├── telegram-notifications.md      # Telegram admin alerts
 │   └── temporal-query-reference.md    # Bitemporal query patterns
 │
 ├── testing/                     # Testing documentation

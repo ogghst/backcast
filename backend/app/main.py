@@ -68,9 +68,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async with async_session_maker() as session:
         await warm_graph_cache(session)
 
+    # Notify admins of system startup
+    from app.core.notifications import notifier
+    from app.core.notifications._types import NotificationEvent, NotificationPayload
+
+    await notifier.send(
+        NotificationPayload(
+            event=NotificationEvent.SYSTEM_STARTUP,
+            message="Backcast server started successfully.",
+        )
+    )
+
     # Startup: could check db connection here
     yield
+
     # Shutdown: clean up resources
+    await notifier.shutdown()
 
 
 async def _cleanup_orphaned_executions() -> None:
@@ -197,6 +210,33 @@ async def validation_exception_handler(
             "detail": "Validation error",
             "errors": formatted_errors,
         },
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    """Catch-all for unhandled exceptions."""
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+
+    from app.core.notifications import notifier
+    from app.core.notifications._types import NotificationEvent, NotificationPayload
+
+    notifier.send_fire_and_forget(
+        NotificationPayload(
+            event=NotificationEvent.UNHANDLED_EXCEPTION,
+            message=f"Unhandled {type(exc).__name__}: {str(exc)[:200]}",
+            details={
+                "path": str(request.url.path),
+                "method": request.method,
+            },
+        )
+    )
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
     )
 
 
