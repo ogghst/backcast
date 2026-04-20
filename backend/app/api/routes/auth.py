@@ -85,6 +85,19 @@ async def login(
 
     # Create both access and refresh tokens
     token_response = await auth_service.authenticate(user)
+
+    # Notify admins of login
+    from app.core.notifications import notifier
+    from app.core.notifications._types import NotificationEvent, NotificationPayload
+
+    notifier.send_fire_and_forget(
+        NotificationPayload(
+            event=NotificationEvent.USER_LOGIN,
+            message=f"User logged in: {user.email}",
+            details={"name": user.full_name, "role": user.role},
+        )
+    )
+
     return token_response
 
 

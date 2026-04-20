@@ -48,5 +48,10 @@ class Settings(BaseSettings):
     OTEL_ENABLED: bool = False
     OTLP_ENDPOINT: str = "http://localhost:6006/v1/traces"
 
+    # Telegram Notifications
+    TELEGRAM_ENABLED: bool = False
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+
 
 settings = Settings()
