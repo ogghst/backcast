@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
-import { Card, Tag, Typography, theme, Row, Col, Progress, Flex } from "antd";
+import { Card, Grid, Tag, Typography, theme, Row, Col, Progress, Flex } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { getProjectStatusColor } from "@/lib/status";
-import { formatDate, formatCurrency } from "@/utils/formatters";
+import { formatDate, formatCompactCurrency } from "@/utils/formatters";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 
 const { Text, Title } = Typography;
 
@@ -13,12 +14,6 @@ interface ProjectHeaderCardProps {
   actualCosts?: string | number | null;
 }
 
-/**
- * ProjectHeaderCard - Compact card displaying key project information.
- *
- * Shows project code/name, status, and progress rings for time and budget
- * utilization. Optional extraContent slot renders below the progress row.
- */
 export const ProjectHeaderCard = ({
   project,
   loading,
@@ -26,19 +21,22 @@ export const ProjectHeaderCard = ({
   actualCosts,
 }: ProjectHeaderCardProps) => {
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const { asOf } = useTimeMachineParams();
 
   // control_date is returned by the API but not yet in the generated type
   const controlDate = (project as Record<string, unknown>)
     .control_date as string | null | undefined;
 
-  // Capture current time via useState to satisfy React purity rules.
-  // The initializer runs once on mount; the value stays stable across
-  // re-renders unless the component unmounts and remounts.
   const [nowTime] = useState(() => Date.now());
 
-  const referenceTime = controlDate
-    ? new Date(controlDate).getTime()
-    : nowTime;
+  // Priority: TimeMachine asOf > project control_date > now
+  const referenceTime = asOf
+    ? new Date(asOf).getTime()
+    : controlDate
+      ? new Date(controlDate).getTime()
+      : nowTime;
 
   const timePercent = useMemo(() => {
     if (!project.start_date || !project.end_date) return 0;
@@ -54,7 +52,6 @@ export const ProjectHeaderCard = ({
   const costActual = Number(actualCosts) || 0;
   const costRevenue = Number(project.contract_value) || 0;
 
-  // Inner ring: actual costs vs budget
   const costsPercent = costBudget > 0
     ? Math.min(Math.round((costActual / costBudget) * 100), 100) : 0;
   const costsColor =
@@ -62,12 +59,14 @@ export const ProjectHeaderCard = ({
     : costsPercent > 85 ? token.colorWarning
     : token.colorPrimary;
 
-  // Outer ring: actual costs vs revenue (only when revenue is present)
   const revenueClamped = costRevenue > 0
     ? Math.min(Math.round((costActual / costRevenue) * 100), 100) : 0;
   const revenueColor =
     costRevenue > 0 && costActual <= costRevenue
       ? token.colorSuccess : token.colorError;
+
+  const ringSize = isMobile ? 120 : 160;
+  const innerRingSize = isMobile ? 96 : 128;
 
   return (
     <Card
@@ -79,21 +78,23 @@ export const ProjectHeaderCard = ({
       }}
       styles={{
         body: {
-          padding: token.paddingXL,
+          padding: isMobile ? token.paddingMD : token.paddingXL,
         },
       }}
     >
-      {/* Title row: CODE -- Name left, Status tag right */}
+      {/* Title row */}
       <Flex
         justify="space-between"
-        align="center"
+        align={isMobile ? "flex-start" : "center"}
+        vertical={isMobile}
+        gap={isMobile ? token.marginXS : 0}
         style={{ marginBottom: token.marginMD }}
       >
         <Title
           level={3}
           style={{
             margin: 0,
-            fontSize: token.fontSizeXXL,
+            fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
             fontWeight: token.fontWeightSemiBold,
             color: token.colorText,
           }}
@@ -129,23 +130,24 @@ export const ProjectHeaderCard = ({
         </Typography.Paragraph>
       )}
 
-      {/* Progress rings: Time + Cost */}
+      {/* Progress rings + chart */}
       <Row
         gutter={[token.marginLG, token.marginLG]}
         style={{ marginBottom: token.marginLG }}
+        align="top"
       >
         {/* Time Progress */}
-        <Col xs={24} md={12}>
-          <div style={{ textAlign: "center", padding: token.paddingLG }}>
+        <Col xs={24} sm={12} md={6}>
+          <div style={{ textAlign: "center", padding: token.paddingSM }}>
             <Progress
               type="circle"
               percent={timePercent}
-              size={140}
+              size={isMobile ? 120 : 140}
               format={(percent) => (
                 <div>
                   <div
                     style={{
-                      fontSize: token.fontSizeXL,
+                      fontSize: isMobile ? token.fontSizeLG : token.fontSizeXL,
                       fontWeight: token.fontWeightSemiBold,
                     }}
                   >
@@ -207,23 +209,21 @@ export const ProjectHeaderCard = ({
         </Col>
 
         {/* Cost Progress: dual concentric rings */}
-        <Col xs={24} md={12}>
-          <div style={{ textAlign: "center", padding: token.paddingLG }}>
-            <div style={{ position: "relative", width: 160, height: 160, margin: "0 auto" }}>
-              {/* Outer ring: Costs vs Revenue (only when revenue is present) */}
+        <Col xs={24} sm={12} md={6}>
+          <div style={{ textAlign: "center", padding: token.paddingSM }}>
+            <div style={{ position: "relative", width: ringSize, height: ringSize, margin: "0 auto" }}>
               {costRevenue > 0 && (
                 <div style={{ position: "absolute", inset: 0 }}>
                   <Progress
                     type="circle"
                     percent={revenueClamped}
-                    size={160}
+                    size={ringSize}
                     strokeWidth={6}
                     strokeColor={revenueColor}
                     showInfo={false}
                   />
                 </div>
               )}
-              {/* Inner ring: Actual costs vs Budget */}
               <div style={{
                 position: costRevenue > 0 ? "absolute" : "relative",
                 top: costRevenue > 0 ? 16 : undefined,
@@ -233,7 +233,7 @@ export const ProjectHeaderCard = ({
                 <Progress
                   type="circle"
                   percent={costsPercent}
-                  size={costRevenue > 0 ? 128 : 160}
+                  size={costRevenue > 0 ? innerRingSize : ringSize}
                   strokeWidth={6}
                   strokeColor={costsColor}
                   format={(percent) => (
@@ -249,10 +249,9 @@ export const ProjectHeaderCard = ({
                 />
               </div>
             </div>
-            {/* Legend */}
             <div style={{ marginTop: token.marginMD }}>
               <div>
-                <Text strong>{formatCurrency(costBudget)}</Text>
+                <Text strong>{formatCompactCurrency(costBudget)}</Text>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
                   budget
                 </Text>
@@ -267,7 +266,7 @@ export const ProjectHeaderCard = ({
                   marginRight: token.marginXS,
                 }} />
                 <Text style={{ fontSize: token.fontSizeSM }}>
-                  {formatCurrency(costActual)} costs
+                  {formatCompactCurrency(costActual)} costs
                 </Text>
                 {costBudget > 0 && (
                   <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
@@ -286,24 +285,23 @@ export const ProjectHeaderCard = ({
                     marginRight: token.marginXS,
                   }} />
                   <Text style={{ fontSize: token.fontSizeSM }}>
-                    {formatCurrency(costRevenue)} revenue
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
-                    ({Math.round((costActual / costRevenue) * 100)}% covered)
+                    {formatCompactCurrency(costRevenue)} revenue
                   </Text>
                 </div>
               )}
             </div>
           </div>
         </Col>
+
+        {/* PV vs EV Trend chart */}
+        {extraContent && (
+          <Col xs={24} sm={24} md={12}>
+            {extraContent}
+          </Col>
+        )}
       </Row>
 
-      {/* Extra content slot (e.g. cost history chart) */}
-      {extraContent && (
-        <div style={{ marginTop: token.paddingLG }}>{extraContent}</div>
-      )}
-
-      {/* Project ID footer - important identifier for users */}
+      {/* Project ID footer */}
       <div
         style={{
           marginTop: token.marginLG,

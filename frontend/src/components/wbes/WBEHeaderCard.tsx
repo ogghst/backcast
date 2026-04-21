@@ -1,7 +1,7 @@
 import React from "react";
-import { Card, Tag, Typography, theme, Progress, Flex } from "antd";
+import { Card, Grid, Tag, Typography, theme, Progress, Flex, Row, Col } from "antd";
 import { WBERead } from "@/api/generated";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCompactCurrency } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -12,12 +12,6 @@ interface WBEHeaderCardProps {
   extraContent?: React.ReactNode;
 }
 
-/**
- * WBEHeaderCard - Compact card displaying key WBE information.
- *
- * Shows WBE code/name, branch tag, description, cost ring visualization,
- * and optional extra content slot. Matches the ProjectHeaderCard layout pattern.
- */
 export const WBEHeaderCard = ({
   wbe,
   loading,
@@ -25,6 +19,8 @@ export const WBEHeaderCard = ({
   extraContent,
 }: WBEHeaderCardProps) => {
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   const getBranchColor = (branch: string) => {
     if (branch === "main") return "blue";
@@ -32,7 +28,7 @@ export const WBEHeaderCard = ({
     return "default";
   };
 
-  // Cost ring computations (same pattern as ProjectHeaderCard)
+  // Cost ring computations
   const costBudget = Number(wbe.budget_allocation) || 0;
   const costActual = Number(actualCosts) || 0;
   const costRevenue = Number(wbe.revenue_allocation) || 0;
@@ -50,6 +46,9 @@ export const WBEHeaderCard = ({
     costRevenue > 0 && costActual <= costRevenue
       ? token.colorSuccess : token.colorError;
 
+  const ringSize = isMobile ? 120 : 160;
+  const innerRingSize = isMobile ? 96 : 128;
+
   return (
     <Card
       loading={loading}
@@ -60,21 +59,23 @@ export const WBEHeaderCard = ({
       }}
       styles={{
         body: {
-          padding: token.paddingXL,
+          padding: isMobile ? token.paddingMD : token.paddingXL,
         },
       }}
     >
-      {/* Title row: CODE — Name left, Branch tag right */}
+      {/* Title row */}
       <Flex
         justify="space-between"
-        align="center"
+        align={isMobile ? "flex-start" : "center"}
+        vertical={isMobile}
+        gap={isMobile ? token.marginXS : 0}
         style={{ marginBottom: token.marginMD }}
       >
         <Typography.Title
           level={3}
           style={{
             margin: 0,
-            fontSize: token.fontSizeXXL,
+            fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
             fontWeight: token.fontWeightSemiBold,
             color: token.colorText,
           }}
@@ -110,99 +111,104 @@ export const WBEHeaderCard = ({
         </Typography.Paragraph>
       )}
 
-      {/* Cost Progress: dual concentric rings (reused from ProjectHeaderCard) */}
-      <div style={{ textAlign: "center", padding: token.paddingLG }}>
-        <div style={{ position: "relative", width: 160, height: 160, margin: "0 auto" }}>
-          {/* Outer ring: Costs vs Revenue (only when revenue is present) */}
-          {costRevenue > 0 && (
-            <div style={{ position: "absolute", inset: 0 }}>
-              <Progress
-                type="circle"
-                percent={revenueClamped}
-                size={160}
-                strokeWidth={6}
-                strokeColor={revenueColor}
-                showInfo={false}
-              />
-            </div>
-          )}
-          {/* Inner ring: Actual costs vs Budget */}
-          <div style={{
-            position: costRevenue > 0 ? "absolute" : "relative",
-            top: costRevenue > 0 ? 16 : undefined,
-            left: costRevenue > 0 ? 16 : undefined,
-            margin: costRevenue > 0 ? undefined : "0 auto",
-          }}>
-            <Progress
-              type="circle"
-              percent={costsPercent}
-              size={costRevenue > 0 ? 128 : 160}
-              strokeWidth={6}
-              strokeColor={costsColor}
-              format={(percent) => (
-                <div>
-                  <div style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightSemiBold }}>
-                    {percent}%
-                  </div>
-                  <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
-                    of budget
-                  </div>
+      {/* Cost Progress + chart */}
+      <Row
+        gutter={[token.marginLG, token.marginLG]}
+        style={{ marginBottom: token.marginLG }}
+        align="top"
+      >
+        {/* Cost ring */}
+        <Col xs={24} sm={12} md={6}>
+          <div style={{ textAlign: "center", padding: token.paddingSM }}>
+            <div style={{ position: "relative", width: ringSize, height: ringSize, margin: "0 auto" }}>
+              {costRevenue > 0 && (
+                <div style={{ position: "absolute", inset: 0 }}>
+                  <Progress
+                    type="circle"
+                    percent={revenueClamped}
+                    size={ringSize}
+                    strokeWidth={6}
+                    strokeColor={revenueColor}
+                    showInfo={false}
+                  />
                 </div>
               )}
-            />
-          </div>
-        </div>
-        {/* Legend */}
-        <div style={{ marginTop: token.marginMD }}>
-          <div>
-            <Text strong>{formatCurrency(costBudget)}</Text>
-            <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
-              budget
-            </Text>
-          </div>
-          <div style={{ marginTop: token.marginXS }}>
-            <span style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: costsColor,
-              marginRight: token.marginXS,
-            }} />
-            <Text style={{ fontSize: token.fontSizeSM }}>
-              {formatCurrency(costActual)} costs
-            </Text>
-            {costBudget > 0 && (
-              <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
-                ({Math.round((costActual / costBudget) * 100)}%)
-              </Text>
-            )}
-          </div>
-          {costRevenue > 0 && (
-            <div style={{ marginTop: token.marginXS }}>
-              <span style={{
-                display: "inline-block",
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: revenueColor,
-                marginRight: token.marginXS,
-              }} />
-              <Text style={{ fontSize: token.fontSizeSM }}>
-                {formatCurrency(costRevenue)} revenue
-              </Text>
-              <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
-                ({Math.round((costActual / costRevenue) * 100)}% covered)
-              </Text>
+              <div style={{
+                position: costRevenue > 0 ? "absolute" : "relative",
+                top: costRevenue > 0 ? 16 : undefined,
+                left: costRevenue > 0 ? 16 : undefined,
+                margin: costRevenue > 0 ? undefined : "0 auto",
+              }}>
+                <Progress
+                  type="circle"
+                  percent={costsPercent}
+                  size={costRevenue > 0 ? innerRingSize : ringSize}
+                  strokeWidth={6}
+                  strokeColor={costsColor}
+                  format={(percent) => (
+                    <div>
+                      <div style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightSemiBold }}>
+                        {percent}%
+                      </div>
+                      <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
+                        of budget
+                      </div>
+                    </div>
+                  )}
+                />
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+            <div style={{ marginTop: token.marginMD }}>
+              <div>
+                <Text strong>{formatCompactCurrency(costBudget)}</Text>
+                <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
+                  budget
+                </Text>
+              </div>
+              <div style={{ marginTop: token.marginXS }}>
+                <span style={{
+                  display: "inline-block",
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: costsColor,
+                  marginRight: token.marginXS,
+                }} />
+                <Text style={{ fontSize: token.fontSizeSM }}>
+                  {formatCompactCurrency(costActual)} costs
+                </Text>
+                {costBudget > 0 && (
+                  <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
+                    ({Math.round((costActual / costBudget) * 100)}%)
+                  </Text>
+                )}
+              </div>
+              {costRevenue > 0 && (
+                <div style={{ marginTop: token.marginXS }}>
+                  <span style={{
+                    display: "inline-block",
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: revenueColor,
+                    marginRight: token.marginXS,
+                  }} />
+                  <Text style={{ fontSize: token.fontSizeSM }}>
+                    {formatCompactCurrency(costRevenue)} revenue
+                  </Text>
+                </div>
+              )}
+            </div>
+          </div>
+        </Col>
 
-      {/* Extra content slot (e.g. cost history chart) */}
-      {extraContent && (
-        <div style={{ marginTop: token.paddingLG }}>{extraContent}</div>
-      )}
+        {/* PV vs EV Trend chart */}
+        {extraContent && (
+          <Col xs={24} sm={12} md={18}>
+            {extraContent}
+          </Col>
+        )}
+      </Row>
     </Card>
   );
 };

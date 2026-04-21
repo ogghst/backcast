@@ -155,15 +155,19 @@ export const useBudgetStatus = (costElementId: string) => {
  * @returns TanStack Query result with project budget status (project_budget, total_spend, remaining, percentage)
  */
 export const useProjectBudgetStatus = (projectId: string) => {
+  const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
+  const branch = tmBranch || "main";
+
   return useQuery({
-    queryKey: ["project-budget-status", projectId] as const,
+    queryKey: ["project-budget-status", projectId, { branch, asOf, mode }] as const,
     queryFn: async () => {
-      // Call the new project-budget-status endpoint
       return await __request(OpenAPI, {
         method: "GET",
         url: `/api/v1/cost-registrations/project-budget-status/${projectId}`,
         query: {
-          branch: "main",
+          branch,
+          branch_mode: mode === "merged" ? "merge" : "strict",
+          as_of: asOf || undefined,
         },
         errors: { 404: "Project not found", 422: "Validation Error" },
       });
@@ -173,14 +177,19 @@ export const useProjectBudgetStatus = (projectId: string) => {
 };
 
 export const useWBEBudgetStatus = (wbeId: string) => {
+  const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
+  const branch = tmBranch || "main";
+
   return useQuery({
-    queryKey: ["wbe-budget-status", wbeId] as const,
+    queryKey: ["wbe-budget-status", wbeId, { branch, asOf, mode }] as const,
     queryFn: async () => {
       return await __request(OpenAPI, {
         method: "GET",
         url: `/api/v1/cost-registrations/wbe-budget-status/${wbeId}`,
         query: {
-          branch: "main",
+          branch,
+          branch_mode: mode === "merged" ? "merge" : "strict",
+          as_of: asOf || undefined,
         },
         errors: { 404: "WBE not found", 422: "Validation Error" },
       });

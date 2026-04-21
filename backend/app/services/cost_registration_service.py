@@ -80,7 +80,11 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         super().__init__(CostRegistration, db)
 
     async def get_project_budget_status(
-        self, project_id: UUID, branch: str = "main"
+        self,
+        project_id: UUID,
+        branch: str = "main",
+        as_of: datetime | None = None,
+        branch_mode: str = "merge",
     ) -> ProjectBudgetStatus:
         """Get project-level budget status (aggregated across all cost elements).
 
@@ -91,6 +95,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         Args:
             project_id: The project to get status for
             branch: Branch context for queries (defaults to "main")
+            as_of: Optional timestamp for time-travel query on cost registrations
+            branch_mode: "merge" (fallback to main) or "isolated" (current branch only)
 
         Returns:
             ProjectBudgetStatus with project_budget, total_spend, remaining, percentage
@@ -153,14 +159,20 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
-                func.upper(CostRegistration.valid_time).is_(None),
-                CostRegistration.deleted_at.is_(None),
                 func.upper(CostElement.valid_time).is_(None),
                 CostElement.deleted_at.is_(None),
                 func.upper(WBE.valid_time).is_(None),
                 WBE.deleted_at.is_(None),
             )
         )
+
+        # Apply bitemporal filter to CostRegistration when as_of is provided
+        if as_of is not None:
+            total_spend_stmt = self._apply_bitemporal_filter(total_spend_stmt, as_of)
+        else:
+            total_spend_stmt = total_spend_stmt.where(
+                func.upper(CostRegistration.valid_time).is_(None)
+            ).where(CostRegistration.deleted_at.is_(None))
 
         result = await self.session.execute(total_spend_stmt)
         total_spend = result.scalar_one() or Decimal("0")
@@ -183,7 +195,11 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         )
 
     async def get_wbe_budget_status(
-        self, wbe_id: UUID, branch: str = "main"
+        self,
+        wbe_id: UUID,
+        branch: str = "main",
+        as_of: datetime | None = None,
+        branch_mode: str = "merge",
     ) -> WBEBudgetStatus:
         """Get WBE-level budget status (aggregated across WBE hierarchy).
 
@@ -193,6 +209,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         Args:
             wbe_id: The WBE to get status for
             branch: Branch context (defaults to "main")
+            as_of: Optional timestamp for time-travel query on cost registrations
+            branch_mode: "merge" (fallback to main) or "isolated" (current branch only)
 
         Returns:
             WBEBudgetStatus with budget, total_spend, remaining, percentage
@@ -251,11 +269,15 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                 CostRegistration,
                 CostRegistration.cost_element_id == CostElement.cost_element_id,
             )
-            .where(
-                func.upper(CostRegistration.valid_time).is_(None),
-                CostRegistration.deleted_at.is_(None),
-            )
         )
+
+        # Apply bitemporal filter to CostRegistration when as_of is provided
+        if as_of is not None:
+            spend_stmt = self._apply_bitemporal_filter(spend_stmt, as_of)
+        else:
+            spend_stmt = spend_stmt.where(
+                func.upper(CostRegistration.valid_time).is_(None)
+            ).where(CostRegistration.deleted_at.is_(None))
         spend_result = await self.session.execute(spend_stmt)
         total_spend = Decimal(str(spend_result.scalar_one()))
 

@@ -334,6 +334,15 @@ async def get_budget_status(
 async def get_project_budget_status(
     project_id: UUID,
     branch: str = Query("main", description="Branch context to resolve Project budget"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get budget status as of this timestamp (ISO 8601)",
+    ),
+    branch_mode: str = Query(
+        "merge",
+        pattern="^(merge|isolated)$",
+        description="Branch mode: merge (fallback to main) or isolated (current branch only)",
+    ),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
     """Get project-level budget status (aggregated across all cost elements).
@@ -343,11 +352,11 @@ async def get_project_budget_status(
     budget validation in the cost registration modal.
 
     The total spend is aggregated across all cost registrations in all
-    cost elements belonging to the project.
+    cost elements belonging to the project. Supports time-travel via as_of.
     """
     try:
         budget_status = await service.get_project_budget_status(
-            project_id=project_id, branch=branch
+            project_id=project_id, branch=branch, as_of=as_of, branch_mode=branch_mode
         )
         return {
             "project_id": str(budget_status.project_id),
@@ -371,17 +380,26 @@ async def get_project_budget_status(
 async def get_wbe_budget_status(
     wbe_id: UUID,
     branch: str = Query("main", description="Branch context to resolve WBE budget"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get budget status as of this timestamp (ISO 8601)",
+    ),
+    branch_mode: str = Query(
+        "merge",
+        pattern="^(merge|isolated)$",
+        description="Branch mode: merge (fallback to main) or isolated (current branch only)",
+    ),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
     """Get WBE-level budget status (aggregated across WBE hierarchy).
 
     Returns the WBE budget (sum of cost element budgets in hierarchy),
     total spend across all cost registrations, remaining amount, and
-    percentage used.
+    percentage used. Supports time-travel via as_of.
     """
     try:
         budget_status = await service.get_wbe_budget_status(
-            wbe_id=wbe_id, branch=branch
+            wbe_id=wbe_id, branch=branch, as_of=as_of, branch_mode=branch_mode
         )
         return {
             "wbe_id": str(budget_status.wbe_id),

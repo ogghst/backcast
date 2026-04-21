@@ -7,6 +7,7 @@ import {
   useWBEs,
   useCreateWBE,
 } from "@/features/wbes/api/useWBEs";
+import { useProject } from "@/features/projects/api/useProjects";
 import { useWBEBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
 import { WBECreate, WBERead } from "@/api/generated";
 import { WBEHeaderCard } from "@/components/wbes/WBEHeaderCard";
@@ -35,6 +36,10 @@ export const WBEOverview = () => {
 
   // WBE data (TanStack Query cache hit — layout already fetches)
   const { data: wbe, isLoading: wbeLoading } = useWBE(wbeId!);
+
+  // Project data for control_date
+  const { data: project } = useProject(projectId!);
+  const controlDate = (project as Record<string, unknown>)?.control_date as string | null | undefined;
 
   // WBE budget status (actual costs vs budget)
   const { data: budgetStatus } = useWBEBudgetStatus(wbeId!);
@@ -82,8 +87,8 @@ export const WBEOverview = () => {
               <CostHistoryChart
                 entityType="wbe"
                 entityId={wbeId}
-                budgetAmount={wbe.budget_allocation ? Number(wbe.budget_allocation) : undefined}
                 headless
+                controlDate={controlDate || undefined}
               />
             ) : undefined
           }
