@@ -12,6 +12,7 @@ import { WBEModal } from "@/features/wbes/components/WBEModal";
 import { DeleteWBEModal } from "@/components/hierarchy/DeleteWBEModal";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
+import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbEsService } from "@/api/generated";
 import { PageNavigation } from "@/components/navigation";
@@ -43,17 +44,23 @@ export const WBELayout: React.FC = () => {
     { key: "chat", label: "AI Chat", path: `/projects/${projectId}/wbes/${wbeId}/chat` },
   ];
 
-  // Edit modal state
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedWBE, setSelectedWBE] = useState<WBERead | null>(null);
+  // Modal/drawer state
+  const {
+    editModalOpen,
+    selectedEntity: selectedWBE,
+    deleteModalOpen,
+    historyOpen,
+    openEdit,
+    closeEdit,
+    openDelete,
+    closeDelete,
+    openHistory,
+    closeHistory,
+  } = useEntityDetailActions<WBERead>();
 
-  // Delete modal state
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  // Delete-specific state (WBE uses a dedicated delete modal)
   const [wbeToDelete, setWbeToDelete] = useState<WBERead | null>(null);
   const [isDeletingCurrent, setIsDeletingCurrent] = useState(false);
-
-  // History state
-  const [historyOpen, setHistoryOpen] = useState(false);
   const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
     resource: "wbes",
     entityId: wbeId,
@@ -67,7 +74,7 @@ export const WBELayout: React.FC = () => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.wbes.detail(wbeId!),
       });
-      setModalOpen(false);
+      closeEdit();
     },
   });
 
@@ -81,8 +88,7 @@ export const WBELayout: React.FC = () => {
   // Handlers
   const handleEditCurrent = () => {
     if (wbe) {
-      setSelectedWBE(wbe);
-      setModalOpen(true);
+      openEdit(wbe);
     }
   };
 
@@ -90,7 +96,7 @@ export const WBELayout: React.FC = () => {
     if (wbe) {
       setWbeToDelete(wbe);
       setIsDeletingCurrent(true);
-      setDeleteModalOpen(true);
+      openDelete();
     }
   };
 
@@ -143,7 +149,7 @@ export const WBELayout: React.FC = () => {
           <Can permission="wbe-read">
             <Button
               icon={<HistoryOutlined />}
-              onClick={() => setHistoryOpen(true)}
+              onClick={openHistory}
             >
               {isMobile ? undefined : "History"}
             </Button>
@@ -168,8 +174,8 @@ export const WBELayout: React.FC = () => {
       {/* Edit modal */}
       {selectedWBE && (
         <WBEModal
-          open={modalOpen}
-          onCancel={() => setModalOpen(false)}
+          open={editModalOpen}
+          onCancel={closeEdit}
           onOk={async (values) => {
             await updateWBE({
               id: selectedWBE.wbe_id,
@@ -190,13 +196,13 @@ export const WBELayout: React.FC = () => {
           wbe={wbeToDelete}
           open={deleteModalOpen}
           onCancel={() => {
-            setDeleteModalOpen(false);
+            closeDelete();
             setWbeToDelete(null);
           }}
           onConfirm={() => {
             if (wbeToDelete) {
               deleteWBE(wbeToDelete.wbe_id);
-              setDeleteModalOpen(false);
+              closeDelete();
               setWbeToDelete(null);
 
               if (isDeletingCurrent) {
@@ -216,7 +222,7 @@ export const WBELayout: React.FC = () => {
       {wbe && (
         <VersionHistoryDrawer
           open={historyOpen}
-          onClose={() => setHistoryOpen(false)}
+          onClose={closeHistory}
           entityName={`WBE: ${wbe.code} - ${wbe.name}`}
           isLoading={historyLoading}
           versions={(historyVersions || []).map((version, idx, arr) => {

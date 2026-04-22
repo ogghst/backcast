@@ -324,6 +324,12 @@ export function getBrowserLocale(): string {
   return navigator.language || "en-US";
 }
 
+export function getBranchColor(branch: string): string {
+  if (branch === "main") return "blue";
+  if (branch.startsWith("BR-")) return "orange";
+  return "default";
+}
+
 // ============================================================================
 // Temporal Range Formatters (for entities without backend formatted fields)
 // ============================================================================

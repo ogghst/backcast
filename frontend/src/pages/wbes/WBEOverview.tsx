@@ -17,6 +17,8 @@ import { WBEModal } from "@/features/wbes/components/WBEModal";
 import { CostElementManagement } from "@/pages/financials/CostElementManagement";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 import { Can } from "@/components/auth/Can";
+import { ViewModeToggle } from "@/components/common/ViewModeToggle";
+import { useViewMode } from "@/hooks/useViewMode";
 
 /**
  * WBEOverview - Overview sub-page for WBE detail.
@@ -33,6 +35,7 @@ export const WBEOverview = () => {
   const navigate = useNavigate();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
+  const { viewMode, resolvedMode, cycleViewMode } = useViewMode("wbes", isMobile);
 
   // WBE data (TanStack Query cache hit — layout already fetches)
   const { data: wbe, isLoading: wbeLoading } = useWBE(wbeId!);
@@ -99,17 +102,21 @@ export const WBEOverview = () => {
       <Card
         title="Child Work Breakdown Elements"
         extra={
-          <Can permission="wbe-create">
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateChild}>
-              {isMobile ? undefined : "Add Child WBE"}
-            </Button>
-          </Can>
+          <Space>
+            <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
+            <Can permission="wbe-create">
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateChild}>
+                {isMobile ? undefined : "Add Child WBE"}
+              </Button>
+            </Can>
+          </Space>
         }
       >
         <WBETable
           wbes={childWbes}
           loading={childrenLoading}
           onRowClick={handleRowClick}
+          variant={resolvedMode}
         />
       </Card>
 

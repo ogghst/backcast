@@ -15,8 +15,10 @@ import { useState } from "react";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
 import { DeleteProjectModal } from "@/components/projects/DeleteProjectModal";
 import { Can } from "@/components/auth/Can";
+import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { useViewMode } from "@/hooks/useViewMode";
 import { ProjectsService } from "@/api/generated";
 import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
@@ -34,6 +36,7 @@ export const ProjectOverview = () => {
   const { useBreakpoint } = Grid;
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const { viewMode, resolvedMode, cycleViewMode } = useViewMode("wbes", isMobile);
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -203,21 +206,25 @@ export const ProjectOverview = () => {
             title="Root Work Breakdown Elements"
             style={{ marginBottom: token.marginLG }}
             extra={
-              <Can permission="wbe-create">
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleCreate}
-                >
-                  {isMobile ? undefined : "Add Root WBE"}
-                </Button>
-              </Can>
+              <Space>
+                <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
+                <Can permission="wbe-create">
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={handleCreate}
+                  >
+                    {isMobile ? undefined : "Add Root WBE"}
+                  </Button>
+                </Can>
+              </Space>
             }
           >
             <WBETable
               wbes={wbes || []}
               loading={wbesLoading}
               onRowClick={handleRowClick}
+              variant={resolvedMode}
             />
           </Card>
 

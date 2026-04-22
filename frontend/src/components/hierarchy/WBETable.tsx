@@ -3,6 +3,7 @@ import type { ColumnType } from "antd/es/table";
 import { WBERead } from "@/api/generated";
 import { RightOutlined } from "@ant-design/icons";
 import { EntityCard } from "@/components/common/EntityCard";
+import type { ViewMode } from "@/hooks/useViewMode";
 import { formatCurrency } from "@/utils/formatters";
 import { useMemo } from "react";
 
@@ -20,8 +21,7 @@ interface WBETableProps {
   wbes: WBERead[];
   loading?: boolean;
   onRowClick?: (wbe: WBERead) => void;
-  /** Layout variant: "table" | "card" | "auto" (default: "auto" → card on mobile) */
-  variant?: "table" | "card" | "auto";
+  variant?: ViewMode;
   pagination?: WBETablePagination;
 }
 
@@ -37,10 +37,8 @@ export const WBETable = ({
   const isMobile = !screens.md;
   const isTablet = !!screens.md && !screens.lg;
 
-  // Resolve layout: auto switches to card on mobile
   const useCard = variant === "card" || (variant === "auto" && isMobile);
 
-  // Table columns (desktop)
   const columns: ColumnType<WBERead>[] = useMemo(() => {
     const cols: ColumnType<WBERead>[] = [
       {
@@ -59,7 +57,6 @@ export const WBETable = ({
       },
     ];
 
-    // Hide Budget on mobile, keep on tablet+desktop
     if (!isMobile) {
       cols.push({
         title: "Budget",
@@ -73,7 +70,6 @@ export const WBETable = ({
       });
     }
 
-    // Hide Branch on tablet and mobile
     if (!isMobile && !isTablet) {
       cols.push({
         title: "Branch",
@@ -106,7 +102,6 @@ export const WBETable = ({
     return cols;
   }, [isMobile, isTablet, onRowClick]);
 
-  // Card layout (mobile / forced)
   if (useCard) {
     if (loading) {
       return (
@@ -152,7 +147,6 @@ export const WBETable = ({
     );
   }
 
-  // Table layout (desktop)
   return (
     <Table
       dataSource={wbes}

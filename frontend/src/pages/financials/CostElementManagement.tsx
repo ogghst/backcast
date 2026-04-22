@@ -1,20 +1,14 @@
-import { Button, Select } from "antd";
-import {
-  PlusOutlined,
-} from "@ant-design/icons";
-import { useState, useEffect, useMemo } from "react";
+import { Button, Select, Space, Tag, Grid } from "antd";
+import type { ColumnType } from "antd/es/table";
+import { PlusOutlined, RightOutlined } from "@ant-design/icons";
+import { useState, useMemo, useCallback } from "react";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
-import {
-  WbEsService,
-  CostElementTypesService,
-} from "@/api/generated";
+import { useNavigate } from "react-router-dom";
 import { Can } from "@/components/auth/Can";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import type {
   CostElementRead,
   CostElementCreate,
-  WBERead,
-  CostElementTypeRead,
 } from "@/api/generated";
 import {
   useCostElements,
@@ -22,31 +16,15 @@ import {
   useUpdateCostElement,
   CreateWithBranch,
 } from "@/features/cost-elements/api/useCostElements";
+import { useCostElementTypes } from "@/features/cost-elements/api/useCostElementTypes";
+import { useWBEs } from "@/features/wbes/api/useWBEs";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
 import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
+import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useTableParams } from "@/hooks/useTableParams";
-
-// Extended types for Branch support
-// type CreateWithBranch = CostElementCreate & { branch?: string };
-// type UpdateWithBranch = CostElementUpdate & { branch?: string };
-
-// Define the interface that was removed but is still used
-interface CostElementApiParams {
-  branch?: string;
-  pagination?: { current?: number; pageSize?: number };
-  filters?: Record<string, (string | number | boolean)[] | null>;
-  sortField?: string;
-  sortOrder?: string;
-  search?: string;
-  [key: string]: unknown;
-}
-
-interface CostElementManagementProps {
-  wbeId?: string;
-  wbeName?: string;
-}
-
+import { useViewMode } from "@/hooks/useViewMode";
+import { formatCurrency } from "@/utils/formatters";
 import { CostElementFilters } from "@/types/filters";
 
 const SORT_OPTIONS: SortOption[] = [
@@ -55,19 +33,28 @@ const SORT_OPTIONS: SortOption[] = [
   { label: "Budget", value: "budget_amount" },
 ];
 
+interface CostElementManagementProps {
+  wbeId?: string;
+  wbeName?: string;
+}
+
 export const CostElementManagement = ({
   wbeId,
   wbeName,
 }: CostElementManagementProps) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const navigate = useNavigate();
+  const { viewMode, resolvedMode, cycleViewMode } = useViewMode("cost-elements", isMobile);
+
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     CostElementRead,
     CostElementFilters
   >();
   const { branch } = useTimeMachineParams();
 
-  // Build query params, including wbeId filter if provided
-  const queryParams = useMemo((): CostElementApiParams => {
-    const params: CostElementApiParams = {
+  const queryParams = useMemo(
+    () => ({
       pagination: tableParams.pagination,
       sortField: tableParams.sortField,
       sortOrder: tableParams.sortOrder,
@@ -75,55 +62,29 @@ export const CostElementManagement = ({
         | Record<string, (string | number | boolean)[] | null>
         | undefined,
       search: tableParams.search,
-      branch: branch,
-    };
-    // If wbeId prop is provided, always filter by it
-    if (wbeId) {
-      params.filters = {
-        ...params.filters,
-        wbe_id: [wbeId],
-      };
-    }
-    return params;
-  }, [tableParams, branch, wbeId]);
+      branch,
+      wbe_id: wbeId,
+    }),
+    [tableParams, branch, wbeId],
+  );
 
   const { data, isLoading, refetch } = useCostElements(queryParams);
   const costElements = data?.items || [];
   const total = data?.total || 0;
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedElement, setSelectedElement] =
-    useState<CostElementRead | null>(null);
+  const { data: types = [] } = useCostElementTypes();
+  const { data: wbesData } = useWBEs();
+  const wbes = wbesData?.items || [];
 
-  // Lookup data
-  const [wbes, setWbes] = useState<WBERead[]>([]);
-  const [types, setTypes] = useState<CostElementTypeRead[]>([]);
-
-  // Fetch lookups
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [wbesRes, typesRes] = await Promise.all([
-          WbEsService.getWbes(1, 1000),
-          CostElementTypesService.getCostElementTypes(1, 1000),
-        ]);
-        const w = Array.isArray(wbesRes) ? wbesRes : wbesRes.items || [];
-        const t = Array.isArray(typesRes) ? typesRes : typesRes.items || [];
-        setWbes(w);
-        setTypes(t);
-      } catch {
-        /* ignore */
-      }
-    };
-    fetchData();
-  }, []);
-
-  // Create Lookup Maps
   const typeMap = useMemo(() => {
     const m: Record<string, string> = {};
     types.forEach((x) => (m[x.cost_element_type_id] = x.name));
     return m;
   }, [types]);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedElement, setSelectedElement] =
+    useState<CostElementRead | null>(null);
 
   const { mutateAsync: createCostElement } = useCreateCostElement({
     onSuccess: () => {
@@ -138,6 +99,13 @@ export const CostElementManagement = ({
       setModalOpen(false);
     },
   });
+
+  const handleRowClick = useCallback(
+    (ce: CostElementRead) => {
+      navigate(`/cost-elements/${ce.cost_element_id}`);
+    },
+    [navigate],
+  );
 
   const handleGridSortChange = (field: string, order: "ascend" | "descend") => {
     handleTableChange(
@@ -155,7 +123,6 @@ export const CostElementManagement = ({
     );
   };
 
-  // Build filter controls: Type select + optional WBE select
   const filterControls = (
     <>
       <Select
@@ -207,6 +174,58 @@ export const CostElementManagement = ({
     </>
   );
 
+  const tableColumns: ColumnType<CostElementRead>[] = useMemo(() => {
+    const cols: ColumnType<CostElementRead>[] = [
+      { title: "Code", dataIndex: "code", key: "code", width: 100, sorter: true },
+      { title: "Name", dataIndex: "name", key: "name", sorter: true },
+      {
+        title: "Type",
+        key: "type",
+        width: 120,
+        render: (_, record) => {
+          const name = record.cost_element_type_name || typeMap[record.cost_element_type_id] || "-";
+          return <Tag>{name}</Tag>;
+        },
+      },
+      {
+        title: "Budget",
+        dataIndex: "budget_amount",
+        key: "budget_amount",
+        width: 150,
+        align: "right" as const,
+        render: (val) => (val ? formatCurrency(val) : "-"),
+        sorter: true,
+      },
+    ];
+    if (!isMobile) {
+      cols.push({
+        title: "Branch",
+        dataIndex: "branch",
+        key: "branch",
+        width: 100,
+        render: (val) => (val ? <Tag>{val}</Tag> : "-"),
+      });
+    }
+    cols.push({
+      title: "",
+      key: "actions",
+      width: 50,
+      align: "center" as const,
+      render: (_, record) => (
+        <Button
+          type="text"
+          size="small"
+          icon={<RightOutlined />}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleRowClick(record);
+          }}
+        />
+      ),
+    });
+    return cols;
+  }, [typeMap, isMobile, handleRowClick]);
+
   return (
     <div>
       <EntityGrid<CostElementRead>
@@ -222,18 +241,21 @@ export const CostElementManagement = ({
         keyExtractor={(ce) => ce.cost_element_id}
         title={wbeName ? `Cost Elements - ${wbeName}` : "Cost Elements"}
         addContent={
-          <Can permission="cost-element-create">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setSelectedElement(null);
-                setModalOpen(true);
-              }}
-            >
-              Add Cost Element
-            </Button>
-          </Can>
+          <Space>
+            <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
+            <Can permission="cost-element-create">
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setSelectedElement(null);
+                  setModalOpen(true);
+                }}
+              >
+                {isMobile ? undefined : "Add Cost Element"}
+              </Button>
+            </Can>
+          </Space>
         }
         searchValue={tableParams.search || ""}
         onSearch={handleSearch}
@@ -248,6 +270,9 @@ export const CostElementManagement = ({
           pageSize: tableParams.pagination?.pageSize || 10,
         }}
         onPageChange={handleGridPageChange}
+        variant={resolvedMode}
+        columns={tableColumns}
+        onRowClick={handleRowClick}
       />
 
       <CostElementModal

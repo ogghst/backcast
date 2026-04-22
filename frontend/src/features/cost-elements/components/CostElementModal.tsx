@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Modal, Form, Input, Select, InputNumber } from "antd";
 import type {
   CostElementRead,
   CostElementCreate,
   CostElementUpdate,
-  CostElementTypeRead,
 } from "@/api/generated";
-import { CostElementTypesService } from "@/api/generated";
+import { useCostElementTypes } from "@/features/cost-elements/api/useCostElementTypes";
 
 interface CostElementModalProps {
   open: boolean;
@@ -32,8 +31,7 @@ export const CostElementModal = ({
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
 
-  const [types, setTypes] = useState<CostElementTypeRead[]>([]);
-  const [loadingOpts, setLoadingOpts] = useState(false);
+  const { data: types = [], isLoading: loadingOpts } = useCostElementTypes();
 
   useEffect(() => {
     if (open) {
@@ -45,28 +43,6 @@ export const CostElementModal = ({
           form.setFieldValue("wbe_id", wbeId);
         }
       }
-
-      // Fetch options
-      const fetchOptions = async () => {
-        try {
-          setLoadingOpts(true);
-          const typeRes = await CostElementTypesService.getCostElementTypes(
-            1,
-            100000
-          );
-
-          const typeItems = Array.isArray(typeRes)
-            ? typeRes
-            : typeRes.items || [];
-
-          setTypes(typeItems);
-        } catch (e) {
-          console.error("Error fetching options:", e);
-        } finally {
-          setLoadingOpts(false);
-        }
-      };
-      fetchOptions();
     }
   }, [open, initialValues, form, wbeId]);
 

@@ -1,9 +1,11 @@
-import { Empty, Input, Pagination, Select, Spin, theme } from "antd";
+import { Empty, Input, Pagination, Select, Spin, Table, Grid, theme } from "antd";
+import type { ColumnType } from "antd/es/table";
 import {
   SortAscendingOutlined,
   SortDescendingOutlined,
 } from "@ant-design/icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import type { ViewMode } from "@/hooks/useViewMode";
 
 export interface SortOption {
   /** Display label: "Name", "Budget", "Code" */
@@ -59,6 +61,15 @@ interface EntityGridProps<T> {
 
   /** Minimum card width for CSS grid (default: 300) */
   minCardWidth?: number;
+
+  /** Layout variant: "table" | "card" | "auto" (default: "card") */
+  variant?: ViewMode;
+
+  /** Table columns — required when variant resolves to "table" */
+  columns?: ColumnType<T>[];
+
+  /** Row click handler — makes table rows clickable */
+  onRowClick?: (item: T) => void;
 }
 
 export const EntityGrid = <T,>({
@@ -80,17 +91,23 @@ export const EntityGrid = <T,>({
   pagination,
   onPageChange,
   minCardWidth = 300,
+  variant = "card",
+  columns,
+  onRowClick,
 }: EntityGridProps<T>) => {
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+
+  const useTable = variant === "table" || (variant === "auto" && !isMobile);
+
   const [localSearch, setLocalSearch] = useState(searchValue);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync external searchValue into local state when it changes externally
   useEffect(() => {
     setLocalSearch(searchValue);
   }, [searchValue]);
 
-  // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -131,85 +148,121 @@ export const EntityGrid = <T,>({
     }
   }, [onSortChange, sortField, sortOrder]);
 
+  const controlsRow = (
+    <div
+      style={{
+        display: "flex",
+        gap: token.marginSM,
+        alignItems: "center",
+        marginBottom: token.marginMD,
+        flexWrap: "wrap",
+      }}
+    >
+      <Input.Search
+        placeholder={searchPlaceholder || "Search..."}
+        allowClear
+        value={localSearch}
+        onChange={handleSearchInput}
+        onSearch={handleSearchSubmit}
+        style={{ width: 260 }}
+      />
+
+      <Select
+        value={sortField}
+        onChange={handleSortFieldChange}
+        placeholder="Sort by"
+        style={{ minWidth: 140 }}
+        options={sortOptions.map((opt) => ({
+          label: opt.label,
+          value: opt.value,
+        }))}
+      />
+
+      <span
+        onClick={sortField ? toggleSortOrder : undefined}
+        style={{
+          cursor: sortField ? "pointer" : "default",
+          display: "inline-flex",
+          alignItems: "center",
+          color: sortField ? token.colorPrimary : token.colorTextTertiary,
+          fontSize: token.fontSizeLG,
+        }}
+      >
+        {sortOrder === "descend" ? (
+          <SortDescendingOutlined />
+        ) : (
+          <SortAscendingOutlined />
+        )}
+      </span>
+
+      {filters}
+    </div>
+  );
+
+  const titleBar = (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: token.marginMD,
+      }}
+    >
+      <div
+        style={{
+          fontSize: token.fontSizeXL,
+          fontWeight: token.fontWeightSemiBold ?? 600,
+          color: token.colorText,
+          display: "flex",
+          alignItems: "center",
+          gap: token.marginSM,
+        }}
+      >
+        {title}
+      </div>
+      {addContent}
+    </div>
+  );
+
   const showPagination = total > pagination.pageSize;
+
+  if (useTable) {
+    return (
+      <div>
+        {titleBar}
+        {controlsRow}
+        <Table
+          dataSource={items}
+          columns={columns || []}
+          rowKey={keyExtractor}
+          loading={loading}
+          scroll={{ x: isMobile ? 500 : undefined }}
+          onRow={
+            onRowClick
+              ? (record) => ({
+                  onClick: () => onRowClick(record),
+                  style: { cursor: "pointer" },
+                })
+              : undefined
+          }
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total,
+            onChange: onPageChange,
+            showSizeChanger: true,
+            showTotal: (t) => `Total ${t} items`,
+            position: ["bottomRight"] as ["bottomRight"],
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
-      {/* Title bar */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: token.marginMD,
-        }}
-      >
-        <div
-          style={{
-            fontSize: token.fontSizeXL,
-            fontWeight: token.fontWeightSemiBold ?? 600,
-            color: token.colorText,
-            display: "flex",
-            alignItems: "center",
-            gap: token.marginSM,
-          }}
-        >
-          {title}
-        </div>
-        {addContent}
-      </div>
-
-      {/* Controls row */}
-      <div
-        style={{
-          display: "flex",
-          gap: token.marginSM,
-          alignItems: "center",
-          marginBottom: token.marginMD,
-          flexWrap: "wrap",
-        }}
-      >
-        <Input.Search
-          placeholder={searchPlaceholder || "Search..."}
-          allowClear
-          value={localSearch}
-          onChange={handleSearchInput}
-          onSearch={handleSearchSubmit}
-          style={{ width: 260 }}
-        />
-
-        <Select
-          value={sortField}
-          onChange={handleSortFieldChange}
-          placeholder="Sort by"
-          style={{ minWidth: 140 }}
-          options={sortOptions.map((opt) => ({
-            label: opt.label,
-            value: opt.value,
-          }))}
-        />
-
-        <span
-          onClick={sortField ? toggleSortOrder : undefined}
-          style={{
-            cursor: sortField ? "pointer" : "default",
-            display: "inline-flex",
-            alignItems: "center",
-            color: sortField ? token.colorPrimary : token.colorTextTertiary,
-            fontSize: token.fontSizeLG,
-          }}
-        >
-          {sortOrder === "descend" ? (
-            <SortDescendingOutlined />
-          ) : (
-            <SortAscendingOutlined />
-          )}
-        </span>
-
-        {filters}
-      </div>
-
-      {/* Grid area */}
+      {titleBar}
+      {controlsRow}
       {loading ? (
         <div
           style={{
@@ -240,7 +293,6 @@ export const EntityGrid = <T,>({
         </div>
       )}
 
-      {/* Pagination */}
       {showPagination && (
         <div
           style={{
