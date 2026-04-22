@@ -91,7 +91,7 @@ export const useCostElements = (params?: CostElementListParams) => {
           filterParts.length > 0 ? filterParts.join(";") : undefined;
       }
 
-      const wbeId = filters?.wbe_id?.[0] as string | undefined;
+      const wbeId = params?.wbe_id || filters?.wbe_id?.[0] as string | undefined;
       const typeId = filters?.cost_element_type_id?.[0] as string | undefined;
       const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
 

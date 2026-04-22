@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, Grid, Tag, Typography, theme, Progress, Flex, Row, Col } from "antd";
 import { WBERead } from "@/api/generated";
-import { formatCompactCurrency } from "@/utils/formatters";
+import { formatCompactCurrency, getBranchColor } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -21,12 +21,6 @@ export const WBEHeaderCard = ({
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
-
-  const getBranchColor = (branch: string) => {
-    if (branch === "main") return "blue";
-    if (branch.startsWith("BR-")) return "orange";
-    return "default";
-  };
 
   // Cost ring computations
   const costBudget = Number(wbe.budget_allocation) || 0;
