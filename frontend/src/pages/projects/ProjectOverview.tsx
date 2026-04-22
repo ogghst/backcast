@@ -40,6 +40,9 @@ export const ProjectOverview = () => {
 
   const { data: project, isLoading: projectLoading } = useProject(projectId!);
 
+  // control_date is returned by the API but not yet in the generated type
+  const controlDate = (project as Record<string, unknown>)?.control_date as string | null | undefined;
+
   // Fetch actual costs for cost progress ring
   const { data: budgetStatus } = useProjectBudgetStatus(projectId!);
 
@@ -188,8 +191,8 @@ export const ProjectOverview = () => {
                 <CostHistoryChart
                   entityType="project"
                   entityId={projectId}
-                  budgetAmount={project.budget ? Number(project.budget) : undefined}
                   headless
+                  controlDate={controlDate || undefined}
                 />
               ) : undefined
             }

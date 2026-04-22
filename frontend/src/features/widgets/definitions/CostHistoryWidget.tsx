@@ -73,7 +73,7 @@ const CostHistoryComponent: FC<WidgetComponentProps<CostHistoryConfig>> = ({
 registerWidget<CostHistoryConfig>({
   typeId: widgetTypeId("cost-history"),
   displayName: "Cost History",
-  description: "Burn rate and cumulative cost trends over time",
+  description: "Planned Value vs Earned Value trend over time",
   category: "trend",
   icon: <BarChartOutlined />,
   sizeConstraints: {
