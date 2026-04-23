@@ -28,7 +28,7 @@ import {
   PlusOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { ColumnType } from "antd/es/table";
 
@@ -398,6 +398,13 @@ const RoleModal: React.FC<RoleModalProps> = ({
   editable,
 }) => {
   const [form] = Form.useForm<RBACRoleCreate>();
+
+  // Reset form with new initial values when modal opens
+  useEffect(() => {
+    if (open) {
+      form.resetFields();
+    }
+  }, [open, initialValues, form]);
 
   return (
     <Modal
