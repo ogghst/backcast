@@ -322,22 +322,35 @@ All tools are created via `create_project_tools(tool_context)` in `tools/__init_
 
 ### Filtering Chain
 
-Tools go through three filtering stages before reaching the LLM:
+Tools go through four filtering stages before reaching the LLM:
 
 ```mermaid
 flowchart TD
-    All["All Tools (~70)"]
+    All["All Tools (~76)"]
     All --> WL["filter by allowed_tools\n(assistant config whitelist)"]
     WL --> FEM["filter_tools_by_execution_mode()"]
     FEM --> SAFE["SAFE mode:\nonly LOW risk tools"]
     FEM --> STD["STANDARD mode:\nLOW + HIGH risk tools\n(CRITICAL blocked)"]
     FEM --> EXP["EXPERT mode:\nall tools"]
-    SAFE --> SA["subagent tool assignment\n(if subagents enabled)"]
-    STD --> SA
-    EXP --> SA
+    SAFE --> FBR["filter_tools_by_role(assistant_role)"]
+    STD --> FBR
+    EXP --> FBR
+    FBR --> SA["subagent tool assignment\n(if subagents enabled)"]
     SA --> MA["Main agent gets:\ntask tool + get_temporal_context"]
-    SA --> SUB["Subagents get:\ntheir allowed_tools subset"]
+    SA --> SUB["Subagents get:\ntheir filtered subset"]
 ```
+
+### Role-Based Tool Filtering
+
+Each AI assistant has a `default_role` field (e.g., `ai-viewer`, `ai-manager`, `ai-admin`) stored in the `AIAssistantConfig` model. When an agent is created, `filter_tools_by_role()` checks each tool's `_tool_metadata.permissions` against the assistant's RBAC role:
+
+- **ai-viewer**: 45/76 tools — read-only access (31 write tools removed)
+- **ai-manager**: 61/76 tools — full project CRUD (15 admin tools removed)
+- **ai-admin**: 13/76 tools — system configuration, user/dept management
+
+Tools without `_tool_metadata` or with empty permissions always pass through (e.g., `task`, `get_temporal_context`, `write_todos`).
+
+The role is applied AFTER execution mode filtering and BEFORE subagent compilation, so subagents also inherit the role restriction.
 
 ### Risk Levels
 
@@ -750,12 +763,12 @@ sequenceDiagram
 |------|---------------|
 | `api/routes/ai_chat.py` | WebSocket endpoint, JWT auth, session creation |
 | `ai/agent_service.py` | Orchestration: `_run_agent_graph()`, `_build_system_prompt()`, `start_execution()` |
-| `ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator`: subagent compilation, tool filtering, prompt composition |
+| `ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator`: subagent compilation, tool filtering (execution mode + role), prompt composition |
 | `ai/state.py` | `AgentState` TypedDict: `messages`, `tool_call_count`, `next` |
 | `ai/graph.py` | LangGraph `StateGraph` with `should_continue()` routing |
 | `ai/graph_cache.py` | `BackcastRuntimeContext`, `CompiledGraphCache`, `set_request_context()` |
 | `ai/subagents/__init__.py` | Six subagent configurations (name, prompt, allowed_tools) |
-| `ai/tools/__init__.py` | `create_project_tools()`, `filter_tools_by_execution_mode()` |
+| `ai/tools/__init__.py` | `create_project_tools()`, `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
 | `ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT`, `TASK_TOOL_DESCRIPTION` |
 | `ai/middleware/temporal_context.py` | `TemporalContextMiddleware`: injects temporal params into tool args |
 | `ai/middleware/backcast_security.py` | `BackcastSecurityMiddleware`: RBAC + risk checks + approval workflow |
