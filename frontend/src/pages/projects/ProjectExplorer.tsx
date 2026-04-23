@@ -22,7 +22,13 @@ export const ProjectExplorer = () => {
   );
 
   const handleSelect = useCallback((node: TreeNodeData) => {
-    setSelection({ type: node.type, id: node.id, name: node.name });
+    // Use the specific entity ID for better type safety
+    const entityId = node.type === "cost_element"
+      ? node.cost_element_id
+      : node.type === "wbe"
+        ? node.wbe_id
+        : node.id;
+    setSelection({ type: node.type, id: entityId || node.id, name: node.name });
   }, []);
 
   if (!projectId) return null;
