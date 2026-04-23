@@ -146,15 +146,19 @@ export class CostRegistrationsService {
      * budget validation in the cost registration modal.
      *
      * The total spend is aggregated across all cost registrations in all
-     * cost elements belonging to the project.
+     * cost elements belonging to the project. Supports time-travel via as_of.
      * @param projectId
      * @param branch Branch context to resolve Project budget
+     * @param asOf Time travel: get budget status as of this timestamp (ISO 8601)
+     * @param branchMode Branch mode: merge (fallback to main) or isolated (current branch only)
      * @returns any Successful Response
      * @throws ApiError
      */
     public static getProjectBudgetStatus(
         projectId: string,
         branch: string = 'main',
+        asOf?: (string | null),
+        branchMode: string = 'merge',
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -164,6 +168,44 @@ export class CostRegistrationsService {
             },
             query: {
                 'branch': branch,
+                'as_of': asOf,
+                'branch_mode': branchMode,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Wbe Budget Status
+     * Get WBE-level budget status (aggregated across WBE hierarchy).
+     *
+     * Returns the WBE budget (sum of cost element budgets in hierarchy),
+     * total spend across all cost registrations, remaining amount, and
+     * percentage used. Supports time-travel via as_of.
+     * @param wbeId
+     * @param branch Branch context to resolve WBE budget
+     * @param asOf Time travel: get budget status as of this timestamp (ISO 8601)
+     * @param branchMode Branch mode: merge (fallback to main) or isolated (current branch only)
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getWbeBudgetStatus(
+        wbeId: string,
+        branch: string = 'main',
+        asOf?: (string | null),
+        branchMode: string = 'merge',
+    ): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-registrations/wbe-budget-status/{wbe_id}',
+            path: {
+                'wbe_id': wbeId,
+            },
+            query: {
+                'branch': branch,
+                'as_of': asOf,
+                'branch_mode': branchMode,
             },
             errors: {
                 422: `Validation Error`,

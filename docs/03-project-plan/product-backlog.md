@@ -1,9 +1,9 @@
 # Backlog
 
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-04-23
 **Total Items:** 35
 **Total Estimated Points:** 213
-**Completed:** 31 items (194 points)
+**Completed:** 35 items (215 points)
 
 ---
 
@@ -255,7 +255,7 @@
   - Frontend Progress Entries Tab with modal for creating/editing
 - **Ready for Iteration:** No (already complete)
 
-#### [E05-U05] Validate Cost Registrations against Budgets
+#### [E05-U05] Validate Cost Registrations against Budgets ✅
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 8
@@ -266,7 +266,16 @@
   - Warning when approaching budget limit
   - Block when exceeding budget (configurable)
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** Yes (dependencies resolved)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-04-14
+- **Implementation Notes:**
+  - Per-project budget validation settings (configurable threshold, default 80%)
+  - ProjectBudgetSettings entity with API endpoints (GET/PUT)
+  - Server-side warnings in cost registration responses (non-blocking)
+  - BudgetSettingsWidget for configuring thresholds
+  - BudgetProgressBar component with visual feedback
+  - Tests: budget validation, project-level validation, frontend widget tests
+- **Ready for Iteration:** No (already complete)
 
 #### [E05-U06] View Cost History and Trends ✅
 
@@ -451,7 +460,7 @@
   - Nested endpoints: `/cost-elements/{id}/schedule-baseline`
 - **Ready for Iteration:** No (already complete)
 
-#### [E05-U07] Manage Quality Events (Track Rework Costs)
+#### [E05-U07] Manage Quality Events (Track Rework Costs) ✅
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
@@ -462,9 +471,17 @@
   - Link to cost elements for rework cost tracking
   - Versioning support
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (dependencies resolved)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-04-17
+- **Implementation Notes:**
+  - QualityEvent entity with temporal versioning (non-branchable)
+  - API endpoints: CRUD, time-travel, aggregations by period
+  - Frontend: QualityEventsTab, QualityEventModal, QualityEventSummaryCard
+  - Service: get_total_for_cost_element(), get_quality_events_by_period()
+  - Tests: 408 lines, zero Ruff/MyPy errors
+- **Ready for Iteration:** No (already complete)
 
-#### [E06-U06] Lock/Unlock Branches
+#### [E06-U06] Lock/Unlock Branches ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 3
@@ -475,8 +492,13 @@
   - Unlock to allow edits
   - RBAC: Only approvers can lock/unlock
 - **Estimated Complexity:** Simple
-- **Status:** ✅ Complete (Phase 2 Backend)
-- **Ready for Iteration:** No (blocked by E06-U02)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-04-14
+- **Implementation Notes:**
+  - Backend: Branch locking API endpoints
+  - Frontend: Lock/unlock UI integration
+  - Workflow-aware status management (E06-U06-UI)
+- **Ready for Iteration:** No (already complete)
 
 #### [E06-U06-UI] Workflow-Aware Status Management ✅
 
@@ -504,7 +526,7 @@
 - **Related Docs:** [`iterations/2026-04-14-e06-u06-ui-workflow-aware-status-management/00-analysis.md`](iterations/2026-04-14-e06-u06-ui-workflow-aware-status-management/00-analysis.md)
 - **Ready for Iteration:** No (already complete)
 
-#### [E06-U07] Merged View Showing Main + Branch Changes — ⏸️ Deferred
+#### [E06-U07] Merged View Showing Main + Branch Changes ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
@@ -515,7 +537,15 @@
   - Highlight conflicts
   - Preview of merged state
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Deferred
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-14
+- **Implementation Notes:**
+  - Impact analysis API with merged/isolated modes (branch_mode parameter)
+  - Frontend: useImpactAnalysis hook with mode: "merged" | "isolated"
+  - Components: ImpactAnalysisDashboard, SideBySideDiff, EntityImpactGrid
+  - Shows main + branch changes combined with conflict highlighting
+  - Preview of merged state before merge execution
+- **Ready for Iteration:** No (already complete)
 
 #### [E07-U01] Create Baselines at Milestones — ⏸️ Deferred
 
@@ -665,6 +695,10 @@
 
 | Date       | Item                                              | Points | Iteration                | Notes                              |
 | ---------- | ------------------------------------------------- | ------ | ------------------------ | ---------------------------------- |
+| 2026-01-14 | E06-U07: Merged View Showing Main + Branch Changes | 5      | -                        | Impact analysis with merged/isolated modes, preview before merge |
+| 2026-04-14 | E06-U06: Lock/Unlock Branches                     | 3      | -                        | Branch locking API, workflow-aware status management, UI integration |
+| 2026-04-17 | E05-U07: Manage Quality Events (Track Rework Costs) | 5   | -                        | QualityEvent entity, aggregations, frontend components |
+| 2026-04-14 | E05-U05: Validate Cost Registrations against Budgets | 8   | -                        | Per-project thresholds, server-side warnings, BudgetSettingsWidget |
 | 2026-04-17 | E05-U06: View Cost History and Trends             | 5      | -                        | CostHistoryChart, burn rate, CSV   |
 | 2026-04-17 | E03-U05/U06/U07: EVCS Core (time-travel, repo, filtering) | 29 | Sprint 3-4             | Backlog cleanup — completed 2026-01-10 |
 | 2026-04-17 | E04-U06: Hierarchy Integrity                      | 8      | Sprint 5-6               | Backlog cleanup — completed 2026-01-12 |

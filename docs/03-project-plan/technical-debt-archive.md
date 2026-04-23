@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
-**Last Updated:** 2026-04-17
-**Total Archived Items:** 33
+**Last Updated:** 2026-04-23
+**Total Archived Items:** 34
 
 ---
 
@@ -171,6 +171,26 @@ This file contains all completed, closed, or resolved technical debt items. For 
 
 ## Recently Archived (2026)
 
+### April 2026
+
+#### [TD-065] Automate OpenAPI Client Generation in CI/CD
+
+- **Source:** Temporal Context Consistency ACT phase (2026-01-19)
+- **Description:** Manual type update required when OpenAPI spec regeneration failed.
+- **Status:** ✅ Complete (2026-04-23)
+- **Owner:** Frontend Developer → Backend Developer
+- **Priority:** Medium (P2-P3)
+- **Resolution:** Implemented GitHub Actions workflow (.github/workflows/generate-api-client.yml) that automatically generates OpenAPI client on backend API changes. Workflow triggers on push to main/develop, runs full generation pipeline, and auto-commits generated files.
+- **Action Items:**
+  - [x] Created GitHub Actions workflow for automated client generation
+  - [x] Enhanced backend scripts/generate_openapi.py with error handling
+  - [x] Added generate-openapi script to pyproject.toml
+  - [x] Created comprehensive documentation
+  - [x] Verified workflow catches API changes automatically
+- **References:**
+  - **Implementation:** TD-065-IMPLEMENTATION-SUMMARY.md
+  - **Documentation:** docs/03-operations/ci-cd/openapi-client-generation.md
+
 ### March 2026
 
 #### [TD-069] Failing Time Machine Store Tests
@@ -318,8 +338,8 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ## Summary by Year
 
 ### 2026
-- **Q1:** 8 items closed (TD-072, TD-073, TD-082, TD-057, TD-062, TD-068, TD-059, TD-067)
-- **Total Archived:** 8 items
+- **Q1:** 9 items closed (TD-065, TD-072, TD-073, TD-082, TD-057, TD-062, TD-068, TD-059, TD-067)
+- **Total Archived:** 9 items
 
 ### 2025
 - **Q4:** 15 items closed
@@ -331,7 +351,7 @@ This file contains all completed, closed, or resolved technical debt items. For 
 
 | Status | Count |
 |--------|-------|
-| Complete | 6 |
+| Complete | 7 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **7** |
-| **Total (All Time)** | **29** |
+| **Total (2026)** | **8** |
+| **Total (All Time)** | **30** |

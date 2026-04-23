@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-03-19
-**Total Open Items:** 3
-**Total Estimated Effort:** 66 hours
+**Last Updated:** 2026-04-23
+**Total Open Items:** 2
+**Total Estimated Effort:** 6 hours
 
 ---
 
@@ -34,30 +34,19 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-065] Automate OpenAPI Client Generation in CI/CD
-
-- **Source:** Temporal Context Consistency ACT phase (2026-01-19)
-- **Description:** Manual type update required when OpenAPI spec regeneration failed.
-- **Impact:** Ensures frontend-backend contract alignment
-- **Estimated Effort:** 2 hours
-- **Status:** 🔴 Open
-- **Owner:** Frontend Developer
-
----
-
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 0 | 0 hours |
-| Medium (P2-P3) | 2 | 8 hours |
+| Medium (P2-P3) | 2 | 6 hours |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **2** | **~8 hours** |
+| **Total** | **2** | **~6 hours** |
 
 ---
 
 ## Links
 
-- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (32 items)
+- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (34 items)
 - [Sprint Backlog](./sprint-backlog.md) - Current iteration
 - [Product Backlog](./product-backlog.md) - All pending work
