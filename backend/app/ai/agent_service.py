@@ -241,6 +241,7 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
         # Compile and cache the graph
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         allowed_tools = assistant_config.allowed_tools
+        assistant_role = assistant_config.default_role
 
         orchestrator = DeepAgentOrchestrator(
             model=llm,
@@ -253,6 +254,7 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
             allowed_tools=allowed_tools,
             checkpointer=shared_checkpointer,
             context_schema=BackcastRuntimeContext,
+            assistant_role=assistant_role,
         )
 
         # Build cache key and store
@@ -494,6 +496,7 @@ class AgentService:
         # Compute cache key from invariant properties
         allowed_tools = assistant_config.allowed_tools
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        assistant_role = assistant_config.default_role
         model_str = model_name or "unknown"
         execution_mode_str = tool_context.execution_mode.value
 
@@ -534,6 +537,7 @@ class AgentService:
                 allowed_tools=allowed_tools,
                 checkpointer=shared_checkpointer,
                 context_schema=BackcastRuntimeContext,
+                assistant_role=assistant_role,
             )
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000

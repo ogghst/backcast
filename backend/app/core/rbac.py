@@ -4,6 +4,7 @@ Provides authorization functionality based on roles and permissions.
 Supports pluggable implementations via abstract base class.
 """
 
+import contextvars
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -491,7 +492,9 @@ class JsonRBACService(RBACServiceABC):
                 return self._role_has_permission(cached_role, required_permission)
 
         # Database lookup required
-        if self.session is None:
+        # Use contextvar session as fallback when self.session is not set
+        session = self.session or get_rbac_session()
+        if session is None:
             logger.warning(
                 f"Cannot check project access for user {user_id}: "
                 "no database session provided"
@@ -505,7 +508,7 @@ class JsonRBACService(RBACServiceABC):
 
         from app.models.domain.project_member import ProjectMember
 
-        result = await self.session.execute(
+        result = await session.execute(
             select(ProjectMember).where(
                 ProjectMember.user_id == user_id,
                 ProjectMember.project_id == project_id,
@@ -539,7 +542,8 @@ class JsonRBACService(RBACServiceABC):
             # Import here to avoid circular dependency
             from app.models.domain.project import Project
 
-            if self.session is None:
+            session = self.session or get_rbac_session()
+            if session is None:
                 logger.warning(
                     f"Cannot get projects for admin user {user_id}: "
                     "no database session provided"
@@ -548,11 +552,12 @@ class JsonRBACService(RBACServiceABC):
 
             from sqlalchemy import select
 
-            result = await self.session.execute(select(Project.project_id))
+            result = await session.execute(select(Project.project_id))
             return [row[0] for row in result.all()]
 
         # Non-admin users: get their project memberships
-        if self.session is None:
+        session = self.session or get_rbac_session()
+        if session is None:
             logger.warning(
                 f"Cannot get projects for user {user_id}: no database session provided"
             )
@@ -563,7 +568,7 @@ class JsonRBACService(RBACServiceABC):
 
         from app.models.domain.project_member import ProjectMember
 
-        result = await self.session.execute(
+        result = await session.execute(
             select(ProjectMember.project_id).where(ProjectMember.user_id == user_id)
         )
         return [row[0] for row in result.all()]
@@ -586,7 +591,8 @@ class JsonRBACService(RBACServiceABC):
                 return cached_role
 
         # Database lookup
-        if self.session is None:
+        session = self.session or get_rbac_session()
+        if session is None:
             logger.warning(
                 f"Cannot get project role for user {user_id}: "
                 "no database session provided"
@@ -598,7 +604,7 @@ class JsonRBACService(RBACServiceABC):
 
         from app.models.domain.project_member import ProjectMember
 
-        result = await self.session.execute(
+        result = await session.execute(
             select(ProjectMember.role).where(
                 ProjectMember.user_id == user_id,
                 ProjectMember.project_id == project_id,
@@ -615,6 +621,21 @@ class JsonRBACService(RBACServiceABC):
 
 # Global singleton instance
 _rbac_service: RBACServiceABC | None = None
+
+# Request-scoped session via contextvar for thread-safe session injection
+_rbac_session: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
+    "_rbac_session", default=None
+)
+
+
+def get_rbac_session() -> Any | None:
+    """Get the request-scoped RBAC database session."""
+    return _rbac_session.get()
+
+
+def set_rbac_session(session: Any | None) -> None:
+    """Set the request-scoped RBAC database session."""
+    _rbac_session.set(session)
 
 
 def get_rbac_service() -> RBACServiceABC:

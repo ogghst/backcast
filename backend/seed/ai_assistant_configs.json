@@ -51,7 +51,8 @@
       "get_department",
       "generate_mermaid_diagram"
     ],
-    "is_active": true
+    "is_active": true,
+    "default_role": "ai-viewer"
   },
   {
     "id": "88888888-8888-8888-8888-888888888888",
@@ -118,7 +119,8 @@
       "get_cost_element_summary",
       "generate_mermaid_diagram"
     ],
-    "is_active": true
+    "is_active": true,
+    "default_role": "ai-manager"
   },
   {
     "id": "99999999-9999-9999-9999-999999999999",
@@ -147,6 +149,7 @@
       "list_projects",
       "get_project"
     ],
-    "is_active": true
+    "is_active": true,
+    "default_role": "ai-admin"
   }
 ]

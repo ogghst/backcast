@@ -3,10 +3,13 @@
 This decorator converts async functions into LangGraph-compatible tools with:
 - Automatic schema generation from function signatures (via LangChain @tool)
 - Docstring parsing for parameter descriptions
-- RBAC permission checking via metadata
+- RBAC permission metadata for middleware enforcement
 - Context injection support with InjectedToolArg
 - Error handling and logging
 - Tool metadata generation
+
+Permission checking is handled solely by BackcastSecurityMiddleware.
+The decorator attaches permission metadata but does not enforce it.
 
 Composes with LangChain's @tool(parse_docstring=True) to leverage
 native docstring parsing for parameter descriptions.
@@ -114,7 +117,7 @@ def ai_tool(
             risk_level=tool_risk_level,
         )
 
-        # Wrap function to inject context and handle permissions
+        # Wrap function to inject context and manage session lifecycle
         @wraps(func)
         async def wrapped_with_context(*args: P.args, **kwargs: P.kwargs) -> Any:
             # Extract context from kwargs or context variable
@@ -146,19 +149,6 @@ def ai_tool(
 
             # Add context to kwargs for the original function
             kwargs["context"] = context_obj
-
-            # Check permissions via RBAC service
-            from app.core.rbac import get_rbac_service
-
-            rbac_service = get_rbac_service()
-
-            for permission in tool_permissions:
-                if not rbac_service.has_permission(context_obj.user_role, permission):
-                    logger.warning(
-                        f"Permission denied: user_role={context_obj.user_role} "
-                        f"tool={tool_name} permission={permission}"
-                    )
-                    return {"error": f"Permission denied: {permission} required"}
 
             # Execute original function with task-local session lifecycle
             # Each concurrent tool execution gets its own scoped session via async_scoped_session

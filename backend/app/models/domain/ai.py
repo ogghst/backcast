@@ -141,6 +141,11 @@ class AIAssistantConfig(SimpleEntityBase):
     recursion_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     allowed_tools: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    default_role: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="RBAC role for permission filtering (e.g., ai-viewer, ai-manager, ai-admin)",
+    )
 
     # Relationships
     model: Mapped["AIModel"] = relationship(

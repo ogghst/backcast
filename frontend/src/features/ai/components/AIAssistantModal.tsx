@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Modal, Form, Input, Select, Slider, Switch } from "antd";
+import { Modal, Form, Input, Select, Slider, Switch, theme } from "antd";
 import type { AIAssistantPublic, AIAssistantCreate, AIAssistantUpdate } from "../types";
-import { ToolSelectorPanel } from "./ToolSelectorPanel";
+import { AI_ROLE_OPTIONS } from "../types";
 
 interface AIAssistantModalProps {
   open: boolean;
@@ -21,6 +21,7 @@ export const AIAssistantModal = ({
   models = [],
 }: AIAssistantModalProps) => {
   const [form] = Form.useForm();
+  const { token } = theme.useToken();
   const isEdit = !!initialValues;
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export const AIAssistantModal = ({
           max_tokens: initialValues.max_tokens,
           recursion_limit: initialValues.recursion_limit,
           allowed_tools: initialValues.allowed_tools,
+          default_role: initialValues.default_role,
           is_active: initialValues.is_active,
         });
       } else {
@@ -129,13 +131,29 @@ export const AIAssistantModal = ({
           label="Recursion Limit"
           initialValue={25}
           tooltip="Maximum number of agent iterations (LangGraph default is 25)"
-          rules={[{ type: "number", min: 1, max: 500, message: "Recursion limit must be between 1 and 500" }]}
+          rules={[{ type: "number", min: 1, max: 100, message: "Recursion limit must be between 1 and 100" }]}
         >
-          <Slider min={1} max={500} step={5} marks={{1: "1", 25: "25 (default)", 50: "50", 100: "100", 200: "200", 500: "500"}} />
+          <Slider min={1} max={100} step={5} marks={{1: "1", 25: "25 (default)", 50: "50", 100: "100"}} />
         </Form.Item>
 
-        <Form.Item name="allowed_tools" label="Allowed Tools">
-          <ToolSelectorPanel />
+        <Form.Item
+          name="default_role"
+          label="Role"
+          tooltip="The RBAC role determines which tools this assistant can use"
+          rules={[{ required: true, message: "Please select a role" }]}
+        >
+          <Select placeholder="Select a role" allowClear>
+            {AI_ROLE_OPTIONS.map((role) => (
+              <Select.Option key={role.value} value={role.value}>
+                <div>
+                  <strong>{role.label}</strong>
+                  <div style={{ fontSize: token.fontSizeSM, color: token.colorTextTertiary }}>
+                    {role.description}
+                  </div>
+                </div>
+              </Select.Option>
+            ))}
+          </Select>
         </Form.Item>
 
         {isEdit && (

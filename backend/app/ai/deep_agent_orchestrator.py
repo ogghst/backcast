@@ -18,7 +18,11 @@ from langchain_core.tools import BaseTool
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.subagents import get_all_subagents
-from app.ai.tools import create_project_tools, filter_tools_by_execution_mode
+from app.ai.tools import (
+    create_project_tools,
+    filter_tools_by_execution_mode,
+    filter_tools_by_role,
+)
 from app.ai.tools.subagent_task import TASK_SYSTEM_PROMPT, build_task_tool
 from app.ai.tools.types import ToolContext
 
@@ -88,6 +92,7 @@ class DeepAgentOrchestrator:
         subagents: list[dict[str, Any]] | None = None,
         checkpointer: Any | None = None,
         context_schema: type | None = None,
+        assistant_role: str | None = None,
     ) -> Any:
         """Create a LangChain agent with Backcast tools and context.
 
@@ -96,6 +101,9 @@ class DeepAgentOrchestrator:
             subagents: Optional subagent configurations (uses default if None and enabled)
             checkpointer: Optional shared checkpointer for graph state persistence
             context_schema: Optional context schema for StateGraph construction
+            assistant_role: Optional RBAC role for the assistant (e.g., "ai-viewer",
+                "ai-manager", "ai-admin"). When provided, tools whose required
+                permissions are not granted by this role are filtered out.
 
         Returns:
             Compiled agent graph (CompiledStateGraph)
@@ -136,6 +144,18 @@ class DeepAgentOrchestrator:
             f"filtered_tool_count={filtered_tool_count} | "
             f"removed_count={original_tool_count - filtered_tool_count}"
         )
+
+        # Filter by assistant RBAC role if specified
+        if assistant_role is not None:
+            pre_role_count = len(all_tools)
+            all_tools = filter_tools_by_role(all_tools, assistant_role)
+            logger.info(
+                f"[TOOL_ROLE_FILTERING] create_agent | "
+                f"assistant_role={assistant_role} | "
+                f"pre_filter_count={pre_role_count} | "
+                f"post_filter_count={len(all_tools)} | "
+                f"removed_count={pre_role_count - len(all_tools)}"
+            )
 
         # Build Backcast middleware stack (shared between main agent and subagents)
         backcast_middleware = [

@@ -940,6 +940,7 @@ class DataSeeder:
                         max_tokens=assistant_dict.get("max_tokens"),
                         allowed_tools=assistant_dict.get("allowed_tools"),
                         is_active=assistant_dict.get("is_active", True),
+                        default_role=assistant_dict.get("default_role"),
                     )
                     session.add(assistant)
                     await session.flush()
