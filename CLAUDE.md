@@ -6,9 +6,29 @@
 
 ## Common Commands
 
+### Docker Compose Development (Recommended)
+
+```bash
+# Setup (from project root)
+cp .env.dev.example .env.dev                    # Create development environment
+docker compose -f docker-compose.dev.yml --env-file .env.dev up
+
+# Run migrations
+docker compose -f docker-compose.dev.yml --env-file .env.dev --profile migrations up alembic
+
+# Access
+# Frontend: http://localhost:5173
+# Backend API: http://localhost:8020/docs
+# Adminer (DB GUI): http://localhost:7090
+
+# See docs/02-architecture/development/docker-compose.md for details
+```
+
 ### Backend (Python/FastAPI)
 
 ```bash
+
+# === Local Development (without Docker) ===
 
 # Virtual environment setup (prior to **every** backend command)
 cd backend && source .venv/bin/activate
