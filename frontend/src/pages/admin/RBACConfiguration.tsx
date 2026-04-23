@@ -418,6 +418,7 @@ const RoleModal: React.FC<RoleModalProps> = ({
       width={720}
     >
       <Form<RBACRoleCreate>
+        key={initialValues?.id ?? "create"}
         form={form}
         layout="vertical"
         initialValues={
