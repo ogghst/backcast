@@ -35,14 +35,14 @@ class DatabaseRBACService(RBACServiceABC):
 
     _CACHE_TTL = timedelta(minutes=5)
 
-    def __init__(self, session: Any | None = None) -> None:
+    def __init__(self, session: Any = None) -> None:  # noqa: ARG002 (session accepted for backward compatibility, ignored)
         """Initialize the database RBAC service.
 
         Args:
-            session: Optional AsyncSession for database lookups.
-                    Falls back to contextvar session via ``get_rbac_session()``.
+            session: Accepted for backward compatibility with tests and JsonRBACService,
+                    but not used. Database sessions are managed per-request via
+                    contextvars to avoid session leaks.
         """
-        self.session = session
         # Permissions cache: {role_name: (permissions_list, timestamp)}
         self._permissions_cache: dict[str, tuple[list[str], datetime]] = {}
         # Project membership cache: {(user_id, project_id) -> (role, timestamp)}
@@ -58,7 +58,7 @@ class DatabaseRBACService(RBACServiceABC):
         Called at startup and after write operations that modify roles or
         permissions.  Replaces the entire cache with fresh data.
         """
-        session = self.session or get_rbac_session()
+        session = get_rbac_session()
         if session is None:
             logger.warning("Cannot refresh RBAC cache: no database session")
             return
@@ -250,7 +250,7 @@ class DatabaseRBACService(RBACServiceABC):
                 return self._role_has_permission(cached_role, required_permission)
 
         # Database lookup required
-        session = self.session or get_rbac_session()
+        session = get_rbac_session()
         if session is None:
             logger.warning(
                 "Cannot check project access for user %s: "
@@ -294,7 +294,7 @@ class DatabaseRBACService(RBACServiceABC):
         if user_role == "admin":
             from app.models.domain.project import Project
 
-            session = self.session or get_rbac_session()
+            session = get_rbac_session()
             if session is None:
                 logger.warning(
                     "Cannot get projects for admin user %s: "
@@ -307,7 +307,7 @@ class DatabaseRBACService(RBACServiceABC):
             return [row[0] for row in result.all()]
 
         # Non-admin users: get their project memberships
-        session = self.session or get_rbac_session()
+        session = get_rbac_session()
         if session is None:
             logger.warning(
                 "Cannot get projects for user %s: no database session provided",
@@ -340,7 +340,7 @@ class DatabaseRBACService(RBACServiceABC):
                 return cached_role
 
         # Database lookup
-        session = self.session or get_rbac_session()
+        session = get_rbac_session()
         if session is None:
             logger.warning(
                 "Cannot get project role for user %s: "

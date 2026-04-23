@@ -26,13 +26,13 @@ from app.core.rbac_database import DatabaseRBACService
 @pytest.fixture
 def service() -> DatabaseRBACService:
     """Create a DatabaseRBACService with no session for unit tests."""
-    return DatabaseRBACService(session=None)
+    return DatabaseRBACService()
 
 
 @pytest.fixture
 def service_with_populated_cache() -> DatabaseRBACService:
     """Create a DatabaseRBACService with pre-populated permissions cache."""
-    svc = DatabaseRBACService(session=None)
+    svc = DatabaseRBACService()
     now = datetime.now(UTC)
     svc._permissions_cache = {
         "admin": (
@@ -85,7 +85,8 @@ class TestRefreshCache:
         ]
         mock_session.execute.return_value = mock_result
 
-        svc = DatabaseRBACService(session=mock_session)
+        set_rbac_session(mock_session)
+        svc = DatabaseRBACService()
         await svc.refresh_cache()
 
         assert "admin" in svc._permissions_cache
@@ -129,7 +130,8 @@ class TestRefreshCache:
         ]
         mock_session.execute.return_value = mock_result
 
-        svc = DatabaseRBACService(session=mock_session)
+        set_rbac_session(mock_session)
+        svc = DatabaseRBACService()
         # Pre-populate with old data
         svc._permissions_cache = {
             "admin": (["old-permission"], datetime.now(UTC)),
@@ -464,7 +466,8 @@ class TestHasProjectAccess:
         mock_result.scalar_one_or_none.return_value = mock_member
         mock_session.execute.return_value = mock_result
 
-        svc = DatabaseRBACService(session=mock_session)
+        set_rbac_session(mock_session)
+        svc = DatabaseRBACService()
         user_id = uuid4()
         project_id = uuid4()
 
@@ -482,6 +485,9 @@ class TestHasProjectAccess:
         cached_role, _ = svc._project_cache[cache_key]
         assert cached_role == EnumProjectRole.PROJECT_EDITOR.value
 
+        # Cleanup
+        set_rbac_session(None)
+
     @pytest.mark.asyncio
     async def test_no_membership_returns_false(self) -> None:
         """User not in project returns False."""
@@ -490,7 +496,8 @@ class TestHasProjectAccess:
         mock_result.scalar_one_or_none.return_value = None
         mock_session.execute.return_value = mock_result
 
-        svc = DatabaseRBACService(session=mock_session)
+        set_rbac_session(mock_session)
+        svc = DatabaseRBACService()
         user_id = uuid4()
         project_id = uuid4()
 
@@ -501,6 +508,9 @@ class TestHasProjectAccess:
             required_permission="project-read",
         )
         assert has_access is False
+
+        # Cleanup
+        set_rbac_session(None)
 
     @pytest.mark.asyncio
     async def test_contextvar_session_fallback(self) -> None:
@@ -565,11 +575,15 @@ class TestGetUserProjects:
         mock_result.all.return_value = [(pid,) for pid in project_ids]
         mock_session.execute.return_value = mock_result
 
-        svc = DatabaseRBACService(session=mock_session)
+        set_rbac_session(mock_session)
+        svc = DatabaseRBACService()
         user_id = uuid4()
 
         projects = await svc.get_user_projects(user_id=user_id, user_role="admin")
         assert projects == project_ids
+
+        # Cleanup
+        set_rbac_session(None)
 
     @pytest.mark.asyncio
     async def test_non_admin_gets_member_projects(self) -> None:
@@ -580,11 +594,15 @@ class TestGetUserProjects:
         mock_result.all.return_value = [(project_id,)]
         mock_session.execute.return_value = mock_result
 
-        svc = DatabaseRBACService(session=mock_session)
+        set_rbac_session(mock_session)
+        svc = DatabaseRBACService()
         user_id = uuid4()
 
         projects = await svc.get_user_projects(user_id=user_id, user_role="viewer")
         assert projects == [project_id]
+
+        # Cleanup
+        set_rbac_session(None)
 
 
 class TestGetProjectRole:
@@ -645,7 +663,8 @@ class TestGetProjectRole:
         )
         mock_session.execute.return_value = mock_result
 
-        svc = DatabaseRBACService(session=mock_session)
+        set_rbac_session(mock_session)
+        svc = DatabaseRBACService()
         user_id = uuid4()
         project_id = uuid4()
 
@@ -656,6 +675,9 @@ class TestGetProjectRole:
         cache_key = (user_id, project_id)
         assert cache_key in svc._project_cache
 
+        # Cleanup
+        set_rbac_session(None)
+
     @pytest.mark.asyncio
     async def test_no_membership_returns_none(self) -> None:
         """User not in project returns None and nothing cached."""
@@ -664,7 +686,8 @@ class TestGetProjectRole:
         mock_result.scalar_one_or_none.return_value = None
         mock_session.execute.return_value = mock_result
 
-        svc = DatabaseRBACService(session=mock_session)
+        set_rbac_session(mock_session)
+        svc = DatabaseRBACService()
         user_id = uuid4()
         project_id = uuid4()
 
@@ -674,6 +697,9 @@ class TestGetProjectRole:
         # Nothing cached for non-membership
         cache_key = (user_id, project_id)
         assert cache_key not in svc._project_cache
+
+        # Cleanup
+        set_rbac_session(None)
 
 
 # ---------------------------------------------------------------------------

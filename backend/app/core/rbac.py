@@ -683,18 +683,18 @@ def inject_rbac_session(
     rbac_service: RBACServiceABC,
     session: Any,
 ) -> bool:
-    """Inject database session into RBAC service for project-level access checks.
+    """Set the request-scoped RBAC database session.
 
-    Some RBAC service implementations (like JsonRBACService) require a database
-    session to perform project-level access checks. This helper function safely
-    injects the session if the service supports it.
+    This helper function sets the contextvar used for database access
+    in RBAC service implementations. For backward compatibility, it also
+    sets the instance ``session`` attribute on services that have it.
 
     Args:
-        rbac_service: The RBAC service instance
-        session: The database session to inject
+        rbac_service: The RBAC service instance (unused, kept for API compatibility)
+        session: The database session to set
 
     Returns:
-        True if session was injected (or already set), False otherwise
+        True (always succeeds)
 
     Example:
         ```python
@@ -704,7 +704,11 @@ def inject_rbac_session(
         inject_rbac_session(rbac_service, context.session)
         ```
     """
+    # Always set the contextvar (preferred method)
+    set_rbac_session(session)
+
+    # For backward compatibility with JsonRBACService in tests
     if hasattr(rbac_service, "session") and rbac_service.session is None:
         rbac_service.session = session
-        return True
-    return False
+
+    return True

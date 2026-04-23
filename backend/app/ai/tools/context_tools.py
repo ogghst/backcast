@@ -19,7 +19,7 @@ from app.ai.tools.temporal_logging import (
     log_temporal_context,
 )
 from app.ai.tools.types import RiskLevel, ToolContext
-from app.core.rbac import inject_rbac_session
+from app.core.rbac import set_rbac_session
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +108,9 @@ async def get_project_context(
         # Validate project_id format
         project_uuid = UUID(context.project_id)
 
-        # Inject session for project-level access checks
+        # Set session for project-level access checks
         rbac_service = get_rbac_service()
-        inject_rbac_session(rbac_service, context.session)
+        set_rbac_session(context.session)
 
         # Get project details
         from app.core.versioning.enums import BranchMode
@@ -294,10 +294,9 @@ async def get_project_structure(
         )
         project_uuid = UUID(context.project_id)
 
-        # RBAC check
+        # Set session for project-level access checks
         rbac_service = get_rbac_service()
-        if hasattr(rbac_service, "session") and rbac_service.session is None:
-            rbac_service.session = context.session
+        set_rbac_session(context.session)
 
         user_uuid = UUID(context.user_id)
         accessible_project_ids = await rbac_service.get_user_projects(
