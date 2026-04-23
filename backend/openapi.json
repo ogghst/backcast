@@ -4566,7 +4566,7 @@
           "Cost Registrations"
         ],
         "summary": "Get Project Budget Status",
-        "description": "Get project-level budget status (aggregated across all cost elements).\n\nReturns the project budget, total spend across all cost elements,\nremaining amount, and percentage used. This is used for project-level\nbudget validation in the cost registration modal.\n\nThe total spend is aggregated across all cost registrations in all\ncost elements belonging to the project.",
+        "description": "Get project-level budget status (aggregated across all cost elements).\n\nReturns the project budget, total spend across all cost elements,\nremaining amount, and percentage used. This is used for project-level\nbudget validation in the cost registration modal.\n\nThe total spend is aggregated across all cost registrations in all\ncost elements belonging to the project. Supports time-travel via as_of.",
         "operationId": "get_project_budget_status",
         "security": [
           {
@@ -4595,6 +4595,38 @@
               "title": "Branch"
             },
             "description": "Branch context to resolve Project budget"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get budget status as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get budget status as of this timestamp (ISO 8601)"
+          },
+          {
+            "name": "branch_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merge|isolated)$",
+              "description": "Branch mode: merge (fallback to main) or isolated (current branch only)",
+              "default": "merge",
+              "title": "Branch Mode"
+            },
+            "description": "Branch mode: merge (fallback to main) or isolated (current branch only)"
           }
         ],
         "responses": {
@@ -4606,6 +4638,101 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Get Project Budget Status"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations/wbe-budget-status/{wbe_id}": {
+      "get": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Get Wbe Budget Status",
+        "description": "Get WBE-level budget status (aggregated across WBE hierarchy).\n\nReturns the WBE budget (sum of cost element budgets in hierarchy),\ntotal spend across all cost registrations, remaining amount, and\npercentage used. Supports time-travel via as_of.",
+        "operationId": "get_wbe_budget_status",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "wbe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Wbe Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch context to resolve WBE budget",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch context to resolve WBE budget"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get budget status as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get budget status as of this timestamp (ISO 8601)"
+          },
+          {
+            "name": "branch_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merge|isolated)$",
+              "description": "Branch mode: merge (fallback to main) or isolated (current branch only)",
+              "default": "merge",
+              "title": "Branch Mode"
+            },
+            "description": "Branch mode: merge (fallback to main) or isolated (current branch only)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Wbe Budget Status"
                 }
               }
             }
@@ -11193,6 +11320,154 @@
           }
         }
       }
+    },
+    "/api/v1/search": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Global Search",
+        "description": "Search across all entity types with ranked results.\n\nQueries 12 entity types in parallel, applies RBAC project scoping,\ntemporal/branch filters, and returns a flat relevance-ranked list.",
+        "operationId": "global_search",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Search query string",
+              "title": "Q"
+            },
+            "description": "Search query string"
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope results to a specific project",
+              "title": "Project Id"
+            },
+            "description": "Scope results to a specific project"
+          },
+          {
+            "name": "wbe_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope results to a specific WBE and descendants",
+              "title": "Wbe Id"
+            },
+            "description": "Scope results to a specific WBE and descendants"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name for branchable entities",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name for branchable entities"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: search entities as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: search entities as of this timestamp (ISO 8601)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Maximum number of results",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Maximum number of results"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16099,6 +16374,33 @@
         "title": "GanttItem",
         "description": "A single item in the Gantt chart (cost element with schedule)."
       },
+      "GlobalSearchResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItem"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results",
+          "total",
+          "query"
+        ],
+        "title": "GlobalSearchResponse",
+        "description": "Response for the global search endpoint.\n\nAttributes:\n    results: Ranked list of search results.\n    total: Total number of results returned.\n    query: Original search query string."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -18143,6 +18445,105 @@
         "type": "object",
         "title": "ScheduleBaselineUpdate",
         "description": "Properties that can be updated on a Schedule Baseline."
+      },
+      "SearchResultItem": {
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "root_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Root Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "relevance_score": {
+            "type": "number",
+            "title": "Relevance Score"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "wbe_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wbe Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type",
+          "id",
+          "root_id",
+          "relevance_score"
+        ],
+        "title": "SearchResultItem",
+        "description": "A single search result from any entity type.\n\nAttributes:\n    entity_type: Entity type label (e.g. \"project\", \"wbe\", \"cost_element\").\n    id: Version PK (database row ID).\n    root_id: Stable root ID (project_id, wbe_id, etc.).\n    code: Business code if the entity has one.\n    name: Display name if the entity has one.\n    description: Description text if available.\n    status: Status field if the entity has one.\n    relevance_score: Computed relevance score (0.0 - 1.0).\n    project_id: Owning project root ID for project-scoped entities.\n    wbe_id: Owning WBE root ID for WBE-scoped entities."
       },
       "SessionContext": {
         "properties": {
