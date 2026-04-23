@@ -1,0 +1,27 @@
+# Development Dockerfile for FastAPI Backend
+# Includes hot-reload support and dev dependencies
+
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for development
+RUN apt-get update && apt-get install -y \
+    curl \
+    postgresql-client \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files
+COPY backend/pyproject.toml backend/README.md* ./
+
+# Install ALL dependencies (including dev)
+RUN uv sync --all-extras
+
+# Expose port
+EXPOSE 8020
+
+# Default command (override in docker-compose)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8020", "--reload"]

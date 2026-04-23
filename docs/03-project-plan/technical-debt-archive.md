@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-04-23
-**Total Archived Items:** 34
+**Total Archived Items:** 35
 
 ---
 
@@ -173,6 +173,46 @@ This file contains all completed, closed, or resolved technical debt items. For 
 
 ### April 2026
 
+#### [TD-064] Docker Compose for Local Development
+
+- **Source:** Temporal Context Consistency ACT phase (2026-01-19)
+- **Description:** Need standardized Docker Compose setup for backend, frontend, and PostgreSQL to prevent development blockages.
+- **Status:** ✅ Complete (2026-04-23)
+- **Owner:** Tech Lead
+- **Priority:** Medium (P2-P3)
+- **Resolution:** Implemented development Docker Compose setup with hot-reload support for both backend (FastAPI) and frontend (Vite), PostgreSQL 15, and Adminer GUI. Created development Dockerfiles, environment template, and comprehensive documentation.
+- **Actual Effort:** 2 hours (estimated: 3 hours)
+- **Files Created:**
+  - `docker-compose.dev.yml` - Development services configuration
+  - `Dockerfile.dev.backend` - Backend with dev dependencies and hot-reload
+  - `Dockerfile.dev.frontend` - Frontend with Vite dev server
+  - `.env.dev.example` - Development environment template
+  - `docs/02-architecture/development/docker-compose.md` - Comprehensive documentation
+  - `.dockerignore` - Root Docker ignore patterns
+  - `frontend/.dockerignore` - Frontend Docker ignore patterns
+- **Action Items:**
+  - [x] Create docker-compose.dev.yml with hot-reload support
+  - [x] Create development Dockerfiles for backend and frontend
+  - [x] Create .env.dev.example template
+  - [x] Create comprehensive documentation
+  - [x] Update CLAUDE.md with Docker Compose instructions
+  - [x] Add .dockerignore files for proper volume handling
+- **Features:**
+  - Hot-reload backend: FastAPI with `--reload`
+  - Hot-reload frontend: Vite dev server with HMR
+  - PostgreSQL 15 with persistent volume
+  - Adminer database GUI at http://localhost:7090
+  - Isolated dependencies (no local Python/Node required)
+  - Development `.venv` and `node_modules` volumes for faster rebuilds
+- **Usage:**
+  ```bash
+  cp .env.dev.example .env.dev
+  docker compose -f docker-compose.dev.yml --env-file .env.dev up
+  ```
+- **References:**
+  - **Documentation:** docs/02-architecture/development/docker-compose.md
+  - **Technical Debt ID:** TD-064
+
 #### [TD-065] Automate OpenAPI Client Generation in CI/CD
 
 - **Source:** Temporal Context Consistency ACT phase (2026-01-19)
@@ -338,8 +378,8 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ## Summary by Year
 
 ### 2026
-- **Q1:** 9 items closed (TD-065, TD-072, TD-073, TD-082, TD-057, TD-062, TD-068, TD-059, TD-067)
-- **Total Archived:** 9 items
+- **Q1-Q2:** 10 items closed (TD-064, TD-065, TD-072, TD-073, TD-082, TD-057, TD-062, TD-068, TD-059, TD-067)
+- **Total Archived:** 10 items
 
 ### 2025
 - **Q4:** 15 items closed
@@ -351,7 +391,7 @@ This file contains all completed, closed, or resolved technical debt items. For 
 
 | Status | Count |
 |--------|-------|
-| Complete | 7 |
+| Complete | 9 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **8** |
-| **Total (All Time)** | **30** |
+| **Total (2026)** | **10** |
+| **Total (All Time)** | **35** |
