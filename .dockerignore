@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+docs
+*.md
+!README.md
+
+# CI/CD
+.github
+
+# Claude
+.claude
+
+# Environment files
+.env
+.env.*
+!.env.dev.example
+!.env.production.example
+
+# Docker (prevent recursive builds)
+docker-compose*.yml
+!docker-compose.dev.yml
+Dockerfile*
+!Dockerfile.dev.backend
+!Dockerfile.dev.frontend
+
+# Deploy (production configs)
+deploy
+
+# Worktrees
+.claude
+
+# Misc
+*.log
+.DS_Store
+.vscode
+.idea

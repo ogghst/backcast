@@ -1,0 +1,132 @@
+# Development Docker Compose for Backcast
+# Usage: docker compose -f docker-compose.dev.yml --env-file .env.dev up
+#
+# Features:
+# - Hot-reload for backend (FastAPI --reload)
+# - Hot-reload for frontend (Vite dev server)
+# - PostgreSQL with persistent volume
+# - Adminer database GUI at http://localhost:7090
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: backcast_dev_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dev_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev.backend
+    container_name: backcast_dev_backend
+    environment:
+      # Database (use internal docker network for postgres)
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Application
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "true"
+      PORT: 8020
+      API_V1_STR: /api/v1
+      # CORS (allow frontend dev server)
+      BACKEND_CORS_ORIGINS: '["http://localhost:5173", "http://localhost:3000"]'
+      # RBAC
+      RBAC_POLICY_FILE: config/rbac.json
+      # Logging
+      LOG_LEVEL: DEBUG
+    volumes:
+      # Mount source code for hot-reload
+      - ./backend:/app
+      - backend_venv:/app/.venv
+    ports:
+      - "8020:8020"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dev_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8020 --reload
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev.frontend
+    container_name: backcast_dev_frontend
+    environment:
+      # Vite needs these for the dev server proxy
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8020}
+      VITE_WEBSOCKET_URL: ${VITE_WEBSOCKET_URL:-ws://localhost:8020}
+    volumes:
+      # Mount source code for hot-reload (node_modules handled in .dockerignore)
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    networks:
+      - dev_network
+    command: npm run dev -- --host 0.0.0.0
+
+  alembic:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev.backend
+    container_name: backcast_dev_alembic
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "false"
+    volumes:
+      - ./backend:/app
+      - backend_venv:/app/.venv
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dev_network
+    profiles:
+      - migrations
+    command: alembic upgrade head
+
+  adminer:
+    image: adminer:latest
+    container_name: backcast_dev_adminer
+    ports:
+      - "7090:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: nette
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dev_network
+
+networks:
+  dev_network:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+  backend_venv:
+  frontend_node_modules:
