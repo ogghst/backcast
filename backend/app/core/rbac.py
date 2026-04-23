@@ -645,17 +645,25 @@ def get_rbac_service() -> RBACServiceABC:
         The global RBACServiceABC instance
 
     Note:
-        Creates a JsonRBACService on first call with default config path.
+        Creates a service based on ``settings.RBAC_PROVIDER``:
+        - ``"json"`` (default): ``JsonRBACService`` reading from rbac.json
+        - ``"database"``: ``DatabaseRBACService`` reading from PostgreSQL
+
         Can be overridden for testing by setting the global _rbac_service.
     """
     global _rbac_service
     if _rbac_service is None:
-        path = Path(settings.RBAC_POLICY_FILE)
-        if not path.is_absolute():
-            # Resolve relative to project root (backend/)
-            base_dir = Path(__file__).resolve().parent.parent.parent
-            path = base_dir / path
-        _rbac_service = JsonRBACService(config_path=path)
+        if settings.RBAC_PROVIDER == "database":
+            from app.core.rbac_database import DatabaseRBACService
+
+            _rbac_service = DatabaseRBACService()
+        else:
+            path = Path(settings.RBAC_POLICY_FILE)
+            if not path.is_absolute():
+                # Resolve relative to project root (backend/)
+                base_dir = Path(__file__).resolve().parent.parent.parent
+                path = base_dir / path
+            _rbac_service = JsonRBACService(config_path=path)
     return _rbac_service
 
 

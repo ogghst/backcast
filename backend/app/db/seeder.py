@@ -6,6 +6,7 @@ Provides flexible JSON-based seeding that uses Pydantic schemas for validation.
 import asyncio
 import json
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -957,6 +958,148 @@ class DataSeeder:
             f"AI Assistant seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
+    async def seed_rbac_roles(self, session: AsyncSession) -> None:
+        """Seed RBAC roles and permissions from config/rbac.json or seed/rbac_roles.json.
+
+        Idempotent - safe to run multiple times. Skips existing roles.
+        Creates system roles (is_system=True) that cannot be deleted via API.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select
+
+        from app.models.domain.rbac import RBACRole, RBACRolePermission
+
+        logger.info("Starting RBAC role seeding...")
+
+        # Try seed file first, fall back to config
+        seed_file = self.seed_dir / "rbac_roles.json"
+        config_file = Path(__file__).parent.parent.parent / "config" / "rbac.json"
+
+        rbac_file = seed_file if seed_file.exists() else config_file
+
+        if not rbac_file.exists():
+            logger.warning(f"RBAC config file not found: {rbac_file}")
+            return
+
+        try:
+            with rbac_file.open() as f:
+                rbac_config = json.load(f)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in RBAC config file {rbac_file}: {e}")
+            return
+
+        roles_data = rbac_config.get("roles", {})
+        if not roles_data:
+            logger.info("No roles found in RBAC config")
+            return
+
+        # Track existing roles for idempotency
+        stmt = select(RBACRole.name)
+        result = await session.execute(stmt)
+        existing_roles = set(result.scalars().all())
+
+        if existing_roles:
+            logger.debug(f"Found {len(existing_roles)} existing RBAC roles")
+
+        # Track existing permissions for idempotency
+        # role_id is stored as UUID in database but mapped as string in the model
+        # Query using ORM to ensure proper type conversion
+        stmt_perms = select(RBACRolePermission.role_id, RBACRolePermission.permission)
+        result_perms = await session.execute(stmt_perms)
+
+        existing_perms: set[tuple[str, str]] = set()
+        for row in result_perms.all():
+            # row is a tuple of (role_id, permission)
+            # role_id might be returned as UUID, convert to string for comparison
+            role_id_val = row[0]
+            permission_val = row[1]
+            # Convert role_id to string if it's a UUID
+            if hasattr(role_id_val, '__str__'):
+                role_id_str = str(role_id_val)
+            else:
+                role_id_str = role_id_val
+            existing_perms.add((role_id_str, permission_val))
+
+        logger.info(f"Found {len(existing_perms)} existing RBAC role permissions in database")
+
+        created_count = 0
+        skipped_count = 0
+        permission_created_count = 0
+        permission_skipped_count = 0
+
+        now = datetime.now(UTC)
+
+        with seed_operation():  # Allow explicit role_id from seed data
+            for role_name, role_def in roles_data.items():
+                try:
+                    # Check if role already exists
+                    if role_name in existing_roles:
+                        logger.debug(f"Role {role_name} already exists, skipping creation")
+                        skipped_count += 1
+                        # Still need to ensure permissions exist
+                        stmt_role = select(RBACRole).where(RBACRole.name == role_name)
+                        result_role = await session.execute(stmt_role)
+                        role = result_role.scalar_one_or_none()
+                        if role:
+                            role_id = role.id
+                        else:
+                            logger.error(f"Role {role_name} in existing_roles but not found in DB")
+                            continue
+                    else:
+                        # Create new role
+                        from uuid import uuid4
+
+                        role_id = uuid4()
+                        role = RBACRole(
+                            id=role_id,
+                            name=role_name,
+                            description=role_def.get("description"),
+                            is_system=True,  # Mark as system role (cannot be deleted via API)
+                            created_at=now,
+                            updated_at=now,
+                        )
+                        session.add(role)
+                        await session.flush()
+                        created_count += 1
+                        logger.info(f"Created RBAC role: {role_name}")
+
+                    # Create permissions for this role
+                    permissions = role_def.get("permissions", [])
+                    # Convert role_id to string for permission checking
+                    # (database stores UUID as string)
+                    role_id_str = str(role_id)
+                    logger.debug(f"Processing {len(permissions)} permissions for role {role_name} (role_id={role_id_str})")
+
+                    for perm in permissions:
+                        # Check if permission already exists
+                        if (role_id_str, perm) in existing_perms:
+                            logger.debug(f"Skipping existing permission: {role_name}.{perm}")
+                            permission_skipped_count += 1
+                            continue
+
+                        # Create permission (created_at will be set by database default)
+                        from uuid import uuid4
+
+                        role_perm = RBACRolePermission(
+                            id=uuid4(),
+                            role_id=role_id_str,
+                            permission=perm,
+                        )
+                        session.add(role_perm)
+                        permission_created_count += 1
+                        logger.debug(f"Adding permission: {role_name}.{perm}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed role {role_name}: {e}")
+                    continue
+
+        logger.info(
+            f"RBAC role seeding complete: {created_count} created, {skipped_count} skipped | "
+            f"Permissions: {permission_created_count} created, {permission_skipped_count} skipped"
+        )
+
     async def seed_all(self, session: AsyncSession) -> None:
         """Execute all seeding operations in the correct order.
 
@@ -966,10 +1109,13 @@ class DataSeeder:
         logger.info("=== Starting database seeding ===")
 
         try:
-            # Seed departments first (referenced by users)
+            # Seed RBAC roles first (required by users)
+            await self.seed_rbac_roles(session)
+
+            # Seed departments (referenced by users)
             await self.seed_departments(session)
 
-            # Then seed users
+            # Then seed users (depend on roles and departments)
             await self.seed_users(session)
 
             # Seed Cost Element Types

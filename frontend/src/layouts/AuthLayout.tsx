@@ -59,7 +59,7 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
               Backcast
             </Title>
             <Typography.Text type="secondary">
-              Entity Version Control System
+              Agentic warping your project dimensions
             </Typography.Text>
           </div>
           {children}

@@ -32,6 +32,7 @@ from app.api.routes import (
     project_members,
     projects,
     quality_events,
+    rbac_admin,
     schedule_baselines,
     search,
     users,
@@ -67,6 +68,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     async with async_session_maker() as session:
         await warm_graph_cache(session)
+
+        # Seed RBAC roles when using database provider
+        # Must run before cache warming to ensure roles exist
+        from app.core.config import settings as app_settings
+
+        if app_settings.RBAC_PROVIDER == "database":
+            from app.db.seeder import DataSeeder
+
+            seeder = DataSeeder()
+            await seeder.seed_rbac_roles(session)
+            await session.commit()
+            logger.info("RBAC roles seeded successfully")
+
+        # Warm RBAC permissions cache when using database provider
+        if app_settings.RBAC_PROVIDER == "database":
+            from app.core.rbac import get_rbac_service, set_rbac_session
+            from app.core.rbac_database import DatabaseRBACService
+
+            set_rbac_session(session)
+            rbac_svc = get_rbac_service()
+            if isinstance(rbac_svc, DatabaseRBACService):
+                await rbac_svc.refresh_cache()
+            set_rbac_session(None)
 
     # Notify admins of system startup
     from app.core.notifications import notifier
@@ -346,6 +370,11 @@ app.include_router(
     dashboard_layouts.router,
     prefix=f"{settings.API_V1_STR}/dashboard-layouts",
     tags=["Dashboard Layouts"],
+)
+app.include_router(
+    rbac_admin.router,
+    prefix=f"{settings.API_V1_STR}/admin/rbac",
+    tags=["Admin RBAC"],
 )
 app.include_router(
     search.router,

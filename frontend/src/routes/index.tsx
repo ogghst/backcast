@@ -8,6 +8,7 @@ import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
 import { CostElementTypeManagement } from "@/pages/admin/CostElementTypeManagement";
 import { AIProviderManagement } from "@/pages/admin/AIProviderManagement";
 import { AIAssistantManagement } from "@/pages/admin/AIAssistantManagement";
+import { RBACConfiguration } from "@/pages/admin/RBACConfiguration";
 import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
@@ -93,6 +94,10 @@ export const router = createBrowserRouter([
       {
         path: "/admin/ai-assistants",
         element: <AIAssistantManagement />,
+      },
+      {
+        path: "/admin/rbac",
+        element: <RBACConfiguration />,
       },
       {
         path: "/chat",

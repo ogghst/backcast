@@ -298,6 +298,18 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["search", "global", params, asOf, branch, mode] as const,
   },
 
+  // Admin RBAC
+  adminRbac: {
+    all: ["admin-rbac"] as const,
+    roles: {
+      all: ["admin-rbac", "roles"] as const,
+      list: ["admin-rbac", "roles", "list"] as const,
+      detail: (id: string) => ["admin-rbac", "roles", "detail", id] as const,
+    },
+    permissions: ["admin-rbac", "permissions"] as const,
+    providerStatus: ["admin-rbac", "provider-status"] as const,
+  },
+
   // Quality Events
   qualityEvents: {
     all: ["quality-events"] as const,
