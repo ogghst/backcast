@@ -4,7 +4,7 @@ Tests cover:
 - Role CRUD (create, read, update, delete)
 - Permission management
 - System-role deletion guard
-- Cache invalidation after writes
+- Cache refresh after writes
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -114,7 +114,7 @@ class TestCreateRole:
             A role is added to the session with is_system=False and the
             correct permission entries are created.
         """
-        with patch.object(service, "_invalidate_cache", new_callable=AsyncMock):
+        with patch.object(service, "_refresh_cache", new_callable=AsyncMock):
             role = await service.create_role(
                 name="engineer",
                 description="Engineering role",
@@ -179,7 +179,7 @@ class TestUpdateRole:
         role = _make_role(name="old-name")
         mock_session.get.return_value = role
 
-        with patch.object(service, "_invalidate_cache", new_callable=AsyncMock):
+        with patch.object(service, "_refresh_cache", new_callable=AsyncMock):
             updated = await service.update_role(
                 role_id=role.id,
                 name="new-name",
@@ -206,7 +206,7 @@ class TestUpdateRole:
         role = _make_role(name="editor")
         mock_session.get.return_value = role
 
-        with patch.object(service, "_invalidate_cache", new_callable=AsyncMock):
+        with patch.object(service, "_refresh_cache", new_callable=AsyncMock):
             updated = await service.update_role(
                 role_id=role.id,
                 name=None,
@@ -236,7 +236,7 @@ class TestUpdateRole:
         role = _make_role(name="editor", description="old desc")
         mock_session.get.return_value = role
 
-        with patch.object(service, "_invalidate_cache", new_callable=AsyncMock):
+        with patch.object(service, "_refresh_cache", new_callable=AsyncMock):
             updated = await service.update_role(
                 role_id=role.id,
                 name=None,
@@ -299,7 +299,7 @@ class TestDeleteRole:
         role = _make_role(name="custom", is_system=False)
         mock_session.get.return_value = role
 
-        with patch.object(service, "_invalidate_cache", new_callable=AsyncMock):
+        with patch.object(service, "_refresh_cache", new_callable=AsyncMock):
             deleted = await service.delete_role(role.id)
 
         assert deleted is True
@@ -383,23 +383,23 @@ class TestGetAllPermissions:
 # ---------------------------------------------------------------------------
 
 
-class TestCacheInvalidation:
-    """Tests for _invalidate_cache being called after write operations."""
+class TestCacheRefresh:
+    """Tests for _refresh_cache being called after write operations."""
 
     @pytest.mark.asyncio
-    async def test_cache_invalidation_on_create(
+    async def test_cache_refresh_on_create(
         self, service: RBACAdminService, mock_session: AsyncMock
     ) -> None:
-        """_invalidate_cache is called after create_role.
+        """_refresh_cache is called after create_role.
 
         Given:
             A valid role creation request.
         When:
             create_role is called.
         Then:
-            _invalidate_cache is invoked exactly once.
+            _refresh_cache is invoked exactly once.
         """
-        with patch.object(service, "_invalidate_cache", new_callable=AsyncMock) as mock_inv:
+        with patch.object(service, "_refresh_cache", new_callable=AsyncMock) as mock_inv:
             await service.create_role(
                 name="role-a",
                 description=None,
@@ -408,22 +408,22 @@ class TestCacheInvalidation:
             mock_inv.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_cache_invalidation_on_update(
+    async def test_cache_refresh_on_update(
         self, service: RBACAdminService, mock_session: AsyncMock
     ) -> None:
-        """_invalidate_cache is called after update_role.
+        """_refresh_cache is called after update_role.
 
         Given:
             An existing role.
         When:
             update_role is called.
         Then:
-            _invalidate_cache is invoked exactly once.
+            _refresh_cache is invoked exactly once.
         """
         role = _make_role(name="editor")
         mock_session.get.return_value = role
 
-        with patch.object(service, "_invalidate_cache", new_callable=AsyncMock) as mock_inv:
+        with patch.object(service, "_refresh_cache", new_callable=AsyncMock) as mock_inv:
             await service.update_role(
                 role_id=role.id,
                 name="updated-editor",
@@ -433,21 +433,21 @@ class TestCacheInvalidation:
             mock_inv.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_cache_invalidation_on_delete(
+    async def test_cache_refresh_on_delete(
         self, service: RBACAdminService, mock_session: AsyncMock
     ) -> None:
-        """_invalidate_cache is called after delete_role.
+        """_refresh_cache is called after delete_role.
 
         Given:
             A non-system role to delete.
         When:
             delete_role is called.
         Then:
-            _invalidate_cache is invoked exactly once.
+            _refresh_cache is invoked exactly once.
         """
         role = _make_role(name="custom", is_system=False)
         mock_session.get.return_value = role
 
-        with patch.object(service, "_invalidate_cache", new_callable=AsyncMock) as mock_inv:
+        with patch.object(service, "_refresh_cache", new_callable=AsyncMock) as mock_inv:
             await service.delete_role(role.id)
             mock_inv.assert_called_once()

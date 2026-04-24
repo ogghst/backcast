@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import ProjectRoleChecker, get_current_active_user
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.gantt import GanttDataResponse
@@ -26,7 +26,7 @@ def get_gantt_service(
     "/{project_id}/gantt-data",
     response_model=GanttDataResponse,
     operation_id="get_project_gantt_data",
-    dependencies=[Depends(RoleChecker(required_permission="cost-element-read"))],
+    dependencies=[Depends(ProjectRoleChecker(required_permission="cost-element-read"))],
 )
 async def get_gantt_data(
     project_id: UUID,

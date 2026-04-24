@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user
+from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.dashboard import DashboardData
@@ -32,6 +32,7 @@ def get_dashboard_service(
     "/recent-activity",
     response_model=DashboardData,
     operation_id="get_dashboard_recent_activity",
+    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def get_dashboard_recent_activity(
     activity_limit: Annotated[

@@ -1,7 +1,7 @@
 """Admin service for RBAC role and permission management.
 
 Provides CRUD operations for RBACRole with permission management
-through the RBACRolePermission relationship.  Invalidates the
+through the RBACRolePermission relationship.  Refreshes the
 DatabaseRBACService cache after every write.
 """
 
@@ -90,7 +90,7 @@ class RBACAdminService:
                 RBACRolePermission(role_id=role.id, permission=perm)
             )
         await self.session.flush()
-        await self._invalidate_cache()
+        await self._refresh_cache()
 
         # Eagerly load permissions for response serialisation
         await self.session.refresh(role, ["permissions"])
@@ -137,7 +137,7 @@ class RBACAdminService:
                 )
 
         await self.session.flush()
-        await self._invalidate_cache()
+        await self._refresh_cache()
 
         # Refresh role: columns (e.g. updated_at) and permissions relationship
         await self.session.refresh(role)
@@ -164,17 +164,23 @@ class RBACAdminService:
 
         await self.session.delete(role)  # cascade deletes permissions
         await self.session.flush()
-        await self._invalidate_cache()
+        await self._refresh_cache()
         return True
 
     # ------------------------------------------------------------------
     # Cache helpers
     # ------------------------------------------------------------------
 
-    async def _invalidate_cache(self) -> None:
-        """Invalidate RBAC permissions cache if using DatabaseRBACService."""
-        from app.core.rbac import get_rbac_service
+    async def _refresh_cache(self) -> None:
+        """Refresh RBAC permissions cache after write operations.
+
+        Replaces the entire cache with fresh data from the database.
+        Called after flush() so the same transaction sees the changes.
+        """
+        from app.core.rbac import get_rbac_service, set_rbac_session
 
         service = get_rbac_service()
         if isinstance(service, DatabaseRBACService):
-            service.invalidate_cache()
+            set_rbac_session(self.session)
+            await service.refresh_cache()
+            set_rbac_session(None)

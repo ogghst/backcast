@@ -2,7 +2,7 @@
 
 Tests cover:
 - Sync methods (has_role, has_permission, get_user_permissions) with cache
-- Cache management (refresh_cache, invalidate_cache, TTL expiry)
+- Cache management (refresh_cache)
 - Async project-level methods (has_project_access, get_user_projects, get_project_role)
 - Fail-secure defaults when cache is empty
 - Session fallback via contextvar
@@ -147,58 +147,6 @@ class TestRefreshCache:
         assert "new-permission" in perms
 
 
-class TestInvalidateCache:
-    """Tests for invalidate_cache method."""
-
-    def test_invalidate_cache_clears_permissions_cache(
-        self,
-    ) -> None:
-        """invalidate_cache clears the permissions cache.
-
-        Given:
-            A service with populated cache.
-        When:
-            invalidate_cache is called.
-        Then:
-            The permissions cache is empty.
-        """
-        svc = DatabaseRBACService(session=None)
-        svc._permissions_cache = {
-            "admin": (["project-read"], datetime.now(UTC)),
-        }
-
-        svc.invalidate_cache()
-
-        assert svc._permissions_cache == {}
-
-    def test_invalidate_cache_does_not_clear_project_cache(
-        self,
-    ) -> None:
-        """invalidate_cache only clears permissions cache, not project cache.
-
-        Given:
-            A service with both caches populated.
-        When:
-            invalidate_cache is called.
-        Then:
-            Project cache remains intact.
-        """
-        svc = DatabaseRBACService(session=None)
-        user_id = uuid4()
-        project_id = uuid4()
-        svc._permissions_cache = {
-            "admin": (["project-read"], datetime.now(UTC)),
-        }
-        svc._project_cache = {
-            (user_id, project_id): ("project_viewer", datetime.now(UTC)),
-        }
-
-        svc.invalidate_cache()
-
-        assert svc._permissions_cache == {}
-        assert len(svc._project_cache) == 1
-
-
 # ---------------------------------------------------------------------------
 # Sync methods (cache-only)
 # ---------------------------------------------------------------------------
@@ -247,17 +195,17 @@ class TestHasPermission:
             is False
         )
 
-    def test_has_permission_expired_cache(
+    def test_has_permission_cache_hit_with_old_timestamp(
         self,
     ) -> None:
-        """has_permission returns False when cache entry is expired."""
+        """has_permission returns True even with old timestamp (no TTL expiry)."""
         svc = DatabaseRBACService(session=None)
-        expired_time = datetime.now(UTC) - timedelta(minutes=6)
+        old_time = datetime.now(UTC) - timedelta(minutes=60)
         svc._permissions_cache = {
-            "admin": (["project-read"], expired_time),
+            "admin": (["project-read"], old_time),
         }
 
-        assert svc.has_permission("admin", "project-read") is False
+        assert svc.has_permission("admin", "project-read") is True
 
     def test_has_permission_empty_cache(
         self, service: DatabaseRBACService
@@ -284,17 +232,17 @@ class TestGetUserPermissions:
         """get_user_permissions returns empty list for unknown role."""
         assert service.get_user_permissions("unknown_role") == []
 
-    def test_get_user_permissions_expired_cache(
+    def test_get_user_permissions_old_timestamp_still_valid(
         self,
     ) -> None:
-        """get_user_permissions returns empty list when cache is expired."""
+        """get_user_permissions returns permissions even with old timestamp (no TTL)."""
         svc = DatabaseRBACService(session=None)
-        expired_time = datetime.now(UTC) - timedelta(minutes=6)
+        old_time = datetime.now(UTC) - timedelta(minutes=60)
         svc._permissions_cache = {
-            "admin": (["project-read"], expired_time),
+            "admin": (["project-read"], old_time),
         }
 
-        assert svc.get_user_permissions("admin") == []
+        assert svc.get_user_permissions("admin") == ["project-read"]
 
     def test_get_user_permissions_returns_copy(
         self, service_with_populated_cache: DatabaseRBACService
@@ -325,13 +273,13 @@ class TestCacheHelpers:
         svc = DatabaseRBACService(session=None)
         assert svc._get_cached_permissions("admin") is None
 
-    def test_get_cached_permissions_expired(self) -> None:
-        """_get_cached_permissions returns None for expired entry."""
+    def test_get_cached_permissions_old_timestamp_still_valid(self) -> None:
+        """_get_cached_permissions returns permissions regardless of timestamp age."""
         svc = DatabaseRBACService(session=None)
         svc._permissions_cache = {
-            "admin": (["project-read"], datetime.now(UTC) - timedelta(minutes=6)),
+            "admin": (["project-read"], datetime.now(UTC) - timedelta(hours=1)),
         }
-        assert svc._get_cached_permissions("admin") is None
+        assert svc._get_cached_permissions("admin") == ["project-read"]
 
     def test_cache_permissions_stores_entry(self) -> None:
         """_cache_permissions stores permissions with current timestamp."""
@@ -761,11 +709,11 @@ class TestGetRbacServiceFactory:
 
 
 class TestCacheTTL:
-    """Tests for cache TTL configuration."""
+    """Tests for project cache TTL configuration."""
 
-    def test_cache_ttl_is_5_minutes(self) -> None:
-        """Cache TTL is set to 5 minutes."""
-        assert DatabaseRBACService._CACHE_TTL == timedelta(minutes=5)
+    def test_project_cache_ttl_is_5_minutes(self) -> None:
+        """Project membership cache TTL is set to 5 minutes."""
+        assert DatabaseRBACService._PROJECT_CACHE_TTL == timedelta(minutes=5)
 
 
 # ---------------------------------------------------------------------------
@@ -791,4 +739,3 @@ class TestAbstractMethodCompliance:
         assert hasattr(svc, "get_user_projects") and callable(svc.get_user_projects)
         assert hasattr(svc, "get_project_role") and callable(svc.get_project_role)
         assert hasattr(svc, "refresh_cache") and callable(svc.refresh_cache)
-        assert hasattr(svc, "invalidate_cache") and callable(svc.invalidate_cache)

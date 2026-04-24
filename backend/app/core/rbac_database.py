@@ -1,13 +1,13 @@
 """Database-backed RBAC service implementation.
 
 Loads role-permission mappings from PostgreSQL rbac_roles tables into an
-in-memory cache with TTL.  The cache is populated lazily on first async
-access or eagerly via ``refresh_cache()`` (called at startup).
+in-memory cache.  The cache is populated eagerly via ``refresh_cache()``
+(called at startup) and refreshed after any RBAC write operation.
 
 Sync methods (``has_role``, ``has_permission``, ``get_user_permissions``)
 read exclusively from cache -- they **never** perform database queries.
-If the cache is empty or expired, they return fail-secure defaults
-(deny access, empty permissions).
+If the cache is empty, they return fail-secure defaults (deny access,
+empty permissions).
 
 Async methods (``has_project_access``, ``get_user_projects``,
 ``get_project_role``) query the ``ProjectMember`` table and use their own
@@ -33,7 +33,7 @@ class DatabaseRBACService(RBACServiceABC):
     Single-server deployment: no distributed cache needed.
     """
 
-    _CACHE_TTL = timedelta(minutes=5)
+    _PROJECT_CACHE_TTL = timedelta(minutes=5)
 
     def __init__(self, session: Any = None) -> None:  # noqa: ARG002 (session accepted for backward compatibility, ignored)
         """Initialize the database RBAC service.
@@ -90,35 +90,22 @@ class DatabaseRBACService(RBACServiceABC):
             len(self._permissions_cache),
         )
 
-    def invalidate_cache(self) -> None:
-        """Clear the entire permissions cache.
-
-        Called after write operations that modify roles or permissions.
-        The next sync method calls will return fail-secure defaults until
-        ``refresh_cache()`` is called.
-        """
-        self._permissions_cache.clear()
-        logger.info("RBAC permissions cache invalidated")
-
     def _get_cached_permissions(self, role_name: str) -> list[str] | None:
-        """Get permissions from cache if not expired.
+        """Get permissions from cache.
 
         Args:
             role_name: The role to look up.
 
         Returns:
-            List of permission strings, or ``None`` if cache miss / expired.
+            List of permission strings, or ``None`` if cache miss.
         """
         cached = self._permissions_cache.get(role_name)
         if cached is None:
             return None
-        permissions, timestamp = cached
-        if datetime.now(UTC) - timestamp > self._CACHE_TTL:
-            return None
-        return permissions
+        return cached[0]
 
     def _cache_permissions(self, role_name: str, permissions: list[str]) -> None:
-        """Store permissions in cache with current timestamp.
+        """Store permissions in cache.
 
         Args:
             role_name: The role name to cache.
@@ -246,7 +233,7 @@ class DatabaseRBACService(RBACServiceABC):
         cache_key = (user_id, project_id)
         if cache_key in self._project_cache:
             cached_role, cached_time = self._project_cache[cache_key]
-            if datetime.now(UTC) - cached_time < self._CACHE_TTL:
+            if datetime.now(UTC) - cached_time < self._PROJECT_CACHE_TTL:
                 return self._role_has_permission(cached_role, required_permission)
 
         # Database lookup required
@@ -336,7 +323,7 @@ class DatabaseRBACService(RBACServiceABC):
         cache_key = (user_id, project_id)
         if cache_key in self._project_cache:
             cached_role, cached_time = self._project_cache[cache_key]
-            if datetime.now(UTC) - cached_time < self._CACHE_TTL:
+            if datetime.now(UTC) - cached_time < self._PROJECT_CACHE_TTL:
                 return cached_role
 
         # Database lookup
