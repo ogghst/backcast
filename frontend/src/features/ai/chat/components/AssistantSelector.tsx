@@ -100,9 +100,7 @@ export const AssistantSelector = ({
               padding: "0 4px",
             }}
           >
-            {currentAssistant.allowed_tools != null
-              ? `${currentAssistant.allowed_tools.length} tools`
-              : currentAssistant.default_role ?? "0 tools"}
+            {currentAssistant.default_role ?? "No role"}
           </Tag>
         </div>
       </Tooltip>
@@ -119,10 +117,7 @@ export const AssistantSelector = ({
       options={options}
       optionRender={(option) => {
         const assistant = activeAssistants.find((a) => a.id === option.value);
-        const label =
-          assistant?.allowed_tools != null
-            ? `${assistant.allowed_tools.length} tools`
-            : assistant?.default_role ?? "0 tools";
+        const label = assistant?.default_role ?? "No role";
         return (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
             <span>{option.label}</span>

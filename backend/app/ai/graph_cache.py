@@ -49,16 +49,19 @@ class GraphCacheKey:
 
     Attributes:
         model_name: LLM model identifier (e.g. ``"gpt-4o"``).
-        allowed_tools: Frozen set of tool names enabled for this graph.
+        assistant_role_hash: Hash of the assistant's RBAC role for tool filtering.
         execution_mode: Execution mode string (``"safe"``, ``"standard"``,
             ``"expert"``).
         system_prompt_hash: SHA-256 hex digest of the system prompt template.
+        user_role: Per-user role for tool visibility (e.g. ``"admin"``,
+            ``"viewer"``).
     """
 
     model_name: str
-    allowed_tools: frozenset[str]
+    assistant_role_hash: str
     execution_mode: str
     system_prompt_hash: str
+    user_role: str
 
 
 @dataclass

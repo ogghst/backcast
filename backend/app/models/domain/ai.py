@@ -15,7 +15,7 @@ Provides:
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -139,7 +139,6 @@ class AIAssistantConfig(SimpleEntityBase):
     max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # LangGraph recursion limit (maximum steps in agent execution loop)
     recursion_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    allowed_tools: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     default_role: Mapped[str | None] = mapped_column(
         String(50),

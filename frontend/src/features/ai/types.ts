@@ -85,7 +85,6 @@ export interface AIAssistantPublic {
   temperature: number;
   max_tokens: number;
   recursion_limit: number | null;
-  allowed_tools: string[];
   default_role: string | null;
   is_active: boolean;
   created_at: string;
@@ -100,7 +99,6 @@ export interface AIAssistantCreate {
   temperature?: number;
   max_tokens?: number;
   recursion_limit?: number | null;
-  allowed_tools?: string[];
   default_role?: string | null;
   is_active?: boolean;
 }
@@ -113,7 +111,6 @@ export interface AIAssistantUpdate {
   temperature?: number;
   max_tokens?: number;
   recursion_limit?: number | null;
-  allowed_tools?: string[];
   default_role?: string | null;
   is_active?: boolean;
 }

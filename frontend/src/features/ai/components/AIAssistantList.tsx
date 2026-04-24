@@ -172,14 +172,10 @@ export const AIAssistantList = () => {
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={async (values) => {
-          // When a role is selected, clear allowed_tools to let the role be the sole filter
-          const payload = values.default_role
-            ? { ...values, allowed_tools: null }
-            : values;
           if (selectedAssistant) {
             await updateAssistant({
               id: selectedAssistant.id,
-              data: payload,
+              data: values,
             });
           } else {
             await createAssistant(payload as AIAssistantCreate);

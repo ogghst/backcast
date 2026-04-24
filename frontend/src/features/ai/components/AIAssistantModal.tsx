@@ -35,7 +35,6 @@ export const AIAssistantModal = ({
           temperature: initialValues.temperature,
           max_tokens: initialValues.max_tokens,
           recursion_limit: initialValues.recursion_limit,
-          allowed_tools: initialValues.allowed_tools,
           default_role: initialValues.default_role,
           is_active: initialValues.is_active,
         });

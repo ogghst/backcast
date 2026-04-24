@@ -93,6 +93,7 @@ class DeepAgentOrchestrator:
         checkpointer: Any | None = None,
         context_schema: type | None = None,
         assistant_role: str | None = None,
+        user_role: str | None = None,
     ) -> Any:
         """Create a LangChain agent with Backcast tools and context.
 
@@ -104,6 +105,9 @@ class DeepAgentOrchestrator:
             assistant_role: Optional RBAC role for the assistant (e.g., "ai-viewer",
                 "ai-manager", "ai-admin"). When provided, tools whose required
                 permissions are not granted by this role are filtered out.
+            user_role: Optional per-user RBAC role for tool visibility. Applied
+                after assistant_role filtering to further restrict tools based on
+                the user's actual permissions.
 
         Returns:
             Compiled agent graph (CompiledStateGraph)
@@ -155,6 +159,18 @@ class DeepAgentOrchestrator:
                 f"pre_filter_count={pre_role_count} | "
                 f"post_filter_count={len(all_tools)} | "
                 f"removed_count={pre_role_count - len(all_tools)}"
+            )
+
+        # Filter by user's actual role (per-user restriction)
+        if user_role is not None:
+            pre_user_count = len(all_tools)
+            all_tools = filter_tools_by_role(all_tools, user_role)
+            logger.info(
+                f"[TOOL_USER_ROLE_FILTERING] create_agent | "
+                f"user_role={user_role} | "
+                f"pre_filter_count={pre_user_count} | "
+                f"post_filter_count={len(all_tools)} | "
+                f"removed_count={pre_user_count - len(all_tools)}"
             )
 
         # Build Backcast middleware stack (shared between main agent and subagents)

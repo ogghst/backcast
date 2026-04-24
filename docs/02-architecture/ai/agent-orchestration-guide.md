@@ -327,15 +327,15 @@ Tools go through four filtering stages before reaching the LLM:
 ```mermaid
 flowchart TD
     All["All Tools (~76)"]
-    All --> WL["filter by allowed_tools\n(assistant config whitelist)"]
-    WL --> FEM["filter_tools_by_execution_mode()"]
+    All --> AR["filter_tools_by_role\n(assistant RBAC role)"]
+    AR --> UR["filter_tools_by_role\n(user RBAC role)"]
+    UR --> FEM["filter_tools_by_execution_mode()"]
     FEM --> SAFE["SAFE mode:\nonly LOW risk tools"]
     FEM --> STD["STANDARD mode:\nLOW + HIGH risk tools\n(CRITICAL blocked)"]
     FEM --> EXP["EXPERT mode:\nall tools"]
-    SAFE --> FBR["filter_tools_by_role(assistant_role)"]
-    STD --> FBR
-    EXP --> FBR
-    FBR --> SA["subagent tool assignment\n(if subagents enabled)"]
+    SAFE --> SA["subagent tool assignment\n(if subagents enabled)"]
+    STD --> SA
+    EXP --> SA
     SA --> MA["Main agent gets:\ntask tool + get_temporal_context"]
     SA --> SUB["Subagents get:\ntheir filtered subset"]
 ```
@@ -350,7 +350,12 @@ Each AI assistant has a `default_role` field (e.g., `ai-viewer`, `ai-manager`, `
 
 Tools without `_tool_metadata` or with empty permissions always pass through (e.g., `task`, `get_temporal_context`, `write_todos`).
 
-The role is applied AFTER execution mode filtering and BEFORE subagent compilation, so subagents also inherit the role restriction.
+The assistant role is applied FIRST, followed by the user's RBAC role, then execution mode filtering. This ensures that:
+1. Assistants are restricted to their configured role capabilities
+2. Users can only use tools they have permissions for
+3. Execution modes provide an additional safety layer on top of RBAC
+
+Subagents inherit all filtering stages, so they also respect RBAC restrictions.
 
 ### Risk Levels
 
@@ -379,10 +384,12 @@ Six specialized subagents, each mapped to a domain:
 
 In `DeepAgentOrchestrator._build_subagent_dicts()`, each subagent is compiled into an independent LangChain agent:
 
-1. Tool list filtered by `allowed_tools` from the subagent config AND the assistant's whitelist.
-2. Middleware stack applied: `TemporalContextMiddleware` + `BackcastSecurityMiddleware` (but **not** `TodoListMiddleware` — only the main agent plans).
-3. Compiled via `langchain_create_agent()` with the subagent's domain-specific system prompt.
-4. Stored as a dict: `{name, description, runnable, structured_output_schema}`.
+1. Tool list filtered by assistant RBAC role (via `default_role`).
+2. Tool list filtered by user RBAC role (user's permissions).
+3. Tool list filtered by execution mode (safe/standard/expert).
+4. Middleware stack applied: `TemporalContextMiddleware` + `BackcastSecurityMiddleware` (but **not** `TodoListMiddleware` — only the main agent plans).
+5. Compiled via `langchain_create_agent()` with the subagent's domain-specific system prompt.
+6. Stored as a dict: `{name, description, runnable, structured_output_schema}`.
 
 Each subagent runs with its own isolated context window — it sees only the task description provided by the main agent, not the full conversation history.
 
@@ -618,9 +625,10 @@ sequenceDiagram
     Note over RAG: Resolve LLM config
     RAG->>RAG: _get_llm_client_config(model_id)
     Note over RAG: Create ToolContext + tools
-    RAG->>RAG: create_project_tools(tool_context) → ~70 tools
-    Note over RAG: Filter by allowed_tools → ~60 tools
-    Note over RAG: Filter by execution_mode (STANDARD) → ~55 tools
+    RAG->>RAG: create_project_tools(tool_context) → ~76 tools
+    Note over RAG: Filter by assistant RBAC role → ~70 tools
+    Note over RAG: Filter by user RBAC role → ~65 tools
+    Note over RAG: Filter by execution_mode (STANDARD) → ~60 tools
 
     RAG->>DAO: _create_deep_agent_graph()
     DAO->>DAO: _build_subagent_dicts(6 subagent configs)
@@ -767,7 +775,7 @@ sequenceDiagram
 | `ai/state.py` | `AgentState` TypedDict: `messages`, `tool_call_count`, `next` |
 | `ai/graph.py` | LangGraph `StateGraph` with `should_continue()` routing |
 | `ai/graph_cache.py` | `BackcastRuntimeContext`, `CompiledGraphCache`, `set_request_context()` |
-| `ai/subagents/__init__.py` | Six subagent configurations (name, prompt, allowed_tools) |
+| `ai/subagents/__init__.py` | Six subagent configurations (name, prompt, system_prompt) |
 | `ai/tools/__init__.py` | `create_project_tools()`, `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
 | `ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT`, `TASK_TOOL_DESCRIPTION` |
 | `ai/middleware/temporal_context.py` | `TemporalContextMiddleware`: injects temporal params into tool args |
