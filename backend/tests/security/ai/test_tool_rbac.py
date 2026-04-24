@@ -711,7 +711,8 @@ class TestToolFilteringByAssistantRole:
             if metadata and metadata.permissions:
                 for perm in metadata.permissions:
                     assert not any(
-                        perm.endswith(suffix) for suffix in ("-create", "-update", "-delete", "-write")
+                        perm.endswith(suffix)
+                        for suffix in ("-create", "-update", "-delete", "-write")
                     ), (
                         f"Tool '{tool.name}' has write permission '{perm}' "
                         f"but should be filtered out for ai-viewer in SAFE mode"

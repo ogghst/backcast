@@ -46,7 +46,9 @@ class RBACRole(SimpleEntityBase):
     )
 
     def __repr__(self) -> str:
-        return f"<RBACRole(id={self.id}, name={self.name!r}, is_system={self.is_system})>"
+        return (
+            f"<RBACRole(id={self.id}, name={self.name!r}, is_system={self.is_system})>"
+        )
 
 
 class RBACRolePermission(SimpleEntityBase):

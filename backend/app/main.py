@@ -238,9 +238,7 @@ async def validation_exception_handler(
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
+async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all for unhandled exceptions."""
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
 

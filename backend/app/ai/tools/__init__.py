@@ -96,8 +96,7 @@ def filter_tools_by_role(
 
         # Check ALL required permissions for this tool
         has_all = all(
-            rbac_service.has_permission(role, perm)
-            for perm in metadata.permissions
+            rbac_service.has_permission(role, perm) for perm in metadata.permissions
         )
         if has_all:
             filtered.append(tool)
@@ -107,9 +106,7 @@ def filter_tools_by_role(
                 f"role '{role}' lacks required permissions: {metadata.permissions}"
             )
 
-    logger.info(
-        f"Filtered {len(tools)} tools down to {len(filtered)} for role={role}"
-    )
+    logger.info(f"Filtered {len(tools)} tools down to {len(filtered)} for role={role}")
     return filtered
 
 

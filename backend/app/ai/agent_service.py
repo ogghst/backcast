@@ -214,7 +214,9 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
     try:
         # Find the first active assistant config
         result = await db_session.execute(
-            select(AIAssistantConfig).where(AIAssistantConfig.is_active == True).limit(1)  # noqa: E712
+            select(AIAssistantConfig)
+            .where(AIAssistantConfig.is_active == True)
+            .limit(1)  # noqa: E712
         )
         assistant_config = result.scalar_one_or_none()
         if not assistant_config:
@@ -226,16 +228,26 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
 
         # Get LLM config (will be cached for future use)
         agent_service = AgentService(db_session)
-        client_config, model_name, provider_type = await agent_service._get_llm_client_config(model_id)
+        (
+            client_config,
+            model_name,
+            provider_type,
+        ) = await agent_service._get_llm_client_config(model_id)
 
         # Create LLM
         llm = await agent_service._create_langchain_llm(
-            client_config, model_name, assistant_config.temperature, assistant_config.max_tokens
+            client_config,
+            model_name,
+            assistant_config.temperature,
+            assistant_config.max_tokens,
         )
 
         # Create tool context (minimal, for graph structure -- real context set per-request)
         tool_context = ToolContext(
-            db_session, "system", user_role="admin", execution_mode=ExecutionMode.STANDARD
+            db_session,
+            "system",
+            user_role="admin",
+            execution_mode=ExecutionMode.STANDARD,
         )
 
         # Compile and cache the graph

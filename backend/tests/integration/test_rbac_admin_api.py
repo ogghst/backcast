@@ -344,8 +344,11 @@ async def test_non_admin_forbidden(
         if method == "GET":
             response = await viewer_client.get(url)
         else:
-            response = await viewer_client.post(url, json={
-                "name": "forbidden",
-                "permissions": ["test"],
-            })
+            response = await viewer_client.post(
+                url,
+                json={
+                    "name": "forbidden",
+                    "permissions": ["test"],
+                },
+            )
         assert response.status_code == 403, f"{method} {url} should be 403"

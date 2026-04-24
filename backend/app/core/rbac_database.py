@@ -240,8 +240,7 @@ class DatabaseRBACService(RBACServiceABC):
         session = get_rbac_session()
         if session is None:
             logger.warning(
-                "Cannot check project access for user %s: "
-                "no database session provided",
+                "Cannot check project access for user %s: no database session provided",
                 user_id,
             )
             return False
@@ -330,8 +329,7 @@ class DatabaseRBACService(RBACServiceABC):
         session = get_rbac_session()
         if session is None:
             logger.warning(
-                "Cannot get project role for user %s: "
-                "no database session provided",
+                "Cannot get project role for user %s: no database session provided",
                 user_id,
             )
             return None

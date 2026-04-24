@@ -86,9 +86,7 @@ class RBACAdminService:
         await self.session.flush()
 
         for perm in permissions:
-            self.session.add(
-                RBACRolePermission(role_id=role.id, permission=perm)
-            )
+            self.session.add(RBACRolePermission(role_id=role.id, permission=perm))
         await self.session.flush()
         await self._refresh_cache()
 
@@ -132,9 +130,7 @@ class RBACAdminService:
             await self.session.flush()
 
             for perm in permissions:
-                self.session.add(
-                    RBACRolePermission(role_id=role_id, permission=perm)
-                )
+                self.session.add(RBACRolePermission(role_id=role_id, permission=perm))
 
         await self.session.flush()
         await self._refresh_cache()

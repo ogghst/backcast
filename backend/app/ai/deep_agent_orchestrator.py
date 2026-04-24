@@ -261,9 +261,7 @@ class DeepAgentOrchestrator:
                 )
                 for sa in compiled_subagents:
                     sa_tools = sa.get("tools", [])
-                    logger.info(
-                        f"DEBUG:   - {sa.get('name')}: {len(sa_tools)} tools"
-                    )
+                    logger.info(f"DEBUG:   - {sa.get('name')}: {len(sa_tools)} tools")
 
         logger.info("Agent created successfully")
         return agent

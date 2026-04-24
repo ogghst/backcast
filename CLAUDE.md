@@ -31,7 +31,7 @@ uv run pytest -k "test_name"                    # Run specific test
 uv run pytest --cov=app                         # With coverage
 
 # Code Quality (REQUIRED before commits)
-uv run ruff check . && uv run mypy app/         # Must pass (zero errors)
+uv run ruff format . && uv run ruff check . && uv run mypy app/  # Format, lint, and type check (must pass)
 ```
 
 ### Frontend (React/TypeScript)

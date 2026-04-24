@@ -176,13 +176,10 @@ class TestHasPermission:
     ) -> None:
         """has_permission returns True when permission is in cache."""
         assert (
-            service_with_populated_cache.has_permission("admin", "project-read")
-            is True
+            service_with_populated_cache.has_permission("admin", "project-read") is True
         )
 
-    def test_has_permission_cache_miss(
-        self, service: DatabaseRBACService
-    ) -> None:
+    def test_has_permission_cache_miss(self, service: DatabaseRBACService) -> None:
         """has_permission returns False when role is not in cache."""
         assert service.has_permission("unknown_role", "project-read") is False
 
@@ -207,9 +204,7 @@ class TestHasPermission:
 
         assert svc.has_permission("admin", "project-read") is True
 
-    def test_has_permission_empty_cache(
-        self, service: DatabaseRBACService
-    ) -> None:
+    def test_has_permission_empty_cache(self, service: DatabaseRBACService) -> None:
         """has_permission returns False (fail-secure) when cache is empty."""
         assert service.has_permission("admin", "project-read") is False
 
@@ -319,9 +314,7 @@ class TestHasProjectAccess:
         assert has_access is True
 
     @pytest.mark.asyncio
-    async def test_no_session_returns_false(
-        self, service: DatabaseRBACService
-    ) -> None:
+    async def test_no_session_returns_false(self, service: DatabaseRBACService) -> None:
         """Missing database session denies access for non-admin users."""
         set_rbac_session(None)
         user_id = uuid4()
@@ -557,9 +550,7 @@ class TestGetProjectRole:
     """Tests for get_project_role method."""
 
     @pytest.mark.asyncio
-    async def test_no_session_returns_none(
-        self, service: DatabaseRBACService
-    ) -> None:
+    async def test_no_session_returns_none(self, service: DatabaseRBACService) -> None:
         """Missing session returns None."""
         set_rbac_session(None)
         user_id = uuid4()
@@ -733,9 +724,7 @@ class TestAbstractMethodCompliance:
         assert hasattr(svc, "get_user_permissions") and callable(
             svc.get_user_permissions
         )
-        assert hasattr(svc, "has_project_access") and callable(
-            svc.has_project_access
-        )
+        assert hasattr(svc, "has_project_access") and callable(svc.has_project_access)
         assert hasattr(svc, "get_user_projects") and callable(svc.get_user_projects)
         assert hasattr(svc, "get_project_role") and callable(svc.get_project_role)
         assert hasattr(svc, "refresh_cache") and callable(svc.refresh_cache)

@@ -92,9 +92,9 @@ class TestFilterToolsByRole:
 
     def test_tool_passes_when_role_has_all_permissions(self) -> None:
         """Tool included when role has all required permissions."""
-        rbac_mock = _make_rbac_service_mock({
-            "ai-manager": {"project-read", "project-create"}
-        })
+        rbac_mock = _make_rbac_service_mock(
+            {"ai-manager": {"project-read", "project-create"}}
+        )
         tool = _make_mock_tool(
             "create_project",
             permissions=["project-read", "project-create"],
@@ -108,9 +108,11 @@ class TestFilterToolsByRole:
 
     def test_tool_filtered_when_role_lacks_permission(self) -> None:
         """Tool excluded when role lacks even one required permission."""
-        rbac_mock = _make_rbac_service_mock({
-            "ai-viewer": {"project-read"}  # missing project-delete
-        })
+        rbac_mock = _make_rbac_service_mock(
+            {
+                "ai-viewer": {"project-read"}  # missing project-delete
+            }
+        )
         tool = _make_mock_tool(
             "delete_project",
             permissions=["project-read", "project-delete"],
@@ -123,9 +125,9 @@ class TestFilterToolsByRole:
 
     def test_mixed_tools_filters_correctly(self) -> None:
         """Multiple tools filtered according to each tool's permissions."""
-        rbac_mock = _make_rbac_service_mock({
-            "ai-viewer": {"project-read", "wbe-read", "cost-element-read"}
-        })
+        rbac_mock = _make_rbac_service_mock(
+            {"ai-viewer": {"project-read", "wbe-read", "cost-element-read"}}
+        )
 
         tools = [
             _make_mock_tool("list_projects", permissions=["project-read"]),

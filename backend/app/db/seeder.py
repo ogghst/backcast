@@ -1016,13 +1016,15 @@ class DataSeeder:
             role_id_val = row[0]
             permission_val = row[1]
             # Convert role_id to string if it's a UUID
-            if hasattr(role_id_val, '__str__'):
+            if hasattr(role_id_val, "__str__"):
                 role_id_str = str(role_id_val)
             else:
                 role_id_str = role_id_val
             existing_perms.add((role_id_str, permission_val))
 
-        logger.info(f"Found {len(existing_perms)} existing RBAC role permissions in database")
+        logger.info(
+            f"Found {len(existing_perms)} existing RBAC role permissions in database"
+        )
 
         created_count = 0
         skipped_count = 0
@@ -1036,7 +1038,9 @@ class DataSeeder:
                 try:
                     # Check if role already exists
                     if role_name in existing_roles:
-                        logger.debug(f"Role {role_name} already exists, skipping creation")
+                        logger.debug(
+                            f"Role {role_name} already exists, skipping creation"
+                        )
                         skipped_count += 1
                         # Still need to ensure permissions exist
                         stmt_role = select(RBACRole).where(RBACRole.name == role_name)
@@ -1045,7 +1049,9 @@ class DataSeeder:
                         if role:
                             role_id = role.id
                         else:
-                            logger.error(f"Role {role_name} in existing_roles but not found in DB")
+                            logger.error(
+                                f"Role {role_name} in existing_roles but not found in DB"
+                            )
                             continue
                     else:
                         # Create new role
@@ -1070,12 +1076,16 @@ class DataSeeder:
                     # Convert role_id to string for permission checking
                     # (database stores UUID as string)
                     role_id_str = str(role_id)
-                    logger.debug(f"Processing {len(permissions)} permissions for role {role_name} (role_id={role_id_str})")
+                    logger.debug(
+                        f"Processing {len(permissions)} permissions for role {role_name} (role_id={role_id_str})"
+                    )
 
                     for perm in permissions:
                         # Check if permission already exists
                         if (role_id_str, perm) in existing_perms:
-                            logger.debug(f"Skipping existing permission: {role_name}.{perm}")
+                            logger.debug(
+                                f"Skipping existing permission: {role_name}.{perm}"
+                            )
                             permission_skipped_count += 1
                             continue
 

@@ -399,7 +399,9 @@ class TestCacheRefresh:
         Then:
             _refresh_cache is invoked exactly once.
         """
-        with patch.object(service, "_refresh_cache", new_callable=AsyncMock) as mock_inv:
+        with patch.object(
+            service, "_refresh_cache", new_callable=AsyncMock
+        ) as mock_inv:
             await service.create_role(
                 name="role-a",
                 description=None,
@@ -423,7 +425,9 @@ class TestCacheRefresh:
         role = _make_role(name="editor")
         mock_session.get.return_value = role
 
-        with patch.object(service, "_refresh_cache", new_callable=AsyncMock) as mock_inv:
+        with patch.object(
+            service, "_refresh_cache", new_callable=AsyncMock
+        ) as mock_inv:
             await service.update_role(
                 role_id=role.id,
                 name="updated-editor",
@@ -448,6 +452,8 @@ class TestCacheRefresh:
         role = _make_role(name="custom", is_system=False)
         mock_session.get.return_value = role
 
-        with patch.object(service, "_refresh_cache", new_callable=AsyncMock) as mock_inv:
+        with patch.object(
+            service, "_refresh_cache", new_callable=AsyncMock
+        ) as mock_inv:
             await service.delete_role(role.id)
             mock_inv.assert_called_once()
