@@ -397,6 +397,10 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
 
             schema = config.get("structured_output_schema")
 
+            # Apply structured output wrapper if schema is defined
+            if schema is not None:
+                runnable = runnable.with_structured_output(schema)
+
             subagent_dicts.append(
                 {
                     "name": name,

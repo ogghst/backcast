@@ -1690,6 +1690,22 @@ class AgentService:
                 "Project scope is locked for this session - you cannot switch to other projects."
             )
 
+        # Add temporal context information when applicable
+        if branch_name and branch_name != "main":
+            context_sections.append(
+                f"[TEMPORAL CONTEXT]\n"
+                f"You are operating in branch '{branch_name}' (mode: {branch_mode}). "
+                f"Changes made in this branch are isolated from the main branch until merged. "
+                f"Use branch-aware tools to query and modify data in this branch."
+            )
+        elif as_of:
+            context_sections.append(
+                f"[TEMPORAL CONTEXT]\n"
+                f"You are viewing historical data as of {as_of.strftime('%B %d, %Y at %I:%M %p')}. "
+                f"Use time-travel tools to query data at this point in time. "
+                f"Note: Historical views are read-only."
+            )
+
         # Combine base prompt with context sections
         if context_sections:
             return base_prompt + "\n\n" + "\n\n".join(context_sections)

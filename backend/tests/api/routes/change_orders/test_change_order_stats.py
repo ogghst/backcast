@@ -51,6 +51,21 @@ class MockRBACService(RBACServiceABC):
             "change-order-update",
             "change-order-delete",
         ]
+    
+    async def has_project_access(
+        self,
+        user_id,
+        user_role: str,
+        project_id,
+        required_permission: str,
+    ) -> bool:
+        return True
+
+    async def get_user_projects(self, user_id, user_role: str):
+        return []
+
+    async def get_project_role(self, user_id, project_id):
+        return "admin"
 
 
 def mock_get_rbac_service() -> RBACServiceABC:
@@ -68,6 +83,21 @@ class MockRBACServiceNoPermission(RBACServiceABC):
 
     def get_user_permissions(self, user_role: str) -> list[str]:
         return []
+
+    async def has_project_access(
+        self,
+        user_id,
+        user_role: str,
+        project_id,
+        required_permission: str,
+    ) -> bool:
+        return False
+
+    async def get_user_projects(self, user_id, user_role: str):
+        return []
+
+    async def get_project_role(self, user_id, project_id):
+        return None
 
 
 @pytest.fixture(autouse=True)

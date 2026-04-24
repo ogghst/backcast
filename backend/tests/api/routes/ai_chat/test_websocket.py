@@ -65,6 +65,21 @@ class MockRBACService(RBACServiceABC):
 
     def get_user_permissions(self, user_role: str) -> list[str]:
         return ["ai-chat"]
+    
+    async def has_project_access(
+        self,
+        user_id,
+        user_role: str,
+        project_id,
+        required_permission: str,
+    ) -> bool:
+        return True
+
+    async def get_user_projects(self, user_id, user_role: str):
+        return []
+
+    async def get_project_role(self, user_id, project_id):
+        return "admin"
 
 
 def mock_get_rbac_service() -> RBACServiceABC:
@@ -237,7 +252,6 @@ async def test_ai_config_service_assistant_retrieval(db_session: AsyncSession) -
         system_prompt="You are a helpful assistant.",
         temperature=0.0,
         max_tokens=1000,
-        allowed_tools=["list_projects"],
         is_active=True,
     )
     db_session.add(config)
@@ -289,7 +303,6 @@ async def test_ai_config_service_inactive_assistant(db_session: AsyncSession) ->
         system_prompt="You are a helpful assistant.",
         temperature=0.0,
         max_tokens=1000,
-        allowed_tools=["list_projects"],
         is_active=False,  # Inactive
     )
     db_session.add(config)
