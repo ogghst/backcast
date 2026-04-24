@@ -315,7 +315,6 @@ class AIConfigService:
             temperature=config_in.temperature,
             max_tokens=config_in.max_tokens,
             recursion_limit=config_in.recursion_limit,
-            allowed_tools=config_in.allowed_tools,
             default_role=config_in.default_role,
             is_active=config_in.is_active,
         )
