@@ -214,9 +214,7 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
     try:
         # Find the first active assistant config
         result = await db_session.execute(
-            select(AIAssistantConfig)
-            .where(AIAssistantConfig.is_active == True)
-            .limit(1)  # noqa: E712
+            select(AIAssistantConfig).where(AIAssistantConfig.is_active).limit(1)
         )
         assistant_config = result.scalar_one_or_none()
         if not assistant_config:
