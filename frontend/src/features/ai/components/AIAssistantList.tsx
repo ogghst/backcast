@@ -178,7 +178,7 @@ export const AIAssistantList = () => {
               data: values,
             });
           } else {
-            await createAssistant(values as AIAssistantCreate);
+            await createAssistant(payload as AIAssistantCreate);
           }
         }}
         confirmLoading={isLoading}

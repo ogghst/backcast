@@ -66,6 +66,9 @@ export interface TreeNodeData {
   id: string;
   type: "project" | "wbe" | "cost_element";
   name: string;
+  // Entity-specific IDs for better type safety
+  wbe_id?: string;
+  cost_element_id?: string;
 }
 
 const updateTreeData = (
@@ -183,6 +186,7 @@ export const ProjectTree = ({
           id: wbe.wbe_id,
           type: "wbe",
           name: wbe.name,
+          wbe_id: wbe.wbe_id,
         });
         return {
           key,
@@ -306,6 +310,7 @@ export const ProjectTree = ({
             id: wbe.wbe_id,
             type: "wbe",
             name: wbe.name,
+            wbe_id: wbe.wbe_id,
           });
           return {
             key,
@@ -328,6 +333,7 @@ export const ProjectTree = ({
             id: ce.cost_element_id,
             type: "cost_element",
             name: ce.name,
+            cost_element_id: ce.cost_element_id,
           });
           const baseline = baselines[ce.cost_element_id];
           const ceDates = baseline ? formatDateRange(baseline.start_date, baseline.end_date) : null;

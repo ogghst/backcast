@@ -183,8 +183,10 @@ class AIAssistantConfigBase(BaseModel):
         le=500,
         description="LangGraph recursion limit (maximum steps in agent execution loop)",
     )
-    allowed_tools: list[str] | None = Field(
-        None, description="List of tool names this assistant can use"
+    default_role: str | None = Field(
+        None,
+        max_length=50,
+        description="RBAC role for tool filtering (e.g., ai-viewer, ai-manager, ai-admin)",
     )
     is_active: bool = Field(True)
 
@@ -204,7 +206,11 @@ class AIAssistantConfigUpdate(BaseModel):
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
     recursion_limit: int | None = Field(None, ge=1, le=500)
-    allowed_tools: list[str] | None = None
+    default_role: str | None = Field(
+        None,
+        max_length=50,
+        description="RBAC role for tool filtering",
+    )
     model_id: UUID | None = None
     is_active: bool | None = None
 

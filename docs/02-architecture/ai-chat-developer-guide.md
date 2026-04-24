@@ -319,19 +319,20 @@ Authorization: Bearer <JWT>
 File: `agent_service.py` (_create_deep_agent_graph) and `deep_agent_orchestrator.py` (create_agent)
 
 ```
-1. create_project_tools(context)     → 69 LangChain BaseTool instances (8 template packages)
-2. Filter by allowed_tools           → Assistant config whitelist
-3. Filter by execution_mode          → Risk-level filtering (safe/standard/expert)
-4. If subagents enabled:
+1. create_project_tools(context)     → 76 LangChain BaseTool instances (8 template packages)
+2. Filter by assistant RBAC role     → ai-viewer/ai-manager/ai-admin (via default_role)
+3. Filter by user RBAC role          → User's role permissions
+4. Filter by execution_mode          → Risk-level filtering (safe/standard/expert)
+5. If subagents enabled:
    - Main agent gets NO Backcast tools (only task tool for delegation)
    - Subagents get filtered tool lists
-5. Build middleware stack:
+6. Build middleware stack:
    - TemporalContextMiddleware(context)
    - BackcastSecurityMiddleware(context, tools=all_tools, interrupt_node)
-6. Create SubAgent objects (6 subagents)
-7. Build system prompt with delegation instructions
-8. langchain_create_agent(model, tools, system_prompt, middleware)
-9. Register InterruptNode for approval handling
+7. Create SubAgent objects (6 subagents)
+8. Build system prompt with delegation instructions
+9. langchain_create_agent(model, tools, system_prompt, middleware)
+10. Register InterruptNode for approval handling
 ```
 
 ### Graph Caching
@@ -346,7 +347,7 @@ File: `graph_cache.py`
 |-------|-----------|-------|
 | LLM client | `(model_name, temperature, max_tokens, base_url_hash)` | Application-wide |
 | Tool list | Singleton (stateless — context injected via ContextVar) | Application-wide |
-| Compiled graph | `GraphCacheKey(model_name, frozenset(allowed_tools), execution_mode, system_prompt_hash)` | Application-wide, LRU max 20 |
+| Compiled graph | `GraphCacheKey(model_name, frozenset(tool_names), execution_mode, system_prompt_hash, assistant_role_hash)` | Application-wide, LRU max 20 |
 | Checkpointer | Single shared `MemorySaver` | Application-wide |
 
 **Per-request context (not cached):**
@@ -402,7 +403,6 @@ EVM_ANALYST_SUBAGENT: dict[str, Any] = {
     "name": "evm_analyst",
     "description": "Specialist for earned value management calculations and performance analysis",
     "system_prompt": "...",
-    "allowed_tools": [...],
     "structured_output_schema": EVMMetricsRead,  # Returns typed EVM metrics
 }
 ```
@@ -437,10 +437,15 @@ EVM_ANALYST_SUBAGENT: dict[str, Any] = {
 ### Tool Filtering Pipeline
 
 ```
-All tools (69, 8 template packages)
+All tools (76, 8 template packages)
     │
-    ▼ allowed_tools whitelist (assistant config)
-Filtered to whitelist
+    ▼ filter_tools_by_role(assistant_role)
+    │
+    ├─ ai-viewer:  45/76 tools (read-only)
+    ├─ ai-manager: 61/76 tools (full project CRUD)
+    └─ ai-admin:   13/76 tools (system admin)
+    │
+    ▼ filter_tools_by_role(user_role)
     │
     ▼ filter_tools_by_execution_mode()
     │
@@ -453,6 +458,18 @@ Risk levels are set via the `@ai_tool` decorator:
 - `LOW` — read-only operations (e.g., `list_projects`, `calculate_evm_metrics`)
 - `HIGH` — modifies data with validation (e.g., `create_project`, `update_forecast`)
 - `CRITICAL` — deletes data or bulk operations (e.g., `delete_cost_element`, `delete_users`)
+
+**AI RBAC Roles:**
+
+Three AI-specific roles control tool access:
+
+| Role | Tool Count | Permissions | Use Case |
+|------|------------|-------------|----------|
+| `ai-viewer` | 45/76 | project:read, forecast:read, evm:read | Read-only assistants for data exploration |
+| `ai-manager` | 61/76 | project:write, change_order:write, forecast:write | Day-to-day project management assistants |
+| `ai-admin` | 13/76 | user:write, department:write, cost_element_type:write | System administration assistants |
+
+The assistant's `default_role` field determines which role is used for filtering. This role is applied AFTER execution mode filtering and BEFORE subagent compilation, so subagents also inherit the role restriction.
 
 ### StateGraph Fallback
 
@@ -1210,9 +1227,10 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 #### Tools not available to agent
 
 **Cause**: Tool filtering. Check:
-1. `assistant_config.allowed_tools` whitelist — tool must be listed
-2. `execution_mode` — tool risk level must be compatible
-3. Subagent mode — main agent has NO direct tools; it must delegate
+1. `assistant_config.default_role` — assistant's RBAC role must have permission for the tool
+2. User's RBAC role — user must have the required permissions
+3. `execution_mode` — tool risk level must be compatible
+4. Subagent mode — main agent has NO direct tools; it must delegate
 
 #### Approval request never arrives at client
 
@@ -1263,8 +1281,7 @@ ORDER BY created_at DESC
 LIMIT 5;
 
 -- Active assistant configs
-SELECT id, name, model_id, is_active,
-       array_length(allowed_tools, 1) as tool_count
+SELECT id, name, model_id, is_active, default_role
 FROM ai_assistant_configs
 WHERE is_active = true;
 
@@ -1328,7 +1345,7 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 
 | File | Purpose |
 |------|---------|
-| `backend/app/ai/subagents/__init__.py` | 6 subagent configs: name, description, system_prompt, allowed_tools, `structured_output_schema` |
+| `backend/app/ai/subagents/__init__.py` | 6 subagent configs: name, description, system_prompt, `structured_output_schema` |
 | `backend/app/ai/deep_agent_orchestrator.py` | `_build_subagent_dicts()` — applies `.with_structured_output()` wrapper when schema defined |
 | `backend/app/ai/tools/subagent_task.py` | `build_task_tool()`, `_return_command_with_state_update()`, `_summarize_structured_output()` — task tool for subagent delegation with structured output handling |
 

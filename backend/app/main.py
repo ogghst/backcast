@@ -32,6 +32,7 @@ from app.api.routes import (
     project_members,
     projects,
     quality_events,
+    rbac_admin,
     schedule_baselines,
     search,
     users,
@@ -61,11 +62,34 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await seed_dashboard_templates()
 
-    # Warm AI agent graph cache to eliminate cold-start latency
-    from app.ai.agent_service import warm_graph_cache
+    # Initialize RBAC and warm AI agent graph cache
     from app.db.session import async_session_maker
 
     async with async_session_maker() as session:
+        # Seed RBAC roles and warm cache BEFORE graph warming
+        # Graph warming queries RBAC permissions to filter tools by role
+        from app.core.config import settings as app_settings
+
+        if app_settings.RBAC_PROVIDER == "database":
+            from app.db.seeder import DataSeeder
+
+            seeder = DataSeeder()
+            await seeder.seed_rbac_roles(session)
+            await session.commit()
+            logger.info("RBAC roles seeded successfully")
+
+            from app.core.rbac import get_rbac_service, set_rbac_session
+            from app.core.rbac_database import DatabaseRBACService
+
+            set_rbac_session(session)
+            rbac_svc = get_rbac_service()
+            if isinstance(rbac_svc, DatabaseRBACService):
+                await rbac_svc.refresh_cache()
+            set_rbac_session(None)
+
+        # Warm AI agent graph cache (requires RBAC cache to be populated)
+        from app.ai.agent_service import warm_graph_cache
+
         await warm_graph_cache(session)
 
     # Notify admins of system startup
@@ -214,9 +238,7 @@ async def validation_exception_handler(
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
+async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all for unhandled exceptions."""
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
 
@@ -346,6 +368,11 @@ app.include_router(
     dashboard_layouts.router,
     prefix=f"{settings.API_V1_STR}/dashboard-layouts",
     tags=["Dashboard Layouts"],
+)
+app.include_router(
+    rbac_admin.router,
+    prefix=f"{settings.API_V1_STR}/admin/rbac",
+    tags=["Admin RBAC"],
 )
 app.include_router(
     search.router,

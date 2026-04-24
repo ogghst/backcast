@@ -67,6 +67,25 @@ Roles and permissions stored in `config/rbac.json`:
 }
 ```
 
+### 4. AI Assistant RBAC Roles
+
+Three AI-specific roles for tool filtering in the AI chat system:
+
+- `ai-viewer`: Read-only access (14 permissions) — project, WBE, cost element, forecast, schedule, EVM data reads
+- `ai-manager`: Full project CRUD (37 permissions) — create/update workflows, change orders, forecasts, progress tracking
+- `ai-admin`: System admin (13 permissions) — user/dept/cost-element-type management
+
+These roles are assigned per-assistant via the `default_role` field on `AIAssistantConfig` and used by `filter_tools_by_role()` at agent creation time to restrict which tools each assistant can access.
+
+### 5. ContextVar Session Injection
+
+For thread-safe async session management in concurrent WebSocket connections:
+
+- `_rbac_session` ContextVar provides request-scoped database sessions
+- `get_rbac_session()` / `set_rbac_session()` helpers
+- Fallback pattern: `session = self.session or get_rbac_session()` in `has_project_access()`, `get_user_projects()`, `get_project_role()`
+- Replaces previous singleton `.session` mutation which was unsafe under concurrent requests
+
 ---
 
 ## Alternatives Considered
@@ -162,6 +181,12 @@ async def create_user(): ...
 
 ✅ **FastAPI-native:** Uses standard dependency injection patterns
 
+✅ AI assistants receive role-based tool filtering (e.g., ai-manager gets 61/76 tools, ai-viewer gets 45/76)
+
+✅ ContextVar-based session injection ensures thread-safe concurrent WebSocket sessions
+
+✅ Single permission check point (middleware-only) — redundant decorator check removed
+
 ### Negative
 
 ⚠️ JSON file not suitable for high-concurrency write scenarios (read-only in production)
@@ -217,11 +242,16 @@ async def delete_important(): ...
 
 ### Files Created/Modified
 
-- `backend/app/core/rbac.py` - Core RBAC service (201 lines)
+- `backend/app/core/rbac.py` - Core RBAC service — added `_rbac_session` ContextVar, `get/set_rbac_session()`, contextvar fallback in project access methods
 - `backend/app/api/dependencies/auth.py` - Added RoleChecker (+68 lines)
-- `backend/config/rbac.json` - Configuration
+- `backend/config/rbac.json` - Configuration — added `ai-viewer`, `ai-manager`, `ai-admin` roles
 - `backend/tests/core/test_rbac.py` - Unit tests (11 tests)
 - `backend/tests/api/test_role_checker.py` - Integration tests (7 tests)
+- `backend/app/ai/tools/__init__.py` - Added `filter_tools_by_role()` for role-based tool filtering
+- `backend/app/ai/tools/decorator.py` - Removed redundant permission check (middleware-only enforcement)
+- `backend/app/ai/middleware/backcast_security.py` - Uses `set_rbac_session()` contextvar instead of singleton mutation
+- `backend/app/ai/deep_agent_orchestrator.py` - Applies `filter_tools_by_role()` after execution mode filtering
+- `backend/app/models/domain/ai.py` - Added `default_role` field to `AIAssistantConfig`
 
 ### Test Coverage
 
@@ -252,7 +282,7 @@ async def delete_important(): ...
 3. **API for role management**: CRUD endpoints for roles/permissions
 4. **Audit logging**: Track authorization decisions for security analysis
 5. **AND logic option**: Add `require_all=True` parameter for stricter combined checks
-6. **Caching strategy**: Add cache invalidation for database-backed implementation
+6. **AI role management UI**: Admin interface for managing AI assistant RBAC roles
 
 ---
 
@@ -262,3 +292,12 @@ async def delete_important(): ...
 - DO Phase: [docs/03-project-plan/iterations/2026-01-04-rbac-implementation/02-do.md](file:///home/nicola/dev/backcast_evs/docs/03-project-plan/iterations/2026-01-04-rbac-implementation/02-do.md)
 - FastAPI Security: https://fastapi. tiangolo.com/tutorial/security/
 - OAuth2 Scopes: https://fastapi.tiangolo.com/advanced/security/oauth2-scopes/
+
+---
+
+## Changelog
+
+| Date | Change | Author |
+|---|---|---|
+| 2026-01-04 | Initial ADR — RBAC service design with JSON config, RoleChecker dependency | Antigravity AI |
+| 2026-04-23 | Added AI assistant RBAC roles, contextvar session injection, role-based tool filtering | Backend Team |

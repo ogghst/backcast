@@ -66,6 +66,50 @@ def filter_tools_by_execution_mode(
     return filtered_tools
 
 
+def filter_tools_by_role(
+    tools: list[BaseTool],
+    role: str,
+) -> list[BaseTool]:
+    """Filter tools based on assistant RBAC role permissions.
+
+    Removes tools whose required permissions are not granted by the role.
+    Tools without permissions metadata are always allowed.
+
+    Args:
+        tools: List of tools to filter
+        role: RBAC role string (e.g., "ai-viewer", "ai-manager", "ai-admin")
+
+    Returns:
+        Filtered list of tools the role is permitted to use
+    """
+    from app.core.rbac import get_rbac_service
+
+    rbac_service = get_rbac_service()
+    filtered: list[BaseTool] = []
+
+    for tool in tools:
+        metadata = getattr(tool, "_tool_metadata", None)
+        if metadata is None or not metadata.permissions:
+            # No permissions required -- always allow
+            filtered.append(tool)
+            continue
+
+        # Check ALL required permissions for this tool
+        has_all = all(
+            rbac_service.has_permission(role, perm) for perm in metadata.permissions
+        )
+        if has_all:
+            filtered.append(tool)
+        else:
+            logger.debug(
+                f"Filtering out tool '{tool.name}' -- "
+                f"role '{role}' lacks required permissions: {metadata.permissions}"
+            )
+
+    logger.info(f"Filtered {len(tools)} tools down to {len(filtered)} for role={role}")
+    return filtered
+
+
 def create_project_tools(context: ToolContext) -> list[BaseTool]:
     """Create LangChain BaseTool instances for all available AI operations.
 
@@ -236,6 +280,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
 __all__ = [
     "create_project_tools",
     "filter_tools_by_execution_mode",
+    "filter_tools_by_role",
     "ToolContext",
     "list_projects",
     "get_project",

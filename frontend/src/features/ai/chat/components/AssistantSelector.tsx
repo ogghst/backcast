@@ -11,7 +11,7 @@
  * - Clear visual hierarchy
  */
 
-import { Select, Empty, Tooltip, theme } from "antd";
+import { Select, Empty, Tooltip, Tag, theme } from "antd";
 import type { SelectProps } from "antd";
 import { LockOutlined } from "@ant-design/icons";
 import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
@@ -92,6 +92,16 @@ export const AssistantSelector = ({
           >
             {currentAssistant.name}
           </span>
+          <Tag
+            style={{
+              fontSize: 11,
+              lineHeight: "18px",
+              margin: 0,
+              padding: "0 4px",
+            }}
+          >
+            {currentAssistant.default_role ?? "No role"}
+          </Tag>
         </div>
       </Tooltip>
     );
@@ -105,6 +115,25 @@ export const AssistantSelector = ({
       loading={isLoading}
       placeholder="Select AI Assistant"
       options={options}
+      optionRender={(option) => {
+        const assistant = activeAssistants.find((a) => a.id === option.value);
+        const label = assistant?.default_role ?? "No role";
+        return (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+            <span>{option.label}</span>
+            <Tag
+              style={{
+                fontSize: 11,
+                lineHeight: "18px",
+                margin: 0,
+                padding: "0 4px",
+              }}
+            >
+              {label}
+            </Tag>
+          </div>
+        );
+      }}
       notFoundContent={<Empty description="No active assistants" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
       filterOption={(input, option) =>
         (option?.label as string ?? "").toLowerCase().includes(input.toLowerCase())

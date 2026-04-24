@@ -37,6 +37,7 @@ def get_dashboard_layout_service(
     "",
     response_model=list[DashboardLayoutRead],
     operation_id="list_dashboard_layouts",
+    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def list_dashboard_layouts(
     project_id: UUID | None = Query(None),
@@ -52,6 +53,7 @@ async def list_dashboard_layouts(
     "/templates",
     response_model=list[DashboardLayoutRead],
     operation_id="list_dashboard_layout_templates",
+    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def list_dashboard_layout_templates(
     current_user: User = Depends(get_current_active_user),
@@ -66,6 +68,7 @@ async def list_dashboard_layout_templates(
     "/{layout_id}",
     response_model=DashboardLayoutRead,
     operation_id="get_dashboard_layout",
+    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def get_dashboard_layout(
     layout_id: UUID,
@@ -92,6 +95,7 @@ async def get_dashboard_layout(
     response_model=DashboardLayoutRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="create_dashboard_layout",
+    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def create_dashboard_layout(
     layout_in: DashboardLayoutCreate,
@@ -137,6 +141,7 @@ async def update_dashboard_layout(
     "/{layout_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     operation_id="delete_dashboard_layout",
+    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def delete_dashboard_layout(
     layout_id: UUID,
@@ -160,6 +165,7 @@ async def delete_dashboard_layout(
     response_model=DashboardLayoutRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="clone_dashboard_layout_template",
+    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def clone_dashboard_layout_template(
     layout_id: UUID,

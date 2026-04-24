@@ -85,7 +85,7 @@ export interface AIAssistantPublic {
   temperature: number;
   max_tokens: number;
   recursion_limit: number | null;
-  allowed_tools: string[];
+  default_role: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -99,7 +99,7 @@ export interface AIAssistantCreate {
   temperature?: number;
   max_tokens?: number;
   recursion_limit?: number | null;
-  allowed_tools?: string[];
+  default_role?: string | null;
   is_active?: boolean;
 }
 
@@ -111,7 +111,7 @@ export interface AIAssistantUpdate {
   temperature?: number;
   max_tokens?: number;
   recursion_limit?: number | null;
-  allowed_tools?: string[];
+  default_role?: string | null;
   is_active?: boolean;
 }
 
@@ -291,3 +291,26 @@ export interface AIConversationSessionPaginated {
   has_more: boolean;
   total_count: number;
 }
+
+/**
+ * AI Role Options for assistant RBAC configuration
+ */
+export const AI_ROLE_OPTIONS = [
+  {
+    value: "ai-viewer",
+    label: "AI Viewer",
+    description: "Read-only access to projects, costs, forecasts, and EVM data",
+  },
+  {
+    value: "ai-manager",
+    label: "AI Manager",
+    description:
+      "Full project operations including CRUD, change orders, forecasts, and progress",
+  },
+  {
+    value: "ai-admin",
+    label: "AI Admin",
+    description:
+      "System configuration, user management, departments, and cost element types",
+  },
+] as const;

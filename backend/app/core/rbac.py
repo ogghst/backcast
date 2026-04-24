@@ -4,6 +4,7 @@ Provides authorization functionality based on roles and permissions.
 Supports pluggable implementations via abstract base class.
 """
 
+import contextvars
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -491,7 +492,9 @@ class JsonRBACService(RBACServiceABC):
                 return self._role_has_permission(cached_role, required_permission)
 
         # Database lookup required
-        if self.session is None:
+        # Use contextvar session as fallback when self.session is not set
+        session = self.session or get_rbac_session()
+        if session is None:
             logger.warning(
                 f"Cannot check project access for user {user_id}: "
                 "no database session provided"
@@ -505,7 +508,7 @@ class JsonRBACService(RBACServiceABC):
 
         from app.models.domain.project_member import ProjectMember
 
-        result = await self.session.execute(
+        result = await session.execute(
             select(ProjectMember).where(
                 ProjectMember.user_id == user_id,
                 ProjectMember.project_id == project_id,
@@ -539,7 +542,8 @@ class JsonRBACService(RBACServiceABC):
             # Import here to avoid circular dependency
             from app.models.domain.project import Project
 
-            if self.session is None:
+            session = self.session or get_rbac_session()
+            if session is None:
                 logger.warning(
                     f"Cannot get projects for admin user {user_id}: "
                     "no database session provided"
@@ -548,11 +552,12 @@ class JsonRBACService(RBACServiceABC):
 
             from sqlalchemy import select
 
-            result = await self.session.execute(select(Project.project_id))
+            result = await session.execute(select(Project.project_id))
             return [row[0] for row in result.all()]
 
         # Non-admin users: get their project memberships
-        if self.session is None:
+        session = self.session or get_rbac_session()
+        if session is None:
             logger.warning(
                 f"Cannot get projects for user {user_id}: no database session provided"
             )
@@ -563,7 +568,7 @@ class JsonRBACService(RBACServiceABC):
 
         from app.models.domain.project_member import ProjectMember
 
-        result = await self.session.execute(
+        result = await session.execute(
             select(ProjectMember.project_id).where(ProjectMember.user_id == user_id)
         )
         return [row[0] for row in result.all()]
@@ -586,7 +591,8 @@ class JsonRBACService(RBACServiceABC):
                 return cached_role
 
         # Database lookup
-        if self.session is None:
+        session = self.session or get_rbac_session()
+        if session is None:
             logger.warning(
                 f"Cannot get project role for user {user_id}: "
                 "no database session provided"
@@ -598,7 +604,7 @@ class JsonRBACService(RBACServiceABC):
 
         from app.models.domain.project_member import ProjectMember
 
-        result = await self.session.execute(
+        result = await session.execute(
             select(ProjectMember.role).where(
                 ProjectMember.user_id == user_id,
                 ProjectMember.project_id == project_id,
@@ -616,6 +622,21 @@ class JsonRBACService(RBACServiceABC):
 # Global singleton instance
 _rbac_service: RBACServiceABC | None = None
 
+# Request-scoped session via contextvar for thread-safe session injection
+_rbac_session: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
+    "_rbac_session", default=None
+)
+
+
+def get_rbac_session() -> Any | None:
+    """Get the request-scoped RBAC database session."""
+    return _rbac_session.get()
+
+
+def set_rbac_session(session: Any | None) -> None:
+    """Set the request-scoped RBAC database session."""
+    _rbac_session.set(session)
+
 
 def get_rbac_service() -> RBACServiceABC:
     """Get the global RBAC service instance (singleton pattern).
@@ -624,17 +645,25 @@ def get_rbac_service() -> RBACServiceABC:
         The global RBACServiceABC instance
 
     Note:
-        Creates a JsonRBACService on first call with default config path.
+        Creates a service based on ``settings.RBAC_PROVIDER``:
+        - ``"json"`` (default): ``JsonRBACService`` reading from rbac.json
+        - ``"database"``: ``DatabaseRBACService`` reading from PostgreSQL
+
         Can be overridden for testing by setting the global _rbac_service.
     """
     global _rbac_service
     if _rbac_service is None:
-        path = Path(settings.RBAC_POLICY_FILE)
-        if not path.is_absolute():
-            # Resolve relative to project root (backend/)
-            base_dir = Path(__file__).resolve().parent.parent.parent
-            path = base_dir / path
-        _rbac_service = JsonRBACService(config_path=path)
+        if settings.RBAC_PROVIDER == "database":
+            from app.core.rbac_database import DatabaseRBACService
+
+            _rbac_service = DatabaseRBACService()
+        else:
+            path = Path(settings.RBAC_POLICY_FILE)
+            if not path.is_absolute():
+                # Resolve relative to project root (backend/)
+                base_dir = Path(__file__).resolve().parent.parent.parent
+                path = base_dir / path
+            _rbac_service = JsonRBACService(config_path=path)
     return _rbac_service
 
 
@@ -654,18 +683,18 @@ def inject_rbac_session(
     rbac_service: RBACServiceABC,
     session: Any,
 ) -> bool:
-    """Inject database session into RBAC service for project-level access checks.
+    """Set the request-scoped RBAC database session.
 
-    Some RBAC service implementations (like JsonRBACService) require a database
-    session to perform project-level access checks. This helper function safely
-    injects the session if the service supports it.
+    This helper function sets the contextvar used for database access
+    in RBAC service implementations. For backward compatibility, it also
+    sets the instance ``session`` attribute on services that have it.
 
     Args:
-        rbac_service: The RBAC service instance
-        session: The database session to inject
+        rbac_service: The RBAC service instance (unused, kept for API compatibility)
+        session: The database session to set
 
     Returns:
-        True if session was injected (or already set), False otherwise
+        True (always succeeds)
 
     Example:
         ```python
@@ -675,7 +704,11 @@ def inject_rbac_session(
         inject_rbac_session(rbac_service, context.session)
         ```
     """
+    # Always set the contextvar (preferred method)
+    set_rbac_session(session)
+
+    # For backward compatibility with JsonRBACService in tests
     if hasattr(rbac_service, "session") and rbac_service.session is None:
         rbac_service.session = session
-        return True
-    return False
+
+    return True

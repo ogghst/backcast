@@ -278,7 +278,7 @@ async def delete_project(
     "/{project_id}/history",
     response_model=list[ProjectPublic],
     operation_id="get_project_history",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+    dependencies=[Depends(ProjectRoleChecker(required_permission="project-read"))],
 )
 async def read_project_history(
     project_id: UUID,
@@ -298,7 +298,7 @@ async def read_project_history(
     "/{project_id}/branches",
     response_model=list[BranchPublic],
     operation_id="get_project_branches",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+    dependencies=[Depends(ProjectRoleChecker(required_permission="project-read"))],
 )
 async def read_project_branches(
     project_id: UUID,

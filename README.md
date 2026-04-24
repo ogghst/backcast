@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Develop projects together with AI-powered team experts</strong><br>
-Change Control, Earned Value Management, Chat with data. Navigate project timeline. Understand decision impacts simulating events across time. 
+  <strong>Agentic warping your project dimensions</strong><br>
+Change Control, Earned Value Management, Chat with data. Navigate project timeline. Understand decision impacts simulating events across time.
 </p>
 
 <p align="center">

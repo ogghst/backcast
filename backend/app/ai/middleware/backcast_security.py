@@ -23,7 +23,7 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 from app.ai.graph_cache import get_request_interrupt_node, get_request_tool_context
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
-from app.core.rbac import get_rbac_service
+from app.core.rbac import get_rbac_service, set_rbac_session
 
 logger = logging.getLogger(__name__)
 
@@ -244,53 +244,47 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         # Get RBAC service
         rbac_service = get_rbac_service()
 
-        # Inject session if service supports it and project_id is provided
-        # Use try/finally to restore the original session and avoid corrupting
-        # the singleton's session on concurrent WebSocket connections
-        if project_id is not None and hasattr(rbac_service, "session"):
-            original_session = getattr(rbac_service, "session", None)
-            try:
-                rbac_service.session = ctx.session
+        # Inject session via contextvar for task-scoped isolation
+        if project_id is not None:
+            set_rbac_session(ctx.session)
 
-                # Check each required permission (project-level)
-                for permission in metadata.permissions:
-                    if hasattr(rbac_service, "has_project_access"):
-                        from uuid import UUID
+            # Check each required permission (project-level)
+            for permission in metadata.permissions:
+                if hasattr(rbac_service, "has_project_access"):
+                    from uuid import UUID
 
-                        try:
-                            project_uuid = (
-                                UUID(project_id)
-                                if isinstance(project_id, str)
-                                else project_id
-                            )
-                            user_uuid = UUID(ctx.user_id)
+                    try:
+                        project_uuid = (
+                            UUID(project_id)
+                            if isinstance(project_id, str)
+                            else project_id
+                        )
+                        user_uuid = UUID(ctx.user_id)
 
-                            has_access = await rbac_service.has_project_access(
-                                user_id=user_uuid,
-                                user_role=ctx.user_role,
-                                project_id=project_uuid,
-                                required_permission=permission,
-                            )
+                        has_access = await rbac_service.has_project_access(
+                            user_id=user_uuid,
+                            user_role=ctx.user_role,
+                            project_id=project_uuid,
+                            required_permission=permission,
+                        )
 
-                            if not has_access:
-                                return (
-                                    f"Permission denied: {permission} required "
-                                    f"for project {project_id} "
-                                    f"(user_role: {ctx.user_role}, tool: {tool_name})"
-                                )
-                        except (ValueError, TypeError):
-                            return (
-                                f"Permission denied: Invalid project_id format "
-                                f"(tool: {tool_name})"
-                            )
-                    else:
-                        if not rbac_service.has_permission(ctx.user_role, permission):
+                        if not has_access:
                             return (
                                 f"Permission denied: {permission} required "
+                                f"for project {project_id} "
                                 f"(user_role: {ctx.user_role}, tool: {tool_name})"
                             )
-            finally:
-                rbac_service.session = original_session
+                    except (ValueError, TypeError):
+                        return (
+                            f"Permission denied: Invalid project_id format "
+                            f"(tool: {tool_name})"
+                        )
+                else:
+                    if not rbac_service.has_permission(ctx.user_role, permission):
+                        return (
+                            f"Permission denied: {permission} required "
+                            f"(user_role: {ctx.user_role}, tool: {tool_name})"
+                        )
         else:
             # Global permission checks (no project context, no session injection needed)
             for permission in metadata.permissions:

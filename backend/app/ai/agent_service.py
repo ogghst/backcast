@@ -214,7 +214,7 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
     try:
         # Find the first active assistant config
         result = await db_session.execute(
-            select(AIAssistantConfig).where(AIAssistantConfig.is_active == True).limit(1)  # noqa: E712
+            select(AIAssistantConfig).where(AIAssistantConfig.is_active).limit(1)
         )
         assistant_config = result.scalar_one_or_none()
         if not assistant_config:
@@ -226,21 +226,31 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
 
         # Get LLM config (will be cached for future use)
         agent_service = AgentService(db_session)
-        client_config, model_name, provider_type = await agent_service._get_llm_client_config(model_id)
+        (
+            client_config,
+            model_name,
+            provider_type,
+        ) = await agent_service._get_llm_client_config(model_id)
 
         # Create LLM
         llm = await agent_service._create_langchain_llm(
-            client_config, model_name, assistant_config.temperature, assistant_config.max_tokens
+            client_config,
+            model_name,
+            assistant_config.temperature,
+            assistant_config.max_tokens,
         )
 
         # Create tool context (minimal, for graph structure -- real context set per-request)
         tool_context = ToolContext(
-            db_session, "system", user_role="admin", execution_mode=ExecutionMode.STANDARD
+            db_session,
+            "system",
+            user_role="admin",
+            execution_mode=ExecutionMode.STANDARD,
         )
 
         # Compile and cache the graph
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
-        allowed_tools = assistant_config.allowed_tools
+        assistant_role = assistant_config.default_role
 
         orchestrator = DeepAgentOrchestrator(
             model=llm,
@@ -250,25 +260,27 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
         )
 
         graph = orchestrator.create_agent(
-            allowed_tools=allowed_tools,
+            allowed_tools=None,  # RBAC role filtering only
             checkpointer=shared_checkpointer,
             context_schema=BackcastRuntimeContext,
+            assistant_role=assistant_role,
+            user_role="admin",  # Startup warming uses admin context
         )
 
         # Build cache key and store
-        tools_frozen = frozenset(allowed_tools) if allowed_tools else frozenset(["all"])
         cache_key = GraphCacheKey(
             model_name=model_name,
-            allowed_tools=tools_frozen,
+            assistant_role_hash=str(hash(assistant_role or "none")),
             execution_mode=ExecutionMode.STANDARD.value,
             system_prompt_hash=str(hash(system_prompt)),
+            user_role="admin",  # Startup warming uses admin context
         )
         _graph_cache.put(cache_key, graph)
 
         logger.info(
-            "[GRAPH_WARMING] Warmed default graph cache for model=%s, tools=%s",
+            "[GRAPH_WARMING] Warmed default graph cache for model=%s, role=%s",
             model_name,
-            len(allowed_tools) if allowed_tools else "all",
+            assistant_role or "none",
         )
     except Exception as e:
         logger.warning(
@@ -452,6 +464,7 @@ class AgentService:
         model_name: str | None = None,
         available_tools: list[Any] | None = None,
         event_bus: AgentEventBus | None = None,
+        user_role: str = "guest",
     ) -> tuple[Any, InterruptNode | None]:
         """Create Deep Agent graph with Backcast context.
 
@@ -468,6 +481,8 @@ class AgentService:
             provider_type: Optional provider type for model string construction
             model_name: Optional model name for model string construction
             available_tools: Optional list of available tools for InterruptNode
+            event_bus: Optional event bus for InterruptNode
+            user_role: Per-user RBAC role for tool visibility filtering
 
         Returns:
             Tuple of (compiled_graph, interrupt_node) where interrupt_node may be None
@@ -492,19 +507,19 @@ class AgentService:
             )
 
         # Compute cache key from invariant properties
-        allowed_tools = assistant_config.allowed_tools
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        assistant_role = assistant_config.default_role
         model_str = model_name or "unknown"
         execution_mode_str = tool_context.execution_mode.value
 
-        tools_frozen = frozenset(allowed_tools) if allowed_tools else frozenset("all")
         prompt_hash = str(hash(system_prompt))
 
         cache_key = GraphCacheKey(
             model_name=model_str,
-            allowed_tools=tools_frozen,
+            assistant_role_hash=str(hash(assistant_role or "none")),
             execution_mode=execution_mode_str,
             system_prompt_hash=prompt_hash,
+            user_role=user_role,
         )
 
         # Check cache
@@ -531,9 +546,11 @@ class AgentService:
             )
 
             graph = orchestrator.create_agent(
-                allowed_tools=allowed_tools,
+                allowed_tools=None,  # RBAC role filtering only
                 checkpointer=shared_checkpointer,
                 context_schema=BackcastRuntimeContext,
+                assistant_role=assistant_role,
+                user_role=user_role,
             )
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
@@ -673,13 +690,20 @@ class AgentService:
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
-        # Filter tools based on assistant config
-        if assistant_config.allowed_tools is not None:
-            tools_dict = {
-                name: tool
-                for name, tool in tools_dict.items()
-                if name in assistant_config.allowed_tools
-            }
+        # Filter by assistant config's role ceiling
+        if assistant_config.default_role:
+            from app.ai.tools import filter_tools_by_role
+
+            filtered = filter_tools_by_role(
+                list(tools_dict.values()), assistant_config.default_role
+            )
+            tools_dict = {t.name: t for t in filtered}
+
+        # Filter by user's actual role
+        from app.ai.tools import filter_tools_by_role
+
+        filtered = filter_tools_by_role(list(tools_dict.values()), user_role)
+        tools_dict = {t.name: t for t in filtered}
 
         # Create graph with context for RBAC
         graph, _interrupt_node = create_graph(
@@ -855,15 +879,6 @@ class AgentService:
             execution_mode=execution_mode,
         )
         available_tools = create_project_tools(tool_context)
-        tools_dict = {tool.name: tool for tool in available_tools}
-
-        # Filter tools based on assistant config
-        if assistant_config.allowed_tools is not None:
-            tools_dict = {
-                name: tool
-                for name, tool in tools_dict.items()
-                if name in assistant_config.allowed_tools
-            }
 
         # Create graph (no websocket, but pass event_bus for InterruptNode)
         graph, interrupt_node = await self._create_deep_agent_graph(
@@ -877,6 +892,7 @@ class AgentService:
             model_name=model_name,
             available_tools=available_tools,
             event_bus=event_bus,
+            user_role=user_role,
         )
 
         # Set per-request context for middleware

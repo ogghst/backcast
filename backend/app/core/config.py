@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     BACKEND_CORS_HEADERS: list[str]
     RBAC_POLICY_FILE: str
 
+    # Provider configuration
+    RBAC_PROVIDER: str = "json"  # "json" | "database" (future: "entra")
+    AUTH_PROVIDER: str = "local"  # "local" | "oidc" (future)
+    USER_PROVIDER: str = "local"  # "local" | "entra" | "hybrid" (future)
+
     # Database
     DATABASE_URL: PostgresDsn
 

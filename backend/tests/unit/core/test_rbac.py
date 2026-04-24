@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
@@ -586,5 +587,379 @@ class TestJsonRBACServiceEdgeCases:
 
             # Assert: Should return empty list
             assert permissions == []
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+
+class TestAIRoles:
+    """Test suite for AI-specific RBAC roles.
+
+    Uses the REAL config/rbac.json via JsonRBACService to verify
+    that each AI role has the correct permission set.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_rbac_service(self) -> None:
+        """Set up JsonRBACService pointing at the real rbac.json."""
+        from app.core.rbac import JsonRBACService
+
+        base_dir = Path(__file__).resolve().parent.parent.parent.parent
+        config_path = base_dir / "config" / "rbac.json"
+        self.service = JsonRBACService(config_path=config_path)
+
+    # --- ai-viewer tests ---
+
+    def test_ai_viewer_has_read_permissions(self) -> None:
+        """Verify ai-viewer has all expected read-only permissions.
+
+        Given:
+            The real rbac.json configuration
+        When:
+            ai-viewer role permissions are checked
+        Then:
+            All read permissions are present
+            No write/create permissions are present
+        """
+        # Arrange
+        read_permissions = [
+            "project-read",
+            "wbe-read",
+            "cost-element-read",
+            "cost-element-type-read",
+            "cost-registration-read",
+            "change-order-read",
+            "forecast-read",
+            "schedule-baseline-read",
+            "evm-read",
+            "user-read",
+            "department-read",
+            "quality-event-read",
+            "ai-chat",
+            "progress-entry-read",
+        ]
+        denied_permissions = [
+            "project-create",
+            "project-update",
+            "cost-element-create",
+            "cost-element-update",
+            "wbe-create",
+            "wbe-update",
+            "cost-registration-create",
+            "change-order-create",
+            "forecast-create",
+            "user-create",
+            "user-delete",
+        ]
+
+        # Act & Assert: all read permissions present
+        for perm in read_permissions:
+            assert self.service.has_permission("ai-viewer", perm), (
+                f"ai-viewer should have '{perm}'"
+            )
+
+        # Assert: no write permissions
+        for perm in denied_permissions:
+            assert not self.service.has_permission("ai-viewer", perm), (
+                f"ai-viewer should NOT have '{perm}'"
+            )
+
+    def test_ai_viewer_cannot_access_any_write_permissions(self) -> None:
+        """Verify ai-viewer cannot access ANY create/update/delete permissions.
+
+        Given:
+            The real rbac.json configuration
+        When:
+            All known create/update/delete permissions are checked against ai-viewer
+        Then:
+            None of them are granted
+
+        This is the systematic negative test: it scans every permission in the
+        entire config for patterns matching *-create, *-update, *-delete, and
+        verifies ai-viewer has none of them.
+        """
+        # Collect all write-suffix permissions from the entire config
+        write_suffixes = ("-create", "-update", "-delete", "-write")
+        all_write_perms: set[str] = set()
+
+        for role_config in self.service._config.get("roles", {}).values():
+            for perm in role_config.get("permissions", []):
+                if any(perm.endswith(suffix) for suffix in write_suffixes):
+                    all_write_perms.add(perm)
+
+        # Assert: ai-viewer has none of them
+        for perm in sorted(all_write_perms):
+            assert not self.service.has_permission("ai-viewer", perm), (
+                f"ai-viewer should NOT have write permission '{perm}'"
+            )
+
+    # --- ai-manager tests ---
+
+    def test_ai_manager_has_crud_permissions(self) -> None:
+        """Verify ai-manager has CRUD permissions for project entities.
+
+        Given:
+            The real rbac.json configuration
+        When:
+            ai-manager role permissions are checked
+        Then:
+            Create/update permissions are present
+            Delete permissions for project/user entities are absent
+        """
+        # Arrange
+        allowed_permissions = [
+            "project-read",
+            "project-create",
+            "project-update",
+            "wbe-read",
+            "wbe-create",
+            "wbe-update",
+            "cost-element-read",
+            "cost-element-create",
+            "cost-element-update",
+            "cost-element-type-read",
+            "cost-registration-read",
+            "cost-registration-create",
+            "cost-registration-update",
+            "cost-registration-delete",
+            "change-order-read",
+            "change-order-create",
+            "change-order-update",
+            "change-order-submit",
+            "change-order-approve",
+            "forecast-read",
+            "forecast-create",
+            "forecast-update",
+            "schedule-baseline-read",
+            "schedule-baseline-create",
+            "schedule-baseline-update",
+            "progress-entry-read",
+            "progress-entry-create",
+            "progress-entry-update",
+            "progress-entry-delete",
+            "quality-event-read",
+            "quality-event-create",
+            "quality-event-update",
+            "quality-event-write",
+            "evm-read",
+            "evm-create",
+            "evm-update",
+            "evm-delete",
+            "ai-chat",
+        ]
+        denied_permissions = [
+            "project-delete",
+            "user-delete",
+            "user-create",
+        ]
+
+        # Act & Assert: all CRUD permissions present
+        for perm in allowed_permissions:
+            assert self.service.has_permission("ai-manager", perm), (
+                f"ai-manager should have '{perm}'"
+            )
+
+        # Assert: no destructive admin permissions
+        for perm in denied_permissions:
+            assert not self.service.has_permission("ai-manager", perm), (
+                f"ai-manager should NOT have '{perm}'"
+            )
+
+    # --- ai-admin tests ---
+
+    def test_ai_admin_has_admin_permissions(self) -> None:
+        """Verify ai-admin has admin permissions for users/departments/types.
+
+        Given:
+            The real rbac.json configuration
+        When:
+            ai-admin role permissions are checked
+        Then:
+            User CRUD, department CRUD, cost-element-type CRUD are present
+            Entity write permissions (wbe, forecast) are absent
+        """
+        # Arrange
+        allowed_permissions = [
+            "project-read",
+            "user-read",
+            "user-create",
+            "user-update",
+            "user-delete",
+            "department-read",
+            "department-create",
+            "department-update",
+            "department-delete",
+            "cost-element-type-read",
+            "cost-element-type-create",
+            "cost-element-type-update",
+            "cost-element-type-delete",
+        ]
+        denied_permissions = [
+            "wbe-create",
+            "wbe-update",
+            "wbe-delete",
+            "forecast-create",
+            "forecast-update",
+            "cost-element-create",
+            "cost-registration-create",
+            "change-order-create",
+            "evm-create",
+            "ai-chat",
+        ]
+
+        # Act & Assert: all admin permissions present
+        for perm in allowed_permissions:
+            assert self.service.has_permission("ai-admin", perm), (
+                f"ai-admin should have '{perm}'"
+            )
+
+        # Assert: no project entity write permissions
+        for perm in denied_permissions:
+            assert not self.service.has_permission("ai-admin", perm), (
+                f"ai-admin should NOT have '{perm}'"
+            )
+
+
+class TestContextvarSession:
+    """Test suite for contextvar-based session injection in RBAC service."""
+
+    def test_get_rbac_session_returns_none_by_default(self) -> None:
+        """get_rbac_session() returns None when no session has been set.
+
+        Given:
+            A fresh contextvar state (no prior set_rbac_session calls in this test)
+        When:
+            get_rbac_session() is called
+        Then:
+            None is returned (the contextvar default)
+        """
+        from app.core.rbac import get_rbac_session, set_rbac_session
+
+        # Clear any previous state to ensure clean slate
+        set_rbac_session(None)
+
+        result = get_rbac_session()
+        assert result is None
+
+    def test_set_rbac_session_clears_session(self) -> None:
+        """set_rbac_session(None) clears a previously set session.
+
+        Given:
+            A session previously set via set_rbac_session()
+        When:
+            set_rbac_session(None) is called
+        Then:
+            get_rbac_session() returns None
+        """
+        from app.core.rbac import get_rbac_session, set_rbac_session
+
+        # Arrange: set a session
+        mock_session = MagicMock()
+        set_rbac_session(mock_session)
+        assert get_rbac_session() is mock_session
+
+        # Act: clear the session
+        set_rbac_session(None)
+
+        # Assert: session is now None
+        assert get_rbac_session() is None
+
+    @pytest.mark.asyncio
+    async def test_contextvar_session_isolation(self) -> None:
+        """Two concurrent tasks with different sessions must not interfere.
+
+        Given:
+            Two async tasks that each set a different session via set_rbac_session()
+        When:
+            Both tasks run concurrently with an interleaving point
+        Then:
+            Each task reads back its own session without interference from the other
+
+        This verifies the contextvar provides task-scoped isolation, which is
+        critical for concurrent WebSocket connections using the RBAC singleton.
+        """
+        import asyncio
+
+        from app.core.rbac import get_rbac_session, set_rbac_session
+
+        results: dict[str, Any] = {}
+
+        async def task_a() -> None:
+            mock_session_a = MagicMock()
+            set_rbac_session(mock_session_a)
+            await asyncio.sleep(0.01)  # Let other task run
+            results["a"] = get_rbac_session()
+
+        async def task_b() -> None:
+            mock_session_b = MagicMock()
+            set_rbac_session(mock_session_b)
+            await asyncio.sleep(0.01)  # Let other task run
+            results["b"] = get_rbac_session()
+
+        await asyncio.gather(task_a(), task_b())
+        assert results["a"] is not results["b"]
+
+    @pytest.mark.asyncio
+    async def test_contextvar_fallback_in_has_project_access(self) -> None:
+        """has_project_access uses contextvar session when self.session is None.
+
+        Given:
+            A JsonRBACService with session=None (no direct session)
+            A mock session set via set_rbac_session()
+        When:
+            has_project_access() is called
+        Then:
+            The contextvar session is used as fallback instead of returning False
+
+        This verifies the contextvar fallback chain: self.session (priority)
+        falls back to get_rbac_session() from the contextvar.
+        """
+        import json
+        import tempfile
+        from unittest.mock import AsyncMock
+        from uuid import uuid4
+
+        from app.core.rbac import JsonRBACService, set_rbac_session
+
+        # Arrange: Create a JsonRBACService with session=None
+        config = {
+            "roles": {
+                "viewer": {"permissions": ["project-read"]},
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(config, f)
+            f.flush()
+            temp_path = Path(f.name)
+
+        try:
+            service = JsonRBACService(config_path=temp_path, session=None)
+
+            # Create a mock session that returns a project member with viewer role
+            # Note: member.role must be a valid ProjectRole enum value
+            mock_session = AsyncMock()
+            mock_result = MagicMock()
+            mock_member = MagicMock()
+            mock_member.role = "project_viewer"
+            mock_result.scalar_one_or_none.return_value = mock_member
+            mock_session.execute.return_value = mock_result
+
+            # Set contextvar session
+            set_rbac_session(mock_session)
+
+            user_id = uuid4()
+            project_id = uuid4()
+
+            # Act: Call has_project_access (should use contextvar fallback)
+            result = await service.has_project_access(
+                user_id=user_id,
+                user_role="viewer",
+                project_id=project_id,
+                required_permission="project-read",
+            )
+
+            # Assert: Should use the contextvar session and return True
+            assert result is True
+            mock_session.execute.assert_called_once()
         finally:
             temp_path.unlink(missing_ok=True)

@@ -48,9 +48,9 @@ const WBETreeComponent: FC<WidgetComponentProps<WBETreeConfig>> = ({
       setTreeSelectedKey(prefixedKey);
 
       if (node.type === "cost_element") {
-        context.setCostElementId(node.id);
+        context.setCostElementId(node.cost_element_id);
       } else if (node.type === "wbe") {
-        context.setWbeId(node.id);
+        context.setWbeId(node.wbe_id);
         context.setCostElementId(undefined);
       } else {
         // Project node - clear both

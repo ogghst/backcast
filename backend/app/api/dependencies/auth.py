@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac import RBACServiceABC, get_rbac_service, set_rbac_session
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.user import TokenPayload
@@ -174,9 +174,8 @@ class ProjectRoleChecker:
         Raises:
             HTTPException: 403 Forbidden if user lacks required permission
         """
-        # Inject session into rbac_service if it supports it
-        if hasattr(rbac_service, "session"):
-            rbac_service.session = session
+        # Inject session via contextvar for task-scoped isolation
+        set_rbac_session(session)
 
         # Check if user has access to the project
         has_access = await rbac_service.has_project_access(

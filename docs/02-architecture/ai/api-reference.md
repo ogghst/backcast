@@ -25,7 +25,7 @@ Compiled agent graphs, LLM clients, and tool lists are cached for performance.
 |-----------|--------|---------|
 | `LLMClientCache` | `app.ai.graph_cache` | Thread-safe LLM client cache keyed by `(model_name, temperature, max_tokens, base_url_hash)` |
 | `CompiledGraphCache` | `app.ai.graph_cache` | LRU cache (max 20) for compiled graphs keyed by `GraphCacheKey` |
-| `GraphCacheKey` | `app.ai.graph_cache` | Frozen dataclass: `(model_name, frozenset(allowed_tools), execution_mode, system_prompt_hash)` |
+| `GraphCacheKey` | `app.ai.graph_cache` | Frozen dataclass: `(model_name, frozenset(tool_names), execution_mode, system_prompt_hash, assistant_role_hash)` |
 | `BackcastRuntimeContext` | `app.ai.graph_cache` | Per-request context for LangGraph Runtime |
 | `shared_checkpointer` | `app.ai.graph_cache` | Singleton `MemorySaver` shared across all graph invocations |
 

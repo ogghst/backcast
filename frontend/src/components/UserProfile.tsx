@@ -18,6 +18,7 @@ import {
   TagsOutlined,
   RobotOutlined,
   ApiOutlined,
+  SafetyOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -92,6 +93,15 @@ export const UserProfile: React.FC = () => {
         icon: <ApiOutlined />,
         label: "AI Assistants",
         onClick: () => navigate("/admin/ai-assistants"),
+      });
+    }
+
+    if (hasRole("admin")) {
+      adminItems.push({
+        key: "/admin/rbac",
+        icon: <SafetyOutlined />,
+        label: "RBAC Configuration",
+        onClick: () => navigate("/admin/rbac"),
       });
     }
 
