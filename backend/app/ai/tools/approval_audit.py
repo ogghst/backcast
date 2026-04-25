@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from app.ai.tools.types import RiskLevel
+from app.ai.tools.types import ExecutionMode, RiskLevel
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class ApprovalAuditLogger:
         tool_name: str,
         tool_args: dict[str, Any],
         risk_level: RiskLevel,
-        execution_mode: str,
+        execution_mode: ExecutionMode,
     ) -> None:
         """Log a tool execution attempt.
 
@@ -64,7 +64,7 @@ class ApprovalAuditLogger:
             tool_name: Name of the tool being executed
             tool_args: Arguments passed to the tool
             risk_level: Risk level of the tool
-            execution_mode: Current execution mode (safe/standard/expert)
+            execution_mode: Current execution mode
         """
         log_entry = {
             "event": "tool_execution",
@@ -74,7 +74,7 @@ class ApprovalAuditLogger:
             "tool_name": tool_name,
             "tool_args": tool_args,
             "risk_level": risk_level.value,
-            "execution_mode": execution_mode,
+            "execution_mode": execution_mode.value,
         }
 
         logger.info(f"Tool execution: {json.dumps(log_entry)}")

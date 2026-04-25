@@ -16,10 +16,10 @@ from fastapi import WebSocket
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.prebuilt import ToolNode
-from starlette.websockets import WebSocketState
 
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
+from app.api.websocket_utils import is_websocket_connected
 from app.models.schemas.ai import WSApprovalRequestMessage, WSPollingHeartbeatMessage
 
 
@@ -122,17 +122,15 @@ class InterruptNode(ToolNode):
         Context: Called before sending approval requests and heartbeats to
         avoid errors on closed connections during the human-in-the-loop flow.
 
+        Delegates to the shared is_websocket_connected utility.
+
         Args:
             websocket: WebSocket connection to check
 
         Returns:
             True if WebSocket is connected, False otherwise
         """
-        try:
-            return websocket.client_state != WebSocketState.DISCONNECTED
-        except (AttributeError, TypeError):
-            # If websocket doesn't have client_state, assume disconnected
-            return False
+        return is_websocket_connected(websocket)
 
     def _get_tool_risk_level(self, tool_name: str) -> RiskLevel:
         """Get the risk level for a tool.

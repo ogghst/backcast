@@ -16,6 +16,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.ai.tools.types import ExecutionMode
+
 # Risk level literals
 RISK_LEVEL_LOW = "low"
 RISK_LEVEL_HIGH = "high"
@@ -271,7 +273,7 @@ class AgentExecutionPublic(BaseModel):
     started_at: datetime
     completed_at: datetime | None = None
     error_message: str | None = None
-    execution_mode: str = "standard"
+    execution_mode: ExecutionMode = ExecutionMode.STANDARD
     total_tokens: int = 0
     tool_calls_count: int = 0
     created_at: datetime
@@ -286,8 +288,9 @@ class InvokeAgentRequest(BaseModel):
     message: str = Field(
         ..., min_length=1, max_length=10000, description="User message content"
     )
-    execution_mode: Literal["safe", "standard", "expert"] = Field(
-        "standard", description="AI tool execution mode (default: 'standard')"
+    execution_mode: ExecutionMode = Field(
+        ExecutionMode.STANDARD,
+        description="AI tool execution mode (default: 'standard')",
     )
 
 
@@ -530,8 +533,9 @@ class WSChatRequest(BaseModel):
     branch_mode: Literal["merged", "isolated"] | None = Field(
         "merged", description="Branch mode for temporal queries (default: 'merged')"
     )
-    execution_mode: Literal["safe", "standard", "expert"] = Field(
-        "standard", description="AI tool execution mode (default: 'standard')"
+    execution_mode: ExecutionMode = Field(
+        ExecutionMode.STANDARD,
+        description="AI tool execution mode (default: 'standard')",
     )
     attachments: list[FileAttachment] = Field(
         default_factory=list, description="File attachments to the message"

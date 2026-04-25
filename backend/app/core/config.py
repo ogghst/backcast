@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     AI_TOKEN_BUFFER_INTERVAL_MS: int = 1000  # 1 second default
     AI_TOKEN_BUFFER_MAX_SIZE: int = 10000  # Max tokens before forced flush
 
+    # AI Approval Settings (used by BackcastSecurityMiddleware polling loop)
+    AI_APPROVAL_TIMEOUT_SECONDS: float = 60.0
+    AI_APPROVAL_POLL_INTERVAL_MS: float = 200.0
+    AI_APPROVAL_HEARTBEAT_INTERVAL_SECONDS: float = 5.0
+
     # Refresh Token Configuration
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days default
 

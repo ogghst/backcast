@@ -15,6 +15,7 @@ from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
+from app.ai.config import AgentConfig
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.subagents import get_all_subagents
@@ -86,37 +87,33 @@ class DeepAgentOrchestrator:
         self.enable_subagents = enable_subagents
         self.interrupt_node = interrupt_node
 
-    def create_agent(
-        self,
-        allowed_tools: list[str] | None = None,
-        subagents: list[dict[str, Any]] | None = None,
-        checkpointer: Any | None = None,
-        context_schema: type | None = None,
-        assistant_role: str | None = None,
-        user_role: str | None = None,
-    ) -> Any:
+    def create_agent(self, config: AgentConfig | None = None) -> Any:
         """Create a LangChain agent with Backcast tools and context.
 
         Args:
-            allowed_tools: Optional list of tool names to include (filters all tools)
-            subagents: Optional subagent configurations (uses default if None and enabled)
-            checkpointer: Optional shared checkpointer for graph state persistence
-            context_schema: Optional context schema for StateGraph construction
-            assistant_role: Optional RBAC role for the assistant (e.g., "ai-viewer",
-                "ai-manager", "ai-admin"). When provided, tools whose required
-                permissions are not granted by this role are filtered out.
-            user_role: Optional per-user RBAC role for tool visibility. Applied
-                after assistant_role filtering to further restrict tools based on
-                the user's actual permissions.
+            config: Optional AgentConfig encapsulating creation parameters.
+                When None, defaults are used (no tool whitelist, no subagent
+                overrides, no checkpointer, no context schema, no role filtering).
 
         Returns:
             Compiled agent graph (CompiledStateGraph)
 
         Example:
+            >>> config = AgentConfig(checkpointer=shared_checkpointer)
             >>> orchestrator = DeepAgentOrchestrator("openai:gpt-4o", context)
-            >>> agent = orchestrator.create_agent()
+            >>> agent = orchestrator.create_agent(config)
             >>> result = await agent.ainvoke({"messages": [("user", "Hello")]})
         """
+        if config is None:
+            config = AgentConfig()
+
+        # Unpack for readability
+        allowed_tools = config.allowed_tools
+        subagents = config.subagents
+        checkpointer = config.checkpointer
+        context_schema = config.context_schema
+        assistant_role = config.assistant_role
+        user_role = config.user_role
         # Log agent creation start
         logger.info(
             f"[AGENT_CREATION_START] create_agent | "
@@ -414,4 +411,4 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
         return subagent_dicts
 
 
-__all__ = ["DeepAgentOrchestrator"]
+__all__ = ["AgentConfig", "DeepAgentOrchestrator"]
