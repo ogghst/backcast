@@ -26,7 +26,10 @@ class LocalAuthProvider(AuthProvider):
     """
 
     async def validate_token(self, token: str) -> dict[str, Any] | None:
-        """Validate JWT token using existing security module."""
-        from app.core.security import decode_access_token
+        """Validate JWT token using centralized jwt_utils."""
+        from app.core.jwt_utils import validate_jwt_token
 
-        return decode_access_token(token)
+        result = validate_jwt_token(token)
+        if not result.is_valid:
+            return None
+        return {"sub": result.subject}

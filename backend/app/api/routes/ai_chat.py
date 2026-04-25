@@ -491,14 +491,12 @@ async def chat_stream(
     jwt_result = validate_jwt_token(token)
     if not jwt_result.is_valid:
         logger.warning(f"WebSocket connection rejected: {jwt_result.error_detail}")
-        # Type guard: close_code is never None when is_valid is False
         close_code = jwt_result.close_code if jwt_result.close_code else 1008
         await websocket.close(
             code=close_code, reason=jwt_result.error_detail or "Authentication failed"
         )
         return
 
-    # Type guard: if is_valid is True, subject cannot be None
     if jwt_result.subject is None:
         logger.warning("WebSocket connection rejected: missing subject in token")
         await websocket.close(code=1008, reason="Invalid token: missing subject")

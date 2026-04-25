@@ -480,12 +480,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                 # Calculate actual elapsed wall-clock time
                 elapsed_seconds = time.time() - polling_start_time
 
-                # Send heartbeat to keep WebSocket connection alive
-                # Prevents connection timeout due to inactivity (typically 20-30 seconds)
-                if (
-                    elapsed_seconds - (last_heartbeat_time - polling_start_time)
-                    >= heartbeat_interval
-                ):
+                # Prevents connection timeout due to inactivity
+                if time.time() - last_heartbeat_time >= heartbeat_interval:
                     remaining = max_wait_time - elapsed_seconds
                     await interrupt_node._send_heartbeat(
                         approval_id=approval_id,
@@ -611,7 +607,6 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         if not needs_approval:
             return True, None
 
-        # Ensure interrupt_node is available (redundant guard for type narrowing)
         if interrupt_node is None:
             logger.error("InterruptNode is None but approval is needed")
             return False, "Approval system unavailable"
