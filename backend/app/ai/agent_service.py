@@ -25,8 +25,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.types import Command
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.websockets import WebSocketState
 
+from app.ai.config import AgentConfig
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
@@ -54,6 +54,7 @@ from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
+from app.api.websocket_utils import is_websocket_connected
 from app.models.domain.ai import (
     AIAgentExecution,
     AIAssistantConfig,
@@ -260,11 +261,13 @@ async def warm_graph_cache(db_session: AsyncSession) -> None:
         )
 
         graph = orchestrator.create_agent(
-            allowed_tools=None,  # RBAC role filtering only
-            checkpointer=shared_checkpointer,
-            context_schema=BackcastRuntimeContext,
-            assistant_role=assistant_role,
-            user_role="admin",  # Startup warming uses admin context
+            config=AgentConfig(
+                allowed_tools=None,  # RBAC role filtering only
+                checkpointer=shared_checkpointer,
+                context_schema=BackcastRuntimeContext,
+                assistant_role=assistant_role,
+                user_role="admin",  # Startup warming uses admin context
+            ),
         )
 
         # Build cache key and store
@@ -302,13 +305,15 @@ class AgentService:
     def _is_websocket_connected(websocket: WebSocket) -> bool:
         """Check if WebSocket is still connected.
 
+        Delegates to the shared is_websocket_connected utility.
+
         Args:
             websocket: WebSocket connection to check
 
         Returns:
             True if WebSocket is connected, False otherwise
         """
-        return websocket.client_state != WebSocketState.DISCONNECTED
+        return is_websocket_connected(websocket)
 
     @property
     def config_service(self) -> AIConfigService:
@@ -546,11 +551,13 @@ class AgentService:
             )
 
             graph = orchestrator.create_agent(
-                allowed_tools=None,  # RBAC role filtering only
-                checkpointer=shared_checkpointer,
-                context_schema=BackcastRuntimeContext,
-                assistant_role=assistant_role,
-                user_role=user_role,
+                config=AgentConfig(
+                    allowed_tools=None,  # RBAC role filtering only
+                    checkpointer=shared_checkpointer,
+                    context_schema=BackcastRuntimeContext,
+                    assistant_role=assistant_role,
+                    user_role=user_role,
+                ),
             )
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000

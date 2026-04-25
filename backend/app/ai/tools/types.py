@@ -138,6 +138,27 @@ class ExecutionMode(str, Enum):
     STANDARD = "standard"
     EXPERT = "expert"
 
+    @classmethod
+    def validate(cls, value: str) -> "ExecutionMode":
+        """Validate and convert string to ExecutionMode.
+
+        Args:
+            value: String value to convert (e.g., "safe", "standard", "expert")
+
+        Returns:
+            Corresponding ExecutionMode enum member
+
+        Raises:
+            ValueError: If value is not a valid execution mode
+        """
+        try:
+            return cls(value)
+        except ValueError:
+            valid = [e.value for e in cls]
+            raise ValueError(
+                f"Invalid execution_mode '{value}'. Must be one of: {valid}"
+            ) from None
+
 
 @dataclass
 class ToolContext:

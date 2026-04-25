@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.ai.config import AgentConfig
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
@@ -100,7 +101,7 @@ async def test_deep_agent_orchestrator_with_tool_filtering(model_string, tool_co
 
     # Create agent with tool filtering
     allowed_tools = ["list_projects", "get_project"]
-    agent = orchestrator.create_agent(allowed_tools=allowed_tools)
+    agent = orchestrator.create_agent(config=AgentConfig(allowed_tools=allowed_tools))
 
     assert agent is not None
 

@@ -16,19 +16,18 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from jose import ExpiredSignatureError, JWTError, jwt
-from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from starlette.websockets import WebSocketState
 
 from app.ai.agent_service import AgentService
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.tools.types import ExecutionMode
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
-from app.core.config import settings
+from app.api.errors import build_ws_error
+from app.api.websocket_utils import is_websocket_connected
+from app.core.jwt_utils import validate_jwt_token
 from app.core.rbac import get_rbac_service
 from app.db.session import get_db
 from app.models.domain.ai import (
@@ -46,7 +45,6 @@ from app.models.schemas.ai import (
     InvokeAgentRequest,
     WSApprovalResponseMessage,
     WSChatRequest,
-    WSErrorMessage,
     WSSubscribeMessage,
 )
 from app.services.ai_config_service import AIConfigService
@@ -54,18 +52,6 @@ from app.services.ai_config_service import AIConfigService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai/chat", tags=["AI Chat"])
-
-
-def _is_websocket_connected(websocket: WebSocket) -> bool:
-    """Check if the WebSocket is still connected.
-
-    Args:
-        websocket: WebSocket connection to check.
-
-    Returns:
-        True if the client state is not DISCONNECTED.
-    """
-    return websocket.client_state != WebSocketState.DISCONNECTED
 
 
 class SessionIdHolder:
@@ -319,7 +305,7 @@ async def invoke_agent(
         user_id=current_user.user_id,
         project_id=project_uuid,
         branch_id=branch_uuid,
-        execution_mode=ExecutionMode(body.execution_mode),
+        execution_mode=body.execution_mode,
     )
 
     # Fetch the created execution record
@@ -490,7 +476,7 @@ async def chat_stream(
 
     WebSocket Close Codes:
         - 4008: Authentication token expired (client should refresh and NOT reconnect)
-        - 1008: Policy violation (invalid token, insufficient permissions)
+        - 1008: Policy violation (invalid token, missing user, no permission)
         - 1000: Normal closure
     """
     from app.db.session import async_session_maker
@@ -501,29 +487,24 @@ async def chat_stream(
     # Validate token BEFORE accepting the connection to prevent reconnection loops
     # This ensures the frontend can distinguish between auth failures and connection issues
 
-    # Step 1: Validate JWT token
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+    # Step 1: Validate JWT token using centralized utility
+    jwt_result = validate_jwt_token(token)
+    if not jwt_result.is_valid:
+        logger.warning(f"WebSocket connection rejected: {jwt_result.error_detail}")
+        # Type guard: close_code is never None when is_valid is False
+        close_code = jwt_result.close_code if jwt_result.close_code else 1008
+        await websocket.close(
+            code=close_code, reason=jwt_result.error_detail or "Authentication failed"
         )
-        subject = payload.get("sub")
-        if subject is None:
-            logger.warning("WebSocket connection rejected: missing subject in token")
-            # Close with policy violation without accepting - client will see error in onerror
-            await websocket.close(code=1008, reason="Invalid token: missing subject")
-            return
-
-    except ExpiredSignatureError:
-        logger.warning("WebSocket connection rejected: token signature has expired")
-        # Use custom close code 4008 to signal token expiration (4000-4999 range for app-specific codes)
-        # Frontend should detect this and NOT attempt reconnection, instead trigger re-authentication
-        await websocket.close(code=4008, reason="Token expired")
         return
 
-    except (JWTError, ValidationError) as e:
-        logger.warning(f"WebSocket connection rejected: invalid token - {str(e)}")
-        await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
+    # Type guard: if is_valid is True, subject cannot be None
+    if jwt_result.subject is None:
+        logger.warning("WebSocket connection rejected: missing subject in token")
+        await websocket.close(code=1008, reason="Invalid token: missing subject")
         return
+
+    subject = jwt_result.subject
 
     # Create database session after token validation using context manager
     # This ensures proper cleanup even with early returns
@@ -623,9 +604,8 @@ async def chat_stream(
                         bus = runner_manager.get_bus(str(sub_msg.execution_id))
                         if bus is None:
                             await websocket.send_json(
-                                WSErrorMessage(
-                                    type="error",
-                                    message=f"Execution {sub_msg.execution_id} not found or already completed",
+                                build_ws_error(
+                                    f"Execution {sub_msg.execution_id} not found or already completed",
                                     code=404,
                                 ).model_dump()
                             )
@@ -652,14 +632,14 @@ async def chat_stream(
                                         sub_queue.get(),
                                         timeout=1.0,
                                     )
-                                    if not _is_websocket_connected(websocket):
+                                    if not is_websocket_connected(websocket):
                                         break
                                     payload = {**event.data, "type": event.event_type}
                                     await websocket.send_json(payload)
                                     if event.event_type in ("complete", "error"):
                                         break
                                 except TimeoutError:
-                                    if not _is_websocket_connected(websocket):
+                                    if not is_websocket_connected(websocket):
                                         break
                                     continue
                         finally:
@@ -671,9 +651,8 @@ async def chat_stream(
                         )
                         try:
                             await websocket.send_json(
-                                WSErrorMessage(
-                                    type="error",
-                                    message=f"Error subscribing to execution: {str(sub_err)}",
+                                build_ws_error(
+                                    f"Error subscribing to execution: {str(sub_err)}",
                                     code=500,
                                 ).model_dump()
                             )
@@ -691,9 +670,8 @@ async def chat_stream(
                         active_session_id = session_holder.value
                         if active_session_id is None:
                             await websocket.send_json(
-                                WSErrorMessage(
-                                    type="error",
-                                    message="No active chat session for approval",
+                                build_ws_error(
+                                    "No active chat session for approval",
                                     code=400,
                                 ).model_dump()
                             )
@@ -709,9 +687,8 @@ async def chat_stream(
                         )
                         if not success:
                             await websocket.send_json(
-                                WSErrorMessage(
-                                    type="error",
-                                    message=f"Failed to register approval for session {active_session_id}",
+                                build_ws_error(
+                                    f"Failed to register approval for session {active_session_id}",
                                     code=400,
                                 ).model_dump()
                             )
@@ -727,9 +704,8 @@ async def chat_stream(
                             exc_info=True,
                         )
                         await websocket.send_json(
-                            WSErrorMessage(
-                                type="error",
-                                message=f"Error processing approval: {str(approval_err)}",
+                            build_ws_error(
+                                f"Error processing approval: {str(approval_err)}",
                                 code=500,
                             ).model_dump()
                         )
@@ -741,9 +717,8 @@ async def chat_stream(
                 # Validate assistant config per message
                 if not request.assistant_config_id:
                     await websocket.send_json(
-                        WSErrorMessage(
-                            type="error",
-                            message="Assistant config is required for new sessions",
+                        build_ws_error(
+                            "Assistant config is required for new sessions",
                             code=400,
                         ).model_dump()
                     )
@@ -754,9 +729,8 @@ async def chat_stream(
                 )
                 if not assistant_config:
                     await websocket.send_json(
-                        WSErrorMessage(
-                            type="error",
-                            message="Assistant config not found",
+                        build_ws_error(
+                            "Assistant config not found",
                             code=404,
                         ).model_dump()
                     )
@@ -764,9 +738,8 @@ async def chat_stream(
 
                 if not assistant_config.is_active:
                     await websocket.send_json(
-                        WSErrorMessage(
-                            type="error",
-                            message="Assistant config is not active",
+                        build_ws_error(
+                            "Assistant config is not active",
                             code=400,
                         ).model_dump()
                     )
@@ -781,9 +754,8 @@ async def chat_stream(
                     )
                     if not existing_session:
                         await websocket.send_json(
-                            WSErrorMessage(
-                                type="error",
-                                message=f"Session {effective_session_id} not found",
+                            build_ws_error(
+                                f"Session {effective_session_id} not found",
                                 code=404,
                             ).model_dump()
                         )
@@ -834,7 +806,7 @@ async def chat_stream(
                 exec_id = str(uuid.uuid4())
                 exec_bus = runner_manager.create_bus(exec_id)
 
-                exec_mode = ExecutionMode(request.execution_mode)
+                exec_mode = request.execution_mode
 
                 # Use a factory to capture loop variables by value, avoiding
                 # late-binding issues (B023) where the closure would reference
@@ -896,10 +868,10 @@ async def chat_stream(
                                         timeout=1.0,
                                     )
                                 except TimeoutError:
-                                    if not _is_websocket_connected(ws):
+                                    if not is_websocket_connected(ws):
                                         break
                                     continue
-                                if not _is_websocket_connected(ws):
+                                if not is_websocket_connected(ws):
                                     break
                                 payload = {**event.data, "type": event.event_type}
                                 try:
@@ -989,9 +961,8 @@ async def chat_stream(
             await db.rollback()
             try:
                 await websocket.send_json(
-                    WSErrorMessage(
-                        type="error",
-                        message=f"Internal server error: {str(e)}",
+                    build_ws_error(
+                        f"Internal server error: {str(e)}",
                         code=500,
                     ).model_dump()
                 )

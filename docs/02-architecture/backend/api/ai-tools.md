@@ -27,7 +27,7 @@ The AI Tools API supports three execution modes that control which tools can be 
 | Mode | Description | Risk Levels Allowed | Approval Required |
 |------|-------------|---------------------|-------------------|
 | `safe` | Read-only operations | `low` only | No |
-| `standard` | Normal operations (default) | `low`, `high` | Yes, for `high` (critical blocked) |
+| `standard` | Normal operations (default) | yes (approval required) | no (blocked entirely) |
 | `expert` | All operations | `low`, `high`, `critical` | No |
 
 ### Mode Selection
@@ -342,6 +342,8 @@ Approval is required when:
 1. Execution mode is `standard`
 2. Tool has `risk_level="high"`
 3. User has the required permissions
+
+Note: Critical tools are BLOCKED entirely in standard mode and never reach the approval flow.
 
 Note: Critical tools are blocked entirely in standard mode and never reach the approval flow.
 

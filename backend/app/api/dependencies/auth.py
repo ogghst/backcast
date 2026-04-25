@@ -8,15 +8,12 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
-from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.jwt_utils import validate_jwt_token
 from app.core.rbac import RBACServiceABC, get_rbac_service, set_rbac_session
 from app.db.session import get_db
 from app.models.domain.user import User
-from app.models.schemas.user import TokenPayload
 from app.services.user import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -37,18 +34,19 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+    jwt_result = validate_jwt_token(token)
+    if not jwt_result.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=jwt_result.error_detail,
+            headers={"WWW-Authenticate": "Bearer"},
         )
-        token_data = TokenPayload(**payload)
-    except (JWTError, ValidationError) as e:
-        raise credentials_exception from e
 
-    if token_data.sub is None:
+    # Type guard: if is_valid is True, subject cannot be None
+    if jwt_result.subject is None:
         raise credentials_exception
 
-    user = await service.get_by_email(token_data.sub)
+    user = await service.get_by_email(jwt_result.subject)
     if user is None:
         raise credentials_exception
 
@@ -176,19 +174,22 @@ class ProjectRoleChecker:
         """
         # Inject session via contextvar for task-scoped isolation
         set_rbac_session(session)
-
-        # Check if user has access to the project
-        has_access = await rbac_service.has_project_access(
-            user_id=current_user.user_id,
-            user_role=current_user.role,
-            project_id=project_id,
-            required_permission=self.required_permission,
-        )
-
-        if not has_access:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Insufficient permissions for project {project_id}",
+        try:
+            # Check if user has access to the project
+            has_access = await rbac_service.has_project_access(
+                user_id=current_user.user_id,
+                user_role=current_user.role,
+                project_id=project_id,
+                required_permission=self.required_permission,
             )
 
-        return current_user
+            if not has_access:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Insufficient permissions for project {project_id}",
+                )
+
+            return current_user
+        finally:
+            # Clean up contextvar to prevent session leaks
+            set_rbac_session(None)
