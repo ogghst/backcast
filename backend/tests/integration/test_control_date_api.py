@@ -43,7 +43,7 @@ class MockRBACService(RBACServiceABC):
 
     def get_user_permissions(self, user_role: str) -> list[str]:
         return ["project-read", "project-create", "project-update", "project-delete"]
-    
+
     async def has_project_access(
         self,
         user_id,

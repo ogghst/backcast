@@ -50,7 +50,7 @@ class MockRBACService(RBACServiceABC):
             "department-create",
             "cost-element-type-create",  # Dependencies
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

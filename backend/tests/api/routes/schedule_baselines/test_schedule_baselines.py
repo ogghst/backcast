@@ -53,7 +53,7 @@ class MockRBACService(RBACServiceABC):
             "schedule-baseline-update",
             "schedule-baseline-delete",
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

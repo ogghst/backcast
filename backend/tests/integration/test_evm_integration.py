@@ -67,7 +67,7 @@ class MockRBACService(RBACServiceABC):
             "wbe-read",
             "project-read",
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

@@ -55,7 +55,7 @@ class MockRBACService(RBACServiceABC):
             "evm-read",
             "progress-entry-read",
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

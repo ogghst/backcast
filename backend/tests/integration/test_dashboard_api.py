@@ -56,7 +56,7 @@ class MockRBACService(RBACServiceABC):
             "project-delete",
             "dashboard-read",
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

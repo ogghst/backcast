@@ -46,7 +46,7 @@ class MockRBACService(RBACServiceABC):
             "change-order-read",
             "change-order-audit-read",  # Add other potential perms if needed
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

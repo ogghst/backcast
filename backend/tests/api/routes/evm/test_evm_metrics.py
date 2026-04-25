@@ -49,7 +49,7 @@ class MockRBACService(RBACServiceABC):
             "progress-entry-read",
             "progress-entry-create",
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

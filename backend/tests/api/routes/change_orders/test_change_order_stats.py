@@ -51,7 +51,7 @@ class MockRBACService(RBACServiceABC):
             "change-order-update",
             "change-order-delete",
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

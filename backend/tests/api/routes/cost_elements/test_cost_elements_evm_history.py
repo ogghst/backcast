@@ -51,7 +51,7 @@ class MockRBACService(RBACServiceABC):
             "schedule-baseline-create",
             "cost-registration-create",
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

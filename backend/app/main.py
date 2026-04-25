@@ -62,12 +62,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await seed_dashboard_templates()
 
-    # Initialize RBAC and warm AI agent graph cache
+    # Initialize RBAC
     from app.db.session import async_session_maker
 
     async with async_session_maker() as session:
-        # Seed RBAC roles and warm cache BEFORE graph warming
-        # Graph warming queries RBAC permissions to filter tools by role
         from app.core.config import settings as app_settings
 
         if app_settings.RBAC_PROVIDER == "database":
@@ -86,11 +84,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             if isinstance(rbac_svc, DatabaseRBACService):
                 await rbac_svc.refresh_cache()
             set_rbac_session(None)
-
-        # Warm AI agent graph cache (requires RBAC cache to be populated)
-        from app.ai.agent_service import warm_graph_cache
-
-        await warm_graph_cache(session)
 
     # Notify admins of system startup
     from app.core.notifications import notifier

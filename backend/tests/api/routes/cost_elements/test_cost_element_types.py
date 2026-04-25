@@ -49,7 +49,7 @@ class MockRBACService(RBACServiceABC):
             "cost-element-type-delete",
             "department-create",  # Needed for setup
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

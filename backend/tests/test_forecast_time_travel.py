@@ -54,7 +54,7 @@ class MockRBACService(RBACServiceABC):
             "forecast-read",
             "forecast-update",
         ]
-    
+
     async def has_project_access(
         self,
         user_id,

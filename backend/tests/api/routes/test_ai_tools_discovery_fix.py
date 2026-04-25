@@ -47,30 +47,15 @@ class MockRBACService(RBACServiceABC):
 
     def get_user_permissions(self, user_role: str) -> list[str]:
         return ["*"]
-    
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
 
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"  # Admin has all permissions
-
-    def get_project_role(self, user_id: str, project_id: str) -> str | None:
-        return "admin"  # Admin has admin role on all projects
+    def has_project_access(self, user_id: str, project_id: str) -> bool:
+        return True  # Admin has access to all projects
 
     def get_user_projects(self, user_id: str) -> list[str]:
         return []  # No specific projects for admin
 
-    def has_project_access(self, user_id: str, project_id: str) -> bool:
-        return True  # Admin has access to all projects
+    def get_project_role(self, user_id: str, project_id: str) -> str | None:
+        return "admin"  # Admin has admin role on all projects
 
 
 @pytest.fixture(autouse=True)

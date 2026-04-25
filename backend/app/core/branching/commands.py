@@ -290,10 +290,13 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         tablename = str(getattr(self.entity_class, "__tablename__", ""))
 
         # Build INSERT statement with all column names from the entity
-        from sqlalchemy import inspect
         from uuid import uuid4
 
+        from sqlalchemy import inspect
+
         mapper = inspect(self.entity_class)
+        if mapper is None:
+            raise ValueError(f"Could not inspect entity class {self.entity_class.__name__}")
         # Exclude 'id', 'valid_time', and 'transaction_time' from the column list
         # We'll handle id and temporal columns explicitly
         columns = [c.key for c in mapper.columns if c.key not in ('id', 'valid_time', 'transaction_time')]
