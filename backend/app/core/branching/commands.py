@@ -296,14 +296,20 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
 
         mapper = inspect(self.entity_class)
         if mapper is None:
-            raise ValueError(f"Could not inspect entity class {self.entity_class.__name__}")
+            raise ValueError(
+                f"Could not inspect entity class {self.entity_class.__name__}"
+            )
         # Exclude 'id', 'valid_time', and 'transaction_time' from the column list
         # We'll handle id and temporal columns explicitly
-        columns = [c.key for c in mapper.columns if c.key not in ('id', 'valid_time', 'transaction_time')]
+        columns = [
+            c.key
+            for c in mapper.columns
+            if c.key not in ("id", "valid_time", "transaction_time")
+        ]
 
         # Build placeholders and values
-        placeholders = ', '.join([f':{c}' for c in columns])
-        column_names = ', '.join(columns)
+        placeholders = ", ".join([f":{c}" for c in columns])
+        column_names = ", ".join(columns)
 
         # Create INSERT with RETURNING id
         insert_stmt = text(
@@ -318,9 +324,9 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         values = {c: getattr(new_version, c) for c in columns}
         # Generate a new UUID for the id
         new_id = uuid4()
-        values['id'] = new_id
-        values['valid_time_lower'] = valid_time_lower
-        values['update_timestamp'] = update_timestamp
+        values["id"] = new_id
+        values["valid_time_lower"] = valid_time_lower
+        values["update_timestamp"] = update_timestamp
 
         # Execute INSERT and get the new ID
         result = await session.execute(insert_stmt, values)
