@@ -236,6 +236,12 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
                 # Skip the _close_version call below since we already closed it
                 current = None
 
+        # CRITICAL FIX: Determine valid_time lower bound BEFORE closing current version
+        # This ensures we use consistent timestamps throughout the update operation
+        valid_time_lower = (
+            self.control_date if self.control_date is not None else update_timestamp
+        )
+
         # 2. Clone and apply updates (Safe Clone via Core Select)
         # Fetch raw data to avoid ORM lazy-load triggers (MissingGreenlet)
         # If current was converted to remainder above, we need to refresh it first
@@ -258,6 +264,11 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
                 close_at_valid_time=self.control_date,
                 close_at_transaction_time=update_timestamp,
             )
+            # CRITICAL: Ensure the close is fully persisted before adding new version
+            # This prevents unique constraint violations when the new version is added
+            await session.flush()
+            # CRITICAL: Refresh to ensure we see the updated values from the database
+            await session.refresh(current)
 
         # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges
         # When control_date is None (normal update), use update_timestamp for valid_time lower bound
@@ -274,36 +285,46 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             session, valid_time_lower, self.branch, exclude_version_id=current_id
         )
 
-        session.add(new_version)
-        await session.flush()
-
-        # 4. Set valid_time and transaction_time on new version via SQL
-        # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges
-        # When control_date is None (normal update), use update_timestamp for valid_time lower bound
-        valid_time_lower = (
-            self.control_date if self.control_date is not None else update_timestamp
-        )
-
+        # CRITICAL FIX: Use raw INSERT to set temporal values explicitly
+        # This prevents server_default from creating a current version before we're ready
         tablename = str(getattr(self.entity_class, "__tablename__", ""))
-        stmt = text(
+
+        # Build INSERT statement with all column names from the entity
+        from sqlalchemy import inspect
+        from uuid import uuid4
+
+        mapper = inspect(self.entity_class)
+        # Exclude 'id', 'valid_time', and 'transaction_time' from the column list
+        # We'll handle id and temporal columns explicitly
+        columns = [c.key for c in mapper.columns if c.key not in ('id', 'valid_time', 'transaction_time')]
+
+        # Build placeholders and values
+        placeholders = ', '.join([f':{c}' for c in columns])
+        column_names = ', '.join(columns)
+
+        # Create INSERT with RETURNING id
+        insert_stmt = text(
             f"""
-            UPDATE {tablename}
-            SET
-                valid_time = tstzrange(:control_date, NULL, '[]'),
-                transaction_time = tstzrange(:update_timestamp, NULL, '[]')
-            WHERE id = :version_id
+            INSERT INTO {tablename} (id, {column_names}, valid_time, transaction_time)
+            VALUES (:id, {placeholders}, tstzrange(:valid_time_lower, NULL, '[]'), tstzrange(:update_timestamp, NULL, '[]'))
+            RETURNING id
             """
         )
-        await session.execute(
-            stmt,
-            {
-                "control_date": valid_time_lower,
-                "update_timestamp": update_timestamp,
-                "version_id": new_version.id,
-            },
-        )
-        await session.flush()
-        await session.refresh(new_version)
+
+        # Get all values from new_version (excluding temporal columns)
+        values = {c: getattr(new_version, c) for c in columns}
+        # Generate a new UUID for the id
+        new_id = uuid4()
+        values['id'] = new_id
+        values['valid_time_lower'] = valid_time_lower
+        values['update_timestamp'] = update_timestamp
+
+        # Execute INSERT and get the new ID
+        result = await session.execute(insert_stmt, values)
+        returned_id = result.scalar_one()
+
+        # Set the id on new_version (should match what we generated)
+        new_version.id = returned_id or new_id
 
         return new_version
 
@@ -361,8 +382,12 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
             session, merge_timestamp, self.target_branch, exclude_version_id=target.id
         )
 
-        # 5. Close Target
+        # 5. Close Target FIRST to avoid unique constraint violation
+        # This ensures there's only ONE current version on the target branch at any time
         await self._close_version(session, target, close_at_valid_time=merge_timestamp)
+        await session.flush()  # Ensure close is persisted before adding new version
+
+        # 6. Now add the merged version
         session.add(merged)
         await session.flush()  # Get ID assigned
 

@@ -116,15 +116,18 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
             WHERE id = :version_id
             """
         )
+
+        params = {
+            "valid_lower": valid_lower,
+            "valid_upper": valid_upper,
+            "tx_lower": tx_lower,
+            "tx_upper": tx_upper,
+            "version_id": version.id,
+        }
+
         await session.execute(
             stmt,
-            {
-                "valid_lower": valid_lower,
-                "valid_upper": valid_upper,
-                "tx_lower": tx_lower,
-                "tx_upper": tx_upper,
-                "version_id": version.id,
-            },
+            params,
         )
 
         await session.flush()
