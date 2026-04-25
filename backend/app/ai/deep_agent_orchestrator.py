@@ -387,19 +387,18 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
                 )
                 continue
 
+            # Get structured output schema if defined
+            schema = config.get("structured_output_schema")
+
             # Compile the subagent into a runnable graph
+            # Pass response_format parameter if schema is defined
             runnable = langchain_create_agent(
                 model=self.model,
                 tools=subagent_tools,
                 system_prompt=system_prompt,
                 middleware=subagent_middleware,
+                response_format=schema,
             )
-
-            schema = config.get("structured_output_schema")
-
-            # Apply structured output wrapper if schema is defined
-            if schema is not None:
-                runnable = runnable.with_structured_output(schema)
 
             subagent_dicts.append(
                 {

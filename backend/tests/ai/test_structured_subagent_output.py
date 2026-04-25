@@ -125,11 +125,9 @@ class TestOrchestratorStructuredOutput:
     def test_applies_structured_output_wrapper(
         self, mock_create_agent: MagicMock
     ) -> None:
-        """Orchestrator calls with_structured_output() on runnable when schema defined."""
+        """Orchestrator passes response_format to create_agent when schema defined."""
         # Setup mock
         mock_runnable = MagicMock()
-        mock_wrapped = MagicMock()
-        mock_runnable.with_structured_output.return_value = mock_wrapped
         mock_create_agent.return_value = mock_runnable
 
         # Create orchestrator with mock context
@@ -163,11 +161,14 @@ class TestOrchestratorStructuredOutput:
             subagents, [mock_tool], allowed_tools=None
         )
 
-        # Verify with_structured_output was called
-        mock_runnable.with_structured_output.assert_called_once_with(EVMMetricsRead)
+        # Verify create_agent was called with response_format
+        mock_create_agent.assert_called_once()
+        call_kwargs = mock_create_agent.call_args.kwargs
+        assert "response_format" in call_kwargs
+        assert call_kwargs["response_format"] == EVMMetricsRead
 
-        # Verify wrapped runnable is returned
-        assert result[0]["runnable"] == mock_wrapped
+        # Verify runnable is returned
+        assert result[0]["runnable"] == mock_runnable
         assert result[0]["structured_output_schema"] == EVMMetricsRead
 
     @patch("app.ai.deep_agent_orchestrator.langchain_create_agent")
