@@ -10,7 +10,7 @@
 
 The Backcast AI system uses a **subagent-as-tool** pattern where a main agent delegates to ephemeral, isolated subagents via a `task` tool. This analysis evaluates migrating to the **handoff pattern** (LangGraph `langgraph-swarm`), where agents transfer control to each other within a shared graph while preserving full message history.
 
-**Recommendation:** Do NOT do a full migration. The loss of parallel execution is too significant for Backcast's cross-domain query patterns. Instead, explore a **hybrid approach** — add handoff tools for multi-turn specialist interactions while retaining the task tool for parallel cross-domain requests.
+**Recommendation:** Migrate to the **supervisor + handoff pattern** as the primary delegation mechanism. Context preservation is more valuable than parallel execution — typical requests are complex, multi-turn, and benefit far more from agents seeing full conversation history than from concurrent subagent launches. Parallel execution via task tool can be retained as a secondary mechanism for explicit batch-style operations, but should not be the default path.
 
 ---
 
@@ -189,54 +189,120 @@ Full migration would require:
 
 ---
 
-## Hybrid Approach (Recommended)
+## Recommended Approach: Supervisor + Handoff (Primary), Task Tool (Secondary)
 
-Rather than a full migration, use a **selective hybrid** that adds handoff capabilities while preserving parallel execution:
+### Design Rationale
 
-### Pattern Selection by Scenario
+Typical user requests are complex and multi-turn — users ask about a project, drill into cost elements, request EVM analysis, then follow up with forecast comparisons. The current pattern loses all accumulated context at each subagent boundary, forcing the main agent to compress and re-explain on every delegation. This is the primary pain point; parallel execution speed is secondary.
 
-| Scenario | Pattern | Rationale |
-|----------|---------|-----------|
-| Single-domain follow-up questions | Handoff | Context preservation matters most |
-| Cross-domain parallel requests | Task tool | Parallelism matters most |
-| Multi-turn specialist conversations | Handoff | Avoid re-explaining context |
-| One-shot structured output (EVM, forecasts) | Task tool | Structured extraction is clean |
-| Change order approval workflows | Handoff | Multi-turn interaction is core to the flow |
+**Priority: Context preservation > Execution parallelism**
 
-### Implementation Sketch
+### Architecture
 
-1. Replace the main agent with a **supervisor** that has BOTH handoff tools AND the task tool
-2. Handoff tools for agents that benefit from multi-turn context:
-   - `change_order_manager` — approval workflows are inherently multi-turn
-   - `project_manager` — common follow-up queries about project structures
-3. Task tool retained for agents that benefit from parallel execution:
-   - `evm_analyst` + `forecast_manager` — commonly invoked together
-   - `visualization_specialist` — one-shot diagram generation
-4. General-purpose agent remains as a handoff fallback
+```
+                    ┌─────────────────┐
+                    │   Supervisor     │
+                    │  (main router)   │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │ handoff      │ handoff       │ handoff
+              ▼              ▼               ▼
+     ┌──────────────┐ ┌───────────┐ ┌──────────────┐
+     │ project_     │ │ evm_      │ │ change_order_│
+     │ manager      │ │ analyst   │ │ manager      │
+     └──────┬───────┘ └───────────┘ └──────────────┘
+            │ handoff (any agent can hand off to any other)
+            ▼
+     ┌──────────────┐
+     │ forecast_    │  ...
+     │ manager      │
+     └──────────────┘
+```
 
-### Why This Works
+### How It Works
 
-- **No parallelism loss**: Cross-domain queries still use `task` tool for concurrent execution
-- **Context continuity gained**: Multi-turn specialist interactions use handoff for full history
-- **Structured output preserved**: One-shot agents continue using the existing extraction pipeline
-- **Incremental adoption**: Can be introduced agent-by-agent without a big-bang migration
-- **RBAC maintained**: Each agent is still compiled with its own filtered tools, regardless of pattern
+1. **Supervisor** receives the user message and decides which specialist should handle it
+2. Supervisor calls `handoff_to_<agent>(task_description)` via `Command(goto=agent_name)`
+3. Specialist agent picks up with **full message history** — sees everything discussed so far
+4. Specialist processes the request, can use its domain tools, respond to user directly
+5. If the request spans domains, specialist hands off to another specialist (with full context)
+6. After completing, control can return to supervisor for synthesis/follow-up routing
+7. **Task tool retained** as a secondary path for explicit parallel batch operations
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Primary delegation | Handoff (supervisor pattern) | Full context continuity across turns |
+| Secondary delegation | Task tool (preserved) | Optional parallel execution for batch ops |
+| Agent routing | Supervisor decides + peer handoff | Supervisor for initial routing, agents can hand off to peers |
+| State management | Shared graph state | All agents see full message history |
+| Tool filtering | Per-agent compiled tools | Each agent gets its own filtered tool set (existing pattern) |
+| Structured output | Embed in graph state via Command(update={...}) | Replace task tool extraction with state-based approach |
+| Approval workflows | InterruptNode within shared graph | Same mechanism, now the active specialist handles it |
+
+### Migration Path (Incremental)
+
+**Phase 1 — Supervisor + Handoff Infrastructure**
+- Introduce `langgraph-supervisor` or implement `create_swarm()` from `langgraph-swarm`
+- Replace main agent with supervisor that has handoff tools for all 7 specialists
+- Each specialist is a node in the shared graph with its own compiled tools
+- Keep task tool as secondary mechanism
+
+**Phase 2 — Migrate Specialists to Handoff Nodes**
+- Convert `project_manager` and `change_order_manager` first (highest multi-turn value)
+- Convert `evm_analyst` and `forecast_manager` (common follow-up chains)
+- Convert `user_admin` and `visualization_specialist`
+
+**Phase 3 — Structured Output Adaptation**
+- Replace `_summarize_structured_output()` with state-based extraction
+- Specialists emit structured data via `Command(update={structured_output: ...})`
+- Supervisor reads structured output from shared state for synthesis
+
+**Phase 4 — Event Bus & Streaming Updates**
+- Update `AgentEventBus` to emit handoff events (agent_enter, agent_exit)
+- Update WebSocket streaming to show which agent is active
+- Update frontend chat to display agent transitions
+
+### RBAC & Security Considerations
+
+The existing security layer maps well to the handoff pattern:
+
+- **Per-agent tool compilation** (current) works identically — each agent node gets its own filtered tool set based on execution mode, roles, and domain whitelist
+- **BackcastSecurityMiddleware** applies per-agent — same middleware stack, just running within the shared graph
+- **InterruptNode** for approvals — the active specialist triggers interrupts, user approves, specialist continues
+- **Risk levels** unchanged — LOW/HIGH/CRITICAL filtering per agent as today
+- **No new attack surface** — handoff doesn't bypass any existing security layers
+
+### What Changes from Current System
+
+| Aspect | Current | After Migration |
+|--------|---------|-----------------|
+| Context at delegation | Description string only | Full message history |
+| Follow-up questions | Re-delegate from scratch | Specialist continues with context |
+| Cross-domain queries | Parallel subagents | Sequential handoff (slower but richer) |
+| Main agent role | Synthesizer of subagent results | Router + optional synthesis |
+| Structured output | Task tool extraction | State-based in graph |
+| Debugging | Tool call tracing | Graph transition tracing |
+| Code surface | ~500 lines custom orchestration | ~150 lines (library-driven) |
 
 ---
 
 ## Summary Matrix
 
-| Criterion | Subagent-as-Tool (Current) | Handoff (Full) | Hybrid |
-|-----------|---------------------------|----------------|--------|
-| Context preservation | Lossy (description-only) | Full message history | Best of both |
-| Parallel execution | Native | Not supported | Selective |
-| Structured output | Built-in extraction | Needs workaround | Preserved |
+| Criterion | Subagent-as-Tool (Current) | Handoff (Full) | Recommended |
+|-----------|---------------------------|----------------|-------------|
+| Context preservation | Lossy (description-only) | Full message history | Full message history |
+| Parallel execution | Native | Not supported | Retained as secondary |
+| Structured output | Built-in extraction | Needs workaround | State-based extraction |
 | RBAC/tool filtering | Per-subagent compilation | Per-node compilation | Same as current |
-| Approval workflows | Main agent manages | Needs careful wiring | Both patterns |
-| Code complexity | ~500 lines orchestration | ~100 lines (library) | ~300 lines |
-| Migration effort | — | High | Medium |
+| Approval workflows | Main agent manages | Needs careful wiring | Per-specialist interrupts |
+| Code complexity | ~500 lines orchestration | ~100 lines (library) | ~150 lines |
+| Migration effort | — | High | Medium (incremental) |
 | Debugging | Simple (tool call tracing) | Complex (graph routing) | Moderate |
-| Token efficiency | Re-explains context on follow-up | No re-explanation | Best of both |
+| Token efficiency | Re-explains context on follow-up | No re-explanation | No re-explanation |
+
 
 ---
 
