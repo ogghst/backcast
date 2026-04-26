@@ -873,6 +873,420 @@ sequenceDiagram
 
 ---
 
+### Scenario: Supervisor Orchestrator — Project Health Check with Follow-up
+
+This walkthrough demonstrates the **SupervisorOrchestrator** (Section 7) with shared state, handoff-based delegation, peer handoff between specialists, and a follow-up user message that benefits from preserved conversation context.
+
+**User:** "What's the status and EVM performance of project PRJ-001?"
+**Follow-up:** "How would change order CO-0042 affect this?"
+
+#### Phase 2: Initial Request — Routing and Specialist Execution
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant EB as Event Bus
+    participant SUP as Supervisor
+    participant PM as project_manager
+    participant EA as evm_analyst
+
+    EB->>B: {type:"thinking"}
+    Note over SUP: LLM call #1: sees user message + handoff tools
+    SUP->>EB: tool_call("handoff_to_project_manager")
+    EB->>B: {type:"agent_transition", agent:"project_manager", direction:"enter"}
+
+    Note over PM: LLM call #1: sees full messages + project tools
+    PM->>PM: tool_call("list_projects", {code:"PRJ-001"})
+    EB->>B: {type:"tool_call", tool:"list_projects"}
+    PM->>PM: tool_call("get_project", {id:"abc-123"})
+    EB->>B: {type:"tool_call", tool:"get_project"}
+
+    Note over PM: LLM call #2: tool results in messages
+    PM-->>PM: AIMessage: project details + handoff_to_evm_analyst
+    EB->>B: {type:"agent_transition", agent:"project_manager", direction:"exit"}
+    EB->>B: {type:"agent_transition", agent:"evm_analyst", direction:"enter"}
+
+    Note over EA: LLM call #1: sees ALL messages (user + PM's work)
+    EA->>EA: tool_call("calculate_evm_metrics", {project_id:"abc-123"})
+    EB->>B: {type:"tool_call", tool:"calculate_evm_metrics"}
+
+    Note over EA: LLM call #2: metrics in context
+    EA-->>EA: AIMessage: EVM analysis (text, no more tool calls)
+    EB->>B: {type:"agent_transition", agent:"evm_analyst", direction:"exit"}
+
+    Note over SUP: Control returns to supervisor
+    Note over SUP: LLM call #2: synthesizes specialist outputs
+    EB->>B: {type:"token_batch", tokens:"Project PRJ-001 (Automation Line A)..."}
+    EB->>B: {type:"complete"}
+```
+
+#### What Each LLM Call Received and Produced
+
+**Supervisor — LLM Call #1** (initial routing):
+
+```
+┌─ LLM API Call #1 — Supervisor ──────────────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]                                               │
+│            You are a helpful AI assistant for the Backcast project       │
+│            budget management system.                                     │
+│            You act as a supervisor that routes user requests...          │
+│            [... routing guidelines ...]                                  │
+│            IMPORTANT: You do NOT have direct access to Backcast tools.   │
+│            ALL Backcast operations must be delegated to specialists via  │
+│            handoff tools or the task tool.                               │
+│                                                                          │
+│  messages: [HumanMessage] "What's the status and EVM performance of     │
+│              project PRJ-001?"                                           │
+│                                                                          │
+│  tools:    [handoff_to_project_manager, handoff_to_evm_analyst,         │
+│             handoff_to_change_order_manager, handoff_to_user_admin,     │
+│             handoff_to_visualization_specialist,                         │
+│             handoff_to_forecast_manager, handoff_to_general_purpose,    │
+│             task, get_temporal_context]                                  │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="",                                                 │
+│              tool_calls=[{                                               │
+│                name: "handoff_to_project_manager",                       │
+│                args: {}                                                  │
+│              }]                                                          │
+│            )                                                             │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**project_manager — LLM Call #1** (fetch project data):
+
+```
+┌─ LLM API Call #2 — project_manager ─────────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]                                               │
+│            You are a project management specialist.                      │
+│            You help with:                                                │
+│            - Creating, updating, and retrieving projects                 │
+│            - Managing WBEs, cost elements, cost tracking, progress       │
+│            [...]                                                         │
+│                                                                          │
+│  messages: [HumanMessage] "What's the status and EVM performance of     │
+│              project PRJ-001?"        ← shared state, user's message    │
+│            [AIMessage] handoff_to_project_manager  ← supervisor handoff │
+│            [ToolMessage] "Transferred to project_manager"               │
+│                                                                          │
+│  tools:    [list_projects, get_project, list_wbes, get_wbe,             │
+│             create_wbe, update_wbe, list_cost_elements, ...]  ← ~36     │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="",                                                 │
+│              tool_calls=[                                                │
+│                {name: "list_projects", args: {code: "PRJ-001"}},         │
+│                {name: "get_project", args: {id: "abc-123"}}              │
+│              ]                                                           │
+│            )                                                             │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**project_manager — LLM Call #2** (synthesize + peer handoff):
+
+```
+┌─ LLM API Call #3 — project_manager ─────────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]  (same domain-specific prompt)                │
+│                                                                          │
+│  messages: [HumanMessage] "What's the status and EVM performance..."    │
+│            [AIMessage] handoff_to_project_manager                        │
+│            [ToolMessage] list_projects → [{id:"abc-123", code:"PRJ-001",│
+│                        name:"Automation Line A", status:"active", ...}]  │
+│            [ToolMessage] get_project → {budget: 2500000, progress: 42%,│
+│                        wbe_count: 8, ...}                                │
+│                                                                          │
+│  tools:    [list_projects, get_project, ...]  (same ~36 tools)           │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="Project PRJ-001 (Automation Line A) is active     │
+│                       with a budget of $2.5M and 42% progress...",      │
+│              tool_calls=[{                                               │
+│                name: "handoff_to_evm_analyst",  ← peer handoff          │
+│                args: {}                                                  │
+│              }]                                                          │
+│            )                                                             │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+> **Key difference from task-based delegation:** The `project_manager` specialist produced a text response *and* called a handoff tool. The `evm_analyst` will see the project_manager's text and tool results because all messages live in the shared `BackcastSupervisorState`.
+
+**evm_analyst — LLM Call #1** (calculate metrics, with full context):
+
+```
+┌─ LLM API Call #4 — evm_analyst ─────────────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]                                               │
+│            You are an EVM analysis specialist.                           │
+│            You calculate and analyze earned value metrics including:     │
+│            - CPI, SPI, CV, SV, EAC, ETC...                              │
+│                                                                          │
+│  messages: [HumanMessage] "What's the status and EVM performance..."    │
+│            [AIMessage] handoff_to_project_manager                        │
+│            [ToolMessage] "Transferred to project_manager"               │
+│            [AIMessage] tool_calls=[list_projects, get_project]           │
+│            [ToolMessage] list_projects result                            │
+│            [ToolMessage] get_project result                              │
+│            [AIMessage] "Project PRJ-001... budget $2.5M, 42%..."        │
+│            [AIMessage] handoff_to_evm_analyst                            │
+│            [ToolMessage] "Transferred to evm_analyst"                   │
+│                  ↑ ALL previous messages from shared state               │
+│                                                                          │
+│  tools:    [calculate_evm_metrics, get_evm_summary, ...]  ← ~9 tools   │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="",                                                 │
+│              tool_calls=[{                                               │
+│                name: "calculate_evm_metrics",                            │
+│                args: {project_id: "abc-123"}                             │
+│              }]                                                          │
+│            )                                                             │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**evm_analyst — LLM Call #2** (final analysis, no more tool calls → returns to supervisor):
+
+```
+┌─ LLM API Call #5 — evm_analyst ─────────────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]  (same EVM specialist prompt)                 │
+│                                                                          │
+│  messages: [... all previous messages ...]                               │
+│            [AIMessage] tool_calls=[calculate_evm_metrics]                │
+│            [ToolMessage] {CPI: 0.95, SPI: 1.02, CV: -125000,            │
+│                            SV: 50000, EAC: 2631578, ...}                │
+│                                                                          │
+│  tools:    [calculate_evm_metrics, ...]  (same ~9 tools)                 │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="EVM Analysis for PRJ-001:\n                        │
+│                CPI: 0.95 (slightly over budget)\n                        │
+│                SPI: 1.02 (ahead of schedule)\n                           │
+│                Cost Variance: -$125K\n                                   │
+│                Schedule Variance: +$50K\n                                │
+│                Estimate at Completion: $2.63M\n                          │
+│                Overall health: CAUTIONARY — budget overruns detected.")  │
+│            (no tool_calls → specialist router returns to supervisor)     │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Supervisor — LLM Call #2** (synthesis):
+
+```
+┌─ LLM API Call #6 — Supervisor ──────────────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]  (supervisor prompt + handoff suffix)         │
+│                                                                          │
+│  messages: [HumanMessage] "What's the status and EVM performance..."    │
+│            [... entire specialist conversation ...]                      │
+│            [AIMessage] "EVM Analysis for PRJ-001:\n                      │
+│                         CPI: 0.95... SPI: 1.02..."                       │
+│                                                                          │
+│  tools:    [handoff_to_*, task, get_temporal_context]                    │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="Here's the overview for PRJ-001 (Automation Line  │
+│                       A):\n\n**Project Status:** Active, 42% complete,  │
+│                       $2.5M budget.\n\n**EVM Performance:**\n           │
+│                       - CPI: 0.95 (slightly over budget)\n              │
+│                       - SPI: 1.02 (ahead of schedule)\n                 │
+│                       - EAC: $2.63M (projected $130K over budget)\n\n  │
+│                       The project is progressing ahead of schedule but  │
+│                       showing minor cost overruns.")                     │
+│            (no tool_calls → supervisor router returns END)               │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Shared State After Initial Request
+
+```
+┌─ BackcastSupervisorState (after Phase 2) ─────────────────────────────────┐
+│                                                                            │
+│  messages: [                                                               │
+│    HumanMessage("What's the status and EVM performance of PRJ-001?"),     │
+│    AIMessage(handoff_to_project_manager),                                  │
+│    ToolMessage("Transferred to project_manager"),                          │
+│    AIMessage(tool_calls=[list_projects, get_project]),                     │
+│    ToolMessage(list_projects result),                                      │
+│    ToolMessage(get_project result),                                        │
+│    AIMessage("Project PRJ-001... budget $2.5M..."),                        │
+│    AIMessage(handoff_to_evm_analyst),                                      │
+│    ToolMessage("Transferred to evm_analyst"),                              │
+│    AIMessage(tool_calls=[calculate_evm_metrics]),                          │
+│    ToolMessage({CPI: 0.95, SPI: 1.02, ...}),                              │
+│    AIMessage("EVM Analysis: CPI 0.95, SPI 1.02..."),                      │
+│    AIMessage("Here's the overview for PRJ-001...")   ← supervisor synth  │
+│  ]                                                                         │
+│  active_agent: "supervisor"                                                │
+│  structured_response: null                                                 │
+│  tool_call_count: 3    ← list_projects + get_project + calculate_evm      │
+│  max_tool_iterations: 20                                                   │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Phase 3: Follow-up Message — Context Preservation Advantage
+
+The user sends a follow-up. Because the supervisor uses **shared state**, the change_order_manager specialist will see the entire conversation history including the project details and EVM baseline — no re-fetching needed.
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant EB as Event Bus
+    participant SUP as Supervisor
+    participant CO as change_order_manager
+
+    B->>EB: {type:"chat", message:"How would change order CO-0042 affect this?"}
+    EB->>B: {type:"thinking"}
+
+    Note over SUP: LLM call #3: sees ENTIRE conversation<br/>including project details + EVM metrics
+    SUP->>EB: tool_call("handoff_to_change_order_manager")
+    EB->>B: {type:"agent_transition", agent:"change_order_manager", direction:"enter"}
+
+    Note over CO: LLM call #1: sees full history —<br/>already knows project_id, budget, EVM baseline
+    CO->>CO: tool_call("get_change_order", {code:"CO-0042"})
+    EB->>B: {type:"tool_call", tool:"get_change_order"}
+    CO->>CO: tool_call("analyze_impact", {change_order_id:"...", project_id:"abc-123"})
+    EB->>B: {type:"tool_call", tool:"analyze_impact"}
+
+    Note over CO: LLM call #2: impact analysis referencing EVM baseline
+    CO-->>CO: AIMessage: impact analysis (references CPI 0.95, budget $2.5M)
+    EB->>B: {type:"agent_transition", agent:"change_order_manager", direction:"exit"}
+
+    Note over SUP: LLM call #4: synthesizes impact response
+    EB->>B: {type:"token_batch", tokens:"Change order CO-0042..."}
+    EB->>B: {type:"complete"}
+```
+
+**Supervisor — LLM Call #3** (follow-up routing):
+
+```
+┌─ LLM API Call #7 — Supervisor ──────────────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]  (supervisor prompt + handoff suffix)         │
+│                                                                          │
+│  messages: [... ALL messages from Phase 2 ...]   ← full history          │
+│            [HumanMessage] "How would change order CO-0042 affect this?" │
+│                                                                          │
+│  tools:    [handoff_to_*, task, get_temporal_context]                    │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="",                                                 │
+│              tool_calls=[{                                               │
+│                name: "handoff_to_change_order_manager",                  │
+│                args: {}                                                  │
+│              }]                                                          │
+│            )                                                             │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**change_order_manager — LLM Call #1** (sees full context):
+
+```
+┌─ LLM API Call #8 — change_order_manager ────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]                                               │
+│            You are a change order management specialist.                 │
+│            You handle: change order CRUD, approval workflows,            │
+│            impact analysis...                                            │
+│                                                                          │
+│  messages: [HumanMessage] "What's the status and EVM performance..."    │
+│            [... project_manager's tool calls and results ...]            │
+│            [... evm_analyst's metrics (CPI: 0.95, SPI: 1.02) ...]      │
+│            [... supervisor's synthesis ...]                              │
+│            [HumanMessage] "How would change order CO-0042 affect this?"│
+│            [AIMessage] handoff_to_change_order_manager                   │
+│            [ToolMessage] "Transferred to change_order_manager"          │
+│                  ↑ The specialist ALREADY KNOWS the project_id, budget, │
+│                    EVM baseline — no need to re-fetch project data       │
+│                                                                          │
+│  tools:    [list_change_orders, get_change_order, analyze_impact,       │
+│             approve_change_order, ...]  ← ~8 tools                      │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="",                                                 │
+│              tool_calls=[                                                │
+│                {name: "get_change_order", args: {code: "CO-0042"}},      │
+│                {name: "analyze_impact", args: {                          │
+│                  change_order_id: "def-456", project_id: "abc-123"}}     │
+│              ]                                                           │
+│            )                                                             │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**change_order_manager — LLM Call #2** (impact analysis with context):
+
+```
+┌─ LLM API Call #9 — change_order_manager ────────────────────────────────┐
+│                                                                          │
+│  system:   [SystemMessage]  (same change order specialist prompt)        │
+│                                                                          │
+│  messages: [... all previous ...]                                        │
+│            [AIMessage] tool_calls=[get_change_order, analyze_impact]     │
+│            [ToolMessage] get_change_order → {title:"Add Safety Sensor", │
+│              type:"scope_addition", cost_impact: +$175000, ...}          │
+│            [ToolMessage] analyze_impact → {                              │
+│              budget_impact: "+$175K (7% increase)",                      │
+│              schedule_impact: "+2 weeks",                                │
+│              new_eac: "$2.81M",                                          │
+│              risk_level: "MODERATE"}                                      │
+│                                                                          │
+│  tools:    [list_change_orders, ...]  (same ~8 tools)                    │
+│                                                                          │
+│  output:   AIMessage(                                                   │
+│              content="Impact Analysis for CO-0042 (Add Safety Sensor):\n│
+│                \nBudget: +$175K — would increase total from $2.5M to    │
+│                $2.81M. Given the current CPI of 0.95, this would widen  │
+│                the overrun. New EAC: ~$2.95M.\nSchedule: +2 weeks. With │
+│                SPI at 1.02, the schedule buffer can absorb this.\n       │
+│                Risk: MODERATE. Recommend approval with revised budget   │
+│                allocation.")                                             │
+│            (no tool_calls → specialist router returns to supervisor)     │
+│                                                                          │
+│  Note: The response REFERENCES "CPI of 0.95" and "SPI at 1.02" from    │
+│  the evm_analyst's earlier work — possible only because of shared state. │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Phase 4: Shared State vs. Task-Based Isolation
+
+The follow-up message demonstrates the key advantage of the supervisor pattern. Here's what the `change_order_manager` specialist saw in each approach:
+
+```
+┌─ Supervisor (Handoff) ──────────────────────────────────────────────────┐
+│                                                                          │
+│  messages: 15 messages                                                   │
+│  - User's original question                                              │
+│  - project_manager: list_projects result, get_project result             │
+│  - project_manager: project summary text                                 │
+│  - evm_analyst: calculate_evm_metrics result (CPI, SPI, EAC)            │
+│  - evm_analyst: EVM analysis text                                        │
+│  - Supervisor synthesis                                                  │
+│  - User's follow-up question                                             │
+│                                                                          │
+│  → Specialist can reference earlier results directly                     │
+│    ("Given the current CPI of 0.95...")                                  │
+│  → No redundant API calls to re-fetch project or EVM data                │
+│  → Response is contextually richer                                      │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌─ Task-Based (Isolated) ────────────────────────────────────────────────┐
+│                                                                          │
+│  messages: 1 message                                                     │
+│  - [HumanMessage] "Analyze the impact of change order CO-0042 on       │
+│     project PRJ-001"                                                     │
+│                                                                          │
+│  → Specialist has NO knowledge of previous conversation                  │
+│  → Must re-fetch project data, re-calculate EVM baseline                 │
+│  → Multiple extra tool calls (list_projects, calculate_evm_metrics)      │
+│  → Response cannot reference specific earlier findings                   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Key Files Reference
 
 | File | Responsibility |
