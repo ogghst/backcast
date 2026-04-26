@@ -511,6 +511,14 @@ export const ChatInterface = ({
     setIsWaitingForResponse(false);
     setError(`Chat error: ${errorMsg}`);
     setPendingUserMessage(null);
+    // Clear stuck streaming state
+    setStreamingState({
+      main: "",
+      mainStreams: new Map<string, MainAgentStream>(),
+      subagents: new Map<string, SubagentStream>(),
+    });
+    setActiveToolCalls([]);
+    setLatestActivity(null);
   }, []);
 
   // Debug: Capture all raw WebSocket messages
@@ -1077,7 +1085,7 @@ export const ChatInterface = ({
                     onChange={setSelectedAssistantId}
                     disabled={!!currentSessionId}
                     locked={!!currentSessionId}
-                    bordered={false}
+                    variant="borderless"
                   />
                 </div>
               )}
@@ -1128,7 +1136,7 @@ export const ChatInterface = ({
                   onChange={setSelectedAssistantId}
                   disabled={false}
                   locked={false}
-                  bordered={false}
+                  variant="borderless"
                 />
               </div>
             )}

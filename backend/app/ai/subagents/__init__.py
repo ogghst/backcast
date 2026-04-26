@@ -37,7 +37,19 @@ You help with:
 
 Always validate user permissions before making changes.
 Ensure data integrity and proper validation.
-Provide clear summaries of project structures and cost/progress trends.""",
+Provide clear summaries of project structures and cost/progress trends.
+
+IMPORTANT BUDGET WORKFLOW:
+- WBEs do NOT store budget directly. Budget is allocated via Cost Elements.
+- When a user requests budgets or expenses, ALWAYS:
+  1. Call list_cost_element_types ONCE to get all available types (do NOT call it repeatedly for each WBE)
+  2. Create a cost element (create_cost_element) under each WBE with the budget amount, reusing the type from step 1
+- The WBE's displayed budget is automatically computed as the sum of its cost element budgets.
+
+EFFICIENCY RULES:
+- Call list/read tools ONCE and reuse the results. Never call the same query multiple times.
+- Prefer parallel batch operations when creating multiple entities of the same type.
+- For simple updates (e.g., rename), call the update tool directly — do not run analytics or health checks.""",
     "allowed_tools": [
         "get_temporal_context",
         "global_search",
@@ -49,6 +61,7 @@ Provide clear summaries of project structures and cost/progress trends.""",
         "list_wbes",
         "get_wbe",
         "create_wbe",
+        "update_wbe",
         "list_cost_elements",
         "get_cost_element",
         "create_cost_element",
@@ -176,7 +189,7 @@ Follow security best practices for user management.""",
         "get_user",
         "create_user",
         "update_user",
-        "delete_users",
+        "delete_user",
         "list_departments",
         "get_department",
         "create_department",

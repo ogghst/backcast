@@ -90,6 +90,10 @@ class DeepAgentOrchestrator:
     def create_agent(self, config: AgentConfig | None = None) -> Any:
         """Create a LangChain agent with Backcast tools and context.
 
+        When ``config.use_supervisor`` is True, delegates to
+        :class:`SupervisorOrchestrator` to build a supervisor + handoff
+        graph. Otherwise builds the traditional subagent-as-tool graph.
+
         Args:
             config: Optional AgentConfig encapsulating creation parameters.
                 When None, defaults are used (no tool whitelist, no subagent
@@ -106,6 +110,19 @@ class DeepAgentOrchestrator:
         """
         if config is None:
             config = AgentConfig()
+
+        # Delegate to supervisor orchestrator when flag is set
+        if config.use_supervisor:
+            from app.ai.supervisor_orchestrator import SupervisorOrchestrator
+
+            supervisor = SupervisorOrchestrator(
+                model=self.model,
+                context=self.context,
+                system_prompt=self.system_prompt,
+                enable_subagents=self.enable_subagents,
+                interrupt_node=self.interrupt_node,
+            )
+            return supervisor.create_supervisor_graph(config)
 
         allowed_tools = config.allowed_tools
         subagents = config.subagents

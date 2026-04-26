@@ -625,6 +625,27 @@ class WSAgentCompleteMessage(BaseModel):
     )
 
 
+class WSAgentTransitionMessage(BaseModel):
+    """WebSocket agent transition message from server.
+
+    Sent when control transfers between agents in the supervisor graph.
+    Replaces subagent events for the handoff pattern.
+    """
+
+    type: Literal["agent_transition"] = Field(
+        default="agent_transition", description="Message type discriminator"
+    )
+    agent_name: str = Field(
+        ..., description="Name of the agent being entered or exited"
+    )
+    direction: Literal["enter", "exit"] = Field(
+        ..., description="Whether the agent is being entered or exited"
+    )
+    invocation_id: str | None = Field(
+        None, description="Unique invocation ID for this agent activation"
+    )
+
+
 class WSContentResetMessage(BaseModel):
     """WebSocket content reset message.
 

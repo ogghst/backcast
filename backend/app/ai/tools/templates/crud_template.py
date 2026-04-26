@@ -294,7 +294,9 @@ async def create_project(
 @ai_tool(
     name="update_project",
     description="Update an existing project with new information. "
-    "Only updates fields that are provided.",
+    "Only updates fields that are provided. "
+    "IMPORTANT: Provide all fields to update in a single call rather than "
+    "making multiple separate calls.",
     permissions=["project-update"],
     category="projects",
     risk_level=RiskLevel.HIGH,
@@ -528,6 +530,7 @@ async def get_wbe(
 @ai_tool(
     name="create_wbe",
     description="Create a new Work Breakdown Element (WBE) under a project. "
+    "Budget is NOT set on WBEs directly — use create_cost_element after creating the WBE to allocate budget. "
     "Optionally specify a parent_wbe_id to create it as a child of an existing WBE.",
     permissions=["wbe-create"],
     category="wbe",
@@ -537,7 +540,6 @@ async def create_wbe(
     project_id: str,
     name: str,
     code: str,
-    budget: float | None = None,
     description: str | None = None,
     parent_wbe_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
@@ -550,7 +552,6 @@ async def create_wbe(
         project_id: UUID of the parent project
         name: WBE name
         code: Unique WBE code
-        budget: Optional budget allocation
         description: Optional description
         parent_wbe_id: Optional UUID of the parent WBE to create as a child
         context: Injected tool execution context
@@ -566,7 +567,6 @@ async def create_wbe(
         ...     project_id="...",
         ...     name="Mechanical Assembly",
         ...     code="WBE-001",
-        ...     budget=100000.00
         ... )
         >>> print(f"Created WBE with ID: {result['id']}")
     """
@@ -582,7 +582,6 @@ async def create_wbe(
             project_id=UUID(project_id),
             name=name,
             code=code,
-            budget=budget,
             description=description,
             parent_wbe_id=UUID(parent_wbe_id) if parent_wbe_id else None,
         )
@@ -596,9 +595,6 @@ async def create_wbe(
             "name": wbe.name,
             "code": wbe.code,
             "project_id": str(wbe.project_id),
-            "budget": float(wbe.budget)
-            if hasattr(wbe, "budget") and wbe.budget
-            else None,
             "description": wbe.description if hasattr(wbe, "description") else None,
             "parent_wbe_id": str(wbe.parent_wbe_id)
             if hasattr(wbe, "parent_wbe_id") and wbe.parent_wbe_id
@@ -689,9 +685,6 @@ async def update_wbe(
             "name": wbe.name,
             "code": wbe.code,
             "project_id": str(wbe.project_id),
-            "budget": float(wbe.budget)
-            if hasattr(wbe, "budget") and wbe.budget
-            else None,
             "description": wbe.description if hasattr(wbe, "description") else None,
         }
     except ValueError as e:

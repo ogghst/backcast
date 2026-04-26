@@ -62,7 +62,7 @@ export const AIAssistantModal = ({
       okText={isEdit ? "Save" : "Create"}
       okButtonProps={{ "data-testid": "submit-assistant-btn" }}
       confirmLoading={confirmLoading}
-      destroyOnClose
+      destroyOnHidden
       width={700}
     >
       <Form form={form} layout="vertical" name="ai_assistant_form">

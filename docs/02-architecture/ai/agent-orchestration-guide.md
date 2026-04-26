@@ -12,10 +12,11 @@ How the Backcast AI agent system turns a user message into a response: prompt co
 4. [Tool Registry & Filtering](#4-tool-registry--filtering)
 5. [Subagent Architecture](#5-subagent-architecture)
 6. [The Task Tool: How Delegation Works](#6-the-task-tool-how-delegation-works)
-7. [Inter-Agent Communication: Event Bus](#7-inter-agent-communication-event-bus)
-8. [Routing Decisions](#8-routing-decisions)
-9. [Security Middleware Stack](#9-security-middleware-stack)
-10. [Simulated Conversation Walkthrough](#10-simulated-conversation-walkthrough)
+7. [Supervisor Orchestration Pattern](#7-supervisor-orchestration-pattern)
+8. [Inter-Agent Communication: Event Bus](#8-inter-agent-communication-event-bus)
+9. [Routing Decisions](#9-routing-decisions)
+10. [Security Middleware Stack](#10-security-middleware-stack)
+11. [Simulated Conversation Walkthrough](#11-simulated-conversation-walkthrough)
 
 ---
 
@@ -27,8 +28,11 @@ When a user sends a message, the system follows this sequence:
 flowchart LR
     Browser["Browser\n(React)"] --> WS["WebSocket Endpoint\nai_chat.py"]
     WS --> AS["AgentService\n.start_execution()"]
-    AS --> DAO["DeepAgentOrchestrator\n.create_agent()"]
+    AS --> ORC{"Orchestrator\nChoice"}
+    ORC -->|"Task-based\nisolation"| DAO["DeepAgentOrchestrator\n.create_agent()"]
+    ORC -->|"Handoff-based\nshared state"| SO["SupervisorOrchestrator\n.create_supervisor_graph()"]
     DAO --> LC["LangChain\ncreate_agent"]
+    SO --> LC
     AS --> GAE["graph.astream_events()\nloop"]
     GAE --> AEB["AgentEventBus\n.publish()"]
     AEB -->|WebSocket messages| Browser
@@ -56,6 +60,8 @@ flowchart LR
    - Creates a `ToolContext` with user role, project scope, execution mode.
    - Calls `_create_deep_agent_graph()` which delegates to `DeepAgentOrchestrator.create_agent()`.
    - Runs `graph.astream_events()` and publishes events to the `AgentEventBus`.
+
+   > **Note:** The system also has a `SupervisorOrchestrator` (see Section 7) that uses a handoff-based delegation pattern with shared state instead of task-based isolation. The orchestrator choice is determined at graph compilation time.
 
 6. **The WebSocket handler** subscribes to the event bus and forwards events to the browser.
 
@@ -306,6 +312,8 @@ After execution, `_run_agent_graph()` saves messages back to the database:
    - `message_metadata` (JSONB — subagent type, segment index, etc.)
 3. **Subagent messages** — saved with metadata linking them to the parent execution.
 
+4. **Error persistence** — When graph execution fails, the exception is captured and persisted as an assistant message with metadata `{"error": true, "error_type": "..."}`. This ensures users see what went wrong when reopening the session. The error message includes a human-readable summary and the error type for diagnostics.
+
 On the next turn, `_build_conversation_history()` loads user and assistant messages. Tool messages are skipped because the LLM only needs the conversation flow, not the raw tool payloads.
 
 ---
@@ -435,7 +443,95 @@ sequenceDiagram
 
 ---
 
-## 7. Inter-Agent Communication: Event Bus
+## 7. Supervisor Orchestration Pattern
+
+A second orchestrator, `SupervisorOrchestrator`, has been added alongside `DeepAgentOrchestrator`. It uses a **handoff-based delegation pattern** instead of the task-based subagent isolation described in Section 6.
+
+### Key Files
+
+| File | Responsibility |
+|------|---------------|
+| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based agent delegation with shared state |
+| `ai/supervisor_state.py` | `BackcastSupervisorState`: shared state schema for supervisor graph |
+| `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: Command(goto=...) handoff mechanism |
+
+### Architecture
+
+```mermaid
+flowchart TD
+    START((START)) --> SUP["Supervisor Node\n(compiled agent)"]
+    SUP -->|"handoff_to_X tool call"| SPEC["Specialist Node X\n(compiled agent)"]
+    SUP -->|"task tool call"| TASK["Task Tool\n(isolated subagent)"]
+    SUP -->|"no tool calls"| END_NODE((END))
+    SPEC -->|"peer handoff"| SPEC2["Specialist Node Y"]
+    SPEC -->|"no handoff"| SUP
+    SPEC2 -->|"no handoff"| SUP
+    TASK --> SUP
+```
+
+The supervisor is a parent `StateGraph` where the supervisor agent routes to specialist agents via handoff tools. Each specialist is a compiled `create_agent()` graph embedded as a subgraph node.
+
+### State Schema
+
+```python
+class BackcastSupervisorState(TypedDict):
+    messages: Annotated[list[BaseMessage], operator.add]
+    active_agent: str
+    structured_response: Any | None
+    tool_call_count: Annotated[int, operator.add]
+    max_tool_iterations: int
+```
+
+All specialists share the **full message history** through the parent graph's shared state. The `messages` field uses `operator.add` (append-only), so every agent sees the complete conversation.
+
+### Handoff Mechanism
+
+Handoff tools are created by `create_handoff_tool(agent_name, agent_description)`. Each returns:
+
+```python
+Command(
+    goto=agent_name,
+    graph=Command.PARENT,
+    update={"messages": [tool_message], "active_agent": agent_name},
+)
+```
+
+The `graph=Command.PARENT` flag tells LangGraph to route to the target agent's subgraph node in the **parent** graph, preserving shared state.
+
+### Supervisor Routing Guidelines
+
+| Request Domain | Route To |
+|---------------|----------|
+| Project CRUD, WBEs, cost elements, cost tracking, progress entries | `project_manager` |
+| EVM calculations, performance analysis | `evm_analyst` |
+| Change orders, impact analysis | `change_order_manager` |
+| User/department management | `user_admin` |
+| Diagrams, visualizations | `visualization_specialist` |
+| Forecasts, schedule baselines | `forecast_manager` |
+| Unclear or cross-cutting | `general_purpose` |
+
+### Task-Based vs. Handoff-Based Delegation
+
+| Aspect | Task Tool (Section 6) | Handoff (This Section) |
+|--------|----------------------|----------------------|
+| State | Isolated — subagent gets `[HumanMessage(description)]` | Shared — specialist sees full message history |
+| Execution | Parallel — multiple subagents run concurrently | Sequential — one specialist at a time |
+| Context | Passed via `description` parameter | Inherited from parent state |
+| Use when | Parallel batch operations, context isolation acceptable | Multi-turn context preservation matters |
+
+The supervisor retains the `task` tool for parallel batch operations. Handoff is the preferred mechanism for most requests.
+
+### Specialist-to-Specialist Handoff
+
+Specialists can hand off to other specialists (peer handoff) without returning to the supervisor. The `_make_specialist_router()` checks the last message for handoff tool calls and routes to the target specialist directly, or back to the supervisor if no handoff is detected.
+
+### Fallback
+
+If no specialists compile successfully (e.g., all filtered out by RBAC), `_build_fallback_graph()` creates a simple agent with direct tool access and no specialist routing.
+
+---
+
+## 8. Inter-Agent Communication: Event Bus
 
 ### Architecture
 
@@ -473,9 +569,21 @@ The global `RunnerManager` singleton maps `execution_id` → `AgentEventBus`. Th
 - **REST polling**: The `GET /ai/chat/executions/{id}/status` endpoint reads from the bus.
 - **Cleanup**: Buses are removed from the manager when execution completes.
 
+### Stream Retry: Transient Error Recovery
+
+`graph.astream_events()` is wrapped in a retry loop to handle transient network errors:
+
+- **Max retries**: 2 (up to 3 total attempts)
+- **Retry delay**: 2 seconds between attempts
+- **Retried errors**: `httpcore.ReadError`, `httpx.RemoteProtocolError`, `ConnectionResetError`, `OSError`
+- **Error detection**: `ConnectionResetError` and `OSError` are caught directly; `httpcore.ReadError` and `httpx.RemoteProtocolError` are detected by inspecting the exception's `__name__` and `__module__` (avoids hard imports of optional dependencies)
+- **On retry**: The stream restarts from the graph's current checkpoint state; `events_processed` is reset to 0
+- **Timeout**: `stream_chunk_timeout` is set to 300 seconds on the `ChatOpenAI` client, preventing premature internal timeouts during long agent executions
+- **Final failure**: Propagates to the existing error handler which publishes an `error` event to the event bus and persists the error as an assistant message (see Section 3, Error persistence)
+
 ---
 
-## 8. Routing Decisions
+## 9. Routing Decisions
 
 ### Main Agent: "Should I delegate or respond directly?"
 
@@ -539,7 +647,7 @@ Agent Node (LLM call)
 
 ---
 
-## 9. Security Middleware Stack
+## 10. Security Middleware Stack
 
 When subagents are enabled, both the main agent and each subagent receive the same middleware stack (applied in `DeepAgentOrchestrator.create_agent()`):
 
@@ -582,7 +690,7 @@ Both middleware classes use `ContextVar` to pass per-request context:
 
 ---
 
-## 10. Simulated Conversation Walkthrough
+## 11. Simulated Conversation Walkthrough
 
 ### Scenario: User asks "What's the EVM performance of project PRJ-001?"
 
@@ -772,10 +880,13 @@ sequenceDiagram
 | `api/routes/ai_chat.py` | WebSocket endpoint, JWT auth, session creation |
 | `ai/agent_service.py` | Orchestration: `_run_agent_graph()`, `_build_system_prompt()`, `start_execution()` |
 | `ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator`: subagent compilation, tool filtering (execution mode + role), prompt composition |
+| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based agent delegation with shared state |
+| `ai/supervisor_state.py` | `BackcastSupervisorState`: shared state schema for supervisor graph |
+| `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: Command(goto=...) handoff mechanism |
 | `ai/state.py` | `AgentState` TypedDict: `messages`, `tool_call_count`, `next` |
 | `ai/graph.py` | LangGraph `StateGraph` with `should_continue()` routing |
 | `ai/graph_cache.py` | `BackcastRuntimeContext`, `CompiledGraphCache`, `set_request_context()` |
-| `ai/subagents/__init__.py` | Six subagent configurations (name, prompt, system_prompt) |
+| `ai/subagents/__init__.py` | Seven subagent configurations (name, prompt, system_prompt) |
 | `ai/tools/__init__.py` | `create_project_tools()`, `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
 | `ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT`, `TASK_TOOL_DESCRIPTION` |
 | `ai/middleware/temporal_context.py` | `TemporalContextMiddleware`: injects temporal params into tool args |

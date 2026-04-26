@@ -16,6 +16,11 @@ Comprehensive reference for understanding, debugging, and extending the Backcast
 10. [Troubleshooting Guide](#10-troubleshooting-guide)
 11. [Key Files Quick Reference](#11-key-files-quick-reference)
 
+**Subsection index:**
+- Section 2: [Error Recovery & Reconnection](#error-recovery--reconnection)
+- Section 4: [Orchestration Patterns](#orchestration-patterns)
+- Section 6: [Transient Error Handling](#transient-error-handling) | [Error Persistence](#error-persistence)
+
 ---
 
 ## 1. Architecture Overview
@@ -176,6 +181,17 @@ After WebSocket connection, the client can send a subscribe message to rejoin a 
 
 The `useStreamingChat` hook automatically sends subscribe messages on reconnection if `activeExecutionIdRef` is set. This enables seamless reconnection to running agents.
 
+### Error Recovery & Reconnection
+
+When the backend returns a 500 error during streaming, the frontend force-closes the WebSocket (`ws.close()`, `wsRef.current = null`). This triggers the `close` event handler which calls `scheduleReconnect()` with exponential backoff:
+
+- **Max reconnect attempts:** 5
+- **Base delay:** 1000ms (doubles each attempt: 1s, 2s, 4s, 8s, 16s)
+- **Auto-subscribe:** On successful reconnection, the frontend automatically sends a subscribe message for any running execution tracked in `activeExecutionIdRef`
+- **Pending message queue:** If `sendMessage()` is called while the connection is not OPEN, the message is stored in `pendingMessageRef` and sent after reconnection completes. Any stale non-OPEN connection is force-closed first to trigger a clean reconnect cycle.
+
+The `sendMessage()` function handles non-OPEN states by force-closing stale connections (`ws.readyState !== WebSocket.CONNECTING`) and triggering a fresh connection via `connectRef.current()`.
+
 ---
 
 ## 3. Starting a Conversation
@@ -317,6 +333,19 @@ Authorization: Bearer <JWT>
 ### Agent Creation Flow
 
 File: `agent_service.py` (_create_deep_agent_graph) and `deep_agent_orchestrator.py` (create_agent)
+
+### Orchestration Patterns
+
+The system supports two orchestration patterns for multi-agent delegation:
+
+| Pattern | Orchestrator | Delegation Mechanism | Context Sharing |
+|---------|-------------|---------------------|-----------------|
+| **DeepAgent** (primary) | `DeepAgentOrchestrator` | Task-based — main agent delegates via `task` tool to isolated subagent graphs | Isolated — each subagent gets its own message history |
+| **Supervisor** (alternative) | `SupervisorOrchestrator` | Handoff-based — supervisor transfers control via `Command(goto=...)` handoff tools | Shared — all agents see full message history via parent `StateGraph` |
+
+**DeepAgentOrchestrator** (primary path, `deep_agent_orchestrator.py`): The main agent has NO direct Backcast tools — it delegates everything through the `task` tool to 6 subagents. Each subagent runs as an isolated compiled graph with its own filtered tools.
+
+**SupervisorOrchestrator** (alternative path, `supervisor_orchestrator.py`): Builds a parent `StateGraph(BackcastSupervisorState)` where the supervisor routes to specialist agents via handoff tools (`handoff_to_{agent_name}`). Each specialist is a compiled `create_agent()` graph embedded as a subgraph node. The supervisor also retains the `task` tool for parallel batch operations where context isolation is acceptable. Key difference: specialists share the full conversation history through the parent graph's shared state, enabling multi-turn context preservation across handoffs.
 
 ```
 1. create_project_tools(context)     → 76 LangChain BaseTool instances (8 template packages)
@@ -769,6 +798,32 @@ The stream uses a `TokenBufferManager` that batches individual LLM tokens before
 - On explicit flush (before tool calls, on subagent transitions, on stream completion)
 
 Configuration comes from `settings.AI_TOKEN_BUFFER_INTERVAL_MS`, `settings.AI_TOKEN_BUFFER_MAX_SIZE`, and `settings.AI_TOKEN_BUFFER_ENABLED`.
+
+### Transient Error Handling
+
+Long-running agent executions (5+ minutes) may encounter transient network errors such as `httpcore.ReadError` or `httpx.RemoteProtocolError` during LLM streaming. The `astream_events()` loop is wrapped in a retry mechanism:
+
+- **Max retries:** 2 (total of 3 attempts)
+- **Delay between retries:** 2 seconds
+- **Transient error detection:** Catches `ConnectionResetError`, `OSError`, and inspects exception type/module for `httpcore.ReadError` and `httpx.RemoteProtocolError` (without hard imports)
+- **Non-transient errors propagate immediately** — only network-level errors trigger retries
+- **`stream_chunk_timeout`** is set to 300 seconds on the LLM client to prevent LangChain's internal timeout during long executions
+- **Checkpoint resilience:** Tool calls that completed before the error are preserved because the graph resumes from its checkpoint state on retry
+- **Final failure:** If all retries are exhausted, the exception is captured and an error event is published to the event bus
+
+### Error Persistence
+
+When graph execution fails, the exception is captured in `graph_error` and persisted to the session as an assistant message:
+
+```python
+AIConversationMessage(
+    role="assistant",
+    content="I encountered an error while processing your request: <error>. The work completed before the error has been saved.",
+    metadata={"error": True, "error_type": "ReadError"},
+)
+```
+
+This ensures users see what went wrong when reopening the session, rather than a blank response. Previously committed messages (subagent results, main agent segments) are preserved because they are persisted in a separate loop before the error message is written.
 
 ---
 
@@ -1244,6 +1299,22 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 
 **Cause**: Unhandled exception in a tool left the DB session in a bad state. The system performs automatic rollback on tool errors (`agent_service.py:1016-1026`), but if you see cascading errors, check the tool implementation.
 
+#### `Chat error: Error 500` during long execution
+
+**Cause**: LLM API stream dropped by network intermediary. The system auto-retries up to 2 times. If persistent, check `app.log` for `Transient stream error` entries. The `stream_chunk_timeout` (300s) should prevent most premature timeouts.
+
+#### Follow-up message stuck "generating" after error
+
+**Cause**: WebSocket did not reconnect cleanly after a 500 error. The frontend now force-closes stale connections and triggers exponential backoff reconnection. If still stuck, refresh the page and check the browser console for WebSocket state.
+
+#### Missing subagent output after error
+
+**Cause**: Stream interrupted mid-subagent response. Partial results are persisted to the database before the error occurs. Check session messages via `GET /api/v1/ai/sessions/{id}/messages` to see what was saved.
+
+#### `httpcore.ReadError` in app.log
+
+**Cause**: Network timeout during long LLM streaming. Normal behavior — the retry mechanism handles this automatically (2 retries, 2-second delay). If frequent, consider increasing `stream_chunk_timeout` beyond 300 seconds or investigate network stability between the server and LLM provider.
+
 ### Tracing a Request
 
 1. **Find the session ID** from the frontend or from the initial `WSChatRequest`
@@ -1327,6 +1398,9 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 | `backend/app/api/routes/ai_chat.py` | WebSocket endpoint (`/stream`), REST endpoints (`/invoke`, `/executions/*`), auth, message dispatch, subscribe handling |
 | `backend/app/ai/agent_service.py` | Main orchestration: `chat_stream()`, `chat()`, `_run_agent_graph()`, `start_execution()`, approval registration, history building |
 | `backend/app/ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator.create_agent()` — wraps `langchain.agents.create_agent()` with Backcast config |
+| `backend/app/ai/supervisor_orchestrator.py` | `SupervisorOrchestrator` — handoff-based delegation via parent StateGraph with shared message history |
+| `backend/app/ai/supervisor_state.py` | `BackcastSupervisorState` — shared state schema for supervisor graph (messages, active_agent, tool_call_count) |
+| `backend/app/ai/handoff_tools.py` | `create_handoff_tool()` / `create_all_handoff_tools()` — handoff tools using `Command(goto=...)` for specialist routing |
 | `backend/app/ai/graph_cache.py` | Caching infrastructure: `LLMClientCache`, `CompiledGraphCache`, `GraphCacheKey`, `BackcastRuntimeContext`, shared checkpointer, ContextVar helpers |
 | `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no subagents) |
 | `backend/app/ai/state.py` | `AgentState` TypedDict (messages, tool_call_count, next) |

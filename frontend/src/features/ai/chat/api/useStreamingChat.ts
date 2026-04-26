@@ -588,6 +588,15 @@ export const useStreamingChat = (
         callbacks.onError(errorMsg);
         setError(new Error(errorMsg));
         setConnectionState(WSConnectionState.ERROR);
+        // Force-close the potentially broken connection to trigger reconnect
+        if (wsRef.current) {
+          try {
+            wsRef.current.close();
+          } catch {
+            // Ignore close errors
+          }
+          wsRef.current = null;
+        }
         return;
       }
 
@@ -702,6 +711,12 @@ export const useStreamingChat = (
           attachments: uploadedAttachments,
           images: uploadedImages,
         };
+
+        // Force-close any non-open connection for clean reconnect
+        if (ws && ws.readyState !== WebSocket.CONNECTING) {
+          try { ws.close(); } catch { /* ignore */ }
+          wsRef.current = null;
+        }
 
         // Trigger connection if not already connecting
         if (!ws || ws.readyState === WebSocket.CLOSED) {

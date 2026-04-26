@@ -60,7 +60,7 @@ export const AIProviderModal = ({
       okText={isEdit ? "Save" : "Create"}
       okButtonProps={{ "data-testid": "submit-provider-btn" }}
       confirmLoading={confirmLoading}
-      destroyOnClose
+      destroyOnHidden
       footer={
         <>
           {isEdit && (

@@ -151,7 +151,7 @@ export const AIProviderConfigModal = ({
       onCancel={handleModalCancel}
       footer={null}
       width={700}
-      destroyOnClose
+      destroyOnHidden
     >
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <Button
