@@ -418,6 +418,7 @@ class AgentService:
                 model=model_name,
                 temperature=temp,
                 max_tokens=tokens,
+                stream_chunk_timeout=0,
             )
 
         return _llm_cache.get_or_create(cache_key, factory)
