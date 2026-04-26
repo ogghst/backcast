@@ -34,8 +34,6 @@ from app.ai.execution.runner_manager import runner_manager
 from app.ai.graph import create_graph
 from app.ai.graph_cache import (
     BackcastRuntimeContext,
-    CompiledGraphCache,
-    GraphCacheKey,
     LLMClientCache,
     clear_request_context,
     set_request_context,
@@ -55,6 +53,7 @@ from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
 from app.api.websocket_utils import is_websocket_connected
+from app.core.config import settings
 from app.models.domain.ai import (
     AIAgentExecution,
     AIAssistantConfig,
@@ -141,9 +140,19 @@ async def _extract_client_config(
 
 logger = logging.getLogger(__name__)
 
+# Specialist agent names used for supervisor graph event routing
+SPECIALIST_AGENT_NAMES = frozenset({
+    "project_manager",
+    "evm_analyst",
+    "change_order_manager",
+    "user_admin",
+    "visualization_specialist",
+    "forecast_manager",
+    "general_purpose",
+})
+
 # Caches (shared across all requests)
 _llm_cache = LLMClientCache()
-_graph_cache = CompiledGraphCache()
 
 # LLM client config cache (avoids 3 DB queries per chat message)
 _llm_config_cache: dict[UUID, tuple[float, dict[str, Any], str, str]] = {}
@@ -198,99 +207,6 @@ When using tools:
 - For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
 - Use search to find projects by code or name
 """
-
-
-async def warm_graph_cache(db_session: AsyncSession) -> None:
-    """Pre-compile default agent graph on startup to eliminate cold-start.
-
-    Queries the first active ``AIAssistantConfig``, builds the LLM client,
-    compiles the graph via :class:`DeepAgentOrchestrator`, and stores the
-    result in the module-level ``_graph_cache`` so the first user request
-    after a server restart hits a warm cache.
-
-    Wrapped in try/except so a warming failure never prevents startup.
-
-    Args:
-        db_session: Async database session for querying assistant config.
-    """
-    try:
-        # Find the first active assistant config
-        result = await db_session.execute(
-            select(AIAssistantConfig).where(AIAssistantConfig.is_active).limit(1)
-        )
-        assistant_config = result.scalar_one_or_none()
-        if not assistant_config:
-            logger.info("No active assistant config found, skipping graph warming")
-            return
-
-        # Build cache key components
-        model_id = UUID(str(assistant_config.model_id))
-
-        # Get LLM config (will be cached for future use)
-        agent_service = AgentService(db_session)
-        (
-            client_config,
-            model_name,
-            provider_type,
-        ) = await agent_service._get_llm_client_config(model_id)
-
-        # Create LLM
-        llm = await agent_service._create_langchain_llm(
-            client_config,
-            model_name,
-            assistant_config.temperature,
-            assistant_config.max_tokens,
-        )
-
-        # Create tool context (minimal, for graph structure -- real context set per-request)
-        tool_context = ToolContext(
-            db_session,
-            "system",
-            user_role="admin",
-            execution_mode=ExecutionMode.STANDARD,
-        )
-
-        # Compile and cache the graph
-        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
-        assistant_role = assistant_config.default_role
-
-        orchestrator = DeepAgentOrchestrator(
-            model=llm,
-            context=tool_context,
-            system_prompt=system_prompt,
-            enable_subagents=True,
-        )
-
-        graph = orchestrator.create_agent(
-            config=AgentConfig(
-                allowed_tools=None,  # RBAC role filtering only
-                checkpointer=shared_checkpointer,
-                context_schema=BackcastRuntimeContext,
-                assistant_role=assistant_role,
-                user_role="admin",  # Startup warming uses admin context
-            ),
-        )
-
-        # Build cache key and store
-        cache_key = GraphCacheKey(
-            model_name=model_name,
-            assistant_role_hash=str(hash(assistant_role or "none")),
-            execution_mode=ExecutionMode.STANDARD.value,
-            system_prompt_hash=str(hash(system_prompt)),
-            user_role="admin",  # Startup warming uses admin context
-        )
-        _graph_cache.put(cache_key, graph)
-
-        logger.info(
-            "[GRAPH_WARMING] Warmed default graph cache for model=%s, role=%s",
-            model_name,
-            assistant_role or "none",
-        )
-    except Exception as e:
-        logger.warning(
-            "[GRAPH_WARMING] Failed to warm graph cache: %s. Will compile on first request.",
-            e,
-        )
 
 
 class AgentService:
@@ -513,34 +429,13 @@ class AgentService:
                 event_bus=event_bus,
             )
 
-        # Compute cache key from invariant properties
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         assistant_role = assistant_config.default_role
-        model_str = model_name or "unknown"
-        execution_mode_str = tool_context.execution_mode.value
 
-        prompt_hash = str(hash(system_prompt))
-
-        cache_key = GraphCacheKey(
-            model_name=model_str,
-            assistant_role_hash=str(hash(assistant_role or "none")),
-            execution_mode=execution_mode_str,
-            system_prompt_hash=prompt_hash,
-            user_role=user_role,
-        )
-
-        # Check cache
-        cached_graph = _graph_cache.get(cache_key)
-        if cached_graph is not None:
-            logger.info(
-                f"[GRAPH_CACHE_HIT] Reusing cached graph for session {session_id}"
-            )
-            return cached_graph, interrupt_node
-
-        # Cache miss — compile new graph
+        # Compile graph
         try:
             logger.info(
-                f"[GRAPH_CACHE_MISS] Compiling new graph for session {session_id}"
+                f"[GRAPH_COMPILE] Compiling new graph for session {session_id}"
             )
             graph_creation_start = time.time()
 
@@ -549,7 +444,7 @@ class AgentService:
                 context=tool_context,
                 system_prompt=system_prompt,
                 enable_subagents=enable_subagents,
-                interrupt_node=None,  # Don't bake InterruptNode into cached graph
+                interrupt_node=None,  # Don't bake InterruptNode into graph
             )
 
             graph = orchestrator.create_agent(
@@ -559,6 +454,7 @@ class AgentService:
                     context_schema=BackcastRuntimeContext,
                     assistant_role=assistant_role,
                     user_role=user_role,
+                    use_supervisor=settings.AI_ORCHESTRATOR == "supervisor",
                 ),
             )
 
@@ -569,9 +465,6 @@ class AgentService:
                 f"session_id={session_id} | "
                 f"graph_type={type(graph).__name__}"
             )
-
-            # Store in cache
-            _graph_cache.put(cache_key, graph)
 
             return graph, interrupt_node
 
@@ -926,7 +819,6 @@ class AgentService:
             else 25
         )
 
-        accumulated_content = ""
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
         main_agent_segments: dict[str, list[str]] = {}
@@ -983,7 +875,7 @@ class AgentService:
         # Background task to flush tokens periodically for real-time streaming
         async def _periodic_flush() -> None:
             while True:
-                await asyncio.sleep(0.1)  # 100ms interval
+                await asyncio.sleep(settings.AI_TOKEN_BUFFER_INTERVAL_MS / 1000)
                 for inv_id in list(_token_accumulator.keys()):
                     _flush_accumulated_tokens(inv_id)
 
@@ -1040,15 +932,7 @@ class AgentService:
                         # Handle agent transitions in supervisor graph
                         # When a specialist subgraph node starts/ends, detect by chain name
                         chain_name = event.get("name", "")
-                        if event_type == "on_chain_start" and chain_name in (
-                            "project_manager",
-                            "evm_analyst",
-                            "change_order_manager",
-                            "user_admin",
-                            "visualization_specialist",
-                            "forecast_manager",
-                            "general_purpose",
-                        ):
+                        if event_type == "on_chain_start" and chain_name in SPECIALIST_AGENT_NAMES:
                             _flush_accumulated_tokens(
                                 current_invocation_id or main_invocation_id
                             )
@@ -1103,7 +987,6 @@ class AgentService:
                                             main_invocation_id
                                         ].append(content)
 
-                                    accumulated_content += content
                                     total_output_chars += len(content)
 
                                     # Accumulate tokens per invocation for batched publish
