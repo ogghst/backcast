@@ -35,6 +35,16 @@ class CostElementCreate(CostElementBase):
     control_date: datetime | None = Field(
         None, description="Optional control date for creation (valid_time start)"
     )
+    schedule_start_date: datetime | None = Field(
+        None, description="Optional start date for the auto-created schedule baseline"
+    )
+    schedule_end_date: datetime | None = Field(
+        None, description="Optional end date for the auto-created schedule baseline"
+    )
+    schedule_progression_type: str | None = Field(
+        None,
+        description="Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)",
+    )
 
 
 class CostElementUpdate(BaseModel):

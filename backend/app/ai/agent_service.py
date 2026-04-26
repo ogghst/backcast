@@ -942,7 +942,7 @@ class AgentService:
         tool_calls_count = 0
         current_subagent_name: str | None = None
         current_invocation_id: str | None = None
-        main_invocation_id: str | None = None
+        main_invocation_id: str = str(uuid.uuid4())
         task_initiating_main_invocation_id: str | None = None
 
         # Per-invocation token accumulator for batched publishing
@@ -989,6 +989,12 @@ class AgentService:
 
         try:
             main_invocation_id = str(uuid.uuid4())
+
+            # Clear previous checkpoint to prevent message duplication.
+            # DB is the source of truth for conversation history; the checkpointer
+            # would otherwise append the full history to its stored state via
+            # operator.add, causing "system after assistant" role ordering errors.
+            shared_checkpointer.delete_thread(str(session_id))
 
             # Send thinking event
             _publish(
@@ -1145,7 +1151,7 @@ class AgentService:
                     tool_name = event.get("name", "")
 
                     # Subagent result handling
-                    if tool_name == "task":
+                    if tool_name == "task" and current_invocation_id is not None:
                         # Flush subagent tokens before processing result
                         _flush_accumulated_tokens(current_invocation_id)
 

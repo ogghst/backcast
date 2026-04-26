@@ -73,6 +73,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         self._security_tools = tools or []
         self._tools_by_name: dict[str, Any] = {t.name: t for t in self._security_tools}
         self._interrupt_node = interrupt_node
+        self._approval_semaphore = asyncio.Semaphore(1)
+        self._consecutive_approval_timeouts: int = 0
 
     async def awrap_tool_call(
         self,
@@ -616,21 +618,38 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             f"APPROVAL_NEEDED: tool='{tool_name}', risk_level={risk_level.value}"
         )
 
-        approval_id = await interrupt_node._send_approval_request(
-            tool_name=tool_name,
-            tool_args=tool_args,
-            risk_level=risk_level,
-            tool_call=tool_call,
-        )
+        # Serialize approval requests — only one at a time
+        async with self._approval_semaphore:
+            approval_id = await interrupt_node._send_approval_request(
+                tool_name=tool_name,
+                tool_args=tool_args,
+                risk_level=risk_level,
+                tool_call=tool_call,
+            )
 
-        # Poll for approval response
-        approved, approval_error = await self._poll_for_approval(
-            approval_id=approval_id,
-            tool_name=tool_name,
-            interrupt_node=interrupt_node,
-        )
+            # Poll for approval response
+            approved, approval_error = await self._poll_for_approval(
+                approval_id=approval_id,
+                tool_name=tool_name,
+                interrupt_node=interrupt_node,
+            )
 
-        return approved, approval_error
+        if not approved:
+            if approval_error and "timed out" in approval_error:
+                self._consecutive_approval_timeouts += 1
+                if self._consecutive_approval_timeouts >= 3:
+                    logger.warning(
+                        f"Approval timed out {self._consecutive_approval_timeouts} "
+                        f"consecutive times for tool '{tool_name}'. Failing permanently."
+                    )
+                    return False, (
+                        f"Approval timed out {self._consecutive_approval_timeouts} consecutive times. "
+                        f"Please try again later."
+                    )
+            return False, approval_error
+
+        self._consecutive_approval_timeouts = 0
+        return True, None
 
     def set_tools(self, tools: list[Any]) -> None:
         """Set the tools list for permission checking.
