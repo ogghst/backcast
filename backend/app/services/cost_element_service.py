@@ -158,8 +158,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         # Extract control_date from schema if present (for seeding/time-travel)
         control_date = getattr(element_in, "control_date", None)
 
-        # Remove control_date from data to avoid duplicate kwarg error
+        # Remove control_date and schedule fields from data to avoid
+        # passing non-column fields to CreateVersionCommand
         element_data.pop("control_date", None)
+        element_data.pop("schedule_start_date", None)
+        element_data.pop("schedule_end_date", None)
+        element_data.pop("schedule_progression_type", None)
 
         # Use provided cost_element_id (for seeding) or generate new one
         root_id = element_in.cost_element_id or uuid4()
@@ -232,6 +236,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             actor_id=actor_id,
             branch=target_branch,
             control_date=control_date,
+            start_date=element_in.schedule_start_date,
+            end_date=element_in.schedule_end_date,
+            progression_type=element_in.schedule_progression_type,
         )
 
         # Update cost element with baseline reference

@@ -107,7 +107,6 @@ class DeepAgentOrchestrator:
         if config is None:
             config = AgentConfig()
 
-        # Unpack for readability
         allowed_tools = config.allowed_tools
         subagents = config.subagents
         checkpointer = config.checkpointer

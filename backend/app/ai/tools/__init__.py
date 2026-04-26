@@ -87,9 +87,7 @@ def filter_tools_by_role(
     rbac_service = get_rbac_service()
     filtered: list[BaseTool] = []
 
-    # Batch optimization: load all permissions for the role once as a set,
-    # then use set.issubset for O(1) lookups instead of calling
-    # has_permission() per permission (reduces 90-180 calls to 1).
+    # Batch: load all permissions once, use set.issubset instead of N calls
     if isinstance(rbac_service, RBACServiceABC):
         role_permissions: set[str] = set(rbac_service.get_user_permissions(role))
         use_batch = True

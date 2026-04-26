@@ -248,7 +248,9 @@ async def get_cost_element(
 @ai_tool(
     name="create_cost_element",
     description="Create a new cost element under a WBE with a specific type. "
-    "Automatically creates a default schedule baseline and forecast for the cost element.",
+    "Automatically creates a schedule baseline and forecast for the cost element. "
+    "Use start_date and end_date to set the schedule baseline dates (should match the project's dates). "
+    "Supports LINEAR, GAUSSIAN, and LOGARITHMIC progression types.",
     permissions=["cost-element-create"],
     category="cost-elements",
     risk_level=RiskLevel.HIGH,
@@ -260,6 +262,9 @@ async def create_cost_element(
     name: str,
     budget_amount: float,
     description: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    progression_type: str | None = None,
     branch: str = "main",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
@@ -274,6 +279,9 @@ async def create_cost_element(
         name: Cost element name
         budget_amount: Budget amount for the cost element
         description: Optional description
+        start_date: Optional start date for the schedule baseline (ISO format, e.g. "2026-05-10")
+        end_date: Optional end date for the schedule baseline (ISO format, e.g. "2026-05-30")
+        progression_type: Optional progression type (LINEAR, GAUSSIAN, LOGARITHMIC). Defaults to LINEAR.
         branch: Branch name (default: "main")
         context: Injected tool execution context
 
@@ -290,14 +298,23 @@ async def create_cost_element(
         ...     cost_element_type_id="...",
         ...     code="CE-001",
         ...     name="Mechanical Assembly",
-        ...     budget_amount=50000.00
+        ...     budget_amount=50000.00,
+        ...     start_date="2026-05-01",
+        ...     end_date="2026-09-30",
+        ...     progression_type="LINEAR"
         ... )
         >>> print(f"Created cost element with ID: {result['id']}")
     """
     try:
+        from datetime import datetime
+
         from app.services.cost_element_service import CostElementService
 
         service = CostElementService(context.session)
+
+        # Parse optional schedule dates
+        schedule_start = datetime.fromisoformat(start_date) if start_date else None
+        schedule_end = datetime.fromisoformat(end_date) if end_date else None
 
         # Create Pydantic schema
         ce_data = CostElementCreate(
@@ -308,6 +325,9 @@ async def create_cost_element(
             budget_amount=budget_amount,
             description=description,
             branch=branch,
+            schedule_start_date=schedule_start,
+            schedule_end_date=schedule_end,
+            schedule_progression_type=progression_type,
         )
 
         # Call service method
@@ -334,6 +354,15 @@ async def create_cost_element(
             "forecast_id": str(cost_element.forecast_id)
             if cost_element.forecast_id
             else None,
+            "schedule_info": {
+                "start_date": schedule_start.isoformat()
+                if schedule_start
+                else "default (creation date)",
+                "end_date": schedule_end.isoformat()
+                if schedule_end
+                else "default (90 days from creation)",
+                "progression_type": progression_type or "LINEAR",
+            },
             "message": "Cost element created with default schedule baseline and forecast",
         }
     except ValueError as e:

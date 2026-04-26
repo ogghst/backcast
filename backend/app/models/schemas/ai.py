@@ -675,7 +675,9 @@ class WSCompleteMessage(BaseModel):
 
     type: str = Field(default="complete", description="Message type discriminator")
     session_id: UUID = Field(..., description="Session identifier")
-    message_id: UUID = Field(..., description="Complete message identifier")
+    message_id: UUID | None = Field(
+        None, description="Complete message identifier (None if execution errored)"
+    )
     token_usage: dict[str, int] | None = Field(
         None, description="Token usage: prompt_tokens, completion_tokens, total_tokens"
     )

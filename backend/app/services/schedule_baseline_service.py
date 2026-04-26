@@ -311,6 +311,9 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         actor_id: UUID,
         branch: str = "main",
         control_date: datetime | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        progression_type: str | None = None,
     ) -> ScheduleBaseline:
         """Ensure a schedule baseline exists for the cost element.
 
@@ -321,6 +324,9 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             actor_id: User creating the baseline if needed
             branch: Branch name (default: "main")
             control_date: Optional control date for valid_time
+            start_date: Optional start date (defaults to control_date or now)
+            end_date: Optional end date (defaults to start_date + 90 days)
+            progression_type: Optional progression type (defaults to LINEAR)
 
         Returns:
             ScheduleBaseline (existing or newly created)
@@ -337,6 +343,10 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         now = control_date or datetime.now(UTC)
         baseline_id = uuid4()
 
+        effective_start = start_date or now
+        effective_end = end_date or (effective_start + timedelta(days=90))
+        effective_progression = progression_type or "LINEAR"
+
         baseline = await self.create_root(
             root_id=baseline_id,
             actor_id=actor_id,
@@ -344,9 +354,9 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             branch=branch,
             cost_element_id=cost_element_id,
             name="Default Schedule",
-            start_date=now,
-            end_date=now + timedelta(days=90),
-            progression_type="LINEAR",
+            start_date=effective_start,
+            end_date=effective_end,
+            progression_type=effective_progression,
         )
 
         # Use Command to link cost element to baseline (RSC compliance)
