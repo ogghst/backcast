@@ -306,8 +306,121 @@ The existing security layer maps well to the handoff pattern:
 
 ---
 
+## Alternative Architectures from Anthropic
+
+Anthropic's "Building Effective AI Agents" article (December 2024) defines 6 agentic patterns, each progressively more autonomous. These patterns are framework-agnostic and provide a useful lens for evaluating Backcast's architecture.
+
+### Anthropic's Core Principle
+
+> "Start with simple prompts, optimize with evaluation, add multi-step agentic systems only when simpler solutions fall short."
+
+### Pattern 1: Prompt Chaining
+
+```
+LLM Call → Output → LLM Call → Output → ...
+```
+
+Each LLM call uses the previous one's output as input. Simple, deterministic pipeline.
+
+**Applicability to Backcast:** Low. Backcast's requests are interactive and user-driven, not linear pipelines. However, internal tool pipelines (e.g., "fetch project → calculate EVM → generate summary") could use this for deterministic sub-flows within a specialist agent.
+
+### Pattern 2: Routing
+
+```
+User Input → Classifier → Route to specialized handler
+```
+
+Classify input, then route to the appropriate specialized prompt/agent. No delegation, no multi-agent — just conditional logic.
+
+**Applicability to Backcast:** This is what the **supervisor in the recommended approach** does at its simplest level. A router classifies the request domain and sends it to the right specialist. The difference is that Backcast needs multi-turn conversations after routing, not just single-shot handling.
+
+**Key insight:** The supervisor+handoff pattern is essentially "routing with context persistence." Pure routing loses follow-up capability.
+
+### Pattern 3: Parallelization
+
+```
+User Input → [LLM Call A] + [LLM Call B] + [LLM Call C] → Aggregate
+```
+
+Multiple LLM calls run concurrently, results are aggregated.
+
+**Applicability to Backcast:** This is what the **current subagent-as-tool pattern** does well. Cross-domain queries ("show me project status + EVM metrics") launch multiple subagents in parallel. The analysis recommends retaining this as a secondary mechanism, not the primary path.
+
+### Pattern 4: Orchestrator-Workers
+
+```
+User Input → Orchestrator → [Worker A] + [Worker B] → Synthesize
+```
+
+An orchestrator LLM breaks down a task, delegates to workers, and synthesizes results. Workers can be LLM calls or tool calls.
+
+**Applicability to Backcast:** This is the **closest match to the current architecture.** The main agent is the orchestrator, subagents are workers. The problem: context isolation between orchestrator and workers causes information loss on follow-ups.
+
+**Key difference from recommended approach:** Orchestrator-workers implies the orchestrator always synthesizes. The handoff pattern allows specialists to respond directly to the user, then hand off to other specialists — no mandatory synthesis layer.
+
+### Pattern 5: Evaluator-Optimizer
+
+```
+LLM Output → Evaluator → Feedback → LLM retries → ...
+```
+
+One LLM generates, another evaluates, loops until quality threshold met.
+
+**Applicability to Backcast:** Moderate potential for specific use cases:
+- EVM analysis quality checks (validate calculations before presenting)
+- Change order impact analysis (cross-check impact assessment)
+- Not needed as a primary architecture, but could improve reliability of specialist outputs
+
+### Pattern 6: Autonomous Agent
+
+```
+User Input → Agent → [Plan → Execute → Observe → Loop] → Done
+```
+
+Full autonomy: the agent plans, executes tools, observes results, and loops until the task is complete.
+
+**Applicability to Backcast:** Each specialist agent already operates in this mode internally (tool call loop). The question is about **inter-agent** architecture, not intra-agent behavior. This pattern is already in use within each subagent/specialist.
+
+### Anthropic's Agent SDK Pattern
+
+The Claude Agent SDK (`claude-agent-sdk-python`) uses a **subagent-as-tool** pattern identical to Backcast's current approach:
+
+- Main agent defines `agents` dict with `AgentDefinition` per specialist
+- Each specialist has `description`, `prompt`, `tools`, and optional `model` override
+- Delegation happens via a built-in `Task` tool
+- Subagents run with isolated context
+- `parent_tool_use_id` tracks subagent execution in streaming
+
+**This confirms that Anthropic's SDK validates the current pattern for isolation-focused use cases.** However, Backcast's multi-turn, cross-domain conversation needs go beyond what the SDK's subagent pattern optimizes for.
+
+### Mapping to Backcast's Options
+
+| Anthropic Pattern | Current Backcast Equivalent | Recommended Approach Equivalent |
+|---|---|---|
+| Prompt Chaining | Not used | Internal tool pipelines within specialists |
+| Routing | Main agent prompt-based routing | Supervisor initial routing |
+| Parallelization | `task` tool with multiple subagents | Retained as secondary mechanism |
+| Orchestrator-Workers | Full current architecture | Supervisor replaces orchestrator synthesis |
+| Evaluator-Optimizer | Not used | Optional: post-processing quality checks |
+| Autonomous Agent | Each subagent internally | Each specialist internally (unchanged) |
+| SDK Subagent-as-Tool | Exact match | Retained for batch parallel operations |
+
+### Key Takeaway from Anthropic's Research
+
+Anthropic's patterns reinforce that **no single pattern is universally best.** The right architecture depends on the specific workflow:
+
+- For **single-domain, multi-turn conversations** (most Backcast use cases): Routing + context persistence (supervisor+handoff) is optimal
+- For **cross-domain batch queries** ("analyze all projects + generate reports"): Parallelization (current `task` tool) is optimal
+- For **quality-critical outputs** (EVM calculations, impact analysis): Evaluator-optimizer could add a validation layer
+
+The recommended hybrid approach (supervisor+handoff primary, task tool secondary) maps naturally to Anthropic's pattern taxonomy: **Routing** for initial delegation, **context persistence** for multi-turn continuity, **Parallelization** retained for batch operations.
+
+---
+
 ## Research Sources
 
+- Anthropic Engineering Blog: "Building Effective AI Agents" (December 2024)
+- Claude Agent SDK (`claude-agent-sdk-python`): AgentDefinition, subagent patterns
 - LangGraph Swarm library: `langgraph-swarm` on PyPI / GitHub
 - LangGraph Supervisor library: `langgraph-supervisor` on PyPI / GitHub
 - LangGraph docs: Multi-agent concepts, handoff patterns, swarm architecture
