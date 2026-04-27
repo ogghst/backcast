@@ -1,28 +1,25 @@
-"""Tests for AgentService streaming functionality."""
+"""Tests for AgentService._run_agent_graph event publishing."""
 
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_service import AgentService
-from app.ai.llm_client import LLMStreamingError
-from app.models.domain.ai import AIAssistantConfig
+from app.ai.execution.agent_event_bus import AgentEventBus
+from app.models.domain.ai import AIAssistantConfig, AIConversationSession
 from app.models.schemas.ai import (
     AIModelCreate,
     AIProviderCreate,
 )
 
 
-@pytest.mark.asyncio
-async def test_chat_stream_sends_tokens(db_session: AsyncSession) -> None:
-    """Test that chat_stream sends tokens via WebSocket."""
-    service = AgentService(db_session)
-
-    # Create provider and model in database
+async def _setup_assistant_config(
+    db_session: AsyncSession,
+) -> AIAssistantConfig:
+    """Create provider, model, and assistant config in database."""
     from app.services.ai_config_service import AIConfigService
 
     config_service = AIConfigService(db_session)
@@ -41,25 +38,44 @@ async def test_chat_stream_sends_tokens(db_session: AsyncSession) -> None:
     )
     model = await config_service.create_model(model_in)
 
-    # Create assistant config
     assistant_config = AIAssistantConfig(
         name="Test Assistant",
         model_id=str(model.id),
         system_prompt="You are a helpful assistant",
         temperature=0.7,
         max_tokens=1000,
-        allowed_tools=None,
         is_active=True,
     )
     db_session.add(assistant_config)
     await db_session.flush()
     await db_session.refresh(assistant_config)
 
-    # Mock WebSocket
-    mock_websocket = MagicMock(spec=WebSocket)
-    mock_websocket.send_json = AsyncMock()
+    return assistant_config
 
-    # Create mock chunks for streaming
+
+async def _create_session_with_user_message(
+    db_session: AsyncSession,
+    assistant_config: AIAssistantConfig,
+    user_id: str,
+) -> AIConversationSession:
+    """Create a conversation session with a user message."""
+    from app.services.ai_config_service import AIConfigService
+
+    config_service = AIConfigService(db_session)
+    session = await config_service.create_session(
+        user_id=user_id,
+        assistant_config_id=assistant_config.id,
+    )
+    await config_service.add_message(
+        session_id=session.id,
+        role="user",
+        content="Hello",
+    )
+    return session
+
+
+def _make_token_stream_events() -> list[dict]:
+    """Create mock streaming events with two token chunks."""
     chunk1 = MagicMock()
     chunk1.text = "Hello"
     chunk1.content = "Hello"
@@ -68,390 +84,282 @@ async def test_chat_stream_sends_tokens(db_session: AsyncSession) -> None:
     chunk2.text = " world"
     chunk2.content = " world"
 
-    # Mock LLM creation
+    return [
+        {"event": "on_chat_model_stream", "data": {"chunk": chunk1}},
+        {"event": "on_chat_model_stream", "data": {"chunk": chunk2}},
+        {"event": "on_end", "data": {"output": {"messages": []}}},
+    ]
+
+
+def _make_end_event() -> list[dict]:
+    """Create a single on_end event for simple stream completion."""
+    return [
+        {"event": "on_end", "data": {"output": {"messages": []}}},
+    ]
+
+
+async def _run_with_mocks(
+    service: AgentService,
+    assistant_config: AIAssistantConfig,
+    session_id: object,
+    user_id: object,
+    event_bus: AgentEventBus,
+    events: list[dict],
+) -> None:
+    """Run _run_agent_graph with standard mocks and the given events."""
     mock_llm = MagicMock()
-
-    # Mock graph and streaming events
     mock_graph = MagicMock()
-    event_stream = []
-
-    # Create on_chat_model_stream event for chunk1
-    event1 = {"event": "on_chat_model_stream", "data": {"chunk": chunk1}}
-    event_stream.append(event1)
-
-    # Create on_chat_model_stream event for chunk2
-    event2 = {"event": "on_chat_model_stream", "data": {"chunk": chunk2}}
-    event_stream.append(event2)
-
-    # Create on_end event
-    event3 = {"event": "on_end", "data": {"output": {"messages": []}}}
-    event_stream.append(event3)
 
     async def mock_astream_events(
         *args: object, **kwargs: object
     ) -> AsyncIterator[dict]:
-        for event in event_stream:
+        for event in events:
             yield event
 
     mock_graph.astream_events = mock_astream_events
+    mock_interrupt_node = None
 
     with (
-        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
-        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
+        patch.object(
+            service,
+            "_get_llm_client_config",
+            return_value=({"api_key": "test"}, "gpt-4", "openai"),
+        ),
+        patch.object(
+            service,
+            "_create_langchain_llm",
+            return_value=mock_llm,
+        ),
+        patch(
+            "app.ai.agent_service._get_user_role",
+            return_value="guest",
+        ),
+        patch(
+            "app.ai.agent_service.create_project_tools",
+            return_value=[],
+        ),
+        patch.object(
+            service,
+            "_create_deep_agent_graph",
+            return_value=(mock_graph, mock_interrupt_node),
+        ),
+        patch(
+            "app.ai.agent_service.set_request_context",
+        ),
+        patch(
+            "app.ai.agent_service.shared_checkpointer",
+        ),
+        patch(
+            "app.ai.agent_service.clear_request_context",
+        ),
     ):
-        await service.chat_stream(
+        await service._run_agent_graph(
             message="Hello",
             assistant_config=assistant_config,
-            session_id=None,
-            user_id=uuid4(),
-            websocket=mock_websocket,
-            db=db_session,
+            session_id=session_id,
+            user_id=user_id,
+            event_bus=event_bus,
         )
-
-    # Verify tokens were sent
-    token_calls = [
-        call
-        for call in mock_websocket.send_json.call_args_list
-        if len(call[0]) > 0 and call[0][0].get("type") == "token"
-    ]
-    assert len(token_calls) >= 1
-    assert token_calls[0][0][0]["content"] in ["Hello", " world"]
 
 
 @pytest.mark.asyncio
-async def test_chat_stream_handles_streaming_error(db_session: AsyncSession) -> None:
-    """Test that chat_stream handles streaming errors gracefully."""
-    service = AgentService(db_session)
-
-    # Create provider and model in database
-    from app.services.ai_config_service import AIConfigService
-
-    config_service = AIConfigService(db_session)
-
-    provider_in = AIProviderCreate(
-        provider_type="openai",
-        name="Test Provider",
-        base_url="https://api.openai.com/v1",
-    )
-    provider = await config_service.create_provider(provider_in)
-
-    model_in = AIModelCreate(
-        model_id="gpt-4",
-        display_name="GPT-4",
-        provider_id=provider.id,
-    )
-    model = await config_service.create_model(model_in)
-
-    # Create assistant config
-    assistant_config = AIAssistantConfig(
-        name="Test Assistant",
-        model_id=str(model.id),
-        system_prompt="You are a helpful assistant",
-        temperature=0.7,
-        max_tokens=1000,
-        allowed_tools=None,
-        is_active=True,
-    )
-    db_session.add(assistant_config)
-    await db_session.flush()
-    await db_session.refresh(assistant_config)
-
-    # Mock WebSocket
-    mock_websocket = MagicMock(spec=WebSocket)
-    mock_websocket.send_json = AsyncMock()
-
-    # Mock LLM creation
-    mock_llm = MagicMock()
-
-    # Mock graph and streaming events with error
-    mock_graph = MagicMock()
-
-    async def mock_astream_events_with_error(
-        *args: object, **kwargs: object
-    ) -> AsyncIterator[dict]:
-        raise LLMStreamingError("Connection failed")
-        yield  # Never reached
-
-    mock_graph.astream_events = mock_astream_events_with_error
-
-    with (
-        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
-        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
-    ):
-        await service.chat_stream(
-            message="Hello",
-            assistant_config=assistant_config,
-            session_id=None,
-            user_id=uuid4(),
-            websocket=mock_websocket,
-            db=db_session,
-        )
-
-    # Verify error message was sent
-    error_calls = [
-        call
-        for call in mock_websocket.send_json.call_args_list
-        if len(call[0]) > 0 and call[0][0].get("type") == "error"
-    ]
-    assert len(error_calls) >= 1
-
-
-@pytest.mark.asyncio
-async def test_chat_stream_sends_complete_message(db_session: AsyncSession) -> None:
-    """Test that chat_stream sends complete message at the end."""
-    service = AgentService(db_session)
-
-    # Create provider and model in database
-    from app.services.ai_config_service import AIConfigService
-
-    config_service = AIConfigService(db_session)
-
-    provider_in = AIProviderCreate(
-        provider_type="openai",
-        name="Test Provider",
-        base_url="https://api.openai.com/v1",
-    )
-    provider = await config_service.create_provider(provider_in)
-
-    model_in = AIModelCreate(
-        model_id="gpt-4",
-        display_name="GPT-4",
-        provider_id=provider.id,
-    )
-    model = await config_service.create_model(model_in)
-
-    # Create assistant config
-    assistant_config = AIAssistantConfig(
-        name="Test Assistant",
-        model_id=str(model.id),
-        system_prompt="You are a helpful assistant",
-        temperature=0.7,
-        max_tokens=1000,
-        allowed_tools=None,
-        is_active=True,
-    )
-    db_session.add(assistant_config)
-    await db_session.flush()
-    await db_session.refresh(assistant_config)
-
-    # Mock WebSocket
-    mock_websocket = MagicMock(spec=WebSocket)
-    mock_websocket.send_json = AsyncMock()
-
-    # Create mock chunk
-    chunk = MagicMock()
-    chunk.choices = [MagicMock()]
-    chunk.choices[0].delta.content = "Response"
-    chunk.choices[0].delta.tool_calls = None
-    chunk.choices[0].finish_reason = "stop"
-    chunk.choices[0].message = None
-
-    # Mock LLM creation
-    mock_llm = MagicMock()
-
-    # Mock graph and streaming events
-    mock_graph = MagicMock()
-
-    # Create event stream with on_end event
-    event = {"event": "on_end", "data": {"output": {"messages": []}}}
-
-    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
-        yield event
-
-    mock_graph.astream_events = mock_stream
-
-    with (
-        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
-        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
-    ):
-        await service.chat_stream(
-            message="Hello",
-            assistant_config=assistant_config,
-            session_id=None,
-            user_id=uuid4(),
-            websocket=mock_websocket,
-            db=db_session,
-        )
-
-    # Verify complete message was sent
-    complete_calls = [
-        call
-        for call in mock_websocket.send_json.call_args_list
-        if len(call[0]) > 0 and call[0][0].get("type") == "complete"
-    ]
-    assert len(complete_calls) == 1
-    assert "session_id" in complete_calls[0][0][0]
-    assert "message_id" in complete_calls[0][0][0]
-
-
-@pytest.mark.asyncio
-async def test_chat_stream_handles_websocket_disconnect(
+async def test_run_agent_graph_publishes_token_events(
     db_session: AsyncSession,
 ) -> None:
-    """Test that chat_stream handles WebSocket disconnection gracefully."""
+    """Test that _run_agent_graph publishes token_batch events to the bus."""
     service = AgentService(db_session)
+    assistant_config = await _setup_assistant_config(db_session)
 
-    # Create provider and model in database
-    from app.services.ai_config_service import AIConfigService
-
-    config_service = AIConfigService(db_session)
-
-    provider_in = AIProviderCreate(
-        provider_type="openai",
-        name="Test Provider",
-        base_url="https://api.openai.com/v1",
+    user_id = uuid4()
+    conversation_session = await _create_session_with_user_message(
+        db_session,
+        assistant_config,
+        str(user_id),
     )
-    provider = await config_service.create_provider(provider_in)
 
-    model_in = AIModelCreate(
-        model_id="gpt-4",
-        display_name="GPT-4",
-        provider_id=provider.id,
+    event_bus = AgentEventBus(execution_id=str(uuid4()))
+    events = _make_token_stream_events()
+
+    await _run_with_mocks(
+        service,
+        assistant_config,
+        conversation_session.id,
+        user_id,
+        event_bus,
+        events,
     )
-    model = await config_service.create_model(model_in)
 
-    # Create assistant config
-    assistant_config = AIAssistantConfig(
-        name="Test Assistant",
-        model_id=str(model.id),
-        system_prompt="You are a helpful assistant",
-        temperature=0.7,
-        max_tokens=1000,
-        allowed_tools=None,
-        is_active=True,
-    )
-    db_session.add(assistant_config)
-    await db_session.flush()
-    await db_session.refresh(assistant_config)
-
-    # Mock WebSocket that raises exception on send
-    mock_websocket = MagicMock(spec=WebSocket)
-    mock_websocket.send_json = AsyncMock(side_effect=RuntimeError("WebSocket closed"))
-
-    # Create mock chunk
-    chunk = MagicMock()
-    chunk.choices = [MagicMock()]
-    chunk.choices[0].delta.content = "Response"
-    chunk.choices[0].delta.tool_calls = None
-    chunk.choices[0].finish_reason = "stop"
-    chunk.choices[0].message = None
-
-    # Mock LLM creation
-    mock_llm = MagicMock()
-
-    # Mock graph and streaming events
-    mock_graph = MagicMock()
-
-    # Create event stream with on_end event
-    event = {"event": "on_end", "data": {"output": {"messages": []}}}
-
-    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
-        yield event
-
-    mock_graph.astream_events = mock_stream
-
-    with (
-        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
-        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
-    ):
-        # Should not raise exception even though WebSocket fails
-        await service.chat_stream(
-            message="Hello",
-            assistant_config=assistant_config,
-            session_id=None,
-            user_id=uuid4(),
-            websocket=mock_websocket,
-            db=db_session,
-        )
+    token_events = [e for e in event_bus.replay() if e.event_type == "token_batch"]
+    assert len(token_events) >= 1
 
 
 @pytest.mark.asyncio
-async def test_chat_stream_uses_existing_session(db_session: AsyncSession) -> None:
-    """Test that chat_stream uses existing session when session_id is provided."""
+async def test_run_agent_graph_publishes_complete_event(
+    db_session: AsyncSession,
+) -> None:
+    """Test that _run_agent_graph publishes a complete event at the end."""
     service = AgentService(db_session)
+    assistant_config = await _setup_assistant_config(db_session)
 
-    # Create provider and model in database
-    from app.services.ai_config_service import AIConfigService
-
-    config_service = AIConfigService(db_session)
-
-    provider_in = AIProviderCreate(
-        provider_type="openai",
-        name="Test Provider",
-        base_url="https://api.openai.com/v1",
+    user_id = uuid4()
+    conversation_session = await _create_session_with_user_message(
+        db_session,
+        assistant_config,
+        str(user_id),
     )
-    provider = await config_service.create_provider(provider_in)
 
-    model_in = AIModelCreate(
-        model_id="gpt-4",
-        display_name="GPT-4",
-        provider_id=provider.id,
+    event_bus = AgentEventBus(execution_id=str(uuid4()))
+    events = _make_end_event()
+
+    await _run_with_mocks(
+        service,
+        assistant_config,
+        conversation_session.id,
+        user_id,
+        event_bus,
+        events,
     )
-    model = await config_service.create_model(model_in)
 
-    # Create assistant config
-    assistant_config = AIAssistantConfig(
-        name="Test Assistant",
-        model_id=str(model.id),
-        system_prompt="You are a helpful assistant",
-        temperature=0.7,
-        max_tokens=1000,
-        allowed_tools=None,
-        is_active=True,
+    complete_events = [e for e in event_bus.replay() if e.event_type == "complete"]
+    assert len(complete_events) == 1
+    assert "session_id" in complete_events[0].data
+
+
+@pytest.mark.asyncio
+async def test_run_agent_graph_publishes_error_on_exception(
+    db_session: AsyncSession,
+) -> None:
+    """Test that _run_agent_graph publishes error event when graph raises."""
+    service = AgentService(db_session)
+    assistant_config = await _setup_assistant_config(db_session)
+
+    user_id = uuid4()
+    conversation_session = await _create_session_with_user_message(
+        db_session,
+        assistant_config,
+        str(user_id),
     )
-    db_session.add(assistant_config)
-    await db_session.flush()
-    await db_session.refresh(assistant_config)
 
-    # Create existing session
-    from app.models.domain.ai import AIConversationSession
-
-    existing_session = AIConversationSession(
-        user_id=str(uuid4()),
-        assistant_config_id=str(assistant_config.id),
-    )
-    db_session.add(existing_session)
-    await db_session.flush()
-    await db_session.refresh(existing_session)
-
-    # Mock WebSocket
-    mock_websocket = MagicMock(spec=WebSocket)
-    mock_websocket.send_json = AsyncMock()
-
-    # Create mock chunk
-    chunk = MagicMock()
-    chunk.choices = [MagicMock()]
-    chunk.choices[0].delta.content = "Response"
-    chunk.choices[0].delta.tool_calls = None
-    chunk.choices[0].finish_reason = "stop"
-    chunk.choices[0].message = None
-
-    # Mock LLM creation
+    event_bus = AgentEventBus(execution_id=str(uuid4()))
     mock_llm = MagicMock()
-
-    # Mock graph and streaming events
     mock_graph = MagicMock()
 
-    # Create event stream with on_end event
-    event = {"event": "on_end", "data": {"output": {"messages": []}}}
+    async def mock_astream_events_error(
+        *args: object, **kwargs: object
+    ) -> AsyncIterator[dict]:
+        raise RuntimeError("Streaming failed")
+        yield  # Never reached
 
-    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
-        yield event
-
-    mock_graph.astream_events = mock_stream
+    mock_graph.astream_events = mock_astream_events_error
+    mock_interrupt_node = None
 
     with (
-        patch.object(service, "_create_langchain_llm", return_value=mock_llm),
-        patch("app.ai.agent_service.create_graph", return_value=mock_graph),
+        patch.object(
+            service,
+            "_get_llm_client_config",
+            return_value=({"api_key": "test"}, "gpt-4", "openai"),
+        ),
+        patch.object(
+            service,
+            "_create_langchain_llm",
+            return_value=mock_llm,
+        ),
+        patch(
+            "app.ai.agent_service._get_user_role",
+            return_value="guest",
+        ),
+        patch(
+            "app.ai.agent_service.create_project_tools",
+            return_value=[],
+        ),
+        patch.object(
+            service,
+            "_create_deep_agent_graph",
+            return_value=(mock_graph, mock_interrupt_node),
+        ),
+        patch(
+            "app.ai.agent_service.set_request_context",
+        ),
+        patch(
+            "app.ai.agent_service.shared_checkpointer",
+        ),
+        patch(
+            "app.ai.agent_service.clear_request_context",
+        ),
     ):
-        await service.chat_stream(
+        await service._run_agent_graph(
             message="Hello",
             assistant_config=assistant_config,
-            session_id=existing_session.id,
-            user_id=uuid4(),
-            websocket=mock_websocket,
-            db=db_session,
+            session_id=conversation_session.id,
+            user_id=user_id,
+            event_bus=event_bus,
         )
 
-    # Verify messages were sent
-    assert mock_websocket.send_json.call_count > 0
+    error_events = [e for e in event_bus.replay() if e.event_type == "error"]
+    assert len(error_events) >= 1
+
+
+@pytest.mark.asyncio
+async def test_run_agent_graph_uses_existing_session(
+    db_session: AsyncSession,
+) -> None:
+    """Test that _run_agent_graph uses the provided session_id."""
+    service = AgentService(db_session)
+    assistant_config = await _setup_assistant_config(db_session)
+
+    user_id = uuid4()
+
+    # Create existing session with messages
+    conversation_session = await _create_session_with_user_message(
+        db_session,
+        assistant_config,
+        str(user_id),
+    )
+    original_session_id = conversation_session.id
+
+    event_bus = AgentEventBus(execution_id=str(uuid4()))
+    events = _make_end_event()
+
+    await _run_with_mocks(
+        service,
+        assistant_config,
+        original_session_id,
+        user_id,
+        event_bus,
+        events,
+    )
+
+    complete_events = [e for e in event_bus.replay() if e.event_type == "complete"]
+    assert len(complete_events) == 1
+    assert str(complete_events[0].data.get("session_id")) == str(original_session_id)
+
+
+@pytest.mark.asyncio
+async def test_run_agent_graph_publishes_thinking_event(
+    db_session: AsyncSession,
+) -> None:
+    """Test that _run_agent_graph publishes a thinking event at start."""
+    service = AgentService(db_session)
+    assistant_config = await _setup_assistant_config(db_session)
+
+    user_id = uuid4()
+    conversation_session = await _create_session_with_user_message(
+        db_session,
+        assistant_config,
+        str(user_id),
+    )
+
+    event_bus = AgentEventBus(execution_id=str(uuid4()))
+    events = _make_end_event()
+
+    await _run_with_mocks(
+        service,
+        assistant_config,
+        conversation_session.id,
+        user_id,
+        event_bus,
+        events,
+    )
+
+    thinking_events = [e for e in event_bus.replay() if e.event_type == "thinking"]
+    assert len(thinking_events) >= 1
