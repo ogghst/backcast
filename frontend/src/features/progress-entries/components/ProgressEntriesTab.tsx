@@ -1,5 +1,4 @@
 import {
-  App,
   Button,
   Space,
   Input,
@@ -7,8 +6,6 @@ import {
   Progress,
 } from "antd";
 import {
-  DeleteOutlined,
-  EditOutlined,
   PlusOutlined,
   HistoryOutlined,
   SearchOutlined,
@@ -22,8 +19,6 @@ import type { ProgressEntryRead, ProgressEntryCreate } from "@/api/generated";
 import {
   useProgressEntries,
   useCreateProgressEntry,
-  useUpdateProgressEntry,
-  useDeleteProgressEntry,
 } from "../api/useProgressEntries";
 import { ProgressEntryModal } from "./ProgressEntryModal";
 import { ProgressSummaryCard } from "./ProgressSummaryCard";
@@ -54,8 +49,7 @@ interface ProgressEntryApiParams {
  * Displays progress entries for a cost element with:
  * - Latest progress summary card
  * - Progress visualization
- * - Paginated history table
- * - CRUD operations
+ * - Paginated history table (immutable log — no edit/delete)
  */
 export const ProgressEntriesTab = ({
   costElement,
@@ -78,7 +72,7 @@ export const ProgressEntriesTab = ({
   const total = data?.total || 0;
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<ProgressEntryRead | null>(
+  const [historyEntry, setHistoryEntry] = useState<ProgressEntryRead | null>(
     null,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -87,7 +81,7 @@ export const ProgressEntriesTab = ({
   const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
     {
       resource: "progress_entries",
-      entityId: selectedEntry?.progress_entry_id,
+      entityId: historyEntry?.progress_entry_id,
       fetchFn: (id) => ProgressEntriesService.getProgressEntryHistory(id),
       enabled: historyOpen,
     },
@@ -104,42 +98,6 @@ export const ProgressEntriesTab = ({
       setModalOpen(false);
     },
   });
-
-  const { mutateAsync: updateProgressEntry } = useUpdateProgressEntry({
-    onSuccess: () => {
-      refetch();
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.evmMetrics(
-          costElement.cost_element_id,
-        ),
-      });
-      setModalOpen(false);
-    },
-  });
-
-  const { mutate: deleteProgressEntry } = useDeleteProgressEntry({
-    onSuccess: () => {
-      refetch();
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.evmMetrics(
-          costElement.cost_element_id,
-        ),
-      });
-    },
-  });
-
-  const { modal } = App.useApp();
-
-  const handleDelete = (id: string) => {
-    modal.confirm({
-      title: "Are you sure you want to delete this Progress Entry?",
-      content:
-        "This will soft delete the progress entry. It will be preserved in history.",
-      okText: "Yes, Delete",
-      okType: "danger",
-      onOk: () => deleteProgressEntry(id),
-    });
-  };
 
   const getColumnSearchProps = (
     dataIndex: keyof ProgressEntryRead,
@@ -257,28 +215,10 @@ export const ProgressEntriesTab = ({
             <Button
               icon={<HistoryOutlined />}
               onClick={() => {
-                setSelectedEntry(record);
+                setHistoryEntry(record);
                 setHistoryOpen(true);
               }}
               title="View History"
-            />
-          </Can>
-          <Can permission="progress-entry-update">
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => {
-                setSelectedEntry(record);
-                setModalOpen(true);
-              }}
-              title="Edit"
-            />
-          </Can>
-          <Can permission="progress-entry-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.progress_entry_id)}
-              title="Delete"
             />
           </Can>
         </Space>
@@ -327,7 +267,6 @@ export const ProgressEntriesTab = ({
                   type="primary"
                   icon={<PlusOutlined />}
                   onClick={() => {
-                    setSelectedEntry(null);
                     setModalOpen(true);
                   }}
                 >
@@ -339,22 +278,14 @@ export const ProgressEntriesTab = ({
         />
       </Space>
 
-      {/* Create/Edit Modal */}
+      {/* Create Modal */}
       <ProgressEntryModal
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={async (values) => {
-          if (selectedEntry) {
-            await updateProgressEntry({
-              id: selectedEntry.progress_entry_id,
-              data: values,
-            });
-          } else {
-            await createProgressEntry(values as ProgressEntryCreate);
-          }
+          await createProgressEntry(values as ProgressEntryCreate);
         }}
         confirmLoading={isLoading}
-        initialValues={selectedEntry}
         costElementId={costElement.cost_element_id}
       />
 
@@ -364,8 +295,8 @@ export const ProgressEntriesTab = ({
         onClose={() => setHistoryOpen(false)}
         versions={mapHistoryVersions(historyVersions)}
         entityName={`Progress Entry: ${
-          selectedEntry?.progress_percentage
-            ? `${selectedEntry.progress_percentage}%`
+          historyEntry?.progress_percentage
+            ? `${historyEntry.progress_percentage}%`
             : "Progress"
         }`}
         isLoading={historyLoading}

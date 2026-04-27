@@ -14,7 +14,6 @@ import {
   ProgressEntriesService,
   type ProgressEntryRead,
   type ProgressEntryCreate,
-  type ProgressEntryUpdate,
 } from "@/api/generated";
 import type { PaginatedResponse } from "@/types/api";
 import { queryKeys } from "@/api/queryKeys";
@@ -222,117 +221,6 @@ export const useCreateProgressEntry = (
     },
     onError: (error, ...args) => {
       toast.error(`Error creating progress entry: ${error.message}`);
-      mutationOptions?.onError?.(error, ...args);
-    },
-    ...mutationOptions,
-  });
-};
-
-/**
- * Custom update hook for progress entries.
- * Creates a new version of the progress entry with updated values.
- * Includes optimistic updates with rollback on error.
- */
-export const useUpdateProgressEntry = (
-  mutationOptions?: Omit<
-    UseMutationOptions<
-      ProgressEntryRead,
-      Error,
-      { id: string; data: ProgressEntryUpdate },
-      { previousEntry?: ProgressEntryRead }
-    >,
-    "mutationFn"
-  >,
-) => {
-  const { asOf } = useTimeMachineParams();
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    ProgressEntryRead,
-    Error,
-    { id: string; data: ProgressEntryUpdate },
-    { previousEntry?: ProgressEntryRead }
-  >({
-    mutationFn: ({ id, data }: { id: string; data: ProgressEntryUpdate }) => {
-      // Add control_date to data
-      const payload: ProgressEntryUpdate = {
-        ...data,
-        control_date: data.control_date || asOf || null,
-      };
-      return ProgressEntriesService.updateProgressEntry(id, payload);
-    },
-    onMutate: async ({ id, data }) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: queryKeys.progressEntries.detail(id, { asOf }),
-      });
-      await queryClient.cancelQueries({
-        queryKey: queryKeys.progressEntries.lists(),
-      });
-
-      // Snapshot previous value
-      const previousEntry = queryClient.getQueryData(
-        queryKeys.progressEntries.detail(id, { asOf }),
-      );
-
-      // Optimistically update
-      if (previousEntry) {
-        queryClient.setQueryData(
-          queryKeys.progressEntries.detail(id, { asOf }),
-          (old: ProgressEntryRead) => ({
-            ...old,
-            ...data,
-          }),
-        );
-      }
-
-      return { previousEntry };
-    },
-    onSuccess: (...args) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.progressEntries.all,
-      });
-      toast.success("Progress entry updated successfully");
-      mutationOptions?.onSuccess?.(...args);
-    },
-    onError: (error, variables, context) => {
-      // Rollback
-      if (context?.previousEntry) {
-        queryClient.setQueryData(
-          queryKeys.progressEntries.detail(variables.id, { asOf }),
-          context.previousEntry,
-        );
-      }
-      toast.error(`Error updating progress entry: ${error.message}`);
-      mutationOptions?.onError?.(error, variables, context, undefined);
-    },
-    ...mutationOptions,
-  });
-};
-
-/**
- * Custom delete hook for progress entries.
- * Soft deletes the progress entry (preserves in history).
- * Includes confirmation modal via App.useApp().
- */
-export const useDeleteProgressEntry = (
-  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">,
-) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (progressEntryId: string) => {
-      return ProgressEntriesService.deleteProgressEntry(progressEntryId);
-    },
-    onSuccess: (...args) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.progressEntries.all,
-      });
-      toast.success("Progress entry deleted successfully");
-      mutationOptions?.onSuccess?.(...args);
-    },
-    onError: (error, ...args) => {
-      toast.error(`Error deleting progress entry: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
     ...mutationOptions,

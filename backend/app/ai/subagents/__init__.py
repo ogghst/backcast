@@ -85,8 +85,6 @@ EFFICIENCY RULES:
         "get_progress_entry",
         "get_latest_progress",
         "create_progress_entry",
-        "update_progress_entry",
-        "delete_progress_entry",
         "get_progress_history",
     ],
     "structured_output_schema": None,  # No structured output for project_manager (varied responses)

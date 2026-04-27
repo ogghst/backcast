@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
@@ -48,22 +47,6 @@ class ProgressEntryCreate(ProgressEntryBase):
     control_date: datetime | None = Field(
         None,
         description="Control date for the progress entry (when the progress was measured). Defaults to current time if not provided.",
-    )
-
-
-class ProgressEntryUpdate(BaseModel):
-    """Properties that can be updated on a Progress Entry."""
-
-    progress_percentage: Decimal | None = Field(
-        None,
-        ge=Decimal("0.00"),
-        le=Decimal("100.00"),
-        decimal_places=2,
-    )
-    notes: str | None = None
-    control_date: datetime | None = Field(
-        None,
-        description="Control date for when the update should take effect. Defaults to current time if not provided.",
     )
 
 

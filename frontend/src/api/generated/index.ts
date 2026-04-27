@@ -88,7 +88,6 @@ export type { KPIScorecard } from './models/KPIScorecard';
 export type { MergeRequest } from './models/MergeRequest';
 export type { ProgressEntryCreate } from './models/ProgressEntryCreate';
 export type { ProgressEntryRead } from './models/ProgressEntryRead';
-export type { ProgressEntryUpdate } from './models/ProgressEntryUpdate';
 export type { ProjectBreadcrumbItem } from './models/ProjectBreadcrumbItem';
 export type { ProjectBudgetSettingsCreate } from './models/ProjectBudgetSettingsCreate';
 export type { ProjectBudgetSettingsRead } from './models/ProjectBudgetSettingsRead';

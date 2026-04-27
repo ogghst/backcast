@@ -117,7 +117,6 @@ class ProjectRole(str, Enum):
                 "wbe-read",
                 "progress-entry-create",
                 "progress-entry-read",
-                "progress-entry-update",
                 "change-order-read",
                 "forecast-read",
                 "forecast-create",

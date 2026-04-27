@@ -734,8 +734,6 @@ class TestAIRoles:
             "schedule-baseline-update",
             "progress-entry-read",
             "progress-entry-create",
-            "progress-entry-update",
-            "progress-entry-delete",
             "quality-event-read",
             "quality-event-create",
             "quality-event-update",

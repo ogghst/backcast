@@ -15,7 +15,6 @@ from app.models.schemas.common import PaginatedResponse
 from app.models.schemas.progress_entry import (
     ProgressEntryCreate,
     ProgressEntryRead,
-    ProgressEntryUpdate,
 )
 from app.services.progress_entry_service import ProgressEntryService
 
@@ -172,63 +171,6 @@ async def read_progress_entry(
         )
 
     return progress
-
-
-@router.put(
-    "/{progress_entry_id}",
-    response_model=ProgressEntryRead,
-    operation_id="update_progress_entry",
-    dependencies=[Depends(RoleChecker(required_permission="progress-entry-update"))],
-)
-async def update_progress_entry(
-    progress_entry_id: UUID,
-    progress_in: ProgressEntryUpdate,
-    current_user: User = Depends(get_current_active_user),
-    service: ProgressEntryService = Depends(get_progress_entry_service),
-) -> ProgressEntry:
-    """Update a progress entry.
-
-    Creates a new version of the progress entry with the updated values.
-    Progress can be increased or decreased (decreases should include justification in notes).
-
-    The system will maintain full version history for audit trails.
-    """
-    try:
-        progress = await service.update(
-            entity_id=progress_entry_id,
-            actor_id=current_user.user_id,
-            progress_in=progress_in,
-        )
-        return progress
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-    except HTTPException:
-        raise
-
-
-@router.delete(
-    "/{progress_entry_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    operation_id="delete_progress_entry",
-    dependencies=[Depends(RoleChecker(required_permission="progress-entry-delete"))],
-)
-async def delete_progress_entry(
-    progress_entry_id: UUID,
-    current_user: User = Depends(get_current_active_user),
-    service: ProgressEntryService = Depends(get_progress_entry_service),
-) -> None:
-    """Soft delete a progress entry.
-
-    Marks the progress entry as deleted but preserves it in the database
-    for audit purposes. The entry can be restored if needed.
-    """
-    await service.soft_delete(
-        progress_entry_id=progress_entry_id,
-        actor_id=current_user.user_id,
-    )
 
 
 @router.get(

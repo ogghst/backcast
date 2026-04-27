@@ -4,7 +4,6 @@
 /* eslint-disable */
 import type { ProgressEntryCreate } from '../models/ProgressEntryCreate';
 import type { ProgressEntryRead } from '../models/ProgressEntryRead';
-import type { ProgressEntryUpdate } from '../models/ProgressEntryUpdate';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -109,60 +108,6 @@ export class ProgressEntriesService {
             },
             query: {
                 'as_of': asOf,
-            },
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Update Progress Entry
-     * Update a progress entry.
-     *
-     * Creates a new version of the progress entry with the updated values.
-     * Progress can be increased or decreased (decreases should include justification in notes).
-     *
-     * The system will maintain full version history for audit trails.
-     * @param progressEntryId
-     * @param requestBody
-     * @returns ProgressEntryRead Successful Response
-     * @throws ApiError
-     */
-    public static updateProgressEntry(
-        progressEntryId: string,
-        requestBody: ProgressEntryUpdate,
-    ): CancelablePromise<ProgressEntryRead> {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/api/v1/progress-entries/{progress_entry_id}',
-            path: {
-                'progress_entry_id': progressEntryId,
-            },
-            body: requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Delete Progress Entry
-     * Soft delete a progress entry.
-     *
-     * Marks the progress entry as deleted but preserves it in the database
-     * for audit purposes. The entry can be restored if needed.
-     * @param progressEntryId
-     * @returns void
-     * @throws ApiError
-     */
-    public static deleteProgressEntry(
-        progressEntryId: string,
-    ): CancelablePromise<void> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/progress-entries/{progress_entry_id}',
-            path: {
-                'progress_entry_id': progressEntryId,
             },
             errors: {
                 422: `Validation Error`,

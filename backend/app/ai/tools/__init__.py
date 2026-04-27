@@ -273,8 +273,6 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         forecast_cost_progress_template.get_latest_progress,
         forecast_cost_progress_template.create_progress_entry,
         forecast_cost_progress_template.get_progress_entry,
-        forecast_cost_progress_template.update_progress_entry,
-        forecast_cost_progress_template.delete_progress_entry,
         forecast_cost_progress_template.get_progress_history,
         forecast_cost_progress_template.get_cost_element_summary,
     ]
