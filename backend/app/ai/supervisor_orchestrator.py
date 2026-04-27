@@ -12,6 +12,7 @@ where context isolation is acceptable.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from langchain.agents import create_agent as langchain_create_agent
@@ -86,8 +87,6 @@ class SupervisorOrchestrator:
         model: LangChain chat model instance.
         context: ToolContext with user permissions and temporal parameters.
         system_prompt: Optional custom system prompt for the supervisor.
-        enable_subagents: Whether to compile specialist agents.
-        interrupt_node: Optional InterruptNode for approval workflow.
     """
 
     def __init__(
@@ -95,14 +94,10 @@ class SupervisorOrchestrator:
         model: str | BaseChatModel,
         context: ToolContext,
         system_prompt: str | None = None,
-        enable_subagents: bool = True,
-        interrupt_node: Any = None,
     ) -> None:
         self.model = model
         self.context = context
         self.system_prompt = system_prompt
-        self.enable_subagents = enable_subagents
-        self.interrupt_node = interrupt_node
 
     def create_supervisor_graph(self, config: AgentConfig | None = None) -> Any:
         """Create the supervisor + handoff parent graph.
@@ -119,7 +114,6 @@ class SupervisorOrchestrator:
         logger.info(
             "[SUPERVISOR_CREATION_START] create_supervisor_graph | "
             f"model={self.model} | "
-            f"enable_subagents={self.enable_subagents} | "
             f"execution_mode={self.context.execution_mode.value}"
         )
 
@@ -142,7 +136,6 @@ class SupervisorOrchestrator:
         subagent_configs = (
             config.subagents if config.subagents is not None else get_all_subagents()
         )
-        specialist_names: list[str] = []
         specialist_graphs = compile_subagents(
             self.model,
             self.context,
@@ -152,8 +145,7 @@ class SupervisorOrchestrator:
             label="specialist",
         )
 
-        for sg in specialist_graphs:
-            specialist_names.append(sg["name"])
+        specialist_names = [sg["name"] for sg in specialist_graphs]
 
         if not specialist_graphs:
             logger.warning(
@@ -161,8 +153,8 @@ class SupervisorOrchestrator:
             )
             return self._build_fallback_graph(all_tools, config)
 
-        # Build handoff tools for all specialists
-        handoff_tools = create_all_handoff_tools(subagent_configs)
+        # Build handoff tools only for successfully compiled specialists
+        handoff_tools = create_all_handoff_tools(specialist_graphs)
 
         # Build task tool (secondary mechanism, reuses existing subagent defs)
         task_tool = build_task_tool(specialist_graphs)
@@ -178,21 +170,11 @@ class SupervisorOrchestrator:
         base_prompt = self.system_prompt or SUPERVISOR_SYSTEM_PROMPT
         supervisor_prompt = base_prompt + _HANDOFF_SUFFIX
 
-        supervisor_middleware = [
-            TodoListMiddleware(),
-            TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(
-                self.context,
-                tools=all_tools,
-                interrupt_node=None,
-            ),
-        ]
-
         supervisor_agent = langchain_create_agent(
             model=self.model,
             tools=supervisor_tools,
             system_prompt=supervisor_prompt,
-            middleware=supervisor_middleware,  # type: ignore[arg-type]
+            middleware=self._build_middleware(all_tools),
             checkpointer=config.checkpointer,
             context_schema=config.context_schema,
             name="supervisor",
@@ -207,7 +189,7 @@ class SupervisorOrchestrator:
         # Add each specialist as a subgraph node
         for sg in specialist_graphs:
             parent.add_node(sg["name"], sg["runnable"])
-            logger.info(f"Added specialist node: {sg['name']}")
+            logger.info("Added specialist node: %s", sg["name"])
 
         # Wire edges
         parent.add_edge(START, "supervisor")
@@ -215,7 +197,7 @@ class SupervisorOrchestrator:
         # Supervisor routing: after supervisor finishes, check for handoff
         parent.add_conditional_edges(
             "supervisor",
-            self._make_supervisor_router(specialist_names),
+            self._make_router(specialist_names, default=END),
             specialist_names + [END],
         )
 
@@ -223,7 +205,7 @@ class SupervisorOrchestrator:
         for sg in specialist_graphs:
             parent.add_conditional_edges(
                 sg["name"],
-                self._make_specialist_router(specialist_names),
+                self._make_router(specialist_names, default="supervisor"),
                 specialist_names + ["supervisor"],
             )
 
@@ -233,69 +215,53 @@ class SupervisorOrchestrator:
         )
 
         logger.info(
-            f"[SUPERVISOR_CREATED] Graph compiled with "
-            f"{len(specialist_graphs)} specialists"
+            "[SUPERVISOR_CREATED] Graph compiled with %d specialists",
+            len(specialist_graphs),
         )
 
         return compiled
 
     @staticmethod
-    def _make_supervisor_router(
+    def _make_router(
         specialist_names: list[str],
-    ) -> Any:
-        """Create a routing function for the supervisor node.
+        *,
+        default: str,
+    ) -> Callable[[BackcastSupervisorState], str]:
+        """Create a routing function that detects handoff tool calls.
 
-        After the supervisor produces output, route based on whether
-        it called a handoff tool (→ target specialist) or finished
-        (→ END).
+        After a node produces output, checks the last AIMessage for
+        ``handoff_to_{name}`` tool calls. Returns the matching specialist
+        name or ``default`` if no handoff is found.
         """
+
+        handoff_map = {f"handoff_to_{name}": name for name in specialist_names}
 
         def router(state: BackcastSupervisorState) -> str:
             messages = state.get("messages", [])
             if not messages:
-                return END
+                return default
 
             last_msg = messages[-1]
             if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
                 for tc in last_msg.tool_calls:
-                    tool_name = tc.get("name", "")
-                    # Check if it's a handoff tool
-                    for spec_name in specialist_names:
-                        if tool_name == f"handoff_to_{spec_name}":
-                            return spec_name
+                    target = handoff_map.get(tc.get("name", ""))
+                    if target is not None:
+                        return target
 
-            # No handoff — supervisor is done
-            return END
+            return default
 
         return router
 
-    @staticmethod
-    def _make_specialist_router(
-        specialist_names: list[str],
-    ) -> Any:
-        """Create a routing function for specialist nodes.
-
-        After a specialist finishes, check if it handed off to another
-        specialist (peer handoff) or should return control to the supervisor.
-        """
-
-        def router(state: BackcastSupervisorState) -> str:
-            messages = state.get("messages", [])
-            if not messages:
-                return "supervisor"
-
-            last_msg = messages[-1]
-            if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
-                for tc in last_msg.tool_calls:
-                    tool_name = tc.get("name", "")
-                    for spec_name in specialist_names:
-                        if tool_name == f"handoff_to_{spec_name}":
-                            return spec_name
-
-            # No peer handoff — return to supervisor
-            return "supervisor"
-
-        return router
+    def _build_middleware(self, tools: list[BaseTool]) -> list[Any]:
+        return [
+            TodoListMiddleware(),
+            TemporalContextMiddleware(self.context),
+            BackcastSecurityMiddleware(
+                self.context,
+                tools=tools,
+                interrupt_node=None,
+            ),
+        ]
 
     def _build_fallback_graph(
         self,
@@ -309,21 +275,12 @@ class SupervisorOrchestrator:
         logger.info("Building fallback graph with direct tool access")
 
         base_prompt = self.system_prompt or SUPERVISOR_SYSTEM_PROMPT
-        middleware = [
-            TodoListMiddleware(),
-            TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(
-                self.context,
-                tools=all_tools,
-                interrupt_node=None,
-            ),
-        ]
 
         return langchain_create_agent(
             model=self.model,
             tools=all_tools,
             system_prompt=base_prompt,
-            middleware=middleware,  # type: ignore[arg-type]
+            middleware=self._build_middleware(all_tools),
             checkpointer=config.checkpointer,
             context_schema=config.context_schema,
         )

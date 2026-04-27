@@ -20,8 +20,9 @@ The handoff-based orchestration pattern where a supervisor agent routes user req
 6. [Specialist Compilation](#6-specialist-compilation)
 7. [Graph Wiring](#7-graph-wiring)
 8. [Routing Decisions](#8-routing-decisions)
-9. [Walkthrough: Project Health Check with Follow-up](#9-walkthrough-project-health-check-with-follow-up)
-10. [Key Files Reference](#10-key-files-reference)
+9. [Iteration Safety](#9-iteration-safety)
+10. [Walkthrough: Project Health Check with Follow-up](#10-walkthrough-project-health-check-with-follow-up)
+11. [Key Files Reference](#11-key-files-reference)
 
 ---
 
@@ -36,8 +37,6 @@ class SupervisorOrchestrator:
         model: str | BaseChatModel,
         context: ToolContext,
         system_prompt: str | None = None,
-        enable_subagents: bool = True,
-        interrupt_node: Any = None,
     ) -> None:
 ```
 
@@ -49,6 +48,7 @@ The supervisor is invoked via `DeepAgentOrchestrator.create_agent()` when `confi
 
 ```python
 # In DeepAgentOrchestrator.create_agent()
+# Routing priority: briefing_room → supervisor → default
 if config.use_supervisor:
     supervisor = SupervisorOrchestrator(...)
     return supervisor.create_supervisor_graph(config)
@@ -79,6 +79,7 @@ The supervisor retains the `task` tool for parallel batch operations where conte
 | `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based agent delegation with shared state |
 | `ai/supervisor_state.py` | `BackcastSupervisorState`: shared state schema for supervisor graph |
 | `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: `Command(goto=...)` handoff mechanism |
+| `ai/subagent_compiler.py` | Shared compilation logic for both specialists and subagents |
 
 ---
 
@@ -170,6 +171,8 @@ def handoff_tool(
             "active_agent": agent_name,
         },
     )
+
+handoff_tool.metadata = {METADATA_KEY_HANDOFF_DESTINATION: agent_name}
 ```
 
 The `graph=Command.PARENT` flag tells LangGraph to route to the target agent's subgraph node in the **parent** graph, preserving shared state. The handoff tool:
@@ -177,27 +180,34 @@ The `graph=Command.PARENT` flag tells LangGraph to route to the target agent's s
 - Takes a `task_description` parameter (brief description of what to hand off).
 - Injects the current state and tool call ID via LangGraph's dependency injection.
 - Updates `active_agent` for event bus tracking.
+- Sets `METADATA_KEY_HANDOFF_DESTINATION` on tool metadata for routing detection without parsing tool names.
 
 ### create_all_handoff_tools()
 
-Creates one handoff tool per specialist in the configuration list. Each tool is named `handoff_to_{agent_name}` and its description includes the specialist's domain description.
+Creates one handoff tool per **successfully compiled** specialist graph. Only specialists that passed tool filtering and RBAC checks get handoff tools — this prevents routing to non-existent graph nodes.
+
+```python
+# Correct: pass compiled specialist_graphs, not raw subagent_configs
+handoff_tools = create_all_handoff_tools(specialist_graphs)
+```
 
 ### METADATA_KEY_HANDOFF_DESTINATION
 
-The constant `METADATA_KEY_HANDOFF_DESTINATION = "__handoff_destination__"` can be attached to tool result metadata so routing logic can detect the target agent without parsing the tool name.
+The constant `METADATA_KEY_HANDOFF_DESTINATION = "__handoff_destination__"` is attached to each handoff tool's metadata. This enables downstream consumers (logging, analytics, alternative routing strategies) to detect the target agent without parsing the tool name string.
 
 ---
 
 ## 6. Specialist Compilation
 
-### _build_specialist_agents()
+### compile_subagents()
 
-Follows the same compilation pattern as [Common Concepts > Subagent Roster](./agent-common-concepts.md#5-subagent-roster), with these specifics:
+Specialist compilation is handled by the shared `compile_subagents()` function in `ai/subagent_compiler.py` (same as Deep Agent subagents). Key specifics:
 
 1. Each specialist is compiled via `langchain_create_agent()` with `name=agent_name` (so the subgraph node is properly identified in the parent graph).
-2. Middleware stack: `TemporalContextMiddleware` + `BackcastSecurityMiddleware` (same as Deep Agent subagents — no `TodoListMiddleware` for specialists).
-3. Tool filtering follows the same intersection logic as Deep Agent subagents.
-4. Specialists with zero tools after filtering are skipped.
+2. **Fresh middleware per specialist** — each gets its own `TemporalContextMiddleware` and `BackcastSecurityMiddleware` instances to prevent mutable state leakage between agents.
+3. Middleware stack: `TemporalContextMiddleware` + `BackcastSecurityMiddleware` (no `TodoListMiddleware` for specialists — that's supervisor-only).
+4. Tool filtering follows the same intersection logic as Deep Agent subagents.
+5. Specialists with zero tools after filtering are skipped.
 
 ### Compiled Specialist Dict
 
@@ -220,10 +230,10 @@ Follows the same compilation pattern as [Common Concepts > Subagent Roster](./ag
 ```mermaid
 flowchart TD
     START((START)) -->|"add_edge"| SUP["supervisor\n(compiled agent)"]
-    SUP -->|"add_conditional_edges"| ROUTE{"_make_supervisor_router()"}
+    SUP -->|"add_conditional_edges"| ROUTE{"_make_router(default=END)"}
     ROUTE -->|"handoff_to_X found"| SPEC_X["specialist X\n(subgraph node)"]
     ROUTE -->|"no handoff"| END_NODE((END))
-    SPEC_X -->|"add_conditional_edges"| SPEC_ROUTE{"_make_specialist_router()"}
+    SPEC_X -->|"add_conditional_edges"| SPEC_ROUTE{"_make_router(default='supervisor')"}
     SPEC_ROUTE -->|"peer handoff found"| SPEC_Y["specialist Y"]
     SPEC_ROUTE -->|"no peer handoff"| SUP
 ```
@@ -237,7 +247,7 @@ parent.add_edge(START, "supervisor")
 # Supervisor: conditional → specialist or END
 parent.add_conditional_edges(
     "supervisor",
-    _make_supervisor_router(specialist_names),
+    _make_router(specialist_names, default=END),
     specialist_names + [END],
 )
 
@@ -245,24 +255,59 @@ parent.add_conditional_edges(
 for sg in specialist_graphs:
     parent.add_conditional_edges(
         sg["name"],
-        _make_specialist_router(specialist_names),
+        _make_router(specialist_names, default="supervisor"),
         specialist_names + ["supervisor"],
     )
 ```
 
-### _make_supervisor_router()
+### _make_router()
 
-After the supervisor produces output, checks the last `AIMessage` for handoff tool calls:
+A unified routing function that serves both supervisor and specialist edges. Pre-computes a `handoff_map` dict at closure time for O(1) lookup instead of O(n*m) nested loops:
 
-- If a `handoff_to_{name}` tool call is found → route to that specialist.
-- Otherwise → `END` (supervisor's text response goes to the user).
+```python
+@staticmethod
+def _make_router(
+    specialist_names: list[str],
+    *,
+    default: str,
+) -> Callable[[BackcastSupervisorState], str]:
+    handoff_map = {f"handoff_to_{name}": name for name in specialist_names}
 
-### _make_specialist_router()
+    def router(state: BackcastSupervisorState) -> str:
+        messages = state.get("messages", [])
+        if not messages:
+            return default
+        last_msg = messages[-1]
+        if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
+            for tc in last_msg.tool_calls:
+                target = handoff_map.get(tc.get("name", ""))
+                if target is not None:
+                    return target
+        return default
 
-After a specialist finishes, checks for peer handoff:
+    return router
+```
 
-- If the specialist's last `AIMessage` contains a `handoff_to_{name}` tool call → route directly to that specialist (peer handoff, no return to supervisor).
-- Otherwise → route back to `supervisor`.
+**Supervisor router** (`default=END`): After the supervisor produces output, checks the last `AIMessage` for handoff tool calls. If found → route to that specialist. Otherwise → `END`.
+
+**Specialist router** (`default="supervisor"`): After a specialist finishes, checks for peer handoff. If found → route directly to that specialist (peer handoff). Otherwise → return to supervisor.
+
+### _build_middleware()
+
+Extracted factory for the middleware stack, used by both the main supervisor and the fallback graph:
+
+```python
+def _build_middleware(self, tools: list[BaseTool]) -> list[Any]:
+    return [
+        TodoListMiddleware(),
+        TemporalContextMiddleware(self.context),
+        BackcastSecurityMiddleware(
+            self.context,
+            tools=tools,
+            interrupt_node=None,
+        ),
+    ]
+```
 
 ### Fallback
 
@@ -296,7 +341,33 @@ The supervisor retains the `task` tool for cases where parallel execution is mor
 
 ---
 
-## 9. Walkthrough: Project Health Check with Follow-up
+## 9. Iteration Safety
+
+### Tool Call Limit (Intra-Agent)
+
+Each compiled agent (supervisor and specialists) has an internal `should_continue` check that enforces `max_tool_iterations` (default: 25). This prevents individual agents from entering infinite tool-call loops. The `tool_call_count` accumulates across all tool calls within that agent's execution.
+
+### Specialist Cycle Limit (Inter-Agent)
+
+The supervisor graph currently has **no hard limit** on specialist handoff cycles. The path `supervisor → specialist → supervisor → specialist → ...` is bounded only by:
+
+1. **LLM judgment** — the supervisor's system prompt instructs it to synthesize after receiving specialist responses, not to re-dispatch indefinitely.
+2. **Token limits** — the growing message history eventually exceeds the context window.
+3. **Tool call budget** — each cycle consumes tool calls, approaching `max_tool_iterations`.
+
+### Recommendations for Production
+
+Based on E2E testing findings, these additional guards should be considered:
+
+1. **Specialist early exit**: Before executing a specialist, check if that specialist type already completed successfully in this execution. If so, return immediately instead of re-running. This prevents redundant cycles when the supervisor re-dispatches after receiving a successful result.
+
+2. **Hard cycle limit**: Add `max_specialist_cycles` to `BackcastSupervisorState` (e.g., 3) and check in the router before routing to any specialist. This provides a safety net beyond LLM judgment.
+
+3. **Context caching**: Cache `get_temporal_context` results within a single execution to avoid redundant reads before each specialist dispatch.
+
+---
+
+## 10. Walkthrough: Project Health Check with Follow-up
 
 **User:** "What's the status and EVM performance of project PRJ-001?"
 **Follow-up:** "How would change order CO-0042 affect this?"
@@ -519,12 +590,13 @@ sequenceDiagram
 
 ---
 
-## 10. Key Files Reference
+## 11. Key Files Reference
 
 | File | Responsibility |
 |------|---------------|
 | `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based agent delegation with shared state |
 | `ai/supervisor_state.py` | `BackcastSupervisorState`: shared state schema for supervisor graph |
 | `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: `Command(goto=...)` handoff mechanism |
+| `ai/subagent_compiler.py` | Shared compilation logic for both specialists and subagents |
 | `ai/subagents/__init__.py` | Seven subagent configurations used by both orchestrators |
 | `ai/config.py` | `AgentConfig` dataclass with `use_supervisor` field |

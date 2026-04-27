@@ -66,6 +66,7 @@ def create_handoff_tool(
             },
         )
 
+    handoff_tool.metadata = {METADATA_KEY_HANDOFF_DESTINATION: agent_name}
     return handoff_tool
 
 

@@ -66,15 +66,6 @@ def compile_subagents(
         List of dicts with keys: name, description, runnable,
         structured_output_schema, tools.
     """
-    middleware = [
-        TemporalContextMiddleware(context),
-        BackcastSecurityMiddleware(
-            context,
-            tools=available_tools,
-            interrupt_node=None,
-        ),
-    ]
-
     results: list[dict[str, Any]] = []
 
     for cfg in subagent_configs:
@@ -106,6 +97,16 @@ def compile_subagents(
                 "%s '%s' has no tools after filtering — skipping", label, name
             )
             continue
+
+        # Fresh middleware per subagent to avoid mutable state leakage
+        middleware = [
+            TemporalContextMiddleware(context),
+            BackcastSecurityMiddleware(
+                context,
+                tools=subagent_tools,
+                interrupt_node=None,
+            ),
+        ]
 
         runnable = langchain_create_agent(
             model=model,
