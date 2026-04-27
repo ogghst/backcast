@@ -25,6 +25,7 @@ from app.ai.config import AgentConfig
 from app.ai.handoff_tools import create_all_handoff_tools
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
+from app.ai.subagent_compiler import compile_subagents
 from app.ai.subagents import get_all_subagents
 from app.ai.supervisor_state import BackcastSupervisorState
 from app.ai.tools import (
@@ -142,8 +143,13 @@ class SupervisorOrchestrator:
             config.subagents if config.subagents is not None else get_all_subagents()
         )
         specialist_names: list[str] = []
-        specialist_graphs = self._build_specialist_agents(
-            subagent_configs, all_tools, config.allowed_tools
+        specialist_graphs = compile_subagents(
+            self.model,
+            self.context,
+            subagent_configs,
+            all_tools,
+            allowed_tools=config.allowed_tools,
+            label="specialist",
         )
 
         for sg in specialist_graphs:
@@ -232,83 +238,6 @@ class SupervisorOrchestrator:
         )
 
         return compiled
-
-    def _build_specialist_agents(
-        self,
-        subagent_configs: list[dict[str, Any]],
-        available_tools: list[BaseTool],
-        allowed_tools: list[str] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Compile specialist agents with per-agent tool filtering.
-
-        Each specialist is compiled via ``create_agent()`` with its own
-        filtered tool set, middleware, and optional structured output schema.
-        """
-        specialist_middleware = [
-            TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(
-                self.context,
-                tools=available_tools,
-                interrupt_node=None,
-            ),
-        ]
-
-        specialists: list[dict[str, Any]] = []
-
-        for cfg in subagent_configs:
-            name = cfg.get("name", "")
-            description = cfg.get("description", "")
-            system_prompt = cfg.get("system_prompt", "")
-            allowed_tool_names = cfg.get("allowed_tools")
-            schema = cfg.get("structured_output_schema")
-
-            # Filter tools for this specialist
-            if allowed_tool_names is None:
-                if allowed_tools is not None:
-                    filtered_tool_names = list(allowed_tools)
-                else:
-                    filtered_tool_names = [t.name for t in available_tools]
-            else:
-                if allowed_tools is not None:
-                    filtered_tool_names = [
-                        n for n in allowed_tool_names if n in allowed_tools
-                    ]
-                else:
-                    filtered_tool_names = allowed_tool_names
-
-            specialist_tools = [
-                t for t in available_tools if t.name in filtered_tool_names
-            ]
-
-            if not specialist_tools:
-                logger.warning(
-                    f"Specialist '{name}' has no tools after filtering — skipping"
-                )
-                continue
-
-            runnable = langchain_create_agent(
-                model=self.model,
-                tools=specialist_tools,
-                system_prompt=system_prompt,
-                middleware=specialist_middleware,
-                response_format=schema,
-                name=name,
-            )
-
-            specialists.append(
-                {
-                    "name": name,
-                    "description": description,
-                    "runnable": runnable,
-                    "structured_output_schema": schema,
-                    "tools": specialist_tools,
-                }
-            )
-            logger.info(
-                f"Compiled specialist '{name}' with {len(specialist_tools)} tools"
-            )
-
-        return specialists
 
     @staticmethod
     def _make_supervisor_router(

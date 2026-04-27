@@ -18,6 +18,7 @@ from langchain_core.tools import BaseTool
 from app.ai.config import AgentConfig
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
+from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT, compile_subagents
 from app.ai.subagents import get_all_subagents
 from app.ai.tools import (
     create_project_tools,
@@ -28,25 +29,6 @@ from app.ai.tools.subagent_task import TASK_SYSTEM_PROMPT, build_task_tool
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
-
-# Default system prompt (fallback when no custom prompt is provided)
-DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast project budget management system.
-
-You can help with:
-- Listing and viewing projects
-- Getting detailed project information
-- Earned value management calculations
-
-When providing information:
-- Be accurate and rely on the project data
-- Use three-letter codes for project status (e.g., "ACT" for active, "PLN" for planned)
-- Present data in clear, structured formats
-- Only use tools you have been explicitly enabled for the assistant
-
-When using tools:
-- Always use the exact field names expected by the tools
-- For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
-"""
 
 
 class DeepAgentOrchestrator:
@@ -207,7 +189,9 @@ class DeepAgentOrchestrator:
             subagent_configs = (
                 subagents if subagents is not None else get_all_subagents()
             )
-            compiled_subagents = self._build_subagent_dicts(
+            compiled_subagents = compile_subagents(
+                self.model,
+                self.context,
                 subagent_configs,
                 all_tools,
                 allowed_tools=allowed_tools,
@@ -329,102 +313,6 @@ Example good responses:
 
 Do NOT attempt to use Backcast tools directly - they will not work. Always delegate via the task tool.
 """
-
-    def _build_subagent_dicts(
-        self,
-        subagent_configs: list[dict[str, Any]],
-        available_tools: list[BaseTool],
-        allowed_tools: list[str] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Compile subagent configuration dicts into runnable graphs.
-
-        Each subagent is compiled via langchain.agents.create_agent() with
-        Backcast middleware (TemporalContextMiddleware + BackcastSecurityMiddleware)
-        but without TodoListMiddleware (only the main agent needs planning).
-
-        Args:
-            subagent_configs: List of subagent configuration dictionaries
-            available_tools: List of all available tools for filtering
-            allowed_tools: Optional whitelist of tool names from the assistant config.
-                When a subagent config has allowed_tools=None, it receives all available
-                tools (intersected with this whitelist if provided).
-
-        Returns:
-            List of dicts with 'name', 'description', and 'runnable' keys
-        """
-        subagent_dicts: list[dict[str, Any]] = []
-
-        # Build Backcast middleware for subagents
-        subagent_middleware = [
-            TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(
-                self.context,
-                tools=available_tools,
-                interrupt_node=None,  # Per-request InterruptNode set via ContextVar at invocation time
-            ),
-        ]
-
-        for config in subagent_configs:
-            name = config.get("name", "")
-            description = config.get("description", "")
-            system_prompt = config.get("system_prompt", "")
-            allowed_tool_names = config.get("allowed_tools")
-
-            # Filter tools by subagent's allowed_tool_names AND assistant's whitelist
-            if allowed_tool_names is None:
-                # General-purpose agent: gets all available tools
-                # (intersected with assistant whitelist)
-                if allowed_tools is not None:
-                    filtered_tool_names = list(allowed_tools)
-                else:
-                    filtered_tool_names = [t.name for t in available_tools]
-            else:
-                # Specialist agent: filter by its specific tool list
-                if allowed_tools is not None:
-                    filtered_tool_names = [
-                        tool_name
-                        for tool_name in allowed_tool_names
-                        if tool_name in allowed_tools
-                    ]
-                else:
-                    filtered_tool_names = allowed_tool_names
-
-            # Filter tools by the filtered tool names
-            subagent_tools = [
-                t for t in available_tools if t.name in filtered_tool_names
-            ]
-
-            if not subagent_tools:
-                logger.warning(
-                    f"Subagent '{name}' has no valid tools after filtering - skipping"
-                )
-                continue
-
-            # Get structured output schema if defined
-            schema = config.get("structured_output_schema")
-
-            # Compile the subagent into a runnable graph
-            # Pass response_format parameter if schema is defined
-            runnable = langchain_create_agent(
-                model=self.model,
-                tools=subagent_tools,
-                system_prompt=system_prompt,
-                middleware=subagent_middleware,
-                response_format=schema,
-            )
-
-            subagent_dicts.append(
-                {
-                    "name": name,
-                    "description": description,
-                    "runnable": runnable,
-                    "structured_output_schema": schema,
-                    "tools": subagent_tools,
-                }
-            )
-            logger.info(f"Compiled subagent '{name}' with {len(subagent_tools)} tools")
-
-        return subagent_dicts
 
 
 __all__ = ["AgentConfig", "DeepAgentOrchestrator"]

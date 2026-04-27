@@ -39,6 +39,7 @@ from app.ai.graph_cache import (
     set_request_context,
     shared_checkpointer,
 )
+from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
@@ -48,7 +49,7 @@ from app.ai.token_estimator import (
     log_actual_usage,
     log_context_usage_estimate,
 )
-from app.ai.tools import ToolContext, create_project_tools
+from app.ai.tools import ToolContext, create_project_tools, filter_tools_by_role
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
@@ -106,7 +107,6 @@ async def _extract_client_config(
 
     client_config: dict[str, Any] = {}
 
-    # Extract config values
     for cfg in config_values:
         if cfg.key == "api_key" and cfg.value is not None:
             client_config["api_key"] = str(cfg.value)
@@ -117,11 +117,9 @@ async def _extract_client_config(
         elif cfg.key == "max_retries" and cfg.value is not None:
             client_config["max_retries"] = int(cfg.value)
 
-    # Set base URL for provider if configured at provider level
     if "base_url" not in client_config and provider.base_url:
         client_config["base_url"] = str(provider.base_url)
 
-    # Handle Azure-specific configuration
     if provider.provider_type == "azure":
         azure_deployment = next(
             (
@@ -141,15 +139,17 @@ async def _extract_client_config(
 logger = logging.getLogger(__name__)
 
 # Specialist agent names used for supervisor graph event routing
-SPECIALIST_AGENT_NAMES = frozenset({
-    "project_manager",
-    "evm_analyst",
-    "change_order_manager",
-    "user_admin",
-    "visualization_specialist",
-    "forecast_manager",
-    "general_purpose",
-})
+SPECIALIST_AGENT_NAMES = frozenset(
+    {
+        "project_manager",
+        "evm_analyst",
+        "change_order_manager",
+        "user_admin",
+        "visualization_specialist",
+        "forecast_manager",
+        "general_purpose",
+    }
+)
 
 # Caches (shared across all requests)
 _llm_cache = LLMClientCache()
@@ -188,27 +188,6 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
     return role
 
 
-# Constants
-DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast project budget management system.
-
-You can help with:
-- Listing and viewing projects
-- Getting detailed project information
-- Earned value management calculations
-
-When providing information:
-- Be accurate and rely on the project data
-- Use three-letter codes for project status (e.g., "ACT" for active, "PLN" for planned)
-- Present data in clear, structured formats
-- Only use tools you have been explicitly enabled for the assistant
-
-When using tools:
-- Always use the exact field names expected by the tools
-- For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
-- Use search to find projects by code or name
-"""
-
-
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
@@ -217,20 +196,6 @@ class AgentService:
         self._config_service: AIConfigService | None = None
         self._subagent_invocation_counts: dict[str, int] = {}
         self._cancellation_tokens: dict[UUID, asyncio.Event] = {}
-
-    @staticmethod
-    def _is_websocket_connected(websocket: WebSocket) -> bool:
-        """Check if WebSocket is still connected.
-
-        Delegates to the shared is_websocket_connected utility.
-
-        Args:
-            websocket: WebSocket connection to check
-
-        Returns:
-            True if WebSocket is connected, False otherwise
-        """
-        return is_websocket_connected(websocket)
 
     @property
     def config_service(self) -> AIConfigService:
@@ -434,9 +399,7 @@ class AgentService:
 
         # Compile graph
         try:
-            logger.info(
-                f"[GRAPH_COMPILE] Compiling new graph for session {session_id}"
-            )
+            logger.info(f"[GRAPH_COMPILE] Compiling new graph for session {session_id}")
             graph_creation_start = time.time()
 
             orchestrator = DeepAgentOrchestrator(
@@ -565,19 +528,15 @@ class AgentService:
             content=message,
         )
 
-        # Build conversation history
         history = await self._build_conversation_history(session_id)
 
-        # Add system prompt (no temporal context for non-streaming chat)
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         history.insert(0, SystemMessage(content=system_prompt))
 
-        # Get LLM client configuration
         client_config, model_name, provider_type = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
 
-        # Create LangChain LLM wrapper
         llm = await self._create_langchain_llm(
             client_config,
             model_name,
@@ -585,25 +544,19 @@ class AgentService:
             assistant_config.max_tokens,
         )
 
-        # Create tools with RBAC
         user_role = await _get_user_role(self.session, user_id)
 
         tool_context = ToolContext(self.session, str(user_id), user_role=user_role)
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
-        # Filter by assistant config's role ceiling
         if assistant_config.default_role:
-            from app.ai.tools import filter_tools_by_role
-
             filtered = filter_tools_by_role(
                 list(tools_dict.values()), assistant_config.default_role
             )
             tools_dict = {t.name: t for t in filtered}
 
         # Filter by user's actual role
-        from app.ai.tools import filter_tools_by_role
-
         filtered = filter_tools_by_role(list(tools_dict.values()), user_role)
         tools_dict = {t.name: t for t in filtered}
 
@@ -738,10 +691,8 @@ class AgentService:
         Returns:
             None (communicates via event_bus)
         """
-        # Build conversation history
         history = await self._build_conversation_history(session_id)
 
-        # Add system prompt with temporal context
         base_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         system_prompt = self._build_system_prompt(
             base_prompt=base_prompt,
@@ -753,12 +704,10 @@ class AgentService:
         )
         history.insert(0, SystemMessage(content=system_prompt))
 
-        # Get LLM client configuration
         client_config, model_name, provider_type = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
 
-        # Create LangChain LLM wrapper
         llm = await self._create_langchain_llm(
             client_config,
             model_name,
@@ -766,7 +715,6 @@ class AgentService:
             assistant_config.max_tokens,
         )
 
-        # Create tools with RBAC
         user_role = await _get_user_role(self.session, user_id)
 
         tool_context = ToolContext(
@@ -782,7 +730,6 @@ class AgentService:
         )
         available_tools = create_project_tools(tool_context)
 
-        # Create graph (no websocket, but pass event_bus for InterruptNode)
         graph, interrupt_node = await self._create_deep_agent_graph(
             llm=llm,
             tool_context=tool_context,
@@ -797,14 +744,11 @@ class AgentService:
             user_role=user_role,
         )
 
-        # Set per-request context for middleware
         set_request_context(tool_context, interrupt_node)
 
-        # Register InterruptNode for approval handling if created
         if interrupt_node is not None:
             self.register_interrupt_node(session_id, interrupt_node)
 
-        # Estimate context window usage before graph invocation
         log_context_usage_estimate(
             messages=history,
             model_name=model_name,
@@ -812,7 +756,6 @@ class AgentService:
             execution_id=event_bus.execution_id,
         )
 
-        # Extract recursion_limit
         recursion_limit = (
             assistant_config.recursion_limit
             if assistant_config.recursion_limit is not None
@@ -836,7 +779,7 @@ class AgentService:
         tool_calls_count = 0
         current_subagent_name: str | None = None
         current_invocation_id: str | None = None
-        main_invocation_id: str = str(uuid.uuid4())
+        main_invocation_id: str = ""
         task_initiating_main_invocation_id: str | None = None
 
         # Per-invocation token accumulator for batched publishing
@@ -932,7 +875,10 @@ class AgentService:
                         # Handle agent transitions in supervisor graph
                         # When a specialist subgraph node starts/ends, detect by chain name
                         chain_name = event.get("name", "")
-                        if event_type == "on_chain_start" and chain_name in SPECIALIST_AGENT_NAMES:
+                        if (
+                            event_type == "on_chain_start"
+                            and chain_name in SPECIALIST_AGENT_NAMES
+                        ):
                             _flush_accumulated_tokens(
                                 current_invocation_id or main_invocation_id
                             )
@@ -980,12 +926,10 @@ class AgentService:
                                             main_invocation_id
                                             not in main_agent_segments
                                         ):
-                                            main_agent_segments[
-                                                main_invocation_id
-                                            ] = []
-                                        main_agent_segments[
-                                            main_invocation_id
-                                        ].append(content)
+                                            main_agent_segments[main_invocation_id] = []
+                                        main_agent_segments[main_invocation_id].append(
+                                            content
+                                        )
 
                                     total_output_chars += len(content)
 
@@ -1003,9 +947,9 @@ class AgentService:
                                             _token_accumulator[
                                                 invocation_id_to_use
                                             ] = []
-                                        _token_accumulator[
-                                            invocation_id_to_use
-                                        ].append(content)
+                                        _token_accumulator[invocation_id_to_use].append(
+                                            content
+                                        )
 
                         # Handle chat model end -- capture actual token usage
                         elif event_type == "on_chat_model_end":
@@ -1028,9 +972,7 @@ class AgentService:
                                     else None
                                 )
                                 current_invocation_id = str(uuid.uuid4())
-                                task_initiating_main_invocation_id = (
-                                    main_invocation_id
-                                )
+                                task_initiating_main_invocation_id = main_invocation_id
 
                             # Planning event
                             if tool_name == "write_todos":
@@ -1125,28 +1067,21 @@ class AgentService:
                                 elif isinstance(tool_output, Command):
                                     update_dict = tool_output.update
                                     if isinstance(update_dict, dict):
-                                        messages = update_dict.get(
-                                            "messages", []
-                                        )
+                                        messages = update_dict.get("messages", [])
                                         if messages:
                                             last_msg = messages[-1]
                                             if isinstance(last_msg, dict):
-                                                subagent_content = (
-                                                    last_msg.get(
-                                                        "content", ""
-                                                    )
+                                                subagent_content = last_msg.get(
+                                                    "content", ""
                                                 )
                                             elif hasattr(last_msg, "content"):
-                                                subagent_content = str(
-                                                    last_msg.content
-                                                )
+                                                subagent_content = str(last_msg.content)
                                             else:
-                                                subagent_content = str(
-                                                    last_msg
-                                                )
-                                elif isinstance(
-                                    tool_output, dict
-                                ) and "content" in tool_output:
+                                                subagent_content = str(last_msg)
+                                elif (
+                                    isinstance(tool_output, dict)
+                                    and "content" in tool_output
+                                ):
                                     subagent_content = tool_output["content"]
                                 elif isinstance(tool_output, str):
                                     subagent_content = tool_output
@@ -1155,9 +1090,7 @@ class AgentService:
                                     subagent_content = str(subagent_content)
 
                                 if subagent_content:
-                                    subagent_type = (
-                                        current_subagent_name or "subagent"
-                                    )
+                                    subagent_type = current_subagent_name or "subagent"
                                     if (
                                         subagent_type
                                         not in self._subagent_invocation_counts
@@ -1165,13 +1098,9 @@ class AgentService:
                                         self._subagent_invocation_counts[
                                             subagent_type
                                         ] = 0
-                                    self._subagent_invocation_counts[
-                                        subagent_type
-                                    ] += 1
+                                    self._subagent_invocation_counts[subagent_type] += 1
                                     invocation_number = (
-                                        self._subagent_invocation_counts[
-                                            subagent_type
-                                        ]
+                                        self._subagent_invocation_counts[subagent_type]
                                     )
 
                                     target_invocation_id = (
@@ -1229,7 +1158,6 @@ class AgentService:
                                 task_initiating_main_invocation_id = None
 
                             # Generate new main invocation_id after tool completion
-                            _old_invocation_id = main_invocation_id  # noqa: F841
                             main_invocation_id = str(uuid.uuid4())
 
                             tool_output = data.get("output", "")
@@ -1242,9 +1170,7 @@ class AgentService:
                             ):
                                 result_content = tool_output["content"]
                             elif isinstance(tool_output, Command):
-                                result_content = {
-                                    "command": tool_output.update
-                                }
+                                result_content = {"command": tool_output.update}
 
                             result_content = self._make_json_serializable(
                                 result_content
@@ -1264,9 +1190,7 @@ class AgentService:
                                     WSToolResultMessage(
                                         type="tool_result",
                                         tool=tool_name,
-                                        result=jsonable_encoder(
-                                            tool_result_dict
-                                        ),
+                                        result=jsonable_encoder(tool_result_dict),
                                         invocation_id=current_invocation_id
                                         if current_subagent_name
                                         else main_invocation_id,
@@ -1283,9 +1207,7 @@ class AgentService:
                                     "tool": tool_name,
                                     "success": False,
                                     "result": None,
-                                    "error": (
-                                        str(error) if error else "Unknown error"
-                                    ),
+                                    "error": (str(error) if error else "Unknown error"),
                                 }
                                 all_tool_results.append(error_result_dict)
 
@@ -1294,9 +1216,7 @@ class AgentService:
                                     WSToolResultMessage(
                                         type="tool_result",
                                         tool=tool_name,
-                                        result=jsonable_encoder(
-                                            error_result_dict
-                                        ),
+                                        result=jsonable_encoder(error_result_dict),
                                         invocation_id=current_invocation_id
                                         if current_subagent_name
                                         else main_invocation_id,
@@ -1354,11 +1274,9 @@ class AgentService:
                     err_type_name = type(stream_err).__name__
                     err_module = type(stream_err).__module__
                     is_transient = (
-                        err_type_name == "ReadError"
-                        and "httpcore" in err_module
+                        err_type_name == "ReadError" and "httpcore" in err_module
                     ) or (
-                        err_type_name == "RemoteProtocolError"
-                        and "httpx" in err_module
+                        err_type_name == "RemoteProtocolError" and "httpx" in err_module
                     )
                     if is_transient and _retry_attempt < max_retries:
                         logger.warning(
@@ -1383,7 +1301,10 @@ class AgentService:
             )
         finally:
             _flush_task.cancel()
-            # Flush any remaining tokens (covers error path)
+            try:
+                await _flush_task
+            except asyncio.CancelledError:
+                pass
             for inv_id in list(_token_accumulator.keys()):
                 _flush_accumulated_tokens(inv_id)
             clear_request_context()
@@ -1951,20 +1872,17 @@ class AgentService:
             return [self._make_json_serializable(item) for item in obj]
         elif isinstance(obj, str):
             obj_size = len(obj)
-            logger.debug(f"_make_json_serializable: string size={obj_size:,} chars")
-            # Skip JSON parsing for very large strings to prevent CPU spikes
             if obj_size > 100_000:  # 100KB limit
                 return obj
-            # Try to parse JSON strings back to objects
-            # This handles stringified JSON from ToolMessage.content
+            # Cheap pre-check: only attempt json.loads if string starts with a JSON opener
+            if not obj or obj[0] not in ("{", "[", '"'):
+                return obj
             try:
                 import json
 
                 parsed = json.loads(obj)
-                # Recursively process parsed object to handle nested structures
                 return self._make_json_serializable(parsed)
             except (json.JSONDecodeError, TypeError):
-                # Not valid JSON, return as-is
                 return obj
         elif isinstance(obj, (int, float, bool, type(None))):
             return obj
@@ -1972,8 +1890,6 @@ class AgentService:
             # For other types, try string conversion
             return str(obj)
 
-    # Store reference to InterruptNode for approval handling
-    # Key: session_id, Value: InterruptNode instance
     _interrupt_nodes: dict[UUID, "InterruptNode"] = {}
 
     def register_interrupt_node(
@@ -2076,7 +1992,7 @@ class AgentService:
                 "error": None,
             }
 
-            if self._is_websocket_connected(websocket):
+            if is_websocket_connected(websocket):
                 try:
                     msg_data = WSToolResultMessage(
                         type="tool_result",
