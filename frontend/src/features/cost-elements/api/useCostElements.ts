@@ -166,7 +166,6 @@ export const useCreateCostElement = (
       toast.error(`Error creating: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -254,7 +253,6 @@ export const useUpdateCostElement = (
       toast.error(`Error updating: ${error.message}`);
       mutationOptions?.onError?.(error, variables, context, undefined);
     },
-    ...mutationOptions,
   });
 };
 
@@ -299,7 +297,6 @@ export const useDeleteCostElement = (
       toast.error(`Error deleting: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -434,7 +431,6 @@ export const useUpdateCostElementForecast = (
       toast.error(`Error updating forecast: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -477,7 +473,6 @@ export const useDeleteCostElementForecast = (
       toast.error(`Error deleting forecast: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 

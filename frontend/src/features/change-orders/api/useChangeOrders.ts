@@ -128,7 +128,6 @@ export const useCreateChangeOrder = (
       toast.error(`Error creating change order: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -179,7 +178,6 @@ export const useUpdateChangeOrder = (
       toast.error(`Error updating: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -224,7 +222,6 @@ export const useDeleteChangeOrder = (
       toast.error(`Error deleting: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -405,7 +402,6 @@ export const useMergeChangeOrder = (
       }
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -461,6 +457,5 @@ export const useArchiveChangeOrder = (
       toast.error(`Error archiving change order: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

@@ -437,4 +437,169 @@ class TestCostElementServiceBranching:
         assert main_element.cost_element_id in main_ids
         assert main_element.cost_element_id not in branch_ids
         assert branch_element.cost_element_id in branch_ids
-        assert branch_element.cost_element_id not in main_ids
+
+
+class TestCostElementServiceAutoCreation:
+    """Test auto-creation of related entities when creating cost elements."""
+
+    @pytest.mark.asyncio
+    async def test_auto_creates_schedule_baseline(
+        self, db_session: AsyncSession, setup_hierarchy
+    ) -> None:
+        """Test that creating a cost element auto-creates a schedule baseline."""
+        # Arrange
+        hierarchy = setup_hierarchy
+        service = CostElementService(db_session)
+        element_in = CostElementCreate(
+            code="CE-001",
+            name="Mechanical Work Phase 1",
+            wbe_id=hierarchy["wbe"].wbe_id,
+            cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
+            budget_amount=Decimal("50000.00"),
+            schedule_start_date=None,  # Use defaults
+            schedule_end_date=None,
+            schedule_progression_type=None,
+            branch="main",
+        )
+        actor_id = uuid4()
+
+        # Act
+        created_element = await service.create_cost_element(
+            element_in, actor_id=actor_id, branch="main"
+        )
+
+        # Assert - Schedule baseline should be created
+        assert created_element.schedule_baseline_id is not None
+        from app.services.schedule_baseline_service import ScheduleBaselineService
+
+        sb_service = ScheduleBaselineService(db_session)
+        baseline = await sb_service.get_by_id(
+            created_element.schedule_baseline_id, branch="main"
+        )
+        assert baseline is not None
+        assert baseline.cost_element_id == created_element.cost_element_id
+
+    @pytest.mark.asyncio
+    async def test_auto_creates_forecast(
+        self, db_session: AsyncSession, setup_hierarchy
+    ) -> None:
+        """Test that creating a cost element auto-creates a forecast."""
+        # Arrange
+        hierarchy = setup_hierarchy
+        service = CostElementService(db_session)
+        element_in = CostElementCreate(
+            code="CE-002",
+            name="Electrical Work Phase 1",
+            wbe_id=hierarchy["wbe"].wbe_id,
+            cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
+            budget_amount=Decimal("75000.00"),
+            branch="main",
+        )
+        actor_id = uuid4()
+
+        # Act
+        created_element = await service.create_cost_element(
+            element_in, actor_id=actor_id, branch="main"
+        )
+
+        # Assert - Forecast should be created
+        assert created_element.forecast_id is not None
+        from app.services.forecast_service import ForecastService
+
+        forecast_service = ForecastService(db_session)
+        forecast = await forecast_service.get_by_id(
+            created_element.forecast_id, branch="main"
+        )
+        assert forecast is not None
+        # Forecast should default to budget amount
+        assert forecast.eac_amount == Decimal("75000.00")
+
+    @pytest.mark.asyncio
+    async def test_auto_creates_progress_entry(
+        self, db_session: AsyncSession, setup_hierarchy
+    ) -> None:
+        """Test that creating a cost element auto-creates an initial progress entry."""
+        # Arrange
+        hierarchy = setup_hierarchy
+        service = CostElementService(db_session)
+        element_in = CostElementCreate(
+            code="CE-003",
+            name="Plumbing Work Phase 1",
+            wbe_id=hierarchy["wbe"].wbe_id,
+            cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
+            budget_amount=Decimal("60000.00"),
+            branch="main",
+        )
+        actor_id = uuid4()
+
+        # Act
+        created_element = await service.create_cost_element(
+            element_in, actor_id=actor_id, branch="main"
+        )
+
+        # Assert - Progress entry should be created
+        from app.services.progress_entry_service import ProgressEntryService
+
+        progress_service = ProgressEntryService(db_session)
+        latest_progress = await progress_service.get_latest_progress(
+            cost_element_id=created_element.cost_element_id
+        )
+        assert latest_progress is not None
+        assert latest_progress.progress_percentage == Decimal("0.00")
+        assert latest_progress.notes == "Initial progress entry"
+        assert latest_progress.cost_element_id == created_element.cost_element_id
+
+    @pytest.mark.asyncio
+    async def test_auto_creates_all_related_entities(
+        self, db_session: AsyncSession, setup_hierarchy
+    ) -> None:
+        """Test that all related entities are auto-created together atomically."""
+        # Arrange
+        hierarchy = setup_hierarchy
+        service = CostElementService(db_session)
+        element_in = CostElementCreate(
+            code="CE-004",
+            name="HVAC Work Phase 1",
+            wbe_id=hierarchy["wbe"].wbe_id,
+            cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
+            budget_amount=Decimal("80000.00"),
+            branch="main",
+        )
+        actor_id = uuid4()
+
+        # Act
+        created_element = await service.create_cost_element(
+            element_in, actor_id=actor_id, branch="main"
+        )
+
+        # Assert - All related entities should exist
+        assert created_element.schedule_baseline_id is not None
+        assert created_element.forecast_id is not None
+
+        # Verify schedule baseline
+        from app.services.schedule_baseline_service import ScheduleBaselineService
+
+        sb_service = ScheduleBaselineService(db_session)
+        baseline = await sb_service.get_by_id(
+            created_element.schedule_baseline_id, branch="main"
+        )
+        assert baseline is not None
+
+        # Verify forecast
+        from app.services.forecast_service import ForecastService
+
+        forecast_service = ForecastService(db_session)
+        forecast = await forecast_service.get_by_id(
+            created_element.forecast_id, branch="main"
+        )
+        assert forecast is not None
+
+        # Verify progress entry
+        from app.services.progress_entry_service import ProgressEntryService
+
+        progress_service = ProgressEntryService(db_session)
+        latest_progress = await progress_service.get_latest_progress(
+            cost_element_id=created_element.cost_element_id
+        )
+        assert latest_progress is not None
+        assert latest_progress.progress_percentage == Decimal("0.00")

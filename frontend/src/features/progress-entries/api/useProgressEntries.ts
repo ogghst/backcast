@@ -223,6 +223,5 @@ export const useCreateProgressEntry = (
       toast.error(`Error creating progress entry: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

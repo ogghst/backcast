@@ -61,16 +61,6 @@ export const CostElementLayout: React.FC = () => {
   const navItems = [
     { key: "overview", label: "Overview", path: `/cost-elements/${id}` },
     {
-      key: "forecasts",
-      label: "Forecasts",
-      path: `/cost-elements/${id}/forecasts`,
-    },
-    {
-      key: "schedule-baselines",
-      label: "Schedule Baselines",
-      path: `/cost-elements/${id}/schedule-baselines`,
-    },
-    {
       key: "cost-registrations",
       label: "Cost Registrations",
       path: `/cost-elements/${id}/cost-registrations`,
@@ -84,11 +74,6 @@ export const CostElementLayout: React.FC = () => {
       key: "evm-analysis",
       label: "EVM Analysis",
       path: `/cost-elements/${id}/evm-analysis`,
-    },
-    {
-      key: "progress",
-      label: "Progress",
-      path: `/cost-elements/${id}/progress`,
     },
     {
       key: "quality-events",

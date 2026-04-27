@@ -124,6 +124,5 @@ export const useUpdateProjectBudgetSettings = (
       );
       mutationOptions?.onError?.(error, variables, undefined);
     },
-    ...mutationOptions,
   });
 };

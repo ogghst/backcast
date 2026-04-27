@@ -150,12 +150,6 @@ export const useCreateCostElementScheduleBaseline = (
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.scheduleBaselines.byCostElement(
-          args[1].costElementId,
-        ),
-      });
-      // Invalidate general baselines and forecasts
-      queryClient.invalidateQueries({
         queryKey: queryKeys.scheduleBaselines.all,
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
@@ -167,7 +161,6 @@ export const useCreateCostElementScheduleBaseline = (
       toast.error(`Error creating Schedule Baseline: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -222,11 +215,6 @@ export const useUpdateCostElementScheduleBaseline = (
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.scheduleBaselines.byCostElement(
-          args[1].costElementId,
-        ),
-      });
-      queryClient.invalidateQueries({
         queryKey: queryKeys.scheduleBaselines.all,
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
@@ -238,7 +226,6 @@ export const useUpdateCostElementScheduleBaseline = (
       toast.error(`Error updating Schedule Baseline: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -287,11 +274,6 @@ export const useDeleteCostElementScheduleBaseline = (
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.scheduleBaselines.byCostElement(
-          args[1].costElementId,
-        ),
-      });
-      queryClient.invalidateQueries({
         queryKey: queryKeys.scheduleBaselines.all,
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
@@ -303,6 +285,5 @@ export const useDeleteCostElementScheduleBaseline = (
       toast.error(`Error deleting Schedule Baseline: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

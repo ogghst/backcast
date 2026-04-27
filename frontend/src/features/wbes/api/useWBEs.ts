@@ -143,7 +143,6 @@ export const useCreateWBE = (
       toast.error(`Error creating: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -174,7 +173,6 @@ export const useUpdateWBE = (
       toast.error(`Error updating: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -209,7 +207,6 @@ export const useDeleteWBE = (
       toast.error(`Error deleting: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 

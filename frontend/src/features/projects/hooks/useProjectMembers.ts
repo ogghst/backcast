@@ -81,7 +81,6 @@ export const useAddProjectMember = (
       toast.error(`Error adding member: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -115,7 +114,6 @@ export const useRemoveProjectMember = (
       toast.error(`Error removing member: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -162,6 +160,5 @@ export const useUpdateProjectMember = (
       toast.error(`Error updating member role: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

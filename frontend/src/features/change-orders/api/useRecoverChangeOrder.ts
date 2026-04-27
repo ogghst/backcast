@@ -76,6 +76,5 @@ export const useRecoverChangeOrder = (
       toast.error(`Error recovering change order: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

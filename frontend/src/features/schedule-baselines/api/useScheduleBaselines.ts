@@ -235,7 +235,6 @@ export const useCreateScheduleBaseline = (
       toast.error(`Error creating Schedule Baseline: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -277,7 +276,6 @@ export const useUpdateScheduleBaseline = (
       toast.error(`Error updating Schedule Baseline: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -314,7 +312,6 @@ export const useDeleteScheduleBaseline = (
       toast.error(`Error deleting Schedule Baseline: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
