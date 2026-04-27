@@ -2,9 +2,12 @@
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+
+from app.core.temporal import format_temporal_range_for_api
 
 
 class ProgressEntryBase(BaseModel):
@@ -83,3 +86,13 @@ class ProgressEntryRead(ProgressEntryBase):
         if v and not isinstance(v, str):
             return str(v)
         return v  # type: ignore
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def valid_time_formatted(self) -> dict[str, str | bool | None]:
+        return format_temporal_range_for_api(self.valid_time)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def transaction_time_formatted(self) -> dict[str, str | bool | None]:
+        return format_temporal_range_for_api(self.transaction_time)

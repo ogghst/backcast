@@ -15,7 +15,6 @@ import type {
 import { useLatestProgress } from "../api/useProgressEntries";
 import dayjs from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import { parseTemporalRangeLower } from "@/utils/formatters";
 
 interface ProgressEntryModalProps {
   open: boolean;
@@ -183,9 +182,11 @@ export const ProgressEntryModal = ({
                 <strong>{latestProgress.progress_percentage}%</strong>
                 <span>
                   (
-                  {dayjs(
-                    parseTemporalRangeLower(latestProgress.valid_time),
-                  ).format("YYYY-MM-DD HH:mm")}
+                  {latestProgress.valid_time_formatted?.lower
+                    ? dayjs(latestProgress.valid_time_formatted.lower).format(
+                        "YYYY-MM-DD HH:mm",
+                      )
+                    : "-"}
                   )
                 </span>
               </Space>

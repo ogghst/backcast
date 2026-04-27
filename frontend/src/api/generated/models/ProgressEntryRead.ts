@@ -21,5 +21,7 @@ export type ProgressEntryRead = {
     valid_time: string;
     transaction_time: string;
     deleted_at?: (string | null);
+    readonly valid_time_formatted: Record<string, (string | boolean | null)>;
+    readonly transaction_time_formatted: Record<string, (string | boolean | null)>;
 };
 
