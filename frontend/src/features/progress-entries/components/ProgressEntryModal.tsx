@@ -3,7 +3,6 @@ import {
   Modal,
   Form,
   InputNumber,
-  DatePicker,
   Input,
   Alert,
   Space,
@@ -16,6 +15,7 @@ import type {
 import { useLatestProgress } from "../api/useProgressEntries";
 import dayjs from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { parseTemporalRangeLower } from "@/utils/formatters";
 
 interface ProgressEntryModalProps {
   open: boolean;
@@ -53,18 +53,12 @@ export const ProgressEntryModal = ({
   // Track decrease warning state
   const [showDecreaseWarning, setShowDecreaseWarning] = useState(false);
 
-  // Set initial form values
   const initialValuesForForm = initialValues
     ? {
         progress_percentage: parseFloat(initialValues.progress_percentage),
-        control_date: dayjs(
-          initialValues.valid_time.split(",")[0].substring(1),
-        ), // Extract lower bound from TSTZRANGE
         notes: initialValues.notes || "",
       }
-    : {
-        control_date: asOf ? dayjs(asOf) : dayjs(),
-      };
+    : {};
 
   // Check if progress is decreasing
   const checkProgressDecrease = (value: number | null) => {
@@ -92,7 +86,7 @@ export const ProgressEntryModal = ({
       // Format the data for API
       const formattedValues: ProgressEntryCreate | ProgressEntryUpdate = {
         progress_percentage: values.progress_percentage,
-        control_date: values.control_date.toISOString(),
+        control_date: asOf || null,
         notes: values.notes || null,
       };
 
@@ -161,19 +155,6 @@ export const ProgressEntryModal = ({
         </Form.Item>
 
         <Form.Item
-          name="control_date"
-          label="Progress Date"
-          rules={[{ required: true, message: "Please select a date and time" }]}
-        >
-          <DatePicker
-            showTime
-            style={{ width: "100%" }}
-            format="YYYY-MM-DD HH:mm"
-            placeholder="Select date and time"
-          />
-        </Form.Item>
-
-        <Form.Item
           name="notes"
           label="Notes"
           tooltip={
@@ -203,7 +184,7 @@ export const ProgressEntryModal = ({
                 <span>
                   (
                   {dayjs(
-                    latestProgress.valid_time.split(",")[0].substring(1),
+                    parseTemporalRangeLower(latestProgress.valid_time),
                   ).format("YYYY-MM-DD HH:mm")}
                   )
                 </span>

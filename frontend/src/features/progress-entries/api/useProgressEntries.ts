@@ -196,7 +196,7 @@ export const useCreateProgressEntry = (
       // Add control_date from Time Machine if available
       const payload: ProgressEntryCreate = {
         ...data,
-        control_date: asOf || data.control_date || null,
+        control_date: data.control_date || asOf || null,
       };
       return ProgressEntriesService.createProgressEntry(payload);
     },
@@ -257,7 +257,7 @@ export const useUpdateProgressEntry = (
       // Add control_date to data
       const payload: ProgressEntryUpdate = {
         ...data,
-        control_date: asOf || null,
+        control_date: data.control_date || asOf || null,
       };
       return ProgressEntriesService.updateProgressEntry(id, payload);
     },
