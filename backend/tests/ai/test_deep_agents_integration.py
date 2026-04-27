@@ -427,17 +427,24 @@ async def test_orchestrator_create_agent_returns_compiled_graph(
     Tests both with and without subagents to ensure the orchestrator correctly
     delegates to langchain.agents.create_agent() and returns the result.
     Note: langchain_create_agent is called multiple times (once per subagent
-    in _build_subagent_dicts, plus the final main agent call). We verify the
+    in compile_subagents, plus the final main agent call). We verify the
     *last* call which is the main agent creation.
     """
     from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 
     mock_compiled_graph = MagicMock(name="CompiledStateGraph")
 
-    with patch(
-        "app.ai.deep_agent_orchestrator.langchain_create_agent",
-        return_value=mock_compiled_graph,
-    ) as mock_create:
+    # Patch both modules since they each import create_agent from langchain.agents
+    with (
+        patch(
+            "app.ai.subagent_compiler.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ),
+        patch(
+            "app.ai.deep_agent_orchestrator.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ) as mock_create,
+    ):
         # --- with subagents enabled ---
         orchestrator = DeepAgentOrchestrator(
             model=model_string,
@@ -446,7 +453,7 @@ async def test_orchestrator_create_agent_returns_compiled_graph(
         )
         agent = orchestrator.create_agent()
         assert agent is mock_compiled_graph
-        assert mock_create.call_count > 1  # subagent calls + main agent call
+        assert mock_create.call_count > 0  # at least main agent call
         # The last call is the main agent creation
         # call_args returns the last call's (args, kwargs)
         last_call_kwargs = mock_create.call_args.kwargs
@@ -480,10 +487,17 @@ async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(
 
     mock_compiled_graph = MagicMock()
 
-    with patch(
-        "app.ai.deep_agent_orchestrator.langchain_create_agent",
-        return_value=mock_compiled_graph,
-    ) as mock_create:
+    # Patch both modules since they each import create_agent from langchain.agents
+    with (
+        patch(
+            "app.ai.subagent_compiler.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ),
+        patch(
+            "app.ai.deep_agent_orchestrator.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ) as mock_create,
+    ):
         orchestrator = DeepAgentOrchestrator(
             model=model_string,
             context=tool_context,
@@ -502,7 +516,7 @@ async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(
 
 @pytest.mark.asyncio
 async def test_subagent_dicts_have_required_keys(model_string, tool_context):
-    """T-010: Verify _build_subagent_dicts() produces dicts with required keys.
+    """T-010: Verify compile_subagents() produces dicts with required keys.
 
     Each subagent dict must contain: name, description, system_prompt, tools,
     middleware, runnable. Subagents must NOT have TodoListMiddleware in their
@@ -518,6 +532,7 @@ async def test_subagent_dicts_have_required_keys(model_string, tool_context):
     )
 
     mock_compiled_graph = MagicMock()
+    # Patch both modules since they each import create_agent from langchain.agents
     with (
         patch(
             "app.ai.subagent_compiler.langchain_create_agent",
@@ -530,10 +545,10 @@ async def test_subagent_dicts_have_required_keys(model_string, tool_context):
     ):
         orchestrator.create_agent()
 
-    # Test the subagent dicts from get_all_subagents directly
+    # Test the subagent configs from get_all_subagents directly
     subagent_configs = get_all_subagents()
 
-    # Verify each config has the base keys that _build_subagent_dicts uses
+    # Verify each config has the base keys that compile_subagents uses
     for config in subagent_configs:
         # The raw configs have: name, description, system_prompt, allowed_tools
         assert "name" in config, f"Subagent missing 'name': {config}"
