@@ -34,7 +34,7 @@ from langchain_core.tools import StructuredTool
 from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
+from app.ai.subagent_compiler import compile_subagents
 from app.ai.subagents import (
     CHANGE_ORDER_MANAGER_SUBAGENT,
     EVM_ANALYST_SUBAGENT,
@@ -46,7 +46,7 @@ from app.ai.tools.subagent_task import (
     _summarize_structured_output,
     build_task_tool,
 )
-from app.ai.tools.types import ExecutionMode
+from app.ai.tools.types import ExecutionMode, ToolContext
 from app.models.schemas.dashboard import (
     DashboardActivity,
     DashboardData,
@@ -121,97 +121,80 @@ class TestSubagentConfigSchemaField:
 class TestOrchestratorStructuredOutput:
     """T-102: Orchestrator applies with_structured_output() when schema defined."""
 
-    @patch("app.ai.deep_agent_orchestrator.langchain_create_agent")
+    @patch("app.ai.subagent_compiler.langchain_create_agent")
     def test_applies_structured_output_wrapper(
         self, mock_create_agent: MagicMock
     ) -> None:
-        """Orchestrator passes response_format to create_agent when schema defined."""
-        # Setup mock
+        """compile_subagents passes response_format to create_agent when schema defined."""
         mock_runnable = MagicMock()
         mock_create_agent.return_value = mock_runnable
 
-        # Create orchestrator with mock context
-        # Create mock context - we use MagicMock because DeepAgentOrchestrator
-        # only stores the context, it doesn't validate it in __init__
-        context = MagicMock()
-        context.user_id = str(uuid4())
-        context.user_role = "admin"
-        context.execution_mode = ExecutionMode.STANDARD
-        orchestrator = DeepAgentOrchestrator("openai:gpt-4o", context)
+        context = ToolContext(
+            session=MagicMock(),
+            user_id=str(uuid4()),
+            user_role="admin",
+            execution_mode=ExecutionMode.STANDARD,
+            project_id=None,
+        )
 
-        # Build subagents
-        # Note: We need to provide at least one tool or the orchestrator will skip the subagent
         subagents = [
             {
                 "name": "test_agent",
                 "description": "Test",
                 "system_prompt": "You are a test agent",
-                "allowed_tools": ["list_projects"],  # Add a tool to prevent skipping
+                "allowed_tools": ["list_projects"],
                 "structured_output_schema": EVMMetricsRead,
             }
         ]
 
-        # Provide mock tools so the subagent doesn't get skipped
-        from langchain_core.tools import StructuredTool
-
         mock_tool = MagicMock(spec=StructuredTool)
         mock_tool.name = "list_projects"
 
-        result = orchestrator._build_subagent_dicts(
-            subagents, [mock_tool], allowed_tools=None
+        result = compile_subagents(
+            "openai:gpt-4o", context, subagents, [mock_tool], allowed_tools=None
         )
 
-        # Verify create_agent was called with response_format
         mock_create_agent.assert_called_once()
         call_kwargs = mock_create_agent.call_args.kwargs
         assert "response_format" in call_kwargs
         assert call_kwargs["response_format"] == EVMMetricsRead
 
-        # Verify runnable is returned
         assert result[0]["runnable"] == mock_runnable
         assert result[0]["structured_output_schema"] == EVMMetricsRead
 
-    @patch("app.ai.deep_agent_orchestrator.langchain_create_agent")
+    @patch("app.ai.subagent_compiler.langchain_create_agent")
     def test_no_wrapper_when_no_schema(self, mock_create_agent: MagicMock) -> None:
-        """Orchestrator does not apply wrapper when schema is None."""
-        # Setup mock
+        """compile_subagents does not apply wrapper when schema is None."""
         mock_runnable = MagicMock()
         mock_create_agent.return_value = mock_runnable
 
-        # Create orchestrator with mock context
-        # Create mock context - we use MagicMock because DeepAgentOrchestrator
-        # only stores the context, it doesn't validate it in __init__
-        context = MagicMock()
-        context.user_id = str(uuid4())
-        context.user_role = "admin"
-        context.execution_mode = ExecutionMode.STANDARD
-        orchestrator = DeepAgentOrchestrator("openai:gpt-4o", context)
+        context = ToolContext(
+            session=MagicMock(),
+            user_id=str(uuid4()),
+            user_role="admin",
+            execution_mode=ExecutionMode.STANDARD,
+            project_id=None,
+        )
 
-        # Build subagents without schema
         subagents = [
             {
                 "name": "test_agent",
                 "description": "Test",
                 "system_prompt": "You are a test agent",
-                "allowed_tools": ["list_projects"],  # Add a tool to prevent skipping
+                "allowed_tools": ["list_projects"],
                 "structured_output_schema": None,
             }
         ]
 
-        # Provide mock tools so the subagent doesn't get skipped
-        from langchain_core.tools import StructuredTool
-
         mock_tool = MagicMock(spec=StructuredTool)
         mock_tool.name = "list_projects"
 
-        result = orchestrator._build_subagent_dicts(
-            subagents, [mock_tool], allowed_tools=None
+        result = compile_subagents(
+            "openai:gpt-4o", context, subagents, [mock_tool], allowed_tools=None
         )
 
-        # Verify with_structured_output was NOT called
         mock_runnable.with_structured_output.assert_not_called()
 
-        # Verify original runnable is returned
         assert result[0]["runnable"] == mock_runnable
         assert result[0]["structured_output_schema"] is None
 

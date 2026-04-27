@@ -518,11 +518,16 @@ async def test_subagent_dicts_have_required_keys(model_string, tool_context):
     )
 
     mock_compiled_graph = MagicMock()
-    with patch(
-        "app.ai.deep_agent_orchestrator.langchain_create_agent",
-        return_value=mock_compiled_graph,
+    with (
+        patch(
+            "app.ai.subagent_compiler.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ),
+        patch(
+            "app.ai.deep_agent_orchestrator.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ),
     ):
-        # Calling create_agent will trigger _build_subagent_dicts internally
         orchestrator.create_agent()
 
     # Test the subagent dicts from get_all_subagents directly
