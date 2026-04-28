@@ -305,3 +305,27 @@ class TestCreateBriefingSpecialistNode:
         assert result.goto == "__end__"
         # Should NOT have called the specialist graph
         mock_graph.ainvoke.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_error_state_on_specialist_exception(self) -> None:
+        """Specialist failure should return error state, not raise."""
+        mock_graph = AsyncMock()
+        mock_graph.ainvoke.side_effect = Exception("Recursion limit reached")
+
+        orch = SupervisorOrchestrator(model="openai:gpt-4o", context=_make_tool_context())
+        node = orch._create_specialist_wrapper(
+            specialist_name="evm_analyst",
+            specialist_graph=mock_graph,
+            specialist_system_prompt="EVM",
+        )
+
+        state = _make_initial_state()
+        result = await node(state)
+
+        # Should return a dict, not raise
+        assert isinstance(result, dict)
+        assert result["active_agent"] == "supervisor"
+        assert result["completed_specialists"] == {"evm_analyst"}
+        assert "evm_analyst" in result["briefing"]
+        assert "error" in result["briefing"].lower() or "Error" in result["briefing"]
+        assert result["supervisor_iterations"] == 1

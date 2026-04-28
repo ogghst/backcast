@@ -420,15 +420,42 @@ class SupervisorOrchestrator:
 
             max_iterations = state.get("max_tool_iterations", 25)
 
-            result = await specialist_graph.ainvoke(
-                {
-                    "messages": isolated_messages,
+            try:
+                result = await specialist_graph.ainvoke(
+                    {
+                        "messages": isolated_messages,
+                        "tool_call_count": 0,
+                        "max_tool_iterations": max_iterations,
+                        "next": "agent",
+                    },
+                    config={"recursion_limit": max_iterations},
+                )
+            except Exception as exc:
+                logger.error(
+                    "[SPECIALIST_ERROR] Specialist %s failed: %s",
+                    specialist_name,
+                    exc,
+                    exc_info=True,
+                )
+                error_msg = (
+                    f"Specialist {specialist_name} encountered an error: {exc}"
+                )
+                updated_briefing, updated_data, _ = compile_specialist_output(
+                    briefing_data=state.get("briefing_data", {}),
+                    specialist_name=specialist_name,
+                    task_description=f"Failed: {exc}",
+                    specialist_output=error_msg,
+                    tool_calls_summary=[],
+                )
+                return {
+                    "messages": [AIMessage(content=error_msg)],
+                    "briefing": updated_briefing,
+                    "briefing_data": updated_data,
+                    "active_agent": "supervisor",
                     "tool_call_count": 0,
-                    "max_tool_iterations": max_iterations,
-                    "next": "agent",
-                },
-                config={"recursion_limit": max_iterations},
-            )
+                    "supervisor_iterations": 1,
+                    "completed_specialists": {specialist_name},
+                }
 
             # Extract final AI response (last AIMessage without tool_calls)
             findings = ""
