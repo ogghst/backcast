@@ -145,6 +145,19 @@ You coordinate specialist agents who analyze data and report back through a comp
 - Hand off to the most relevant specialist for each aspect of the request
 - After receiving specialist findings, synthesize a clear, concise response
 - Do NOT repeat detailed findings -- highlight key insights and actionable information
+
+## CRITICAL COMPLETION RULES
+1. Maximum 2 specialist cycles for simple requests. Do NOT over-delegate.
+2. Always call get_briefing before deciding to hand off -- check what's already there.
+3. If a specialist has completed the requested work, acknowledge completion and summarize.
+
+## MANDATORY PRE-HANDOFF CHECKLIST
+Before calling ANY handoff_to_X tool, you MUST:
+1. Call get_briefing and check the current findings
+2. Check Specialist Contributions section -- if specialist X already has findings, DO NOT handoff to X again
+3. Verify the user's request hasn't already been addressed
+
+Failure to check will result in redundant work, wasted API costs, and poor user experience.
 ```
 
 ### _BRIEFING_HANDOFF_SUFFIX
@@ -182,9 +195,31 @@ def handoff_tool(
         tool_call_id=tool_call_id,
     )
 
+    # Propagate reasoning_content from the last AIMessage (DeepSeek thinking
+    # mode requires it on ALL assistant messages when enabled).
+    rc_kwargs: dict[str, Any] = {}
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, AIMessage):
+            rc = msg.additional_kwargs.get("reasoning_content")
+            if rc:
+                rc_kwargs["additional_kwargs"] = {"reasoning_content": rc}
+            break
+
+    ai_message = AIMessage(
+        content="",
+        tool_calls=[{
+            "name": tool_name, "args": {"task_description": task_description},
+            "id": tool_call_id, "type": "tool_call",
+        }],
+        **rc_kwargs,
+    )
+
     # Deterministic briefing update with task assignment
     briefing_data = state.get("briefing_data", {})
-    doc = BriefingDocument.model_validate(briefing_data)
+    try:
+        doc = BriefingDocument.model_validate(briefing_data)
+    except Exception:
+        doc = BriefingDocument(original_request="(recovered)")
     doc.metadata["current_task"] = {
         "specialist": agent_name,
         "description": task_description,
@@ -236,13 +271,15 @@ Specialist compilation is handled by the shared `compile_subagents()` function i
 
 Each compiled specialist is wrapped in a function node via `_create_specialist_wrapper()`. The wrapper:
 
-1. Checks `completed_specialists` for early exit (skips already-completed specialists).
+1. Checks `completed_specialists` for early exit -- returns `Command(goto=END)` if already completed.
 2. Reads the briefing markdown from state.
 3. Constructs isolated messages: `[SystemMessage(prompt), HumanMessage(briefing + scope boundary)]`.
-4. Invokes the specialist graph via `ainvoke()` (not as a subgraph node).
-5. Extracts the final `AIMessage` (findings) and tool call summary.
-6. Calls `compile_specialist_output()` to append findings to the briefing.
-7. Returns a state update with updated briefing, incremented iteration counter, and the specialist added to `completed_specialists`.
+4. Invokes the specialist graph via `ainvoke()` with `recursion_limit=max_tool_iterations`.
+5. Extracts the final `AIMessage` (findings) with reasoning_content propagation for DeepSeek models.
+6. Extracts tool call summary across all messages in the result.
+7. Calls `compile_specialist_output()` to append findings to the briefing.
+8. On error, still compiles the error message into the briefing (graceful degradation).
+9. Returns a state update with updated briefing, incremented iteration counter, and the specialist added to `completed_specialists`.
 
 The specialist's system prompt includes a `_SCOPE_BOUNDARY` suffix instructing it to stay within its domain and add a "Delegation Notes" section if the briefing requests work outside its specialty.
 
@@ -252,7 +289,7 @@ Each specialist wrapper returns:
 
 ```python
 {
-    "messages": [AIMessage(content=findings)],
+    "messages": [AIMessage(content=findings or "Specialist task completed.", **findings_rc_kwargs)],
     "briefing": updated_briefing,           # compiled markdown with new section
     "briefing_data": updated_data,          # serialized BriefingDocument
     "active_agent": "supervisor",           # always routes back to supervisor

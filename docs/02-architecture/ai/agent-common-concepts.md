@@ -260,10 +260,10 @@ All tools are created via `create_project_tools(tool_context)` in `tools/__init_
    - `user_management_template` (10): User and department CRUD
    - `advanced_analysis_template` (4): Health assessment and anomaly detection
    - `diagram_template` (1): Mermaid diagram generation
-   - `forecast_cost_progress_template` (20): Forecasts, cost registrations, progress entries
+   - `forecast_cost_progress_template` (18): Forecasts, cost registrations, progress entries
 2. Each tool is decorated with `@ai_tool` which attaches metadata: name, description, risk level (`LOW`, `HIGH`, `CRITICAL`).
 3. Results are cached as a singleton — tools are created once.
-4. **Total: 76 tools**.
+4. **Total: 74 tools**.
 
 ### Filtering Chain
 
@@ -271,7 +271,7 @@ Tools go through four filtering stages before reaching the LLM:
 
 ```mermaid
 flowchart TD
-    All["All Tools (76)"]
+    All["All Tools (74)"]
     All --> AT["Allowed tools whitelist\n(if configured)"]
     AT --> EM["filter_tools_by_execution_mode()"]
     EM --> SAFE["SAFE mode:\nonly LOW risk tools"]
@@ -311,7 +311,7 @@ Seven specialized subagents, each mapped to a domain:
 
 | Subagent | Domain | Allowed Tools | Structured Output |
 |----------|--------|--------------|-------------------|
-| `project_manager` | Projects, WBEs, cost elements, cost tracking, progress entries | 37 | None |
+| `project_manager` | Projects, WBEs, cost elements, cost tracking, progress entries | 35 | None |
 | `evm_analyst` | EVM metrics (CPI, SPI, CV, SV, EAC) and health analysis | 10 | `EVMMetricsRead` |
 | `change_order_manager` | Change order CRUD, approval workflows, impact analysis | 10 | `ImpactAnalysisResponse` |
 | `user_admin` | Users and departments CRUD | 12 | None |
@@ -494,7 +494,7 @@ When `use_supervisor=True`, `DeepAgentOrchestrator.create_agent()` delegates to 
 | `ai/graph.py` | LangGraph `StateGraph` with `should_continue()` routing, graph creation factory |
 | `ai/graph_cache.py` | `BackcastRuntimeContext`, `LLMClientCache`, `shared_checkpointer`, ContextVar helpers |
 | `ai/subagents/__init__.py` | Seven subagent configurations (name, prompt, allowed_tools, structured_output_schema) |
-| `ai/tools/__init__.py` | `create_project_tools()` (76 tools), `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
+| `ai/tools/__init__.py` | `create_project_tools()` (74 tools), `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
 | `ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT`, `TASK_TOOL_DESCRIPTION`, `_summarize_structured_output()` |
 | `ai/middleware/temporal_context.py` | `TemporalContextMiddleware`: injects temporal params into tool args |
 | `ai/middleware/backcast_security.py` | `BackcastSecurityMiddleware`: RBAC + risk checks + approval workflow |
