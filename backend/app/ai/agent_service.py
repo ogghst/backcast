@@ -8,13 +8,14 @@ import logging
 import os
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
 from fastapi.encoders import jsonable_encoder
+from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -24,6 +25,8 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
+from langchain_core.runnables import Runnable
+from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command
 from sqlalchemy import select
@@ -158,6 +161,27 @@ def _patched_convert_delta_to_message_chunk(
 _lc_openai_base._convert_delta_to_message_chunk = (
     _patched_convert_delta_to_message_chunk
 )
+
+
+class _DeepSeekSafeChatModel(ChatOpenAI):
+    """ChatOpenAI subclass that strips ``tool_choice`` for DeepSeek models.
+
+    DeepSeek's API rejects ``tool_choice`` in ``bind_tools()``.  LangChain's
+    ``create_agent`` internally calls ``model.bind_tools(tools, tool_choice=...)``
+    for subagents, which fails at runtime.  This subclass silently drops the
+    parameter when the underlying model is a DeepSeek variant.
+    """
+
+    def bind_tools(
+        self,
+        tools: Sequence[dict[str, Any] | type | Callable[..., Any] | BaseTool],
+        *,
+        tool_choice: dict[str, Any] | str | bool | None = None,
+        **kwargs: Any,
+    ) -> Runnable[LanguageModelInput, AIMessage]:
+        if self.model_name and self.model_name.startswith("deepseek"):
+            tool_choice = None
+        return super().bind_tools(tools, tool_choice=tool_choice, **kwargs)
 
 
 def _extract_reasoning_content(message: AIMessage) -> dict[str, Any] | None:
@@ -409,7 +433,12 @@ class AgentService:
                 kwargs["extra_body"] = {"thinking": {"type": thinking_mode}}
                 if thinking_mode != "disabled" and reasoning_effort:
                     kwargs["reasoning_effort"] = reasoning_effort
-            return ChatOpenAI(
+            cls = (
+                _DeepSeekSafeChatModel
+                if model_name.startswith("deepseek")
+                else ChatOpenAI
+            )
+            return cls(
                 **client_config,
                 model=model_name,
                 temperature=temp,
@@ -1931,7 +1960,10 @@ class AgentService:
                     messages.append(HumanMessage(content=msg.content))
             elif msg.role == "assistant":
                 messages.append(
-                    AIMessage(content=msg.content, **_restore_reasoning_content(msg.message_metadata))
+                    AIMessage(
+                        content=msg.content,
+                        **_restore_reasoning_content(msg.message_metadata),
+                    )
                 )
             elif msg.role == "tool":
                 # Skip tool messages in history - they're implicit

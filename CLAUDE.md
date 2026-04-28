@@ -47,6 +47,7 @@ npm run generate-client        # Generate types from OpenAPI spec
 
 # Code Quality (REQUIRED before commits)
 npm run lint                   # ESLint - must pass
+npm run typecheck              # TypeScript type checking
 ```
 
 ### Full Quality Check
