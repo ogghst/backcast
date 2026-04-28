@@ -308,9 +308,38 @@ async def create_cost_element(
     try:
         from datetime import datetime
 
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement as CostElementModel
         from app.services.cost_element_service import CostElementService
 
         service = CostElementService(context.session)
+
+        # Dedup check: prevent creating duplicate cost elements with same code in same WBE
+        from typing import cast
+
+        dedup_stmt = (
+            select(CostElementModel.cost_element_id, CostElementModel.name)
+            .where(
+                CostElementModel.code == code,
+                CostElementModel.wbe_id == UUID(wbe_id),
+                CostElementModel.branch == branch,
+                func.upper(cast(Any, CostElementModel).valid_time).is_(None),
+                cast(Any, CostElementModel).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        dedup_result = await context.session.execute(dedup_stmt)
+        existing_row = dedup_result.one_or_none()
+        if existing_row:
+            existing_id, existing_name = existing_row
+            return {
+                "error": f"A cost element with code '{code}' already exists under this WBE "
+                f"(ID: {existing_id}, name: '{existing_name}'). "
+                "Use a different code or update the existing cost element.",
+                "existing_id": str(existing_id),
+                "existing_name": existing_name,
+            }
 
         # Parse optional schedule dates
         schedule_start = datetime.fromisoformat(start_date) if start_date else None

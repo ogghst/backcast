@@ -24,5 +24,17 @@ export type CostElementCreate = {
      * Optional control date for creation (valid_time start)
      */
     control_date?: (string | null);
+    /**
+     * Optional start date for the auto-created schedule baseline
+     */
+    schedule_start_date?: (string | null);
+    /**
+     * Optional end date for the auto-created schedule baseline
+     */
+    schedule_end_date?: (string | null);
+    /**
+     * Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)
+     */
+    schedule_progression_type?: (string | null);
 };
 

@@ -34,8 +34,7 @@ import { AssistantSelector } from "./AssistantSelector";
 import { SessionList } from "./SessionList";
 import { MessageList } from "./MessageList";
 import { MessageInput, type PendingAttachment } from "./MessageInput";
-import { AgentActivityPanel } from "./AgentActivityPanel";
-import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
+import { BriefingPanel, type BriefingState } from "./BriefingPanel";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
 import type { ChatMessage, MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../../types";
 import type { WSApprovalRequestMessage } from "../types";
@@ -123,9 +122,8 @@ export const ChatInterface = ({
   const contentResetCounterRef = useRef(0);
   const [pendingUserMessage, setPendingUserMessage] = useState<ChatMessage | null>(null);
 
-  // Agent activity state (Deep Agent planning, subagent delegation, etc.)
-  const [latestActivity, setLatestActivity] = useState<AgentActivity | null>(null);
-  const [activityHistory, setActivityHistory] = useState<ActivityHistoryItem[]>([]);
+  // Briefing state (compiled findings from specialist agents)
+  const [briefing, setBriefing] = useState<BriefingState | null>(null);
 
   // Approval state
   const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
@@ -459,7 +457,8 @@ export const ChatInterface = ({
       setCurrentSessionId((prev) => prev || sessionId);
       setIsWaitingForResponse(false);
       setActiveToolCalls([]);
-      setLatestActivity(null);
+      // Intentionally keep briefing state — users should review
+      // the compiled briefing after the agent finishes
       setShowStreamSeparator(false);
       setToolJustFinished(false);
       contentResetOccurredRef.current = false;
@@ -518,7 +517,6 @@ export const ChatInterface = ({
       subagents: new Map<string, SubagentStream>(),
     });
     setActiveToolCalls([]);
-    setLatestActivity(null);
   }, []);
 
   // Debug: Capture all raw WebSocket messages
@@ -542,34 +540,6 @@ export const ChatInterface = ({
   const toolStepCounter = useRef<Map<string, number>>(new Map());
   const totalToolSteps = useRef<Map<string, number>>(new Map());
 
-  // Helper function to format relative time
-  const formatRelativeTime = useCallback((timestamp: number): string => {
-    const now = Date.now();
-    const diff = now - timestamp;
-
-    if (diff < 1000) return "Just now";
-    if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    return `${Math.floor(diff / 3600000)}h ago`;
-  }, []);
-
-  // Helper function to add current activity to history before updating
-  const addToActivityHistory = useCallback((activity: AgentActivity) => {
-    setActivityHistory((prev) => {
-      // Don't add if it's the same as the current activity
-      if (prev.length > 0 && prev[0].activity.timestamp === activity.timestamp) {
-        return prev;
-      }
-      // Create history item with relative time
-      const historyItem: ActivityHistoryItem = {
-        activity,
-        displayTime: formatRelativeTime(activity.timestamp),
-      };
-      // Keep only the last 10 activities
-      return [historyItem, ...prev].slice(0, 10);
-    });
-  }, [formatRelativeTime]);
-
   const handleApprovalRequest = useCallback((request: WSApprovalRequestMessage) => {
     // Show approval dialog and reset countdown
     setApprovalRequest(request);
@@ -591,30 +561,24 @@ export const ChatInterface = ({
     }, 1500);
   }, []);
 
-  // Deep Agent activity handlers
-  const handleThinking = useCallback(() => {
-    // Only set thinking if we don't have recent activity
-    if (latestActivity && Date.now() - latestActivity.timestamp < 2000) {
-      return;
-    }
-    // Add current activity to history before updating
-    if (latestActivity) {
-      addToActivityHistory(latestActivity);
-    }
-    setLatestActivity({
-      type: "thinking",
-      timestamp: Date.now(),
-    });
-  }, [latestActivity, addToActivityHistory]);
+  // Briefing update handler
+  const handleBriefingUpdate = useCallback(
+    (briefingMarkdown: string, specialistName: string, completedSpecialists: string[]) => {
+      setBriefing({
+        markdown: briefingMarkdown,
+        completedSpecialists: completedSpecialists,
+        lastSpecialist: specialistName,
+      });
+    },
+    [],
+  );
 
   /**
-   * Handles tool call events by marking active streams as complete and updating
-   * the agent activity panel.
+   * Handles tool call events by marking active streams as complete.
    *
    * Context: Called by useStreamingChat when the AI agent invokes a tool.
    * Completes any active main agent streams so that content before the tool call
-   * appears in its own bubble, then adds the tool to the active calls list for
-   * the activity panel display.
+   * appears in its own bubble.
    *
    * @param tool - Name of the tool being invoked
    * @param args - Arguments passed to the tool
@@ -640,19 +604,7 @@ export const ChatInterface = ({
 
     // Add tool to active calls
     setActiveToolCalls((prev) => [...prev, { name: tool, args }]);
-
-    // Add current activity to history before updating
-    if (latestActivity && latestActivity.toolName !== tool) {
-      addToActivityHistory(latestActivity);
-    }
-
-    // Update latest activity
-    setLatestActivity({
-      type: "executing",
-      toolName: tool,
-      timestamp: Date.now(),
-    });
-  }, [latestActivity, addToActivityHistory]);
+  }, []);
 
   const handleToolResult = useCallback((tool: string) => {
     // Remove tool from active calls
@@ -664,14 +616,9 @@ export const ChatInterface = ({
     toolStepCounter.current.delete(tool);
     totalToolSteps.current.delete(tool);
 
-    // Clear latest activity if it was for this tool
-    if (latestActivity?.type === "executing" && latestActivity.toolName === tool) {
-      setLatestActivity(null);
-    }
-
     // Set flag to add separator before next text stream
     setToolJustFinished(true);
-  }, [latestActivity]);
+  }, []);
 
   // Streaming chat hook
   const streamingChat = useStreamingChat({
@@ -688,12 +635,12 @@ export const ChatInterface = ({
     onApprovalRequest: handleApprovalRequest,
     onApprovalCountdown: handleApprovalCountdown,
     onApprovalTimeout: handleApprovalTimeout,
-    onThinking: handleThinking,
     onSubagentStart: handleSubagentStart,
     onSubagentComplete: handleSubagentComplete,
     onMainAgentComplete: handleMainAgentComplete,
     onContentReset: handleContentReset,
     onRawMessage: handleRawMessage,
+    onBriefingUpdate: handleBriefingUpdate,
     onExecutionStatus: useCallback((executionId: string, status: string, sessionId: string) => {
       // Invalidate sessions cache to pick up execution status changes
       void executionId; // Unused but kept for interface consistency
@@ -770,7 +717,7 @@ export const ChatInterface = ({
         subagents: new Map<string, SubagentStream>(),
       });
       setActiveToolCalls([]);
-      setLatestActivity(null);
+      setBriefing(null);
       setIsWaitingForResponse(true);
       setLastTokenUsage(null);
       setShowStreamSeparator(false);
@@ -807,7 +754,7 @@ export const ChatInterface = ({
       subagents: new Map<string, SubagentStream>(),
     });
     setActiveToolCalls([]);
-    setLatestActivity(null);
+    setBriefing(null);
     setIsWaitingForResponse(false);
     setShowStreamSeparator(false);
     setToolJustFinished(false);
@@ -1212,8 +1159,8 @@ export const ChatInterface = ({
               />
             </div>
 
-            {/* Agent Activity Panel - between messages and input */}
-            <AgentActivityPanel activity={latestActivity} activityHistory={activityHistory} />
+            {/* Briefing Panel - between messages and input */}
+            <BriefingPanel briefing={briefing} isStreaming={isStreaming} />
 
             {/* Input - fixed at bottom for mobile feel */}
             <MessageInput

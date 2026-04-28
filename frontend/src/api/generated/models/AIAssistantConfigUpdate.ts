@@ -12,7 +12,10 @@ export type AIAssistantConfigUpdate = {
     temperature?: (number | null);
     max_tokens?: (number | null);
     recursion_limit?: (number | null);
-    allowed_tools?: (Array<string> | null);
+    /**
+     * RBAC role for tool filtering
+     */
+    default_role?: (string | null);
     model_id?: (string | null);
     is_active?: (boolean | null);
 };

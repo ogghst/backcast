@@ -42,6 +42,7 @@ import {
   isSubagentMessage,
   isSubagentResultMessage,
   isAgentCompleteMessage,
+  isBriefingMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -89,6 +90,8 @@ export interface UseStreamingChatConfig {
   onRawMessage?: (message: unknown, direction: "in" | "out") => void;
   /** Optional callback invoked when an execution status update is received */
   onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
+  /** Optional callback invoked when a briefing update is received */
+  onBriefingUpdate?: (briefing: string, specialistName: string, completedSpecialists: string[]) => void;
 }
 
 /**
@@ -202,6 +205,7 @@ export const useStreamingChat = (
     onContentReset,
     onRawMessage,
     onExecutionStatus,
+    onBriefingUpdate,
   } = config;
 
   // Get JWT token from auth store
@@ -271,6 +275,7 @@ export const useStreamingChat = (
     onContentReset,
     onRawMessage,
     onExecutionStatus,
+    onBriefingUpdate,
   });
 
   // Keep callbacks ref updated (run on every render to capture latest callbacks)
@@ -292,6 +297,7 @@ export const useStreamingChat = (
       onContentReset,
       onRawMessage,
       onExecutionStatus,
+      onBriefingUpdate,
     };
   });
 
@@ -515,6 +521,16 @@ export const useStreamingChat = (
       // Handle content reset messages (sent when subagent completes)
       if (isContentResetMessage(serverMessage)) {
         callbacks.onContentReset?.(serverMessage.reason);
+        return;
+      }
+
+      // Handle briefing update messages
+      if (isBriefingMessage(serverMessage)) {
+        callbacks.onBriefingUpdate?.(
+          serverMessage.briefing,
+          serverMessage.specialist_name,
+          serverMessage.completed_specialists,
+        );
         return;
       }
 

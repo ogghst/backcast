@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ExecutionMode } from './ExecutionMode';
 /**
  * Request body for invoking an agent via REST API.
  */
@@ -13,16 +14,6 @@ export type InvokeAgentRequest = {
     /**
      * AI tool execution mode (default: 'standard')
      */
-    execution_mode?: InvokeAgentRequest.execution_mode;
+    execution_mode?: ExecutionMode;
 };
-export namespace InvokeAgentRequest {
-    /**
-     * AI tool execution mode (default: 'standard')
-     */
-    export enum execution_mode {
-        SAFE = 'safe',
-        STANDARD = 'standard',
-        EXPERT = 'expert',
-    }
-}
 

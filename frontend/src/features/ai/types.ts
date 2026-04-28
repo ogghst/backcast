@@ -13,7 +13,7 @@
  */
 export interface AIProviderPublic {
   id: string;
-  provider_type: "openai" | "azure" | "ollama";
+  provider_type: "openai" | "azure" | "ollama" | "deepseek";
   name: string;
   base_url: string | null;
   is_active: boolean;
@@ -22,14 +22,14 @@ export interface AIProviderPublic {
 }
 
 export interface AIProviderCreate {
-  provider_type: "openai" | "azure" | "ollama";
+  provider_type: "openai" | "azure" | "ollama" | "deepseek";
   name: string;
   base_url?: string | null;
   is_active?: boolean;
 }
 
 export interface AIProviderUpdate {
-  provider_type?: "openai" | "azure" | "ollama";
+  provider_type?: "openai" | "azure" | "ollama" | "deepseek";
   name?: string;
   base_url?: string | null;
   is_active?: boolean;
@@ -122,6 +122,7 @@ export const PROVIDER_TYPES = [
   { value: "openai", label: "OpenAI" },
   { value: "azure", label: "Azure OpenAI" },
   { value: "ollama", label: "Ollama" },
+  { value: "deepseek", label: "DeepSeek" },
 ] as const;
 
 /**

@@ -28,6 +28,7 @@ RISK_LEVEL_VALUES = [RISK_LEVEL_LOW, RISK_LEVEL_HIGH, RISK_LEVEL_CRITICAL]
 PROVIDER_TYPE_OPENAI = "openai"
 PROVIDER_TYPE_AZURE = "azure"
 PROVIDER_TYPE_OLLAMA = "ollama"
+PROVIDER_TYPE_DEEPSEEK = "deepseek"
 
 # Message Roles
 MESSAGE_ROLE_USER = "user"
@@ -643,6 +644,28 @@ class WSAgentTransitionMessage(BaseModel):
     )
     invocation_id: str | None = Field(
         None, description="Unique invocation ID for this agent activation"
+    )
+
+
+class WSBriefingMessage(BaseModel):
+    """WebSocket briefing update message from server.
+
+    Sent when a specialist agent updates the compiled briefing document
+    in the briefing room orchestrator pattern.
+    """
+
+    type: Literal["briefing_update"] = Field(
+        default="briefing_update", description="Message type discriminator"
+    )
+    briefing: str = Field(
+        ..., description="Compiled briefing markdown document"
+    )
+    specialist_name: str = Field(
+        ..., description="Name of the specialist that updated the briefing"
+    )
+    completed_specialists: list[str] = Field(
+        default_factory=list,
+        description="List of specialist names that have completed",
     )
 
 

@@ -64,16 +64,16 @@ class LLMClientCache:
 
     Avoids re-instantiating LLM clients with identical configuration across
     requests.  Instances are keyed by ``(model_name, temperature, max_tokens,
-    base_url_hash)``.
+    base_url_hash, ...)``.
     """
 
     def __init__(self) -> None:
-        self._cache: dict[tuple[str, float, int, str], object] = {}
+        self._cache: dict[tuple[object, ...], object] = {}
         self._lock = threading.Lock()
 
     def get_or_create(
         self,
-        key: tuple[str, float, int, str],
+        key: tuple[object, ...],
         factory: collections.abc.Callable[[], T],
     ) -> T:
         """Return a cached LLM client or create one via *factory*.

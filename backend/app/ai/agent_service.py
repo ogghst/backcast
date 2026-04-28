@@ -8,6 +8,7 @@ import logging
 import os
 import time
 import uuid
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Literal, cast
 from uuid import UUID
@@ -16,7 +17,9 @@ from fastapi import WebSocket
 from fastapi.encoders import jsonable_encoder
 from langchain_core.messages import (
     AIMessage,
+    AIMessageChunk,
     BaseMessage,
+    BaseMessageChunk,
     HumanMessage,
     SystemMessage,
     ToolMessage,
@@ -67,6 +70,7 @@ from app.models.schemas.ai import (
     PlanningStep,
     WSAgentCompleteMessage,
     WSAgentTransitionMessage,
+    WSBriefingMessage,
     WSCompleteMessage,
     WSContentResetMessage,
     WSPlanningMessage,
@@ -84,6 +88,93 @@ _tracer_provider = initialize_telemetry(
     service_name="backcast-ai",
     enable_console=os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true",
 )
+
+# ---------------------------------------------------------------------------
+# Monkey-patch langchain-openai to preserve DeepSeek reasoning_content.
+#
+# DeepSeek's thinking mode requires reasoning_content to be passed back in
+# every subsequent assistant turn. langchain-openai silently drops this field
+# during message conversion, so we patch both directions:
+#   _convert_dict_to_message → extracts reasoning_content into additional_kwargs
+#   _convert_message_to_dict → emits reasoning_content back into the API dict
+# ---------------------------------------------------------------------------
+import langchain_openai.chat_models.base as _lc_openai_base  # noqa: E402
+
+_original_convert_dict_to_message = _lc_openai_base._convert_dict_to_message
+
+
+def _patched_convert_dict_to_message(
+    _dict: Mapping[str, Any],
+) -> BaseMessage:
+    msg = _original_convert_dict_to_message(_dict)
+    if isinstance(msg, AIMessage) and "reasoning_content" in _dict:
+        msg.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
+    return msg
+
+
+_lc_openai_base._convert_dict_to_message = _patched_convert_dict_to_message
+
+_original_convert_message_to_dict = _lc_openai_base._convert_message_to_dict
+
+
+def _patched_convert_message_to_dict(
+    message: BaseMessage,
+    api: Literal["chat/completions", "responses"] = "chat/completions",
+) -> dict[str, Any]:
+    msg_dict = _original_convert_message_to_dict(message, api=api)
+    if isinstance(message, AIMessage):
+        rc = message.additional_kwargs.get("reasoning_content")
+        if rc:
+            msg_dict["reasoning_content"] = rc
+        elif message.tool_calls:
+            logger.warning(
+                "AIMessage with tool_calls but no reasoning_content — "
+                "DeepSeek thinking mode will reject this."
+            )
+    return msg_dict
+
+
+_lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
+
+_original_convert_delta_to_message_chunk = (
+    _lc_openai_base._convert_delta_to_message_chunk
+)
+
+
+def _patched_convert_delta_to_message_chunk(
+    _dict: Mapping[str, Any],
+    default_class: type[BaseMessageChunk],
+) -> BaseMessageChunk:
+    chunk = _original_convert_delta_to_message_chunk(_dict, default_class)
+    if (
+        isinstance(chunk, AIMessageChunk)
+        and "reasoning_content" in _dict
+        and _dict.get("reasoning_content")
+    ):
+        chunk.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
+    return chunk
+
+
+_lc_openai_base._convert_delta_to_message_chunk = (
+    _patched_convert_delta_to_message_chunk
+)
+
+
+def _extract_reasoning_content(message: AIMessage) -> dict[str, Any] | None:
+    """Extract reasoning_content from an AIMessage into metadata dict for DB storage."""
+    rc = message.additional_kwargs.get("reasoning_content")
+    if rc:
+        return {"reasoning_content": rc}
+    return None
+
+
+def _restore_reasoning_content(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    """Build additional_kwargs to restore reasoning_content from DB metadata."""
+    if metadata and isinstance(metadata, dict):
+        rc = metadata.get("reasoning_content")
+        if rc:
+            return {"additional_kwargs": {"reasoning_content": rc}}
+    return {}
 
 
 async def _extract_client_config(
@@ -132,6 +223,13 @@ async def _extract_client_config(
         if azure_deployment:
             # For Azure, we need to pass deployment info
             client_config["model"] = azure_deployment
+
+    elif provider.provider_type == "deepseek":
+        for cfg in config_values:
+            if cfg.key == "reasoning_effort" and cfg.value is not None:
+                client_config["reasoning_effort"] = str(cfg.value)
+            elif cfg.key == "thinking_mode" and cfg.value is not None:
+                client_config["thinking_mode"] = str(cfg.value)
 
     return client_config
 
@@ -286,21 +384,38 @@ class AgentService:
         Returns:
             ChatOpenAI instance configured with the provided parameters
         """
+        # Pop provider-specific params that aren't standard OpenAI client args
+        reasoning_effort = client_config.pop("reasoning_effort", None)
+        thinking_mode = client_config.pop("thinking_mode", None)
+
         # Build cache key
         base_url = client_config.get("base_url", "")
         base_url_hash = str(hash(base_url))
         temp = temperature or 0.0
         tokens = max_tokens or 2000
 
-        cache_key = (model_name, temp, tokens, base_url_hash)
+        cache_key = (
+            model_name,
+            temp,
+            tokens,
+            base_url_hash,
+            reasoning_effort,
+            thinking_mode,
+        )
 
         def factory() -> ChatOpenAI:
+            kwargs: dict[str, Any] = {}
+            if thinking_mode:
+                kwargs["extra_body"] = {"thinking": {"type": thinking_mode}}
+                if thinking_mode != "disabled" and reasoning_effort:
+                    kwargs["reasoning_effort"] = reasoning_effort
             return ChatOpenAI(
                 **client_config,
                 model=model_name,
                 temperature=temp,
                 max_tokens=tokens,
                 stream_chunk_timeout=300,
+                **kwargs,
             )
 
         return _llm_cache.get_or_create(cache_key, factory)
@@ -329,6 +444,7 @@ class AgentService:
             "azure": "azure",
             "ollama": "ollama",
             "z.ai": "openai",  # Z.AI uses OpenAI-compatible API
+            "deepseek": "openai",  # DeepSeek uses OpenAI-compatible API
         }
 
         provider = provider_mapping.get(provider_type or "", "openai")
@@ -638,12 +754,14 @@ class AgentService:
             if final_message.content
             else ""
         )
+        rc_metadata = _extract_reasoning_content(final_message)
         assistant_msg = await self.config_service.add_message(
             session_id=session_id,
             role="assistant",
             content=content_str,
             tool_calls=tool_calls_data if tool_calls_data else None,
             tool_results=None,  # No tool results in non-streaming mode
+            message_metadata=rc_metadata,
         )
 
         # Build response
@@ -765,6 +883,7 @@ class AgentService:
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
         main_agent_segments: dict[str, list[str]] = {}
+        reasoning_content_value: str | None = None  # DeepSeek thinking mode
         from collections import defaultdict
 
         subagent_messages_by_main_invocation: dict[str, list[dict[str, Any]]] = (
@@ -781,6 +900,7 @@ class AgentService:
         current_invocation_id: str | None = None
         main_invocation_id: str = ""
         task_initiating_main_invocation_id: str | None = None
+        last_entered_agent: str | None = None
 
         # Per-invocation token accumulator for batched publishing
         _token_accumulator: dict[str, list[str]] = {}
@@ -871,7 +991,6 @@ class AgentService:
                         events_processed += 1
                         event_type = event.get("event", "")
                         data = event.get("data", {})
-
                         # Handle agent transitions in supervisor graph
                         # When a specialist subgraph node starts/ends, detect by chain name
                         chain_name = event.get("name", "")
@@ -879,40 +998,87 @@ class AgentService:
                             event_type == "on_chain_start"
                             and chain_name in SPECIALIST_AGENT_NAMES
                         ):
-                            _flush_accumulated_tokens(
-                                current_invocation_id or main_invocation_id
-                            )
-                            current_subagent_name = chain_name
-                            current_invocation_id = str(uuid.uuid4())
-                            _publish(
-                                "agent_transition",
-                                WSAgentTransitionMessage(
-                                    type="agent_transition",
-                                    agent_name=chain_name,
-                                    direction="enter",
-                                    invocation_id=current_invocation_id,
-                                ).model_dump(mode="json"),
-                            )
+                            # Deduplicate: LangGraph emits on_chain_start for both
+                            # the outer specialist node and the inner compiled graph.
+                            # Skip the inner one to avoid double "enter" events.
+                            if last_entered_agent == chain_name:
+                                pass
+                            else:
+                                _flush_accumulated_tokens(
+                                    current_invocation_id or main_invocation_id
+                                )
+                                current_subagent_name = chain_name
+                                current_invocation_id = str(uuid.uuid4())
+                                last_entered_agent = chain_name
+                                _publish(
+                                    "agent_transition",
+                                    WSAgentTransitionMessage(
+                                        type="agent_transition",
+                                        agent_name=chain_name,
+                                        direction="enter",
+                                        invocation_id=current_invocation_id,
+                                    ).model_dump(mode="json"),
+                                )
                         elif (
                             event_type == "on_chain_end"
-                            and chain_name == current_subagent_name
+                            and chain_name in SPECIALIST_AGENT_NAMES
                         ):
-                            _flush_accumulated_tokens(current_invocation_id)
-                            _publish(
-                                "agent_transition",
-                                WSAgentTransitionMessage(
-                                    type="agent_transition",
-                                    agent_name=chain_name,
-                                    direction="exit",
-                                    invocation_id=current_invocation_id,
-                                ).model_dump(mode="json"),
+                            chain_output = data.get("output")
+                            is_briefing_output = (
+                                isinstance(chain_output, dict)
+                                and "briefing" in chain_output
                             )
-                            current_subagent_name = None
-                            current_invocation_id = None
+                            if is_briefing_output:
+                                briefing_md = chain_output.get("briefing", "")
+                                if isinstance(briefing_md, str) and briefing_md:
+                                    completed = chain_output.get(
+                                        "completed_specialists", set()
+                                    )
+                                    completed_list = (
+                                        sorted(completed)
+                                        if isinstance(completed, set)
+                                        else []
+                                    )
+                                    _publish(
+                                        "briefing_update",
+                                        WSBriefingMessage(
+                                            type="briefing_update",
+                                            briefing=briefing_md,
+                                            specialist_name=chain_name,
+                                            completed_specialists=completed_list,
+                                        ).model_dump(mode="json"),
+                                    )
+
+                                # Also emit agent transition exit (first end is inner graph)
+                                _publish(
+                                    "agent_transition",
+                                    WSAgentTransitionMessage(
+                                        type="agent_transition",
+                                        agent_name=chain_name,
+                                        direction="exit",
+                                        invocation_id=current_invocation_id,
+                                    ).model_dump(mode="json"),
+                                )
+                                current_subagent_name = None
+                                current_invocation_id = None
+                                last_entered_agent = None
+                            elif chain_name == current_subagent_name:
+                                # Inner compiled graph end — flush tokens
+                                _flush_accumulated_tokens(current_invocation_id)
 
                         # Handle token streaming
                         if event_type == "on_chat_model_stream":
                             chunk = data.get("chunk")
+                            # Capture reasoning_content from streaming chunks for
+                            # DeepSeek thinking mode. The accumulated final message
+                            # in on_chat_model_end may not preserve additional_kwargs.
+                            if isinstance(chunk, AIMessageChunk):
+                                rc = chunk.additional_kwargs.get("reasoning_content")
+                                if rc and isinstance(rc, str):
+                                    if reasoning_content_value is None:
+                                        reasoning_content_value = rc
+                                    else:
+                                        reasoning_content_value += rc
                             if chunk:
                                 content = ""
                                 if hasattr(chunk, "text"):
@@ -1157,8 +1323,11 @@ class AgentService:
                                 current_invocation_id = None
                                 task_initiating_main_invocation_id = None
 
-                            # Generate new main invocation_id after tool completion
-                            main_invocation_id = str(uuid.uuid4())
+                            # Generate new main invocation_id after task tool
+                            # completion only (subagent delegation). For other
+                            # tools, the same agent continues — keep one segment.
+                            if tool_name == "task":
+                                main_invocation_id = str(uuid.uuid4())
 
                             tool_output = data.get("output", "")
                             result_content = tool_output
@@ -1318,11 +1487,13 @@ class AgentService:
 
             for idx, inv_id in enumerate(invocation_ids_in_order):
                 segment_content = "".join(main_agent_segments[inv_id])
-                metadata = {
+                metadata: dict[str, Any] = {
                     "invocation_id": inv_id,
                     "segment_index": idx,
                     "total_segments": total_main_segments,
                 }
+                if reasoning_content_value:
+                    metadata["reasoning_content"] = reasoning_content_value
 
                 segment_tool_calls = (
                     all_tool_calls if idx == 0 and all_tool_calls else None
@@ -1759,7 +1930,9 @@ class AgentService:
                     # Plain text message without attachments
                     messages.append(HumanMessage(content=msg.content))
             elif msg.role == "assistant":
-                messages.append(AIMessage(content=msg.content))
+                messages.append(
+                    AIMessage(content=msg.content, **_restore_reasoning_content(msg.message_metadata))
+                )
             elif msg.role == "tool":
                 # Skip tool messages in history - they're implicit
                 pass

@@ -1,6 +1,7 @@
 # Test Findings: Briefing Room Orchestrator Efficiency Audit
 
 **Date:** 2026-04-27
+**Last Updated:** 2026-04-27 (status reconciliation with codebase)
 **Test Type:** Live E2E UI test (Playwright MCP + backend log analysis + database verification)
 **Assistant:** Senior Project Manager (ai-manager)
 **Execution Mode:** Expert
@@ -25,7 +26,7 @@
 
 ---
 
-## Finding 1: Orchestrator Loop (Severity: CRITICAL)
+## Finding 1: Orchestrator Loop (Severity: CRITICAL) — Status: PARTIALLY FIXED
 
 The briefing room orchestrator spawned **2 full specialist cycles** and started a **3rd** when manually stopped. After each specialist completed successfully and returned a briefing, the orchestrator spawned another assistant to "review" the briefing, which then called `handoff_to_project_manager` again.
 
@@ -68,9 +69,19 @@ The orchestrator does not recognize task completion after a specialist successfu
 3. If `task_completed=True`, route directly to synthesis/END instead of back to the supervisor
 4. Add a **hard iteration limit** (e.g., `max_specialist_cycles=3`) as a safety guard
 
+### Implementation Status
+
+| Recommendation | Status | Notes |
+|---------------|--------|-------|
+| `task_completed` flag in briefing state | ✅ Implemented | `briefing_state.py:47`, set in specialist, checked in router |
+| Hard iteration limit | ✅ Implemented | `max_supervisor_iterations=3` in `briefing_room_orchestrator.py:275` |
+| Router checks completion before routing | ⚠️ Partial | Router checks `task_completed` but AFTER LangGraph dispatches the node |
+| Specialist early exit on duplicate | ✅ Implemented | `briefing_specialist.py` checks `completed_specialists` at start |
+| Supervisor prompt completion rules | ✅ Implemented | Detailed completion checklist in `briefing_room_orchestrator.py:64-88` |
+
 ---
 
-## Finding 2: Duplicate Entity Creation (Severity: HIGH)
+## Finding 2: Duplicate Entity Creation (Severity: HIGH) — Status: FIXED
 
 Three "Family Vacation" projects were created across the test runs:
 
@@ -96,9 +107,18 @@ Plus 3 orphan project IDs with 4 WBEs each from previous runs. The second specia
 2. The `create_project` tool should return a clear error or "already exists" response
 3. The orchestrator should pass the first specialist's results (project ID) to subsequent specialists via the briefing
 
+### Implementation Status
+
+| Recommendation | Status | Notes |
+|---------------|--------|-------|
+| Dedup check in `create_project` | ✅ Implemented | `crud_template.py:263-267` — checks `get_by_code` before creating |
+| Dedup check in `create_wbe` | ✅ Implemented | `crud_template.py:592-596` — checks `get_by_code` before creating |
+| Error response on duplicate | ✅ Implemented | Returns `{"error": "A project with code '...' already exists", "existing_id": ...}` |
+| Pass artifacts via briefing | ✅ Implemented | Specialist writes findings + structured data to briefing |
+
 ---
 
-## Finding 3: Redundant Tool Calls (Severity: MEDIUM)
+## Finding 3: Redundant Tool Calls (Severity: MEDIUM) — Status: OPEN
 
 ### Tool Call Breakdown
 
@@ -135,9 +155,17 @@ Within each specialist cycle, the tool usage was efficient:
 2. **Cache `list_cost_element_types`** result in briefing or tool context
 3. **Eliminate pre-dispatch `write_todos`** or make it a single call at execution start
 
+### Implementation Status
+
+| Recommendation | Status | Notes |
+|---------------|--------|-------|
+| Cache `get_temporal_context` within execution | ❌ Not implemented | Still called fresh each time |
+| Cache `list_cost_element_types` | ❌ Not implemented | No briefing or tool context caching |
+| Single `write_todos` call | ❌ Not implemented | Still called before each specialist dispatch |
+
 ---
 
-## Finding 4: Redundant Chat Messages (Severity: MEDIUM)
+## Finding 4: Redundant Chat Messages (Severity: MEDIUM) — Status: OPEN
 
 The chat displayed **5 response messages** for a single user request:
 
@@ -157,9 +185,16 @@ All 3 Assistant messages had near-identical intro text. The user sees 5 response
 2. Specialist streaming output should be visible (current behavior is fine)
 3. Orchestrator intermediate messages ("I'll help you create...") should be suppressed or replaced with a lightweight status indicator
 
+### Implementation Status
+
+| Recommendation | Status | Notes |
+|---------------|--------|-------|
+| Suppress redundant orchestrator messages | ❌ Not implemented | No message suppression logic exists |
+| Single consolidated response | ❌ Not implemented | Each cycle emits its own messages |
+
 ---
 
-## Finding 5: Inconsistent Date Calculations (Severity: LOW)
+## Finding 5: Inconsistent Date Calculations (Severity: LOW) — Status: OPEN
 
 The two specialist runs computed different project dates:
 
@@ -177,9 +212,15 @@ The phrase "15 days from now" (today being April 27) is ambiguous:
 
 The `get_temporal_context` tool should return an explicit `target_date` calculation field that specialists reference, avoiding independent date math.
 
+### Implementation Status
+
+| Recommendation | Status | Notes |
+|---------------|--------|-------|
+| Explicit `target_date` in `get_temporal_context` | ❌ Not implemented | Returns `current_date` only, no relative date helpers |
+
 ---
 
-## Finding 6: Specialist Parallelism (Severity: INFO, Positive)
+## Finding 6: Specialist Parallelism (Severity: INFO, Positive) — Status: PRESERVED
 
 The specialist-level tool execution was well-optimized:
 
@@ -228,31 +269,31 @@ Cost elements matching the expected names exist with correct budget amounts:
 
 ### Immediate (Before Next Release)
 
-| # | Action | Priority | Effort |
-|---|--------|----------|--------|
-| A1 | Add max iteration guard to briefing room router (max 2-3 specialist cycles) | P0 | S |
-| A2 | Add task completion detection in router (stop after successful briefing) | P0 | M |
-| A3 | Cache `get_temporal_context` result within a single execution | P1 | S |
-| A4 | Suppress redundant orchestrator messages in chat UI | P1 | M |
+| # | Action | Priority | Effort | Status |
+|---|--------|----------|--------|--------|
+| A1 | Add max iteration guard to briefing room router (max 2-3 specialist cycles) | P0 | S | ✅ Done (`max_supervisor_iterations=3`) |
+| A2 | Add task completion detection in router (stop after successful briefing) | P0 | M | ⚠️ Partial (flag set, but router check is post-dispatch) |
+| A3 | Cache `get_temporal_context` result within a single execution | P1 | S | ❌ Open → moved to issue log |
+| A4 | Suppress redundant orchestrator messages in chat UI | P1 | M | ❌ Open → moved to issue log |
 
 ### Short-Term (Next Iteration)
 
-| # | Action | Priority | Effort |
-|---|--------|----------|--------|
-| B1 | Add deduplication check in `create_project` tool (check name/code) | P1 | S |
-| B2 | Pass completed work artifacts (project_id) via briefing to prevent re-creation | P1 | M |
-| B3 | Cache `list_cost_element_types` in briefing or tool context | P2 | S |
-| B4 | Add explicit target_date to `get_temporal_context` output | P2 | S |
+| # | Action | Priority | Effort | Status |
+|---|--------|----------|--------|--------|
+| B1 | Add deduplication check in `create_project` tool (check name/code) | P1 | S | ✅ Done |
+| B2 | Pass completed work artifacts (project_id) via briefing to prevent re-creation | P1 | M | ✅ Done (briefing carries structured data) |
+| B3 | Cache `list_cost_element_types` in briefing or tool context | P2 | S | ❌ Open → moved to issue log |
+| B4 | Add explicit target_date to `get_temporal_context` output | P2 | S | ❌ Open → moved to issue log |
 
 ### Monitoring
 
-| # | Metric | Target | Current |
-|---|--------|--------|---------|
-| M1 | Specialist cycles per request | 1-2 | 2-3+ (unbounded) |
-| M2 | LLM API calls per simple request | <8 | 17 |
-| M3 | Tool call waste ratio | <15% | ~48% |
-| M4 | Redundant entity creation rate | 0% | >100% (2x duplicates) |
-| M5 | Wall-clock time for CRUD request | <60s | ~360s+ |
+| # | Metric | Target | Current | Status |
+|---|--------|--------|---------|--------|
+| M1 | Specialist cycles per request | 1-2 | 2 (bounded by max=3) | ⚠️ Improved |
+| M2 | LLM API calls per simple request | <8 | ~12 | ❌ Open |
+| M3 | Tool call waste ratio | <15% | ~26% | ❌ Open |
+| M4 | Redundant entity creation rate | 0% | 0% | ✅ Fixed |
+| M5 | Wall-clock time for CRUD request | <60s | ~360s | ❌ Open |
 
 ---
 
@@ -264,8 +305,6 @@ Cost elements matching the expected names exist with correct budget amounts:
 - **Backend log window:** `backend/logs/app.log` lines matching `17:53 - 17:59`
 - **Console errors:** 12 (antd deprecation warnings, not functional)
 - **Database queries:** Projects, WBEs, Cost Elements tables verified
-
----
 
 ---
 
@@ -293,7 +332,7 @@ Cost elements matching the expected names exist with correct budget amounts:
 
 ---
 
-## Finding 1: Router Fix - PARTIALLY EFFECTIVE (Severity: MEDIUM)
+## Finding 1: Router Fix - PARTIALLY EFFECTIVE (Severity: MEDIUM) — Status: PARTIALLY FIXED
 
 ### Observed Behavior
 
@@ -338,9 +377,18 @@ LangGraph's execution model:
 
 The fix is in the wrong place - it needs to prevent the handoff tool from being called in the first place, not prevent routing after the fact.
 
+### Implementation Status
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| `completed_specialists` tracking | ✅ Done | Set in state, checked in specialist early exit |
+| `task_completed` flag | ✅ Done | Set by specialist, checked in router |
+| Specialist early exit | ✅ Done | Returns immediately if already in `completed_specialists` |
+| Pre-dispatch prevention | ❌ Open | Router check happens post-dispatch; supervisor prompt-based prevention in place but not fully reliable |
+
 ---
 
-## Finding 2: No Duplicate Entities Created (Severity: INFO, Positive)
+## Finding 2: No Duplicate Entities Created (Severity: INFO, Positive) — Status: CONFIRMED
 
 ### Database Verification
 
@@ -373,7 +421,7 @@ No create operations were attempted.
 
 ---
 
-## Finding 3: Tool Call Efficiency (Severity: INFO)
+## Finding 3: Tool Call Efficiency (Severity: INFO) — Status: OPEN
 
 **Cycle 1 (Creation):**
 - `create_project`: 1
@@ -394,7 +442,7 @@ No create operations were attempted.
 
 ---
 
-## Finding 4: Router Architecture Issue (Severity: HIGH)
+## Finding 4: Router Architecture Issue (Severity: HIGH) — Status: PARTIALLY ADDRESSED
 
 ### Problem
 
@@ -407,7 +455,7 @@ def router(state: BriefingRoomState) -> str:
     # Check 1: Programmatic completion signal
     if state.get("task_completed", False):
         return END
-    
+
     # Check for handoff tool calls
     # ...
     if tool_name == f"handoff_to_{spec_name}":
@@ -435,6 +483,15 @@ def router(state: BriefingRoomState) -> str:
 - Add pre-dispatch check before routing decision
 - Requires deeper LangGraph customization
 
+### Implementation Status
+
+| Option | Status | Notes |
+|--------|--------|-------|
+| Option 1: Supervisor prompt | ✅ Done | Completion checklist in supervisor prompt (`briefing_room_orchestrator.py:64-88`) |
+| Option 2: Handoff tool guard | ❌ Open → moved to issue log | Handoff tools don't check `completed_specialists` |
+| Option 3: Specialist early exit | ✅ Done | `briefing_specialist.py` returns `Command(goto=END)` if already completed |
+| Option 4: Conditional edge | ❌ Open → moved to issue log | Requires LangGraph customization |
+
 ---
 
 ## Comparison: Pre-Fix vs Post-Fix
@@ -454,26 +511,18 @@ def router(state: BriefingRoomState) -> str:
 
 ### Immediate (High Priority)
 
-1. **Implement Option 3 (Specialist Early Exit)** - Lowest effort, highest impact
-   - Specialist checks `completed_specialists` at start
-   - Returns immediately with summary if already completed
-   - Reduces second cycle from ~2.5 min to <5 seconds
-
-2. **Strengthen Supervisor Prompt** - Add explicit completion check instructions
-   ```
-   CRITICAL: Before calling handoff_to_X, check if the briefing already contains
-   findings from specialist X. If so, respond directly with synthesis instead.
-   ```
+1. **Implement Option 3 (Specialist Early Exit)** - ✅ Done
+2. **Strengthen Supervisor Prompt** - ✅ Done
 
 ### Medium Priority
 
-3. **Add Handoff Tool Guard** - Prevent redundant handoffs at tool level
-4. **Consider Alternative Architecture** - Evaluate if briefing room pattern is optimal for single-specialist tasks
+3. **Add Handoff Tool Guard** - ❌ Open → moved to issue log
+4. **Consider Alternative Architecture** - ❌ Open → moved to issue log
 
 ### Low Priority
 
-5. **Add Metrics** - Track specialist cycle counts per request
-6. **User UI Enhancement** - Show cycle count to users for transparency
+5. **Add Metrics** - ❌ Open → moved to issue log
+6. **User UI Enhancement** - ❌ Open → moved to issue log
 
 ---
 
@@ -483,10 +532,11 @@ The fix is **partially effective**:
 - ✅ Eliminated duplicate entity creation
 - ✅ Added proper tracking and logging
 - ✅ Reduced cycles from 3+ to 2
+- ✅ Specialist early exit minimizes wasted work
 - ❌ Did not achieve single-cycle execution
 - ❌ Router check happens too late in LangGraph flow
 
-**Recommended Path Forward:** Implement Option 3 (Specialist Early Exit) combined with strengthened supervisor prompts for a defense-in-depth approach.
+**Recommended Path Forward:** Strengthen the existing defense-in-depth approach. The combination of specialist early exit + supervisor prompt rules + max iteration guard provides adequate protection. The remaining 2nd cycle is a read-only review (no duplicate entities), which is acceptable for now.
 
 ---
 
@@ -499,7 +549,7 @@ The fix is **partially effective**:
 
 ---
 
-# Code Review: Supervisor Orchestrator Simplification
+# Code Review: Supervisor Orchestrator Simplification — Status: FIXED
 
 **Date:** 2026-04-27
 **Review Type:** /simplify — Code Reuse, Quality, and Efficiency audit
@@ -509,7 +559,7 @@ The fix is **partially effective**:
 
 ---
 
-## Finding S1: Handoff Tools Reference Non-Existent Graph Nodes (Severity: CRITICAL)
+## Finding S1: Handoff Tools Reference Non-Existent Graph Nodes (Severity: CRITICAL) — Status: FIXED
 
 ### Problem
 
@@ -531,11 +581,11 @@ handoff_tools = create_all_handoff_tools(subagent_configs)
 handoff_tools = create_all_handoff_tools(specialist_graphs)
 ```
 
-**Status:** Fixed
+**Status:** ✅ Fixed — `supervisor_orchestrator.py:157` confirms `create_all_handoff_tools(specialist_graphs)`
 
 ---
 
-## Finding S2: Shared Middleware Instances Across Subagents (Severity: HIGH)
+## Finding S2: Shared Middleware Instances Across Subagents (Severity: HIGH) — Status: FIXED
 
 ### Problem
 
@@ -545,11 +595,11 @@ handoff_tools = create_all_handoff_tools(specialist_graphs)
 
 Middleware now created fresh per subagent inside the compilation loop. Also passes `subagent_tools` (not the full `available_tools`) to `BackcastSecurityMiddleware`.
 
-**Status:** Fixed
+**Status:** ✅ Fixed — `subagent_compiler.py:101-102` creates fresh middleware per subagent with comment "Fresh middleware per subagent to avoid mutable state leakage"
 
 ---
 
-## Finding S3: Dead State — `enable_subagents` and `interrupt_node` (Severity: MEDIUM)
+## Finding S3: Dead State — `enable_subagents` and `interrupt_node` (Severity: MEDIUM) — Status: PARTIALLY FIXED
 
 ### Problem
 
@@ -560,11 +610,13 @@ Middleware now created fresh per subagent inside the compilation loop. Also pass
 
 Removed both parameters from `SupervisorOrchestrator.__init__` and the caller in `deep_agent_orchestrator.py`.
 
-**Status:** Fixed
+**Status:**
+- ✅ Fixed in `SupervisorOrchestrator` — `interrupt_node=None` is hardcoded inline, not stored as attribute
+- ⚠️ Still present in `BriefingRoomOrchestrator` — `enable_subagents` and `interrupt_node` stored in `__init__` (`briefing_room_orchestrator.py:139-146`) but never used by graph creation methods
 
 ---
 
-## Finding S4: Duplicate Router Logic (Severity: MEDIUM)
+## Finding S4: Duplicate Router Logic (Severity: MEDIUM) — Status: FIXED
 
 ### Problem
 
@@ -574,11 +626,13 @@ Removed both parameters from `SupervisorOrchestrator.__init__` and the caller in
 
 Unified into a single `_make_router(specialist_names, *, default=str)` with the fallback as a parameter.
 
-**Status:** Fixed
+**Status:**
+- ✅ Fixed in `SupervisorOrchestrator` — unified `_make_router` method (`supervisor_orchestrator.py:225`)
+- Note: `BriefingRoomOrchestrator` has its own `_make_supervisor_router` which is a different, briefing-specific implementation — not a duplicate
 
 ---
 
-## Finding S5: Duplicate Middleware Setup (Severity: MEDIUM)
+## Finding S5: Duplicate Middleware Setup (Severity: MEDIUM) — Status: FIXED
 
 ### Problem
 
@@ -588,11 +642,11 @@ The middleware list `[TodoListMiddleware(), TemporalContextMiddleware(...), Back
 
 Extracted `_build_middleware(self, tools)` method used by both code paths.
 
-**Status:** Fixed
+**Status:** ✅ Fixed — `supervisor_orchestrator.py:255` defines `_build_middleware`, used in both `create_supervisor_graph` and `_build_fallback_graph`
 
 ---
 
-## Finding S6: `METADATA_KEY_HANDOFF_DESTINATION` Never Set (Severity: MEDIUM)
+## Finding S6: `METADATA_KEY_HANDOFF_DESTINATION` Never Set (Severity: MEDIUM) — Status: FIXED
 
 ### Problem
 
@@ -602,17 +656,17 @@ The constant was defined and exported but never attached to any tool's metadata.
 
 Added `handoff_tool.metadata = {METADATA_KEY_HANDOFF_DESTINATION: agent_name}` inside `create_handoff_tool()`.
 
-**Status:** Fixed
+**Status:** ✅ Fixed — `handoff_tools.py:69` sets metadata on handoff tools
 
 ---
 
-## Finding S7: Minor Cleanups (Severity: LOW)
+## Finding S7: Minor Cleanups (Severity: LOW) — Status: FIXED
 
 - Replaced `specialist_names` append loop with list comprehension
 - Replaced f-string logging args with `%s` format (avoids formatting when log level disabled)
 - Verified `langgraph` is already a project dependency — custom handoff tools justified by Backcast-specific needs (RBAC integration, temporal context)
 
-**Status:** Fixed
+**Status:** ✅ Fixed
 
 ---
 
@@ -664,7 +718,7 @@ All changes pass `mypy`, `ruff check`, and `ruff format`.
 
 ---
 
-## Finding 1: Supervisor Infinite Loop After Specialist Completion (Severity: CRITICAL)
+## Finding 1: Supervisor Infinite Loop After Specialist Completion (Severity: CRITICAL) — Status: PARTIALLY FIXED
 
 ### Observed Behavior
 
@@ -719,9 +773,19 @@ The supervisor is behaving as if it never "sees" the completion signal. After th
 - **UX:** 3-4 duplicate "Assistant" messages in chat, confusing for user
 - **No max iteration guard:** The loop would continue indefinitely
 
+### Implementation Status
+
+| Fix | Status | Notes |
+|-----|--------|-------|
+| Max iteration guard | ✅ Done | `max_supervisor_iterations=3` limits cycles |
+| Specialist early exit | ✅ Done | Returns immediately if already in `completed_specialists` |
+| Supervisor prompt completion rules | ✅ Done | Detailed checklist in prompt |
+| Handoff tool guard | ❌ Open → moved to issue log | Tools don't check `completed_specialists` |
+| Pre-dispatch routing prevention | ❌ Open → moved to issue log | Router check is post-dispatch |
+
 ---
 
-## Finding 2: task_completed Flag Not Reset Between Messages (Severity: CRITICAL)
+## Finding 2: task_completed Flag Not Reset Between Messages (Severity: CRITICAL) — Status: FIXED
 
 ### Observed Behavior
 
@@ -757,9 +821,16 @@ The `task_completed` flag in the briefing room state is session-scoped, not mess
 - **User experience:** Completely broken multi-turn conversation
 - **Workaround:** Start a new chat for every message (defeats purpose of conversation)
 
+### Implementation Status
+
+| Fix | Status | Notes |
+|-----|--------|-------|
+| `initialize_briefing_node` resets state per graph invocation | ✅ Done | `briefing_room_orchestrator.py:276-277` sets `task_completed: False` and `completed_specialists: set()` on START edge |
+| Per-message state reset | ✅ Done | Graph re-compiles per message via `initialize_briefing_node` (runs on START → supervisor edge) |
+
 ---
 
-## Finding 3: Redundant Tool Calls in Specialist (Severity: LOW)
+## Finding 3: Redundant Tool Calls in Specialist (Severity: LOW) — Status: OPEN
 
 The specialist called `get_temporal_context` at 22:23:51, but the supervisor had already called it at 22:23:36. The context could have been passed through the handoff mechanism.
 
@@ -769,9 +840,15 @@ The specialist called `get_temporal_context` at 22:23:51, but the supervisor had
 | `get_briefing` | 1 | 0 | 0x |
 | `write_todos` | 2 | 0 | 1x (2nd call) |
 
+### Implementation Status
+
+| Recommendation | Status | Notes |
+|---------------|--------|-------|
+| Pass context through handoff | ❌ Open → moved to issue log | Temporal context still fetched independently by supervisor and specialist |
+
 ---
 
-## Finding 4: Efficient Parallel Execution Within Specialist (Severity: INFO, Positive)
+## Finding 4: Efficient Parallel Execution Within Specialist (Severity: INFO, Positive) — Status: PRESERVED
 
 The specialist-level execution was well-optimized:
 
@@ -833,25 +910,25 @@ Materials + Labor/Subcontractor split per WBE. Total: $128,000.
 
 ### P0 — Critical
 
-| # | Action | Details |
-|---|--------|---------|
-| C1 | **Reset task_completed per message** | The flag must be cleared at the start of each new user message. The briefing room state initialization must include `task_completed=False`. |
-| C2 | **Add max iteration guard** | Hard limit of 2-3 specialist dispatch cycles per message. After that, force route to END with whatever briefing exists. |
-| C3 | **Fix supervisor loop exit condition** | After specialist early-exits with "already completed," the supervisor should synthesize and stop — not re-plan. The supervisor prompt or routing logic must detect the early-exit signal. |
+| # | Action | Details | Status |
+|---|--------|---------|--------|
+| C1 | **Reset task_completed per message** | The flag must be cleared at the start of each new user message. | ✅ Done — `initialize_briefing_node` resets on START edge |
+| C2 | **Add max iteration guard** | Hard limit of 2-3 specialist dispatch cycles per message. | ✅ Done — `max_supervisor_iterations=3` |
+| C3 | **Fix supervisor loop exit condition** | After specialist early-exits, supervisor should synthesize and stop. | ⚠️ Partial — supervisor prompt rules added, but LLM still sometimes re-plans after early exit |
 
 ### P1 — High
 
-| # | Action | Details |
-|---|--------|---------|
-| C4 | **Clear completed_specialists per message** | The `completed_specialists` set must be reset when a new message arrives in the same session. |
-| C5 | **Pass context through handoff** | Avoid re-fetching `get_temporal_context` in the specialist if the supervisor already has it. |
+| # | Action | Details | Status |
+|---|--------|---------|--------|
+| C4 | **Clear completed_specialists per message** | Reset when new message arrives in same session. | ✅ Done — `initialize_briefing_node` resets to `set()` |
+| C5 | **Pass context through handoff** | Avoid re-fetching `get_temporal_context` in specialist. | ❌ Open → moved to issue log |
 
 ### P2 — Medium
 
-| # | Action | Details |
-|---|--------|---------|
-| C6 | **Suppress duplicate Assistant messages** | Only emit one final supervisor message, not one per cycle. |
-| C7 | **Add cycle count telemetry** | Log specialist cycle count per message for monitoring. |
+| # | Action | Details | Status |
+|---|--------|---------|--------|
+| C6 | **Suppress duplicate Assistant messages** | Only emit one final supervisor message. | ❌ Open → moved to issue log |
+| C7 | **Add cycle count telemetry** | Log specialist cycle count per message. | ❌ Open → moved to issue log |
 
 ---
 
@@ -865,3 +942,37 @@ Materials + Labor/Subcontractor split per WBE. Total: $128,000.
 - **Backend logs:** `backend/logs/app.log` + `backend/logs/app.log.1`
 - **Console errors:** 8 (antd deprecation warnings, not functional)
 - **Database verification:** Projects, WBEs, Cost Elements tables verified
+
+---
+
+# Summary: Implementation Status Across All Findings
+
+## Implemented (13 items)
+
+| # | Finding | Fix | File |
+|---|---------|-----|------|
+| 1 | F1: Orchestrator loop | `task_completed` flag + router check | `briefing_state.py`, `briefing_room_orchestrator.py` |
+| 2 | F1: Orchestrator loop | Max iteration guard (`max=3`) | `briefing_room_orchestrator.py` |
+| 3 | F1: Orchestrator loop | Specialist early exit | `briefing_specialist.py` |
+| 4 | F1: Orchestrator loop | Supervisor prompt completion rules | `briefing_room_orchestrator.py` |
+| 5 | F2: Duplicate entities | Dedup in `create_project` + `create_wbe` | `crud_template.py` |
+| 6 | F2: Duplicate entities | Artifacts passed via briefing | `briefing.py`, `briefing_compiler.py` |
+| 7 | F1 (T3): Infinite loop | Max iteration guard | `briefing_room_orchestrator.py` |
+| 8 | F2 (T3): State not reset | `initialize_briefing_node` resets state | `briefing_room_orchestrator.py` |
+| 9 | S1: Handoff tool crash | Handoff tools use compiled graphs | `supervisor_orchestrator.py` |
+| 10 | S2: Shared middleware | Fresh middleware per subagent | `subagent_compiler.py` |
+| 11 | S5: Duplicate middleware setup | Extracted `_build_middleware` | `supervisor_orchestrator.py` |
+| 12 | S6: Handoff metadata | `METADATA_KEY_HANDOFF_DESTINATION` set | `handoff_tools.py` |
+| 13 | S7: Minor cleanups | List comprehension, `%s` logging | `supervisor_orchestrator.py` |
+
+## Partially Fixed (3 items)
+
+| # | Finding | What's Done | What's Missing |
+|---|---------|-------------|----------------|
+| 1 | F1: Router check timing | Flag checked in router | Check is post-dispatch; pre-dispatch prevention still missing |
+| 2 | S3: Dead state params | Removed from `SupervisorOrchestrator` | Still present in `BriefingRoomOrchestrator` |
+| 3 | F4 (T2): Supervisor loop exit | Prompt rules + early exit | LLM sometimes re-plans after early exit |
+
+## Open (moved to issue log)
+
+See `issue-log.md` for all items not yet implemented.

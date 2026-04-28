@@ -260,6 +260,18 @@ async def create_project(
 
         service = context.project_service
 
+        # Dedup check: prevent creating duplicate projects with same code
+        existing = await service.get_by_code(code)
+        if existing:
+            return {
+                "error": f"A project with code '{code}' already exists "
+                f"(ID: {existing.project_id}, name: '{existing.name}'). "
+                "Use update_project instead if you want to modify it, "
+                "or use a different code.",
+                "existing_id": str(existing.project_id),
+                "existing_name": existing.name,
+            }
+
         # Create Pydantic schema for service call
         project_data = ProjectCreate(
             name=name,
@@ -576,6 +588,17 @@ async def create_wbe(
         from app.services.wbe import WBEService
 
         service = WBEService(context.session)
+
+        # Dedup check: prevent creating duplicate WBEs with same code in same project
+        existing = await service.get_by_code(code, UUID(project_id))
+        if existing:
+            return {
+                "error": f"A WBE with code '{code}' already exists in this project "
+                f"(ID: {existing.wbe_id}, name: '{existing.name}'). "
+                "Use a different code or update the existing WBE.",
+                "existing_id": str(existing.wbe_id),
+                "existing_name": existing.name,
+            }
 
         # Create schema
         wbe_data = WBECreate(

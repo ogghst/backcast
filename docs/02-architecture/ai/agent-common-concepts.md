@@ -4,8 +4,7 @@ How the Backcast AI agent system turns a user message into a response: prompt co
 
 > **Related Documentation:**
 > - [Deep Agent Orchestrator](./deep-agent-orchestrator.md) — Task-based delegation with isolated subagents
-> - [Supervisor Orchestrator](./supervisor-orchestrator.md) — Handoff-based delegation with shared state
-> - [Briefing Room Orchestrator](./briefing-room-orchestrator.md) — Handoff delegation with compiled briefing documents
+> - [Supervisor Orchestrator](./supervisor-orchestrator.md) — Handoff-based delegation with compiled briefing documents
 
 ---
 
@@ -32,12 +31,10 @@ flowchart LR
     Browser["Browser\n(React)"] --> WS["WebSocket Endpoint\nai_chat.py"]
     WS --> AS["AgentService\n.start_execution()"]
     AS --> ORC{"Orchestrator\nChoice"}
-    ORC -->|"use_briefing_room=True"| BRO["BriefingRoomOrchestrator\n.create_briefing_room_graph()"]
     ORC -->|"use_supervisor=True"| SO["SupervisorOrchestrator\n.create_supervisor_graph()"]
     ORC -->|"default"| DAO["DeepAgentOrchestrator\n.create_agent()"]
     DAO --> LC["LangChain\ncreate_agent"]
     SO --> LC
-    BRO --> LC
     AS --> GAE["graph.astream_events()\nloop"]
     GAE --> AEB["AgentEventBus\n.publish()"]
     AEB -->|WebSocket messages| Browser
@@ -67,7 +64,7 @@ flowchart LR
    - Creates the agent graph via `DeepAgentOrchestrator` (which may delegate to `SupervisorOrchestrator` when `config.use_supervisor=True`).
    - Runs `graph.astream_events()` and publishes events to the `AgentEventBus`.
 
-   > **Orchestrator choice** is determined by `AgentConfig.use_supervisor` or `AgentConfig.use_briefing_room` (set via `settings.AI_ORCHESTRATOR`). See [Deep Agent Orchestrator](./deep-agent-orchestrator.md), [Supervisor Orchestrator](./supervisor-orchestrator.md), or [Briefing Room Orchestrator](./briefing-room-orchestrator.md) for their specific architectures.
+   > **Orchestrator choice** is determined by `AgentConfig.use_supervisor` (set via `settings.AI_ORCHESTRATOR`). See [Deep Agent Orchestrator](./deep-agent-orchestrator.md) or [Supervisor Orchestrator](./supervisor-orchestrator.md) for their specific architectures.
 
 6. **The WebSocket handler** subscribes to the event bus and forwards events to the browser.
 
@@ -101,7 +98,7 @@ When a session is scoped to a context, a context section is appended. The system
 
 ### Layer 3: Orchestrator-Specific
 
-See [Deep Agent > System Prompt](./deep-agent-orchestrator.md#2-system-prompt-deep-agent), [Supervisor > System Prompt](./supervisor-orchestrator.md#4-supervisor-system-prompt), or [Briefing Room > Supervisor Tools](./briefing-room-orchestrator.md#6-supervisor-tools).
+See [Deep Agent > System Prompt](./deep-agent-orchestrator.md#2-system-prompt-deep-agent) or [Supervisor > System Prompt](./supervisor-orchestrator.md#4-supervisor-system-prompt).
 
 ---
 
@@ -474,10 +471,9 @@ class AgentConfig:
     assistant_role: str | None = None              # RBAC role for assistant
     user_role: str | None = None                   # Per-user RBAC role
     use_supervisor: bool = False                   # Delegate to SupervisorOrchestrator
-    use_briefing_room: bool = False                # Delegate to BriefingRoomOrchestrator
 ```
 
-When `use_supervisor=True`, `DeepAgentOrchestrator.create_agent()` delegates to `SupervisorOrchestrator.create_supervisor_graph()`. When `use_briefing_room=True`, it delegates to `BriefingRoomOrchestrator.create_briefing_room_graph()`. Otherwise it builds its own subagent-as-tool graph.
+When `use_supervisor=True`, `DeepAgentOrchestrator.create_agent()` delegates to `SupervisorOrchestrator.create_supervisor_graph()`. Otherwise it builds its own subagent-as-tool graph.
 
 ---
 
@@ -488,12 +484,9 @@ When `use_supervisor=True`, `DeepAgentOrchestrator.create_agent()` delegates to 
 | `api/routes/ai_chat.py` | WebSocket endpoint, JWT auth, session creation, approval handling |
 | `ai/agent_service.py` | Orchestration: `_run_agent_graph()`, `_build_system_prompt()`, `_build_conversation_history()`, `start_execution()` |
 | `ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator`: subagent compilation, task-based delegation, prompt composition |
-| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based specialist delegation with shared state |
-| `ai/briefing_room_orchestrator.py` | `BriefingRoomOrchestrator`: handoff delegation with compiled briefing documents |
-| `ai/briefing_state.py` | `BriefingRoomState`: state schema with `briefing` + `briefing_data` fields |
+| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based specialist delegation with compiled briefing documents |
 | `ai/briefing.py` | `BriefingDocument`, `BriefingSection`: Pydantic models for the briefing artifact |
 | `ai/briefing_compiler.py` | `initialize_briefing()`, `compile_specialist_output()`: zero-cost compilation |
-| `ai/briefing_specialist.py` | `create_briefing_specialist_node()`: isolated specialist wrapper factory |
 | `ai/supervisor_state.py` | `BackcastSupervisorState`: shared state schema for supervisor graph |
 | `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: `Command(goto=...)` handoff mechanism |
 | `ai/config.py` | `AgentConfig`: frozen dataclass for agent creation parameters |

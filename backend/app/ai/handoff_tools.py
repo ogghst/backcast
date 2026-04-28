@@ -11,10 +11,12 @@ import logging
 from typing import Annotated, Any
 
 from langchain.tools import InjectedToolCallId, tool
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
+
+from app.ai.briefing import BriefingDocument
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +59,51 @@ def create_handoff_tool(
             content=f"Transferring to {agent_name}: {task_description}",
             tool_call_id=tool_call_id,
         )
+
+        # Propagate reasoning_content from the last AIMessage (DeepSeek thinking
+        # mode requires it on ALL assistant messages when enabled).
+        rc_kwargs: dict[str, Any] = {}
+        for msg in reversed(state.get("messages", [])):
+            if isinstance(msg, AIMessage):
+                rc = msg.additional_kwargs.get("reasoning_content")
+                if rc:
+                    rc_kwargs["additional_kwargs"] = {"reasoning_content": rc}
+                break
+
+        ai_message = AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": tool_name,
+                    "args": {"task_description": task_description},
+                    "id": tool_call_id,
+                    "type": "tool_call",
+                }
+            ],
+            **rc_kwargs,
+        )
+
+        # Deterministic briefing update with task assignment
+        briefing_data = state.get("briefing_data", {})
+        try:
+            doc = BriefingDocument.model_validate(briefing_data)
+        except Exception:
+            doc = BriefingDocument(original_request="(recovered)")
+        doc.metadata["current_task"] = {
+            "specialist": agent_name,
+            "description": task_description,
+        }
+        updated_briefing = doc.to_markdown()
+        updated_data = doc.model_dump()
+
         return Command(
             goto=agent_name,
             graph=Command.PARENT,
             update={
-                "messages": [tool_message],
+                "messages": [ai_message, tool_message],
                 "active_agent": agent_name,
+                "briefing": updated_briefing,
+                "briefing_data": updated_data,
             },
         )
 

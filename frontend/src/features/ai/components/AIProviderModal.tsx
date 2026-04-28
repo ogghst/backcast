@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Modal, Form, Input, Select, Switch, Button, Space, Divider } from "antd";
 import { DatabaseOutlined, SettingOutlined } from "@ant-design/icons";
 import type { AIProviderPublic, AIProviderCreate, AIProviderUpdate } from "../types";
+import { PROVIDER_TYPES } from "../types";
 
 interface AIProviderModalProps {
   open: boolean;
@@ -10,7 +11,7 @@ interface AIProviderModalProps {
   confirmLoading: boolean;
   initialValues?: AIProviderPublic | null;
   onOpenModels?: () => void;
-  onOpenConfiguration?: () => void;
+  onOpenConfiguration?: (currentFormValues: { provider_type?: string }) => void;
 }
 
 export const AIProviderModal = ({
@@ -75,7 +76,10 @@ export const AIProviderModal = ({
                 </Button>
                 <Button
                   icon={<SettingOutlined />}
-                  onClick={onOpenConfiguration}
+                  onClick={() => {
+                    const values = form.getFieldsValue();
+                    onOpenConfiguration?.({ provider_type: values.provider_type });
+                  }}
                   data-testid="configuration-btn"
                 >
                   Configuration
@@ -105,9 +109,11 @@ export const AIProviderModal = ({
           rules={[{ required: true, message: "Please select a provider type" }]}
         >
           <Select placeholder="Select a provider type">
-            <Select.Option value="openai">OpenAI</Select.Option>
-            <Select.Option value="azure">Azure OpenAI</Select.Option>
-            <Select.Option value="ollama">Ollama</Select.Option>
+            {PROVIDER_TYPES.map((pt) => (
+              <Select.Option key={pt.value} value={pt.value}>
+                {pt.label}
+              </Select.Option>
+            ))}
           </Select>
         </Form.Item>
 

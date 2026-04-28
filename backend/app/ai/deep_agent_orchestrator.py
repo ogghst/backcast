@@ -73,9 +73,8 @@ class DeepAgentOrchestrator:
         """Create a LangChain agent with Backcast tools and context.
 
         Routing priority:
-        1. ``config.use_briefing_room`` -> :class:`BriefingRoomOrchestrator`
-        2. ``config.use_supervisor`` -> :class:`SupervisorOrchestrator`
-        3. Default -> traditional subagent-as-tool graph
+        1. ``config.use_supervisor`` -> :class:`SupervisorOrchestrator`
+        2. Default -> traditional subagent-as-tool graph
 
         Args:
             config: Optional AgentConfig encapsulating creation parameters.
@@ -93,19 +92,6 @@ class DeepAgentOrchestrator:
         """
         if config is None:
             config = AgentConfig()
-
-        # Route to briefing room orchestrator when flag is set
-        if config.use_briefing_room:
-            from app.ai.briefing_room_orchestrator import BriefingRoomOrchestrator
-
-            briefing_room = BriefingRoomOrchestrator(
-                model=self.model,
-                context=self.context,
-                system_prompt=self.system_prompt,
-                enable_subagents=self.enable_subagents,
-                interrupt_node=self.interrupt_node,
-            )
-            return briefing_room.create_briefing_room_graph(config)
 
         # Delegate to supervisor orchestrator when flag is set
         if config.use_supervisor:
