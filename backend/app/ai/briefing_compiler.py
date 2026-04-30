@@ -25,6 +25,24 @@ def initialize_briefing(
     return doc.model_dump()
 
 
+def _strip_structured_sections(raw_findings: str) -> str:
+    """Remove structured sections from specialist output before storing.
+
+    Since key_findings, open_questions, and delegation_notes are parsed
+    and stored separately, we remove them from the raw findings to avoid
+    duplication in the final markdown render.
+    """
+    sections_to_remove = ["## Delegation Notes", "## Open Questions", "## Key Findings"]
+    cleaned = raw_findings
+    for section_header in sections_to_remove:
+        # Match from header to next section or end
+        pattern = rf"\n?{section_header}.*?(?=\n## |$)"
+        cleaned = re.sub(pattern, "", cleaned, flags=re.DOTALL)
+    # Clean up extra blank lines
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned
+
+
 def compile_specialist_output(
     briefing_data: dict[str, Any],
     specialist_name: str,
@@ -40,10 +58,14 @@ def compile_specialist_output(
     except Exception:
         doc = BriefingDocument(original_request="(recovered)")
 
+    # Strip structured sections from raw output to avoid duplication
+    # (they are stored separately in key_findings, open_questions, delegation_notes)
+    cleaned_findings = _strip_structured_sections(specialist_output)
+
     section = BriefingSection(
         specialist_name=specialist_name,
         task_description=task_description,
-        findings=specialist_output,
+        findings=cleaned_findings,
         supervisor_rationale=supervisor_rationale,
         key_findings=key_findings,
         open_questions=open_questions,

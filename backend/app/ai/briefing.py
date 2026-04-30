@@ -75,23 +75,14 @@ class BriefingDocument(BaseModel):
                     section_lines.append(
                         f"Supervisor rationale: {sec.supervisor_rationale}"
                     )
-                # Strip structured sections from findings to avoid duplication
-                # (key_findings, open_questions, delegation_notes are rendered separately below)
-                clean_findings = sec.findings
-                if clean_findings:
-                    # Remove the structured sections that are parsed separately
-                    sections_to_remove = ["## Key Findings", "## Open Questions", "## Delegation Notes"]
-                    for section_header in sections_to_remove:
-                        # Remove from section header to next section or end
-                        pattern = rf"\n?## {section_header}.*?(?=\n## |$)"
-                        clean_findings = re.sub(pattern, "", clean_findings, flags=re.MULTILINE | re.DOTALL)
-                    # Clean up any extra blank lines
-                    clean_findings = re.sub(r"\n{3,}", "\n\n", clean_findings).strip()
 
-                section_lines += [
-                    "",
-                    clean_findings,
-                ]
+                # Findings are already cleaned of structured sections at input time
+                # (in briefing_compiler.py), so we can render directly
+                if sec.findings:
+                    section_lines += [
+                        "",
+                        sec.findings,
+                    ]
                 if sec.key_findings:
                     section_lines += ["", "**Key Findings:**"]
                     for kf in sec.key_findings:
