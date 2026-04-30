@@ -119,8 +119,8 @@ class _BriefingSupervisorState(AgentState[Any]):
     Adds ``briefing_data`` so LangGraph shares it from the parent
     ``BackcastSupervisorState`` via automatic key-matching state sharing.
     Without this, ``InjectedState`` inside ``get_briefing`` only sees
-    ``AgentState`` (messages, jump_to, structured_response) and the
-    briefing data field is never passed into the subgraph.
+    ``AgentState`` (messages, jump_to) and the briefing data field is
+    never passed into the subgraph.
     """
 
     briefing_data: dict[str, Any]
@@ -285,7 +285,7 @@ class SupervisorOrchestrator:
                     )
                     break
 
-            briefing_data, _ = initialize_briefing(user_request)
+            briefing_data = initialize_briefing(user_request)
 
             return {
                 "briefing_data": briefing_data,
@@ -472,49 +472,35 @@ class SupervisorOrchestrator:
                     exc_info=True,
                 )
                 error_msg = f"Specialist {specialist_name} encountered an error: {exc}"
-                updated_data, _ = compile_specialist_output(
+                updated_data = compile_specialist_output(
                     briefing_data=state.get("briefing_data", {}),
                     specialist_name=specialist_name,
                     task_description=f"Failed: {exc}",
                     specialist_output=error_msg,
-                    tool_calls_summary=[],
                 )
-                return {
-                    "messages": [AIMessage(content=error_msg)],
-                    "briefing_data": updated_data,
-                    "active_agent": "supervisor",
-                    "tool_call_count": 0,
-                    "supervisor_iterations": 1,
-                    "completed_specialists": {specialist_name},
-                }
+                return Command(
+                    update={
+                        "briefing_data": updated_data,
+                        "active_agent": "supervisor",
+                        "supervisor_iterations": 1,
+                        "completed_specialists": {specialist_name},
+                    },
+                    goto="supervisor",
+                )
 
             findings = ""
-            findings_rc_kwargs: dict[str, Any] = {}
             for msg in reversed(result.get("messages", [])):
                 if isinstance(msg, AIMessage) and not msg.tool_calls:
                     findings = str(msg.content)
-                    rc = msg.additional_kwargs.get("reasoning_content")
-                    if rc:
-                        findings_rc_kwargs["additional_kwargs"] = {
-                            "reasoning_content": rc,
-                        }
                     break
-
-            tool_calls_summary: list[str] = []
-            for msg in result.get("messages", []):
-                if isinstance(msg, AIMessage) and msg.tool_calls:
-                    for tc in msg.tool_calls:
-                        args_keys = ", ".join(tc.get("args", {}).keys())
-                        tool_calls_summary.append(f"{tc['name']}({args_keys})")
 
             parsed = parse_structured_findings(findings)
 
-            updated_data, _ = compile_specialist_output(
+            updated_data = compile_specialist_output(
                 briefing_data=state.get("briefing_data", {}),
                 specialist_name=specialist_name,
                 task_description=task_desc,
                 specialist_output=findings,
-                tool_calls_summary=tool_calls_summary,
                 supervisor_rationale=rationale,
                 key_findings=parsed.get("key_findings"),
                 open_questions=parsed.get("open_questions"),
@@ -527,19 +513,16 @@ class SupervisorOrchestrator:
                 len(updated_data.get("sections", [])),
             )
 
-            return {
-                "messages": [
-                    AIMessage(
-                        content=findings or "Specialist task completed.",
-                        **findings_rc_kwargs,
-                    )
-                ],
-                "briefing_data": updated_data,
-                "active_agent": "supervisor",
-                "tool_call_count": result.get("tool_call_count", 0),
-                "supervisor_iterations": 1,
-                "completed_specialists": {specialist_name},
-            }
+            return Command(
+                update={
+                    "briefing_data": updated_data,
+                    "active_agent": "supervisor",
+                    "tool_call_count": result.get("tool_call_count", 0),
+                    "supervisor_iterations": 1,
+                    "completed_specialists": {specialist_name},
+                },
+                goto="supervisor",
+            )
 
         return specialist_node
 

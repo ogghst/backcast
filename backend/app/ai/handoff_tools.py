@@ -106,10 +106,6 @@ def create_handoff_tool(
                 rationale=rationale,
             )
         )
-        doc.metadata["current_task"] = {
-            "specialist": agent_name,
-            "description": task_description,
-        }
         updated_data = doc.model_dump()
 
         return Command(

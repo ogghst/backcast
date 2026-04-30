@@ -1,15 +1,12 @@
 """Briefing document models for the Briefing Room orchestrator pattern.
 
 Pure data models that accumulate specialist contributions into a structured
-document. No AI framework dependencies — only Pydantic and datetime.
+document. No AI framework dependencies — only Pydantic.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class TaskAssignment(BaseModel):
@@ -18,9 +15,6 @@ class TaskAssignment(BaseModel):
     specialist: str
     description: str
     rationale: str | None = None
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(tz=timezone.utc)  # noqa: UP017
-    )
 
 
 class BriefingSection(BaseModel):
@@ -29,11 +23,6 @@ class BriefingSection(BaseModel):
     specialist_name: str
     task_description: str
     findings: str
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(tz=timezone.utc)  # noqa: UP017
-    )
-    tool_calls_summary: list[str]
-    structured_data: dict[str, Any] | None = None
     supervisor_rationale: str | None = None
     key_findings: list[str] | None = None
     open_questions: list[str] | None = None
@@ -43,21 +32,13 @@ class BriefingSection(BaseModel):
 class BriefingDocument(BaseModel):
     """Accumulating briefing document assembled by the orchestrator.
 
-    Each specialist contribution appends a section and increments the
-    iteration counter.
+    Each specialist contribution appends a section to ``sections``.
     """
 
     original_request: str
     sections: list[BriefingSection] = []
-    metadata: dict[str, Any] = {}
-    iteration: int = 0
-    task_completed: bool = False
     supervisor_analysis: str | None = None
     task_history: list[TaskAssignment] = []
-
-    def add_section(self, section: BriefingSection) -> None:
-        self.sections.append(section)
-        self.iteration += 1
 
     def add_task_assignment(self, assignment: TaskAssignment) -> None:
         self.task_history.append(assignment)
@@ -80,17 +61,9 @@ class BriefingDocument(BaseModel):
                 if task.rationale:
                     parts.append(f"   - Rationale: {task.rationale}")
 
-        display_metadata = {
-            k: v for k, v in self.metadata.items() if k != "current_task"
-        }
-        if display_metadata:
-            scope_lines = [f"- {k}: {v}" for k, v in display_metadata.items()]
-            parts += ["", "## Context", *scope_lines]
-
         if self.sections:
             parts += ["", "## Specialist Findings"]
             for idx, sec in enumerate(self.sections, start=1):
-                tools = ", ".join(sec.tool_calls_summary)
                 section_lines = [
                     "",
                     f"### {sec.specialist_name} (Iteration {idx})",
@@ -101,7 +74,6 @@ class BriefingDocument(BaseModel):
                         f"Supervisor rationale: {sec.supervisor_rationale}"
                     )
                 section_lines += [
-                    f"Tools used: {tools}",
                     "",
                     sec.findings,
                 ]
@@ -120,9 +92,6 @@ class BriefingDocument(BaseModel):
                     ]
                 section_lines += ["", "---"]
                 parts += section_lines
-
-        if self.task_completed:
-            parts += ["", "## Status", "Task Completed"]
 
         return "\n".join(parts)
 

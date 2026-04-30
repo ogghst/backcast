@@ -25,36 +25,20 @@ class TestBriefingSection:
             specialist_name="evm_analyst",
             task_description="Analyze EVM metrics",
             findings="CPI: 0.95, SPI: 1.05",
-            tool_calls_summary=["get_evm_metrics(project_id)"],
         )
         assert section.specialist_name == "evm_analyst"
         assert section.task_description == "Analyze EVM metrics"
         assert section.findings == "CPI: 0.95, SPI: 1.05"
-        assert section.structured_data is None
         assert section.supervisor_rationale is None
         assert section.key_findings is None
         assert section.open_questions is None
         assert section.delegation_notes is None
-        assert section.timestamp is not None
-
-    def test_with_structured_data(self) -> None:
-        section = BriefingSection(
-            specialist_name="evm_analyst",
-            task_description="test",
-            findings="test",
-            tool_calls_summary=[],
-            structured_data={"cpi": 0.95, "spi": 1.05},
-        )
-        assert section.structured_data is not None
-        assert section.structured_data["cpi"] == 0.95
-        assert section.structured_data["spi"] == 1.05
 
     def test_with_enhanced_fields(self) -> None:
         section = BriefingSection(
             specialist_name="evm_analyst",
             task_description="Analyze EVM",
             findings="CPI: 0.95",
-            tool_calls_summary=[],
             supervisor_rationale="Need EVM analysis for project health",
             key_findings=["CPI below 1.0", "SPI above 1.0"],
             open_questions=["What is the target CPI?"],
@@ -74,7 +58,6 @@ class TestTaskAssignment:
         assert ta.specialist == "evm_analyst"
         assert ta.description == "Run EVM calc"
         assert ta.rationale is None
-        assert ta.timestamp is not None
 
     def test_with_rationale(self) -> None:
         ta = TaskAssignment(
@@ -96,58 +79,38 @@ class TestBriefingDocument:
         assert "What is the status?" in md
         assert "## Specialist Findings" not in md
 
-    def test_to_markdown_with_metadata(self) -> None:
-        doc = BriefingDocument(
-            original_request="Status?",
-            metadata={"project_id": "PRJ-001"},
-        )
-        md = doc.to_markdown()
-        assert "## Context" in md
-        assert "project_id: PRJ-001" in md
-
     def test_to_markdown_with_sections(self) -> None:
         doc = BriefingDocument(original_request="Status?")
-        doc.add_section(
+        doc.sections.append(
             BriefingSection(
                 specialist_name="project_manager",
                 task_description="Get project info",
                 findings="Project is 45% complete",
-                tool_calls_summary=["list_projects()"],
             )
         )
         md = doc.to_markdown()
         assert "## Specialist Findings" in md
         assert "### project_manager (Iteration 1)" in md
         assert "Project is 45% complete" in md
-        assert "list_projects()" in md
 
-    def test_add_section_increments_iteration(self) -> None:
+    def test_sections_append(self) -> None:
         doc = BriefingDocument(original_request="test")
-        assert doc.iteration == 0
-        doc.add_section(
+        doc.sections.append(
             BriefingSection(
                 specialist_name="a",
                 task_description="t",
                 findings="f",
-                tool_calls_summary=[],
             )
         )
-        assert doc.iteration == 1
-        doc.add_section(
+        assert len(doc.sections) == 1
+        doc.sections.append(
             BriefingSection(
                 specialist_name="b",
                 task_description="t",
                 findings="f",
-                tool_calls_summary=[],
             )
         )
-        assert doc.iteration == 2
         assert len(doc.sections) == 2
-
-    def test_to_markdown_empty_metadata(self) -> None:
-        doc = BriefingDocument(original_request="test")
-        md = doc.to_markdown()
-        assert "## Context" not in md
 
     def test_supervisor_analysis_rendered(self) -> None:
         doc = BriefingDocument(
@@ -172,26 +135,13 @@ class TestBriefingDocument:
         assert "**evm_analyst**: Run EVM calculations" in md
         assert "Rationale: User asked about project health" in md
 
-    def test_current_task_filtered_from_context(self) -> None:
-        doc = BriefingDocument(
-            original_request="test",
-            metadata={
-                "current_task": {"specialist": "x", "description": "y"},
-                "project_id": "PRJ-001",
-            },
-        )
-        md = doc.to_markdown()
-        assert "current_task" not in md
-        assert "project_id: PRJ-001" in md
-
     def test_section_with_enhanced_fields_rendered(self) -> None:
         doc = BriefingDocument(original_request="test")
-        doc.add_section(
+        doc.sections.append(
             BriefingSection(
                 specialist_name="evm_analyst",
                 task_description="Run EVM",
                 findings="CPI: 0.95",
-                tool_calls_summary=["calc_evm()"],
                 supervisor_rationale="Need cost analysis",
                 key_findings=["CPI below 1.0"],
                 open_questions=["What baseline?"],
@@ -211,25 +161,12 @@ class TestInitializeBriefing:
     """Tests for initialize_briefing compiler function."""
 
     def test_creates_valid_briefing(self) -> None:
-        data, task_completed = initialize_briefing("What's the status of PRJ-001?")
+        data = initialize_briefing("What's the status of PRJ-001?")
         assert data["original_request"] == "What's the status of PRJ-001?"
         assert data["sections"] == []
-        assert task_completed is False
-
-    def test_with_metadata(self) -> None:
-        data, task_completed = initialize_briefing(
-            "Status?", {"project_id": "PRJ-001", "branch": "main"}
-        )
-        assert data["metadata"]["project_id"] == "PRJ-001"
-        assert task_completed is False
-
-    def test_without_metadata(self) -> None:
-        data, task_completed = initialize_briefing("Hello")
-        assert data["metadata"] == {}
-        assert task_completed is False
 
     def test_return_data_renders_to_markdown(self) -> None:
-        data, _ = initialize_briefing("What's the status?")
+        data = initialize_briefing("What's the status?")
         doc = BriefingDocument.model_validate(data)
         md = doc.to_markdown()
         assert "# Briefing Document" in md
@@ -240,73 +177,52 @@ class TestCompileSpecialistOutput:
     """Tests for compile_specialist_output compiler function."""
 
     def test_appends_section(self) -> None:
-        initial_data, _ = initialize_briefing("Status?")
-        data, task_completed = compile_specialist_output(
+        initial_data = initialize_briefing("Status?")
+        data = compile_specialist_output(
             briefing_data=initial_data,
             specialist_name="project_manager",
             task_description="Get project info",
             specialist_output="Project is 45% complete",
-            tool_calls_summary=["list_projects()"],
         )
         assert len(data["sections"]) == 1
         assert data["sections"][0]["specialist_name"] == "project_manager"
         assert data["sections"][0]["findings"] == "Project is 45% complete"
-        assert data["iteration"] == 1
-        assert task_completed is False
 
     def test_preserves_existing_sections(self) -> None:
-        data, _ = initialize_briefing("Status?")
-        data, _ = compile_specialist_output(
+        data = initialize_briefing("Status?")
+        data = compile_specialist_output(
             briefing_data=data,
             specialist_name="a",
             task_description="t1",
             specialist_output="Finding 1",
-            tool_calls_summary=[],
         )
-        data, _ = compile_specialist_output(
+        data = compile_specialist_output(
             briefing_data=data,
             specialist_name="b",
             task_description="t2",
             specialist_output="Finding 2",
-            tool_calls_summary=["tool_x()"],
         )
         assert len(data["sections"]) == 2
-        assert data["iteration"] == 2
         assert data["sections"][0]["findings"] == "Finding 1"
         assert data["sections"][1]["findings"] == "Finding 2"
 
-    def test_with_structured_data(self) -> None:
-        data, _ = initialize_briefing("EVM?")
-        data, _ = compile_specialist_output(
-            briefing_data=data,
-            specialist_name="evm_analyst",
-            task_description="Calculate EVM",
-            specialist_output="CPI: 0.95",
-            tool_calls_summary=["calculate_evm()"],
-            structured_data={"cpi": 0.95, "spi": 1.05},
-        )
-        assert data["sections"][0]["structured_data"]["cpi"] == 0.95
-
     def test_handles_empty_briefing_data(self) -> None:
-        data, task_completed = compile_specialist_output(
+        data = compile_specialist_output(
             briefing_data={},
             specialist_name="test",
             task_description="test task",
             specialist_output="test output",
-            tool_calls_summary=[],
         )
         assert data["original_request"] == "(recovered)"
         assert data["sections"][0]["findings"] == "test output"
-        assert task_completed is False
 
     def test_with_enhanced_fields(self) -> None:
-        data, _ = initialize_briefing("Test?")
-        data, _ = compile_specialist_output(
+        data = initialize_briefing("Test?")
+        data = compile_specialist_output(
             briefing_data=data,
             specialist_name="evm_analyst",
             task_description="Run EVM",
             specialist_output="CPI: 0.95",
-            tool_calls_summary=[],
             supervisor_rationale="Cost analysis needed",
             key_findings=["CPI below threshold"],
             open_questions=["Which baseline?"],
@@ -383,11 +299,9 @@ class TestGetBriefingTool:
 
     def test_empty_briefing_data(self) -> None:
         tool = self._make_tool()
-        # Empty dict for briefing_data
         result = tool.func(state={"briefing_data": {}})
         assert result == "No briefing available yet."
 
-        # Missing briefing_data key entirely
         result = tool.func(state={})
         assert result == "No briefing available yet."
 
@@ -400,7 +314,7 @@ class TestGetBriefingTool:
 
     def test_valid_briefing_data(self) -> None:
         tool = self._make_tool()
-        data, _ = initialize_briefing("What's the status of PRJ-001?")
+        data = initialize_briefing("What's the status of PRJ-001?")
         result = tool.func(state={"briefing_data": data})
         assert "# Briefing Document" in result
         assert "What's the status of PRJ-001?" in result

@@ -53,7 +53,6 @@ Each arrow is a state transition. Reducers determine how the returned dict merge
 | `briefing_data` | last-writer-wins | Direct replacement (full dict regenerated) |
 | `max_tool_iterations` | last-writer-wins | Direct replacement |
 | `max_supervisor_iterations` | last-writer-wins | Direct replacement |
-| `structured_response` | last-writer-wins | Direct replacement |
 
 **Source:** `backend/app/ai/supervisor_state.py`
 
@@ -94,9 +93,6 @@ Fields `briefing_data`, `supervisor_iterations`, `max_supervisor_iterations`, `c
     "briefing_data": {
         "original_request": "What's the budget variance for PRJ-001?",
         "sections": [],
-        "metadata": {},
-        "iteration": 0,
-        "task_completed": False,
         "supervisor_analysis": None,
         "task_history": [],
     },
@@ -114,15 +110,11 @@ After merging into the parent state, the full `BackcastSupervisorState` is:
         HumanMessage(content="What's the budget variance for PRJ-001?")
     ],
     "active_agent": "",               # unset
-    "structured_response": None,      # unset
     "tool_call_count": 0,
     "max_tool_iterations": 25,
     "briefing_data": {
         "original_request": "What's the budget variance for PRJ-001?",
         "sections": [],
-        "metadata": {},
-        "iteration": 0,
-        "task_completed": False,
         "supervisor_analysis": None,
         "task_history": [],
     },
@@ -153,8 +145,7 @@ The handoff tool does a **deterministic briefing update** before routing:
 
 1. Recovers `BriefingDocument` from `state["briefing_data"]`
 2. Calls `doc.add_task_assignment(TaskAssignment(specialist="project_manager", description="Fetch budget details...", rationale="Need project financials..."))`
-3. Sets `doc.metadata["current_task"] = {"specialist": "project_manager", "description": "Fetch budget details..."}`
-4. Regenerates `doc.to_markdown()` and `doc.model_dump()`
+3. Regenerates `doc.model_dump()`
 
 Returns a `Command`:
 
@@ -182,21 +173,12 @@ Command(
         "briefing_data": {
             "original_request": "What's the budget variance for PRJ-001?",
             "sections": [],
-            "metadata": {
-                "current_task": {
-                    "specialist": "project_manager",
-                    "description": "Fetch budget details and actual costs for PRJ-001",
-                }
-            },
-            "iteration": 0,
-            "task_completed": False,
             "supervisor_analysis": None,
             "task_history": [
                 {
                     "specialist": "project_manager",
                     "description": "Fetch budget details and actual costs for PRJ-001",
                     "rationale": "Need project financials to calculate variance",
-                    "timestamp": "2026-04-29T10:30:00Z",
                 }
             ],
         },
@@ -217,12 +199,9 @@ After the Command merges into state via reducers:
     "briefing_data": {
         "original_request": "What's the budget variance for PRJ-001?",
         "sections": [],
-        "metadata": {"current_task": {"specialist": "project_manager", "description": "Fetch budget details..."}},
-        "iteration": 0,
-        "task_completed": False,
         "supervisor_analysis": None,
         "task_history": [
-            {"specialist": "project_manager", "description": "Fetch budget details...", "rationale": "Need project financials...", "timestamp": "..."}
+            {"specialist": "project_manager", "description": "Fetch budget details...", "rationale": "Need project financials..."}
         ],
     },
     "tool_call_count": 0,
@@ -299,7 +278,7 @@ The specialist internally calls:
 
 **Source:** `backend/app/ai/supervisor_orchestrator.py:478-530`
 
-The wrapper extracts the specialist's last `AIMessage` as findings, collects tool call summaries, calls `parse_structured_findings()` and `compile_specialist_output()`.
+The wrapper extracts the specialist's last `AIMessage` as findings, calls `parse_structured_findings()` and `compile_specialist_output()`.
 
 ```python
 # compile_specialist_output() adds a BriefingSection to the document:
@@ -318,11 +297,6 @@ The wrapper extracts the specialist's last `AIMessage` as findings, collects too
         "- Currently 8% under budget\n"
         "- 45% complete, status Active"
     ),
-    "tool_calls_summary": [
-        "list_projects()",
-        "get_project(project_id)",
-        "list_cost_elements(wbe_id)",
-    ],
     "supervisor_rationale": "Need project financials to calculate variance",
     "key_findings": [
         "Budget is $2.5M with $2.3M actual spend",
@@ -347,22 +321,14 @@ The wrapper returns:
             "specialist_name": "project_manager",
             "task_description": "Fetch budget details and actual costs for PRJ-001",
             "findings": "Project PRJ-001 \"Factory Automation Line\":\n- Total Budget: $2,500,000\n...",
-            "timestamp": "2026-04-29T10:30:15Z",
-            "tool_calls_summary": ["list_projects()", "get_project(project_id)", "list_cost_elements(wbe_id)"],
-            "structured_data": None,
             "supervisor_rationale": "Need project financials to calculate variance",
             "key_findings": ["Budget is $2.5M with $2.3M actual spend", "Currently 8% under budget", "45% complete, status Active"],
             "open_questions": None,
             "delegation_notes": None,
         }],
-        "metadata": {
-            "current_task": {"specialist": "project_manager", "description": "Fetch budget details..."}
-        },
-        "iteration": 1,
-        "task_completed": False,
         "supervisor_analysis": None,
         "task_history": [
-            {"specialist": "project_manager", "description": "Fetch budget details...", "rationale": "Need project financials...", "timestamp": "..."}
+            {"specialist": "project_manager", "description": "Fetch budget details...", "rationale": "Need project financials..."}
         ],
     },
     "active_agent": "supervisor",
@@ -385,7 +351,7 @@ After merging, the full state now has:
     "active_agent": "supervisor",                # replaced
     "tool_call_count": 3,                        # operator.add: 0 + 3 = 3
     "max_tool_iterations": 25,
-    "briefing_data": { "sections": [project_manager_section], "iteration": 1, ... },
+    "briefing_data": { "sections": [project_manager_section], ... },
     "supervisor_iterations": 1,                  # operator.add: 0 + 1 = 1
     "max_supervisor_iterations": 3,
     "completed_specialists": {"project_manager"},  # operator.or_: {} | {"project_manager"}
@@ -405,7 +371,7 @@ The supervisor reads the updated briefing (now contains project_manager findings
 
 ### T8 — `handoff_to_evm_analyst` Command
 
-Same handoff flow as T4. The `doc.add_task_assignment()` appends a second entry to `task_history`. The `doc.metadata["current_task"]` is overwritten to point to `evm_analyst`.
+Same handoff flow as T4. The `doc.add_task_assignment()` appends a second entry to `task_history`.
 
 State after Command merge:
 
@@ -416,18 +382,16 @@ State after Command merge:
         AIMessage("", tool_calls=[handoff_to_project_manager]),
         ToolMessage("Transferring to project_manager: ..."),
         AIMessage("Project PRJ-001: Budget $2,500,000..."),
-        AIMessage("", tool_calls=[handoff_to_evm_analyst]),   # ← appended
-        ToolMessage("Transferring to evm_analyst: ..."),      # ← appended
+        AIMessage("", tool_calls=[handoff_to_evm_analyst]),   # appended
+        ToolMessage("Transferring to evm_analyst: ..."),      # appended
     ],
     "active_agent": "evm_analyst",
     "briefing_data": {
         "sections": [project_manager_section],
-        "iteration": 1,
         "task_history": [
             {"specialist": "project_manager", ...},
-            {"specialist": "evm_analyst", "description": "Calculate EVM variance metrics...", "rationale": "Need CPI/SPI...", "timestamp": "..."},
+            {"specialist": "evm_analyst", "description": "Calculate EVM variance metrics...", "rationale": "Need CPI/SPI..."},
         ],
-        "metadata": {"current_task": {"specialist": "evm_analyst", "description": "Calculate EVM variance metrics..."}},
         ...
     },
     "tool_call_count": 3,
@@ -484,14 +448,11 @@ The EVM specialist calls:
                 "specialist_name": "evm_analyst",
                 "task_description": "Calculate EVM variance metrics...",
                 "findings": "EVM Analysis for PRJ-001:\n- CPI: 0.92...",
-                "tool_calls_summary": ["calculate_evm_metrics(project_id, wbe_id)"],
                 "key_findings": ["CPI < 1.0 indicates cost overrun rate", "Budget variance is 8% under budget", "Project is ahead of schedule (SPI > 1.0)"],
                 ...
             }
         ],
-        "iteration": 2,
         "task_history": [project_manager_assignment, evm_analyst_assignment],
-        "metadata": {"current_task": {"specialist": "evm_analyst", ...}},
     },
     "active_agent": "supervisor",
     "tool_call_count": 1,                       # operator.add: 3 + 1 = 4 total
@@ -518,9 +479,7 @@ After merging, the full state:
     "max_tool_iterations": 25,
     "briefing_data": {
         "sections": [project_manager_section, evm_analyst_section],
-        "iteration": 2,
         "task_history": [pm_assignment, evm_assignment],
-        "metadata": {"current_task": {"specialist": "evm_analyst", ...}},
     },
     "supervisor_iterations": 2,                 # 1 + 1 = 2
     "max_supervisor_iterations": 3,
@@ -567,15 +526,11 @@ AIMessage(content=(
         AIMessage("Based on the analysis of PRJ-001: **Budget Variance: -$200K**..."),
     ],
     "active_agent": "supervisor",
-    "structured_response": None,
     "tool_call_count": 4,
     "max_tool_iterations": 25,
     "briefing_data": {
         "original_request": "What's the budget variance for PRJ-001?",
         "sections": [project_manager_section, evm_analyst_section],
-        "metadata": {"current_task": {"specialist": "evm_analyst", "description": "..."}},
-        "iteration": 2,
-        "task_completed": False,
         "supervisor_analysis": None,
         "task_history": [pm_assignment, evm_assignment],
     },
@@ -592,10 +547,6 @@ AIMessage(content=(
 ### `task_history` is populated by handoff tools, not by specialists
 
 The specialist wrapper reads `doc.task_history[-1]` to get its assignment, but `add_task_assignment()` is called inside the handoff tool (`handoff_tools.py:102-108`). If the handoff tool doesn't include a `task_description` argument, the entry still gets created but with a default/generic description.
-
-### `metadata["current_task"]` is overwritten each handoff
-
-Only the **last** handoff's task metadata survives in `metadata["current_task"]`. Previous specialist assignments are preserved in `task_history` but not in `current_task`. The specialist wrapper reads from `task_history[-1]`, not `current_task`.
 
 ### `supervisor_iterations` uses `operator.add`, so each specialist returns `1`
 

@@ -90,7 +90,6 @@ The key architectural difference from a shared-state supervisor: specialist node
 class BackcastSupervisorState(TypedDict):
     messages: Annotated[list[BaseMessage], operator.add]  # user msg + supervisor response only
     active_agent: str                                     # currently active specialist
-    structured_response: Any | None                       # structured output from specialists
     tool_call_count: Annotated[int, operator.add]         # accumulated across all agents
     max_tool_iterations: int                              # global iteration limit
     briefing_data: dict[str, Any]                         # serialized BriefingDocument (single source of truth)

@@ -20,13 +20,9 @@ __all__ = [
 
 def initialize_briefing(
     user_request: str,
-    metadata: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any], bool]:
-    doc = BriefingDocument(
-        original_request=user_request,
-        metadata=metadata or {},
-    )
-    return doc.model_dump(), False
+) -> dict[str, Any]:
+    doc = BriefingDocument(original_request=user_request)
+    return doc.model_dump()
 
 
 def compile_specialist_output(
@@ -34,14 +30,11 @@ def compile_specialist_output(
     specialist_name: str,
     task_description: str,
     specialist_output: str,
-    tool_calls_summary: list[str],
-    structured_data: dict[str, Any] | None = None,
-    task_completed: bool = False,
     supervisor_rationale: str | None = None,
     key_findings: list[str] | None = None,
     open_questions: list[str] | None = None,
     delegation_notes: str | None = None,
-) -> tuple[dict[str, Any], bool]:
+) -> dict[str, Any]:
     try:
         doc = BriefingDocument.model_validate(briefing_data)
     except Exception:
@@ -51,19 +44,14 @@ def compile_specialist_output(
         specialist_name=specialist_name,
         task_description=task_description,
         findings=specialist_output,
-        tool_calls_summary=tool_calls_summary,
-        structured_data=structured_data,
         supervisor_rationale=supervisor_rationale,
         key_findings=key_findings,
         open_questions=open_questions,
         delegation_notes=delegation_notes,
     )
-    doc.add_section(section)
+    doc.sections.append(section)
 
-    if task_completed:
-        doc.task_completed = True
-
-    return doc.model_dump(), task_completed
+    return doc.model_dump()
 
 
 def _extract_bullet_items(text: str) -> list[str]:
