@@ -6,7 +6,7 @@
  * allowing the LLM to focus on project data.
  */
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { ChatInterface } from "@/features/ai/chat/components/ChatInterface";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
@@ -39,6 +39,19 @@ export const ProjectChat = () => {
     }
   }, [projectId, setCurrentProject]);
 
-  // Pass the stable root_id from project data to ChatInterface
-  return <ChatInterface projectId={project?.project_id} />;
+  // Pass the stable root_id from project data to ChatInterface with project name
+  const contextOverride = useMemo(
+    () =>
+      projectId
+        ? { type: "project" as const, id: projectId, name: project?.name }
+        : undefined,
+    [projectId, project?.name],
+  );
+
+  return (
+    <ChatInterface
+      projectId={project?.project_id}
+      contextOverride={contextOverride}
+    />
+  );
 };

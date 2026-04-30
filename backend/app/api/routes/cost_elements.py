@@ -341,7 +341,7 @@ async def get_cost_element_schedule_baseline(
     # Convert to dict with cost element details
     from app.models.schemas.schedule_baseline import ScheduleBaselineRead
 
-    baseline_dict = ScheduleBaselineRead.model_validate(baseline).model_dump()
+    baseline_dict = ScheduleBaselineRead.model_validate(baseline).model_dump(mode='json')
 
     # Add cost element details if available
 
@@ -420,7 +420,7 @@ async def create_cost_element_schedule_baseline(
         # Convert to dict
         from app.models.schemas.schedule_baseline import ScheduleBaselineRead
 
-        return ScheduleBaselineRead.model_validate(baseline).model_dump()
+        return ScheduleBaselineRead.model_validate(baseline).model_dump(mode='json')
 
     except BaselineAlreadyExistsError as e:
         raise HTTPException(
@@ -506,7 +506,7 @@ async def update_cost_element_schedule_baseline(
     # Convert to dict
     from app.models.schemas.schedule_baseline import ScheduleBaselineRead
 
-    return ScheduleBaselineRead.model_validate(updated_baseline).model_dump()
+    return ScheduleBaselineRead.model_validate(updated_baseline).model_dump(mode='json')
 
 
 @router.delete(
@@ -755,7 +755,7 @@ async def get_cost_element_forecast(
     # Convert to dict with cost element details
     from app.models.schemas.forecast import ForecastRead
 
-    forecast_dict = ForecastRead.model_validate(forecast).model_dump()
+    forecast_dict = ForecastRead.model_validate(forecast).model_dump(mode='json')
 
     # Add cost element details
     forecast_dict["cost_element_id"] = cost_element.cost_element_id
@@ -870,7 +870,7 @@ async def update_cost_element_forecast(
     # Convert to dict with cost element details
     from app.models.schemas.forecast import ForecastRead
 
-    forecast_dict = ForecastRead.model_validate(updated_forecast).model_dump()
+    forecast_dict = ForecastRead.model_validate(updated_forecast).model_dump(mode='json')
 
     # Add cost element details if available
     from sqlalchemy import func, select

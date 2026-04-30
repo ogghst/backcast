@@ -4,7 +4,9 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+
+from app.core.temporal import format_temporal_range_for_api
 
 
 class ProgressEntryBase(BaseModel):
@@ -48,22 +50,6 @@ class ProgressEntryCreate(ProgressEntryBase):
     )
 
 
-class ProgressEntryUpdate(BaseModel):
-    """Properties that can be updated on a Progress Entry."""
-
-    progress_percentage: Decimal | None = Field(
-        None,
-        ge=Decimal("0.00"),
-        le=Decimal("100.00"),
-        decimal_places=2,
-    )
-    notes: str | None = None
-    control_date: datetime | None = Field(
-        None,
-        description="Control date for when the update should take effect. Defaults to current time if not provided.",
-    )
-
-
 class ProgressEntryRead(ProgressEntryBase):
     """Properties returned to client."""
 
@@ -83,3 +69,13 @@ class ProgressEntryRead(ProgressEntryBase):
         if v and not isinstance(v, str):
             return str(v)
         return v  # type: ignore
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def valid_time_formatted(self) -> dict[str, str | bool | None]:
+        return format_temporal_range_for_api(self.valid_time)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def transaction_time_formatted(self) -> dict[str, str | bool | None]:
+        return format_temporal_range_for_api(self.transaction_time)

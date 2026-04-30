@@ -16,6 +16,7 @@ Test Structure:
 
 import logging
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -45,16 +46,31 @@ logger = logging.getLogger(__name__)
 
 @pytest_asyncio.fixture
 async def tool_context(db_session: AsyncSession) -> ToolContext:
-    """Create a ToolContext for testing."""
+    """Create a ToolContext for testing.
+
+    Patches get_tool_session to return the test db_session instead of
+    creating a task-local session from the production session factory.
+    This is necessary because the test fixtures create data in db_session,
+    and the tools must query the same session to find that data.
+
+    Also patches ToolSessionManager.commit/rollback to prevent the
+    @ai_tool decorator from committing the test transaction prematurely.
+    """
     test_user_id = uuid4()
-    return ToolContext(
-        session=db_session,
-        user_id=str(test_user_id),
-        user_role="admin",  # Use admin role to bypass permission checks in tests
-        as_of=None,
-        branch_name="main",
-        branch_mode=None,
-    )
+    with (
+        patch("app.db.session.get_tool_session", return_value=db_session),
+        patch("app.ai.tools.session_manager.ToolSessionManager.commit"),
+        patch("app.ai.tools.session_manager.ToolSessionManager.rollback"),
+    ):
+        ctx = ToolContext(
+            session=db_session,
+            user_id=str(test_user_id),
+            user_role="admin",
+            as_of=None,
+            branch_name="main",
+            branch_mode=None,
+        )
+        yield ctx
 
 
 @pytest_asyncio.fixture

@@ -17,9 +17,9 @@ export type AIAssistantConfigPublic = {
      */
     recursion_limit?: (number | null);
     /**
-     * List of tool names this assistant can use
+     * RBAC role for tool filtering (e.g., ai-viewer, ai-manager, ai-admin)
      */
-    allowed_tools?: (Array<string> | null);
+    default_role?: (string | null);
     is_active?: boolean;
     id: string;
     created_at: string;

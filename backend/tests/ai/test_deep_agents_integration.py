@@ -165,7 +165,7 @@ async def test_backcast_security_middleware_check_risk_low_safe_mode(tool_contex
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[mock_tool])
     middleware.context.execution_mode = ExecutionMode.SAFE
 
-    allowed, error = middleware._check_risk_level("low_risk_tool")
+    allowed, error = middleware._check_risk_level("low_risk_tool", tool_context)
     assert allowed is True
     assert error is None
 
@@ -181,7 +181,7 @@ async def test_backcast_security_middleware_check_risk_high_safe_mode(tool_conte
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[mock_tool])
     middleware.context.execution_mode = ExecutionMode.SAFE
 
-    allowed, error = middleware._check_risk_level("high_risk_tool")
+    allowed, error = middleware._check_risk_level("high_risk_tool", tool_context)
     assert allowed is False
     assert error is not None
     assert "risk level" in error.lower()
@@ -200,7 +200,7 @@ async def test_backcast_security_middleware_check_risk_critical_standard_mode(
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[mock_tool])
     middleware.context.execution_mode = ExecutionMode.STANDARD
 
-    allowed, error = middleware._check_risk_level("critical_tool")
+    allowed, error = middleware._check_risk_level("critical_tool", tool_context)
     assert allowed is False
     assert error is not None
     assert "critical" in error.lower()
@@ -219,7 +219,7 @@ async def test_backcast_security_middleware_check_risk_critical_expert_mode(
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[mock_tool])
     middleware.context.execution_mode = ExecutionMode.EXPERT
 
-    allowed, error = middleware._check_risk_level("critical_tool")
+    allowed, error = middleware._check_risk_level("critical_tool", tool_context)
     assert allowed is True
     assert error is None
 
@@ -259,11 +259,11 @@ async def test_backcast_security_middleware_external_tool_allowed(tool_context):
 
     # External tools (not in Backcast tools list) should be allowed
     # This handles Deep Agents SDK built-in tools (write_todos, task, etc.)
-    error = await middleware._check_tool_permission("external_tool", {})
+    error = await middleware._check_tool_permission("external_tool", {}, tool_context)
     assert error is None  # External tools are allowed
 
     # Same for risk check
-    allowed, risk_error = middleware._check_risk_level("external_tool")
+    allowed, risk_error = middleware._check_risk_level("external_tool", tool_context)
     assert allowed is True
     assert risk_error is None
 
@@ -277,7 +277,9 @@ async def test_backcast_security_middleware_no_metadata(tool_context):
 
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[mock_tool])
 
-    error = await middleware._check_tool_permission("no_metadata_tool", {})
+    error = await middleware._check_tool_permission(
+        "no_metadata_tool", {}, tool_context
+    )
     assert error is None  # No metadata means no permission requirements
 
 
@@ -292,7 +294,7 @@ async def test_backcast_security_middleware_risk_no_metadata(tool_context):
 
     # Should default to HIGH risk level
     middleware.context.execution_mode = ExecutionMode.SAFE
-    allowed, error = middleware._check_risk_level("no_metadata_tool")
+    allowed, error = middleware._check_risk_level("no_metadata_tool", tool_context)
     assert allowed is False  # HIGH not allowed in SAFE mode
 
 
@@ -357,11 +359,11 @@ async def test_deep_agent_sdk_tools_always_allowed(tool_context):
 
     for tool_name in deep_agent_sdk_tools:
         # Permission check should pass (external tool)
-        error = await middleware._check_tool_permission(tool_name, {})
+        error = await middleware._check_tool_permission(tool_name, {}, tool_context)
         assert error is None, f"Deep Agent SDK tool {tool_name} should be allowed"
 
         # Risk check should pass (external tool)
-        allowed, risk_error = middleware._check_risk_level(tool_name)
+        allowed, risk_error = middleware._check_risk_level(tool_name, tool_context)
         assert allowed is True, (
             f"Deep Agent SDK tool {tool_name} should pass risk check"
         )
@@ -376,7 +378,7 @@ async def test_write_todos_tool_allowed(tool_context):
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[])
 
     # write_todos should be allowed even with no tools in middleware
-    error = await middleware._check_tool_permission("write_todos", {})
+    error = await middleware._check_tool_permission("write_todos", {}, tool_context)
     assert error is None, "write_todos tool should be allowed"
 
 
@@ -388,7 +390,7 @@ async def test_task_tool_allowed(tool_context):
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[])
 
     # task should be allowed even with no tools in middleware
-    error = await middleware._check_tool_permission("task", {})
+    error = await middleware._check_tool_permission("task", {}, tool_context)
     assert error is None, "task tool should be allowed"
 
 
@@ -425,17 +427,24 @@ async def test_orchestrator_create_agent_returns_compiled_graph(
     Tests both with and without subagents to ensure the orchestrator correctly
     delegates to langchain.agents.create_agent() and returns the result.
     Note: langchain_create_agent is called multiple times (once per subagent
-    in _build_subagent_dicts, plus the final main agent call). We verify the
+    in compile_subagents, plus the final main agent call). We verify the
     *last* call which is the main agent creation.
     """
     from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 
     mock_compiled_graph = MagicMock(name="CompiledStateGraph")
 
-    with patch(
-        "app.ai.deep_agent_orchestrator.langchain_create_agent",
-        return_value=mock_compiled_graph,
-    ) as mock_create:
+    # Patch both modules since they each import create_agent from langchain.agents
+    with (
+        patch(
+            "app.ai.subagent_compiler.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ),
+        patch(
+            "app.ai.deep_agent_orchestrator.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ) as mock_create,
+    ):
         # --- with subagents enabled ---
         orchestrator = DeepAgentOrchestrator(
             model=model_string,
@@ -444,7 +453,7 @@ async def test_orchestrator_create_agent_returns_compiled_graph(
         )
         agent = orchestrator.create_agent()
         assert agent is mock_compiled_graph
-        assert mock_create.call_count > 1  # subagent calls + main agent call
+        assert mock_create.call_count > 0  # at least main agent call
         # The last call is the main agent creation
         # call_args returns the last call's (args, kwargs)
         last_call_kwargs = mock_create.call_args.kwargs
@@ -478,10 +487,17 @@ async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(
 
     mock_compiled_graph = MagicMock()
 
-    with patch(
-        "app.ai.deep_agent_orchestrator.langchain_create_agent",
-        return_value=mock_compiled_graph,
-    ) as mock_create:
+    # Patch both modules since they each import create_agent from langchain.agents
+    with (
+        patch(
+            "app.ai.subagent_compiler.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ),
+        patch(
+            "app.ai.deep_agent_orchestrator.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ) as mock_create,
+    ):
         orchestrator = DeepAgentOrchestrator(
             model=model_string,
             context=tool_context,
@@ -500,7 +516,7 @@ async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(
 
 @pytest.mark.asyncio
 async def test_subagent_dicts_have_required_keys(model_string, tool_context):
-    """T-010: Verify _build_subagent_dicts() produces dicts with required keys.
+    """T-010: Verify compile_subagents() produces dicts with required keys.
 
     Each subagent dict must contain: name, description, system_prompt, tools,
     middleware, runnable. Subagents must NOT have TodoListMiddleware in their
@@ -516,17 +532,23 @@ async def test_subagent_dicts_have_required_keys(model_string, tool_context):
     )
 
     mock_compiled_graph = MagicMock()
-    with patch(
-        "app.ai.deep_agent_orchestrator.langchain_create_agent",
-        return_value=mock_compiled_graph,
+    # Patch both modules since they each import create_agent from langchain.agents
+    with (
+        patch(
+            "app.ai.subagent_compiler.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ),
+        patch(
+            "app.ai.deep_agent_orchestrator.langchain_create_agent",
+            return_value=mock_compiled_graph,
+        ),
     ):
-        # Calling create_agent will trigger _build_subagent_dicts internally
         orchestrator.create_agent()
 
-    # Test the subagent dicts from get_all_subagents directly
+    # Test the subagent configs from get_all_subagents directly
     subagent_configs = get_all_subagents()
 
-    # Verify each config has the base keys that _build_subagent_dicts uses
+    # Verify each config has the base keys that compile_subagents uses
     for config in subagent_configs:
         # The raw configs have: name, description, system_prompt, allowed_tools
         assert "name" in config, f"Subagent missing 'name': {config}"

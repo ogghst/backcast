@@ -11,7 +11,7 @@ for proper context injection and docstring parsing.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from statistics import mean, stdev
 from typing import Annotated, Any
 from uuid import UUID
@@ -420,23 +420,25 @@ async def detect_evm_anomalies(
         ...     print(f"{anomaly['severity']}: {anomaly['description']}")
     """
     try:
-        from app.models.schemas.evm import EntityType
+        from app.models.schemas.evm import EntityType, EVMTimeSeriesGranularity
         from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
-
-        # Get historical EVM data for trend analysis
-        end_date = datetime.now()
-        start_date = end_date - timedelta(weeks=lookback_weeks)
 
         # Get time series data
         timeseries = await service.get_evm_timeseries(
             entity_type=EntityType.PROJECT,
             entity_id=UUID(project_id),
-            start_date=start_date,
-            end_date=end_date,
-            granularity="weekly",
+            granularity=EVMTimeSeriesGranularity.WEEK,
+            control_date=datetime.now(),
         )
+
+        if not timeseries.points:
+            return {
+                "project_id": project_id,
+                "error": "No EVM time-series data available for this project. "
+                         "The project has no cost elements, progress entries, or schedule baseline.",
+            }
 
         anomalies = []
 
@@ -461,9 +463,9 @@ async def detect_evm_anomalies(
         return {
             "project_id": project_id,
             "analysis_period": {
-                "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat(),
-                "weeks_analyzed": lookback_weeks,
+                "start_date": timeseries.start_date.isoformat(),
+                "end_date": timeseries.end_date.isoformat(),
+                "weeks_analyzed": len(timeseries.points),
             },
             "anomalies": anomalies,
             "trend_analysis": {
@@ -691,7 +693,7 @@ async def analyze_forecast_trends(
         >>> print(f"Worst case: ${result['scenarios']['worst']['eac']}")
     """
     try:
-        from app.models.schemas.evm import EntityType
+        from app.models.schemas.evm import EntityType, EVMTimeSeriesGranularity
         from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
@@ -703,17 +705,19 @@ async def analyze_forecast_trends(
             control_date=datetime.now(),
         )
 
-        # Get historical data for trend analysis
-        end_date = datetime.now()
-        start_date = end_date - timedelta(weeks=12)
-
         timeseries = await service.get_evm_timeseries(
             entity_type=EntityType.PROJECT,
             entity_id=UUID(project_id),
-            start_date=start_date,
-            end_date=end_date,
-            granularity="weekly",
+            granularity=EVMTimeSeriesGranularity.WEEK,
+            control_date=datetime.now(),
         )
+
+        if not timeseries.points:
+            return {
+                "project_id": project_id,
+                "error": "No EVM time-series data available for this project. "
+                         "The project has no cost elements, progress entries, or schedule baseline.",
+            }
 
         # Calculate scenarios
         scenarios = _calculate_forecast_scenarios(evm_data, timeseries.points)

@@ -42,6 +42,7 @@ import {
   isSubagentMessage,
   isSubagentResultMessage,
   isAgentCompleteMessage,
+  isBriefingMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -66,7 +67,7 @@ export interface UseStreamingChatConfig {
   /** Callback invoked when an error occurs */
   onError: (error: string) => void;
   /** Optional callback invoked when a tool is called */
-  onToolCall?: (tool: string, args: Record<string, unknown>) => void;
+  onToolCall?: (tool: string, args: Record<string, unknown>, invocationId?: string) => void;
   /** Optional callback invoked when a tool result is received */
   onToolResult?: (tool: string, result?: unknown) => void;
   /** Optional callback invoked when an approval request is received */
@@ -89,6 +90,8 @@ export interface UseStreamingChatConfig {
   onRawMessage?: (message: unknown, direction: "in" | "out") => void;
   /** Optional callback invoked when an execution status update is received */
   onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
+  /** Optional callback invoked when a briefing update is received */
+  onBriefingUpdate?: (briefing: string, specialistName: string, completedSpecialists: string[]) => void;
 }
 
 /**
@@ -202,6 +205,7 @@ export const useStreamingChat = (
     onContentReset,
     onRawMessage,
     onExecutionStatus,
+    onBriefingUpdate,
   } = config;
 
   // Get JWT token from auth store
@@ -237,9 +241,7 @@ export const useStreamingChat = (
 
   // Sync external activeExecutionId prop into the ref
   useEffect(() => {
-    if (activeExecutionId) {
-      activeExecutionIdRef.current = activeExecutionId;
-    }
+    activeExecutionIdRef.current = activeExecutionId ?? null;
   }, [activeExecutionId]);
 
   // WebSocket reference (not in state to avoid re-renders)
@@ -271,6 +273,7 @@ export const useStreamingChat = (
     onContentReset,
     onRawMessage,
     onExecutionStatus,
+    onBriefingUpdate,
   });
 
   // Keep callbacks ref updated (run on every render to capture latest callbacks)
@@ -292,6 +295,7 @@ export const useStreamingChat = (
       onContentReset,
       onRawMessage,
       onExecutionStatus,
+      onBriefingUpdate,
     };
   });
 
@@ -502,7 +506,7 @@ export const useStreamingChat = (
 
       // Handle tool call messages
       if (isToolCallMessage(serverMessage)) {
-        callbacks.onToolCall?.(serverMessage.tool, serverMessage.args);
+        callbacks.onToolCall?.(serverMessage.tool, serverMessage.args, serverMessage.invocation_id);
         return;
       }
 
@@ -515,6 +519,16 @@ export const useStreamingChat = (
       // Handle content reset messages (sent when subagent completes)
       if (isContentResetMessage(serverMessage)) {
         callbacks.onContentReset?.(serverMessage.reason);
+        return;
+      }
+
+      // Handle briefing update messages
+      if (isBriefingMessage(serverMessage)) {
+        callbacks.onBriefingUpdate?.(
+          serverMessage.briefing,
+          serverMessage.specialist_name,
+          serverMessage.completed_specialists,
+        );
         return;
       }
 
@@ -588,6 +602,15 @@ export const useStreamingChat = (
         callbacks.onError(errorMsg);
         setError(new Error(errorMsg));
         setConnectionState(WSConnectionState.ERROR);
+        // Force-close the potentially broken connection to trigger reconnect
+        if (wsRef.current) {
+          try {
+            wsRef.current.close();
+          } catch {
+            // Ignore close errors
+          }
+          wsRef.current = null;
+        }
         return;
       }
 
@@ -702,6 +725,12 @@ export const useStreamingChat = (
           attachments: uploadedAttachments,
           images: uploadedImages,
         };
+
+        // Force-close any non-open connection for clean reconnect
+        if (ws && ws.readyState !== WebSocket.CONNECTING) {
+          try { ws.close(); } catch { /* ignore */ }
+          wsRef.current = null;
+        }
 
         // Trigger connection if not already connecting
         if (!ws || ws.readyState === WebSocket.CLOSED) {
@@ -1076,6 +1105,21 @@ export const useStreamingChat = (
   }, [token, assistantId, handleMessage, clearCompleteTimeout]); // Only reconnect when token or assistantId changes
   // Note: getSelectedTime, getSelectedBranch, getViewMode are used inside ws.addEventListener("open") handler
   // and don't need to be in dependencies - they're stable functions from Zustand store
+
+  // Separate effect to handle connection changes based on activeExecutionId
+  // This handles the case where a running session is opened/closed after mount
+  useEffect(() => {
+    if (activeExecutionId && wsRef.current === null) {
+      // Connect if we have an active execution and no existing connection
+      connectRef.current?.();
+    } else if (!activeExecutionId && wsRef.current) {
+      // Disconnect if switching to a non-running session
+      // Only close if we're not in the middle of sending a message
+      wsRef.current.close();
+      wsRef.current = null;
+      setConnectionState(WSConnectionState.CLOSED);
+    }
+  }, [activeExecutionId]);
 
   return {
     sendMessage,

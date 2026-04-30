@@ -42,7 +42,6 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Type guard: if is_valid is True, subject cannot be None
     if jwt_result.subject is None:
         raise credentials_exception
 

@@ -8,24 +8,33 @@ import logging
 import os
 import time
 import uuid
+from collections import defaultdict
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
 from fastapi.encoders import jsonable_encoder
+from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import (
     AIMessage,
+    AIMessageChunk,
     BaseMessage,
+    BaseMessageChunk,
     HumanMessage,
     SystemMessage,
     ToolMessage,
 )
+from langchain_core.runnables import Runnable
+from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command
+from sqlalchemy import func as sa_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.briefing import BriefingDocument
 from app.ai.config import AgentConfig
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.execution.agent_event import AgentEvent
@@ -34,13 +43,13 @@ from app.ai.execution.runner_manager import runner_manager
 from app.ai.graph import create_graph
 from app.ai.graph_cache import (
     BackcastRuntimeContext,
-    CompiledGraphCache,
-    GraphCacheKey,
     LLMClientCache,
     clear_request_context,
     set_request_context,
     shared_checkpointer,
 )
+from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
+from app.ai.subagents import get_all_subagents
 from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
@@ -50,22 +59,28 @@ from app.ai.token_estimator import (
     log_actual_usage,
     log_context_usage_estimate,
 )
-from app.ai.tools import ToolContext, create_project_tools
+from app.ai.tools import ToolContext, create_project_tools, filter_tools_by_role
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
 from app.api.websocket_utils import is_websocket_connected
+from app.core.config import settings
 from app.models.domain.ai import (
     AIAgentExecution,
     AIAssistantConfig,
     AIConversationSession,
     AIProvider,
 )
+from app.models.domain.cost_element import CostElement
+from app.models.domain.project import Project
+from app.models.domain.wbe import WBE
 from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
     PlanningStep,
     WSAgentCompleteMessage,
+    WSAgentTransitionMessage,
+    WSBriefingMessage,
     WSCompleteMessage,
     WSContentResetMessage,
     WSPlanningMessage,
@@ -83,6 +98,114 @@ _tracer_provider = initialize_telemetry(
     service_name="backcast-ai",
     enable_console=os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true",
 )
+
+# ---------------------------------------------------------------------------
+# Monkey-patch langchain-openai to preserve DeepSeek reasoning_content.
+#
+# DeepSeek's thinking mode requires reasoning_content to be passed back in
+# every subsequent assistant turn. langchain-openai silently drops this field
+# during message conversion, so we patch both directions:
+#   _convert_dict_to_message → extracts reasoning_content into additional_kwargs
+#   _convert_message_to_dict → emits reasoning_content back into the API dict
+# ---------------------------------------------------------------------------
+import langchain_openai.chat_models.base as _lc_openai_base  # noqa: E402
+
+_original_convert_dict_to_message = _lc_openai_base._convert_dict_to_message
+
+
+def _patched_convert_dict_to_message(
+    _dict: Mapping[str, Any],
+) -> BaseMessage:
+    msg = _original_convert_dict_to_message(_dict)
+    if isinstance(msg, AIMessage) and "reasoning_content" in _dict:
+        msg.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
+    return msg
+
+
+_lc_openai_base._convert_dict_to_message = _patched_convert_dict_to_message
+
+_original_convert_message_to_dict = _lc_openai_base._convert_message_to_dict
+
+
+def _patched_convert_message_to_dict(
+    message: BaseMessage,
+    api: Literal["chat/completions", "responses"] = "chat/completions",
+) -> dict[str, Any]:
+    msg_dict = _original_convert_message_to_dict(message, api=api)
+    if isinstance(message, AIMessage):
+        rc = message.additional_kwargs.get("reasoning_content")
+        if rc:
+            msg_dict["reasoning_content"] = rc
+        elif message.tool_calls:
+            logger.warning(
+                "AIMessage with tool_calls but no reasoning_content — "
+                "DeepSeek thinking mode will reject this."
+            )
+    return msg_dict
+
+
+_lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
+
+_original_convert_delta_to_message_chunk = (
+    _lc_openai_base._convert_delta_to_message_chunk
+)
+
+
+def _patched_convert_delta_to_message_chunk(
+    _dict: Mapping[str, Any],
+    default_class: type[BaseMessageChunk],
+) -> BaseMessageChunk:
+    chunk = _original_convert_delta_to_message_chunk(_dict, default_class)
+    if (
+        isinstance(chunk, AIMessageChunk)
+        and "reasoning_content" in _dict
+        and _dict.get("reasoning_content")
+    ):
+        chunk.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
+    return chunk
+
+
+_lc_openai_base._convert_delta_to_message_chunk = (
+    _patched_convert_delta_to_message_chunk
+)
+
+
+class _DeepSeekSafeChatModel(ChatOpenAI):
+    """ChatOpenAI subclass that strips ``tool_choice`` for DeepSeek models.
+
+    DeepSeek's API rejects ``tool_choice`` in ``bind_tools()``.  LangChain's
+    ``create_agent`` internally calls ``model.bind_tools(tools, tool_choice=...)``
+    for subagents, which fails at runtime.  This subclass silently drops the
+    parameter when the underlying model is a DeepSeek variant.
+    """
+
+    def bind_tools(
+        self,
+        tools: Sequence[dict[str, Any] | type | Callable[..., Any] | BaseTool],
+        *,
+        tool_choice: dict[str, Any] | str | bool | None = None,
+        **kwargs: Any,
+    ) -> Runnable[LanguageModelInput, AIMessage]:
+        if self.model_name and self.model_name.startswith("deepseek"):
+            tool_choice = None
+        return super().bind_tools(tools, tool_choice=tool_choice, **kwargs)
+
+
+def _extract_reasoning_content(message: AIMessage) -> dict[str, Any] | None:
+    """Extract reasoning_content from an AIMessage into metadata dict for DB storage."""
+    rc = message.additional_kwargs.get("reasoning_content")
+    if rc:
+        return {"reasoning_content": rc}
+    return None
+
+
+def _restore_reasoning_content(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    """Build additional_kwargs to restore reasoning_content from DB metadata."""
+    if metadata and isinstance(metadata, dict):
+        rc = metadata.get("reasoning_content")
+        if rc:
+            return {"additional_kwargs": {"reasoning_content": rc}}
+    return {}
 
 
 async def _extract_client_config(
@@ -106,7 +229,6 @@ async def _extract_client_config(
 
     client_config: dict[str, Any] = {}
 
-    # Extract config values
     for cfg in config_values:
         if cfg.key == "api_key" and cfg.value is not None:
             client_config["api_key"] = str(cfg.value)
@@ -117,11 +239,9 @@ async def _extract_client_config(
         elif cfg.key == "max_retries" and cfg.value is not None:
             client_config["max_retries"] = int(cfg.value)
 
-    # Set base URL for provider if configured at provider level
     if "base_url" not in client_config and provider.base_url:
         client_config["base_url"] = str(provider.base_url)
 
-    # Handle Azure-specific configuration
     if provider.provider_type == "azure":
         azure_deployment = next(
             (
@@ -135,14 +255,22 @@ async def _extract_client_config(
             # For Azure, we need to pass deployment info
             client_config["model"] = azure_deployment
 
+    elif provider.provider_type == "deepseek":
+        for cfg in config_values:
+            if cfg.key == "reasoning_effort" and cfg.value is not None:
+                client_config["reasoning_effort"] = str(cfg.value)
+            elif cfg.key == "thinking_mode" and cfg.value is not None:
+                client_config["thinking_mode"] = str(cfg.value)
+
     return client_config
 
 
 logger = logging.getLogger(__name__)
 
+SPECIALIST_AGENT_NAMES = frozenset(cfg["name"] for cfg in get_all_subagents())
+
 # Caches (shared across all requests)
 _llm_cache = LLMClientCache()
-_graph_cache = CompiledGraphCache()
 
 # LLM client config cache (avoids 3 DB queries per chat message)
 _llm_config_cache: dict[UUID, tuple[float, dict[str, Any], str, str]] = {}
@@ -178,120 +306,6 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
     return role
 
 
-# Constants
-DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast project budget management system.
-
-You can help with:
-- Listing and viewing projects
-- Getting detailed project information
-- Earned value management calculations
-
-When providing information:
-- Be accurate and rely on the project data
-- Use three-letter codes for project status (e.g., "ACT" for active, "PLN" for planned)
-- Present data in clear, structured formats
-- Only use tools you have been explicitly enabled for the assistant
-
-When using tools:
-- Always use the exact field names expected by the tools
-- For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
-- Use search to find projects by code or name
-"""
-
-
-async def warm_graph_cache(db_session: AsyncSession) -> None:
-    """Pre-compile default agent graph on startup to eliminate cold-start.
-
-    Queries the first active ``AIAssistantConfig``, builds the LLM client,
-    compiles the graph via :class:`DeepAgentOrchestrator`, and stores the
-    result in the module-level ``_graph_cache`` so the first user request
-    after a server restart hits a warm cache.
-
-    Wrapped in try/except so a warming failure never prevents startup.
-
-    Args:
-        db_session: Async database session for querying assistant config.
-    """
-    try:
-        # Find the first active assistant config
-        result = await db_session.execute(
-            select(AIAssistantConfig).where(AIAssistantConfig.is_active).limit(1)
-        )
-        assistant_config = result.scalar_one_or_none()
-        if not assistant_config:
-            logger.info("No active assistant config found, skipping graph warming")
-            return
-
-        # Build cache key components
-        model_id = UUID(str(assistant_config.model_id))
-
-        # Get LLM config (will be cached for future use)
-        agent_service = AgentService(db_session)
-        (
-            client_config,
-            model_name,
-            provider_type,
-        ) = await agent_service._get_llm_client_config(model_id)
-
-        # Create LLM
-        llm = await agent_service._create_langchain_llm(
-            client_config,
-            model_name,
-            assistant_config.temperature,
-            assistant_config.max_tokens,
-        )
-
-        # Create tool context (minimal, for graph structure -- real context set per-request)
-        tool_context = ToolContext(
-            db_session,
-            "system",
-            user_role="admin",
-            execution_mode=ExecutionMode.STANDARD,
-        )
-
-        # Compile and cache the graph
-        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
-        assistant_role = assistant_config.default_role
-
-        orchestrator = DeepAgentOrchestrator(
-            model=llm,
-            context=tool_context,
-            system_prompt=system_prompt,
-            enable_subagents=True,
-        )
-
-        graph = orchestrator.create_agent(
-            config=AgentConfig(
-                allowed_tools=None,  # RBAC role filtering only
-                checkpointer=shared_checkpointer,
-                context_schema=BackcastRuntimeContext,
-                assistant_role=assistant_role,
-                user_role="admin",  # Startup warming uses admin context
-            ),
-        )
-
-        # Build cache key and store
-        cache_key = GraphCacheKey(
-            model_name=model_name,
-            assistant_role_hash=str(hash(assistant_role or "none")),
-            execution_mode=ExecutionMode.STANDARD.value,
-            system_prompt_hash=str(hash(system_prompt)),
-            user_role="admin",  # Startup warming uses admin context
-        )
-        _graph_cache.put(cache_key, graph)
-
-        logger.info(
-            "[GRAPH_WARMING] Warmed default graph cache for model=%s, role=%s",
-            model_name,
-            assistant_role or "none",
-        )
-    except Exception as e:
-        logger.warning(
-            "[GRAPH_WARMING] Failed to warm graph cache: %s. Will compile on first request.",
-            e,
-        )
-
-
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
@@ -300,20 +314,6 @@ class AgentService:
         self._config_service: AIConfigService | None = None
         self._subagent_invocation_counts: dict[str, int] = {}
         self._cancellation_tokens: dict[UUID, asyncio.Event] = {}
-
-    @staticmethod
-    def _is_websocket_connected(websocket: WebSocket) -> bool:
-        """Check if WebSocket is still connected.
-
-        Delegates to the shared is_websocket_connected utility.
-
-        Args:
-            websocket: WebSocket connection to check
-
-        Returns:
-            True if WebSocket is connected, False otherwise
-        """
-        return is_websocket_connected(websocket)
 
     @property
     def config_service(self) -> AIConfigService:
@@ -345,7 +345,6 @@ class AgentService:
         Raises:
             ValueError: If the model or its associated provider cannot be found
         """
-        # Check cache first
         cached = _llm_config_cache.get(model_id)
         if cached is not None:
             expires_at, client_config, model_name, provider_type = cached
@@ -354,8 +353,6 @@ class AgentService:
                 return client_config, model_name, provider_type
             else:
                 del _llm_config_cache[model_id]
-
-        # Cache miss — query DB
         config_service = AIConfigService(self.session)
         model = await config_service.get_model(model_id)
         if not model:
@@ -371,7 +368,6 @@ class AgentService:
         model_name = str(model.model_id)
         provider_type = provider.provider_type
 
-        # Store in cache
         _llm_config_cache[model_id] = (
             time.time() + _LLM_CONFIG_TTL,
             client_config,
@@ -404,20 +400,43 @@ class AgentService:
         Returns:
             ChatOpenAI instance configured with the provided parameters
         """
+        # Pop provider-specific params that aren't standard OpenAI client args
+        reasoning_effort = client_config.pop("reasoning_effort", None)
+        thinking_mode = client_config.pop("thinking_mode", None)
+
         # Build cache key
         base_url = client_config.get("base_url", "")
         base_url_hash = str(hash(base_url))
         temp = temperature or 0.0
         tokens = max_tokens or 2000
 
-        cache_key = (model_name, temp, tokens, base_url_hash)
+        cache_key = (
+            model_name,
+            temp,
+            tokens,
+            base_url_hash,
+            reasoning_effort,
+            thinking_mode,
+        )
 
         def factory() -> ChatOpenAI:
-            return ChatOpenAI(
+            kwargs: dict[str, Any] = {}
+            if thinking_mode:
+                kwargs["extra_body"] = {"thinking": {"type": thinking_mode}}
+                if thinking_mode != "disabled" and reasoning_effort:
+                    kwargs["reasoning_effort"] = reasoning_effort
+            cls = (
+                _DeepSeekSafeChatModel
+                if model_name.startswith("deepseek")
+                else ChatOpenAI
+            )
+            return cls(
                 **client_config,
                 model=model_name,
                 temperature=temp,
                 max_tokens=tokens,
+                stream_chunk_timeout=300,
+                **kwargs,
             )
 
         return _llm_cache.get_or_create(cache_key, factory)
@@ -446,6 +465,7 @@ class AgentService:
             "azure": "azure",
             "ollama": "ollama",
             "z.ai": "openai",  # Z.AI uses OpenAI-compatible API
+            "deepseek": "openai",  # DeepSeek uses OpenAI-compatible API
         }
 
         provider = provider_mapping.get(provider_type or "", "openai")
@@ -511,35 +531,12 @@ class AgentService:
                 event_bus=event_bus,
             )
 
-        # Compute cache key from invariant properties
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         assistant_role = assistant_config.default_role
-        model_str = model_name or "unknown"
-        execution_mode_str = tool_context.execution_mode.value
 
-        prompt_hash = str(hash(system_prompt))
-
-        cache_key = GraphCacheKey(
-            model_name=model_str,
-            assistant_role_hash=str(hash(assistant_role or "none")),
-            execution_mode=execution_mode_str,
-            system_prompt_hash=prompt_hash,
-            user_role=user_role,
-        )
-
-        # Check cache
-        cached_graph = _graph_cache.get(cache_key)
-        if cached_graph is not None:
-            logger.info(
-                f"[GRAPH_CACHE_HIT] Reusing cached graph for session {session_id}"
-            )
-            return cached_graph, interrupt_node
-
-        # Cache miss — compile new graph
+        # Compile graph
         try:
-            logger.info(
-                f"[GRAPH_CACHE_MISS] Compiling new graph for session {session_id}"
-            )
+            logger.info(f"[GRAPH_COMPILE] Compiling new graph for session {session_id}")
             graph_creation_start = time.time()
 
             orchestrator = DeepAgentOrchestrator(
@@ -547,7 +544,7 @@ class AgentService:
                 context=tool_context,
                 system_prompt=system_prompt,
                 enable_subagents=enable_subagents,
-                interrupt_node=None,  # Don't bake InterruptNode into cached graph
+                interrupt_node=None,  # Don't bake InterruptNode into graph
             )
 
             graph = orchestrator.create_agent(
@@ -557,6 +554,7 @@ class AgentService:
                     context_schema=BackcastRuntimeContext,
                     assistant_role=assistant_role,
                     user_role=user_role,
+                    use_supervisor=settings.AI_ORCHESTRATOR == "supervisor",
                 ),
             )
 
@@ -567,9 +565,6 @@ class AgentService:
                 f"session_id={session_id} | "
                 f"graph_type={type(graph).__name__}"
             )
-
-            # Store in cache
-            _graph_cache.put(cache_key, graph)
 
             return graph, interrupt_node
 
@@ -647,7 +642,6 @@ class AgentService:
         Raises:
             ValueError: If session creation fails or no assistant response is generated
         """
-        # Get or create session
         db_session: AIConversationSession | None
         if session_id:
             db_session = await self.config_service.get_session(session_id)
@@ -663,26 +657,42 @@ class AgentService:
         if not session_id:
             raise ValueError("Failed to create session")
 
-        # Add user message to session
         _ = await self.config_service.add_message(
             session_id=session_id,
             role="user",
             content=message,
         )
 
-        # Build conversation history
+        # Load context from session
+        session_project_id = (
+            UUID(db_session.project_id)
+            if db_session and db_session.project_id
+            else None
+        )
+        session_context = db_session.context if db_session else None
+
+        # Build history first (needed before system prompt)
         history = await self._build_conversation_history(session_id)
 
-        # Add system prompt (no temporal context for non-streaming chat)
-        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        # Enrich context with entity names from DB
+        enriched_context = session_context
+        if session_context:
+            enriched_context = await self._resolve_context_names(
+                session_context, session_project_id
+            )
+
+        base_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        system_prompt = self._build_system_prompt(
+            base_prompt=base_prompt,
+            project_id=session_project_id,
+            context=enriched_context,
+        )
         history.insert(0, SystemMessage(content=system_prompt))
 
-        # Get LLM client configuration
         client_config, model_name, provider_type = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
 
-        # Create LangChain LLM wrapper
         llm = await self._create_langchain_llm(
             client_config,
             model_name,
@@ -690,34 +700,31 @@ class AgentService:
             assistant_config.max_tokens,
         )
 
-        # Create tools with RBAC
         user_role = await _get_user_role(self.session, user_id)
 
-        tool_context = ToolContext(self.session, str(user_id), user_role=user_role)
+        tool_context = ToolContext(
+            self.session,
+            str(user_id),
+            user_role=user_role,
+            project_id=str(session_project_id) if session_project_id else None,
+        )
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
-        # Filter by assistant config's role ceiling
         if assistant_config.default_role:
-            from app.ai.tools import filter_tools_by_role
-
             filtered = filter_tools_by_role(
                 list(tools_dict.values()), assistant_config.default_role
             )
             tools_dict = {t.name: t for t in filtered}
 
         # Filter by user's actual role
-        from app.ai.tools import filter_tools_by_role
-
         filtered = filter_tools_by_role(list(tools_dict.values()), user_role)
         tools_dict = {t.name: t for t in filtered}
 
-        # Create graph with context for RBAC
         graph, _interrupt_node = create_graph(
             llm=llm, tools=list(tools_dict.values()), context=tool_context
         )
 
-        # Extract recursion_limit from assistant config with fallback to default
         recursion_limit = (
             assistant_config.recursion_limit
             if assistant_config.recursion_limit is not None
@@ -727,17 +734,53 @@ class AgentService:
         # Invoke the graph
         # Note: Task-local sessions are created per tool execution and cleaned up below
         try:
+            # Load briefing from database (source of truth)
+            existing_briefing = await self.config_service.get_session_briefing(
+                session_id
+            )
+            if existing_briefing:
+                logger.info(
+                    "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (non-streaming)",
+                    len(existing_briefing.get("sections", [])),
+                )
+
             result = await graph.ainvoke(
                 input_state={
                     "messages": history,
                     "tool_call_count": 0,
                     "max_tool_iterations": recursion_limit,
                     "next": "agent",
+                    "briefing_data": existing_briefing,
                 },
                 config={
                     "recursion_limit": recursion_limit,
                     "configurable": {"thread_id": str(session_id)},
                 },
+            )
+
+            # Save final briefing state to database
+            final_briefing = result.get("briefing_data")
+            if final_briefing:
+                section_count = len(final_briefing.get("sections", []))
+                await self.config_service.save_session_briefing(
+                    session_id, final_briefing
+                )
+                logger.info(
+                    "[BRIEFING_PERSIST_SUCCESS] Saved briefing to DB with %d sections (non-streaming) | session_id=%s",
+                    section_count,
+                    session_id,
+                )
+            else:
+                logger.info(
+                    "[BRIEFING_PERSIST_SUCCESS] No briefing_data to save (non-streaming) | session_id=%s",
+                    session_id,
+                )
+
+            # Clear checkpoint to prevent state bloat
+            shared_checkpointer.delete_thread(str(session_id))
+            logger.info(
+                "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (non-streaming) | session_id=%s",
+                session_id,
             )
         finally:
             # Clean up any remaining task-local sessions after graph execution
@@ -753,7 +796,6 @@ class AgentService:
                 )
                 # Ignore cleanup errors - sessions may have already been removed
 
-        # Extract final AI response
         final_message = None
         messages = result.get("messages", [])
         for msg in reversed(messages):
@@ -764,7 +806,6 @@ class AgentService:
         if not final_message:
             raise ValueError("No assistant response generated")
 
-        # Collect tool calls and results
         tool_calls_data: list[dict[str, Any]] = []
 
         for msg in messages:
@@ -781,7 +822,6 @@ class AgentService:
             # Note: Tool messages are not directly accessible from the result
             # In a real implementation, you might want to track these separately
 
-        # Save assistant message to session
         # Convert AIMessage content to string (can be str | list)
         content_str = (
             final_message.content
@@ -790,12 +830,14 @@ class AgentService:
             if final_message.content
             else ""
         )
+        rc_metadata = _extract_reasoning_content(final_message)
         assistant_msg = await self.config_service.add_message(
             session_id=session_id,
             role="assistant",
             content=content_str,
             tool_calls=tool_calls_data if tool_calls_data else None,
             tool_results=None,  # No tool results in non-streaming mode
+            message_metadata=rc_metadata,
         )
 
         # Build response
@@ -843,10 +885,13 @@ class AgentService:
         Returns:
             None (communicates via event_bus)
         """
-        # Build conversation history
         history = await self._build_conversation_history(session_id)
 
-        # Add system prompt with temporal context
+        # Enrich context with entity names from DB
+        enriched_context = context
+        if context:
+            enriched_context = await self._resolve_context_names(context, project_id)
+
         base_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         system_prompt = self._build_system_prompt(
             base_prompt=base_prompt,
@@ -854,16 +899,14 @@ class AgentService:
             as_of=as_of,
             branch_name=branch_name,
             branch_mode=branch_mode,
-            context=context,
+            context=enriched_context,
         )
         history.insert(0, SystemMessage(content=system_prompt))
 
-        # Get LLM client configuration
         client_config, model_name, provider_type = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
 
-        # Create LangChain LLM wrapper
         llm = await self._create_langchain_llm(
             client_config,
             model_name,
@@ -871,7 +914,6 @@ class AgentService:
             assistant_config.max_tokens,
         )
 
-        # Create tools with RBAC
         user_role = await _get_user_role(self.session, user_id)
 
         tool_context = ToolContext(
@@ -887,7 +929,6 @@ class AgentService:
         )
         available_tools = create_project_tools(tool_context)
 
-        # Create graph (no websocket, but pass event_bus for InterruptNode)
         graph, interrupt_node = await self._create_deep_agent_graph(
             llm=llm,
             tool_context=tool_context,
@@ -902,14 +943,11 @@ class AgentService:
             user_role=user_role,
         )
 
-        # Set per-request context for middleware
         set_request_context(tool_context, interrupt_node)
 
-        # Register InterruptNode for approval handling if created
         if interrupt_node is not None:
             self.register_interrupt_node(session_id, interrupt_node)
 
-        # Estimate context window usage before graph invocation
         log_context_usage_estimate(
             messages=history,
             model_name=model_name,
@@ -917,18 +955,16 @@ class AgentService:
             execution_id=event_bus.execution_id,
         )
 
-        # Extract recursion_limit
         recursion_limit = (
             assistant_config.recursion_limit
             if assistant_config.recursion_limit is not None
             else 25
         )
 
-        accumulated_content = ""
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
         main_agent_segments: dict[str, list[str]] = {}
-        from collections import defaultdict
+        reasoning_content_value: str | None = None  # DeepSeek thinking mode
 
         subagent_messages_by_main_invocation: dict[str, list[dict[str, Any]]] = (
             defaultdict(list)
@@ -942,8 +978,9 @@ class AgentService:
         tool_calls_count = 0
         current_subagent_name: str | None = None
         current_invocation_id: str | None = None
-        main_invocation_id: str | None = None
+        main_invocation_id: str = ""
         task_initiating_main_invocation_id: str | None = None
+        last_entered_agent: str | None = None
 
         # Per-invocation token accumulator for batched publishing
         _token_accumulator: dict[str, list[str]] = {}
@@ -981,14 +1018,28 @@ class AgentService:
         # Background task to flush tokens periodically for real-time streaming
         async def _periodic_flush() -> None:
             while True:
-                await asyncio.sleep(0.1)  # 100ms interval
+                await asyncio.sleep(settings.AI_TOKEN_BUFFER_INTERVAL_MS / 1000)
                 for inv_id in list(_token_accumulator.keys()):
                     _flush_accumulated_tokens(inv_id)
 
         _flush_task = asyncio.create_task(_periodic_flush())
 
+        graph_error: Exception | None = None
+
         try:
             main_invocation_id = str(uuid.uuid4())
+
+            # Load briefing from database (source of truth)
+            existing_briefing = await self.config_service.get_session_briefing(
+                session_id
+            )
+            if existing_briefing:
+                logger.info(
+                    "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (streaming)",
+                    len(existing_briefing.get("sections", [])),
+                )
+
+            # NOTE: No checkpoint deletion here - will delete after saving final briefing
 
             # Send thinking event
             _publish(
@@ -996,337 +1047,647 @@ class AgentService:
                 WSThinkingMessage().model_dump(mode="json"),
             )
 
-            async for event in graph.astream_events(
-                {
-                    "messages": history,
-                    "tool_call_count": 0,
-                    "max_tool_iterations": recursion_limit,
-                    "next": "agent",
-                },
-                config={
-                    "recursion_limit": recursion_limit,
-                    "configurable": {"thread_id": str(session_id)},
-                },
-                version="v1",
-                context=BackcastRuntimeContext(
-                    user_id=str(user_id),
-                    user_role=user_role,
-                    project_id=str(project_id) if project_id else None,
-                    branch_id=str(branch_id) if branch_id else None,
-                    execution_mode=execution_mode.value,
-                ),
-            ):
-                event_type = event.get("event", "")
-                data = event.get("data", {})
+            # Retry loop for transient network errors during streaming
+            max_retries = 2
+            retry_delay = 2.0
+            events_processed = 0
 
-                # Handle token streaming
-                if event_type == "on_chat_model_stream":
-                    chunk = data.get("chunk")
-                    if chunk:
-                        content = ""
-                        if hasattr(chunk, "text"):
-                            content = chunk.text
-                        elif hasattr(chunk, "content"):
-                            content = str(chunk.content)
-
-                        if content:
-                            if current_subagent_name is None:
-                                if main_invocation_id not in main_agent_segments:
-                                    main_agent_segments[main_invocation_id] = []
-                                main_agent_segments[main_invocation_id].append(content)
-
-                            accumulated_content += content
-                            total_output_chars += len(content)
-
-                            # Accumulate tokens per invocation for batched publish
-                            invocation_id_to_use = (
-                                current_invocation_id
-                                if current_subagent_name
-                                else main_invocation_id
+            for _retry_attempt in range(max_retries + 1):
+                try:
+                    async for event in graph.astream_events(
+                        {
+                            "messages": history,
+                            "tool_call_count": 0,
+                            "max_tool_iterations": recursion_limit,
+                            "next": "agent",
+                            "briefing_data": existing_briefing,
+                        },
+                        config={
+                            "recursion_limit": recursion_limit,
+                            "configurable": {"thread_id": str(session_id)},
+                        },
+                        version="v1",
+                        context=BackcastRuntimeContext(
+                            user_id=str(user_id),
+                            user_role=user_role,
+                            project_id=str(project_id) if project_id else None,
+                            branch_id=str(branch_id) if branch_id else None,
+                            execution_mode=execution_mode.value,
+                        ),
+                    ):
+                        events_processed += 1
+                        event_type = event.get("event", "")
+                        data = event.get("data", {})
+                        # Handle agent transitions in supervisor graph
+                        # When a specialist subgraph node starts/ends, detect by chain name
+                        chain_name = event.get("name", "")
+                        if (
+                            event_type == "on_chain_start"
+                            and chain_name in SPECIALIST_AGENT_NAMES
+                        ):
+                            # Deduplicate: LangGraph emits on_chain_start for both
+                            # the outer specialist node and the inner compiled graph.
+                            # Skip the inner one to avoid double "enter" events.
+                            if last_entered_agent == chain_name:
+                                pass
+                            else:
+                                _flush_accumulated_tokens(
+                                    current_invocation_id or main_invocation_id
+                                )
+                                current_subagent_name = chain_name
+                                current_invocation_id = str(uuid.uuid4())
+                                last_entered_agent = chain_name
+                                _publish(
+                                    "agent_transition",
+                                    WSAgentTransitionMessage(
+                                        type="agent_transition",
+                                        agent_name=chain_name,
+                                        direction="enter",
+                                        invocation_id=current_invocation_id,
+                                    ).model_dump(mode="json"),
+                                )
+                        elif (
+                            event_type == "on_chain_end"
+                            and chain_name in SPECIALIST_AGENT_NAMES
+                        ):
+                            chain_output = data.get("output")
+                            is_briefing_output = (
+                                isinstance(chain_output, dict)
+                                and "briefing_data" in chain_output
                             )
-                            if invocation_id_to_use is not None:
-                                if invocation_id_to_use not in _token_accumulator:
-                                    _token_accumulator[invocation_id_to_use] = []
-                                _token_accumulator[invocation_id_to_use].append(content)
+                            if is_briefing_output:
+                                briefing_data = chain_output.get("briefing_data", {})
+                                briefing_md = ""
+                                if briefing_data:
+                                    try:
+                                        briefing_md = BriefingDocument.model_validate(
+                                            briefing_data
+                                        ).to_markdown()
+                                    except Exception:
+                                        briefing_md = ""
+                                if briefing_md:
+                                    completed = chain_output.get(
+                                        "completed_specialists", set()
+                                    )
+                                    completed_list = (
+                                        sorted(completed)
+                                        if isinstance(completed, set)
+                                        else []
+                                    )
+                                    _publish(
+                                        "briefing_update",
+                                        WSBriefingMessage(
+                                            type="briefing_update",
+                                            briefing=briefing_md,
+                                            specialist_name=chain_name,
+                                            completed_specialists=completed_list,
+                                        ).model_dump(mode="json"),
+                                    )
 
-                # Handle chat model end -- capture actual token usage
-                elif event_type == "on_chat_model_end":
-                    token_accumulator.accumulate_from_event(data)
+                                # Also emit agent transition exit (first end is inner graph)
+                                _publish(
+                                    "agent_transition",
+                                    WSAgentTransitionMessage(
+                                        type="agent_transition",
+                                        agent_name=chain_name,
+                                        direction="exit",
+                                        invocation_id=current_invocation_id,
+                                    ).model_dump(mode="json"),
+                                )
+                                current_subagent_name = None
+                                current_invocation_id = None
+                                last_entered_agent = None
+                            elif chain_name == current_subagent_name:
+                                # Inner compiled graph end — flush tokens
+                                _flush_accumulated_tokens(current_invocation_id)
 
-                # Handle tool start
-                elif event_type == "on_tool_start":
-                    # Flush any accumulated main-agent tokens before tool execution
-                    _flush_accumulated_tokens(main_invocation_id)
+                        # Handle supervisor node completion - send briefing to frontend
+                        elif (
+                            event_type == "on_chain_end" and chain_name == "supervisor"
+                        ):
+                            chain_output = data.get("output", {})
+                            if (
+                                isinstance(chain_output, dict)
+                                and "briefing_data" in chain_output
+                            ):
+                                briefing_data = chain_output.get("briefing_data", {})
+                                briefing_md = ""
+                                if briefing_data:
+                                    try:
+                                        briefing_md = BriefingDocument.model_validate(
+                                            briefing_data
+                                        ).to_markdown()
+                                    except Exception:
+                                        briefing_md = ""
+                                if briefing_md:
+                                    completed = chain_output.get(
+                                        "completed_specialists", set()
+                                    )
+                                    completed_list = (
+                                        sorted(completed)
+                                        if isinstance(completed, set)
+                                        else []
+                                    )
+                                    _publish(
+                                        "briefing_update",
+                                        WSBriefingMessage(
+                                            type="briefing_update",
+                                            briefing=briefing_md,
+                                            specialist_name="supervisor",
+                                            completed_specialists=completed_list,
+                                        ).model_dump(mode="json"),
+                                    )
+                                    logger.info(
+                                        "[SUPERVISOR_END] Sent briefing with %d sections, %d completed specialists",
+                                        len(briefing_data.get("sections", [])),
+                                        len(completed_list),
+                                    )
 
-                    tool_name = event.get("name", "")
-                    tool_input = data.get("input", {})
-                    tool_calls_count += 1
-                    current_step += 1
+                        # Handle initialize_briefing node completion - send briefing to frontend
+                        elif event_type == "on_chain_end":
+                            chain_output = data.get("output", {})
+                            # Check if this is the initialize_briefing node by checking output
+                            if (
+                                isinstance(chain_output, dict)
+                                and "briefing_data" in chain_output
+                            ):
+                                # This could be initialize_briefing, supervisor, or a specialist
+                                # For specialists, this is handled above
+                                # For initialize_briefing and supervisor, handle here
+                                if chain_name not in SPECIALIST_AGENT_NAMES:
+                                    briefing_data = chain_output.get(
+                                        "briefing_data", {}
+                                    )
+                                    briefing_md = ""
+                                    if briefing_data:
+                                        try:
+                                            briefing_md = (
+                                                BriefingDocument.model_validate(
+                                                    briefing_data
+                                                ).to_markdown()
+                                            )
+                                        except Exception:
+                                            briefing_md = ""
+                                    if briefing_md:
+                                        completed = chain_output.get(
+                                            "completed_specialists", set()
+                                        )
+                                        completed_list = (
+                                            sorted(completed)
+                                            if isinstance(completed, set)
+                                            else []
+                                        )
+                                        _publish(
+                                            "briefing_update",
+                                            WSBriefingMessage(
+                                                type="briefing_update",
+                                                briefing=briefing_md,
+                                                specialist_name="supervisor",
+                                                completed_specialists=completed_list,
+                                            ).model_dump(mode="json"),
+                                        )
+                                        logger.info(
+                                            "[CHAIN_END_NON_SPECIALIST] name=%s | sections=%d | completed=%s",
+                                            chain_name,
+                                            len(briefing_data.get("sections", [])),
+                                            completed_list,
+                                        )
 
-                    if tool_name == "task":
-                        current_subagent_name = (
-                            tool_input.get("subagent_type")
-                            if isinstance(tool_input, dict)
-                            else None
-                        )
-                        current_invocation_id = str(uuid.uuid4())
-                        task_initiating_main_invocation_id = main_invocation_id
-
-                    # Planning event
-                    if tool_name == "write_todos":
-                        plan = (
-                            tool_input.get("plan")
-                            if isinstance(tool_input, dict)
-                            else None
-                        )
-                        steps = None
-                        if isinstance(tool_input, dict):
-                            raw_steps = tool_input.get("steps")
-                            if isinstance(raw_steps, list):
-                                steps = [
-                                    PlanningStep(text=str(s), done=False)
-                                    for s in raw_steps
-                                ]
-                                estimated_total_steps = len(steps)
-                        _publish(
-                            "planning",
-                            WSPlanningMessage(
-                                type="planning",
-                                plan=plan,
-                                steps=steps,
-                                step_number=current_step,
-                                total_steps=estimated_total_steps,
-                                invocation_id=main_invocation_id,
-                            ).model_dump(mode="json"),
-                        )
-
-                    # Subagent delegation event
-                    elif tool_name == "task":
-                        subagent_type = (
-                            tool_input.get("subagent_type")
-                            if isinstance(tool_input, dict)
-                            else None
-                        )
-                        description = (
-                            tool_input.get("description")
-                            if isinstance(tool_input, dict)
-                            else None
-                        )
-                        if subagent_type:
-                            _publish(
-                                "subagent",
-                                WSSubagentMessage(
-                                    type="subagent",
-                                    subagent=subagent_type,
-                                    message=description,
-                                    step_number=current_step,
-                                    total_steps=estimated_total_steps,
-                                    invocation_id=current_invocation_id,
-                                ).model_dump(mode="json"),
-                            )
-
-                    # Standard tool_call event
-                    _publish(
-                        "tool_call",
-                        WSToolCallMessage(
-                            type="tool_call",
-                            tool=tool_name,
-                            args=tool_input,
-                            step_number=current_step,
-                            total_steps=estimated_total_steps,
-                            invocation_id=current_invocation_id
-                            if current_subagent_name
-                            else main_invocation_id,
-                        ).model_dump(mode="json"),
-                    )
-
-                # Handle tool end
-                elif event_type == "on_tool_end":
-                    tool_name = event.get("name", "")
-
-                    # Subagent result handling
-                    if tool_name == "task":
-                        # Flush subagent tokens before processing result
-                        _flush_accumulated_tokens(current_invocation_id)
-
-                        tool_output = data.get("output", "")
-                        subagent_content = ""
-
-                        if isinstance(tool_output, ToolMessage):
-                            raw_content = tool_output.content
-                            subagent_content = (
-                                raw_content
-                                if isinstance(raw_content, str)
-                                else str(raw_content)
-                            )
-                        elif isinstance(tool_output, Command):
-                            update_dict = tool_output.update
-                            if isinstance(update_dict, dict):
-                                messages = update_dict.get("messages", [])
-                                if messages:
-                                    last_msg = messages[-1]
-                                    if isinstance(last_msg, dict):
-                                        subagent_content = last_msg.get("content", "")
-                                    elif hasattr(last_msg, "content"):
-                                        subagent_content = str(last_msg.content)
+                        # Handle token streaming
+                        if event_type == "on_chat_model_stream":
+                            chunk = data.get("chunk")
+                            # Capture reasoning_content from streaming chunks for
+                            # DeepSeek thinking mode. The accumulated final message
+                            # in on_chat_model_end may not preserve additional_kwargs.
+                            if isinstance(chunk, AIMessageChunk):
+                                rc = chunk.additional_kwargs.get("reasoning_content")
+                                if rc and isinstance(rc, str):
+                                    if reasoning_content_value is None:
+                                        reasoning_content_value = rc
                                     else:
-                                        subagent_content = str(last_msg)
-                        elif isinstance(tool_output, dict) and "content" in tool_output:
-                            subagent_content = tool_output["content"]
-                        elif isinstance(tool_output, str):
-                            subagent_content = tool_output
+                                        reasoning_content_value += rc
+                            if chunk:
+                                content = ""
+                                if hasattr(chunk, "text"):
+                                    content = chunk.text
+                                elif hasattr(chunk, "content"):
+                                    content = str(chunk.content)
 
-                        if not isinstance(subagent_content, str):
-                            subagent_content = str(subagent_content)
+                                if content:
+                                    if current_subagent_name is None:
+                                        if (
+                                            main_invocation_id
+                                            not in main_agent_segments
+                                        ):
+                                            main_agent_segments[main_invocation_id] = []
+                                        main_agent_segments[main_invocation_id].append(
+                                            content
+                                        )
 
-                        if subagent_content:
-                            subagent_type = current_subagent_name or "subagent"
-                            if subagent_type not in self._subagent_invocation_counts:
-                                self._subagent_invocation_counts[subagent_type] = 0
-                            self._subagent_invocation_counts[subagent_type] += 1
-                            invocation_number = self._subagent_invocation_counts[
-                                subagent_type
-                            ]
+                                    total_output_chars += len(content)
 
-                            target_invocation_id = (
-                                task_initiating_main_invocation_id or main_invocation_id
-                            )
-                            subagent_messages_by_main_invocation[
-                                target_invocation_id
-                            ].append(
-                                {
-                                    "role": "assistant",
-                                    "content": subagent_content,
-                                    "message_metadata": {
-                                        "subagent_name": subagent_type,
-                                        "invocation_number": invocation_number,
-                                    }
-                                    if current_subagent_name
-                                    else None,
-                                }
-                            )
+                                    # Accumulate tokens per invocation for batched publish
+                                    invocation_id_to_use = (
+                                        current_invocation_id
+                                        if current_subagent_name
+                                        else main_invocation_id
+                                    )
+                                    if invocation_id_to_use is not None:
+                                        if (
+                                            invocation_id_to_use
+                                            not in _token_accumulator
+                                        ):
+                                            _token_accumulator[
+                                                invocation_id_to_use
+                                            ] = []
+                                        _token_accumulator[invocation_id_to_use].append(
+                                            content
+                                        )
 
-                            _publish(
-                                "subagent_result",
-                                WSSubagentResultMessage(
-                                    type="subagent_result",
-                                    subagent_name=current_subagent_name or "subagent",
-                                    content=subagent_content,
-                                    invocation_id=current_invocation_id,
-                                ).model_dump(mode="json"),
-                            )
+                        # Handle chat model end -- capture actual token usage
+                        elif event_type == "on_chat_model_end":
+                            token_accumulator.accumulate_from_event(data)
 
-                        # Subagent completion
-                        _publish(
-                            "agent_complete",
-                            WSAgentCompleteMessage(
-                                type="agent_complete",
-                                agent_type="subagent",
-                                invocation_id=current_invocation_id,
-                                agent_name=current_subagent_name,
-                            ).model_dump(mode="json"),
-                        )
+                        # Handle tool start
+                        elif event_type == "on_tool_start":
+                            # Flush any accumulated tokens before tool execution
+                            _flush_accumulated_tokens(main_invocation_id)
+                            if current_invocation_id and current_subagent_name:
+                                _flush_accumulated_tokens(current_invocation_id)
 
-                        # Content reset after subagent
-                        _publish(
-                            "content_reset",
-                            WSContentResetMessage(
-                                type="content_reset",
-                                reason="subagent_completed",
-                            ).model_dump(mode="json"),
-                        )
+                            tool_name = event.get("name", "")
+                            tool_input = data.get("input", {})
+                            tool_calls_count += 1
+                            current_step += 1
 
-                        current_subagent_name = None
-                        current_invocation_id = None
-                        task_initiating_main_invocation_id = None
+                            if tool_name == "task":
+                                current_subagent_name = (
+                                    tool_input.get("subagent_type")
+                                    if isinstance(tool_input, dict)
+                                    else None
+                                )
+                                current_invocation_id = str(uuid.uuid4())
+                                task_initiating_main_invocation_id = main_invocation_id
 
-                    # Generate new main invocation_id after tool completion
-                    _old_invocation_id = main_invocation_id  # noqa: F841
-                    main_invocation_id = str(uuid.uuid4())
-
-                    tool_output = data.get("output", "")
-                    result_content = tool_output
-                    if isinstance(tool_output, ToolMessage):
-                        result_content = tool_output.content
-                    elif isinstance(tool_output, dict) and "content" in tool_output:
-                        result_content = tool_output["content"]
-                    elif isinstance(tool_output, Command):
-                        result_content = {"command": tool_output.update}
-
-                    result_content = self._make_json_serializable(result_content)
-
-                    if current_subagent_name is None:
-                        tool_result_dict: dict[str, Any] = {
-                            "tool": tool_name,
-                            "success": True,
-                            "result": result_content,
-                            "error": None,
-                        }
-                        all_tool_results.append(tool_result_dict)
-
-                        _publish(
-                            "tool_result",
-                            WSToolResultMessage(
-                                type="tool_result",
-                                tool=tool_name,
-                                result=jsonable_encoder(tool_result_dict),
-                                invocation_id=current_invocation_id
-                                if current_subagent_name
-                                else main_invocation_id,
-                            ).model_dump(mode="json"),
-                        )
-
-                # Handle tool error
-                elif event_type == "on_tool_error":
-                    tool_name = event.get("name", "")
-                    error = data.get("error")
-
-                    if current_subagent_name is None:
-                        error_result_dict: dict[str, Any] = {
-                            "tool": tool_name,
-                            "success": False,
-                            "result": None,
-                            "error": str(error) if error else "Unknown error",
-                        }
-                        all_tool_results.append(error_result_dict)
-
-                        _publish(
-                            "tool_result",
-                            WSToolResultMessage(
-                                type="tool_result",
-                                tool=tool_name,
-                                result=jsonable_encoder(error_result_dict),
-                                invocation_id=current_invocation_id
-                                if current_subagent_name
-                                else main_invocation_id,
-                            ).model_dump(mode="json"),
-                        )
-
-                # Handle completion
-                elif event_type == "on_end":
-                    output = data.get("output", {})
-                    messages = output.get("messages", [])
-
-                    for msg in messages:
-                        if isinstance(msg, AIMessage) and msg.tool_calls:
-                            for tc in msg.tool_calls:
-                                all_tool_calls.append(
-                                    {
-                                        "id": tc.get("id", ""),
-                                        "name": tc.get("name", ""),
-                                        "args": tc.get("args", {}),
-                                    }
+                            # Planning event
+                            if tool_name == "write_todos":
+                                plan = (
+                                    tool_input.get("plan")
+                                    if isinstance(tool_input, dict)
+                                    else None
+                                )
+                                steps = None
+                                if isinstance(tool_input, dict):
+                                    raw_steps = tool_input.get("steps")
+                                    if isinstance(raw_steps, list):
+                                        steps = [
+                                            PlanningStep(text=str(s), done=False)
+                                            for s in raw_steps
+                                        ]
+                                        estimated_total_steps = len(steps)
+                                _publish(
+                                    "planning",
+                                    WSPlanningMessage(
+                                        type="planning",
+                                        plan=plan,
+                                        steps=steps,
+                                        step_number=current_step,
+                                        total_steps=estimated_total_steps,
+                                        invocation_id=main_invocation_id,
+                                    ).model_dump(mode="json"),
                                 )
 
-                    logger.info(
-                        f"Graph execution completed for execution event_bus {event_bus.execution_id}"
-                    )
+                            # Subagent delegation event
+                            elif tool_name == "task":
+                                subagent_type = (
+                                    tool_input.get("subagent_type")
+                                    if isinstance(tool_input, dict)
+                                    else None
+                                )
+                                description = (
+                                    tool_input.get("description")
+                                    if isinstance(tool_input, dict)
+                                    else None
+                                )
+                                if subagent_type:
+                                    _publish(
+                                        "subagent",
+                                        WSSubagentMessage(
+                                            type="subagent",
+                                            subagent=subagent_type,
+                                            message=description,
+                                            step_number=current_step,
+                                            total_steps=estimated_total_steps,
+                                            invocation_id=current_invocation_id,
+                                        ).model_dump(mode="json"),
+                                    )
 
-            # Flush all remaining accumulated tokens after stream ends
-            for inv_id in list(_token_accumulator.keys()):
-                _flush_accumulated_tokens(inv_id)
+                            # Standard tool_call event
+                            _publish(
+                                "tool_call",
+                                WSToolCallMessage(
+                                    type="tool_call",
+                                    tool=tool_name,
+                                    args=tool_input,
+                                    step_number=current_step,
+                                    total_steps=estimated_total_steps,
+                                    invocation_id=current_invocation_id
+                                    if current_subagent_name
+                                    else main_invocation_id,
+                                ).model_dump(mode="json"),
+                            )
+
+                        # Handle tool end
+                        elif event_type == "on_tool_end":
+                            tool_name = event.get("name", "")
+
+                            # Subagent result handling
+                            if (
+                                tool_name == "task"
+                                and current_invocation_id is not None
+                            ):
+                                # Flush subagent tokens before processing result
+                                _flush_accumulated_tokens(current_invocation_id)
+
+                                tool_output = data.get("output", "")
+                                subagent_content = ""
+
+                                if isinstance(tool_output, ToolMessage):
+                                    raw_content = tool_output.content
+                                    subagent_content = (
+                                        raw_content
+                                        if isinstance(raw_content, str)
+                                        else str(raw_content)
+                                    )
+                                elif isinstance(tool_output, Command):
+                                    update_dict = tool_output.update
+                                    if isinstance(update_dict, dict):
+                                        messages = update_dict.get("messages", [])
+                                        if messages:
+                                            last_msg = messages[-1]
+                                            if isinstance(last_msg, dict):
+                                                subagent_content = last_msg.get(
+                                                    "content", ""
+                                                )
+                                            elif hasattr(last_msg, "content"):
+                                                subagent_content = str(last_msg.content)
+                                            else:
+                                                subagent_content = str(last_msg)
+                                elif (
+                                    isinstance(tool_output, dict)
+                                    and "content" in tool_output
+                                ):
+                                    subagent_content = tool_output["content"]
+                                elif isinstance(tool_output, str):
+                                    subagent_content = tool_output
+
+                                if not isinstance(subagent_content, str):
+                                    subagent_content = str(subagent_content)
+
+                                if subagent_content:
+                                    subagent_type = current_subagent_name or "subagent"
+                                    if (
+                                        subagent_type
+                                        not in self._subagent_invocation_counts
+                                    ):
+                                        self._subagent_invocation_counts[
+                                            subagent_type
+                                        ] = 0
+                                    self._subagent_invocation_counts[subagent_type] += 1
+                                    invocation_number = (
+                                        self._subagent_invocation_counts[subagent_type]
+                                    )
+
+                                    target_invocation_id = (
+                                        task_initiating_main_invocation_id
+                                        or main_invocation_id
+                                    )
+                                    subagent_messages_by_main_invocation[
+                                        target_invocation_id
+                                    ].append(
+                                        {
+                                            "role": "assistant",
+                                            "content": subagent_content,
+                                            "message_metadata": {
+                                                "subagent_name": subagent_type,
+                                                "invocation_number": invocation_number,
+                                            }
+                                            if current_subagent_name
+                                            else None,
+                                        }
+                                    )
+
+                                    _publish(
+                                        "subagent_result",
+                                        WSSubagentResultMessage(
+                                            type="subagent_result",
+                                            subagent_name=current_subagent_name
+                                            or "subagent",
+                                            content=subagent_content,
+                                            invocation_id=current_invocation_id,
+                                        ).model_dump(mode="json"),
+                                    )
+
+                                # Subagent completion
+                                _publish(
+                                    "agent_complete",
+                                    WSAgentCompleteMessage(
+                                        type="agent_complete",
+                                        agent_type="subagent",
+                                        invocation_id=current_invocation_id,
+                                        agent_name=current_subagent_name,
+                                    ).model_dump(mode="json"),
+                                )
+
+                                # Content reset after subagent
+                                _publish(
+                                    "content_reset",
+                                    WSContentResetMessage(
+                                        type="content_reset",
+                                        reason="subagent_completed",
+                                    ).model_dump(mode="json"),
+                                )
+
+                                current_subagent_name = None
+                                current_invocation_id = None
+                                task_initiating_main_invocation_id = None
+
+                            # Generate new main invocation_id after task tool
+                            # completion only (subagent delegation). For other
+                            # tools, the same agent continues — keep one segment.
+                            if tool_name == "task":
+                                main_invocation_id = str(uuid.uuid4())
+
+                            tool_output = data.get("output", "")
+                            result_content = tool_output
+                            if isinstance(tool_output, ToolMessage):
+                                result_content = tool_output.content
+                            elif (
+                                isinstance(tool_output, dict)
+                                and "content" in tool_output
+                            ):
+                                result_content = tool_output["content"]
+                            elif isinstance(tool_output, Command):
+                                result_content = {"command": tool_output.update}
+
+                            result_content = self._make_json_serializable(
+                                result_content
+                            )
+
+                            tool_result_dict: dict[str, Any] = {
+                                "tool": tool_name,
+                                "success": True,
+                                "result": result_content,
+                                "error": None,
+                            }
+                            if current_subagent_name is None:
+                                all_tool_results.append(tool_result_dict)
+
+                            _publish(
+                                "tool_result",
+                                WSToolResultMessage(
+                                    type="tool_result",
+                                    tool=tool_name,
+                                    result=jsonable_encoder(tool_result_dict),
+                                    invocation_id=current_invocation_id
+                                    if current_subagent_name
+                                    else main_invocation_id,
+                                ).model_dump(mode="json"),
+                            )
+
+                        # Handle tool error
+                        elif event_type == "on_tool_error":
+                            tool_name = event.get("name", "")
+                            error = data.get("error")
+
+                            if current_subagent_name is None:
+                                error_result_dict: dict[str, Any] = {
+                                    "tool": tool_name,
+                                    "success": False,
+                                    "result": None,
+                                    "error": (str(error) if error else "Unknown error"),
+                                }
+                                all_tool_results.append(error_result_dict)
+
+                                _publish(
+                                    "tool_result",
+                                    WSToolResultMessage(
+                                        type="tool_result",
+                                        tool=tool_name,
+                                        result=jsonable_encoder(error_result_dict),
+                                        invocation_id=current_invocation_id
+                                        if current_subagent_name
+                                        else main_invocation_id,
+                                    ).model_dump(mode="json"),
+                                )
+
+                        # Handle completion
+                        elif event_type == "on_end":
+                            output = data.get("output", {})
+                            messages = output.get("messages", [])
+
+                            for msg in messages:
+                                if isinstance(msg, AIMessage) and msg.tool_calls:
+                                    for tc in msg.tool_calls:
+                                        all_tool_calls.append(
+                                            {
+                                                "id": tc.get("id", ""),
+                                                "name": tc.get("name", ""),
+                                                "args": tc.get("args", {}),
+                                            }
+                                        )
+
+                            logger.info(
+                                f"Graph execution completed for execution "
+                                f"event_bus {event_bus.execution_id}"
+                            )
+
+                    # Flush all remaining accumulated tokens after stream ends
+                    for inv_id in list(_token_accumulator.keys()):
+                        _flush_accumulated_tokens(inv_id)
+
+                    # Persist briefing from checkpoint after stream completes
+                    try:
+                        checkpoint_state = await shared_checkpointer.aget(
+                            {"configurable": {"thread_id": str(session_id)}}
+                        )
+                        if checkpoint_state:
+                            channel_values = checkpoint_state.get(
+                                "channel_values", {}
+                            )
+                            persist_briefing: dict[str, Any] | None = cast(
+                                Any, channel_values.get("briefing_data")
+                            )
+                            if persist_briefing:
+                                await self.config_service.save_session_briefing(
+                                    session_id, persist_briefing
+                                )
+                                logger.info(
+                                    "[BRIEFING_PERSIST_SUCCESS] Saved briefing from checkpoint with %d sections (streaming) | session_id=%s",
+                                    len(persist_briefing.get("sections", [])),
+                                    session_id,
+                                )
+                                shared_checkpointer.delete_thread(str(session_id))
+                                logger.info(
+                                    "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (streaming) | session_id=%s",
+                                    session_id,
+                                )
+                            else:
+                                logger.info(
+                                    "[BRIEFING_PERSIST] No briefing_data in checkpoint (streaming) | session_id=%s",
+                                    session_id,
+                                )
+                    except Exception as persist_err:
+                        logger.error(
+                            "[BRIEFING_PERSIST] Failed to persist briefing from checkpoint: %s | session_id=%s",
+                            persist_err,
+                            session_id,
+                            exc_info=True,
+                        )
+
+                    break  # successful completion, exit retry loop
+
+                except (
+                    ConnectionResetError,
+                    OSError,
+                ) as stream_err:
+                    if _retry_attempt < max_retries:
+                        logger.warning(
+                            f"Transient stream error (attempt "
+                            f"{_retry_attempt + 1}/{max_retries + 1}), "
+                            f"retrying in {retry_delay}s: {stream_err}"
+                        )
+                        await asyncio.sleep(retry_delay)
+                        events_processed = 0
+                    else:
+                        logger.error(
+                            f"Stream failed after {max_retries + 1} "
+                            f"attempts: {stream_err}"
+                        )
+                        raise
+                except Exception as stream_err:
+                    # Check if it's a transient httpcore/httpx error by
+                    # inspecting type name and module to avoid hard imports
+                    err_type_name = type(stream_err).__name__
+                    err_module = type(stream_err).__module__
+                    is_transient = (
+                        err_type_name == "ReadError" and "httpcore" in err_module
+                    ) or (
+                        err_type_name == "RemoteProtocolError" and "httpx" in err_module
+                    )
+                    if is_transient and _retry_attempt < max_retries:
+                        logger.warning(
+                            f"Transient stream error (attempt "
+                            f"{_retry_attempt + 1}/{max_retries + 1}), "
+                            f"retrying in {retry_delay}s: {stream_err}"
+                        )
+                        await asyncio.sleep(retry_delay)
+                        events_processed = 0
+                    else:
+                        raise
 
         except Exception as e:
+            graph_error = e  # capture for later persistence
             logger.error(f"Error in _run_agent_graph: {e}", exc_info=True)
             event_bus.publish(
                 AgentEvent(
@@ -1337,11 +1698,50 @@ class AgentService:
             )
         finally:
             _flush_task.cancel()
-            # Flush any remaining tokens (covers error path)
+            try:
+                await _flush_task
+            except asyncio.CancelledError:
+                pass
             for inv_id in list(_token_accumulator.keys()):
                 _flush_accumulated_tokens(inv_id)
             clear_request_context()
             self.unregister_interrupt_node(session_id)
+
+            # CRITICAL: Save briefing to database even on error
+            # This ensures specialist findings are preserved even if streaming fails
+            try:
+                checkpoint_state = await shared_checkpointer.aget(
+                    {"configurable": {"thread_id": str(session_id)}}
+                )
+                if checkpoint_state:
+                    channel_values = checkpoint_state.get("channel_values", {})
+                    error_briefing: dict[str, Any] | None = cast(
+                        Any, channel_values.get("briefing_data")
+                    )
+                    if error_briefing:
+                        await self.config_service.save_session_briefing(
+                            session_id, error_briefing
+                        )
+                        section_count = len(error_briefing.get("sections", []))
+                        logger.info(
+                            "[BRIEFING_PERSIST_ERROR_PATH] Saved briefing from checkpoint after error with %d sections (streaming)",
+                            section_count,
+                        )
+                        # Still delete checkpoint to prevent state bloat
+                        shared_checkpointer.delete_thread(str(session_id))
+                        logger.info(
+                            "[BRIEFING_PERSIST_ERROR_PATH] Deleted checkpoint after error-path save"
+                        )
+                    else:
+                        logger.debug(
+                            "[BRIEFING_PERSIST_ERROR_PATH] No briefing_data in checkpoint to save after error"
+                        )
+            except Exception as briefing_save_error:
+                logger.error(
+                    "[BRIEFING_PERSIST_ERROR_PATH] Failed to save briefing after graph error: %s",
+                    briefing_save_error,
+                    exc_info=True,
+                )
 
         # Save assistant messages to session
         try:
@@ -1351,11 +1751,13 @@ class AgentService:
 
             for idx, inv_id in enumerate(invocation_ids_in_order):
                 segment_content = "".join(main_agent_segments[inv_id])
-                metadata = {
+                metadata: dict[str, Any] = {
                     "invocation_id": inv_id,
                     "segment_index": idx,
                     "total_segments": total_main_segments,
                 }
+                if reasoning_content_value:
+                    metadata["reasoning_content"] = reasoning_content_value
 
                 segment_tool_calls = (
                     all_tool_calls if idx == 0 and all_tool_calls else None
@@ -1396,6 +1798,26 @@ class AgentService:
                 await self.session.rollback()
             except Exception:
                 pass
+
+        # Persist error message to session history if graph execution failed
+        if graph_error is not None:
+            try:
+                await self.config_service.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=(
+                        f"I encountered an error while processing your request: "
+                        f"{graph_error}. The work completed before the error has "
+                        f"been saved."
+                    ),
+                    message_metadata={
+                        "error": True,
+                        "error_type": type(graph_error).__name__,
+                    },
+                )
+                await self.session.commit()
+            except Exception as persist_error:
+                logger.error(f"Failed to persist error message: {persist_error}")
 
         # Publish main agent completion
         _publish(
@@ -1619,6 +2041,124 @@ class AgentService:
 
         return execution_id
 
+    async def _resolve_context_names(
+        self,
+        context: dict[str, Any],
+        project_id: UUID | None = None,
+    ) -> dict[str, Any]:
+        """Enrich context dict with entity names looked up from the database.
+
+        Looks up the human-readable name for the entity referenced in *context*
+        so that the system prompt can identify it by name rather than by ID only.
+        Name lookup failure is non-fatal -- the original context is returned
+        without a ``name`` key if the query fails.
+
+        Args:
+            context: Context dictionary with at least ``type`` and ``id`` keys.
+            project_id: Optional parent project ID (used to look up the project
+                name when the context refers to a WBE or cost element).
+
+        Returns:
+            A **copy** of *context* with the ``name`` field populated when found.
+        """
+        enriched = dict(context)
+        context_type = context.get("type")
+        entity_id = context.get("id")
+
+        if not context_type or not entity_id:
+            return enriched
+
+        try:
+            entity_uuid = UUID(str(entity_id))
+        except (ValueError, AttributeError):
+            return enriched
+
+        try:
+            if context_type == "project":
+                stmt = (
+                    select(Project.name)
+                    .where(Project.project_id == entity_uuid)
+                    .where(sa_func.upper(Project.valid_time).is_(None))
+                    .where(Project.deleted_at.is_(None))
+                    .limit(1)
+                )
+                result = await self.session.execute(stmt)
+                name = result.scalar_one_or_none()
+                if name:
+                    enriched["name"] = name
+
+            elif context_type == "wbe":
+                stmt = (
+                    select(WBE.name)
+                    .where(WBE.wbe_id == entity_uuid)
+                    .where(sa_func.upper(WBE.valid_time).is_(None))
+                    .where(WBE.deleted_at.is_(None))
+                    .limit(1)
+                )
+                result = await self.session.execute(stmt)
+                name = result.scalar_one_or_none()
+                if name:
+                    enriched["name"] = name
+                # Also look up parent project name when project_id is available
+                pid = context.get("project_id") or project_id
+                if pid:
+                    try:
+                        pid_uuid = UUID(str(pid))
+                        p_stmt = (
+                            select(Project.name)
+                            .where(Project.project_id == pid_uuid)
+                            .where(sa_func.upper(Project.valid_time).is_(None))
+                            .where(Project.deleted_at.is_(None))
+                            .limit(1)
+                        )
+                        p_result = await self.session.execute(p_stmt)
+                        p_name = p_result.scalar_one_or_none()
+                        if p_name:
+                            enriched["project_name"] = p_name
+                    except (ValueError, AttributeError):
+                        pass
+
+            elif context_type == "cost_element":
+                stmt = (
+                    select(CostElement.name)
+                    .where(CostElement.cost_element_id == entity_uuid)
+                    .where(sa_func.upper(CostElement.valid_time).is_(None))
+                    .where(CostElement.deleted_at.is_(None))
+                    .limit(1)
+                )
+                result = await self.session.execute(stmt)
+                name = result.scalar_one_or_none()
+                if name:
+                    enriched["name"] = name
+                # Also look up parent project name when project_id is available
+                pid = context.get("project_id") or project_id
+                if pid:
+                    try:
+                        pid_uuid = UUID(str(pid))
+                        p_stmt = (
+                            select(Project.name)
+                            .where(Project.project_id == pid_uuid)
+                            .where(sa_func.upper(Project.valid_time).is_(None))
+                            .where(Project.deleted_at.is_(None))
+                            .limit(1)
+                        )
+                        p_result = await self.session.execute(p_stmt)
+                        p_name = p_result.scalar_one_or_none()
+                        if p_name:
+                            enriched["project_name"] = p_name
+                    except (ValueError, AttributeError):
+                        pass
+
+        except Exception:
+            logger.warning(
+                "Failed to resolve context name for %s %s",
+                context_type,
+                entity_id,
+                exc_info=True,
+            )
+
+        return enriched
+
     def _build_system_prompt(
         self,
         base_prompt: str,
@@ -1662,26 +2202,39 @@ class AgentService:
                     "This is a general conversation without specific context. "
                     "You can help with projects, WBEs, and cost elements as needed."
                 )
-            elif context_type == "project" and context_name:
+            elif context_type == "project":
+                name_part = f" the project: {context_name}" if context_name else ""
                 context_sections.append(
-                    f"This conversation is about the project: {context_name}. "
+                    f"This conversation is about{name_part}. "
                     f"Context is scoped to this project (ID: {context.get('id', project_id)}). "
                     "Use project-scoped tools to query data within this project. "
                     "The user's access is limited to this project's data. "
                     "Use get_project_context tool to query project details. "
-                    "Project scope is locked for this session - you cannot switch to other projects."
+                    "Project scope is locked for this session - you cannot switch to other projects. "
+                    "If the user asks about other projects, explain that this session is scoped to "
+                    "this project and they should open a different chat session for other projects."
                 )
-            elif context_type == "wbe" and context_name:
+            elif context_type == "wbe":
+                name_part = (
+                    f" the Work Breakdown Element (WBE): {context_name}"
+                    if context_name
+                    else " a Work Breakdown Element (WBE)"
+                )
                 context_sections.append(
-                    f"This conversation is about the Work Breakdown Element (WBE): {context_name}. "
+                    f"This conversation is about{name_part}. "
                     f"WBE ID: {context.get('id')}. "
                     f"Parent project ID: {context.get('project_id', project_id)}. "
                     "Focus your responses on this specific WBE. "
                     "Use WBE-scoped tools to query and analyze this element."
                 )
-            elif context_type == "cost_element" and context_name:
+            elif context_type == "cost_element":
+                name_part = (
+                    f" the Cost Element: {context_name}"
+                    if context_name
+                    else " a Cost Element"
+                )
                 context_sections.append(
-                    f"This conversation is about the Cost Element: {context_name}. "
+                    f"This conversation is about{name_part}. "
                     f"Cost Element ID: {context.get('id')}. "
                     f"Parent project ID: {context.get('project_id', project_id)}. "
                     "Focus your responses on this specific cost element. "
@@ -1772,7 +2325,12 @@ class AgentService:
                     # Plain text message without attachments
                     messages.append(HumanMessage(content=msg.content))
             elif msg.role == "assistant":
-                messages.append(AIMessage(content=msg.content))
+                messages.append(
+                    AIMessage(
+                        content=msg.content,
+                        **_restore_reasoning_content(msg.message_metadata),
+                    )
+                )
             elif msg.role == "tool":
                 # Skip tool messages in history - they're implicit
                 pass
@@ -1885,20 +2443,17 @@ class AgentService:
             return [self._make_json_serializable(item) for item in obj]
         elif isinstance(obj, str):
             obj_size = len(obj)
-            logger.debug(f"_make_json_serializable: string size={obj_size:,} chars")
-            # Skip JSON parsing for very large strings to prevent CPU spikes
             if obj_size > 100_000:  # 100KB limit
                 return obj
-            # Try to parse JSON strings back to objects
-            # This handles stringified JSON from ToolMessage.content
+            # Cheap pre-check: only attempt json.loads if string starts with a JSON opener
+            if not obj or obj[0] not in ("{", "[", '"'):
+                return obj
             try:
                 import json
 
                 parsed = json.loads(obj)
-                # Recursively process parsed object to handle nested structures
                 return self._make_json_serializable(parsed)
             except (json.JSONDecodeError, TypeError):
-                # Not valid JSON, return as-is
                 return obj
         elif isinstance(obj, (int, float, bool, type(None))):
             return obj
@@ -1906,8 +2461,6 @@ class AgentService:
             # For other types, try string conversion
             return str(obj)
 
-    # Store reference to InterruptNode for approval handling
-    # Key: session_id, Value: InterruptNode instance
     _interrupt_nodes: dict[UUID, "InterruptNode"] = {}
 
     def register_interrupt_node(
@@ -2010,7 +2563,7 @@ class AgentService:
                 "error": None,
             }
 
-            if self._is_websocket_connected(websocket):
+            if is_websocket_connected(websocket):
                 try:
                     msg_data = WSToolResultMessage(
                         type="tool_result",

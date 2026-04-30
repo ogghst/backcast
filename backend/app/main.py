@@ -1,6 +1,7 @@
 """Main application entry point."""
 
 import logging
+import time as _time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -51,18 +52,34 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    _startup_start = _time.time()
+    logger.info("[STARTUP] BEGIN")
+
     # Configure logging on startup
     setup_logging()
 
-    # Clean up orphaned agent executions from previous server instance
-    await _cleanup_orphaned_executions()
+    # Clean up orphaned agent executions (non-critical)
+    try:
+        _t0 = _time.time()
+        await _cleanup_orphaned_executions()
+        logger.info("[STARTUP] orphan_cleanup OK %.0fms", (_time.time() - _t0) * 1000)
+    except Exception:
+        logger.warning("[STARTUP] orphan_cleanup FAILED", exc_info=True)
 
-    # Seed dashboard template layouts (idempotent)
-    from app.services.dashboard_layout_service import seed_dashboard_templates
+    # Seed dashboard template layouts (non-critical, idempotent)
+    try:
+        _t0 = _time.time()
+        from app.services.dashboard_layout_service import seed_dashboard_templates
 
-    await seed_dashboard_templates()
+        await seed_dashboard_templates()
+        logger.info(
+            "[STARTUP] dashboard_templates OK %.0fms", (_time.time() - _t0) * 1000
+        )
+    except Exception:
+        logger.warning("[STARTUP] dashboard_templates FAILED", exc_info=True)
 
-    # Initialize RBAC
+    # Initialize RBAC (critical)
+    _t0 = _time.time()
     from app.db.session import async_session_maker
 
     async with async_session_maker() as session:
@@ -74,7 +91,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             seeder = DataSeeder()
             await seeder.seed_rbac_roles(session)
             await session.commit()
-            logger.info("RBAC roles seeded successfully")
 
             from app.core.rbac import get_rbac_service, set_rbac_session
             from app.core.rbac_database import DatabaseRBACService
@@ -84,6 +100,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             if isinstance(rbac_svc, DatabaseRBACService):
                 await rbac_svc.refresh_cache()
             set_rbac_session(None)
+
+    logger.info("[STARTUP] rbac_init OK %.0fms", (_time.time() - _t0) * 1000)
 
     # Notify admins of system startup
     from app.core.notifications import notifier
@@ -96,7 +114,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
     )
 
-    # Startup: could check db connection here
+    logger.info("[STARTUP] COMPLETE %.0fms", (_time.time() - _startup_start) * 1000)
+
     yield
 
     # Shutdown: clean up resources
@@ -208,7 +227,7 @@ async def validation_exception_handler(
     request: Request, exc: ValidationError
 ) -> JSONResponse:
     """Handle Pydantic validation errors with detailed information."""
-    logger.error(f"Validation error on {request.url}: {exc.errors()}")
+    logger.error("Validation error on %s: %s", request.url, exc.errors())
 
     errors = exc.errors()
     formatted_errors = []

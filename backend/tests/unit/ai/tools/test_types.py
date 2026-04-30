@@ -1,6 +1,6 @@
 """Tests for AI tool types."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -26,42 +26,53 @@ class TestToolContext:
     async def test_permission_checking_with_cache(self):
         """Test permission checking with caching."""
         mock_session = MagicMock()
-        # Use "admin" role which has all permissions in the RBAC config
-        context = ToolContext(
-            session=mock_session, user_id="user123", user_role="admin"
-        )
+        mock_rbac = MagicMock()
+        mock_rbac.has_permission.return_value = True
 
-        # First check
-        result1 = await context.check_permission("project-read")
-        assert result1 is True
+        with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
+            # Use "admin" role which has all permissions in the RBAC config
+            context = ToolContext(
+                session=mock_session, user_id="user123", user_role="admin"
+            )
 
-        # Second check should use cache
-        result2 = await context.check_permission("project-read")
-        assert result2 is True
+            # First check
+            result1 = await context.check_permission("project-read")
+            assert result1 is True
 
-        # Verify cached (cache key format is "permission:scope")
-        assert "project-read:global" in context._permission_cache
+            # Second check should use cache
+            result2 = await context.check_permission("project-read")
+            assert result2 is True
+
+            # Verify cached (cache key format is "permission:scope")
+            assert "project-read:global" in context._permission_cache
+
+            # has_permission called only once (second hit uses cache)
+            assert mock_rbac.has_permission.call_count == 1
 
     @pytest.mark.asyncio
     async def test_permission_checking_different_permissions(self):
         """Test permission checking for different permissions."""
         mock_session = MagicMock()
-        # Use "admin" role which has all permissions in the RBAC config
-        context = ToolContext(
-            session=mock_session, user_id="user123", user_role="admin"
-        )
+        mock_rbac = MagicMock()
+        mock_rbac.has_permission.return_value = True
 
-        # Check different permissions
-        result1 = await context.check_permission("project-read")
-        result2 = await context.check_permission("user-update")
+        with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
+            # Use "admin" role which has all permissions in the RBAC config
+            context = ToolContext(
+                session=mock_session, user_id="user123", user_role="admin"
+            )
 
-        assert result1 is True
-        assert result2 is True
+            # Check different permissions
+            result1 = await context.check_permission("project-read")
+            result2 = await context.check_permission("user-update")
 
-        # Both should be cached (cache key format is "permission:scope")
-        assert len(context._permission_cache) == 2
-        assert "project-read:global" in context._permission_cache
-        assert "user-update:global" in context._permission_cache
+            assert result1 is True
+            assert result2 is True
+
+            # Both should be cached (cache key format is "permission:scope")
+            assert len(context._permission_cache) == 2
+            assert "project-read:global" in context._permission_cache
+            assert "user-update:global" in context._permission_cache
 
     @pytest.mark.asyncio
     async def test_service_accessor(self):

@@ -3,15 +3,12 @@ import {
   Modal,
   Form,
   InputNumber,
-  DatePicker,
   Input,
   Alert,
   Space,
 } from "antd";
 import type {
-  ProgressEntryRead,
   ProgressEntryCreate,
-  ProgressEntryUpdate,
 } from "@/api/generated";
 import { useLatestProgress } from "../api/useProgressEntries";
 import dayjs from "dayjs";
@@ -20,18 +17,16 @@ import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 interface ProgressEntryModalProps {
   open: boolean;
   onCancel: () => void;
-  onOk: (values: ProgressEntryCreate | ProgressEntryUpdate) => void;
+  onOk: (values: ProgressEntryCreate) => void;
   confirmLoading: boolean;
-  initialValues?: ProgressEntryRead | null;
   costElementId: string;
 }
 
 /**
- * Modal form for creating/updating progress entries.
+ * Modal form for creating progress entries.
  *
- * Features:
+ * Progress entries are immutable — this modal only creates new entries.
  * - Progress percentage validation (0-100, 2 decimals)
- * - Date picker with time support
  * - Notes field (optional, but recommended when progress decreases)
  * - Warning display when progress decreases from latest
  */
@@ -40,11 +35,9 @@ export const ProgressEntryModal = ({
   onCancel,
   onOk,
   confirmLoading,
-  initialValues,
   costElementId,
 }: ProgressEntryModalProps) => {
   const [form] = Form.useForm();
-  const isEdit = !!initialValues;
   const { asOf } = useTimeMachineParams();
 
   // Get latest progress for comparison (to warn on decreases)
@@ -53,19 +46,6 @@ export const ProgressEntryModal = ({
   // Track decrease warning state
   const [showDecreaseWarning, setShowDecreaseWarning] = useState(false);
 
-  // Set initial form values
-  const initialValuesForForm = initialValues
-    ? {
-        progress_percentage: parseFloat(initialValues.progress_percentage),
-        control_date: dayjs(
-          initialValues.valid_time.split(",")[0].substring(1),
-        ), // Extract lower bound from TSTZRANGE
-        notes: initialValues.notes || "",
-      }
-    : {
-        control_date: asOf ? dayjs(asOf) : dayjs(),
-      };
-
   // Check if progress is decreasing
   const checkProgressDecrease = (value: number | null) => {
     if (value === null || value === undefined) {
@@ -73,9 +53,8 @@ export const ProgressEntryModal = ({
       return;
     }
 
-    // Show warning if new progress is less than latest (only for create mode)
+    // Show warning if new progress is less than latest
     if (
-      !isEdit &&
       latestProgress &&
       value < parseFloat(latestProgress.progress_percentage)
     ) {
@@ -90,17 +69,12 @@ export const ProgressEntryModal = ({
       const values = await form.validateFields();
 
       // Format the data for API
-      const formattedValues: ProgressEntryCreate | ProgressEntryUpdate = {
+      const formattedValues: ProgressEntryCreate = {
         progress_percentage: values.progress_percentage,
-        control_date: values.control_date.toISOString(),
+        control_date: asOf || null,
         notes: values.notes || null,
+        cost_element_id: costElementId,
       };
-
-      // Add cost_element_id for create only
-      if (!isEdit) {
-        (formattedValues as ProgressEntryCreate).cost_element_id =
-          costElementId;
-      }
 
       await onOk(formattedValues);
     } catch (error) {
@@ -110,11 +84,11 @@ export const ProgressEntryModal = ({
 
   return (
     <Modal
-      title={isEdit ? "Edit Progress Entry" : "Record Progress"}
+      title="Record Progress"
       open={open}
       onCancel={onCancel}
       onOk={handleSubmit}
-      okText={isEdit ? "Save" : "Record"}
+      okText="Record"
       confirmLoading={confirmLoading}
       destroyOnClose
       width={600}
@@ -123,7 +97,6 @@ export const ProgressEntryModal = ({
         form={form}
         layout="vertical"
         name="progress_entry_form"
-        initialValues={initialValuesForForm}
       >
         {showDecreaseWarning && (
           <Alert
@@ -161,19 +134,6 @@ export const ProgressEntryModal = ({
         </Form.Item>
 
         <Form.Item
-          name="control_date"
-          label="Progress Date"
-          rules={[{ required: true, message: "Please select a date and time" }]}
-        >
-          <DatePicker
-            showTime
-            style={{ width: "100%" }}
-            format="YYYY-MM-DD HH:mm"
-            placeholder="Select date and time"
-          />
-        </Form.Item>
-
-        <Form.Item
           name="notes"
           label="Notes"
           tooltip={
@@ -194,7 +154,7 @@ export const ProgressEntryModal = ({
           />
         </Form.Item>
 
-        {latestProgress && !isEdit && (
+        {latestProgress && (
           <Alert
             message={
               <Space>
@@ -202,9 +162,11 @@ export const ProgressEntryModal = ({
                 <strong>{latestProgress.progress_percentage}%</strong>
                 <span>
                   (
-                  {dayjs(
-                    latestProgress.valid_time.split(",")[0].substring(1),
-                  ).format("YYYY-MM-DD HH:mm")}
+                  {latestProgress.valid_time_formatted?.lower
+                    ? dayjs(latestProgress.valid_time_formatted.lower).format(
+                        "YYYY-MM-DD HH:mm",
+                      )
+                    : "-"}
                   )
                 </span>
               </Space>

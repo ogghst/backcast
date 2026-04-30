@@ -122,7 +122,6 @@ export const useSubmitForApproval = (
       toast.error(`Error submitting for approval: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -196,7 +195,6 @@ export const useApproveChangeOrder = (
       toast.error(`Error approving change order: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -271,7 +269,6 @@ export const useRejectChangeOrder = (
       toast.error(`Error rejecting change order: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -403,6 +400,5 @@ export const useArchiveChangeOrder = (
       toast.error(`Error archiving branch: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

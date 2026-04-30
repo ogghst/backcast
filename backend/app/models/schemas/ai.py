@@ -28,6 +28,7 @@ RISK_LEVEL_VALUES = [RISK_LEVEL_LOW, RISK_LEVEL_HIGH, RISK_LEVEL_CRITICAL]
 PROVIDER_TYPE_OPENAI = "openai"
 PROVIDER_TYPE_AZURE = "azure"
 PROVIDER_TYPE_OLLAMA = "ollama"
+PROVIDER_TYPE_DEEPSEEK = "deepseek"
 
 # Message Roles
 MESSAGE_ROLE_USER = "user"
@@ -366,6 +367,13 @@ class AIConversationSessionPublic(BaseModel):
     active_execution: AgentExecutionPublic | None = Field(
         None, description="Currently active agent execution, if any"
     )
+    briefing_markdown: str | None = Field(
+        None, description="Compiled briefing markdown from specialist contributions"
+    )
+    briefing_specialists: list[str] = Field(
+        default_factory=list,
+        description="Names of specialists that contributed to the briefing",
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -625,6 +633,49 @@ class WSAgentCompleteMessage(BaseModel):
     )
 
 
+class WSAgentTransitionMessage(BaseModel):
+    """WebSocket agent transition message from server.
+
+    Sent when control transfers between agents in the supervisor graph.
+    Replaces subagent events for the handoff pattern.
+    """
+
+    type: Literal["agent_transition"] = Field(
+        default="agent_transition", description="Message type discriminator"
+    )
+    agent_name: str = Field(
+        ..., description="Name of the agent being entered or exited"
+    )
+    direction: Literal["enter", "exit"] = Field(
+        ..., description="Whether the agent is being entered or exited"
+    )
+    invocation_id: str | None = Field(
+        None, description="Unique invocation ID for this agent activation"
+    )
+
+
+class WSBriefingMessage(BaseModel):
+    """WebSocket briefing update message from server.
+
+    Sent when a specialist agent updates the compiled briefing document
+    in the briefing room orchestrator pattern.
+    """
+
+    type: Literal["briefing_update"] = Field(
+        default="briefing_update", description="Message type discriminator"
+    )
+    briefing: str = Field(
+        ..., description="Compiled briefing markdown document"
+    )
+    specialist_name: str = Field(
+        ..., description="Name of the specialist that updated the briefing"
+    )
+    completed_specialists: list[str] = Field(
+        default_factory=list,
+        description="List of specialist names that have completed",
+    )
+
+
 class WSContentResetMessage(BaseModel):
     """WebSocket content reset message.
 
@@ -675,7 +726,9 @@ class WSCompleteMessage(BaseModel):
 
     type: str = Field(default="complete", description="Message type discriminator")
     session_id: UUID = Field(..., description="Session identifier")
-    message_id: UUID = Field(..., description="Complete message identifier")
+    message_id: UUID | None = Field(
+        None, description="Complete message identifier (None if execution errored)"
+    )
     token_usage: dict[str, int] | None = Field(
         None, description="Token usage: prompt_tokens, completion_tokens, total_tokens"
     )

@@ -1100,7 +1100,6 @@ async def test_ai_assistant(
         system_prompt="You are a helpful test assistant.",
         temperature=0.0,
         max_tokens=1000,
-        allowed_tools=["list_projects"],
         is_active=True,
     )
     db_session.add(config)
@@ -1133,7 +1132,6 @@ async def inactive_ai_assistant(
         system_prompt="You are a helpful test assistant.",
         temperature=0.0,
         max_tokens=1000,
-        allowed_tools=["list_projects"],
         is_active=False,  # Inactive
     )
     db_session.add(config)
@@ -1192,7 +1190,6 @@ async def ai_assistant_config_factory(
         system_prompt="You are a helpful test assistant.",
         temperature=0.0,
         max_tokens=1000,
-        allowed_tools=[],
         is_active=True,
     )
     db_session.add(config)

@@ -344,6 +344,21 @@ def mock_rbac_allow_all() -> RBACServiceABC:
         def get_user_permissions(self, user_role: str) -> list[str]:
             return ["ai-chat", "project-read", "project-create"]
 
+        async def has_project_access(
+            self,
+            user_id: UUID,
+            user_role: str,
+            project_id: UUID,
+            required_permission: str,
+        ) -> bool:
+            return True
+
+        async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+            return []
+
+        async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+            return "admin"
+
     return AllowAllRBAC()
 
 
@@ -366,6 +381,21 @@ def mock_rbac_deny_ai() -> RBACServiceABC:
 
         def get_user_permissions(self, user_role: str) -> list[str]:
             return ["project-read", "project-create"]  # No ai-chat
+
+        async def has_project_access(
+            self,
+            user_id: UUID,
+            user_role: str,
+            project_id: UUID,
+            required_permission: str,
+        ) -> bool:
+            return True
+
+        async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+            return []
+
+        async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+            return "admin"
 
     return DenyAIRBAC()
 

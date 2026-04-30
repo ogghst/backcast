@@ -54,7 +54,7 @@ export const AIModelModal = ({
       okText={isEdit ? "Save" : "Create"}
       okButtonProps={{ "data-testid": "submit-model-btn" }}
       confirmLoading={confirmLoading}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" name="ai_model_form">
         <Form.Item

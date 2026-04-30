@@ -472,8 +472,6 @@ class TestToolFilteringByAssistantRole:
             "update_schedule_baseline",
             "delete_schedule_baseline",
             "create_progress_entry",
-            "update_progress_entry",
-            "delete_progress_entry",
             "approve_change_order",
             "reject_change_order",
             "submit_change_order_for_approval",
@@ -568,7 +566,6 @@ class TestToolFilteringByAssistantRole:
             "approve_change_order",
             "reject_change_order",
             "create_progress_entry",
-            "update_progress_entry",
             "update_schedule_baseline",
         ]
         for tool_name in crud_tools:
@@ -579,7 +576,6 @@ class TestToolFilteringByAssistantRole:
         # Assert: delete tools that ai-manager DOES have
         manager_delete_tools = [
             "delete_cost_registration",
-            "delete_progress_entry",
         ]
         for tool_name in manager_delete_tools:
             assert tool_name in filtered_names, (
@@ -668,7 +664,6 @@ class TestToolFilteringByAssistantRole:
             "create_change_order",
             "update_change_order",
             "create_progress_entry",
-            "update_progress_entry",
         ]
         for tool_name in project_write_tools:
             assert tool_name not in filtered_names, (

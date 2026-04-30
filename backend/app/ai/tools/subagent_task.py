@@ -9,12 +9,10 @@ handle isolated tasks and return a single result via Command(update=...).
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from typing import Annotated, Any
 
-import httpx
 from langchain.tools import ToolRuntime
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
@@ -433,34 +431,10 @@ def build_task_tool(
         subagent, subagent_state, schema = _validate_and_prepare_state(
             subagent_type, description, runtime
         )
-        max_retries = 3
-        last_exc: BaseException | None = None
-        for attempt in range(max_retries + 1):
-            try:
-                result = await subagent.ainvoke(subagent_state)
-                return _return_command_with_state_update(
-                    result, runtime.tool_call_id, subagent_schema=schema
-                )
-            except (
-                httpx.ReadError,
-                httpx.ConnectError,
-                httpx.ConnectTimeout,
-                httpx.ReadTimeout,
-            ) as exc:
-                last_exc = exc
-                if attempt < max_retries:
-                    wait = 2**attempt  # 1s, 2s, 4s
-                    logger.warning(
-                        "Transient %s invoking subagent %s, "
-                        "attempt %d/%d, retrying in %ds",
-                        type(exc).__name__,
-                        subagent_type,
-                        attempt + 1,
-                        max_retries + 1,
-                        wait,
-                    )
-                    await asyncio.sleep(wait)
-        raise last_exc  # type: ignore[misc]
+        result = await subagent.ainvoke(subagent_state)
+        return _return_command_with_state_update(
+            result, runtime.tool_call_id, subagent_schema=schema
+        )
 
     return StructuredTool.from_function(
         name="task",

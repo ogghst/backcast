@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.ai.agent_service import AgentService
+from app.ai.briefing import BriefingDocument
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.tools.types import ExecutionMode
@@ -52,6 +53,23 @@ from app.services.ai_config_service import AIConfigService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai/chat", tags=["AI Chat"])
+
+
+def _enrich_session_briefing(
+    session_public: AIConversationSessionPublic,
+    session: AIConversationSession,
+) -> None:
+    """Compile briefing markdown and specialist names from stored briefing_data."""
+    if not session.briefing_data:
+        return
+    try:
+        doc = BriefingDocument.model_validate(session.briefing_data)
+        session_public.briefing_markdown = doc.to_markdown()
+        session_public.briefing_specialists = [
+            sec.specialist_name for sec in doc.sections
+        ]
+    except Exception:
+        pass
 
 
 class SessionIdHolder:
@@ -125,6 +143,7 @@ async def list_sessions(
             session_public.active_execution = AgentExecutionPublic.model_validate(
                 execution
             )
+        _enrich_session_briefing(session_public, s)
         result.append(session_public)
 
     return result
@@ -199,6 +218,7 @@ async def list_sessions_paginated(
             session_public.active_execution = AgentExecutionPublic.model_validate(
                 execution
             )
+        _enrich_session_briefing(session_public, s)
         result.append(session_public)
 
     # Get total count
@@ -491,14 +511,12 @@ async def chat_stream(
     jwt_result = validate_jwt_token(token)
     if not jwt_result.is_valid:
         logger.warning(f"WebSocket connection rejected: {jwt_result.error_detail}")
-        # Type guard: close_code is never None when is_valid is False
         close_code = jwt_result.close_code if jwt_result.close_code else 1008
         await websocket.close(
             code=close_code, reason=jwt_result.error_detail or "Authentication failed"
         )
         return
 
-    # Type guard: if is_valid is True, subject cannot be None
     if jwt_result.subject is None:
         logger.warning("WebSocket connection rejected: missing subject in token")
         await websocket.close(code=1008, reason="Invalid token: missing subject")

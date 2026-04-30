@@ -73,6 +73,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         self._security_tools = tools or []
         self._tools_by_name: dict[str, Any] = {t.name: t for t in self._security_tools}
         self._interrupt_node = interrupt_node
+        self._approval_semaphore = asyncio.Semaphore(1)
+        self._consecutive_approval_timeouts: int = 0
 
     async def awrap_tool_call(
         self,
@@ -480,12 +482,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                 # Calculate actual elapsed wall-clock time
                 elapsed_seconds = time.time() - polling_start_time
 
-                # Send heartbeat to keep WebSocket connection alive
-                # Prevents connection timeout due to inactivity (typically 20-30 seconds)
-                if (
-                    elapsed_seconds - (last_heartbeat_time - polling_start_time)
-                    >= heartbeat_interval
-                ):
+                # Prevents connection timeout due to inactivity
+                if time.time() - last_heartbeat_time >= heartbeat_interval:
                     remaining = max_wait_time - elapsed_seconds
                     await interrupt_node._send_heartbeat(
                         approval_id=approval_id,
@@ -611,7 +609,6 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         if not needs_approval:
             return True, None
 
-        # Ensure interrupt_node is available (redundant guard for type narrowing)
         if interrupt_node is None:
             logger.error("InterruptNode is None but approval is needed")
             return False, "Approval system unavailable"
@@ -621,21 +618,38 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             f"APPROVAL_NEEDED: tool='{tool_name}', risk_level={risk_level.value}"
         )
 
-        approval_id = await interrupt_node._send_approval_request(
-            tool_name=tool_name,
-            tool_args=tool_args,
-            risk_level=risk_level,
-            tool_call=tool_call,
-        )
+        # Serialize approval requests — only one at a time
+        async with self._approval_semaphore:
+            approval_id = await interrupt_node._send_approval_request(
+                tool_name=tool_name,
+                tool_args=tool_args,
+                risk_level=risk_level,
+                tool_call=tool_call,
+            )
 
-        # Poll for approval response
-        approved, approval_error = await self._poll_for_approval(
-            approval_id=approval_id,
-            tool_name=tool_name,
-            interrupt_node=interrupt_node,
-        )
+            # Poll for approval response
+            approved, approval_error = await self._poll_for_approval(
+                approval_id=approval_id,
+                tool_name=tool_name,
+                interrupt_node=interrupt_node,
+            )
 
-        return approved, approval_error
+        if not approved:
+            if approval_error and "timed out" in approval_error:
+                self._consecutive_approval_timeouts += 1
+                if self._consecutive_approval_timeouts >= 3:
+                    logger.warning(
+                        f"Approval timed out {self._consecutive_approval_timeouts} "
+                        f"consecutive times for tool '{tool_name}'. Failing permanently."
+                    )
+                    return False, (
+                        f"Approval timed out {self._consecutive_approval_timeouts} consecutive times. "
+                        f"Please try again later."
+                    )
+            return False, approval_error
+
+        self._consecutive_approval_timeouts = 0
+        return True, None
 
     def set_tools(self, tools: list[Any]) -> None:
         """Set the tools list for permission checking.

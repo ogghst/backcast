@@ -95,8 +95,6 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   // Progress Entry
   "progress-entry-read": { topic: "Progress Entry", description: "View progress entries" },
   "progress-entry-create": { topic: "Progress Entry", description: "Create progress entries" },
-  "progress-entry-update": { topic: "Progress Entry", description: "Edit progress entries" },
-  "progress-entry-delete": { topic: "Progress Entry", description: "Remove progress entries" },
 
   // Quality Event
   "quality-event-read": { topic: "Quality Event", description: "View quality events" },

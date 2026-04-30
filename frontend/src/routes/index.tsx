@@ -27,11 +27,8 @@ import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrd
 import { ChangeOrderImpactAnalysisPage } from "@/pages/projects/change-orders/ChangeOrderImpactAnalysisPage";
 import { CostElementLayout } from "@/pages/cost-elements/CostElementLayout";
 import { CostElementOverview } from "@/pages/cost-elements/CostElementOverview";
-import { CostElementForecasts } from "@/pages/cost-elements/CostElementForecasts";
-import { CostElementScheduleBaselines } from "@/pages/cost-elements/CostElementScheduleBaselines";
 import { CostElementCostRegistrations } from "@/pages/cost-elements/CostElementCostRegistrations";
 import { CostElementCostHistory } from "@/pages/cost-elements/CostElementCostHistory";
-import { CostElementProgress } from "@/pages/cost-elements/CostElementProgress";
 import { CostElementQualityEvents } from "@/pages/cost-elements/CostElementQualityEvents";
 import { CostElementChat } from "@/pages/cost-elements/CostElementChat";
 import { CostElementEVMAnalysis } from "@/pages/cost-elements/CostElementEVMAnalysis";
@@ -185,12 +182,9 @@ export const router = createBrowserRouter([
         element: <CostElementLayout />,
         children: [
           { index: true, element: <CostElementOverview /> },
-          { path: "forecasts", element: <CostElementForecasts /> },
-          { path: "schedule-baselines", element: <CostElementScheduleBaselines /> },
           { path: "cost-registrations", element: <CostElementCostRegistrations /> },
           { path: "cost-history", element: <CostElementCostHistory /> },
           { path: "evm-analysis", element: <CostElementEVMAnalysis /> },
-          { path: "progress", element: <CostElementProgress /> },
           { path: "quality-events", element: <CostElementQualityEvents /> },
           { path: "chat", element: <CostElementChat /> },
         ],

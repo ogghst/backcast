@@ -34,8 +34,10 @@ import { AssistantSelector } from "./AssistantSelector";
 import { SessionList } from "./SessionList";
 import { MessageList } from "./MessageList";
 import { MessageInput, type PendingAttachment } from "./MessageInput";
-import { AgentActivityPanel } from "./AgentActivityPanel";
-import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
+import { BriefingRail } from "./BriefingRail";
+import { BriefingRailToggleTab } from "./BriefingRailToggleTab";
+import { BriefingPeekBar } from "./BriefingPeekBar";
+import { type BriefingState } from "./BriefingContent";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
 import type { ChatMessage, MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../../types";
 import type { WSApprovalRequestMessage } from "../types";
@@ -123,9 +125,40 @@ export const ChatInterface = ({
   const contentResetCounterRef = useRef(0);
   const [pendingUserMessage, setPendingUserMessage] = useState<ChatMessage | null>(null);
 
-  // Agent activity state (Deep Agent planning, subagent delegation, etc.)
-  const [latestActivity, setLatestActivity] = useState<AgentActivity | null>(null);
-  const [activityHistory, setActivityHistory] = useState<ActivityHistoryItem[]>([]);
+  // Briefing state (compiled findings from specialist agents)
+  const [briefing, setBriefing] = useState<BriefingState | null>(null);
+
+  // Briefing rail state
+  const [isBriefingOpen, setIsBriefingOpen] = useState(false);
+  const [briefingRailWidth, setBriefingRailWidth] = useState(() => {
+    const saved = localStorage.getItem("briefing-rail-width");
+    return saved ? parseInt(saved, 10) : 360;
+  });
+  const userDismissedBriefing = useRef(false);
+
+  // Persist briefing rail width to localStorage
+  useEffect(() => {
+    localStorage.setItem("briefing-rail-width", String(briefingRailWidth));
+  }, [briefingRailWidth]);
+
+  // Keyboard shortcuts: Ctrl+B toggle briefing rail, Escape to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+        e.preventDefault();
+        if (briefing) {
+          setIsBriefingOpen((prev) => !prev);
+          if (isBriefingOpen) userDismissedBriefing.current = true;
+        }
+      }
+      if (e.key === "Escape" && isBriefingOpen) {
+        setIsBriefingOpen(false);
+        userDismissedBriefing.current = true;
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [briefing, isBriefingOpen]);
 
   // Approval state
   const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
@@ -144,7 +177,9 @@ export const ChatInterface = ({
   const [subagentInvocationCounts, setSubagentInvocationCounts] = useState<Record<string, number>>({});
 
   // Track sequence order for streams (to ensure proper rendering order)
-  const streamSequenceRef = useRef(0);
+  // Split counters for main agents and subagents to maintain ordering
+  const mainSequenceRef = useRef(0);
+  const subagentSequenceRef = useRef(0);
   const completionTurnRef = useRef(0);
 
   // Query client for cache invalidation
@@ -204,24 +239,6 @@ export const ChatInterface = ({
       isWaitingForResponse,
     [streamingState.main, streamingState.mainStreams, streamingState.subagents, activeToolCalls.length, isWaitingForResponse]
   );
-
-  // Clear streaming subagents when persisted messages are available
-  // (prevents duplicate subagent bubbles after query invalidation on complete)
-  // Guard: only run when NOT actively streaming, to prevent clearing new Q2
-  // subagents triggered by stale Q1 persisted subagents in the messages cache.
-  useEffect(() => {
-    if (isStreaming) return;
-
-    if (messages && messages.length > 0 && streamingState.subagents.size > 0) {
-      const hasPersistedSubagents = messages.some(m => m.metadata?.subagent_name);
-      if (hasPersistedSubagents) {
-        setStreamingState(prev => ({
-          ...prev,
-          subagents: new Map<string, SubagentStream>(),
-        }));
-      }
-    }
-  }, [messages, streamingState.subagents.size, isStreaming]);
 
   // Clear optimistic user message when persisted messages arrive
   useEffect(() => {
@@ -283,7 +300,7 @@ export const ChatInterface = ({
               is_active: true,
               is_complete: false,
               started_at: Date.now(),
-              sequence: streamSequenceRef.current++,
+              sequence: mainSequenceRef.current++,
             });
             contentResetOccurredRef.current = false; // Reset flag after first token
             return { ...prev, mainStreams };
@@ -302,7 +319,7 @@ export const ChatInterface = ({
               is_active: true,
               is_complete: false,
               started_at: Date.now(),
-              sequence: streamSequenceRef.current++,
+              sequence: mainSequenceRef.current++,
             });
           }
 
@@ -375,7 +392,7 @@ export const ChatInterface = ({
         is_complete: false,
         started_at: Date.now(),
         invocation_number: invocationNumber,
-        sequence: streamSequenceRef.current++,
+        sequence: subagentSequenceRef.current++,
       });
       return { ...prev, subagents };
     });
@@ -459,7 +476,8 @@ export const ChatInterface = ({
       setCurrentSessionId((prev) => prev || sessionId);
       setIsWaitingForResponse(false);
       setActiveToolCalls([]);
-      setLatestActivity(null);
+      // Intentionally keep briefing state — users should review
+      // the compiled briefing after the agent finishes
       setShowStreamSeparator(false);
       setToolJustFinished(false);
       contentResetOccurredRef.current = false;
@@ -495,12 +513,14 @@ export const ChatInterface = ({
         .then(() => {
           // Only clear if this is still the latest completion turn
           if (completionTurnRef.current === turn) {
-            setStreamingState({
+            setStreamingState((prev) => ({
               main: "",
               mainStreams: new Map<string, MainAgentStream>(),
-              subagents: new Map<string, SubagentStream>(),
-            });
-            streamSequenceRef.current = 0;
+              // Keep completed subagents visible until user sends a new message
+              subagents: prev.subagents,
+            }));
+            mainSequenceRef.current = 0;
+            subagentSequenceRef.current = 0;
           }
         });
     },
@@ -511,6 +531,13 @@ export const ChatInterface = ({
     setIsWaitingForResponse(false);
     setError(`Chat error: ${errorMsg}`);
     setPendingUserMessage(null);
+    // Clear stuck streaming state
+    setStreamingState({
+      main: "",
+      mainStreams: new Map<string, MainAgentStream>(),
+      subagents: new Map<string, SubagentStream>(),
+    });
+    setActiveToolCalls([]);
   }, []);
 
   // Debug: Capture all raw WebSocket messages
@@ -534,34 +561,6 @@ export const ChatInterface = ({
   const toolStepCounter = useRef<Map<string, number>>(new Map());
   const totalToolSteps = useRef<Map<string, number>>(new Map());
 
-  // Helper function to format relative time
-  const formatRelativeTime = useCallback((timestamp: number): string => {
-    const now = Date.now();
-    const diff = now - timestamp;
-
-    if (diff < 1000) return "Just now";
-    if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    return `${Math.floor(diff / 3600000)}h ago`;
-  }, []);
-
-  // Helper function to add current activity to history before updating
-  const addToActivityHistory = useCallback((activity: AgentActivity) => {
-    setActivityHistory((prev) => {
-      // Don't add if it's the same as the current activity
-      if (prev.length > 0 && prev[0].activity.timestamp === activity.timestamp) {
-        return prev;
-      }
-      // Create history item with relative time
-      const historyItem: ActivityHistoryItem = {
-        activity,
-        displayTime: formatRelativeTime(activity.timestamp),
-      };
-      // Keep only the last 10 activities
-      return [historyItem, ...prev].slice(0, 10);
-    });
-  }, [formatRelativeTime]);
-
   const handleApprovalRequest = useCallback((request: WSApprovalRequestMessage) => {
     // Show approval dialog and reset countdown
     setApprovalRequest(request);
@@ -583,44 +582,97 @@ export const ChatInterface = ({
     }, 1500);
   }, []);
 
-  // Deep Agent activity handlers
-  const handleThinking = useCallback(() => {
-    // Only set thinking if we don't have recent activity
-    if (latestActivity && Date.now() - latestActivity.timestamp < 2000) {
-      return;
-    }
-    // Add current activity to history before updating
-    if (latestActivity) {
-      addToActivityHistory(latestActivity);
-    }
-    setLatestActivity({
-      type: "thinking",
-      timestamp: Date.now(),
-    });
-  }, [latestActivity, addToActivityHistory]);
+  // Briefing update handler
+  const handleBriefingUpdate = useCallback(
+    (briefingMarkdown: string, specialistName: string, completedSpecialists: string[]) => {
+      setBriefing({
+        markdown: briefingMarkdown,
+        completedSpecialists: completedSpecialists,
+        lastSpecialist: specialistName,
+      });
+      // Auto-open briefing rail on first specialist contribution (desktop only)
+      if (!isMobile && !userDismissedBriefing.current) {
+        setIsBriefingOpen(true);
+      }
+    },
+    [isMobile],
+  );
 
   /**
-   * Handles tool call events by marking active streams as complete and updating
-   * the agent activity panel.
+   * Handles tool call events by injecting inline tool remarks.
    *
    * Context: Called by useStreamingChat when the AI agent invokes a tool.
-   * Completes any active main agent streams so that content before the tool call
-   * appears in its own bubble, then adds the tool to the active calls list for
-   * the activity panel display.
+   * Routes tool remarks to the correct stream based on invocation_id:
+   * - If invocation_id matches a subagent, inject into subagent stream
+   * - If invocation_id matches a main stream, inject into that main stream
+   * - Otherwise, inject into active main stream (backward compatibility)
    *
    * @param tool - Name of the tool being invoked
    * @param args - Arguments passed to the tool
+   * @param invocationId - Unique ID for the stream segment that called the tool
    */
-  const handleToolCall = useCallback((tool: string, args: Record<string, unknown>) => {
-    // Mark current main agent streams as complete when a tool is called
-    // This ensures main agent content before the tool appears in its own bubble
+  const handleToolCall = useCallback((tool: string, args: Record<string, unknown>, invocationId?: string) => {
+    // Create tool remark with markdown formatting
+    const toolRemark = `\n\n*${tool}*\n\n`;
+
     setStreamingState((prev) => {
-      const mainStreams = new Map(prev.mainStreams);
-      for (const [id, stream] of mainStreams) {
-        if (stream.is_active) {
-          mainStreams.set(id, { ...stream, is_active: false, is_complete: true });
+      // If invocation_id is provided, try to route to the correct stream
+      if (invocationId) {
+        // First check if this invocation_id belongs to a subagent
+        const subagents = new Map(prev.subagents);
+        const subagent = subagents.get(invocationId);
+        if (subagent) {
+          // Inject tool remark into subagent stream
+          subagents.set(invocationId, {
+            ...subagent,
+            content: subagent.content + toolRemark,
+          });
+          return { ...prev, subagents };
+        }
+
+        // Then check if this invocation_id belongs to a main stream
+        const mainStreams = new Map(prev.mainStreams);
+        const mainStream = mainStreams.get(invocationId);
+        if (mainStream) {
+          // Inject tool remark into main stream
+          mainStreams.set(invocationId, {
+            ...mainStream,
+            content: mainStream.content + toolRemark,
+            tool_calls: [
+              ...(mainStream.tool_calls || []),
+              { name: tool, args, position: mainStream.content.length }
+            ],
+          });
+          return { ...prev, mainStreams };
         }
       }
+
+      // Fallback: inject into active main stream (backward compatibility)
+      const mainStreams = new Map(prev.mainStreams);
+      let foundActiveStream = false;
+
+      for (const [id, stream] of mainStreams) {
+        if (stream.is_active) {
+          foundActiveStream = true;
+          mainStreams.set(id, {
+            ...stream,
+            content: stream.content + toolRemark,
+            tool_calls: [
+              ...(stream.tool_calls || []),
+              { name: tool, args, position: stream.content.length }
+            ],
+          });
+        }
+      }
+
+      // If no active main stream exists, create a new one or add to legacy field
+      if (!foundActiveStream) {
+        if (prev.main) {
+          return { ...prev, main: prev.main + toolRemark };
+        }
+        return { ...prev, mainStreams };
+      }
+
       return { ...prev, mainStreams };
     });
 
@@ -630,21 +682,9 @@ export const ChatInterface = ({
     const totalSteps = totalToolSteps.current.get(tool) || currentStep;
     totalToolSteps.current.set(tool, Math.max(totalSteps, currentStep));
 
-    // Add tool to active calls
+    // Add tool to active calls (for activity panel)
     setActiveToolCalls((prev) => [...prev, { name: tool, args }]);
-
-    // Add current activity to history before updating
-    if (latestActivity && latestActivity.toolName !== tool) {
-      addToActivityHistory(latestActivity);
-    }
-
-    // Update latest activity
-    setLatestActivity({
-      type: "executing",
-      toolName: tool,
-      timestamp: Date.now(),
-    });
-  }, [latestActivity, addToActivityHistory]);
+  }, []);
 
   const handleToolResult = useCallback((tool: string) => {
     // Remove tool from active calls
@@ -656,14 +696,9 @@ export const ChatInterface = ({
     toolStepCounter.current.delete(tool);
     totalToolSteps.current.delete(tool);
 
-    // Clear latest activity if it was for this tool
-    if (latestActivity?.type === "executing" && latestActivity.toolName === tool) {
-      setLatestActivity(null);
-    }
-
     // Set flag to add separator before next text stream
     setToolJustFinished(true);
-  }, [latestActivity]);
+  }, []);
 
   // Streaming chat hook
   const streamingChat = useStreamingChat({
@@ -680,12 +715,12 @@ export const ChatInterface = ({
     onApprovalRequest: handleApprovalRequest,
     onApprovalCountdown: handleApprovalCountdown,
     onApprovalTimeout: handleApprovalTimeout,
-    onThinking: handleThinking,
     onSubagentStart: handleSubagentStart,
     onSubagentComplete: handleSubagentComplete,
     onMainAgentComplete: handleMainAgentComplete,
     onContentReset: handleContentReset,
     onRawMessage: handleRawMessage,
+    onBriefingUpdate: handleBriefingUpdate,
     onExecutionStatus: useCallback((executionId: string, status: string, sessionId: string) => {
       // Invalidate sessions cache to pick up execution status changes
       void executionId; // Unused but kept for interface consistency
@@ -705,6 +740,21 @@ export const ChatInterface = ({
     setSidebarOpen(false);
     setError(null);
     setPendingUserMessage(null);
+    // Clear all streaming/briefing state from previous session
+    setStreamingState({
+      main: "",
+      mainStreams: new Map<string, MainAgentStream>(),
+      subagents: new Map<string, SubagentStream>(),
+    });
+    setActiveToolCalls([]);
+    setIsWaitingForResponse(false);
+    setLastTokenUsage(null);
+    setBriefing(null);
+    userDismissedBriefing.current = false;
+    setIsBriefingOpen(false);
+    mainSequenceRef.current = 0;
+    subagentSequenceRef.current = 0;
+    setSubagentInvocationCounts({});
   }, [lastAssistantId]);
 
   // Handle session selection
@@ -713,8 +763,42 @@ export const ChatInterface = ({
       setCurrentSessionId(sessionId);
       setSidebarOpen(false);
       setError(null);
+      // Clear all streaming state from previous session
+      setStreamingState({
+        main: "",
+        mainStreams: new Map<string, MainAgentStream>(),
+        subagents: new Map<string, SubagentStream>(),
+      });
+      setActiveToolCalls([]);
+      setIsWaitingForResponse(false);
+      setLastTokenUsage(null);
+      setSubagentInvocationCounts({});
+      setPendingUserMessage(null);
+      mainSequenceRef.current = 0;
+      subagentSequenceRef.current = 0;
+
+      // Restore briefing from session data if available
+      const session = sessions?.find((s) => s.id === sessionId);
+      if (session?.briefing_markdown) {
+        setBriefing({
+          markdown: session.briefing_markdown,
+          completedSpecialists: session.briefing_specialists ?? [],
+          lastSpecialist:
+            session.briefing_specialists?.[
+              session.briefing_specialists.length - 1
+            ] ?? "",
+        });
+        userDismissedBriefing.current = false;
+        if (window.innerWidth >= 1024) {
+          setIsBriefingOpen(true);
+        }
+      } else {
+        setBriefing(null);
+        userDismissedBriefing.current = false;
+        setIsBriefingOpen(false);
+      }
     },
-    []
+    [sessions]
   );
 
   // Handle session deletion
@@ -762,13 +846,13 @@ export const ChatInterface = ({
         subagents: new Map<string, SubagentStream>(),
       });
       setActiveToolCalls([]);
-      setLatestActivity(null);
       setIsWaitingForResponse(true);
       setLastTokenUsage(null);
       setShowStreamSeparator(false);
       setToolJustFinished(false);
       contentResetOccurredRef.current = false;
-      streamSequenceRef.current = 0; // Reset sequence counter for new message
+      mainSequenceRef.current = 0; // Reset sequence counter for new message
+      subagentSequenceRef.current = 0; // Reset sequence counter for new message
       completionTurnRef.current = 0;
       setSubagentInvocationCounts({});
 
@@ -799,12 +883,12 @@ export const ChatInterface = ({
       subagents: new Map<string, SubagentStream>(),
     });
     setActiveToolCalls([]);
-    setLatestActivity(null);
     setIsWaitingForResponse(false);
     setShowStreamSeparator(false);
     setToolJustFinished(false);
     contentResetOccurredRef.current = false;
-    streamSequenceRef.current = 0; // Reset sequence counter on cancel
+    mainSequenceRef.current = 0; // Reset sequence counter on cancel
+    subagentSequenceRef.current = 0; // Reset sequence counter on cancel
     setPendingUserMessage(null);
   }, [streamingChat]);
 
@@ -1077,7 +1161,7 @@ export const ChatInterface = ({
                     onChange={setSelectedAssistantId}
                     disabled={!!currentSessionId}
                     locked={!!currentSessionId}
-                    bordered={false}
+                    variant="borderless"
                   />
                 </div>
               )}
@@ -1128,7 +1212,7 @@ export const ChatInterface = ({
                   onChange={setSelectedAssistantId}
                   disabled={false}
                   locked={false}
-                  bordered={false}
+                  variant="borderless"
                 />
               </div>
             )}
@@ -1160,80 +1244,125 @@ export const ChatInterface = ({
           <Content
             style={{
               display: "flex",
-              flexDirection: "column",
+              flexDirection: isMobile ? "column" : "row",
               flex: 1,
               overflow: "hidden",
               backgroundColor: token.colorBgContainer,
             }}
           >
-            {/* Error Alert - mobile optimized */}
-            {error && (
-              <Alert
-                type="error"
-                message={isSmallMobile ? "Error" : error}
-                description={isSmallMobile ? error : undefined}
-                closable
-                onClose={() => setError(null)}
-                style={{
-                  margin: isMobile ? spacing.sm : spacing.md,
-                  borderRadius: isMobile ? 8 : token.borderRadius,
-                }}
-                showIcon
-              />
-            )}
-
-            {/* Messages - with safe area for mobile */}
+            {/* Chat column */}
             <div
               style={{
+                display: "flex",
+                flexDirection: "column",
                 flex: 1,
-                overflow: "auto",
-                backgroundColor: token.colorBgLayout,
-                // Add padding for safe area on mobile devices
-                paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : 0,
+                minWidth: 0,
+                overflow: "hidden",
               }}
             >
-              <MessageList
-                messages={chatMessages}
+              {/* Error Alert - mobile optimized */}
+              {error && (
+                <Alert
+                  type="error"
+                  message={isSmallMobile ? "Error" : error}
+                  description={isSmallMobile ? error : undefined}
+                  closable
+                  onClose={() => setError(null)}
+                  style={{
+                    margin: isMobile ? spacing.sm : spacing.md,
+                    borderRadius: isMobile ? 8 : token.borderRadius,
+                  }}
+                  showIcon
+                />
+              )}
+
+              {/* Messages - with safe area for mobile */}
+              <div
+                style={{
+                  flex: 1,
+                  overflow: "auto",
+                  backgroundColor: token.colorBgLayout,
+                  paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : 0,
+                }}
+              >
+                <MessageList
+                  messages={chatMessages}
+                  loading={messagesLoading}
+                  streamingState={streamingState}
+                  isStreaming={isStreaming}
+                  activeToolCalls={activeToolCalls}
+                  showSeparator={showStreamSeparator}
+                  isMobile={isMobile}
+                  tokenUsage={lastTokenUsage}
+                />
+              </div>
+
+              {/* Mobile: Briefing peek bar */}
+              {isMobile && (
+                <BriefingPeekBar
+                  briefing={briefing}
+                  isStreaming={isStreaming}
+                  isOpen={isBriefingOpen}
+                  onToggle={() => setIsBriefingOpen((prev) => !prev)}
+                />
+              )}
+
+              {/* Input - fixed at bottom for mobile feel */}
+              <MessageInput
+                onSend={handleSendMessage}
+                disabled={!selectedAssistantId}
                 loading={messagesLoading}
-                streamingState={streamingState}
                 isStreaming={isStreaming}
-                activeToolCalls={activeToolCalls}
-                showSeparator={showStreamSeparator}
-                isMobile={isMobile}
-                tokenUsage={lastTokenUsage}
+                onCancel={handleCancel}
+                connectionState={streamingChat.connectionState}
+                executionMode={executionMode}
+                onExecutionModeChange={setExecutionMode}
+                onAttachmentsChange={handleAttachmentsChange}
+                placeholder={
+                  !selectedAssistantId
+                    ? isSmallMobile
+                      ? "Select an assistant"
+                      : "Select an assistant to start chatting"
+                    : "Type your message..."
+                }
+              />
+
+              {/* WebSocket Debug Panel - inline below input */}
+              <WebSocketDebugPanel
+                visible={showDebugPanel}
+                onClose={() => setShowDebugPanel(false)}
+                messages={debugMessages}
+                onClear={handleClearDebugMessages}
               />
             </div>
 
-            {/* Agent Activity Panel - between messages and input */}
-            <AgentActivityPanel activity={latestActivity} activityHistory={activityHistory} />
+            {/* Desktop: Briefing toggle tab (when rail is closed) */}
+            {!isMobile && !isBriefingOpen && (
+              <BriefingRailToggleTab
+                specialistCount={briefing?.completedSpecialists.length ?? 0}
+                isStreaming={isStreaming}
+                hasBriefing={!!briefing}
+                onClick={() => {
+                  setIsBriefingOpen(true);
+                  userDismissedBriefing.current = false;
+                }}
+              />
+            )}
 
-            {/* Input - fixed at bottom for mobile feel */}
-            <MessageInput
-              onSend={handleSendMessage}
-              disabled={!selectedAssistantId}
-              loading={messagesLoading}
-              isStreaming={isStreaming}
-              onCancel={handleCancel}
-              connectionState={streamingChat.connectionState}
-              executionMode={executionMode}
-              onExecutionModeChange={setExecutionMode}
-              onAttachmentsChange={handleAttachmentsChange}
-              placeholder={
-                !selectedAssistantId
-                  ? isSmallMobile
-                    ? "Select an assistant"
-                    : "Select an assistant to start chatting"
-                  : "Type your message..."
-              }
-            />
-
-            {/* WebSocket Debug Panel - inline below input */}
-            <WebSocketDebugPanel
-              visible={showDebugPanel}
-              onClose={() => setShowDebugPanel(false)}
-              messages={debugMessages}
-              onClear={handleClearDebugMessages}
-            />
+            {/* Desktop: Briefing rail (when open) */}
+            {!isMobile && (
+              <BriefingRail
+                briefing={briefing}
+                isStreaming={isStreaming}
+                isOpen={isBriefingOpen}
+                onClose={() => {
+                  setIsBriefingOpen(false);
+                  userDismissedBriefing.current = true;
+                }}
+                width={briefingRailWidth}
+                onWidthChange={setBriefingRailWidth}
+              />
+            )}
           </Content>
         </Layout>
       </Layout>

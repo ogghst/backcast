@@ -9,8 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import (
     CreateVersionCommand,
-    SoftDeleteCommand,
-    UpdateVersionCommand,
 )
 from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
@@ -130,78 +128,6 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             **progress_data,
         )
         return await cmd.execute(self.session)
-
-    async def update(
-        self,
-        entity_id: UUID,
-        actor_id: UUID,
-        control_date: datetime | None = None,
-        **updates: Any,
-    ) -> ProgressEntry:
-        """Update progress entry using UpdateVersionCommand.
-
-        Args:
-            progress_entry_id: The progress entry to update
-            progress_in: The update data
-            actor_id: The user making the update
-            control_date: Optional control date for valid_time (defaults to now)
-        """
-        progress_in = updates.pop("progress_in", None)
-        # Extract control_date from schema if not provided
-        if control_date is None and progress_in:
-            control_date = getattr(progress_in, "control_date", None)
-
-        if progress_in:
-            update_data = progress_in.model_dump(exclude_unset=True)
-        else:
-            update_data = updates.copy()
-
-        # If control_date is still None, default to now
-        if control_date is None:
-            control_date = datetime.now(tz=UTC)
-        update_data.pop("control_date", None)
-
-        # Validate progress_percentage if provided
-        if "progress_percentage" in update_data:
-            progress_percentage = update_data["progress_percentage"]
-            if progress_percentage is not None and (
-                progress_percentage < 0 or progress_percentage > 100
-            ):
-                raise ValueError("Progress percentage must be between 0 and 100")
-
-        # Custom command class to handle multi-word entity name
-        class ProgressEntryUpdateCommand(UpdateVersionCommand[ProgressEntry]):  # type: ignore[type-var,unused-ignore]
-            def _root_field_name(self) -> str:
-                return "progress_entry_id"
-
-        cmd = ProgressEntryUpdateCommand(
-            entity_class=ProgressEntry,  # type: ignore[type-var,unused-ignore]
-            root_id=entity_id,
-            actor_id=actor_id,
-            control_date=control_date,
-            **update_data,
-        )
-        return await cmd.execute(self.session)
-
-    async def soft_delete(
-        self,
-        progress_entry_id: UUID,
-        actor_id: UUID,
-        control_date: datetime | None = None,
-    ) -> None:
-        """Soft delete progress entry using SoftDeleteCommand."""
-
-        class ProgressEntrySoftDeleteCommand(SoftDeleteCommand[ProgressEntry]):  # type: ignore[type-var,unused-ignore]
-            def _root_field_name(self) -> str:
-                return "progress_entry_id"
-
-        cmd = ProgressEntrySoftDeleteCommand(
-            entity_class=ProgressEntry,  # type: ignore[type-var,unused-ignore]
-            root_id=progress_entry_id,
-            actor_id=actor_id,
-            control_date=control_date,
-        )
-        await cmd.execute(self.session)
 
     async def get_by_id(self, progress_entry_id: UUID) -> ProgressEntry | None:
         """Get current progress entry by root ID."""

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { Layout, Typography, theme } from "antd";
+import { WaveBackground } from "@/components/common/WaveBackground";
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -8,18 +9,16 @@ interface AuthLayoutProps {
   children: ReactNode;
 }
 
-/**
- * Layout for authentication pages (login, register)
- * Simple centered design without sidebar/header
- * Updated: 2026-02-07
- */
 export const AuthLayout = ({ children }: AuthLayoutProps) => {
   const { token } = theme.useToken();
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "#f0f2f5" }}>
+    <Layout style={{ minHeight: "100vh", background: token.colorBgLayout }}>
+      <WaveBackground />
       <Content
         style={{
+          position: "relative",
+          zIndex: 1,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
@@ -31,10 +30,11 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
           style={{
             width: "100%",
             maxWidth: "400px",
-            background: "#fff",
+            background: token.colorBgElevated,
             padding: 40,
             borderRadius: token.borderRadiusLG,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            boxShadow: token.boxShadow ||
+              "0 2px 8px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.1)",
           }}
         >
           <div

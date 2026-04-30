@@ -151,15 +151,22 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
     ) -> CostElement:
         """Create new cost element using CreateVersionCommand.
 
-        Auto-creates a default schedule baseline for the cost element.
+        Auto-creates:
+        - Default schedule baseline for the cost element
+        - Default forecast for the cost element
+        - Initial progress entry (0% progress) for the cost element
         """
         element_data = element_in.model_dump(exclude_unset=True)
 
         # Extract control_date from schema if present (for seeding/time-travel)
         control_date = getattr(element_in, "control_date", None)
 
-        # Remove control_date from data to avoid duplicate kwarg error
+        # Remove control_date and schedule fields from data to avoid
+        # passing non-column fields to CreateVersionCommand
         element_data.pop("control_date", None)
+        element_data.pop("schedule_start_date", None)
+        element_data.pop("schedule_end_date", None)
+        element_data.pop("schedule_progression_type", None)
 
         # Use provided cost_element_id (for seeding) or generate new one
         root_id = element_in.cost_element_id or uuid4()
@@ -232,6 +239,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             actor_id=actor_id,
             branch=target_branch,
             control_date=control_date,
+            start_date=element_in.schedule_start_date,
+            end_date=element_in.schedule_end_date,
+            progression_type=element_in.schedule_progression_type,
         )
 
         # Update cost element with baseline reference
@@ -251,6 +261,25 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         # Update cost element with forecast reference
         cost_element.forecast_id = forecast.forecast_id
+
+        # Auto-create initial progress entry
+        from decimal import Decimal
+
+        from app.models.schemas.progress_entry import ProgressEntryCreate
+        from app.services.progress_entry_service import ProgressEntryService
+
+        progress_service = ProgressEntryService(self.session)
+        progress_create = ProgressEntryCreate(
+            cost_element_id=root_id,
+            progress_percentage=Decimal("0.00"),
+            notes="Initial progress entry",
+            control_date=control_date,
+        )
+        await progress_service.create(
+            actor_id=actor_id,
+            progress_in=progress_create,
+        )
+
         await self.session.flush()
 
         return cost_element
@@ -412,6 +441,11 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
             # Update cost element with forecast reference
             new_element.forecast_id = forecast.forecast_id
+
+            # Note: We do NOT create a progress entry for branched cost elements
+            # Progress entries are global facts (not branchable), so the existing
+            # progress entry from main branch applies to all branches.
+
             await self.session.flush()
 
             return new_element

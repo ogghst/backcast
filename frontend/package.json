@@ -11,6 +11,7 @@
     "test:ui": "vitest --ui",
     "e2e": "playwright test",
     "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "generate-client": "openapi --input ../backend/openapi.json --output ./src/api/generated --client axios",
     "prepare": "husky",
@@ -19,8 +20,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix",
-      "tsc-files --noEmit"
+      "eslint --fix"
     ]
   },
   "dependencies": {

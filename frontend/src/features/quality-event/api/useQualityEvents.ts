@@ -256,7 +256,6 @@ export const useCreateQualityEvent = (
       toast.error(`Error creating quality event: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -335,7 +334,6 @@ export const useUpdateQualityEvent = (
       toast.error(`Error updating quality event: ${error.message}`);
       mutationOptions?.onError?.(error, variables, context, undefined);
     },
-    ...mutationOptions,
   });
 };
 
@@ -383,6 +381,5 @@ export const useDeleteQualityEvent = (
       toast.error(`Error deleting quality event: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

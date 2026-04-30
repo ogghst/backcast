@@ -31,7 +31,11 @@ def mock_websocket():
 
     websocket = AsyncMock(spec=WebSocket)
     websocket.send_json = AsyncMock()
-    websocket.client_state = WebSocketState.CONNECTED  # Simulate connected state
+    websocket.client_state = WebSocketState.CONNECTED
+    # WebSocket inherits __len__ from HTTPConnection via Sized.
+    # spec mocks delegate __len__ → 0, making bool(mock) == False.
+    # Override so truthiness matches production behavior.
+    type(websocket).__len__ = lambda self_: 1  # type: ignore[type-abstract]
     return websocket
 
 

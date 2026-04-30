@@ -8,7 +8,7 @@ import {
   CloseCircleOutlined,
 } from "@ant-design/icons";
 import type { ColumnType } from "antd/es/table";
-import { useAIProviders, useDeleteAIProvider, useCreateAIProvider } from "../api";
+import { useAIProviders, useDeleteAIProvider, useCreateAIProvider, useUpdateAIProvider } from "../api";
 import { AIProviderModal } from "./AIProviderModal";
 import { AIProviderConfigModal } from "./AIProviderConfigModal";
 import { AIModelManagementModal } from "./AIModelManagementModal";
@@ -30,6 +30,7 @@ export const AIProviderList = () => {
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [modelManagementModalOpen, setModelManagementModalOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<AIProviderPublic | null>(null);
+  const [configProviderType, setConfigProviderType] = useState<string | null>(null);
 
   const { mutate: deleteProvider } = useDeleteAIProvider({
     onSuccess: () => {
@@ -37,7 +38,14 @@ export const AIProviderList = () => {
     },
   });
 
-  const { mutateAsync: createProvider } = useCreateAIProvider({
+  const { mutateAsync: createProvider, isPending: isCreating } = useCreateAIProvider({
+    onSuccess: () => {
+      refetch();
+      setModalOpen(false);
+    },
+  });
+
+  const { mutateAsync: updateProvider, isPending: isUpdating } = useUpdateAIProvider({
     onSuccess: () => {
       refetch();
       setModalOpen(false);
@@ -182,13 +190,14 @@ export const AIProviderList = () => {
             await createProvider(values as AIProviderCreate);
           }
         }}
-        confirmLoading={isLoading}
+        confirmLoading={selectedProvider ? isUpdating : isCreating}
         initialValues={selectedProvider}
         onOpenModels={() => {
           setModalOpen(false);
           setModelManagementModalOpen(true);
         }}
-        onOpenConfiguration={() => {
+        onOpenConfiguration={(formValues) => {
+          setConfigProviderType(formValues.provider_type ?? selectedProvider?.provider_type ?? "openai");
           setModalOpen(false);
           setConfigModalOpen(true);
         }}
@@ -201,6 +210,7 @@ export const AIProviderList = () => {
             onCancel={() => setConfigModalOpen(false)}
             providerId={selectedProvider.id}
             providerName={selectedProvider.name}
+            providerType={configProviderType ?? selectedProvider.provider_type}
           />
 
           <AIModelManagementModal

@@ -13,7 +13,7 @@ from uuid import uuid4
 import pytest
 
 from app.ai.tools.approval_audit import ApprovalAuditLogger
-from app.ai.tools.types import RiskLevel
+from app.ai.tools.types import ExecutionMode, RiskLevel
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def test_tool_execution_logged(audit_logger, caplog):
     tool_name = "delete_project"
     tool_args = {"project_id": "123"}
     risk_level = RiskLevel.CRITICAL
-    execution_mode = "standard"
+    execution_mode = ExecutionMode.STANDARD
 
     # Act
     with caplog.at_level(logging.INFO):
@@ -79,7 +79,7 @@ def test_tool_execution_logged(audit_logger, caplog):
     assert log_data["tool_name"] == tool_name
     assert log_data["tool_args"] == tool_args
     assert log_data["risk_level"] == risk_level.value
-    assert log_data["execution_mode"] == execution_mode
+    assert log_data["execution_mode"] == execution_mode.value
     assert "timestamp" in log_data
     assert "session_id" in log_data
     assert "user_id" in log_data

@@ -46,6 +46,17 @@ export interface MainAgentStream {
   is_complete: boolean; // Whether this stream has finished
   started_at: number; // Timestamp when streaming started
   sequence?: number; // Order in which this stream was created (for proper rendering)
+  tool_calls?: ToolCallRemark[]; // Tool calls that occurred during this stream segment
+}
+
+/**
+ * Represents a tool call that occurred during streaming
+ * Used to render inline tool remarks in the message flow
+ */
+export interface ToolCallRemark {
+  name: string; // Tool name
+  args: Record<string, unknown>; // Tool arguments
+  position: number; // Character position in content where tool was called
 }
 
 /**
@@ -292,6 +303,17 @@ export interface WSAgentCompleteMessage {
 }
 
 /**
+ * Server -> Client: Briefing update event
+ * Sent when a specialist agent updates the compiled briefing document
+ */
+export interface WSBriefingMessage {
+  type: "briefing_update";
+  briefing: string; // Compiled briefing markdown
+  specialist_name: string; // Name of the specialist that updated
+  completed_specialists: string[]; // List of completed specialist names
+}
+
+/**
  * Server -> Client: Content reset event
  * Sent when the streaming content buffer should be reset,
  * typically after a subagent completes
@@ -341,7 +363,8 @@ export type WSServerMessage =
   | WSPingMessage
   | WSAgentCompleteMessage
   | WSExecutionStartedMessage
-  | WSExecutionStatusMessage;
+  | WSExecutionStatusMessage
+  | WSBriefingMessage;
 
 /**
  * Type guard to check if a server message is a token message.
@@ -549,4 +572,13 @@ export function isAgentCompleteMessage(
   message: WSServerMessage
 ): message is WSAgentCompleteMessage {
   return message.type === "agent_complete";
+}
+
+/**
+ * Type guard to check if a server message is a briefing update message
+ */
+export function isBriefingMessage(
+  message: WSServerMessage
+): message is WSBriefingMessage {
+  return message.type === "briefing_update";
 }

@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ExecutionMode } from './ExecutionMode';
 /**
  * Schema for reading agent execution records.
  */
@@ -12,7 +13,7 @@ export type AgentExecutionPublic = {
     started_at: string;
     completed_at?: (string | null);
     error_message?: (string | null);
-    execution_mode?: string;
+    execution_mode?: ExecutionMode;
     total_tokens?: number;
     tool_calls_count?: number;
     created_at: string;

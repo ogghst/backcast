@@ -46,8 +46,6 @@ class MockRBACService(RBACServiceABC):
         return [
             "progress-entry-read",
             "progress-entry-create",
-            "progress-entry-update",
-            "progress-entry-delete",
             "cost-element-read",
             "cost-element-create",
         ]
@@ -307,97 +305,6 @@ class TestProgressEntriesAPI:
         data = response.json()
         assert data["progress_entry_id"] == progress_entry_id
         assert data["progress_percentage"] == "50.00"
-
-    @pytest.mark.asyncio
-    async def test_update_progress_entry_increase(
-        self, client: AsyncClient, setup_cost_element: dict[str, Any]
-    ) -> None:
-        """Test PUT /progress-entries/{id} increases progress.
-
-        Test ID: T-005
-        """
-        # Arrange
-        cost_element_id = setup_cost_element["cost_element_id"]
-        create_res = await client.post(
-            "/api/v1/progress-entries",
-            json={
-                "cost_element_id": str(cost_element_id),
-                "progress_percentage": 50.0,
-                "reported_date": datetime(2026, 1, 15, tzinfo=UTC).isoformat(),
-                "reported_by_user_id": str(mock_admin_user.user_id),
-            },
-        )
-        progress_entry_id = create_res.json()["progress_entry_id"]
-
-        # Act
-        response = await client.put(
-            f"/api/v1/progress-entries/{progress_entry_id}",
-            json={"progress_percentage": 75.0},
-        )
-
-        # Assert
-        assert response.status_code == 200
-        assert response.json()["progress_percentage"] == "75.00"
-
-    @pytest.mark.asyncio
-    async def test_update_progress_entry_decrease(
-        self, client: AsyncClient, setup_cost_element: dict[str, Any]
-    ) -> None:
-        """Test PUT /progress-entries/{id} decreases progress.
-
-        Test ID: T-006
-        """
-        # Arrange
-        cost_element_id = setup_cost_element["cost_element_id"]
-        create_res = await client.post(
-            "/api/v1/progress-entries",
-            json={
-                "cost_element_id": str(cost_element_id),
-                "progress_percentage": 75.0,
-                "reported_date": datetime(2026, 1, 15, tzinfo=UTC).isoformat(),
-                "reported_by_user_id": str(mock_admin_user.user_id),
-            },
-        )
-        progress_entry_id = create_res.json()["progress_entry_id"]
-
-        # Act
-        response = await client.put(
-            f"/api/v1/progress-entries/{progress_entry_id}",
-            json={
-                "progress_percentage": 50.0,
-                "notes": "Work undone - inspection failed",
-            },
-        )
-
-        # Assert
-        assert response.status_code == 200
-        data = response.json()
-        assert data["progress_percentage"] == "50.00"
-        assert data["notes"] == "Work undone - inspection failed"
-
-    @pytest.mark.asyncio
-    async def test_delete_progress_entry(
-        self, client: AsyncClient, setup_cost_element: dict[str, Any]
-    ) -> None:
-        """Test DELETE /progress-entries/{id} soft deletes entry."""
-        # Arrange
-        cost_element_id = setup_cost_element["cost_element_id"]
-        create_res = await client.post(
-            "/api/v1/progress-entries",
-            json={
-                "cost_element_id": str(cost_element_id),
-                "progress_percentage": 50.0,
-                "reported_date": datetime(2026, 1, 15, tzinfo=UTC).isoformat(),
-                "reported_by_user_id": str(mock_admin_user.user_id),
-            },
-        )
-        progress_entry_id = create_res.json()["progress_entry_id"]
-
-        # Act
-        response = await client.delete(f"/api/v1/progress-entries/{progress_entry_id}")
-
-        # Assert
-        assert response.status_code == 204
 
     @pytest.mark.asyncio
     async def test_get_latest_progress(

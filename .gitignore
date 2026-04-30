@@ -60,7 +60,11 @@ htmlcov/
 # Claude Code skills (external dependencies)
 .claude/skills/
 .claude/worktrees/
+.claude/plans/
 skills-lock.json
+
+# Husky
+.husky/
 
 # Screenshots and temporary artifacts
 .tmp/

@@ -164,7 +164,7 @@ export const ApprovalDialog = ({
       open={open}
       onCancel={handleCancel}
       width={600}
-      destroyOnClose
+      destroyOnHidden
       closable={!isExpired}
       footer={
         <Space style={{ width: "100%", justifyContent: "flex-end" }}>

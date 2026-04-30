@@ -21,9 +21,9 @@ import {
 import {
   useCreateCostElementScheduleBaseline,
   useUpdateCostElementScheduleBaseline,
+  type ScheduleBaselineRead,
 } from "../api/useCostElementScheduleBaseline";
 import { ProgressionPreviewChart } from "./ProgressionPreviewChart";
-import type { ScheduleBaselineRead } from "../api/useScheduleBaselines";
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -92,10 +92,17 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
   useEffect(() => {
     if (visible) {
       if (baseline) {
+        // Format ISO datetime strings to YYYY-MM-DD for date inputs
+        const formatDateForInput = (dateStr: string) => {
+          if (!dateStr) return defaultStartDate;
+          // Extract just the date part if it's a full ISO datetime
+          return dateStr.split("T")[0];
+        };
+
         form.setFieldsValue({
           name: baseline.name,
-          start_date: baseline.start_date,
-          end_date: baseline.end_date,
+          start_date: formatDateForInput(baseline.start_date),
+          end_date: formatDateForInput(baseline.end_date),
           progression_type: baseline.progression_type,
           description: baseline.description || "",
         });

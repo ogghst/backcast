@@ -105,7 +105,9 @@ Quick reference for finding architecture documents. Start here when working on t
 │   └── test-execution-runbook.md      # How to run tests
 │
 ├── ai/                          # AI/Chat system documentation
-│   ├── agent-orchestration-guide.md   # LangGraph agent patterns
+│   ├── agent-common-concepts.md       # Shared agent infrastructure, tools, middleware
+│   ├── deep-agent-orchestrator.md     # Task-based delegation with isolated subagents
+│   ├── supervisor-orchestrator.md     # Handoff-based delegation with shared state
 │   ├── api-reference.md               # AI API reference
 │   ├── project-context-patterns.md    # Project context injection
 │   ├── temporal-context-patterns.md   # Temporal context in AI

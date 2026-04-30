@@ -102,6 +102,10 @@ class LLMClientFactory:
                 default_query=default_query,
             )
 
+        elif provider.provider_type == "deepseek":
+            if not base_url:
+                base_url = "https://api.deepseek.com"
+
         elif provider.provider_type == "ollama":
             # Ollama uses base_url (required)
             if not base_url:

@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import tests.unit.fixtures.cost_element_fixtures as _fixtures
 from app.models.schemas.progress_entry import (
     ProgressEntryCreate,
-    ProgressEntryUpdate,
 )
 from app.services.progress_entry_service import ProgressEntryService
 from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
@@ -150,74 +149,6 @@ class TestProgressEntryServiceCreate:
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("101.00"),
             )
-
-
-class TestProgressEntryServiceUpdate:
-    """Test ProgressEntryService.update() method."""
-
-    @pytest.mark.asyncio
-    async def test_update_progress_entry_increase(
-        self, db_session: AsyncSession, sample_cost_element_with_budget
-    ) -> None:
-        """Test updating progress entry to increase percentage.
-
-        Test ID: T-005
-        """
-        # Arrange - create initial progress entry
-        service = ProgressEntryService(db_session)
-        cost_element_id = sample_cost_element_with_budget.cost_element_id
-        progress_in = ProgressEntryCreate(
-            cost_element_id=cost_element_id,
-            progress_percentage=Decimal("50.00"),
-        )
-        actor_id = uuid4()
-        created_progress = await service.create(actor_id, progress_in=progress_in)
-
-        # Act - update to higher percentage
-        progress_update = ProgressEntryUpdate(
-            progress_percentage=Decimal("75.00"),
-        )
-        updated_progress = await service.update(
-            entity_id=created_progress.progress_entry_id,
-            progress_in=progress_update,
-            actor_id=actor_id,
-        )
-
-        # Assert
-        assert updated_progress.progress_percentage == Decimal("75.00")
-
-    @pytest.mark.asyncio
-    async def test_update_progress_entry_decrease(
-        self, db_session: AsyncSession, sample_cost_element_with_budget
-    ) -> None:
-        """Test updating progress entry to decrease percentage.
-
-        Test ID: T-006
-        """
-        # Arrange - create initial progress entry
-        service = ProgressEntryService(db_session)
-        cost_element_id = sample_cost_element_with_budget.cost_element_id
-        progress_in = ProgressEntryCreate(
-            cost_element_id=cost_element_id,
-            progress_percentage=Decimal("75.00"),
-        )
-        actor_id = uuid4()
-        created_progress = await service.create(actor_id, progress_in=progress_in)
-
-        # Act - update to lower percentage with justification
-        progress_update = ProgressEntryUpdate(
-            progress_percentage=Decimal("50.00"),
-            notes="Work undone - inspection failed",
-        )
-        updated_progress = await service.update(
-            entity_id=created_progress.progress_entry_id,
-            progress_in=progress_update,
-            actor_id=actor_id,
-        )
-
-        # Assert
-        assert updated_progress.progress_percentage == Decimal("50.00")
-        assert updated_progress.notes == "Work undone - inspection failed"
 
 
 class TestProgressEntryServiceGetLatest:

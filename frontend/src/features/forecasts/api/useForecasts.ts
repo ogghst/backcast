@@ -161,7 +161,6 @@ export const useCreateForecast = (
       toast.error(`Error creating forecast: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -205,7 +204,6 @@ export const useUpdateForecast = (
       toast.error(`Error updating forecast: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -246,6 +244,5 @@ export const useDeleteForecast = (
       toast.error(`Error deleting forecast: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

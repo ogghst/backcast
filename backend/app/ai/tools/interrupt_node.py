@@ -471,6 +471,13 @@ class InterruptNode(ToolNode):
                 tool_call=tool_call,
             )
 
+            # Store interrupt state for resume via execute_after_approval
+            self.interrupt_state[approval_id] = {
+                "tool_call": tool_call,
+                "tool_name": tool_name,
+                "execute": execute,
+            }
+
             # Check approval status
             # In real flow with LangGraph interrupts, we'd pause here and
             # resume after user responds. For now, we'll check immediately.

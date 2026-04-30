@@ -132,7 +132,6 @@ export const useCreateProject = (
       toast.error(`Error creating: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -163,7 +162,6 @@ export const useUpdateProject = (
       toast.error(`Error updating: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -197,7 +195,6 @@ export const useDeleteProject = (
       toast.error(`Error deleting: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 

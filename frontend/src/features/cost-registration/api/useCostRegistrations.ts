@@ -366,7 +366,6 @@ export const useCreateCostRegistration = (
       }
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -426,7 +425,6 @@ export const useUpdateCostRegistration = (
       toast.error(`Error updating cost registration: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };
 
@@ -479,6 +477,5 @@ export const useDeleteCostRegistration = (
       toast.error(`Error deleting cost registration: ${error.message}`);
       mutationOptions?.onError?.(error, ...args);
     },
-    ...mutationOptions,
   });
 };

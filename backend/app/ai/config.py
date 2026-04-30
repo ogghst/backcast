@@ -26,6 +26,7 @@ class AgentConfig:
     context_schema: type | None = None
     assistant_role: str | None = None
     user_role: str | None = None
+    use_supervisor: bool = False
 
 
 __all__ = ["AgentConfig"]
