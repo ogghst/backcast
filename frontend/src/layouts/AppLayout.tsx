@@ -5,6 +5,7 @@ import { Outlet, useParams } from "react-router-dom";
 
 import { UserProfile } from "@/components/UserProfile";
 import { HeaderNavigation } from "@/components/navigation/HeaderNavigation";
+import { WaveBackground } from "@/components/common/WaveBackground";
 import { SearchDialog, useSearchShortcut } from "@/features/search";
 
 const BUILD_SHA = import.meta.env.VITE_GIT_SHA || "dev";
@@ -34,6 +35,7 @@ const AppLayout: React.FC = () => {
   const {
     token: {
       colorBgContainer,
+      colorBgLayout,
       colorBorder,
       colorPrimary,
       borderRadiusLG,
@@ -72,9 +74,12 @@ const AppLayout: React.FC = () => {
   const isTimeMachineExpanded = useTimeMachineStore((s) => s.isExpanded);
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout style={{ minHeight: "100vh", background: colorBgLayout, position: "relative" }}>
+      <WaveBackground />
       <Header
         style={{
+          position: "relative",
+          zIndex: 1,
           padding: isMobile ? `${paddingMD}px ${paddingMD}px` : `${paddingMD}px ${paddingLG}px`,
           background: colorBgContainer,
           display: "flex",
@@ -143,7 +148,7 @@ const AppLayout: React.FC = () => {
         />
       )}
 
-      <Content style={{ margin: `${paddingXL}px ${paddingMD}px 0` }}>
+      <Content style={{ position: "relative", zIndex: 1, margin: `${paddingXL}px ${paddingMD}px 0` }}>
         <div
           style={{
             padding: paddingXL,
@@ -155,7 +160,7 @@ const AppLayout: React.FC = () => {
           <Outlet />
         </div>
       </Content>
-      <Footer style={{ textAlign: "center" }}>
+      <Footer style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
         <Space size="small">
           <span>Backcast ©{new Date().getFullYear()}</span>
           {BUILD_SHA && BUILD_SHA !== "dev" && BUILD_DATE && BUILD_DATE !== "dev" && (
