@@ -735,7 +735,9 @@ class AgentService:
         # Note: Task-local sessions are created per tool execution and cleaned up below
         try:
             # Load briefing from database (source of truth)
-            existing_briefing = await self.config_service.get_session_briefing(session_id)
+            existing_briefing = await self.config_service.get_session_briefing(
+                session_id
+            )
             if existing_briefing:
                 logger.info(
                     "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (non-streaming)",
@@ -759,14 +761,27 @@ class AgentService:
             # Save final briefing state to database
             final_briefing = result.get("briefing_data")
             if final_briefing:
-                await self.config_service.save_session_briefing(session_id, final_briefing)
+                section_count = len(final_briefing.get("sections", []))
+                await self.config_service.save_session_briefing(
+                    session_id, final_briefing
+                )
                 logger.info(
-                    "[BRIEFING_PERSIST] Saved briefing to DB with %d sections (non-streaming)",
-                    len(final_briefing.get("sections", [])),
+                    "[BRIEFING_PERSIST_SUCCESS] Saved briefing to DB with %d sections (non-streaming) | session_id=%s",
+                    section_count,
+                    session_id,
+                )
+            else:
+                logger.info(
+                    "[BRIEFING_PERSIST_SUCCESS] No briefing_data to save (non-streaming) | session_id=%s",
+                    session_id,
                 )
 
             # Clear checkpoint to prevent state bloat
             shared_checkpointer.delete_thread(str(session_id))
+            logger.info(
+                "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (non-streaming) | session_id=%s",
+                session_id,
+            )
         finally:
             # Clean up any remaining task-local sessions after graph execution
             # This ensures sessions are properly removed even if tools didn't clean up
@@ -1015,7 +1030,9 @@ class AgentService:
             main_invocation_id = str(uuid.uuid4())
 
             # Load briefing from database (source of truth)
-            existing_briefing = await self.config_service.get_session_briefing(session_id)
+            existing_briefing = await self.config_service.get_session_briefing(
+                session_id
+            )
             if existing_briefing:
                 logger.info(
                     "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (streaming)",
@@ -1604,14 +1621,29 @@ class AgentService:
                                     )
 
                                     # Save final briefing state to database
-                                    await self.config_service.save_session_briefing(session_id, final_briefing_data)
+                                    section_count = len(
+                                        final_briefing_data.get("sections", [])
+                                    )
+                                    await self.config_service.save_session_briefing(
+                                        session_id, final_briefing_data
+                                    )
                                     logger.info(
-                                        "[BRIEFING_PERSIST] Saved briefing to DB with %d sections (streaming)",
-                                        len(final_briefing_data.get("sections", [])),
+                                        "[BRIEFING_PERSIST_SUCCESS] Saved briefing to DB with %d sections (streaming) | session_id=%s",
+                                        section_count,
+                                        session_id,
                                     )
 
                                     # Clear checkpoint to prevent state bloat
                                     shared_checkpointer.delete_thread(str(session_id))
+                                    logger.info(
+                                        "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (streaming) | session_id=%s",
+                                        session_id,
+                                    )
+                                else:
+                                    logger.info(
+                                        "[BRIEFING_PERSIST_SUCCESS] No briefing_data to save (streaming) | session_id=%s",
+                                        session_id,
+                                    )
 
                             for msg in messages:
                                 if isinstance(msg, AIMessage) and msg.tool_calls:
@@ -1694,6 +1726,41 @@ class AgentService:
                 _flush_accumulated_tokens(inv_id)
             clear_request_context()
             self.unregister_interrupt_node(session_id)
+
+            # CRITICAL: Save briefing to database even on error
+            # This ensures specialist findings are preserved even if streaming fails
+            try:
+                checkpoint_state = await shared_checkpointer.aget(
+                    {"configurable": {"thread_id": str(session_id)}}
+                )
+                if checkpoint_state:
+                    error_briefing: dict[str, Any] | None = cast(
+                        Any, checkpoint_state.get("briefing_data")
+                    )
+                    if error_briefing:
+                        await self.config_service.save_session_briefing(
+                            session_id, error_briefing
+                        )
+                        section_count = len(error_briefing.get("sections", []))
+                        logger.info(
+                            "[BRIEFING_PERSIST_ERROR_PATH] Saved briefing from checkpoint after error with %d sections (streaming)",
+                            section_count,
+                        )
+                        # Still delete checkpoint to prevent state bloat
+                        shared_checkpointer.delete_thread(str(session_id))
+                        logger.info(
+                            "[BRIEFING_PERSIST_ERROR_PATH] Deleted checkpoint after error-path save"
+                        )
+                    else:
+                        logger.debug(
+                            "[BRIEFING_PERSIST_ERROR_PATH] No briefing_data in checkpoint to save after error"
+                        )
+            except Exception as briefing_save_error:
+                logger.error(
+                    "[BRIEFING_PERSIST_ERROR_PATH] Failed to save briefing after graph error: %s",
+                    briefing_save_error,
+                    exc_info=True,
+                )
 
         # Save assistant messages to session
         try:
