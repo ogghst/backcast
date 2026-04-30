@@ -1586,65 +1586,6 @@ class AgentService:
                             output = data.get("output", {})
                             messages = output.get("messages", [])
 
-                            # Send final briefing message to ensure UI always has current briefing state
-                            final_briefing_data = output.get("briefing_data", {})
-                            if final_briefing_data:
-                                final_briefing_md = ""
-                                try:
-                                    final_briefing_md = BriefingDocument.model_validate(
-                                        final_briefing_data
-                                    ).to_markdown()
-                                except Exception:
-                                    final_briefing_md = ""
-                                if final_briefing_md:
-                                    completed = output.get(
-                                        "completed_specialists", set()
-                                    )
-                                    completed_list = (
-                                        sorted(completed)
-                                        if isinstance(completed, set)
-                                        else []
-                                    )
-                                    _publish(
-                                        "briefing_update",
-                                        WSBriefingMessage(
-                                            type="briefing_update",
-                                            briefing=final_briefing_md,
-                                            specialist_name="final",
-                                            completed_specialists=completed_list,
-                                        ).model_dump(mode="json"),
-                                    )
-                                    logger.info(
-                                        "[GRAPH_END] Sent final briefing with %d sections, %d completed specialists",
-                                        len(final_briefing_data.get("sections", [])),
-                                        len(completed_list),
-                                    )
-
-                                    # Save final briefing state to database
-                                    section_count = len(
-                                        final_briefing_data.get("sections", [])
-                                    )
-                                    await self.config_service.save_session_briefing(
-                                        session_id, final_briefing_data
-                                    )
-                                    logger.info(
-                                        "[BRIEFING_PERSIST_SUCCESS] Saved briefing to DB with %d sections (streaming) | session_id=%s",
-                                        section_count,
-                                        session_id,
-                                    )
-
-                                    # Clear checkpoint to prevent state bloat
-                                    shared_checkpointer.delete_thread(str(session_id))
-                                    logger.info(
-                                        "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (streaming) | session_id=%s",
-                                        session_id,
-                                    )
-                                else:
-                                    logger.info(
-                                        "[BRIEFING_PERSIST_SUCCESS] No briefing_data to save (streaming) | session_id=%s",
-                                        session_id,
-                                    )
-
                             for msg in messages:
                                 if isinstance(msg, AIMessage) and msg.tool_calls:
                                     for tc in msg.tool_calls:
@@ -1664,6 +1605,45 @@ class AgentService:
                     # Flush all remaining accumulated tokens after stream ends
                     for inv_id in list(_token_accumulator.keys()):
                         _flush_accumulated_tokens(inv_id)
+
+                    # Persist briefing from checkpoint after stream completes
+                    try:
+                        checkpoint_state = await shared_checkpointer.aget(
+                            {"configurable": {"thread_id": str(session_id)}}
+                        )
+                        if checkpoint_state:
+                            channel_values = checkpoint_state.get(
+                                "channel_values", {}
+                            )
+                            persist_briefing: dict[str, Any] | None = cast(
+                                Any, channel_values.get("briefing_data")
+                            )
+                            if persist_briefing:
+                                await self.config_service.save_session_briefing(
+                                    session_id, persist_briefing
+                                )
+                                logger.info(
+                                    "[BRIEFING_PERSIST_SUCCESS] Saved briefing from checkpoint with %d sections (streaming) | session_id=%s",
+                                    len(persist_briefing.get("sections", [])),
+                                    session_id,
+                                )
+                                shared_checkpointer.delete_thread(str(session_id))
+                                logger.info(
+                                    "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (streaming) | session_id=%s",
+                                    session_id,
+                                )
+                            else:
+                                logger.info(
+                                    "[BRIEFING_PERSIST] No briefing_data in checkpoint (streaming) | session_id=%s",
+                                    session_id,
+                                )
+                    except Exception as persist_err:
+                        logger.error(
+                            "[BRIEFING_PERSIST] Failed to persist briefing from checkpoint: %s | session_id=%s",
+                            persist_err,
+                            session_id,
+                            exc_info=True,
+                        )
 
                     break  # successful completion, exit retry loop
 
@@ -1734,8 +1714,9 @@ class AgentService:
                     {"configurable": {"thread_id": str(session_id)}}
                 )
                 if checkpoint_state:
+                    channel_values = checkpoint_state.get("channel_values", {})
                     error_briefing: dict[str, Any] | None = cast(
-                        Any, checkpoint_state.get("briefing_data")
+                        Any, channel_values.get("briefing_data")
                     )
                     if error_briefing:
                         await self.config_service.save_session_briefing(
