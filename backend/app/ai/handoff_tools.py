@@ -16,7 +16,7 @@ from langchain_core.tools import BaseTool
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from app.ai.briefing import BriefingDocument
+from app.ai.briefing import BriefingDocument, TaskAssignment
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,14 @@ def create_handoff_tool(
         ],
         state: Annotated[dict[str, Any], InjectedState()],
         tool_call_id: Annotated[str, InjectedToolCallId],
+        rationale: Annotated[
+            str | None,
+            "Why this specialist was chosen and what specific aspect they should address.",
+        ] = None,
+        analysis: Annotated[
+            str | None,
+            "Your overall analysis of the user request and delegation strategy.",
+        ] = None,
     ) -> Command[Any]:
         tool_message = ToolMessage(
             content=f"Transferring to {agent_name}: {task_description}",
@@ -89,11 +97,19 @@ def create_handoff_tool(
             doc = BriefingDocument.model_validate(briefing_data)
         except Exception:
             doc = BriefingDocument(original_request="(recovered)")
+        if analysis is not None:
+            doc.supervisor_analysis = analysis
+        doc.add_task_assignment(
+            TaskAssignment(
+                specialist=agent_name,
+                description=task_description,
+                rationale=rationale,
+            )
+        )
         doc.metadata["current_task"] = {
             "specialist": agent_name,
             "description": task_description,
         }
-        updated_briefing = doc.to_markdown()
         updated_data = doc.model_dump()
 
         return Command(
@@ -102,7 +118,6 @@ def create_handoff_tool(
             update={
                 "messages": [ai_message, tool_message],
                 "active_agent": agent_name,
-                "briefing": updated_briefing,
                 "briefing_data": updated_data,
             },
         )

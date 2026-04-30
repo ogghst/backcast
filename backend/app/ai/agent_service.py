@@ -8,6 +8,7 @@ import logging
 import os
 import time
 import uuid
+from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Literal, cast
@@ -32,6 +33,7 @@ from langgraph.types import Command
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.briefing import BriefingDocument
 from app.ai.config import AgentConfig
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.execution.agent_event import AgentEvent
@@ -46,6 +48,7 @@ from app.ai.graph_cache import (
     shared_checkpointer,
 )
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
+from app.ai.subagents import get_all_subagents
 from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
@@ -260,17 +263,8 @@ async def _extract_client_config(
 
 logger = logging.getLogger(__name__)
 
-# Specialist agent names used for supervisor graph event routing
 SPECIALIST_AGENT_NAMES = frozenset(
-    {
-        "project_manager",
-        "evm_analyst",
-        "change_order_manager",
-        "user_admin",
-        "visualization_specialist",
-        "forecast_manager",
-        "general_purpose",
-    }
+    cfg["name"] for cfg in get_all_subagents()
 )
 
 # Caches (shared across all requests)
@@ -349,7 +343,6 @@ class AgentService:
         Raises:
             ValueError: If the model or its associated provider cannot be found
         """
-        # Check cache first
         cached = _llm_config_cache.get(model_id)
         if cached is not None:
             expires_at, client_config, model_name, provider_type = cached
@@ -358,8 +351,6 @@ class AgentService:
                 return client_config, model_name, provider_type
             else:
                 del _llm_config_cache[model_id]
-
-        # Cache miss — query DB
         config_service = AIConfigService(self.session)
         model = await config_service.get_model(model_id)
         if not model:
@@ -375,7 +366,6 @@ class AgentService:
         model_name = str(model.model_id)
         provider_type = provider.provider_type
 
-        # Store in cache
         _llm_config_cache[model_id] = (
             time.time() + _LLM_CONFIG_TTL,
             client_config,
@@ -650,7 +640,6 @@ class AgentService:
         Raises:
             ValueError: If session creation fails or no assistant response is generated
         """
-        # Get or create session
         db_session: AIConversationSession | None
         if session_id:
             db_session = await self.config_service.get_session(session_id)
@@ -666,7 +655,6 @@ class AgentService:
         if not session_id:
             raise ValueError("Failed to create session")
 
-        # Add user message to session
         _ = await self.config_service.add_message(
             session_id=session_id,
             role="user",
@@ -705,12 +693,10 @@ class AgentService:
         filtered = filter_tools_by_role(list(tools_dict.values()), user_role)
         tools_dict = {t.name: t for t in filtered}
 
-        # Create graph with context for RBAC
         graph, _interrupt_node = create_graph(
             llm=llm, tools=list(tools_dict.values()), context=tool_context
         )
 
-        # Extract recursion_limit from assistant config with fallback to default
         recursion_limit = (
             assistant_config.recursion_limit
             if assistant_config.recursion_limit is not None
@@ -746,7 +732,6 @@ class AgentService:
                 )
                 # Ignore cleanup errors - sessions may have already been removed
 
-        # Extract final AI response
         final_message = None
         messages = result.get("messages", [])
         for msg in reversed(messages):
@@ -757,7 +742,6 @@ class AgentService:
         if not final_message:
             raise ValueError("No assistant response generated")
 
-        # Collect tool calls and results
         tool_calls_data: list[dict[str, Any]] = []
 
         for msg in messages:
@@ -774,7 +758,6 @@ class AgentService:
             # Note: Tool messages are not directly accessible from the result
             # In a real implementation, you might want to track these separately
 
-        # Save assistant message to session
         # Convert AIMessage content to string (can be str | list)
         content_str = (
             final_message.content
@@ -913,7 +896,6 @@ class AgentService:
         all_tool_results: list[dict[str, Any]] = []
         main_agent_segments: dict[str, list[str]] = {}
         reasoning_content_value: str | None = None  # DeepSeek thinking mode
-        from collections import defaultdict
 
         subagent_messages_by_main_invocation: dict[str, list[dict[str, Any]]] = (
             defaultdict(list)
@@ -1055,11 +1037,19 @@ class AgentService:
                             chain_output = data.get("output")
                             is_briefing_output = (
                                 isinstance(chain_output, dict)
-                                and "briefing" in chain_output
+                                and "briefing_data" in chain_output
                             )
                             if is_briefing_output:
-                                briefing_md = chain_output.get("briefing", "")
-                                if isinstance(briefing_md, str) and briefing_md:
+                                briefing_data = chain_output.get("briefing_data", {})
+                                briefing_md = ""
+                                if briefing_data:
+                                    try:
+                                        briefing_md = BriefingDocument.model_validate(
+                                            briefing_data
+                                        ).to_markdown()
+                                    except Exception:
+                                        briefing_md = ""
+                                if briefing_md:
                                     completed = chain_output.get(
                                         "completed_specialists", set()
                                     )

@@ -5,6 +5,8 @@
 **Updated:** 2026-04-28 — full E2E UI test with Playwright (message 1 + follow-up).
 **Updated:** 2026-04-28 — second E2E test with Playwright, Expert Mode, multi-specialist follow-up.
 **Updated:** 2026-04-28 — IL-16/IL-18/IL-19/IL-21 fixed, verified with E2E Playwright test.
+**Updated:** 2026-04-29 — Full E2E Playwright test (Expert Mode, deepseek-v4-flash, 2 messages). Verified all resolved issues, confirmed IL-15 still present, found new IL-23.
+**Updated:** 2026-04-29 — E2E test after briefing enhancement deployment (Supervisor Analysis, Task History, structured findings). Verified new fields working. Confirmed IL-15/IL-23/IL-20 still present. Found new IL-24 (execution stall).
 
 ---
 
@@ -23,6 +25,24 @@
 | IL-18 | Sequential EVM Tool Calls Per Cost Element | Fixed: added empty-data guards in `detect_evm_anomalies` and `analyze_forecast_trends` returning clear error messages when `timeseries.points` is empty. Prevents specialist retry loop on zero-data projects. |
 | IL-21 | Parallel Specialist Failure Cascades | Fixed: wrapped `specialist_graph.ainvoke()` in try/except in specialist wrapper. On exception, error is compiled into briefing and specialist marked completed — supervisor can continue with other specialists. |
 | IL-16 | EVM Analyst Specialist Internal Loop (Recursion Limit) | RESOLVED by IL-19 + IL-18 + IL-21 fixes. E2E test confirmed: no recursion crash, 201s execution, full EVM response rendered. |
+| IL-15 | Specialist targets wrong project (creates in session project instead of new) | STILL PRESENT — specialist updated existing project `CACCIA-TACCHINO-001` instead of creating new. WBEs added to session project context. |
+| IL-23 | `detect_evm_anomalies` timezone comparison error: offset-naive vs offset-aware | NEW — tool returns error internally but doesn't crash (caught by IL-21 isolation). |
+| — | Simplify cycle verified: `SPECIALIST_AGENT_NAMES` dynamic, `defaultdict` module-level, `configs_by_name` dict, comments cleaned | All changes confirmed in place via grep. |
+
+## Deployed 2026-04-29 — Briefing Enhancement
+
+| Change | File | Description |
+|--------|------|-------------|
+| `TaskAssignment` model | `briefing.py` | New model for tracking task delegation history (specialist, description, rationale) |
+| Enhanced `BriefingSection` | `briefing.py` | Added `supervisor_rationale`, `key_findings`, `open_questions`, `delegation_notes` |
+| Enhanced `BriefingDocument` | `briefing.py` | Added `supervisor_analysis`, `task_history` list; updated `to_markdown()` |
+| Structured findings parser | `briefing_compiler.py` | New `parse_structured_findings()` — deterministic regex parser for `## Key Findings`, `## Open Questions`, `## Delegation Notes` |
+| Extended compile | `briefing_compiler.py` | `compile_specialist_output()` accepts 4 new optional params |
+| Handoff rationale/analysis | `handoff_tools.py` | Handoff tools accept `rationale` and `analysis` params; populates `task_history` instead of overwriting `metadata["current_task"]` |
+| Specialist wrapper enrichment | `supervisor_orchestrator.py` | Specialist receives "Your Assignment" block with supervisor rationale; output parsed for structured sections; `_SCOPE_BOUNDARY` updated with output format instructions |
+| Tests | `tests/ai/test_briefing.py` | 29 tests (15 new) covering new models, parser, markdown rendering |
+
+**E2E verification:** Message 2 confirmed all new fields working — Supervisor Analysis, Task History with rationale, Key Findings section parsed and rendered in briefing panel.
 
 ---
 
@@ -63,6 +83,7 @@
 **2026-04-28 E2E test result (1st test):** `Error 500: Recursion limit of 50 reached`. Specialist completed 26 tool calls, supervisor looped. Execution crashed at 419s (7 min).
 **2026-04-28 E2E test result (2nd test):** `Error 500: Recursion limit of 50 reached during evm_analyst task`. 28 tool calls total (12x `calculate_evm_metrics`, 5x `get_evm_performance_summary`, 3x `global_search`, 2x `get_project_kpis`, etc.). Execution: 605s (10 min). `project_manager` specialist's WBE update was lost. User saw red error banner.
 **2026-04-28 E2E test result (post-fix):** SUCCESS. No recursion crash. `evm_analyst` ran 16 tool calls (including `detect_evm_anomalies` — no TypeError), supervisor dispatched to `general_purpose` for synthesis. 35 total tool calls across 2 specialists. Execution: 201s (~3.3 min). User received complete EVM metrics table with CPI/SPI analysis. No errors in backend logs.
+**2026-04-29 E2E test result (Expert Mode, deepseek-v4-flash):** SUCCESS. No recursion crash. Message 2 dispatched `project_manager` (WBE rename) then `evm_analyst` (8 EVM tools). `detect_evm_anomalies` hit IL-23 timezone error but was caught. 17 tool calls total, 103s execution (~1.7 min). EVM metrics table rendered with CPI/SPI analysis.
 
 ### IL-17: Supervisor Skips Briefing Before Follow-up Handoff — RESOLVED
 
@@ -72,6 +93,7 @@
 **Description:** In the original E2E test, the supervisor skipped `get_briefing` before handoff in follow-up messages.
 **Resolution:** Fixed. Confirmed in second E2E test: supervisor correctly called `get_briefing` at 14:23:07, then dispatched two specialists in parallel at 14:23:12.
 **2026-04-28 E2E test result (2nd test):** `get_briefing` → `handoff_to_project_manager` + `handoff_to_evm_analyst` (parallel). Briefing correctly read before delegation.
+**2026-04-29 E2E test result:** Both messages confirmed `get_briefing` called before handoff. Message 1: get_briefing at 00:14:55 → handoff at 00:14:59. Message 2: get_briefing at 00:14:55 → handoff to project_manager at 00:14:59, then handoff to evm_analyst at 00:15:12 (sequential, not parallel — supervisor waited for project_manager to finish first).
 
 ---
 
@@ -96,6 +118,7 @@
 **Impact:** With IL-19/IL-18/IL-21 fixes in place, the specialist no longer crashes the graph. However, specialists can still make excessive tool calls (16+ observed in post-fix test) leading to slow execution (~200s).
 **Fix:** Add a per-specialist max tool call limit (e.g., 15). When reached, the specialist should return its findings immediately.
 **2026-04-28 E2E test result (post-fix):** `evm_analyst` still made 16 tool calls in a single run. No crash (error isolation caught it), but execution was slower than ideal. Per-specialist cap would reduce this to ~60-90s.
+**2026-04-29 E2E test result (post-briefing enhancement):** `project_manager` made ~32 tool calls for message 1 (project creation). Specialist noticed `progress_percentage` returned null and entered a verification loop: 10x create_progress_entry → 10x get_latest_progress → 9x get_latest_progress (second pass) → 3x get_budget_status. The specialist should have stopped after creating the entities. Per-specialist cap of 15-20 would prevent this.
 
 ---
 
@@ -150,7 +173,22 @@
 **Fix Applied (partial):** Removed `project_id` from briefing scope to stop the confusing `project_id: None` display. The remaining gap is that specialists need to discover the project from the briefing's Specialist Findings section (which contains the project_id from previous iterations).
 **2026-04-28 E2E test result (1st test, follow-up message):** CONFIRMED. Specialist called `list_wbes` without `project_id` filter, returning WBEs from ALL projects. It then updated WBE `0a4ed56d...` (code RO-001, "Roofing" from a different project) to "Ceiling Works & Finishes" instead of the intended WBE `087b3f45...` (code CS-001, "Ceiling Systems" from the current project). Cross-project entity contamination confirmed.
 **2026-04-28 E2E test result (2nd test, follow-up message):** IMPROVED. Specialist used `global_search` to find the project rather than blindly listing all. No cross-project contamination observed. However, `ToolContext.project_id=None` still means no session-level scoping — the specialist relies on LLM inference from briefing content to identify the correct project.
+**2026-04-29 E2E test result (Message 1, Expert Mode):** STILL PRESENT. Chat session was scoped to project `CACCIA-TACCHINO-001` (2bd1b380...). Specialist was asked to "create a new project" but instead updated the existing project's name to "Casa Renovação 2026" and added 8 WBEs + 8 cost elements to it. `create_project` was called but the specialist then operated within the session's project context. Root cause: `ToolContext.project_id` is set from the chat URL, so all tool calls are scoped to the session project. The specialist cannot escape this scope.
+**2026-04-29 E2E test result (post-briefing enhancement):** CONFIRMED. Project "Casa Nova Renovation Project" (CNR-2026-001, id=49224c6a) was created, but all 9 WBEs were linked to project `13f5fcda-...` — a different (nonexistent) project ID. The `create_wbe` calls used a wrong `project_id`. The new project has zero WBEs. Root cause unchanged: `ToolContext.project_id` scoping from chat URL.
 **Remaining Work:** The specialist must scope `list_wbes` and `list_cost_elements` to the project created in the previous turn. Consider: (1) adding a structured `last_created_entities` field to the briefing, (2) filtering list queries by project_id extracted from briefing Specialist Findings, or (3) maintaining a session-level `active_project_id` that persists across turns.
+
+### IL-23: `detect_evm_anomalies` Timezone Comparison Error — NEW
+
+**Source:** 2026-04-29 E2E test (Message 2) — `evm_analyst` specialist called `detect_evm_anomalies`
+**Severity:** MEDIUM
+**Effort:** S
+**Description:** `detect_evm_anomalies` raises `TypeError: can't compare offset-naive and offset-aware datetimes` when processing timeseries data. The error is caught internally and returned as an error message to the specialist (IL-21 isolation working correctly). The tool reports `status=success` despite the error, meaning the specialist receives a string error message rather than structured anomaly data.
+**Impact:** Non-critical — error is swallowed, specialist continues with other EVM tools. However, the `detect_evm_anomalies` tool returns no useful data, wasting one LLM round-trip (~30s).
+**2026-04-29 E2E test result:** `ERROR - Error in detect_evm_anomalies: can't compare offset-naive and offset-aware datetimes` at 00:15:26. Tool exited with status=success at 00:15:26. `assess_project_health` and `analyze_cost_variance` completed normally alongside it.
+**2026-04-29 E2E test result (post-briefing enhancement):** STILL PRESENT. `ERROR - Error in detect_evm_anomalies: can't compare offset-naive and offset-aware datetimes` at 07:21:56 during message 2. Tool exited with status=success. EVM analyst continued with other tools and produced complete report.
+**Fix:** Ensure consistent timezone handling in `detect_evm_anomalies` — either use `datetime.now(timezone.utc)` or strip timezone from comparison values.
+
+---
 
 ### IL-21: Parallel Specialist Failure Cascades — Other Specialists' Work Lost — RESOLVED
 
@@ -161,6 +199,18 @@
 **Resolution:** Wrapped `specialist_graph.ainvoke()` in try/except in the specialist wrapper (`supervisor_orchestrator.py`). On exception, the error is logged, compiled into the briefing as a specialist finding, and the specialist is marked completed. The supervisor can then continue with other specialists or synthesize partial results.
 **2026-04-28 E2E test result:** `project_manager` specialist was dispatched and started working (3x `global_search` calls), but `evm_analyst` hit recursion limit at iteration 50. WBE "Ceiling" was NOT updated to "Ceiling Works & Finishing" despite the project_manager having the correct task.
 **2026-04-28 E2E test result (post-fix):** No specialist crashes occurred (IL-19 fix eliminated the TypeError). The error isolation safety net is in place — confirmed by unit test (`test_returns_error_state_on_specialist_exception`).
+
+---
+
+### IL-24: Execution Stalls After Long Specialist Run — NEW
+
+**Source:** 2026-04-29 E2E test (message 1, post-briefing enhancement)
+**Severity:** HIGH
+**Effort:** M
+**Description:** After the `project_manager` specialist completed a long-running task (~32 tool calls, ~5 min), the supervisor's final synthesis DeepSeek call returned HTTP 200 OK but the graph execution hung. No new log entries were produced for 4+ minutes. The UI showed "Stop generation" with a disabled textbox. The specialist's work was visible in the chat (full project summary rendered) but the supervisor's final response never arrived. The user had to reload the page to continue.
+**Root Cause:** Unknown. The last log entry was a successful DeepSeek API call at 07:14:39. The specialist completed at ~07:18 (`briefing length=12390`), but no supervisor synthesis log entries appeared. Possible causes: (1) DeepSeek streaming timeout, (2) graph state inconsistency after long specialist run, (3) WebSocket disconnect during long execution.
+**Impact:** User must reload page after long executions. All specialist work is rendered but the supervisor's final summary is lost.
+**2026-04-29 E2E test result:** Message 1 stalled after ~5 min specialist run. Page reload required. Message 2 (shorter, ~2.5 min) completed normally with no stall.
 
 ---
 

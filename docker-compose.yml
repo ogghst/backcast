@@ -6,11 +6,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,25 +20,16 @@ services:
       context: .
       dockerfile: Dockerfile.alembic
     environment:
-      # PostgreSQL connection settings
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      # Application settings
-      # Internal connection to postgres service on standard port 5432
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY}
       DEBUG: "${DEBUG}"
     depends_on:
       postgres:
         condition: service_healthy
-    # Override command as needed:
-    # docker-compose run alembic revision --autogenerate -m "description"
-    # docker-compose run alembic upgrade head
-    # docker-compose run alembic downgrade -1
-    # docker-compose run alembic history
-    # docker-compose run alembic current
     profiles:
       - migrations
 

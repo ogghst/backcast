@@ -27,7 +27,12 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
-from app.ai.briefing_compiler import compile_specialist_output, initialize_briefing
+from app.ai.briefing import BriefingDocument
+from app.ai.briefing_compiler import (
+    compile_specialist_output,
+    initialize_briefing,
+    parse_structured_findings,
+)
 from app.ai.config import AgentConfig
 from app.ai.handoff_tools import create_all_handoff_tools
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
@@ -97,26 +102,28 @@ Always start by calling get_briefing to review the current state of knowledge.
 _SCOPE_BOUNDARY = (
     "\n\n## SCOPE BOUNDARY\n"
     "Focus ONLY on tasks within your specialist domain. "
-    "Do NOT perform work that belongs to another specialist.\n"
-    "If the briefing requests work outside your domain, "
-    "add a '## Delegation Notes' section at the end of your "
-    "findings describing what the supervisor should delegate "
-    "to another specialist and any relevant context (IDs, names) "
-    "they would need."
+    "Do NOT perform work that belongs to another specialist.\n\n"
+    "## OUTPUT FORMAT\n"
+    "At the end of your response, include these sections if applicable:\n"
+    "- **## Key Findings**: Bullet list of your most important discoveries\n"
+    "- **## Open Questions**: Questions that need answers from other specialists or the user\n"
+    "- **## Delegation Notes**: Context for any specialist who should continue this work "
+    "(include relevant IDs, names, partial results)\n\n"
+    "These sections help the supervisor coordinate follow-up work."
 )
 
 
 class _BriefingSupervisorState(AgentState[Any]):
     """State extension for the briefing supervisor subgraph.
 
-    Adds ``briefing`` so LangGraph shares it from the parent
+    Adds ``briefing_data`` so LangGraph shares it from the parent
     ``BackcastSupervisorState`` via automatic key-matching state sharing.
     Without this, ``InjectedState`` inside ``get_briefing`` only sees
     ``AgentState`` (messages, jump_to, structured_response) and the
-    briefing field is never passed into the subgraph.
+    briefing data field is never passed into the subgraph.
     """
 
-    briefing: str
+    briefing_data: dict[str, Any]
 
 
 def _create_get_briefing_tool() -> BaseTool:
@@ -133,7 +140,14 @@ def _create_get_briefing_tool() -> BaseTool:
     def get_briefing(
         state: Annotated[dict[str, Any], InjectedState()],
     ) -> str:
-        return state.get("briefing", "No briefing available yet.")
+        briefing_data = state.get("briefing_data", {})
+        if not briefing_data:
+            return "No briefing available yet."
+        try:
+            doc = BriefingDocument.model_validate(briefing_data)
+            return doc.to_markdown()
+        except Exception:
+            return "No briefing available yet."
 
     return get_briefing
 
@@ -245,13 +259,11 @@ class SupervisorOrchestrator:
         )
 
         # --- 5. Create specialist wrapper nodes ---
+        configs_by_name = {cfg["name"]: cfg for cfg in subagent_configs}
         specialist_wrappers: dict[str, Any] = {}
         for sg in specialist_graphs:
-            subagent_prompt = ""
-            for cfg in subagent_configs:
-                if cfg.get("name") == sg["name"]:
-                    subagent_prompt = cfg.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
-                    break
+            cfg = configs_by_name.get(sg["name"], {})
+            subagent_prompt = cfg.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
             specialist_wrappers[sg["name"]] = self._create_specialist_wrapper(
                 specialist_name=sg["name"],
                 specialist_graph=sg["runnable"],
@@ -273,10 +285,9 @@ class SupervisorOrchestrator:
                     )
                     break
 
-            briefing_md, briefing_data, _ = initialize_briefing(user_request)
+            briefing_data, _ = initialize_briefing(user_request)
 
             return {
-                "briefing": briefing_md,
                 "briefing_data": briefing_data,
                 "supervisor_iterations": 0,
                 "max_supervisor_iterations": 3,
@@ -331,18 +342,15 @@ class SupervisorOrchestrator:
         """
 
         def router(state: BackcastSupervisorState) -> str:
-            # Check 1: iteration cap
             iterations = state.get("supervisor_iterations", 0)
             max_iterations = state.get("max_supervisor_iterations", 3)
             if iterations >= max_iterations:
                 logger.warning(
-                    "[SUPERVISOR] Max supervisor iterations (%d) "
-                    "reached, forcing END",
+                    "[SUPERVISOR] Max supervisor iterations (%d) reached, forcing END",
                     max_iterations,
                 )
                 return END
 
-            # Check for handoff tool calls
             messages = state.get("messages", [])
             if not messages:
                 return END
@@ -394,7 +402,6 @@ class SupervisorOrchestrator:
         async def specialist_node(
             state: BackcastSupervisorState,
         ) -> dict[str, Any] | Command:  # type: ignore[type-arg]
-            # Early exit: skip if this specialist already completed
             completed = state.get("completed_specialists", set())
             if specialist_name in completed:
                 logger.info(
@@ -409,12 +416,39 @@ class SupervisorOrchestrator:
                     goto=END,
                 )
 
-            briefing_markdown = state.get("briefing", "")
+            briefing_markdown = ""
+            briefing_data_raw = state.get("briefing_data", {})
+            if briefing_data_raw:
+                try:
+                    briefing_markdown = BriefingDocument.model_validate(
+                        briefing_data_raw
+                    ).to_markdown()
+                except Exception:
+                    briefing_markdown = ""
+
+            # Extract the current task assignment for this specialist
+            task_desc = "Execute specialist task from briefing"
+            rationale: str | None = None
+            try:
+                doc = BriefingDocument.model_validate(state.get("briefing_data", {}))
+                if doc.task_history:
+                    latest = doc.task_history[-1]
+                    task_desc = latest.description
+                    rationale = latest.rationale
+            except Exception:
+                pass
+
+            assignment_block = f"## Your Assignment\n\n{task_desc}"
+            if rationale:
+                assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
 
             isolated_messages = [
                 SystemMessage(content=specialist_system_prompt),
                 HumanMessage(
-                    content=f"## Briefing\n\n{briefing_markdown}{_SCOPE_BOUNDARY}"
+                    content=(
+                        f"{assignment_block}\n\n## Briefing\n\n"
+                        f"{briefing_markdown}{_SCOPE_BOUNDARY}"
+                    )
                 ),
             ]
 
@@ -437,10 +471,8 @@ class SupervisorOrchestrator:
                     exc,
                     exc_info=True,
                 )
-                error_msg = (
-                    f"Specialist {specialist_name} encountered an error: {exc}"
-                )
-                updated_briefing, updated_data, _ = compile_specialist_output(
+                error_msg = f"Specialist {specialist_name} encountered an error: {exc}"
+                updated_data, _ = compile_specialist_output(
                     briefing_data=state.get("briefing_data", {}),
                     specialist_name=specialist_name,
                     task_description=f"Failed: {exc}",
@@ -449,7 +481,6 @@ class SupervisorOrchestrator:
                 )
                 return {
                     "messages": [AIMessage(content=error_msg)],
-                    "briefing": updated_briefing,
                     "briefing_data": updated_data,
                     "active_agent": "supervisor",
                     "tool_call_count": 0,
@@ -457,7 +488,6 @@ class SupervisorOrchestrator:
                     "completed_specialists": {specialist_name},
                 }
 
-            # Extract final AI response (last AIMessage without tool_calls)
             findings = ""
             findings_rc_kwargs: dict[str, Any] = {}
             for msg in reversed(result.get("messages", [])):
@@ -470,7 +500,6 @@ class SupervisorOrchestrator:
                         }
                     break
 
-            # Extract tool call summary across all messages
             tool_calls_summary: list[str] = []
             for msg in result.get("messages", []):
                 if isinstance(msg, AIMessage) and msg.tool_calls:
@@ -478,18 +507,24 @@ class SupervisorOrchestrator:
                         args_keys = ", ".join(tc.get("args", {}).keys())
                         tool_calls_summary.append(f"{tc['name']}({args_keys})")
 
-            updated_briefing, updated_data, _ = compile_specialist_output(
+            parsed = parse_structured_findings(findings)
+
+            updated_data, _ = compile_specialist_output(
                 briefing_data=state.get("briefing_data", {}),
                 specialist_name=specialist_name,
-                task_description="Execute specialist task from briefing",
+                task_description=task_desc,
                 specialist_output=findings,
                 tool_calls_summary=tool_calls_summary,
+                supervisor_rationale=rationale,
+                key_findings=parsed.get("key_findings"),
+                open_questions=parsed.get("open_questions"),
+                delegation_notes=parsed.get("delegation_notes"),
             )
 
             logger.info(
-                "[SUPERVISOR] Specialist %s completed, briefing length=%d",
+                "[SUPERVISOR] Specialist %s completed, briefing sections=%d",
                 specialist_name,
-                len(updated_briefing),
+                len(updated_data.get("sections", [])),
             )
 
             return {
@@ -499,11 +534,10 @@ class SupervisorOrchestrator:
                         **findings_rc_kwargs,
                     )
                 ],
-                "briefing": updated_briefing,
                 "briefing_data": updated_data,
                 "active_agent": "supervisor",
                 "tool_call_count": result.get("tool_call_count", 0),
-                "supervisor_iterations": 1,  # Increment per specialist cycle
+                "supervisor_iterations": 1,
                 "completed_specialists": {specialist_name},
             }
 

@@ -28,8 +28,7 @@ class BackcastSupervisorState(TypedDict):
         structured_response: Optional structured output from specialists.
         tool_call_count: Accumulated across all agents.
         max_tool_iterations: Hard cap on tool calls.
-        briefing: Compiled markdown briefing document.
-        briefing_data: Serialized BriefingDocument dict.
+        briefing_data: Serialized BriefingDocument dict (single source of truth).
         supervisor_iterations: Completed supervisor cycles (add reducer).
         max_supervisor_iterations: Hard cap on supervisor loops.
         completed_specialists: Specialists that have finished (union reducer).
@@ -40,7 +39,6 @@ class BackcastSupervisorState(TypedDict):
     structured_response: Any | None
     tool_call_count: Annotated[int, operator.add]
     max_tool_iterations: int
-    briefing: str
     briefing_data: dict[str, Any]
     supervisor_iterations: Annotated[int, operator.add]
     max_supervisor_iterations: int

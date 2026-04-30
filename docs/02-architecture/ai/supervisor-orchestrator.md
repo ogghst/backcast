@@ -93,14 +93,13 @@ class BackcastSupervisorState(TypedDict):
     structured_response: Any | None                       # structured output from specialists
     tool_call_count: Annotated[int, operator.add]         # accumulated across all agents
     max_tool_iterations: int                              # global iteration limit
-    briefing: str                                         # compiled markdown briefing
-    briefing_data: dict[str, Any]                         # serialized BriefingDocument
+    briefing_data: dict[str, Any]                         # serialized BriefingDocument (single source of truth)
     supervisor_iterations: Annotated[int, operator.add]   # completed supervisor cycles
     max_supervisor_iterations: int                        # hard cap (default 3)
     completed_specialists: Annotated[set[str], operator.or_]  # specialists that have finished
 ```
 
-The `messages` field carries only the outer conversation (user message + supervisor final response). The `briefing` field is the primary knowledge carrier -- a compiled markdown string that accumulates findings from all specialists. The `briefing_data` field holds the serialized `BriefingDocument` dict for programmatic access by tools and compilation functions.
+The `messages` field carries only the outer conversation (user message + supervisor final response). The `briefing_data` field is the single source of truth -- a serialized `BriefingDocument` dict that accumulates findings from all specialists. Markdown is rendered from `briefing_data` on demand via `BriefingDocument.model_validate(data).to_markdown()` wherever needed (get_briefing tool, specialist wrapper, agent_service publishing).
 
 The `completed_specialists` field uses `operator.or_` (set union) as its reducer, so each specialist wrapper adds its name to the growing set. The router checks this set to prevent re-dispatch.
 
@@ -224,7 +223,6 @@ def handoff_tool(
         "specialist": agent_name,
         "description": task_description,
     }
-    updated_briefing = doc.to_markdown()
     updated_data = doc.model_dump()
 
     return Command(
@@ -233,7 +231,6 @@ def handoff_tool(
         update={
             "messages": [ai_message, tool_message],
             "active_agent": agent_name,
-            "briefing": updated_briefing,
             "briefing_data": updated_data,
         },
     )
@@ -290,8 +287,7 @@ Each specialist wrapper returns:
 ```python
 {
     "messages": [AIMessage(content=findings or "Specialist task completed.", **findings_rc_kwargs)],
-    "briefing": updated_briefing,           # compiled markdown with new section
-    "briefing_data": updated_data,          # serialized BriefingDocument
+    "briefing_data": updated_data,          # serialized BriefingDocument (single source of truth)
     "active_agent": "supervisor",           # always routes back to supervisor
     "tool_call_count": result_count,        # accumulated from specialist execution
     "supervisor_iterations": 1,             # incremented per specialist cycle
@@ -341,7 +337,7 @@ for name in specialist_names:
 A function node that:
 1. Extracts the last `HumanMessage` from state (the user's request).
 2. Calls `initialize_briefing(user_request, {"project_id": context.project_id})`.
-3. Returns `{briefing, briefing_data, supervisor_iterations: 0, max_supervisor_iterations: 3, completed_specialists: set()}`.
+3. Returns `{briefing_data, supervisor_iterations: 0, max_supervisor_iterations: 3, completed_specialists: set()}`.
 
 ### _make_supervisor_router()
 
@@ -573,13 +569,10 @@ sequenceDiagram
 ```
 +-- BackcastSupervisorState (after walkthrough) ------------------------------+
 |                                                                             |
-|  briefing: "# Briefing Document\n## Request\nWhat's the status...\n        |
-|            ## Specialist Findings\n                                         |
-|            ### project_manager (Iteration 1)\n...                           |
-|            ### evm_analyst (Iteration 2)\n..."  (~700 tokens)               |
-|                                                                             |
 |  briefing_data: {original_request: "...", sections: [...],                 |
 |                  iteration: 2, metadata: {project_id: "PRJ-001"}}          |
+|  (Markdown is rendered on demand from briefing_data via                    |
+|   BriefingDocument.model_validate(data).to_markdown())                     |
 |                                                                             |
 |  messages: [HumanMessage("What's the status..."),                           |
 |             AIMessage("Here's the overview for PRJ-001...")]                |
