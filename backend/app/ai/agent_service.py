@@ -26,10 +26,12 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
-from langchain_core.runnables import Runnable
+from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.base import Checkpoint
 from langgraph.types import Command
+from sqlalchemy import func as sa_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,6 +72,9 @@ from app.models.domain.ai import (
     AIConversationSession,
     AIProvider,
 )
+from app.models.domain.cost_element import CostElement
+from app.models.domain.project import Project
+from app.models.domain.wbe import WBE
 from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
@@ -263,9 +268,7 @@ async def _extract_client_config(
 
 logger = logging.getLogger(__name__)
 
-SPECIALIST_AGENT_NAMES = frozenset(
-    cfg["name"] for cfg in get_all_subagents()
-)
+SPECIALIST_AGENT_NAMES = frozenset(cfg["name"] for cfg in get_all_subagents())
 
 # Caches (shared across all requests)
 _llm_cache = LLMClientCache()
@@ -661,9 +664,30 @@ class AgentService:
             content=message,
         )
 
+        # Load context from session
+        session_project_id = (
+            UUID(db_session.project_id)
+            if db_session and db_session.project_id
+            else None
+        )
+        session_context = db_session.context if db_session else None
+
+        # Build history first (needed before system prompt)
         history = await self._build_conversation_history(session_id)
 
-        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        # Enrich context with entity names from DB
+        enriched_context = session_context
+        if session_context:
+            enriched_context = await self._resolve_context_names(
+                session_context, session_project_id
+            )
+
+        base_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        system_prompt = self._build_system_prompt(
+            base_prompt=base_prompt,
+            project_id=session_project_id,
+            context=enriched_context,
+        )
         history.insert(0, SystemMessage(content=system_prompt))
 
         client_config, model_name, provider_type = await self._get_llm_client_config(
@@ -679,7 +703,12 @@ class AgentService:
 
         user_role = await _get_user_role(self.session, user_id)
 
-        tool_context = ToolContext(self.session, str(user_id), user_role=user_role)
+        tool_context = ToolContext(
+            self.session,
+            str(user_id),
+            user_role=user_role,
+            project_id=str(session_project_id) if session_project_id else None,
+        )
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
@@ -706,12 +735,35 @@ class AgentService:
         # Invoke the graph
         # Note: Task-local sessions are created per tool execution and cleaned up below
         try:
+            # Extract briefing_data from checkpoint to persist across messages
+            existing_briefing = None
+            try:
+                checkpoint_config: RunnableConfig = {
+                    "configurable": {"thread_id": str(session_id)}
+                }
+                checkpoint_state: Checkpoint | None = await shared_checkpointer.aget(
+                    checkpoint_config
+                )
+                if checkpoint_state and checkpoint_state.get("channel_values"):
+                    channel_values = checkpoint_state["channel_values"]
+                    if "briefing_data" in channel_values:
+                        existing_briefing = channel_values["briefing_data"]
+                        logger.info(
+                            "[BRIEFING_PERSIST] Restored briefing with %d sections (non-streaming)",
+                            len(existing_briefing.get("sections", [])),
+                        )
+            except Exception as e:
+                logger.debug(
+                    "[BRIEFING_PERSIST] No checkpoint to restore (non-streaming): %s", e
+                )
+
             result = await graph.ainvoke(
                 input_state={
                     "messages": history,
                     "tool_call_count": 0,
                     "max_tool_iterations": recursion_limit,
                     "next": "agent",
+                    "briefing_data": existing_briefing,
                 },
                 config={
                     "recursion_limit": recursion_limit,
@@ -823,6 +875,11 @@ class AgentService:
         """
         history = await self._build_conversation_history(session_id)
 
+        # Enrich context with entity names from DB
+        enriched_context = context
+        if context:
+            enriched_context = await self._resolve_context_names(context, project_id)
+
         base_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         system_prompt = self._build_system_prompt(
             base_prompt=base_prompt,
@@ -830,7 +887,7 @@ class AgentService:
             as_of=as_of,
             branch_name=branch_name,
             branch_mode=branch_mode,
-            context=context,
+            context=enriched_context,
         )
         history.insert(0, SystemMessage(content=system_prompt))
 
@@ -960,6 +1017,26 @@ class AgentService:
         try:
             main_invocation_id = str(uuid.uuid4())
 
+            # Extract briefing_data from checkpoint before deletion to persist across messages
+            existing_briefing = None
+            try:
+                checkpoint_config: RunnableConfig = {
+                    "configurable": {"thread_id": str(session_id)}
+                }
+                checkpoint_state: Checkpoint | None = await shared_checkpointer.aget(
+                    checkpoint_config
+                )
+                if checkpoint_state and checkpoint_state.get("channel_values"):
+                    channel_values = checkpoint_state["channel_values"]
+                    if "briefing_data" in channel_values:
+                        existing_briefing = channel_values["briefing_data"]
+                        logger.info(
+                            "[BRIEFING_PERSIST] Restored briefing with %d sections",
+                            len(existing_briefing.get("sections", [])),
+                        )
+            except Exception as e:
+                logger.debug("[BRIEFING_PERSIST] No checkpoint to restore: %s", e)
+
             # Clear previous checkpoint to prevent message duplication.
             # DB is the source of truth for conversation history; the checkpointer
             # would otherwise append the full history to its stored state via
@@ -985,6 +1062,7 @@ class AgentService:
                             "tool_call_count": 0,
                             "max_tool_iterations": recursion_limit,
                             "next": "agent",
+                            "briefing_data": existing_briefing,
                         },
                         config={
                             "recursion_limit": recursion_limit,
@@ -1085,6 +1163,98 @@ class AgentService:
                                 # Inner compiled graph end — flush tokens
                                 _flush_accumulated_tokens(current_invocation_id)
 
+                        # Handle supervisor node completion - send briefing to frontend
+                        elif (
+                            event_type == "on_chain_end" and chain_name == "supervisor"
+                        ):
+                            chain_output = data.get("output", {})
+                            if (
+                                isinstance(chain_output, dict)
+                                and "briefing_data" in chain_output
+                            ):
+                                briefing_data = chain_output.get("briefing_data", {})
+                                briefing_md = ""
+                                if briefing_data:
+                                    try:
+                                        briefing_md = BriefingDocument.model_validate(
+                                            briefing_data
+                                        ).to_markdown()
+                                    except Exception:
+                                        briefing_md = ""
+                                if briefing_md:
+                                    completed = chain_output.get(
+                                        "completed_specialists", set()
+                                    )
+                                    completed_list = (
+                                        sorted(completed)
+                                        if isinstance(completed, set)
+                                        else []
+                                    )
+                                    _publish(
+                                        "briefing_update",
+                                        WSBriefingMessage(
+                                            type="briefing_update",
+                                            briefing=briefing_md,
+                                            specialist_name="supervisor",
+                                            completed_specialists=completed_list,
+                                        ).model_dump(mode="json"),
+                                    )
+                                    logger.info(
+                                        "[SUPERVISOR_END] Sent briefing with %d sections, %d completed specialists",
+                                        len(briefing_data.get("sections", [])),
+                                        len(completed_list),
+                                    )
+
+                        # Handle initialize_briefing node completion - send briefing to frontend
+                        elif event_type == "on_chain_end":
+                            chain_output = data.get("output", {})
+                            # Check if this is the initialize_briefing node by checking output
+                            if (
+                                isinstance(chain_output, dict)
+                                and "briefing_data" in chain_output
+                            ):
+                                # This could be initialize_briefing, supervisor, or a specialist
+                                # For specialists, this is handled above
+                                # For initialize_briefing and supervisor, handle here
+                                if chain_name not in SPECIALIST_AGENT_NAMES:
+                                    briefing_data = chain_output.get(
+                                        "briefing_data", {}
+                                    )
+                                    briefing_md = ""
+                                    if briefing_data:
+                                        try:
+                                            briefing_md = (
+                                                BriefingDocument.model_validate(
+                                                    briefing_data
+                                                ).to_markdown()
+                                            )
+                                        except Exception:
+                                            briefing_md = ""
+                                    if briefing_md:
+                                        completed = chain_output.get(
+                                            "completed_specialists", set()
+                                        )
+                                        completed_list = (
+                                            sorted(completed)
+                                            if isinstance(completed, set)
+                                            else []
+                                        )
+                                        _publish(
+                                            "briefing_update",
+                                            WSBriefingMessage(
+                                                type="briefing_update",
+                                                briefing=briefing_md,
+                                                specialist_name="supervisor",
+                                                completed_specialists=completed_list,
+                                            ).model_dump(mode="json"),
+                                        )
+                                        logger.info(
+                                            "[CHAIN_END_NON_SPECIALIST] name=%s | sections=%d | completed=%s",
+                                            chain_name,
+                                            len(briefing_data.get("sections", [])),
+                                            completed_list,
+                                        )
+
                         # Handle token streaming
                         if event_type == "on_chat_model_stream":
                             chunk = data.get("chunk")
@@ -1142,8 +1312,10 @@ class AgentService:
 
                         # Handle tool start
                         elif event_type == "on_tool_start":
-                            # Flush any accumulated main-agent tokens before tool execution
+                            # Flush any accumulated tokens before tool execution
                             _flush_accumulated_tokens(main_invocation_id)
+                            if current_invocation_id and current_subagent_name:
+                                _flush_accumulated_tokens(current_invocation_id)
 
                             tool_name = event.get("name", "")
                             tool_input = data.get("input", {})
@@ -1364,26 +1536,26 @@ class AgentService:
                                 result_content
                             )
 
+                            tool_result_dict: dict[str, Any] = {
+                                "tool": tool_name,
+                                "success": True,
+                                "result": result_content,
+                                "error": None,
+                            }
                             if current_subagent_name is None:
-                                tool_result_dict: dict[str, Any] = {
-                                    "tool": tool_name,
-                                    "success": True,
-                                    "result": result_content,
-                                    "error": None,
-                                }
                                 all_tool_results.append(tool_result_dict)
 
-                                _publish(
-                                    "tool_result",
-                                    WSToolResultMessage(
-                                        type="tool_result",
-                                        tool=tool_name,
-                                        result=jsonable_encoder(tool_result_dict),
-                                        invocation_id=current_invocation_id
-                                        if current_subagent_name
-                                        else main_invocation_id,
-                                    ).model_dump(mode="json"),
-                                )
+                            _publish(
+                                "tool_result",
+                                WSToolResultMessage(
+                                    type="tool_result",
+                                    tool=tool_name,
+                                    result=jsonable_encoder(tool_result_dict),
+                                    invocation_id=current_invocation_id
+                                    if current_subagent_name
+                                    else main_invocation_id,
+                                ).model_dump(mode="json"),
+                            )
 
                         # Handle tool error
                         elif event_type == "on_tool_error":
@@ -1415,6 +1587,40 @@ class AgentService:
                         elif event_type == "on_end":
                             output = data.get("output", {})
                             messages = output.get("messages", [])
+
+                            # Send final briefing message to ensure UI always has current briefing state
+                            final_briefing_data = output.get("briefing_data", {})
+                            if final_briefing_data:
+                                final_briefing_md = ""
+                                try:
+                                    final_briefing_md = BriefingDocument.model_validate(
+                                        final_briefing_data
+                                    ).to_markdown()
+                                except Exception:
+                                    final_briefing_md = ""
+                                if final_briefing_md:
+                                    completed = output.get(
+                                        "completed_specialists", set()
+                                    )
+                                    completed_list = (
+                                        sorted(completed)
+                                        if isinstance(completed, set)
+                                        else []
+                                    )
+                                    _publish(
+                                        "briefing_update",
+                                        WSBriefingMessage(
+                                            type="briefing_update",
+                                            briefing=final_briefing_md,
+                                            specialist_name="final",
+                                            completed_specialists=completed_list,
+                                        ).model_dump(mode="json"),
+                                    )
+                                    logger.info(
+                                        "[GRAPH_END] Sent final briefing with %d sections, %d completed specialists",
+                                        len(final_briefing_data.get("sections", [])),
+                                        len(completed_list),
+                                    )
 
                             for msg in messages:
                                 if isinstance(msg, AIMessage) and msg.tool_calls:
@@ -1796,6 +2002,124 @@ class AgentService:
 
         return execution_id
 
+    async def _resolve_context_names(
+        self,
+        context: dict[str, Any],
+        project_id: UUID | None = None,
+    ) -> dict[str, Any]:
+        """Enrich context dict with entity names looked up from the database.
+
+        Looks up the human-readable name for the entity referenced in *context*
+        so that the system prompt can identify it by name rather than by ID only.
+        Name lookup failure is non-fatal -- the original context is returned
+        without a ``name`` key if the query fails.
+
+        Args:
+            context: Context dictionary with at least ``type`` and ``id`` keys.
+            project_id: Optional parent project ID (used to look up the project
+                name when the context refers to a WBE or cost element).
+
+        Returns:
+            A **copy** of *context* with the ``name`` field populated when found.
+        """
+        enriched = dict(context)
+        context_type = context.get("type")
+        entity_id = context.get("id")
+
+        if not context_type or not entity_id:
+            return enriched
+
+        try:
+            entity_uuid = UUID(str(entity_id))
+        except (ValueError, AttributeError):
+            return enriched
+
+        try:
+            if context_type == "project":
+                stmt = (
+                    select(Project.name)
+                    .where(Project.project_id == entity_uuid)
+                    .where(sa_func.upper(Project.valid_time).is_(None))
+                    .where(Project.deleted_at.is_(None))
+                    .limit(1)
+                )
+                result = await self.session.execute(stmt)
+                name = result.scalar_one_or_none()
+                if name:
+                    enriched["name"] = name
+
+            elif context_type == "wbe":
+                stmt = (
+                    select(WBE.name)
+                    .where(WBE.wbe_id == entity_uuid)
+                    .where(sa_func.upper(WBE.valid_time).is_(None))
+                    .where(WBE.deleted_at.is_(None))
+                    .limit(1)
+                )
+                result = await self.session.execute(stmt)
+                name = result.scalar_one_or_none()
+                if name:
+                    enriched["name"] = name
+                # Also look up parent project name when project_id is available
+                pid = context.get("project_id") or project_id
+                if pid:
+                    try:
+                        pid_uuid = UUID(str(pid))
+                        p_stmt = (
+                            select(Project.name)
+                            .where(Project.project_id == pid_uuid)
+                            .where(sa_func.upper(Project.valid_time).is_(None))
+                            .where(Project.deleted_at.is_(None))
+                            .limit(1)
+                        )
+                        p_result = await self.session.execute(p_stmt)
+                        p_name = p_result.scalar_one_or_none()
+                        if p_name:
+                            enriched["project_name"] = p_name
+                    except (ValueError, AttributeError):
+                        pass
+
+            elif context_type == "cost_element":
+                stmt = (
+                    select(CostElement.name)
+                    .where(CostElement.cost_element_id == entity_uuid)
+                    .where(sa_func.upper(CostElement.valid_time).is_(None))
+                    .where(CostElement.deleted_at.is_(None))
+                    .limit(1)
+                )
+                result = await self.session.execute(stmt)
+                name = result.scalar_one_or_none()
+                if name:
+                    enriched["name"] = name
+                # Also look up parent project name when project_id is available
+                pid = context.get("project_id") or project_id
+                if pid:
+                    try:
+                        pid_uuid = UUID(str(pid))
+                        p_stmt = (
+                            select(Project.name)
+                            .where(Project.project_id == pid_uuid)
+                            .where(sa_func.upper(Project.valid_time).is_(None))
+                            .where(Project.deleted_at.is_(None))
+                            .limit(1)
+                        )
+                        p_result = await self.session.execute(p_stmt)
+                        p_name = p_result.scalar_one_or_none()
+                        if p_name:
+                            enriched["project_name"] = p_name
+                    except (ValueError, AttributeError):
+                        pass
+
+        except Exception:
+            logger.warning(
+                "Failed to resolve context name for %s %s",
+                context_type,
+                entity_id,
+                exc_info=True,
+            )
+
+        return enriched
+
     def _build_system_prompt(
         self,
         base_prompt: str,
@@ -1839,26 +2163,39 @@ class AgentService:
                     "This is a general conversation without specific context. "
                     "You can help with projects, WBEs, and cost elements as needed."
                 )
-            elif context_type == "project" and context_name:
+            elif context_type == "project":
+                name_part = f" the project: {context_name}" if context_name else ""
                 context_sections.append(
-                    f"This conversation is about the project: {context_name}. "
+                    f"This conversation is about{name_part}. "
                     f"Context is scoped to this project (ID: {context.get('id', project_id)}). "
                     "Use project-scoped tools to query data within this project. "
                     "The user's access is limited to this project's data. "
                     "Use get_project_context tool to query project details. "
-                    "Project scope is locked for this session - you cannot switch to other projects."
+                    "Project scope is locked for this session - you cannot switch to other projects. "
+                    "If the user asks about other projects, explain that this session is scoped to "
+                    "this project and they should open a different chat session for other projects."
                 )
-            elif context_type == "wbe" and context_name:
+            elif context_type == "wbe":
+                name_part = (
+                    f" the Work Breakdown Element (WBE): {context_name}"
+                    if context_name
+                    else " a Work Breakdown Element (WBE)"
+                )
                 context_sections.append(
-                    f"This conversation is about the Work Breakdown Element (WBE): {context_name}. "
+                    f"This conversation is about{name_part}. "
                     f"WBE ID: {context.get('id')}. "
                     f"Parent project ID: {context.get('project_id', project_id)}. "
                     "Focus your responses on this specific WBE. "
                     "Use WBE-scoped tools to query and analyze this element."
                 )
-            elif context_type == "cost_element" and context_name:
+            elif context_type == "cost_element":
+                name_part = (
+                    f" the Cost Element: {context_name}"
+                    if context_name
+                    else " a Cost Element"
+                )
                 context_sections.append(
-                    f"This conversation is about the Cost Element: {context_name}. "
+                    f"This conversation is about{name_part}. "
                     f"Cost Element ID: {context.get('id')}. "
                     f"Parent project ID: {context.get('project_id', project_id)}. "
                     "Focus your responses on this specific cost element. "

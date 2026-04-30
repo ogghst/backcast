@@ -46,6 +46,17 @@ export interface MainAgentStream {
   is_complete: boolean; // Whether this stream has finished
   started_at: number; // Timestamp when streaming started
   sequence?: number; // Order in which this stream was created (for proper rendering)
+  tool_calls?: ToolCallRemark[]; // Tool calls that occurred during this stream segment
+}
+
+/**
+ * Represents a tool call that occurred during streaming
+ * Used to render inline tool remarks in the message flow
+ */
+export interface ToolCallRemark {
+  name: string; // Tool name
+  args: Record<string, unknown>; // Tool arguments
+  position: number; // Character position in content where tool was called
 }
 
 /**

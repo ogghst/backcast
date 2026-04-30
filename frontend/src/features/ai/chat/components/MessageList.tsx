@@ -6,7 +6,7 @@
  * Supports progressive rendering for streaming responses.
  */
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState, Fragment } from "react";
 import { List, Empty, Typography, Spin, theme } from "antd";
 import type { Theme } from "antd/es/config-provider/context";
 import {
@@ -14,6 +14,8 @@ import {
   RobotOutlined,
   LoadingOutlined,
   CheckOutlined,
+  DownOutlined,
+  UpOutlined,
 } from "@ant-design/icons";
 import type { ChatMessage, SubagentStream, MainAgentStream, StreamingState, TokenUsage } from "../../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -63,6 +65,11 @@ interface StreamingMessageProps {
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
   isMobile?: boolean;
+  /** Active tool calls being executed (for tool use preview) */
+  activeToolCalls?: Array<{
+    name: string;
+    args: Record<string, unknown>;
+  }>;
 }
 
 const StreamingMessage = ({
@@ -72,6 +79,8 @@ const StreamingMessage = ({
   token,
   showSeparator,
   isMobile = false,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  activeToolCalls = [],
 }: StreamingMessageProps) => {
   const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
@@ -253,6 +262,8 @@ const SubagentMessage = ({
   invocationNumber,
 }: SubagentMessageProps) => {
   const { spacing, typography, borderRadius } = useThemeTokens();
+  // Start compacted. Auto-expand only when specialist completes with content.
+  const [isExpanded, setIsExpanded] = useState(!subagent.is_active && subagent.is_complete && !!subagent.content);
 
   // Color coding for different subagent types
   const getSubagentColor = (name: string) => {
@@ -262,6 +273,15 @@ const SubagentMessage = ({
   };
 
   const accentColor = getSubagentColor(subagent.subagent_name);
+
+  // Determine if bubble should be clickable (has content or is complete)
+  const isClickable = subagent.content || subagent.is_complete;
+
+  const handleToggle = () => {
+    if (isClickable) {
+      setIsExpanded(!isExpanded);
+    }
+  };
 
   return (
     <List.Item
@@ -273,6 +293,7 @@ const SubagentMessage = ({
       }}
     >
       <div
+        onClick={handleToggle}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -285,6 +306,19 @@ const SubagentMessage = ({
           padding: `${spacing.sm * 0.75}px ${isMobile ? spacing.sm : spacing.md}px`,
           wordBreak: "break-word",
           borderLeft: `4px solid ${accentColor}`,
+          cursor: isClickable ? "pointer" : "default",
+          transition: "opacity 0.2s",
+          opacity: isClickable && !isExpanded ? 0.9 : 1,
+        }}
+        onMouseEnter={(e) => {
+          if (isClickable && !isExpanded) {
+            e.currentTarget.style.opacity = "1";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (isClickable && !isExpanded) {
+            e.currentTarget.style.opacity = "0.9";
+          }
         }}
       >
         {/* Message header with subagent name and status */}
@@ -346,10 +380,20 @@ const SubagentMessage = ({
               </Text>
             </span>
           )}
+          {/* Expand/collapse indicator */}
+          {isClickable && (
+            <span style={{ marginLeft: "auto", opacity: 0.5 }}>
+              {isExpanded ? (
+                <UpOutlined style={{ fontSize: typography.sizes.xs }} />
+              ) : (
+                <DownOutlined style={{ fontSize: typography.sizes.xs }} />
+              )}
+            </span>
+          )}
         </div>
 
-        {/* Subagent content with markdown rendering */}
-        {subagent.content && (
+        {/* Subagent content with markdown rendering - only show when expanded */}
+        {isExpanded && subagent.content && (
           <MarkdownRenderer content={subagent.content} isStreaming={subagent.is_active} />
         )}
 
@@ -419,6 +463,7 @@ const PersistedSubagentMessage = ({
   invocationNumber,
 }: PersistedSubagentMessageProps) => {
   const { spacing, typography, borderRadius } = useThemeTokens();
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Color coding for different subagent types
   const getSubagentColor = (name: string) => {
@@ -428,6 +473,10 @@ const PersistedSubagentMessage = ({
   };
 
   const accentColor = getSubagentColor(subagentName);
+
+  const handleToggle = () => {
+    setIsExpanded(!isExpanded);
+  };
 
   return (
     <List.Item
@@ -439,6 +488,7 @@ const PersistedSubagentMessage = ({
       }}
     >
       <div
+        onClick={handleToggle}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -451,6 +501,19 @@ const PersistedSubagentMessage = ({
           padding: `${spacing.sm * 0.75}px ${isMobile ? spacing.sm : spacing.md}px`,
           wordBreak: "break-word",
           borderLeft: `4px solid ${accentColor}`,
+          cursor: "pointer",
+          transition: "opacity 0.2s",
+          opacity: !isExpanded ? 0.9 : 1,
+        }}
+        onMouseEnter={(e) => {
+          if (!isExpanded) {
+            e.currentTarget.style.opacity = "1";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isExpanded) {
+            e.currentTarget.style.opacity = "0.9";
+          }
         }}
       >
         {/* Message header with subagent name */}
@@ -480,10 +543,33 @@ const PersistedSubagentMessage = ({
               ({invocationNumber})
             </Text>
           )}
+          {/* Completion indicator */}
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: spacing.xs,
+              marginLeft: spacing.sm,
+              color: token.colorSuccess,
+            }}
+          >
+            <CheckOutlined style={{ fontSize: typography.sizes.xs }} />
+            <Text style={{ fontSize: typography.sizes.xs, opacity: 0.7 }}>
+              Done
+            </Text>
+          </span>
+          {/* Expand/collapse indicator */}
+          <span style={{ marginLeft: "auto", opacity: 0.5 }}>
+            {isExpanded ? (
+              <UpOutlined style={{ fontSize: typography.sizes.xs }} />
+            ) : (
+              <DownOutlined style={{ fontSize: typography.sizes.xs }} />
+            )}
+          </span>
         </div>
 
-        {/* Subagent content with markdown rendering */}
-        <MarkdownRenderer content={content} />
+        {/* Subagent content with markdown rendering - only show when expanded */}
+        {isExpanded && <MarkdownRenderer content={content} />}
       </div>
     </List.Item>
   );
@@ -542,6 +628,7 @@ export const MessageList = ({
   loading,
   streamingState,
   isStreaming = false,
+  activeToolCalls = [],
   showSeparator = false,
   isMobile = false,
   tokenUsage,
@@ -551,7 +638,8 @@ export const MessageList = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollRafRef = useRef<number | null>(null);
 
-  // Combine main agent streams and subagents, sorted by sequence for rendering
+  // Combine main agent streams and subagents, sorted by sequence for rendering.
+  // Ensures an assistant bubble always appears before specialist bubbles.
   const sortedStreams = useMemo(() => {
     type StreamItem =
       | { type: 'main'; sequence: number; started_at: number; data: MainAgentStream }
@@ -581,11 +669,14 @@ export const MessageList = ({
       }
     }
 
-    allStreams.sort((a, b) =>
-      a.sequence !== b.sequence
-        ? a.sequence - b.sequence
-        : a.started_at - b.started_at
-    );
+    allStreams.sort((a, b) => {
+      // First by type: main before subagent
+      if (a.type !== b.type) {
+        return a.type === 'main' ? -1 : 1;
+      }
+      // Then by sequence
+      return a.sequence - b.sequence;
+    });
 
     return allStreams;
   }, [streamingState]);
@@ -593,8 +684,16 @@ export const MessageList = ({
   // Combine regular messages with streaming message for display
   // Filter out tool role messages but keep persisted subagent messages in order
   const displayMessages = useMemo(() => {
-    // Filter out tool messages (but keep messages with subagent metadata)
-    const filteredMessages = messages.filter(m => m.role !== "tool");
+    // When streaming subagents are still visible (completed or active),
+    // hide their persisted counterparts to prevent duplicate bubbles
+    const hasStreamingSubagents = (streamingState?.subagents.size ?? 0) > 0;
+
+    const filteredMessages = messages.filter(m => {
+      if (m.role === "tool") return false;
+      // Hide persisted subagent messages when streaming subagents are visible
+      if (m.metadata?.subagent_name && hasStreamingSubagents) return false;
+      return true;
+    });
     const result = [...filteredMessages];
 
     // Only add streaming-temp for the legacy fallback path (main field)
@@ -610,7 +709,7 @@ export const MessageList = ({
     }
 
     return result;
-  }, [messages, streamingState?.main]);
+  }, [messages, streamingState?.main, streamingState?.subagents]);
 
   // Auto-scroll to bottom when new messages arrive or streaming updates
   useEffect(() => {
@@ -752,22 +851,38 @@ export const MessageList = ({
           token={token}
           showSeparator={showSeparator}
           isMobile={isMobile}
+          activeToolCalls={activeToolCalls}
         />
       )}
 
       {/* Combine main agent streams and subagents, render in sequence order */}
-      {sortedStreams.map((item) => {
+      {sortedStreams.map((item, index) => {
+        // Determine if we need a separator between consecutive main agent streams
+        // We look at the previous item in the sorted array instead of using a ref
+        const showLLMCallSeparator = index > 0 &&
+          item.type === 'main' &&
+          sortedStreams[index - 1].type === 'main';
+
         if (item.type === 'main') {
+          // Skip empty completed main agent streams (they shouldn't render)
+          if (!item.data.content && !item.data.is_active) {
+            return null;
+          }
           return (
-            <StreamingMessage
-              key={item.data.invocation_id}
-              content={item.data.content}
-              isStreaming={item.data.is_active}
-              isComplete={item.data.is_complete}
-              token={token}
-              showSeparator={false}
-              isMobile={isMobile}
-            />
+            <Fragment key={item.data.invocation_id}>
+              {showLLMCallSeparator && (
+                <div style={{ height: spacing.md }} />
+              )}
+              <StreamingMessage
+                content={item.data.content}
+                isStreaming={item.data.is_active}
+                isComplete={item.data.is_complete}
+                token={token}
+                showSeparator={false}
+                isMobile={isMobile}
+                activeToolCalls={activeToolCalls}
+              />
+            </Fragment>
           );
         } else {
           return (
@@ -789,6 +904,7 @@ export const MessageList = ({
           isStreaming={true}
           token={token}
           isMobile={isMobile}
+          activeToolCalls={activeToolCalls}
         />
       )}
 

@@ -67,7 +67,7 @@ export interface UseStreamingChatConfig {
   /** Callback invoked when an error occurs */
   onError: (error: string) => void;
   /** Optional callback invoked when a tool is called */
-  onToolCall?: (tool: string, args: Record<string, unknown>) => void;
+  onToolCall?: (tool: string, args: Record<string, unknown>, invocationId?: string) => void;
   /** Optional callback invoked when a tool result is received */
   onToolResult?: (tool: string, result?: unknown) => void;
   /** Optional callback invoked when an approval request is received */
@@ -241,9 +241,7 @@ export const useStreamingChat = (
 
   // Sync external activeExecutionId prop into the ref
   useEffect(() => {
-    if (activeExecutionId) {
-      activeExecutionIdRef.current = activeExecutionId;
-    }
+    activeExecutionIdRef.current = activeExecutionId ?? null;
   }, [activeExecutionId]);
 
   // WebSocket reference (not in state to avoid re-renders)
@@ -508,7 +506,7 @@ export const useStreamingChat = (
 
       // Handle tool call messages
       if (isToolCallMessage(serverMessage)) {
-        callbacks.onToolCall?.(serverMessage.tool, serverMessage.args);
+        callbacks.onToolCall?.(serverMessage.tool, serverMessage.args, serverMessage.invocation_id);
         return;
       }
 
@@ -1107,6 +1105,21 @@ export const useStreamingChat = (
   }, [token, assistantId, handleMessage, clearCompleteTimeout]); // Only reconnect when token or assistantId changes
   // Note: getSelectedTime, getSelectedBranch, getViewMode are used inside ws.addEventListener("open") handler
   // and don't need to be in dependencies - they're stable functions from Zustand store
+
+  // Separate effect to handle connection changes based on activeExecutionId
+  // This handles the case where a running session is opened/closed after mount
+  useEffect(() => {
+    if (activeExecutionId && wsRef.current === null) {
+      // Connect if we have an active execution and no existing connection
+      connectRef.current?.();
+    } else if (!activeExecutionId && wsRef.current) {
+      // Disconnect if switching to a non-running session
+      // Only close if we're not in the middle of sending a message
+      wsRef.current.close();
+      wsRef.current = null;
+      setConnectionState(WSConnectionState.CLOSED);
+    }
+  }, [activeExecutionId]);
 
   return {
     sendMessage,

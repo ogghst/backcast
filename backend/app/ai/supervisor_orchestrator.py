@@ -78,6 +78,13 @@ You coordinate specialist agents who analyze data and report back through a comp
 - After receiving specialist findings, synthesize a clear, concise response
 - Do NOT repeat detailed findings -- highlight key insights and actionable information
 
+## Guidelines for Follow-up Questions
+- When the briefing contains existing findings from previous questions, check if
+  the current question is already answered in those findings
+- Previous specialist findings remain valid unless contradicted by new context
+- Prefer reusing existing analysis over re-invoking specialists
+- The briefing accumulates across the entire conversation - use it!
+
 ## CRITICAL COMPLETION RULES
 1. Maximum 2 specialist cycles for simple requests. Do NOT over-delegate.
 2. Always call get_briefing before deciding to hand off -- check what's already there.
@@ -285,6 +292,33 @@ class SupervisorOrchestrator:
                     )
                     break
 
+            # Check for existing briefing in state (from checkpoint on follow-ups)
+            existing_briefing = state.get("briefing_data")
+
+            if existing_briefing:
+                # Reuse existing briefing, update request to current question
+                try:
+                    doc = BriefingDocument.model_validate(existing_briefing)
+                    # Update original_request to the current/follow-up question
+                    doc.original_request = user_request
+                    # Keep all accumulated sections and task_history
+                    logger.info(
+                        "[SUPERVISOR] Reusing existing briefing with %d sections",
+                        len(doc.sections),
+                    )
+                    return {
+                        "briefing_data": doc.model_dump(),
+                        "supervisor_iterations": 0,
+                        "max_supervisor_iterations": 3,
+                        "completed_specialists": set(),  # Reset for new question
+                    }
+                except Exception:
+                    logger.debug(
+                        "[SUPERVISOR] Failed to validate existing briefing, creating new one"
+                    )
+                    pass  # Fall through to new briefing
+
+            # Create new briefing (first message or recovery)
             briefing_data = initialize_briefing(user_request)
 
             return {

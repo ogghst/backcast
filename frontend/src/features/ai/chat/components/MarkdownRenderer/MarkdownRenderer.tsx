@@ -416,13 +416,23 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
 
   /**
    * Custom renderer for emphasis/italic text
+   * Applies smaller font to inline tool remarks (pattern: *tool_name*)
    */
   const EmRenderer = useCallback(
     ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => {
+      // Extract text content to check if this is a tool remark
+      const textContent = String(children || '').trim();
+
+      // Tool remarks are short italic text (likely tool names)
+      // Apply smaller font size to tool remarks for visual hierarchy
+      const isToolRemark = textContent.length > 0 && textContent.length < 50;
+
       return (
         <em
           style={{
             fontStyle: 'italic',
+            fontSize: isToolRemark ? '0.85em' : undefined,
+            opacity: isToolRemark ? 0.8 : undefined,
           }}
           {...props}
         >
