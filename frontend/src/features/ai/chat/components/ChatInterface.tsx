@@ -763,7 +763,7 @@ export const ChatInterface = ({
       setCurrentSessionId(sessionId);
       setSidebarOpen(false);
       setError(null);
-      // Clear all streaming/briefing state from previous session
+      // Clear all streaming state from previous session
       setStreamingState({
         main: "",
         mainStreams: new Map<string, MainAgentStream>(),
@@ -772,15 +772,33 @@ export const ChatInterface = ({
       setActiveToolCalls([]);
       setIsWaitingForResponse(false);
       setLastTokenUsage(null);
-      setBriefing(null);
-      userDismissedBriefing.current = false;
-      setIsBriefingOpen(false);
-      mainSequenceRef.current = 0;
-      subagentSequenceRef.current = 0;
       setSubagentInvocationCounts({});
       setPendingUserMessage(null);
+      mainSequenceRef.current = 0;
+      subagentSequenceRef.current = 0;
+
+      // Restore briefing from session data if available
+      const session = sessions?.find((s) => s.id === sessionId);
+      if (session?.briefing_markdown) {
+        setBriefing({
+          markdown: session.briefing_markdown,
+          completedSpecialists: session.briefing_specialists ?? [],
+          lastSpecialist:
+            session.briefing_specialists?.[
+              session.briefing_specialists.length - 1
+            ] ?? "",
+        });
+        userDismissedBriefing.current = false;
+        if (window.innerWidth >= 1024) {
+          setIsBriefingOpen(true);
+        }
+      } else {
+        setBriefing(null);
+        userDismissedBriefing.current = false;
+        setIsBriefingOpen(false);
+      }
     },
-    []
+    [sessions]
   );
 
   // Handle session deletion

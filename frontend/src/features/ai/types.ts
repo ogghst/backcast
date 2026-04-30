@@ -222,6 +222,8 @@ export interface AIConversationSessionPublic {
   created_at: string;
   updated_at: string;
   active_execution: AgentExecutionPublic | null;
+  briefing_markdown?: string | null;
+  briefing_specialists?: string[];
 }
 
 export interface AIConversationMessagePublic {

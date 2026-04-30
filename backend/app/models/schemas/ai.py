@@ -367,6 +367,13 @@ class AIConversationSessionPublic(BaseModel):
     active_execution: AgentExecutionPublic | None = Field(
         None, description="Currently active agent execution, if any"
     )
+    briefing_markdown: str | None = Field(
+        None, description="Compiled briefing markdown from specialist contributions"
+    )
+    briefing_specialists: list[str] = Field(
+        default_factory=list,
+        description="Names of specialists that contributed to the briefing",
+    )
     created_at: datetime
     updated_at: datetime
 
