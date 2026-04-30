@@ -579,3 +579,58 @@ class AIConfigService:
 
         await self.session.flush()
         return message
+
+    # === Briefing Operations ===
+
+    async def get_session_briefing(
+        self, session_id: UUID
+    ) -> dict[str, Any] | None:
+        """Get briefing data for a session.
+
+        Args:
+            session_id: Session ID to get briefing for
+
+        Returns:
+            Briefing data dict or None if no briefing exists
+        """
+        stmt = select(AIConversationSession).where(
+            AIConversationSession.id == session_id
+        )
+        result = await self.session.execute(stmt)
+        session = result.scalar_one_or_none()
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+        return session.briefing_data
+
+    async def save_session_briefing(
+        self, session_id: UUID, briefing_data: dict[str, Any]
+    ) -> None:
+        """Save or update briefing data for a session.
+
+        Args:
+            session_id: Session ID to save briefing for
+            briefing_data: BriefingDocument dict to save
+
+        Raises:
+            ValueError: If session not found
+        """
+        session = await self.session.get(AIConversationSession, session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+        session.briefing_data = briefing_data
+        await self.session.flush()
+
+    async def delete_session_briefing(self, session_id: UUID) -> None:
+        """Clear briefing data for a session.
+
+        Args:
+            session_id: Session ID to clear briefing for
+
+        Raises:
+            ValueError: If session not found
+        """
+        session = await self.session.get(AIConversationSession, session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+        session.briefing_data = None
+        await self.session.flush()

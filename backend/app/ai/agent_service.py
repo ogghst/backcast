@@ -26,10 +26,9 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
-from langchain_core.runnables import Runnable, RunnableConfig
+from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.base import Checkpoint
 from langgraph.types import Command
 from sqlalchemy import func as sa_func
 from sqlalchemy import select
@@ -735,26 +734,12 @@ class AgentService:
         # Invoke the graph
         # Note: Task-local sessions are created per tool execution and cleaned up below
         try:
-            # Extract briefing_data from checkpoint to persist across messages
-            existing_briefing = None
-            try:
-                checkpoint_config: RunnableConfig = {
-                    "configurable": {"thread_id": str(session_id)}
-                }
-                checkpoint_state: Checkpoint | None = await shared_checkpointer.aget(
-                    checkpoint_config
-                )
-                if checkpoint_state and checkpoint_state.get("channel_values"):
-                    channel_values = checkpoint_state["channel_values"]
-                    if "briefing_data" in channel_values:
-                        existing_briefing = channel_values["briefing_data"]
-                        logger.info(
-                            "[BRIEFING_PERSIST] Restored briefing with %d sections (non-streaming)",
-                            len(existing_briefing.get("sections", [])),
-                        )
-            except Exception as e:
-                logger.debug(
-                    "[BRIEFING_PERSIST] No checkpoint to restore (non-streaming): %s", e
+            # Load briefing from database (source of truth)
+            existing_briefing = await self.config_service.get_session_briefing(session_id)
+            if existing_briefing:
+                logger.info(
+                    "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (non-streaming)",
+                    len(existing_briefing.get("sections", [])),
                 )
 
             result = await graph.ainvoke(
@@ -770,6 +755,18 @@ class AgentService:
                     "configurable": {"thread_id": str(session_id)},
                 },
             )
+
+            # Save final briefing state to database
+            final_briefing = result.get("briefing_data")
+            if final_briefing:
+                await self.config_service.save_session_briefing(session_id, final_briefing)
+                logger.info(
+                    "[BRIEFING_PERSIST] Saved briefing to DB with %d sections (non-streaming)",
+                    len(final_briefing.get("sections", [])),
+                )
+
+            # Clear checkpoint to prevent state bloat
+            shared_checkpointer.delete_thread(str(session_id))
         finally:
             # Clean up any remaining task-local sessions after graph execution
             # This ensures sessions are properly removed even if tools didn't clean up
@@ -1017,31 +1014,15 @@ class AgentService:
         try:
             main_invocation_id = str(uuid.uuid4())
 
-            # Extract briefing_data from checkpoint before deletion to persist across messages
-            existing_briefing = None
-            try:
-                checkpoint_config: RunnableConfig = {
-                    "configurable": {"thread_id": str(session_id)}
-                }
-                checkpoint_state: Checkpoint | None = await shared_checkpointer.aget(
-                    checkpoint_config
+            # Load briefing from database (source of truth)
+            existing_briefing = await self.config_service.get_session_briefing(session_id)
+            if existing_briefing:
+                logger.info(
+                    "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (streaming)",
+                    len(existing_briefing.get("sections", [])),
                 )
-                if checkpoint_state and checkpoint_state.get("channel_values"):
-                    channel_values = checkpoint_state["channel_values"]
-                    if "briefing_data" in channel_values:
-                        existing_briefing = channel_values["briefing_data"]
-                        logger.info(
-                            "[BRIEFING_PERSIST] Restored briefing with %d sections",
-                            len(existing_briefing.get("sections", [])),
-                        )
-            except Exception as e:
-                logger.debug("[BRIEFING_PERSIST] No checkpoint to restore: %s", e)
 
-            # Clear previous checkpoint to prevent message duplication.
-            # DB is the source of truth for conversation history; the checkpointer
-            # would otherwise append the full history to its stored state via
-            # operator.add, causing "system after assistant" role ordering errors.
-            shared_checkpointer.delete_thread(str(session_id))
+            # NOTE: No checkpoint deletion here - will delete after saving final briefing
 
             # Send thinking event
             _publish(
@@ -1621,6 +1602,16 @@ class AgentService:
                                         len(final_briefing_data.get("sections", [])),
                                         len(completed_list),
                                     )
+
+                                    # Save final briefing state to database
+                                    await self.config_service.save_session_briefing(session_id, final_briefing_data)
+                                    logger.info(
+                                        "[BRIEFING_PERSIST] Saved briefing to DB with %d sections (streaming)",
+                                        len(final_briefing_data.get("sections", [])),
+                                    )
+
+                                    # Clear checkpoint to prevent state bloat
+                                    shared_checkpointer.delete_thread(str(session_id))
 
                             for msg in messages:
                                 if isinstance(msg, AIMessage) and msg.tool_calls:
