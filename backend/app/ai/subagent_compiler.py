@@ -12,8 +12,14 @@ from langchain.agents import create_agent as langchain_create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
+from app.ai.config import AgentConfig
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
+from app.ai.tools import (
+    create_project_tools,
+    filter_tools_by_execution_mode,
+    filter_tools_by_role,
+)
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -36,6 +42,57 @@ When using tools:
 - For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
 - Use search to find projects by code or name
 """
+
+
+def filter_tools_for_context(
+    context: ToolContext,
+    config: AgentConfig,
+) -> list[BaseTool]:
+    """Create project tools and apply execution-mode + RBAC filtering.
+
+    Centralizes the identical tool-filtering pipeline shared by both
+    orchestrators.
+
+    Args:
+        context: ToolContext with user permissions and temporal parameters.
+        config: AgentConfig with optional role and allowed_tools filters.
+
+    Returns:
+        Filtered list of tools available for the current request.
+    """
+    all_tools = create_project_tools(context)
+
+    if config.allowed_tools is not None:
+        all_tools = [t for t in all_tools if t.name in config.allowed_tools]
+
+    all_tools = filter_tools_by_execution_mode(all_tools, context.execution_mode)
+
+    if config.assistant_role is not None:
+        all_tools = filter_tools_by_role(all_tools, config.assistant_role)
+
+    if config.user_role is not None:
+        all_tools = filter_tools_by_role(all_tools, config.user_role)
+
+    return all_tools
+
+
+def build_backcast_middleware(
+    context: ToolContext,
+    tools: list[BaseTool],
+) -> list[Any]:
+    """Build the standard Backcast middleware stack.
+
+    Returns:
+        List with TemporalContextMiddleware and BackcastSecurityMiddleware.
+    """
+    return [
+        TemporalContextMiddleware(context),
+        BackcastSecurityMiddleware(
+            context,
+            tools=tools,
+            interrupt_node=None,
+        ),
+    ]
 
 
 def compile_subagents(
@@ -64,7 +121,7 @@ def compile_subagents(
 
     Returns:
         List of dicts with keys: name, description, runnable,
-        structured_output_schema, tools.
+            structured_output_schema, tools.
     """
     results: list[dict[str, Any]] = []
 
@@ -99,14 +156,7 @@ def compile_subagents(
             continue
 
         # Fresh middleware per subagent to avoid mutable state leakage
-        middleware = [
-            TemporalContextMiddleware(context),
-            BackcastSecurityMiddleware(
-                context,
-                tools=subagent_tools,
-                interrupt_node=None,
-            ),
-        ]
+        middleware = build_backcast_middleware(context, subagent_tools)
 
         runnable = langchain_create_agent(
             model=model,

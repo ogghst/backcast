@@ -55,6 +55,60 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai/chat", tags=["AI Chat"])
 
 
+async def forward_bus_events(
+    bus: AgentEventBus,
+    websocket: WebSocket,
+    user_id: UUID | None = None,
+) -> None:
+    """Forward events from an AgentEventBus to a WebSocket connection.
+
+    Subscribes to the bus, loops with 1-second timeout to check disconnects,
+    and forwards each event as JSON. Unsubscribes on exit.
+    """
+    queue = bus.subscribe()
+    try:
+        while not bus.is_completed:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=1.0)
+            except TimeoutError:
+                if not is_websocket_connected(websocket):
+                    break
+                continue
+            if not is_websocket_connected(websocket):
+                break
+            payload = {**event.data, "type": event.event_type}
+            try:
+                await websocket.send_json(payload)
+            except Exception:
+                if user_id:
+                    logger.warning(
+                        "Failed to forward event to WebSocket for user %s", user_id
+                    )
+                break
+            if event.event_type in ("complete", "error"):
+                break
+        else:
+            # Loop exited because bus.is_completed became True.
+            # Drain any remaining events from the queue (especially the complete/error event).
+            logger.debug(
+                "forward_bus_events: bus completed, draining queue for bus %s",
+                bus.execution_id,
+            )
+            while not queue.empty():
+                try:
+                    event = queue.get_nowait()
+                    if not is_websocket_connected(websocket):
+                        break
+                    payload = {**event.data, "type": event.event_type}
+                    await websocket.send_json(payload)
+                    if event.event_type in ("complete", "error"):
+                        break
+                except Exception:
+                    break
+    finally:
+        bus.unsubscribe(queue)
+
+
 def _enrich_session_briefing(
     session_public: AIConversationSessionPublic,
     session: AIConversationSession,
@@ -642,26 +696,7 @@ async def chat_stream(
                             continue
 
                         # Subscribe to live events
-                        sub_queue = bus.subscribe()
-                        try:
-                            while not bus.is_completed:
-                                try:
-                                    event = await asyncio.wait_for(
-                                        sub_queue.get(),
-                                        timeout=1.0,
-                                    )
-                                    if not is_websocket_connected(websocket):
-                                        break
-                                    payload = {**event.data, "type": event.event_type}
-                                    await websocket.send_json(payload)
-                                    if event.event_type in ("complete", "error"):
-                                        break
-                                except TimeoutError:
-                                    if not is_websocket_connected(websocket):
-                                        break
-                                    continue
-                        finally:
-                            bus.unsubscribe(sub_queue)
+                        await forward_bus_events(bus, websocket, user_id=user_id)
                     except Exception as sub_err:
                         logger.error(
                             f"Error in subscribe handler for user {user_id}: {sub_err}",
@@ -875,36 +910,7 @@ async def chat_stream(
                     uid: UUID,
                 ) -> asyncio.Task[None]:
                     """Create a background task that forwards bus events to the WebSocket."""
-
-                    async def _forward() -> None:
-                        queue = bus.subscribe()
-                        try:
-                            while True:
-                                try:
-                                    event = await asyncio.wait_for(
-                                        queue.get(),
-                                        timeout=1.0,
-                                    )
-                                except TimeoutError:
-                                    if not is_websocket_connected(ws):
-                                        break
-                                    continue
-                                if not is_websocket_connected(ws):
-                                    break
-                                payload = {**event.data, "type": event.event_type}
-                                try:
-                                    await ws.send_json(payload)
-                                except Exception:
-                                    logger.warning(
-                                        f"Failed to forward event to WebSocket for user {uid}"
-                                    )
-                                    break
-                                if event.event_type in ("complete", "error"):
-                                    break
-                        finally:
-                            bus.unsubscribe(queue)
-
-                    return asyncio.create_task(_forward())
+                    return asyncio.create_task(forward_bus_events(bus, ws, user_id=uid))
 
                 execution_task = create_execution_task(
                     msg=request.message,

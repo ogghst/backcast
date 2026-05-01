@@ -140,10 +140,6 @@ class AgentEventBus:
 
         self._log.append(published)
 
-        # Mark the bus as completed when a terminal event is published.
-        if published.event_type in ("complete", "error"):
-            self._completed = True
-
         dead_queues: list[asyncio.Queue[AgentEvent]] = []
         for queue in self._subscribers:
             try:
@@ -160,6 +156,18 @@ class AgentEventBus:
 
         for queue in dead_queues:
             self._subscribers.discard(queue)
+
+        # Mark the bus as completed AFTER delivering to subscriber queues.
+        # This prevents the race condition where the consumer checks is_completed
+        # and exits before the terminal event is delivered to its queue.
+        if published.event_type in ("complete", "error"):
+            logger.debug(
+                "Bus %s marking completed after delivering %s to %d subscribers",
+                self._execution_id,
+                published.event_type,
+                len(self._subscribers) + len(dead_queues),
+            )
+            self._completed = True
 
         return published
 

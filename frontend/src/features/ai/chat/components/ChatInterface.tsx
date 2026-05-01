@@ -240,6 +240,19 @@ export const ChatInterface = ({
     [streamingState.main, streamingState.mainStreams, streamingState.subagents, activeToolCalls.length, isWaitingForResponse]
   );
 
+  // Safety net: clear waiting spinner if stuck for 15+ seconds.
+  // Does NOT clear streaming content — that would make visible bubbles disappear.
+  // The WebSocket layer handles connection-level timeouts.
+  useEffect(() => {
+    if (!isWaitingForResponse) return;
+
+    const timeoutId = setTimeout(() => {
+      setIsWaitingForResponse(false);
+    }, 15_000);
+
+    return () => clearTimeout(timeoutId);
+  }, [isWaitingForResponse]);
+
   // Clear optimistic user message when persisted messages arrive
   useEffect(() => {
     if (pendingUserMessage && messages) {
