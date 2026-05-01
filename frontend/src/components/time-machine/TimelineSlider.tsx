@@ -1,5 +1,5 @@
-import { useMemo, useRef, useCallback } from "react";
-import { Tooltip, theme } from "antd";
+import { useMemo, useCallback } from "react";
+import { Slider, theme } from "antd";
 import type { TimelineEvent } from "./types";
 import "./TimeMachine.styles.css";
 import { formatDate, formatDateTime as formatDateTimeUtil } from "@/utils/formatters";
@@ -45,175 +45,85 @@ export function TimelineSlider({
   disabled = false,
 }: TimelineSliderProps) {
   const { token } = theme.useToken();
-  const trackRef = useRef<HTMLDivElement>(null);
-  const thumbRef = useRef<HTMLDivElement>(null);
 
   // Convert dates to timestamps for slider
   const minValue = minDate.getTime();
   const maxValue = maxDate.getTime();
   const currentValue = value?.getTime() ?? maxValue;
 
-  // Calculate percentage for thumb position
-  const getPercentage = useCallback(
-    (timestamp: number) => {
-      return ((timestamp - minValue) / (maxValue - minValue)) * 100;
-    },
-    [minValue, maxValue]
-  );
-
-  const percentage = getPercentage(currentValue);
-
-  // Handle drag start
-  const handleDragStart = useCallback(() => {
-    if (disabled) return;
-  }, [disabled]);
-
-  // Handle drag end
-  const handleDragEnd = useCallback(() => {
-    if (disabled) return;
-  }, [disabled]);
-
-  // Handle track click/drag
-  const handleTrackInteraction = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (disabled || !trackRef.current) return;
-
-      const rect = trackRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percentage = Math.max(0, Math.min(1, x / rect.width));
-      const timestamp = minValue + percentage * (maxValue - minValue);
-
-      onChange(new Date(timestamp));
-    },
-    [disabled, minValue, maxValue, onChange]
-  );
-
-  // Filter events to show as markers
+  // Filter events to show as markers (avoid edges)
   const visibleEvents = useMemo(() => {
     return events.filter((event) => {
-      const timestamp = event.timestamp.getTime();
+      const ts = event.timestamp.getTime();
       return (
-        timestamp > minValue + (maxValue - minValue) * 0.05 &&
-        timestamp < maxValue - (maxValue - minValue) * 0.05
+        ts > minValue + (maxValue - minValue) * 0.05 &&
+        ts < maxValue - (maxValue - minValue) * 0.05
       );
     });
   }, [events, minValue, maxValue]);
 
-  // Tooltip formatter
-  const formatTooltip = useCallback(
-    (timestamp: number) => {
-      return formatDateTime(new Date(timestamp));
+  // Build marks for events
+  const marks = useMemo(() => {
+    const result: Record<number, { label: string; style?: React.CSSProperties }> = {};
+    visibleEvents.forEach((event) => {
+      const ts = event.timestamp.getTime();
+      const color = getEventColor(event.type, token);
+      result[ts] = {
+        label: "",
+        style: {
+          // Small colored dot as mark label content via background
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: color,
+          position: "absolute" as const,
+          top: -3,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 1,
+        },
+      };
+    });
+    return result;
+  }, [visibleEvents, token]);
+
+  const handleChange = useCallback(
+    (val: number) => {
+      onChange(new Date(val));
+    },
+    [onChange]
+  );
+
+  const tooltipFormatter = useCallback(
+    (val?: number) => {
+      if (val == null) return "";
+      return formatDateTime(new Date(val));
     },
     []
   );
 
   return (
     <div className="tm-slider-container">
-      {/* Custom Slider */}
-      <div
-        ref={trackRef}
-        className="tm-slider-track"
-        onClick={handleTrackInteraction}
-        onMouseDown={handleDragStart}
-        onMouseUp={handleDragEnd}
-        onMouseLeave={handleDragEnd}
-        role="slider"
-        aria-label="Timeline slider"
-        aria-valuemin={minValue}
-        aria-valuemax={maxValue}
-        aria-valuenow={currentValue}
-        aria-disabled={disabled}
-        tabIndex={disabled ? -1 : 0}
-        style={{
-          cursor: disabled ? "not-allowed" : "pointer",
-          opacity: disabled ? 0.5 : 1,
+      <Slider
+        min={minValue}
+        max={maxValue}
+        value={currentValue}
+        onChange={handleChange}
+        disabled={disabled}
+        tooltip={{ formatter: tooltipFormatter }}
+        marks={Object.keys(marks).length > 0 ? marks : undefined}
+        step={Math.max(1, Math.floor((maxValue - minValue) / 1000))}
+        styles={{
+          track: { background: token.colorPrimary },
+          rail: { background: token.colorBorder },
+          handle: {
+            background: token.colorBgContainer,
+            borderColor: token.colorPrimary,
+          },
         }}
-        onKeyDown={(e) => {
-          if (disabled) return;
-          const step = (maxValue - minValue) / 100;
-          let newValue = currentValue;
+      />
 
-          if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
-            newValue = Math.max(minValue, currentValue - step);
-            e.preventDefault();
-          } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
-            newValue = Math.min(maxValue, currentValue + step);
-            e.preventDefault();
-          } else if (e.key === "Home") {
-            newValue = minValue;
-            e.preventDefault();
-          } else if (e.key === "End") {
-            newValue = maxValue;
-            e.preventDefault();
-          }
-
-          if (newValue !== currentValue) {
-            onChange(new Date(newValue));
-          }
-        }}
-      >
-        {/* Fill */}
-        <div
-          className="tm-slider-fill"
-          style={{
-            width: `${percentage}%`,
-            background: token.colorPrimary,
-          }}
-        />
-
-        {/* Thumb */}
-        <Tooltip title={formatTooltip(currentValue)} placement="top">
-          <div
-            ref={thumbRef}
-            className="tm-slider-thumb"
-            style={{
-              left: `${percentage}%`,
-              background: token.colorBgContainer,
-              borderColor: token.colorPrimary,
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              handleDragStart();
-            }}
-          />
-        </Tooltip>
-
-        {/* Event Markers */}
-        {visibleEvents.map((event) => {
-          const eventPercentage = getPercentage(event.timestamp.getTime());
-          const eventColor = getEventColor(event.type, token);
-          return (
-            <Tooltip
-              key={event.id}
-              title={`${event.label} - ${formatDateTime(event.timestamp)}`}
-              placement="top"
-            >
-              <div
-                className="tm-slider-marker"
-                style={{
-                  left: `${eventPercentage}%`,
-                  background: token.colorBorder,
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onChange(event.timestamp);
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = token.colorPrimary;
-                  e.currentTarget.style.transform = "translate(-50%, -50%) scale(1.4)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = eventColor;
-                  e.currentTarget.style.transform = "translate(-50%, -50%) scale(1)";
-                }}
-                aria-label={`Event: ${event.label}`}
-              />
-            </Tooltip>
-          );
-        })}
-      </div>
-
-      {/* Labels */}
+      {/* Date labels */}
       <div className="tm-slider-labels">
         <span>{formatShortDate(minDate)}</span>
         <span style={{ fontWeight: 600 }}>{formatShortDate(maxDate)}</span>
