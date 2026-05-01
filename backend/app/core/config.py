@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     AI_TOKEN_BUFFER_MAX_SIZE: int = 10000  # Max tokens before forced flush
 
     # AI Agent Orchestration
-    AI_ORCHESTRATOR: str = "supervisor"  # "supervisor" | "deep"
+    AI_ORCHESTRATOR: str = "supervisor"  # OrchestratorMode value
 
     # AI Approval Settings (used by BackcastSecurityMiddleware polling loop)
     AI_APPROVAL_TIMEOUT_SECONDS: float = 60.0

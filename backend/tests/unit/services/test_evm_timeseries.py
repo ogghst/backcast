@@ -105,10 +105,11 @@ class TestEVMTimeSeriesDateRangeHelper:
         )
 
         # Assert
-        assert len(dates) == 3  # Jan 1, Feb 1, Mar 1
+        assert len(dates) == 4  # Jan 1, Feb 1, Mar 1, Mar 31 (end_date always included)
         assert dates[0] == datetime(2024, 1, 1)
         assert dates[1] == datetime(2024, 2, 1)
         assert dates[2] == datetime(2024, 3, 1)
+        assert dates[3] == datetime(2024, 3, 31)  # end_date appended
 
     def test_generate_date_intervals_monthly_year_boundary(self) -> None:
         """Test monthly date interval generation across year boundary.

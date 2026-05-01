@@ -21,7 +21,7 @@ from langchain.agents import create_agent as langchain_create_agent
 from langchain.agents.middleware.types import AgentState
 from langchain.tools import tool as lc_tool
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt.tool_node import InjectedState
@@ -35,16 +35,13 @@ from app.ai.briefing_compiler import (
 )
 from app.ai.config import AgentConfig
 from app.ai.handoff_tools import create_all_handoff_tools
-from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
-from app.ai.middleware.temporal_context import TemporalContextMiddleware
-from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT, compile_subagents
+from app.ai.subagent_compiler import (
+    build_backcast_middleware,
+    compile_subagents,
+    filter_tools_for_context,
+)
 from app.ai.subagents import get_all_subagents
 from app.ai.supervisor_state import BackcastSupervisorState
-from app.ai.tools import (
-    create_project_tools,
-    filter_tools_by_execution_mode,
-    filter_tools_by_role,
-)
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -54,10 +51,12 @@ BRIEFING_ROOM_SUPERVISOR_PROMPT = """You are a supervisor in the Briefing Room f
 You coordinate specialist agents who analyze data and report back through a compiled briefing document.
 
 ## How It Works
-1. Use the `get_briefing` tool to read the current compiled findings from all specialists
-2. Based on the briefing, decide which specialist to hand off to next
-3. After each specialist contributes, review the updated briefing
-4. When you have enough information, synthesize the findings into a response
+The current briefing is injected into your context as a system message before every turn.
+Review it FIRST — it already contains all specialist findings so far.
+1. Read the injected briefing to see what's already been analyzed
+2. If the user's request is already answered in the briefing, respond directly
+3. If not, hand off to the most relevant specialist
+4. After a specialist contributes, the briefing is updated automatically
 
 ## Available Specialists
 - project_manager -> Project CRUD, WBEs, cost elements, cost tracking, progress entries
@@ -69,55 +68,65 @@ You coordinate specialist agents who analyze data and report back through a comp
 - general_purpose -> Unclear or cross-cutting requests
 
 ## Guidelines
-- Always call get_briefing first to see what's already been analyzed
-- CRITICAL: Before handing off to a specialist, check if the briefing already
-  contains findings that address the user's request. If the task is complete,
-  respond directly instead of handing off again.
+- The briefing is already in your context — read it before deciding anything
+- If findings already address the user's request, respond directly. Do NOT hand off again.
 - Do NOT hand off to the same specialist more than once for the same task.
 - Hand off to the most relevant specialist for each aspect of the request
 - After receiving specialist findings, synthesize a clear, concise response
 - Do NOT repeat detailed findings -- highlight key insights and actionable information
 
-## Guidelines for Follow-up Questions
-- When the briefing contains existing findings from previous questions, check if
-  the current question is already answered in those findings
-- Previous specialist findings remain valid unless contradicted by new context
-- Prefer reusing existing analysis over re-invoking specialists
-- The briefing accumulates across the entire conversation - use it!
-
 ## CRITICAL COMPLETION RULES
 1. Maximum 2 specialist cycles for simple requests. Do NOT over-delegate.
-2. Always call get_briefing before deciding to hand off -- check what's already there.
+2. Always check the injected briefing before deciding to hand off.
 3. If a specialist has completed the requested work, acknowledge completion and summarize.
-
-## MANDATORY PRE-HANDOFF CHECKLIST
-Before calling ANY handoff_to_X tool, you MUST:
-1. Call get_briefing and check the current findings
-2. Check Specialist Contributions section -- if specialist X already has findings, DO NOT handoff to X again
-3. Verify the user's request hasn't already been addressed
-
-Failure to check will result in redundant work, wasted API costs, and poor user experience.
 """
 
 _BRIEFING_HANDOFF_SUFFIX = """
 IMPORTANT: You do NOT have direct access to Backcast tools.
 ALL Backcast operations must be delegated to specialists via handoff tools.
 
-Always start by calling get_briefing to review the current state of knowledge.
+The current briefing is already in your context — review it before deciding.
+You can call get_briefing if you need to refresh after a specialist returns.
 """
 
 _SCOPE_BOUNDARY = (
     "\n\n## SCOPE BOUNDARY\n"
     "Focus ONLY on tasks within your specialist domain. "
     "Do NOT perform work that belongs to another specialist.\n\n"
-    "## OUTPUT FORMAT\n"
-    "At the end of your response, include these sections if applicable:\n"
+    "## OUTPUT FORMAT (MANDATORY)\n"
+    "After completing all tool calls, you MUST write a final response that summarizes "
+    "your analysis and conclusions in plain text. Do NOT leave your response empty.\n\n"
+    "Include these sections:\n"
     "- **## Key Findings**: Bullet list of your most important discoveries\n"
     "- **## Open Questions**: Questions that need answers from other specialists or the user\n"
     "- **## Delegation Notes**: Context for any specialist who should continue this work "
     "(include relevant IDs, names, partial results)\n\n"
     "These sections help the supervisor coordinate follow-up work."
 )
+
+_BRIEFING_CONTEXT_PREFIX = (
+    "## Current Briefing\n"
+    "Below is the compiled briefing with all specialist findings so far. "
+    "Review this BEFORE deciding whether to delegate work or respond directly.\n\n"
+)
+
+
+def _briefing_update(doc: BriefingDocument) -> dict[str, Any]:
+    """Build the standard state update after briefing initialization.
+
+    Injects the current briefing as a SystemMessage so the supervisor
+    always sees specialist findings before deciding what to do.
+    """
+    briefing_md = doc.to_markdown() if doc.sections else "No findings yet."
+    return {
+        "briefing_data": doc.model_dump(),
+        "supervisor_iterations": 0,
+        "max_supervisor_iterations": 3,
+        "completed_specialists": set(),
+        "messages": [
+            SystemMessage(content=f"{_BRIEFING_CONTEXT_PREFIX}{briefing_md}")
+        ],
+    }
 
 
 class _BriefingSupervisorState(AgentState[Any]):
@@ -203,19 +212,7 @@ class SupervisorOrchestrator:
         )
 
         # --- 1. Tool filtering ---
-        all_tools = create_project_tools(self.context)
-        if config.allowed_tools is not None:
-            all_tools = [t for t in all_tools if t.name in config.allowed_tools]
-
-        all_tools = filter_tools_by_execution_mode(
-            all_tools, self.context.execution_mode
-        )
-
-        if config.assistant_role is not None:
-            all_tools = filter_tools_by_role(all_tools, config.assistant_role)
-
-        if config.user_role is not None:
-            all_tools = filter_tools_by_role(all_tools, config.user_role)
+        all_tools = filter_tools_for_context(self.context, config)
 
         # --- 2. Compile specialists ---
         subagent_configs = (
@@ -266,15 +263,11 @@ class SupervisorOrchestrator:
         )
 
         # --- 5. Create specialist wrapper nodes ---
-        configs_by_name = {cfg["name"]: cfg for cfg in subagent_configs}
         specialist_wrappers: dict[str, Any] = {}
         for sg in specialist_graphs:
-            cfg = configs_by_name.get(sg["name"], {})
-            subagent_prompt = cfg.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
             specialist_wrappers[sg["name"]] = self._create_specialist_wrapper(
                 specialist_name=sg["name"],
                 specialist_graph=sg["runnable"],
-                specialist_system_prompt=subagent_prompt,
             )
 
         # --- 6. Build the initialize_briefing node ---
@@ -299,34 +292,21 @@ class SupervisorOrchestrator:
                 # Reuse existing briefing, update request to current question
                 try:
                     doc = BriefingDocument.model_validate(existing_briefing)
-                    # Update original_request to the current/follow-up question
                     doc.original_request = user_request
-                    # Keep all accumulated sections and task_history
                     logger.info(
                         "[SUPERVISOR] Reusing existing briefing with %d sections",
                         len(doc.sections),
                     )
-                    return {
-                        "briefing_data": doc.model_dump(),
-                        "supervisor_iterations": 0,
-                        "max_supervisor_iterations": 3,
-                        "completed_specialists": set(),  # Reset for new question
-                    }
+                    return _briefing_update(doc)
                 except Exception:
                     logger.debug(
                         "[SUPERVISOR] Failed to validate existing briefing, creating new one"
                     )
-                    pass  # Fall through to new briefing
 
             # Create new briefing (first message or recovery)
             briefing_data = initialize_briefing(user_request)
-
-            return {
-                "briefing_data": briefing_data,
-                "supervisor_iterations": 0,
-                "max_supervisor_iterations": 3,
-                "completed_specialists": set(),
-            }
+            doc = BriefingDocument.model_validate(briefing_data)
+            return _briefing_update(doc)
 
         # --- 7. Build parent graph ---
         parent = StateGraph(BackcastSupervisorState)
@@ -415,7 +395,6 @@ class SupervisorOrchestrator:
         self,
         specialist_name: str,
         specialist_graph: Any,
-        specialist_system_prompt: str,
     ) -> Any:
         """Create a briefing-specialist wrapper node for a compiled agent.
 
@@ -424,10 +403,12 @@ class SupervisorOrchestrator:
         invokes the specialist graph, then compiles findings back into the
         briefing document.
 
+        The specialist's system prompt is baked into its compiled graph by
+        ``compile_subagents`` — the wrapper only provides runtime context.
+
         Args:
             specialist_name: Human-readable name for logging and briefing sections.
             specialist_graph: Compiled LangGraph (output of compile_subagents()).
-            specialist_system_prompt: System prompt for the specialist agent.
 
         Returns:
             Async function suitable as a LangGraph node.
@@ -445,39 +426,31 @@ class SupervisorOrchestrator:
                 return Command(
                     update={
                         "active_agent": "supervisor",
-                        "supervisor_iterations": 1,
+                        "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
                     },
                     goto=END,
                 )
 
             briefing_markdown = ""
+            task_desc = "Execute specialist task from briefing"
+            rationale: str | None = None
             briefing_data_raw = state.get("briefing_data", {})
             if briefing_data_raw:
                 try:
-                    briefing_markdown = BriefingDocument.model_validate(
-                        briefing_data_raw
-                    ).to_markdown()
+                    doc = BriefingDocument.model_validate(briefing_data_raw)
+                    briefing_markdown = doc.to_markdown()
+                    if doc.task_history:
+                        latest = doc.task_history[-1]
+                        task_desc = latest.description
+                        rationale = latest.rationale
                 except Exception:
-                    briefing_markdown = ""
-
-            # Extract the current task assignment for this specialist
-            task_desc = "Execute specialist task from briefing"
-            rationale: str | None = None
-            try:
-                doc = BriefingDocument.model_validate(state.get("briefing_data", {}))
-                if doc.task_history:
-                    latest = doc.task_history[-1]
-                    task_desc = latest.description
-                    rationale = latest.rationale
-            except Exception:
-                pass
+                    pass
 
             assignment_block = f"## Your Assignment\n\n{task_desc}"
             if rationale:
                 assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
 
             isolated_messages = [
-                SystemMessage(content=specialist_system_prompt),
                 HumanMessage(
                     content=(
                         f"{assignment_block}\n\n## Briefing\n\n"
@@ -516,17 +489,40 @@ class SupervisorOrchestrator:
                     update={
                         "briefing_data": updated_data,
                         "active_agent": "supervisor",
-                        "supervisor_iterations": 1,
+                        "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
+                        "tool_call_count": 0,
                         "completed_specialists": {specialist_name},
                     },
                     goto="supervisor",
                 )
 
+            # Extract specialist findings: prefer the last AI response with
+            # actual content.  Models like DeepSeek sometimes return an empty
+            # final AIMessage after tool execution, so we fall back through
+            # earlier messages and finally to tool results.
             findings = ""
-            for msg in reversed(result.get("messages", [])):
+            messages = result.get("messages", [])
+            for msg in reversed(messages):
                 if isinstance(msg, AIMessage) and not msg.tool_calls:
-                    findings = str(msg.content)
-                    break
+                    content = str(msg.content).strip()
+                    if content:
+                        findings = content
+                        break
+
+            if not findings:
+                # Fallback: concatenate tool results as the specialist's findings
+                tool_parts: list[str] = []
+                for msg in reversed(messages):
+                    if isinstance(msg, ToolMessage) and msg.content:
+                        tool_parts.append(str(msg.content))
+                if tool_parts:
+                    findings = "\n\n".join(reversed(tool_parts))
+                    logger.info(
+                        "[SPECIALIST_FINDINGS] Specialist %s: empty AI response, "
+                        "fell back to %d tool results",
+                        specialist_name,
+                        len(tool_parts),
+                    )
 
             parsed = parse_structured_findings(findings)
 
@@ -552,7 +548,7 @@ class SupervisorOrchestrator:
                     "briefing_data": updated_data,
                     "active_agent": "supervisor",
                     "tool_call_count": result.get("tool_call_count", 0),
-                    "supervisor_iterations": 1,
+                    "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
                     "completed_specialists": {specialist_name},
                 },
                 goto="supervisor",
@@ -562,14 +558,7 @@ class SupervisorOrchestrator:
 
     def _build_middleware(self, tools: list[BaseTool]) -> list[Any]:
         """Build the middleware stack for the supervisor agent."""
-        return [
-            TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(
-                self.context,
-                tools=tools,
-                interrupt_node=None,
-            ),
-        ]
+        return build_backcast_middleware(self.context, tools)
 
     def _build_fallback_graph(
         self,

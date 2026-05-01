@@ -256,6 +256,10 @@ export const useStreamingChat = (
   // Timeout reference for reconnection delays
   const reconnectTimeoutRef = useRef<number | null>(null);
 
+  // Guard: prevents the activeExecutionId effect from closing the WebSocket
+  // shortly after a completion or error event (5 s window)
+  const recentlyCompletedRef = useRef(false);
+
   // Store callbacks in refs to avoid useEffect re-running when they change
   const callbacksRef = useRef({
     onToken,
@@ -574,6 +578,10 @@ export const useStreamingChat = (
         activeExecutionIdRef.current = null;
         lastSequenceRef.current = 0;
         callbacks.onComplete(serverMessage.session_id, serverMessage.message_id, serverMessage.token_usage ?? undefined);
+        // Mark as recently completed to prevent the activeExecutionId
+        // effect from closing the WebSocket connection immediately
+        recentlyCompletedRef.current = true;
+        setTimeout(() => { recentlyCompletedRef.current = false; }, 5000);
         // Keep connection alive — do NOT close here.
         // The connection will be closed when the component unmounts
         // or the user explicitly cancels (via the cancel() function).
@@ -602,6 +610,10 @@ export const useStreamingChat = (
         callbacks.onError(errorMsg);
         setError(new Error(errorMsg));
         setConnectionState(WSConnectionState.ERROR);
+        // Mark as recently completed to prevent the activeExecutionId
+        // effect from closing the WebSocket connection immediately
+        recentlyCompletedRef.current = true;
+        setTimeout(() => { recentlyCompletedRef.current = false; }, 5000);
         // Force-close the potentially broken connection to trigger reconnect
         if (wsRef.current) {
           try {
@@ -1113,6 +1125,11 @@ export const useStreamingChat = (
       // Connect if we have an active execution and no existing connection
       connectRef.current?.();
     } else if (!activeExecutionId && wsRef.current) {
+      // Don't close if we just completed streaming -- the connection
+      // should stay alive for follow-up messages
+      if (recentlyCompletedRef.current) {
+        return;
+      }
       // Disconnect if switching to a non-running session
       // Only close if we're not in the middle of sending a message
       wsRef.current.close();

@@ -35,7 +35,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.briefing import BriefingDocument
-from app.ai.config import AgentConfig
+from app.ai.config import AgentConfig, OrchestratorMode
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
@@ -50,6 +50,7 @@ from app.ai.graph_cache import (
 )
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.subagents import get_all_subagents
+from app.ai.supervisor_orchestrator import SupervisorOrchestrator
 from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
@@ -78,18 +79,8 @@ from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
     PlanningStep,
-    WSAgentCompleteMessage,
-    WSAgentTransitionMessage,
     WSBriefingMessage,
     WSCompleteMessage,
-    WSContentResetMessage,
-    WSPlanningMessage,
-    WSSubagentMessage,
-    WSSubagentResultMessage,
-    WSThinkingMessage,
-    WSTokenBatchMessage,
-    WSToolCallMessage,
-    WSToolResultMessage,
 )
 from app.services.ai_config_service import AIConfigService
 
@@ -539,24 +530,30 @@ class AgentService:
             logger.info(f"[GRAPH_COMPILE] Compiling new graph for session {session_id}")
             graph_creation_start = time.time()
 
-            orchestrator = DeepAgentOrchestrator(
-                model=llm,
-                context=tool_context,
-                system_prompt=system_prompt,
-                enable_subagents=enable_subagents,
-                interrupt_node=None,  # Don't bake InterruptNode into graph
+            agent_config = AgentConfig(
+                allowed_tools=None,
+                checkpointer=shared_checkpointer,
+                context_schema=BackcastRuntimeContext,
+                assistant_role=assistant_role,
+                user_role=user_role,
             )
 
-            graph = orchestrator.create_agent(
-                config=AgentConfig(
-                    allowed_tools=None,  # RBAC role filtering only
-                    checkpointer=shared_checkpointer,
-                    context_schema=BackcastRuntimeContext,
-                    assistant_role=assistant_role,
-                    user_role=user_role,
-                    use_supervisor=settings.AI_ORCHESTRATOR == "supervisor",
-                ),
-            )
+            if settings.AI_ORCHESTRATOR == OrchestratorMode.SUPERVISOR:
+                orchestrator = SupervisorOrchestrator(
+                    model=llm,
+                    context=tool_context,
+                    system_prompt=system_prompt,
+                )
+                graph = orchestrator.create_supervisor_graph(agent_config)
+            else:
+                orchestrator = DeepAgentOrchestrator(
+                    model=llm,
+                    context=tool_context,
+                    system_prompt=system_prompt,
+                    enable_subagents=enable_subagents,
+                    interrupt_node=None,
+                )
+                graph = orchestrator.create_agent(agent_config)
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
             logger.info(
@@ -982,6 +979,22 @@ class AgentService:
         task_initiating_main_invocation_id: str | None = None
         last_entered_agent: str | None = None
 
+        # Event types that the dispatch loop actually handles.
+        # Skipping the rest (~40-60% of LangGraph events) avoids
+        # unnecessary CPU work in the hot streaming path.
+        _HANDLED_EVENTS = frozenset(
+            {
+                "on_chain_start",
+                "on_chain_end",
+                "on_chat_model_stream",
+                "on_chat_model_end",
+                "on_tool_start",
+                "on_tool_end",
+                "on_tool_error",
+                "on_end",
+            }
+        )
+
         # Per-invocation token accumulator for batched publishing
         _token_accumulator: dict[str, list[str]] = {}
 
@@ -1005,15 +1018,56 @@ class AgentService:
             concatenated = "".join(buffered)
             _publish(
                 "token_batch",
-                WSTokenBatchMessage(
-                    type="token_batch",
-                    tokens=concatenated,
-                    session_id=str(session_id),
-                    source="subagent" if current_subagent_name else "main",
-                    subagent_name=current_subagent_name,
-                    invocation_id=invocation_id,
+                {
+                    "type": "token_batch",
+                    "tokens": concatenated,
+                    "session_id": str(session_id),
+                    "source": "subagent" if current_subagent_name else "main",
+                    "subagent_name": current_subagent_name,
+                    "invocation_id": invocation_id,
+                },
+            )
+
+        def _publish_briefing_update(
+            chain_output: Any,
+            chain_name: str,
+            *,
+            log_label: str | None = None,
+        ) -> None:
+            """Extract briefing data from a chain output and publish a briefing_update event."""
+            if (
+                not isinstance(chain_output, dict)
+                or "briefing_data" not in chain_output
+            ):
+                return
+            briefing_data = chain_output.get("briefing_data") or {}
+            try:
+                briefing_md = BriefingDocument.model_validate(
+                    briefing_data
+                ).to_markdown()
+            except Exception:
+                return
+            if not briefing_md:
+                return
+            completed = chain_output.get("completed_specialists", set())
+            completed_list = sorted(completed) if isinstance(completed, set) else []
+            _publish(
+                "briefing_update",
+                WSBriefingMessage(
+                    type="briefing_update",
+                    briefing=briefing_md,
+                    specialist_name=chain_name,
+                    completed_specialists=completed_list,
                 ).model_dump(mode="json"),
             )
+            if log_label:
+                logger.info(
+                    "[%s] name=%s | sections=%d | completed=%s",
+                    log_label,
+                    chain_name,
+                    len(briefing_data.get("sections", [])),
+                    completed_list,
+                )
 
         # Background task to flush tokens periodically for real-time streaming
         async def _periodic_flush() -> None:
@@ -1042,10 +1096,7 @@ class AgentService:
             # NOTE: No checkpoint deletion here - will delete after saving final briefing
 
             # Send thinking event
-            _publish(
-                "thinking",
-                WSThinkingMessage().model_dump(mode="json"),
-            )
+            _publish("thinking", {"type": "thinking"})
 
             # Retry loop for transient network errors during streaming
             max_retries = 2
@@ -1078,6 +1129,8 @@ class AgentService:
                         events_processed += 1
                         event_type = event.get("event", "")
                         data = event.get("data", {})
+                        if event_type not in _HANDLED_EVENTS:
+                            continue
                         # Handle agent transitions in supervisor graph
                         # When a specialist subgraph node starts/ends, detect by chain name
                         chain_name = event.get("name", "")
@@ -1099,12 +1152,12 @@ class AgentService:
                                 last_entered_agent = chain_name
                                 _publish(
                                     "agent_transition",
-                                    WSAgentTransitionMessage(
-                                        type="agent_transition",
-                                        agent_name=chain_name,
-                                        direction="enter",
-                                        invocation_id=current_invocation_id,
-                                    ).model_dump(mode="json"),
+                                    {
+                                        "type": "agent_transition",
+                                        "agent_name": chain_name,
+                                        "direction": "enter",
+                                        "invocation_id": current_invocation_id,
+                                    },
                                 )
                         elif (
                             event_type == "on_chain_end"
@@ -1116,43 +1169,17 @@ class AgentService:
                                 and "briefing_data" in chain_output
                             )
                             if is_briefing_output:
-                                briefing_data = chain_output.get("briefing_data", {})
-                                briefing_md = ""
-                                if briefing_data:
-                                    try:
-                                        briefing_md = BriefingDocument.model_validate(
-                                            briefing_data
-                                        ).to_markdown()
-                                    except Exception:
-                                        briefing_md = ""
-                                if briefing_md:
-                                    completed = chain_output.get(
-                                        "completed_specialists", set()
-                                    )
-                                    completed_list = (
-                                        sorted(completed)
-                                        if isinstance(completed, set)
-                                        else []
-                                    )
-                                    _publish(
-                                        "briefing_update",
-                                        WSBriefingMessage(
-                                            type="briefing_update",
-                                            briefing=briefing_md,
-                                            specialist_name=chain_name,
-                                            completed_specialists=completed_list,
-                                        ).model_dump(mode="json"),
-                                    )
+                                _publish_briefing_update(chain_output, chain_name)
 
                                 # Also emit agent transition exit (first end is inner graph)
                                 _publish(
                                     "agent_transition",
-                                    WSAgentTransitionMessage(
-                                        type="agent_transition",
-                                        agent_name=chain_name,
-                                        direction="exit",
-                                        invocation_id=current_invocation_id,
-                                    ).model_dump(mode="json"),
+                                    {
+                                        "type": "agent_transition",
+                                        "agent_name": chain_name,
+                                        "direction": "exit",
+                                        "invocation_id": current_invocation_id,
+                                    },
                                 )
                                 current_subagent_name = None
                                 current_invocation_id = None
@@ -1166,92 +1193,19 @@ class AgentService:
                             event_type == "on_chain_end" and chain_name == "supervisor"
                         ):
                             chain_output = data.get("output", {})
-                            if (
-                                isinstance(chain_output, dict)
-                                and "briefing_data" in chain_output
-                            ):
-                                briefing_data = chain_output.get("briefing_data", {})
-                                briefing_md = ""
-                                if briefing_data:
-                                    try:
-                                        briefing_md = BriefingDocument.model_validate(
-                                            briefing_data
-                                        ).to_markdown()
-                                    except Exception:
-                                        briefing_md = ""
-                                if briefing_md:
-                                    completed = chain_output.get(
-                                        "completed_specialists", set()
-                                    )
-                                    completed_list = (
-                                        sorted(completed)
-                                        if isinstance(completed, set)
-                                        else []
-                                    )
-                                    _publish(
-                                        "briefing_update",
-                                        WSBriefingMessage(
-                                            type="briefing_update",
-                                            briefing=briefing_md,
-                                            specialist_name="supervisor",
-                                            completed_specialists=completed_list,
-                                        ).model_dump(mode="json"),
-                                    )
-                                    logger.info(
-                                        "[SUPERVISOR_END] Sent briefing with %d sections, %d completed specialists",
-                                        len(briefing_data.get("sections", [])),
-                                        len(completed_list),
-                                    )
+                            _publish_briefing_update(
+                                chain_output, "supervisor", log_label="SUPERVISOR_END"
+                            )
 
                         # Handle initialize_briefing node completion - send briefing to frontend
                         elif event_type == "on_chain_end":
                             chain_output = data.get("output", {})
-                            # Check if this is the initialize_briefing node by checking output
-                            if (
-                                isinstance(chain_output, dict)
-                                and "briefing_data" in chain_output
-                            ):
-                                # This could be initialize_briefing, supervisor, or a specialist
-                                # For specialists, this is handled above
-                                # For initialize_briefing and supervisor, handle here
-                                if chain_name not in SPECIALIST_AGENT_NAMES:
-                                    briefing_data = chain_output.get(
-                                        "briefing_data", {}
-                                    )
-                                    briefing_md = ""
-                                    if briefing_data:
-                                        try:
-                                            briefing_md = (
-                                                BriefingDocument.model_validate(
-                                                    briefing_data
-                                                ).to_markdown()
-                                            )
-                                        except Exception:
-                                            briefing_md = ""
-                                    if briefing_md:
-                                        completed = chain_output.get(
-                                            "completed_specialists", set()
-                                        )
-                                        completed_list = (
-                                            sorted(completed)
-                                            if isinstance(completed, set)
-                                            else []
-                                        )
-                                        _publish(
-                                            "briefing_update",
-                                            WSBriefingMessage(
-                                                type="briefing_update",
-                                                briefing=briefing_md,
-                                                specialist_name="supervisor",
-                                                completed_specialists=completed_list,
-                                            ).model_dump(mode="json"),
-                                        )
-                                        logger.info(
-                                            "[CHAIN_END_NON_SPECIALIST] name=%s | sections=%d | completed=%s",
-                                            chain_name,
-                                            len(briefing_data.get("sections", [])),
-                                            completed_list,
-                                        )
+                            if chain_name not in SPECIALIST_AGENT_NAMES:
+                                _publish_briefing_update(
+                                    chain_output,
+                                    "supervisor",
+                                    log_label="CHAIN_END_NON_SPECIALIST",
+                                )
 
                         # Handle token streaming
                         if event_type == "on_chat_model_stream":
@@ -1347,14 +1301,19 @@ class AgentService:
                                         estimated_total_steps = len(steps)
                                 _publish(
                                     "planning",
-                                    WSPlanningMessage(
-                                        type="planning",
-                                        plan=plan,
-                                        steps=steps,
-                                        step_number=current_step,
-                                        total_steps=estimated_total_steps,
-                                        invocation_id=main_invocation_id,
-                                    ).model_dump(mode="json"),
+                                    {
+                                        "type": "planning",
+                                        "plan": plan,
+                                        "steps": [
+                                            {"text": s.text, "done": s.done}
+                                            for s in steps
+                                        ]
+                                        if steps
+                                        else None,
+                                        "step_number": current_step,
+                                        "total_steps": estimated_total_steps,
+                                        "invocation_id": main_invocation_id,
+                                    },
                                 )
 
                             # Subagent delegation event
@@ -1372,29 +1331,29 @@ class AgentService:
                                 if subagent_type:
                                     _publish(
                                         "subagent",
-                                        WSSubagentMessage(
-                                            type="subagent",
-                                            subagent=subagent_type,
-                                            message=description,
-                                            step_number=current_step,
-                                            total_steps=estimated_total_steps,
-                                            invocation_id=current_invocation_id,
-                                        ).model_dump(mode="json"),
+                                        {
+                                            "type": "subagent",
+                                            "subagent": subagent_type,
+                                            "message": description,
+                                            "step_number": current_step,
+                                            "total_steps": estimated_total_steps,
+                                            "invocation_id": current_invocation_id,
+                                        },
                                     )
 
                             # Standard tool_call event
                             _publish(
                                 "tool_call",
-                                WSToolCallMessage(
-                                    type="tool_call",
-                                    tool=tool_name,
-                                    args=tool_input,
-                                    step_number=current_step,
-                                    total_steps=estimated_total_steps,
-                                    invocation_id=current_invocation_id
+                                {
+                                    "type": "tool_call",
+                                    "tool": tool_name,
+                                    "args": tool_input,
+                                    "step_number": current_step,
+                                    "total_steps": estimated_total_steps,
+                                    "invocation_id": current_invocation_id
                                     if current_subagent_name
                                     else main_invocation_id,
-                                ).model_dump(mode="json"),
+                                },
                             )
 
                         # Handle tool end
@@ -1479,33 +1438,33 @@ class AgentService:
 
                                     _publish(
                                         "subagent_result",
-                                        WSSubagentResultMessage(
-                                            type="subagent_result",
-                                            subagent_name=current_subagent_name
+                                        {
+                                            "type": "subagent_result",
+                                            "subagent_name": current_subagent_name
                                             or "subagent",
-                                            content=subagent_content,
-                                            invocation_id=current_invocation_id,
-                                        ).model_dump(mode="json"),
+                                            "content": subagent_content,
+                                            "invocation_id": current_invocation_id,
+                                        },
                                     )
 
                                 # Subagent completion
                                 _publish(
                                     "agent_complete",
-                                    WSAgentCompleteMessage(
-                                        type="agent_complete",
-                                        agent_type="subagent",
-                                        invocation_id=current_invocation_id,
-                                        agent_name=current_subagent_name,
-                                    ).model_dump(mode="json"),
+                                    {
+                                        "type": "agent_complete",
+                                        "agent_type": "subagent",
+                                        "invocation_id": current_invocation_id,
+                                        "agent_name": current_subagent_name,
+                                    },
                                 )
 
                                 # Content reset after subagent
                                 _publish(
                                     "content_reset",
-                                    WSContentResetMessage(
-                                        type="content_reset",
-                                        reason="subagent_completed",
-                                    ).model_dump(mode="json"),
+                                    {
+                                        "type": "content_reset",
+                                        "reason": "subagent_completed",
+                                    },
                                 )
 
                                 current_subagent_name = None
@@ -1545,14 +1504,14 @@ class AgentService:
 
                             _publish(
                                 "tool_result",
-                                WSToolResultMessage(
-                                    type="tool_result",
-                                    tool=tool_name,
-                                    result=jsonable_encoder(tool_result_dict),
-                                    invocation_id=current_invocation_id
+                                {
+                                    "type": "tool_result",
+                                    "tool": tool_name,
+                                    "result": jsonable_encoder(tool_result_dict),
+                                    "invocation_id": current_invocation_id
                                     if current_subagent_name
                                     else main_invocation_id,
-                                ).model_dump(mode="json"),
+                                },
                             )
 
                         # Handle tool error
@@ -1571,14 +1530,14 @@ class AgentService:
 
                                 _publish(
                                     "tool_result",
-                                    WSToolResultMessage(
-                                        type="tool_result",
-                                        tool=tool_name,
-                                        result=jsonable_encoder(error_result_dict),
-                                        invocation_id=current_invocation_id
+                                    {
+                                        "type": "tool_result",
+                                        "tool": tool_name,
+                                        "result": jsonable_encoder(error_result_dict),
+                                        "invocation_id": current_invocation_id
                                         if current_subagent_name
                                         else main_invocation_id,
-                                    ).model_dump(mode="json"),
+                                    },
                                 )
 
                         # Handle completion
@@ -1612,9 +1571,7 @@ class AgentService:
                             {"configurable": {"thread_id": str(session_id)}}
                         )
                         if checkpoint_state:
-                            channel_values = checkpoint_state.get(
-                                "channel_values", {}
-                            )
+                            channel_values = checkpoint_state.get("channel_values", {})
                             persist_briefing: dict[str, Any] | None = cast(
                                 Any, channel_values.get("briefing_data")
                             )
@@ -1748,6 +1705,12 @@ class AgentService:
             invocation_ids_in_order = list(main_agent_segments.keys())
             total_main_segments = len(invocation_ids_in_order)
             assistant_msg = None
+            logger.info(
+                "[MSG_SAVE] Saving assistant messages for session %s: %d segments, invocation_ids=%s",
+                session_id,
+                total_main_segments,
+                invocation_ids_in_order,
+            )
 
             for idx, inv_id in enumerate(invocation_ids_in_order):
                 segment_content = "".join(main_agent_segments[inv_id])
@@ -1822,23 +1785,12 @@ class AgentService:
         # Publish main agent completion
         _publish(
             "agent_complete",
-            WSAgentCompleteMessage(
-                type="agent_complete",
-                agent_type="main",
-                invocation_id=main_invocation_id,
-                agent_name="Assistant",
-            ).model_dump(mode="json"),
-        )
-
-        # Publish final complete event
-        _publish(
-            "complete",
-            WSCompleteMessage(
-                type="complete",
-                session_id=session_id,
-                message_id=assistant_msg.id if assistant_msg else None,
-                token_usage=token_accumulator.to_dict(),
-            ).model_dump(mode="json"),
+            {
+                "type": "agent_complete",
+                "agent_type": "main",
+                "invocation_id": main_invocation_id,
+                "agent_name": "Assistant",
+            },
         )
 
         # Publish execution status so frontend clears activeExecutionIdRef
@@ -1850,6 +1802,17 @@ class AgentService:
                 "status": "completed",
                 "session_id": str(session_id),
             },
+        )
+
+        # Publish final complete event
+        _publish(
+            "complete",
+            WSCompleteMessage(
+                type="complete",
+                session_id=session_id,
+                message_id=assistant_msg.id if assistant_msg else None,
+                token_usage=token_accumulator.to_dict(),
+            ).model_dump(mode="json"),
         )
 
         # Log summary
@@ -2010,15 +1973,6 @@ class AgentService:
                     except Exception:
                         pass
 
-                # Publish error event
-                event_bus.publish(
-                    AgentEvent(
-                        event_type="error",
-                        data={"message": str(e), "code": 500},
-                        timestamp=datetime.now(),
-                    )
-                )
-
                 # Publish execution status so frontend clears activeExecutionIdRef
                 event_bus.publish(
                     AgentEvent(
@@ -2029,6 +1983,15 @@ class AgentService:
                             "status": "error",
                             "session_id": str(session_id),
                         },
+                        timestamp=datetime.now(),
+                    )
+                )
+
+                # Publish error event
+                event_bus.publish(
+                    AgentEvent(
+                        event_type="error",
+                        data={"message": str(e), "code": 500},
                         timestamp=datetime.now(),
                     )
                 )

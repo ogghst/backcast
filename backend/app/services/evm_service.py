@@ -1762,7 +1762,8 @@ class EVMService:
             granularity: Time granularity (day, week, month)
 
         Returns:
-            List of datetime points at the specified granularity
+            List of datetime points at the specified granularity.
+            The end_date is always included as the last point.
         """
         dates: list[datetime] = []
         current_date = start_date
@@ -1793,6 +1794,10 @@ class EVMService:
                     current_date = current_date.replace(
                         month=current_date.month + 1, day=1
                     )
+
+        # Ensure end_date is always included as the last point
+        if dates and dates[-1] != end_date:
+            dates.append(end_date)
 
         return dates
 

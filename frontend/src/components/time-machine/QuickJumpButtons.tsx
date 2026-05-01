@@ -49,8 +49,6 @@ export function QuickJumpButtons({
         if (minDate && targetDate < minDate) isOutOfRange = true;
         if (maxDate && targetDate > maxDate) isOutOfRange = true;
 
-        const isBaseDateNow = !currentDate;
-
         return (
           <Tooltip key={key} title={isOutOfRange ? "Out of range" : tooltip}>
             <button
@@ -64,10 +62,7 @@ export function QuickJumpButtons({
                 minWidth: 40,
                 padding: `0 ${token.paddingSM}px`,
                 border: "none",
-                background:
-                  isBaseDateNow && label.startsWith("+")
-                    ? token.colorFillTertiary
-                    : token.colorFillSecondary,
+                background: token.colorFillSecondary,
                 color: token.colorText,
                 fontSize: 12,
                 fontWeight: 600,
@@ -79,21 +74,15 @@ export function QuickJumpButtons({
                 alignItems: "center",
                 justifyContent: "center",
                 letterSpacing: "0.02em",
-                opacity:
-                  isBaseDateNow && label.startsWith("+") ? 0.35 : undefined,
               }}
               onMouseEnter={(e) => {
-                if (!disabled && !isOutOfRange && !(isBaseDateNow && label.startsWith("+"))) {
+                if (!disabled && !isOutOfRange) {
                   e.currentTarget.style.background = token.colorFill;
                   e.currentTarget.style.transform = "translateY(-1px)";
                 }
               }}
               onMouseLeave={(e) => {
-                if (isBaseDateNow && label.startsWith("+")) {
-                  e.currentTarget.style.background = token.colorFillTertiary;
-                } else {
-                  e.currentTarget.style.background = token.colorFillSecondary;
-                }
+                e.currentTarget.style.background = token.colorFillSecondary;
                 e.currentTarget.style.transform = "translateY(0)";
               }}
             >
