@@ -9,26 +9,91 @@ import os
 import time
 import uuid
 from collections import defaultdict
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
 from fastapi.encoders import jsonable_encoder
-from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
     BaseMessage,
-    BaseMessageChunk,
     HumanMessage,
     SystemMessage,
     ToolMessage,
 )
-from langchain_core.runnables import Runnable
-from langchain_core.tools import BaseTool
+
+if TYPE_CHECKING:
+    from langchain_core.tools import (  # noqa: F401
+        BaseTool,
+        StructuredTool,
+        ToolInterface,
+    )
 from langchain_openai import ChatOpenAI
+
+# langchain-deepseek provides native DeepSeek support with reasoning_content handling
+try:
+    from langchain_deepseek import ChatDeepSeek
+
+    HAS_DEEPSEEK = True
+except ImportError:
+    HAS_DEEPSEEK = False
+    ChatDeepSeek = ChatOpenAI  # type: ignore
+
+# CRITICAL: DeepSeek's thinking mode requires reasoning_content to be passed back
+# in every subsequent assistant turn. langchain-deepseek handles receiving reasoning_content
+# from the API but does NOT handle sending it back. We need to patch the message-to-dict
+# conversion to include reasoning_content from additional_kwargs.
+if HAS_DEEPSEEK:
+    import langchain_openai.chat_models.base as _lc_openai_base
+
+    _original_convert_message_to_dict = _lc_openai_base._convert_message_to_dict
+
+    def _patched_convert_message_to_dict(
+        message: BaseMessage,
+        api: Literal["chat/completions", "responses"] = "chat/completions",
+    ) -> dict[str, Any]:
+        msg_dict = _original_convert_message_to_dict(message, api=api)
+        # Propagate reasoning_content for DeepSeek thinking mode
+        if isinstance(message, AIMessage):
+            rc = message.additional_kwargs.get("reasoning_content")
+            if rc:
+                msg_dict["reasoning_content"] = rc
+            elif message.tool_calls:
+                logger.warning(
+                    "AIMessage with tool_calls but no reasoning_content — "
+                    "DeepSeek thinking mode will reject this."
+                )
+        return msg_dict
+
+    _lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
+
+    # Patch ChatDeepSeek.bind_tools() to strip tool_choice parameter
+    # DeepSeek-reasoner rejects tool_choice, but langchain_create_agent() passes it
+    _original_bind_tools = ChatDeepSeek.bind_tools
+
+    def _patched_bind_tools(  # type: ignore[no-untyped-def]
+        self,
+        tools: Sequence,  # type: ignore[type-arg]  # BaseTool | StructuredTool | ToolInterface - omitted for TYPE_CHECKING
+        *,
+        tool_choice: (
+            dict[str, str] | str | Literal["auto", "none", "required"] | bool | None
+        ) = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Strip tool_choice for DeepSeek models — the API rejects it."""
+        if tool_choice is not None:
+            logger.info(
+                "Stripping tool_choice=%s for DeepSeek model (API rejects this parameter)",
+                tool_choice,
+            )
+            tool_choice = None
+        return _original_bind_tools(self, tools, tool_choice=tool_choice, **kwargs)
+
+    ChatDeepSeek.bind_tools = _patched_bind_tools  # type: ignore[method-assign]
+
 from langgraph.types import Command
 from sqlalchemy import func as sa_func
 from sqlalchemy import select
@@ -91,96 +156,8 @@ _tracer_provider = initialize_telemetry(
     enable_console=os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true",
 )
 
-# ---------------------------------------------------------------------------
-# Monkey-patch langchain-openai to preserve DeepSeek reasoning_content.
-#
-# DeepSeek's thinking mode requires reasoning_content to be passed back in
-# every subsequent assistant turn. langchain-openai silently drops this field
-# during message conversion, so we patch both directions:
-#   _convert_dict_to_message → extracts reasoning_content into additional_kwargs
-#   _convert_message_to_dict → emits reasoning_content back into the API dict
-# ---------------------------------------------------------------------------
-import langchain_openai.chat_models.base as _lc_openai_base  # noqa: E402
-
-_original_convert_dict_to_message = _lc_openai_base._convert_dict_to_message
-
-
-def _patched_convert_dict_to_message(
-    _dict: Mapping[str, Any],
-) -> BaseMessage:
-    msg = _original_convert_dict_to_message(_dict)
-    if isinstance(msg, AIMessage) and "reasoning_content" in _dict:
-        msg.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
-    return msg
-
-
-_lc_openai_base._convert_dict_to_message = _patched_convert_dict_to_message
-
-_original_convert_message_to_dict = _lc_openai_base._convert_message_to_dict
-
-
-def _patched_convert_message_to_dict(
-    message: BaseMessage,
-    api: Literal["chat/completions", "responses"] = "chat/completions",
-) -> dict[str, Any]:
-    msg_dict = _original_convert_message_to_dict(message, api=api)
-    if isinstance(message, AIMessage):
-        rc = message.additional_kwargs.get("reasoning_content")
-        if rc:
-            msg_dict["reasoning_content"] = rc
-        elif message.tool_calls:
-            logger.warning(
-                "AIMessage with tool_calls but no reasoning_content — "
-                "DeepSeek thinking mode will reject this."
-            )
-    return msg_dict
-
-
-_lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
-
-_original_convert_delta_to_message_chunk = (
-    _lc_openai_base._convert_delta_to_message_chunk
-)
-
-
-def _patched_convert_delta_to_message_chunk(
-    _dict: Mapping[str, Any],
-    default_class: type[BaseMessageChunk],
-) -> BaseMessageChunk:
-    chunk = _original_convert_delta_to_message_chunk(_dict, default_class)
-    if (
-        isinstance(chunk, AIMessageChunk)
-        and "reasoning_content" in _dict
-        and _dict.get("reasoning_content")
-    ):
-        chunk.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
-    return chunk
-
-
-_lc_openai_base._convert_delta_to_message_chunk = (
-    _patched_convert_delta_to_message_chunk
-)
-
-
-class _DeepSeekSafeChatModel(ChatOpenAI):
-    """ChatOpenAI subclass that strips ``tool_choice`` for DeepSeek models.
-
-    DeepSeek's API rejects ``tool_choice`` in ``bind_tools()``.  LangChain's
-    ``create_agent`` internally calls ``model.bind_tools(tools, tool_choice=...)``
-    for subagents, which fails at runtime.  This subclass silently drops the
-    parameter when the underlying model is a DeepSeek variant.
-    """
-
-    def bind_tools(
-        self,
-        tools: Sequence[dict[str, Any] | type | Callable[..., Any] | BaseTool],
-        *,
-        tool_choice: dict[str, Any] | str | bool | None = None,
-        **kwargs: Any,
-    ) -> Runnable[LanguageModelInput, AIMessage]:
-        if self.model_name and self.model_name.startswith("deepseek"):
-            tool_choice = None
-        return super().bind_tools(tools, tool_choice=tool_choice, **kwargs)
+# NOTE: DeepSeek reasoning_content handling is now provided natively by
+# langchain-deepseek package (ChatDeepSeek class). No monkey-patches needed.
 
 
 def _extract_reasoning_content(message: AIMessage) -> dict[str, Any] | None:
@@ -387,12 +364,15 @@ class AgentService:
         model_name: str,
         temperature: float | None,
         max_tokens: int | None,
-    ) -> ChatOpenAI:
-        """Create a LangChain ChatOpenAI instance from client configuration.
+    ) -> ChatOpenAI | ChatDeepSeek:
+        """Create a LangChain ChatOpenAI or ChatDeepSeek instance from client configuration.
 
-        Context: Creates a ChatOpenAI instance by passing configuration directly
-        to LangChain, allowing it to create and manage its own client properly.
+        Context: Creates a ChatOpenAI or ChatDeepSeek instance by passing configuration
+        directly to LangChain, allowing it to create and manage its own client properly.
         This ensures compatibility with LangChain's streaming implementation.
+
+        For DeepSeek models, uses ChatDeepSeek which provides native reasoning_content
+        support without requiring monkey-patches.
 
         Args:
             client_config: Configuration dictionary for the OpenAI client
@@ -401,7 +381,7 @@ class AgentService:
             max_tokens: Optional max tokens setting
 
         Returns:
-            ChatOpenAI instance configured with the provided parameters
+            ChatOpenAI or ChatDeepSeek instance configured with the provided parameters
         """
         # Pop provider-specific params that aren't standard OpenAI client args
         reasoning_effort = client_config.pop("reasoning_effort", None)
@@ -422,18 +402,24 @@ class AgentService:
             thinking_mode,
         )
 
-        def factory() -> ChatOpenAI:
+        def factory() -> ChatOpenAI | ChatDeepSeek:
             kwargs: dict[str, Any] = {}
             if thinking_mode:
                 kwargs["extra_body"] = {"thinking": {"type": thinking_mode}}
                 if thinking_mode != "disabled" and reasoning_effort:
                     kwargs["reasoning_effort"] = reasoning_effort
-            cls = (
-                _DeepSeekSafeChatModel
-                if model_name.startswith("deepseek")
-                else ChatOpenAI
-            )
-            return cls(
+
+            # Use ChatDeepSeek for DeepSeek models (native reasoning_content support)
+            if HAS_DEEPSEEK and model_name.startswith("deepseek"):
+                return ChatDeepSeek(
+                    **client_config,
+                    model=model_name,
+                    temperature=temp,
+                    max_tokens=tokens,
+                    stream_chunk_timeout=300,
+                    **kwargs,
+                )
+            return ChatOpenAI(
                 **client_config,
                 model=model_name,
                 temperature=temp,
@@ -482,7 +468,7 @@ class AgentService:
 
     async def _create_deep_agent_graph(
         self,
-        llm: ChatOpenAI,
+        llm: ChatOpenAI | ChatDeepSeek,
         tool_context: ToolContext,
         assistant_config: AIAssistantConfig,
         websocket: WebSocket | None = None,
@@ -500,7 +486,7 @@ class AgentService:
         LangChain Deep Agents SDK. Preserves security model and temporal context.
 
         Args:
-            llm: The language model to use (for fallback to LangGraph)
+            llm: The language model to use (ChatOpenAI or ChatDeepSeek)
             tool_context: ToolContext with user permissions and temporal parameters
             assistant_config: AI assistant configuration
             websocket: Optional WebSocket connection for InterruptNode
@@ -551,21 +537,21 @@ class AgentService:
             )
 
             if settings.AI_ORCHESTRATOR == OrchestratorMode.SUPERVISOR:
-                orchestrator = SupervisorOrchestrator(
+                supervisor_orchestrator = SupervisorOrchestrator(
                     model=llm,
                     context=tool_context,
                     system_prompt=system_prompt,
                 )
-                graph = orchestrator.create_supervisor_graph(agent_config)
+                graph = supervisor_orchestrator.create_supervisor_graph(agent_config)
             else:
-                orchestrator = DeepAgentOrchestrator(
+                deep_orchestrator = DeepAgentOrchestrator(
                     model=llm,
                     context=tool_context,
                     system_prompt=system_prompt,
                     enable_subagents=enable_subagents,
                     interrupt_node=None,
                 )
-                graph = orchestrator.create_agent(agent_config)
+                graph = deep_orchestrator.create_agent(agent_config)
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
             logger.info(
