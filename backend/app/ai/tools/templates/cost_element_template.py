@@ -128,6 +128,8 @@ async def list_cost_elements(
             limit=limit,
             sort_field=sort_field,
             sort_order=sort_order,
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -207,7 +209,10 @@ async def get_cost_element(
         service = CostElementService(context.session)
 
         # Call service method
-        cost_element = await service.get_by_id(UUID(cost_element_id))
+        cost_element = await service.get_by_id(
+            UUID(cost_element_id),
+            branch=context.branch_name or "main",
+        )
 
         if not cost_element:
             return {"error": f"Cost element {cost_element_id} not found"}
@@ -597,7 +602,9 @@ async def get_schedule_baseline(
         service = ScheduleBaselineService(context.session)
 
         # Call service method to get baseline for cost element
-        baseline = await service.get_for_cost_element(UUID(cost_element_id))
+        baseline = await service.get_for_cost_element(
+            UUID(cost_element_id), branch=context.branch_name or "main"
+        )
 
         if not baseline:
             return {

@@ -111,6 +111,8 @@ async def list_projects(
             limit=limit,
             sort_field=sort_field,
             sort_order=sort_order,
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -181,7 +183,11 @@ async def get_project(
         service = context.project_service
 
         # Call service method
-        project = await service.get_as_of(UUID(project_id))
+        project = await service.get_as_of(
+            UUID(project_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
+        )
 
         if not project:
             not_found_result = {"error": f"Project {project_id} not found"}
@@ -449,6 +455,8 @@ async def list_wbes(
             search=search,
             skip=skip,
             limit=limit,
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format
@@ -514,7 +522,11 @@ async def get_wbe(
         service = WBEService(context.session)
 
         # Call service method
-        wbe = await service.get_as_of(UUID(wbe_id))
+        wbe = await service.get_as_of(
+            UUID(wbe_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
+        )
 
         if not wbe:
             return {"error": f"WBE {wbe_id} not found"}

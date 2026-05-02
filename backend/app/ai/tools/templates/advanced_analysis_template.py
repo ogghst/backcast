@@ -20,6 +20,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import RiskLevel, ToolContext
+from app.core.versioning.enums import BranchMode
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,11 @@ async def assess_project_health(
         evm_data = await evm_service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         # Get WBE-level data for deeper analysis
@@ -430,14 +435,18 @@ async def detect_evm_anomalies(
             entity_type=EntityType.PROJECT,
             entity_id=UUID(project_id),
             granularity=EVMTimeSeriesGranularity.WEEK,
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         if not timeseries.points:
             return {
                 "project_id": project_id,
                 "error": "No EVM time-series data available for this project. "
-                         "The project has no cost elements, progress entries, or schedule baseline.",
+                "The project has no cost elements, progress entries, or schedule baseline.",
             }
 
         anomalies = []
@@ -702,21 +711,29 @@ async def analyze_forecast_trends(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         timeseries = await service.get_evm_timeseries(
             entity_type=EntityType.PROJECT,
             entity_id=UUID(project_id),
             granularity=EVMTimeSeriesGranularity.WEEK,
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         if not timeseries.points:
             return {
                 "project_id": project_id,
                 "error": "No EVM time-series data available for this project. "
-                         "The project has no cost elements, progress entries, or schedule baseline.",
+                "The project has no cost elements, progress entries, or schedule baseline.",
             }
 
         # Calculate scenarios
@@ -1032,7 +1049,11 @@ async def generate_optimization_suggestions(
         evm_data = await evm_service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         # Get WBE data for granular analysis

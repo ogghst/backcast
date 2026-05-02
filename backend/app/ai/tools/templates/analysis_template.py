@@ -41,6 +41,7 @@ from langchain_core.tools import InjectedToolArg
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
+from app.core.versioning.enums import BranchMode
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,10 @@ async def calculate_evm_metrics(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
             control_date=as_of,
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -201,7 +206,11 @@ async def get_evm_performance_summary(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         # Determine performance status
@@ -283,7 +292,11 @@ async def analyze_cost_variance(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         bac = float(evm_data.bac)
@@ -354,7 +367,11 @@ async def analyze_schedule_variance(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         sv = float(evm_data.sv)
@@ -434,7 +451,11 @@ async def generate_project_forecast(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         # Convert to AI-friendly format
@@ -505,7 +526,11 @@ async def compare_forecast_scenarios(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         scenarios = [
@@ -582,7 +607,11 @@ async def get_forecast_accuracy(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         # Simplified assessment
@@ -659,7 +688,11 @@ async def get_project_kpis(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=datetime.now(),
+            control_date=context.as_of or datetime.now(),
+            branch=context.branch_name or "main",
+            branch_mode=BranchMode.MERGE
+            if (context.branch_mode or "merged") == "merged"
+            else BranchMode.STRICT,
         )
 
         # Calculate KPIs
