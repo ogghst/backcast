@@ -664,9 +664,7 @@ class WSBriefingMessage(BaseModel):
     type: Literal["briefing_update"] = Field(
         default="briefing_update", description="Message type discriminator"
     )
-    briefing: str = Field(
-        ..., description="Compiled briefing markdown document"
-    )
+    briefing: str = Field(..., description="Compiled briefing markdown document")
     specialist_name: str = Field(
         ..., description="Name of the specialist that updated the briefing"
     )
@@ -890,6 +888,13 @@ class WSSubscribeMessage(BaseModel):
         default="subscribe", description="Message type discriminator"
     )
     execution_id: UUID = Field(..., description="ID of the execution to subscribe to")
+    last_seen_sequence: int = Field(
+        default=0,
+        description=(
+            "Sequence number of the last event the client has already processed. "
+            "The server will replay only events with sequence > this value."
+        ),
+    )
 
 
 class WSExecutionStatusMessage(BaseModel):

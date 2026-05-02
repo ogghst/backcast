@@ -304,7 +304,6 @@ class AgentService:
         self.session = session
         self._config_service: AIConfigService | None = None
         self._subagent_invocation_counts: dict[str, int] = {}
-        self._cancellation_tokens: dict[UUID, asyncio.Event] = {}
 
     @property
     def config_service(self) -> AIConfigService:
@@ -729,9 +728,7 @@ class AgentService:
         )
 
         # Invoke the graph
-        # Note: Task-local sessions are created per tool execution and cleaned up below
         try:
-            # Load briefing from database (source of truth)
             existing_briefing = await self.config_service.get_session_briefing(
                 session_id
             )
@@ -755,7 +752,6 @@ class AgentService:
                 },
             )
 
-            # Save final briefing state to database
             final_briefing = result.get("briefing_data")
             if final_briefing:
                 section_count = len(final_briefing.get("sections", []))
@@ -773,15 +769,12 @@ class AgentService:
                     session_id,
                 )
 
-            # Clear checkpoint to prevent state bloat
             shared_checkpointer.delete_thread(str(session_id))
             logger.info(
                 "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (non-streaming) | session_id=%s",
                 session_id,
             )
         finally:
-            # Clean up any remaining task-local sessions after graph execution
-            # This ensures sessions are properly removed even if tools didn't clean up
             try:
                 await ToolSessionManager.commit()
                 logger.debug(
@@ -843,6 +836,56 @@ class AgentService:
             message=AIConversationMessagePublic.model_validate(assistant_msg),
             tool_calls=tool_calls_data if tool_calls_data else None,
         )
+
+    async def _persist_briefing_from_checkpoint(
+        self,
+        session_id: UUID,
+        log_label: str = "BRIEFING_PERSIST",
+    ) -> bool:
+        """Load briefing from checkpoint and persist to database.
+
+        Extracts briefing_data from the LangGraph checkpoint, saves it to the
+        session via config_service, and deletes the checkpoint. Returns True
+        if briefing was found and saved.
+        """
+        try:
+            checkpoint_state = await shared_checkpointer.aget(
+                {"configurable": {"thread_id": str(session_id)}}
+            )
+            if not checkpoint_state:
+                return False
+
+            channel_values = checkpoint_state.get("channel_values", {})
+            briefing_data: dict[str, Any] | None = cast(
+                Any, channel_values.get("briefing_data")
+            )
+            if not briefing_data:
+                logger.debug(
+                    "[%s] No briefing_data in checkpoint | session_id=%s",
+                    log_label,
+                    session_id,
+                )
+                return False
+
+            section_count = len(briefing_data.get("sections", []))
+            await self.config_service.save_session_briefing(session_id, briefing_data)
+            shared_checkpointer.delete_thread(str(session_id))
+            logger.info(
+                "[%s] Saved briefing (%d sections) and deleted checkpoint | session_id=%s",
+                log_label,
+                section_count,
+                session_id,
+            )
+            return True
+        except Exception as exc:
+            logger.error(
+                "[%s] Failed: %s | session_id=%s",
+                log_label,
+                exc,
+                session_id,
+                exc_info=True,
+            )
+            return False
 
     async def _run_agent_graph(
         self,
@@ -1079,11 +1122,11 @@ class AgentService:
         _flush_task = asyncio.create_task(_periodic_flush())
 
         graph_error: Exception | None = None
+        briefing_persisted = False
 
         try:
             main_invocation_id = str(uuid.uuid4())
 
-            # Load briefing from database (source of truth)
             existing_briefing = await self.config_service.get_session_briefing(
                 session_id
             )
@@ -1092,8 +1135,6 @@ class AgentService:
                     "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (streaming)",
                     len(existing_briefing.get("sections", [])),
                 )
-
-            # NOTE: No checkpoint deletion here - will delete after saving final briefing
 
             # Send thinking event
             _publish("thinking", {"type": "thinking"})
@@ -1164,14 +1205,22 @@ class AgentService:
                             and chain_name in SPECIALIST_AGENT_NAMES
                         ):
                             chain_output = data.get("output")
-                            is_briefing_output = (
-                                isinstance(chain_output, dict)
-                                and "briefing_data" in chain_output
-                            )
-                            if is_briefing_output:
-                                _publish_briefing_update(chain_output, chain_name)
 
-                                # Also emit agent transition exit (first end is inner graph)
+                            # Extract briefing data from either dict
+                            # output or Command.update.  Specialist
+                            # nodes return Command objects, so
+                            # isinstance(dict) is False -- we must
+                            # check Command.update as a fallback.
+                            output_dict: dict[str, Any] | None = None
+                            if isinstance(chain_output, dict):
+                                output_dict = chain_output
+                            elif hasattr(chain_output, "update") and isinstance(
+                                getattr(chain_output, "update", None), dict
+                            ):
+                                output_dict = chain_output.update
+
+                            if output_dict and "briefing_data" in output_dict:
+                                _publish_briefing_update(output_dict, chain_name)
                                 _publish(
                                     "agent_transition",
                                     {
@@ -1181,12 +1230,13 @@ class AgentService:
                                         "invocation_id": current_invocation_id,
                                     },
                                 )
-                                current_subagent_name = None
-                                current_invocation_id = None
-                                last_entered_agent = None
                             elif chain_name == current_subagent_name:
-                                # Inner compiled graph end — flush tokens
                                 _flush_accumulated_tokens(current_invocation_id)
+
+                            # Always reset specialist tracking on chain end
+                            current_subagent_name = None
+                            current_invocation_id = None
+                            last_entered_agent = None
 
                         # Handle supervisor node completion - send briefing to frontend
                         elif (
@@ -1565,42 +1615,9 @@ class AgentService:
                     for inv_id in list(_token_accumulator.keys()):
                         _flush_accumulated_tokens(inv_id)
 
-                    # Persist briefing from checkpoint after stream completes
-                    try:
-                        checkpoint_state = await shared_checkpointer.aget(
-                            {"configurable": {"thread_id": str(session_id)}}
-                        )
-                        if checkpoint_state:
-                            channel_values = checkpoint_state.get("channel_values", {})
-                            persist_briefing: dict[str, Any] | None = cast(
-                                Any, channel_values.get("briefing_data")
-                            )
-                            if persist_briefing:
-                                await self.config_service.save_session_briefing(
-                                    session_id, persist_briefing
-                                )
-                                logger.info(
-                                    "[BRIEFING_PERSIST_SUCCESS] Saved briefing from checkpoint with %d sections (streaming) | session_id=%s",
-                                    len(persist_briefing.get("sections", [])),
-                                    session_id,
-                                )
-                                shared_checkpointer.delete_thread(str(session_id))
-                                logger.info(
-                                    "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (streaming) | session_id=%s",
-                                    session_id,
-                                )
-                            else:
-                                logger.info(
-                                    "[BRIEFING_PERSIST] No briefing_data in checkpoint (streaming) | session_id=%s",
-                                    session_id,
-                                )
-                    except Exception as persist_err:
-                        logger.error(
-                            "[BRIEFING_PERSIST] Failed to persist briefing from checkpoint: %s | session_id=%s",
-                            persist_err,
-                            session_id,
-                            exc_info=True,
-                        )
+                    briefing_persisted = await self._persist_briefing_from_checkpoint(
+                        session_id, log_label="BRIEFING_PERSIST_STREAMING"
+                    )
 
                     break  # successful completion, exit retry loop
 
@@ -1663,41 +1680,15 @@ class AgentService:
                 _flush_accumulated_tokens(inv_id)
             clear_request_context()
             self.unregister_interrupt_node(session_id)
-
-            # CRITICAL: Save briefing to database even on error
-            # This ensures specialist findings are preserved even if streaming fails
             try:
-                checkpoint_state = await shared_checkpointer.aget(
-                    {"configurable": {"thread_id": str(session_id)}}
-                )
-                if checkpoint_state:
-                    channel_values = checkpoint_state.get("channel_values", {})
-                    error_briefing: dict[str, Any] | None = cast(
-                        Any, channel_values.get("briefing_data")
-                    )
-                    if error_briefing:
-                        await self.config_service.save_session_briefing(
-                            session_id, error_briefing
-                        )
-                        section_count = len(error_briefing.get("sections", []))
-                        logger.info(
-                            "[BRIEFING_PERSIST_ERROR_PATH] Saved briefing from checkpoint after error with %d sections (streaming)",
-                            section_count,
-                        )
-                        # Still delete checkpoint to prevent state bloat
-                        shared_checkpointer.delete_thread(str(session_id))
-                        logger.info(
-                            "[BRIEFING_PERSIST_ERROR_PATH] Deleted checkpoint after error-path save"
-                        )
-                    else:
-                        logger.debug(
-                            "[BRIEFING_PERSIST_ERROR_PATH] No briefing_data in checkpoint to save after error"
-                        )
-            except Exception as briefing_save_error:
-                logger.error(
-                    "[BRIEFING_PERSIST_ERROR_PATH] Failed to save briefing after graph error: %s",
-                    briefing_save_error,
-                    exc_info=True,
+                await ToolSessionManager.commit()
+            except Exception:
+                pass
+
+            # Persist briefing from checkpoint if not already saved
+            if not briefing_persisted:
+                await self._persist_briefing_from_checkpoint(
+                    session_id, log_label="BRIEFING_PERSIST_ERROR_PATH"
                 )
 
         # Save assistant messages to session

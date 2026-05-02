@@ -21,7 +21,7 @@ from langchain.agents import create_agent as langchain_create_agent
 from langchain.agents.middleware.types import AgentState
 from langchain.tools import tool as lc_tool
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt.tool_node import InjectedState
@@ -35,6 +35,7 @@ from app.ai.briefing_compiler import (
 )
 from app.ai.config import AgentConfig
 from app.ai.handoff_tools import create_all_handoff_tools
+from app.ai.message_utils import extract_final_ai_response
 from app.ai.subagent_compiler import (
     build_backcast_middleware,
     compile_subagents,
@@ -123,9 +124,7 @@ def _briefing_update(doc: BriefingDocument) -> dict[str, Any]:
         "supervisor_iterations": 0,
         "max_supervisor_iterations": 3,
         "completed_specialists": set(),
-        "messages": [
-            SystemMessage(content=f"{_BRIEFING_CONTEXT_PREFIX}{briefing_md}")
-        ],
+        "messages": [SystemMessage(content=f"{_BRIEFING_CONTEXT_PREFIX}{briefing_md}")],
     }
 
 
@@ -426,7 +425,8 @@ class SupervisorOrchestrator:
                 return Command(
                     update={
                         "active_agent": "supervisor",
-                        "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
+                        "supervisor_iterations": state.get("supervisor_iterations", 0)
+                        + 1,
                     },
                     goto=END,
                 )
@@ -489,40 +489,15 @@ class SupervisorOrchestrator:
                     update={
                         "briefing_data": updated_data,
                         "active_agent": "supervisor",
-                        "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
+                        "supervisor_iterations": state.get("supervisor_iterations", 0)
+                        + 1,
                         "tool_call_count": 0,
-                        "completed_specialists": {specialist_name},
                     },
                     goto="supervisor",
                 )
 
-            # Extract specialist findings: prefer the last AI response with
-            # actual content.  Models like DeepSeek sometimes return an empty
-            # final AIMessage after tool execution, so we fall back through
-            # earlier messages and finally to tool results.
-            findings = ""
             messages = result.get("messages", [])
-            for msg in reversed(messages):
-                if isinstance(msg, AIMessage) and not msg.tool_calls:
-                    content = str(msg.content).strip()
-                    if content:
-                        findings = content
-                        break
-
-            if not findings:
-                # Fallback: concatenate tool results as the specialist's findings
-                tool_parts: list[str] = []
-                for msg in reversed(messages):
-                    if isinstance(msg, ToolMessage) and msg.content:
-                        tool_parts.append(str(msg.content))
-                if tool_parts:
-                    findings = "\n\n".join(reversed(tool_parts))
-                    logger.info(
-                        "[SPECIALIST_FINDINGS] Specialist %s: empty AI response, "
-                        "fell back to %d tool results",
-                        specialist_name,
-                        len(tool_parts),
-                    )
+            findings = extract_final_ai_response(messages)
 
             parsed = parse_structured_findings(findings)
 

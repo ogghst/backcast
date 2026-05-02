@@ -303,6 +303,17 @@ export interface WSAgentCompleteMessage {
 }
 
 /**
+ * Server -> Client: Agent transition event
+ * Sent when a specialist agent enters or exits in the supervisor pattern
+ */
+export interface WSAgentTransitionMessage {
+  type: "agent_transition";
+  agent_name: string;
+  direction: "enter" | "exit";
+  invocation_id: string;
+}
+
+/**
  * Server -> Client: Briefing update event
  * Sent when a specialist agent updates the compiled briefing document
  */
@@ -362,6 +373,7 @@ export type WSServerMessage =
   | WSPollingHeartbeatMessage
   | WSPingMessage
   | WSAgentCompleteMessage
+  | WSAgentTransitionMessage
   | WSExecutionStartedMessage
   | WSExecutionStatusMessage
   | WSBriefingMessage;
@@ -572,6 +584,15 @@ export function isAgentCompleteMessage(
   message: WSServerMessage
 ): message is WSAgentCompleteMessage {
   return message.type === "agent_complete";
+}
+
+/**
+ * Type guard to check if a server message is an agent transition message
+ */
+export function isAgentTransitionMessage(
+  message: WSServerMessage
+): message is WSAgentTransitionMessage {
+  return message.type === "agent_transition";
 }
 
 /**
