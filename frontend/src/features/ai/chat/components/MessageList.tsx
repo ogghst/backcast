@@ -25,6 +25,26 @@ import { FilePreview } from "./FilePreview";
 
 const { Text } = Typography;
 
+/** Deterministic color for a subagent name based on character hash. */
+const getSubagentColor = (name: string): string => {
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return `hsl(${hash % 360}, 70%, 45%)`;
+};
+
+/** Shared typing dot animation CSS. Inject once per component tree. */
+const TYPING_DOT_CSS = `
+@keyframes typingPulse {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+`;
+
 /**
  * Props for the MessageList component
  */
@@ -202,43 +222,28 @@ const StreamingMessage = ({
       {/* CSS for animations */}
       <style>{`
         @keyframes fadeIn {
-          from {
-            opacity: 0.7;
-          }
-          to {
-            opacity: 1;
-          }
+          from { opacity: 0.7; }
+          to { opacity: 1; }
         }
-
+        ${TYPING_DOT_CSS}
         .typing-dot {
           width: 8px;
           height: 8px;
-          borderRadius: "50%",
-          backgroundColor: token.colorPrimary,
-          animation: "typingPulse 1.4s infinite ease-in-out both",
+          border-radius: 50%;
+          background-color: ${token.colorPrimary};
+          animation: typingPulse 1.4s infinite ease-in-out both;
         }
 
         .typing-dot:nth-child(1) {
-          animationDelay: "0s";
+          animation-delay: 0s;
         }
 
         .typing-dot:nth-child(2) {
-          animationDelay: "0.2s";
+          animation-delay: 0.2s;
         }
 
         .typing-dot:nth-child(3) {
-          animationDelay: "0.4s";
-        }
-
-        @keyframes typingPulse {
-          0%, 80%, 100% {
-            transform: "scale(0.8)";
-            opacity: 0.5;
-          }
-          40% {
-            transform: "scale(1)";
-            opacity: 1;
-          }
+          animation-delay: 0.4s;
         }
       `}</style>
     </List.Item>
@@ -264,13 +269,6 @@ const SubagentMessage = ({
   const { spacing, typography, borderRadius } = useThemeTokens();
   // Start compacted. Auto-expand only when specialist completes with content.
   const [isExpanded, setIsExpanded] = useState(!subagent.is_active && subagent.is_complete && !!subagent.content);
-
-  // Color coding for different subagent types
-  const getSubagentColor = (name: string) => {
-    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const hue = hash % 360;
-    return `hsl(${hue}, 70%, 45%)`;
-  };
 
   const accentColor = getSubagentColor(subagent.subagent_name);
 
@@ -408,6 +406,7 @@ const SubagentMessage = ({
       </div>
 
       <style>{`
+        ${TYPING_DOT_CSS}
         .typing-dot {
           width: 8px;
           height: 8px;
@@ -426,17 +425,6 @@ const SubagentMessage = ({
 
         .typing-dot:nth-child(3) {
           animation-delay: 0.4s;
-        }
-
-        @keyframes typingPulse {
-          0%, 80%, 100% {
-            transform: scale(0.8);
-            opacity: 0.5;
-          }
-          40% {
-            transform: scale(1);
-            opacity: 1;
-          }
         }
       `}</style>
     </List.Item>
@@ -463,13 +451,6 @@ const PersistedSubagentMessage = ({
 }: PersistedSubagentMessageProps) => {
   const { spacing, typography, borderRadius } = useThemeTokens();
   const [isExpanded, setIsExpanded] = useState(false);
-
-  // Color coding for different subagent types
-  const getSubagentColor = (name: string) => {
-    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const hue = hash % 360;
-    return `hsl(${hue}, 70%, 45%)`;
-  };
 
   const accentColor = getSubagentColor(subagentName);
 
@@ -767,7 +748,7 @@ export const MessageList = ({
   }
 
   const mainContent = streamingState?.main ?? "";
-  const hasSubagents = streamingState?.subagents.size ?? 0 > 0;
+  const hasSubagents = (streamingState?.subagents.size ?? 0) > 0;
 
   if (messages.length === 0 && !isStreaming && !mainContent && !hasSubagents) {
     return (

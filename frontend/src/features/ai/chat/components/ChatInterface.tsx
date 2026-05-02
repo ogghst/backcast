@@ -74,6 +74,13 @@ interface ChatInterfaceProps {
  * @param props.assistantId - Optional URL-param assistant ID pre-selection
  * @param props.projectId - Optional project ID to scope chat context
  */
+
+const EMPTY_STREAMING_STATE: StreamingState = {
+  main: "",
+  mainStreams: new Map<string, MainAgentStream>(),
+  subagents: new Map<string, SubagentStream>(),
+};
+
 export const ChatInterface = ({
   sessionId: initialSessionId,
   assistantId: initialAssistantId,
@@ -483,7 +490,7 @@ export const ChatInterface = ({
    * @param messageId - The ID of the persisted assistant message
    */
   const handleComplete = useCallback(
-    (sessionId: string, messageId: string, tokenUsage?: TokenUsage) => {
+    (sessionId: string, messageId: string | null, tokenUsage?: TokenUsage) => {
       void messageId;
       // Update session ID if this was a new session (do this first)
       setCurrentSessionId((prev) => prev || sessionId);
@@ -545,11 +552,7 @@ export const ChatInterface = ({
     setError(`Chat error: ${errorMsg}`);
     setPendingUserMessage(null);
     // Clear stuck streaming state
-    setStreamingState({
-      main: "",
-      mainStreams: new Map<string, MainAgentStream>(),
-      subagents: new Map<string, SubagentStream>(),
-    });
+    setStreamingState(EMPTY_STREAMING_STATE);
     setActiveToolCalls([]);
   }, []);
 
@@ -754,11 +757,7 @@ export const ChatInterface = ({
     setError(null);
     setPendingUserMessage(null);
     // Clear all streaming/briefing state from previous session
-    setStreamingState({
-      main: "",
-      mainStreams: new Map<string, MainAgentStream>(),
-      subagents: new Map<string, SubagentStream>(),
-    });
+    setStreamingState(EMPTY_STREAMING_STATE);
     setActiveToolCalls([]);
     setIsWaitingForResponse(false);
     setLastTokenUsage(null);
@@ -890,11 +889,7 @@ export const ChatInterface = ({
   // Handle canceling the current stream
   const handleCancel = useCallback(() => {
     streamingChat.cancel();
-    setStreamingState({
-      main: "",
-      mainStreams: new Map<string, MainAgentStream>(),
-      subagents: new Map<string, SubagentStream>(),
-    });
+    setStreamingState(EMPTY_STREAMING_STATE);
     setActiveToolCalls([]);
     setIsWaitingForResponse(false);
     setShowStreamSeparator(false);

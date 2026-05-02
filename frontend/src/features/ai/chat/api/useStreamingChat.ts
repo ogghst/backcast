@@ -64,7 +64,7 @@ export interface UseStreamingChatConfig {
   /** Callback invoked when a token is received */
   onToken: (token: string, sessionId: string, source?: "main" | "subagent", subagentName?: string, invocationId?: string) => void;
   /** Callback invoked when the complete response is received */
-  onComplete: (sessionId: string, messageId: string, tokenUsage?: TokenUsage) => void;
+  onComplete: (sessionId: string, messageId: string | null, tokenUsage?: TokenUsage) => void;
   /** Callback invoked when an error occurs */
   onError: (error: string) => void;
   /** Optional callback invoked when a tool is called */
@@ -514,13 +514,15 @@ export const useStreamingChat = (
 
       // Handle agent transition messages (supervisor pattern specialist enter/exit)
       if (isAgentTransitionMessage(serverMessage)) {
-        if (serverMessage.direction === "enter") {
-          callbacks.onSubagentStart?.(
-            serverMessage.agent_name,
-            serverMessage.invocation_id
-          );
-        } else if (serverMessage.direction === "exit") {
-          callbacks.onSubagentComplete?.(serverMessage.invocation_id);
+        if (serverMessage.invocation_id) {
+          if (serverMessage.direction === "enter") {
+            callbacks.onSubagentStart?.(
+              serverMessage.agent_name,
+              serverMessage.invocation_id
+            );
+          } else if (serverMessage.direction === "exit") {
+            callbacks.onSubagentComplete?.(serverMessage.invocation_id);
+          }
         }
         return;
       }

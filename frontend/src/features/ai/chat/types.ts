@@ -218,7 +218,7 @@ export interface TokenUsage {
 export interface WSCompleteMessage {
   type: "complete";
   session_id: string;
-  message_id: string;
+  message_id: string | null;
   token_usage?: TokenUsage;
 }
 
@@ -310,7 +310,7 @@ export interface WSAgentTransitionMessage {
   type: "agent_transition";
   agent_name: string;
   direction: "enter" | "exit";
-  invocation_id: string;
+  invocation_id: string | null;
 }
 
 /**
@@ -431,7 +431,8 @@ export function isCompleteMessage(message: unknown): message is WSCompleteMessag
   const msg = message as Record<string, unknown>;
   return (
     msg.type === "complete" &&
-    typeof msg.session_id === "string"
+    typeof msg.session_id === "string" &&
+    (msg.message_id === null || typeof msg.message_id === "string")
   );
 }
 
