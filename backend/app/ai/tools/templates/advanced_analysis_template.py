@@ -100,7 +100,9 @@ async def assess_project_health(
         )
 
         # Get WBE-level data for deeper analysis
-        wbes = await wbe_service.get_by_project(UUID(project_id))
+        wbes = await wbe_service.get_by_project(
+            UUID(project_id), branch=context.branch_name or "main"
+        )
 
         # Calculate category scores
         budget_health = _calculate_budget_health(evm_data, wbes)
@@ -1057,7 +1059,9 @@ async def generate_optimization_suggestions(
         )
 
         # Get WBE data for granular analysis
-        wbes = await wbe_service.get_by_project(UUID(project_id))
+        wbes = await wbe_service.get_by_project(
+            UUID(project_id), branch=context.branch_name or "main"
+        )
 
         # Generate suggestions by category
         cost_suggestions = _generate_cost_optimizations(evm_data, wbes)

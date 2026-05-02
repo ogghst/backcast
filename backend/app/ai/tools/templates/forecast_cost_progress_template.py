@@ -733,7 +733,11 @@ async def get_cost_registration(
         service = CostRegistrationService(context.session)
 
         # Call service method
-        registration = await service.get_as_of(UUID(cost_registration_id))
+        registration = await service.get_as_of(
+            UUID(cost_registration_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
+        )
 
         if registration is None:
             error_result = {
@@ -1488,7 +1492,11 @@ async def get_progress_entry(
         service = ProgressEntryService(context.session)
 
         # Call service method
-        progress = await service.get_as_of(UUID(progress_entry_id))
+        progress = await service.get_as_of(
+            UUID(progress_entry_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
+        )
 
         if progress is None:
             error_result = {"error": f"Progress entry not found: {progress_entry_id}"}

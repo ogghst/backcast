@@ -105,11 +105,11 @@ async def list_change_orders(
         # Build filters string from status if provided
         filters = f"status:{status}" if status else None
 
-        change_orders, total = await service.get_change_orders(  # type: ignore[call-arg]
+        change_orders, total = await service.get_change_orders(
             project_id=project_uuid,  # type: ignore[arg-type]
             skip=skip,
             limit=limit,
-            branch=context.branch_name,
+            branch=context.branch_name or "main",
             filters=filters,
             as_of=context.as_of,
         )
@@ -191,7 +191,9 @@ async def get_change_order(
 
         # Call service method
         change_order = await service.get_as_of(
-            UUID(change_order_id), branch=context.branch_name or "main"
+            UUID(change_order_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         if not change_order:
@@ -379,6 +381,7 @@ async def generate_change_order_draft(
             description=description,
             reason=reason,
             actor_id=UUID(context.user_id),
+            branch=context.branch_name or "main",
         )
 
         # Extract AI analysis results from impact_analysis_results
@@ -663,7 +666,9 @@ async def analyze_change_order_impact(
 
         # Get change order
         change_order = await service.get_as_of(
-            UUID(change_order_id), branch=context.branch_name or "main"
+            UUID(change_order_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         if not change_order:
