@@ -9,6 +9,9 @@ The supervisor reads the briefing via ``get_briefing`` and delegates work via
 handoff tools. Each specialist runs in isolation with only the briefing as
 context, returning structured findings that get compiled back into the document.
 
+Specialists are stateless -- they receive the briefing as their only context and
+return findings via Command objects.
+
 Graph: START -> initialize_briefing -> supervisor <-> specialist_nodes -> END
 """
 
@@ -117,6 +120,10 @@ def _briefing_update(doc: BriefingDocument) -> dict[str, Any]:
 
     Injects the current briefing as a SystemMessage so the supervisor
     always sees specialist findings before deciding what to do.
+
+    The briefing is injected as a SystemMessage because the supervisor's agent
+    subgraph uses InjectedState which only sees its own state schema -- the
+    parent state keys aren't automatically visible.
     """
     briefing_md = doc.to_markdown() if doc.sections else "No findings yet."
     return {
@@ -155,6 +162,10 @@ def _create_get_briefing_tool() -> BaseTool:
     def get_briefing(
         state: Annotated[dict[str, Any], InjectedState()],
     ) -> str:
+        # Fallback read -- the briefing is also injected as a SystemMessage by
+        # _briefing_update, so the supervisor already sees it. This tool exists
+        # for cases where the supervisor needs to re-read after a specialist
+        # returns and state has changed.
         briefing_data = state.get("briefing_data", {})
         if not briefing_data:
             return "No briefing available yet."
@@ -235,6 +246,8 @@ class SupervisorOrchestrator:
             return self._build_fallback_graph(all_tools, config)
 
         # --- 3. Build supervisor tools ---
+        # Supervisor only sees get_briefing and handoff tools -- never Backcast
+        # domain tools directly.
         get_briefing_tool = _create_get_briefing_tool()
         handoff_tools = create_all_handoff_tools(subagent_configs)
 
@@ -262,6 +275,8 @@ class SupervisorOrchestrator:
         )
 
         # --- 5. Create specialist wrapper nodes ---
+        # Wrappers isolate specialists: they receive only the briefing as context
+        # and return findings via Command.
         specialist_wrappers: dict[str, Any] = {}
         for sg in specialist_graphs:
             specialist_wrappers[sg["name"]] = self._create_specialist_wrapper(
@@ -270,6 +285,8 @@ class SupervisorOrchestrator:
             )
 
         # --- 6. Build the initialize_briefing node ---
+        # Restores existing briefing on follow-up messages so specialist findings
+        # survive across turns.
         async def initialize_briefing_node(
             state: BackcastSupervisorState,
         ) -> dict[str, Any]:
@@ -375,6 +392,8 @@ class SupervisorOrchestrator:
                     for spec_name in specialist_names:
                         if tool_name == f"handoff_to_{spec_name}":
                             # Prevent redispatch to completed specialists
+                            # (prevents infinite loops where the supervisor
+                            # re-dispatches to a specialist that already finished)
                             completed = state.get("completed_specialists", set())
                             if spec_name in completed:
                                 logger.warning(
@@ -401,6 +420,9 @@ class SupervisorOrchestrator:
         graph: it constructs fresh messages containing only the briefing,
         invokes the specialist graph, then compiles findings back into the
         briefing document.
+
+        Failed specialists are NOT added to ``completed_specialists`` -- this
+        allows the supervisor to retry them on a subsequent turn.
 
         The specialist's system prompt is baked into its compiled graph by
         ``compile_subagents`` — the wrapper only provides runtime context.
@@ -461,6 +483,7 @@ class SupervisorOrchestrator:
 
             max_iterations = state.get("max_tool_iterations", 25)
 
+            # Run the specialist in isolation with only the briefing as context.
             try:
                 result = await specialist_graph.ainvoke(
                     {
@@ -471,6 +494,8 @@ class SupervisorOrchestrator:
                     },
                     config={"recursion_limit": max_iterations},
                 )
+            # Errors are captured in the briefing but the specialist is NOT marked
+            # completed, allowing retry.
             except Exception as exc:
                 logger.error(
                     "[SPECIALIST_ERROR] Specialist %s failed: %s",
@@ -497,6 +522,8 @@ class SupervisorOrchestrator:
                 )
 
             messages = result.get("messages", [])
+            # DeepSeek sometimes returns empty AIMessage after tool execution --
+            # the utility falls back to tool results.
             findings = extract_final_ai_response(messages)
 
             parsed = parse_structured_findings(findings)
@@ -518,6 +545,7 @@ class SupervisorOrchestrator:
                 len(updated_data.get("sections", [])),
             )
 
+            # Mark specialist as completed only on success.
             return Command(
                 update={
                     "briefing_data": updated_data,
@@ -542,7 +570,8 @@ class SupervisorOrchestrator:
     ) -> Any:
         """Build a simple agent with direct tool access (no specialists).
 
-        Used when no specialists compile successfully.
+        Used when specialist compilation fails entirely -- gives the agent
+        direct tool access as a safety net.
         """
         logger.info("Building fallback graph with direct tool access")
 

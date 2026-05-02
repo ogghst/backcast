@@ -48,6 +48,7 @@ from app.ai.graph_cache import (
     set_request_context,
     shared_checkpointer,
 )
+from app.ai.message_utils import extract_tool_output_content
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.subagents import get_all_subagents
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
@@ -295,6 +296,18 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
     role = user.role if user else "guest"
     _user_role_cache[user_id] = (time.time() + _USER_ROLE_TTL, role)
     return role
+
+
+def _is_transient_stream_error(exc: Exception) -> bool:
+    """Check if a streaming error is transient and worth retrying."""
+    if isinstance(exc, (ConnectionResetError, OSError)):
+        return True
+    # httpcore/httpx errors — check by name to avoid hard imports
+    err_type = type(exc).__name__
+    err_module = type(exc).__module__
+    return (err_type == "ReadError" and "httpcore" in err_module) or (
+        err_type == "RemoteProtocolError" and "httpx" in err_module
+    )
 
 
 class AgentService:
@@ -847,6 +860,10 @@ class AgentService:
         Extracts briefing_data from the LangGraph checkpoint, saves it to the
         session via config_service, and deletes the checkpoint. Returns True
         if briefing was found and saved.
+
+        We persist from checkpoint (not graph state) because the streaming
+        events don't carry the final briefing -- it's only in the checkpoint
+        after graph completes.
         """
         try:
             checkpoint_state = await shared_checkpointer.aget(
@@ -869,6 +886,7 @@ class AgentService:
 
             section_count = len(briefing_data.get("sections", []))
             await self.config_service.save_session_briefing(session_id, briefing_data)
+            # Checkpoint is always deleted to prevent state bloat across sessions.
             shared_checkpointer.delete_thread(str(session_id))
             logger.info(
                 "[%s] Saved briefing (%d sections) and deleted checkpoint | session_id=%s",
@@ -902,12 +920,11 @@ class AgentService:
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
         context: dict[str, Any] | None = None,
     ) -> None:
-        """Run the agent graph publishing all events to an AgentEventBus.
+        """Run the agent graph and publish streaming events to an AgentEventBus.
 
-        Context: Decoupled variant of chat_stream() that publishes events to an
-        event bus instead of a WebSocket. Used by start_execution() for
-        background agent runs that can be consumed via REST or WebSocket
-        reconnection.
+        Decoupled from WebSocket: events are published to the bus so any consumer
+        (REST SSE, WebSocket reconnection) can subscribe by execution_id.
+        Communicates results entirely through event_bus.
 
         Args:
             message: The user's input message
@@ -921,10 +938,8 @@ class AgentService:
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries
             execution_mode: Execution mode for tool filtering
-
-        Returns:
-            None (communicates via event_bus)
         """
+        self._subagent_invocation_counts.clear()
         history = await self._build_conversation_history(session_id)
 
         # Enrich context with entity names from DB
@@ -1001,6 +1016,7 @@ class AgentService:
             else 25
         )
 
+        # -- Stream state --
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
         main_agent_segments: dict[str, list[str]] = {}
@@ -1022,9 +1038,7 @@ class AgentService:
         task_initiating_main_invocation_id: str | None = None
         last_entered_agent: str | None = None
 
-        # Event types that the dispatch loop actually handles.
-        # Skipping the rest (~40-60% of LangGraph events) avoids
-        # unnecessary CPU work in the hot streaming path.
+        # Skipping ~40-60% of LangGraph events reduces CPU in the hot streaming path.
         _HANDLED_EVENTS = frozenset(
             {
                 "on_chain_start",
@@ -1041,7 +1055,7 @@ class AgentService:
         # Per-invocation token accumulator for batched publishing
         _token_accumulator: dict[str, list[str]] = {}
 
-        # Helper to publish events
+        # -- Event helpers (closures over stream state) --
         def _publish(event_type: str, data: dict[str, Any]) -> None:
             event_bus.publish(
                 AgentEvent(
@@ -1125,6 +1139,7 @@ class AgentService:
         briefing_persisted = False
 
         try:
+            # -- Graph invocation with retry --
             main_invocation_id = str(uuid.uuid4())
 
             existing_briefing = await self.config_service.get_session_briefing(
@@ -1179,9 +1194,8 @@ class AgentService:
                             event_type == "on_chain_start"
                             and chain_name in SPECIALIST_AGENT_NAMES
                         ):
-                            # Deduplicate: LangGraph emits on_chain_start for both
-                            # the outer specialist node and the inner compiled graph.
-                            # Skip the inner one to avoid double "enter" events.
+                            # LangGraph emits on_chain_start twice per specialist
+                            # (outer node + inner graph) — deduplicate via last_entered_agent.
                             if last_entered_agent == chain_name:
                                 pass
                             else:
@@ -1260,10 +1274,10 @@ class AgentService:
                         # Handle token streaming
                         if event_type == "on_chat_model_stream":
                             chunk = data.get("chunk")
-                            # Capture reasoning_content from streaming chunks for
-                            # DeepSeek thinking mode. The accumulated final message
-                            # in on_chat_model_end may not preserve additional_kwargs.
+                            # Token streaming: accumulate per-invocation, flush in batches.
                             if isinstance(chunk, AIMessageChunk):
+                                # Capture reasoning from chunks — the final AIMessage may
+                                # not preserve additional_kwargs.
                                 rc = chunk.additional_kwargs.get("reasoning_content")
                                 if rc and isinstance(rc, str):
                                     if reasoning_content_value is None:
@@ -1314,7 +1328,7 @@ class AgentService:
 
                         # Handle tool start
                         elif event_type == "on_tool_start":
-                            # Flush any accumulated tokens before tool execution
+                            # Flush tokens before tool execution to maintain ordering.
                             _flush_accumulated_tokens(main_invocation_id)
                             if current_invocation_id and current_subagent_name:
                                 _flush_accumulated_tokens(current_invocation_id)
@@ -1408,6 +1422,8 @@ class AgentService:
 
                         # Handle tool end
                         elif event_type == "on_tool_end":
+                            # After a task (subagent delegation) completes, generate a
+                            # new main invocation_id to start a fresh response segment.
                             tool_name = event.get("name", "")
 
                             # Subagent result handling
@@ -1419,39 +1435,9 @@ class AgentService:
                                 _flush_accumulated_tokens(current_invocation_id)
 
                                 tool_output = data.get("output", "")
-                                subagent_content = ""
-
-                                if isinstance(tool_output, ToolMessage):
-                                    raw_content = tool_output.content
-                                    subagent_content = (
-                                        raw_content
-                                        if isinstance(raw_content, str)
-                                        else str(raw_content)
-                                    )
-                                elif isinstance(tool_output, Command):
-                                    update_dict = tool_output.update
-                                    if isinstance(update_dict, dict):
-                                        messages = update_dict.get("messages", [])
-                                        if messages:
-                                            last_msg = messages[-1]
-                                            if isinstance(last_msg, dict):
-                                                subagent_content = last_msg.get(
-                                                    "content", ""
-                                                )
-                                            elif hasattr(last_msg, "content"):
-                                                subagent_content = str(last_msg.content)
-                                            else:
-                                                subagent_content = str(last_msg)
-                                elif (
-                                    isinstance(tool_output, dict)
-                                    and "content" in tool_output
-                                ):
-                                    subagent_content = tool_output["content"]
-                                elif isinstance(tool_output, str):
-                                    subagent_content = tool_output
-
-                                if not isinstance(subagent_content, str):
-                                    subagent_content = str(subagent_content)
+                                subagent_content = extract_tool_output_content(
+                                    tool_output
+                                )
 
                                 if subagent_content:
                                     subagent_type = current_subagent_name or "subagent"
@@ -1611,6 +1597,7 @@ class AgentService:
                                 f"event_bus {event_bus.execution_id}"
                             )
 
+                    # -- Post-stream: persist briefing and cleanup --
                     # Flush all remaining accumulated tokens after stream ends
                     for inv_id in list(_token_accumulator.keys()):
                         _flush_accumulated_tokens(inv_id)
@@ -1621,44 +1608,25 @@ class AgentService:
 
                     break  # successful completion, exit retry loop
 
-                except (
-                    ConnectionResetError,
-                    OSError,
-                ) as stream_err:
-                    if _retry_attempt < max_retries:
-                        logger.warning(
-                            f"Transient stream error (attempt "
-                            f"{_retry_attempt + 1}/{max_retries + 1}), "
-                            f"retrying in {retry_delay}s: {stream_err}"
-                        )
-                        await asyncio.sleep(retry_delay)
-                        events_processed = 0
-                    else:
-                        logger.error(
-                            f"Stream failed after {max_retries + 1} "
-                            f"attempts: {stream_err}"
-                        )
-                        raise
                 except Exception as stream_err:
-                    # Check if it's a transient httpcore/httpx error by
-                    # inspecting type name and module to avoid hard imports
-                    err_type_name = type(stream_err).__name__
-                    err_module = type(stream_err).__module__
-                    is_transient = (
-                        err_type_name == "ReadError" and "httpcore" in err_module
-                    ) or (
-                        err_type_name == "RemoteProtocolError" and "httpx" in err_module
-                    )
-                    if is_transient and _retry_attempt < max_retries:
-                        logger.warning(
-                            f"Transient stream error (attempt "
-                            f"{_retry_attempt + 1}/{max_retries + 1}), "
-                            f"retrying in {retry_delay}s: {stream_err}"
-                        )
-                        await asyncio.sleep(retry_delay)
-                        events_processed = 0
-                    else:
+                    if (
+                        not _is_transient_stream_error(stream_err)
+                        or _retry_attempt >= max_retries
+                    ):
+                        if _retry_attempt >= max_retries:
+                            logger.error(
+                                f"Stream failed after {max_retries + 1} "
+                                f"attempts: {stream_err}"
+                            )
                         raise
+                    logger.warning(
+                        f"Transient stream error (attempt "
+                        f"{_retry_attempt + 1}/{max_retries + 1}), "
+                        f"retrying in {retry_delay}s: {stream_err}"
+                    )
+                    await asyncio.sleep(retry_delay)
+                    events_processed = 0
+                    _token_accumulator.clear()
 
         except Exception as e:
             graph_error = e  # capture for later persistence
@@ -1671,6 +1639,8 @@ class AgentService:
                 )
             )
         finally:
+            # Cleanup: cancel background flush, flush remaining tokens,
+            # clear per-request state.
             _flush_task.cancel()
             try:
                 await _flush_task
@@ -1685,12 +1655,14 @@ class AgentService:
             except Exception:
                 pass
 
-            # Persist briefing from checkpoint if not already saved
+            # Persist briefing on error if not already done — specialist
+            # findings survive even when streaming fails.
             if not briefing_persisted:
                 await self._persist_briefing_from_checkpoint(
                     session_id, log_label="BRIEFING_PERSIST_ERROR_PATH"
                 )
 
+        # -- Persist messages to session history --
         # Save assistant messages to session
         try:
             invocation_ids_in_order = list(main_agent_segments.keys())

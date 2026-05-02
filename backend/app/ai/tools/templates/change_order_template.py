@@ -102,12 +102,16 @@ async def list_change_orders(
         # Convert project_id to UUID if provided
         project_uuid = UUID(project_id) if project_id else None
 
-        # Call service method
+        # Build filters string from status if provided
+        filters = f"status:{status}" if status else None
+
         change_orders, total = await service.get_change_orders(  # type: ignore[call-arg]
             project_id=project_uuid,  # type: ignore[arg-type]
-            status=status,
             skip=skip,
             limit=limit,
+            branch=context.branch_name,
+            filters=filters,
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
