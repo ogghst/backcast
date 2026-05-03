@@ -270,7 +270,6 @@ async def create_cost_element(
     start_date: str | None = None,
     end_date: str | None = None,
     progression_type: str | None = None,
-    branch: str = "main",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new cost element.
@@ -287,7 +286,6 @@ async def create_cost_element(
         start_date: Optional start date for the schedule baseline (ISO format, e.g. "2026-05-10")
         end_date: Optional end date for the schedule baseline (ISO format, e.g. "2026-05-30")
         progression_type: Optional progression type (LINEAR, GAUSSIAN, LOGARITHMIC). Defaults to LINEAR.
-        branch: Branch name (default: "main")
         context: Injected tool execution context
 
     Returns:
@@ -328,7 +326,7 @@ async def create_cost_element(
             .where(
                 CostElementModel.code == code,
                 CostElementModel.wbe_id == UUID(wbe_id),
-                CostElementModel.branch == branch,
+                CostElementModel.branch == (context.branch_name or "main"),
                 func.upper(cast(Any, CostElementModel).valid_time).is_(None),
                 cast(Any, CostElementModel).deleted_at.is_(None),
             )
@@ -358,7 +356,7 @@ async def create_cost_element(
             name=name,
             budget_amount=budget_amount,
             description=description,
-            branch=branch,
+            branch=context.branch_name or "main",
             schedule_start_date=schedule_start,
             schedule_end_date=schedule_end,
             schedule_progression_type=progression_type,
@@ -423,7 +421,6 @@ async def update_cost_element(
     budget_amount: float | None = None,
     description: str | None = None,
     cost_element_type_id: str | None = None,
-    branch: str = "main",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Update an existing cost element.
@@ -437,7 +434,6 @@ async def update_cost_element(
         budget_amount: New budget amount (optional)
         description: New description (optional)
         cost_element_type_id: New cost element type ID (optional)
-        branch: Branch name (default: "main")
         context: Injected tool execution context
 
     Returns:
@@ -469,7 +465,7 @@ async def update_cost_element(
             cost_element_type_id=UUID(cost_element_type_id)
             if cost_element_type_id
             else None,
-            branch=branch,
+            branch=context.branch_name or "main",
         )
 
         # Call service method
@@ -511,7 +507,6 @@ async def update_cost_element(
 )
 async def delete_cost_element(
     cost_element_id: str,
-    branch: str = "main",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Soft delete a cost element.
@@ -520,7 +515,6 @@ async def delete_cost_element(
 
     Args:
         cost_element_id: UUID of the cost element to delete
-        branch: Branch name (default: "main")
         context: Injected tool execution context
 
     Returns:
@@ -543,7 +537,7 @@ async def delete_cost_element(
         await service.soft_delete(
             cost_element_id=UUID(cost_element_id),
             actor_id=UUID(context.user_id),
-            branch=branch,
+            branch=context.branch_name or "main",
         )
 
         return {
@@ -648,7 +642,6 @@ async def update_schedule_baseline(
     end_date: str | None = None,
     progression_type: str | None = None,
     description: str | None = None,
-    branch: str = "main",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Update an existing schedule baseline.
@@ -662,7 +655,6 @@ async def update_schedule_baseline(
         end_date: New end date ISO format (optional)
         progression_type: New progression type (LINEAR, GAUSSIAN, LOGARITHMIC)
         description: New description (optional)
-        branch: Branch name (default: "main")
         context: Injected tool execution context
 
     Returns:
@@ -694,7 +686,7 @@ async def update_schedule_baseline(
             end_date=datetime.fromisoformat(end_date) if end_date else None,
             progression_type=progression_type,
             description=description,
-            branch=branch,
+            branch=context.branch_name or "main",
         )
 
         # Call service method
@@ -702,7 +694,7 @@ async def update_schedule_baseline(
             root_id=UUID(schedule_baseline_id),
             baseline_in=update_data,
             actor_id=UUID(context.user_id),
-            branch=branch,
+            branch=context.branch_name or "main",
         )
 
         # Convert to AI-friendly format
@@ -739,7 +731,6 @@ async def update_schedule_baseline(
 )
 async def delete_schedule_baseline(
     schedule_baseline_id: str,
-    branch: str = "main",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Soft delete a schedule baseline.
@@ -748,7 +739,6 @@ async def delete_schedule_baseline(
 
     Args:
         schedule_baseline_id: UUID of the schedule baseline to delete
-        branch: Branch name (default: "main")
         context: Injected tool execution context
 
     Returns:
@@ -771,7 +761,7 @@ async def delete_schedule_baseline(
         await service.soft_delete(
             root_id=UUID(schedule_baseline_id),
             actor_id=UUID(context.user_id),
-            branch=branch,
+            branch=context.branch_name or "main",
         )
 
         return {

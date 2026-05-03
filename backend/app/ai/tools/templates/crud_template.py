@@ -286,6 +286,7 @@ async def create_project(
             budget=budget,
             start_date=datetime.fromisoformat(start_date) if start_date else None,
             end_date=datetime.fromisoformat(end_date) if end_date else None,
+            branch=context.branch_name or "main",
         )
 
         # Call service method (Entity-specific method handles EVCS root_id)
@@ -371,7 +372,7 @@ async def update_project(
             return {"error": "No fields provided for update"}
 
         # Create update schema with only provided fields
-        update_data = ProjectUpdate(**update_kwargs)
+        update_data = ProjectUpdate(**update_kwargs, branch=context.branch_name or "main")
 
         # Call service method
         project = await service.update_project(
@@ -619,6 +620,7 @@ async def create_wbe(
             code=code,
             description=description,
             parent_wbe_id=UUID(parent_wbe_id) if parent_wbe_id else None,
+            branch=context.branch_name or "main",
         )
 
         # Call service method (Use specialized create_wbe method)
@@ -705,7 +707,7 @@ async def update_wbe(
             return {"error": "No fields provided for update"}
 
         # Create update schema with only provided fields
-        update_data = WBEUpdate(**update_kwargs)
+        update_data = WBEUpdate(**update_kwargs, branch=context.branch_name or "main")
 
         # Call service method
         wbe = await service.update_wbe(

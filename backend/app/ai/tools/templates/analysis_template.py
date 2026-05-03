@@ -61,7 +61,6 @@ logger = logging.getLogger(__name__)
 )
 async def calculate_evm_metrics(
     project_id: str,
-    as_of_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Calculate EVM metrics for a project.
@@ -70,7 +69,6 @@ async def calculate_evm_metrics(
 
     Args:
         project_id: UUID of the project to analyze
-        as_of_date: Optional date to calculate metrics as of (ISO format string)
         context: Injected tool execution context
 
     Returns:
@@ -107,7 +105,7 @@ async def calculate_evm_metrics(
         service = EVMService(context.session)
 
         # Parse date if provided
-        as_of = datetime.fromisoformat(as_of_date) if as_of_date else datetime.now()
+        as_of = context.as_of or datetime.now()
 
         # Call service method to calculate EVM
         # Use batch method for project-level metrics

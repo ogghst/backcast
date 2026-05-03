@@ -296,6 +296,7 @@ async def create_change_order(
         change_order = await service.create_change_order(
             change_order_in=co_data,
             actor_id=UUID(context.user_id),
+            control_date=context.as_of,
         )
 
         # Convert to AI-friendly format
@@ -460,7 +461,7 @@ async def submit_change_order_for_approval(
             change_order_id=UUID(change_order_id),
             change_order_in=update_data,
             actor_id=UUID(context.user_id),
-            branch="main",
+            branch=context.branch_name or "main",
         )
 
         # Convert to AI-friendly format
@@ -529,7 +530,7 @@ async def approve_change_order(
             change_order_id=UUID(change_order_id),
             change_order_in=update_data,
             actor_id=UUID(context.user_id),
-            branch="main",
+            branch=context.branch_name or "main",
         )
 
         # Convert to AI-friendly format
@@ -599,7 +600,7 @@ async def reject_change_order(
             change_order_id=UUID(change_order_id),
             change_order_in=update_data,
             actor_id=UUID(context.user_id),
-            branch="main",
+            branch=context.branch_name or "main",
         )
 
         # Convert to AI-friendly format
