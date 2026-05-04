@@ -296,6 +296,36 @@ export interface AIConversationSessionPaginated {
 }
 
 /**
+ * MCP Server Types
+ * Matches backend schemas in backend/app/models/schemas/mcp.py
+ */
+export interface MCPServerPublic {
+  id: string;
+  name: string;
+  config: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MCPServerCreate {
+  name: string;
+  config: Record<string, unknown>;
+  is_active?: boolean;
+}
+
+export interface MCPServerUpdate {
+  name?: string;
+  config?: Record<string, unknown>;
+  is_active?: boolean;
+}
+
+export interface MCPToolInfo {
+  name: string;
+  description: string;
+}
+
+/**
  * AI Role Options for assistant RBAC configuration
  */
 export const AI_ROLE_OPTIONS = [

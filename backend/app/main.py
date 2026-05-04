@@ -28,6 +28,7 @@ from app.api.routes import (
     evm,
     forecasts,
     gantt,
+    mcp_servers,
     progress_entries,
     project_budget_settings,
     project_members,
@@ -114,12 +115,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
     )
 
+    # Initialize MCP client manager (non-critical, graceful degradation)
+    try:
+        _t0 = _time.time()
+        from app.ai.mcp.client_manager import MCPClientManager
+
+        async with async_session_maker() as session:
+            mcp_mgr = MCPClientManager()
+            await mcp_mgr.initialize(session)
+        logger.info("[STARTUP] mcp_init OK %.0fms", (_time.time() - _t0) * 1000)
+    except Exception:
+        logger.warning("[STARTUP] mcp_init FAILED", exc_info=True)
+
     logger.info("[STARTUP] COMPLETE %.0fms", (_time.time() - _startup_start) * 1000)
 
     yield
 
     # Shutdown: clean up resources
     await notifier.shutdown()
+
+    # Shutdown MCP client manager
+    try:
+        from app.ai.mcp.client_manager import MCPClientManager
+
+        mcp_mgr = MCPClientManager()
+        await mcp_mgr.shutdown()
+    except Exception:
+        logger.warning("[SHUTDOWN] mcp_shutdown FAILED", exc_info=True)
 
 
 async def _cleanup_orphaned_executions() -> None:
@@ -390,6 +412,11 @@ app.include_router(
     search.router,
     prefix=f"{settings.API_V1_STR}/search",
     tags=["Search"],
+)
+app.include_router(
+    mcp_servers.router,
+    prefix=settings.API_V1_STR,
+    tags=["MCP Servers"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)

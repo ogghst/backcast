@@ -229,6 +229,15 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       all: ["ai", "tools"] as const,
       lists: () => ["ai", "tools", "list"] as const,
     },
+    mcpServers: {
+      all: ["ai", "mcp-servers"] as const,
+      lists: () => ["ai", "mcp-servers", "list"] as const,
+      list: (includeInactive?: boolean) =>
+        ["ai", "mcp-servers", "list", includeInactive] as const,
+      detail: (id: string) => ["ai", "mcp-servers", "detail", id] as const,
+      tools: (serverId: string) =>
+        ["ai", "mcp-servers", serverId, "tools"] as const,
+    },
   },
 
   // Users

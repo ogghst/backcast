@@ -282,6 +282,12 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [tool for tool in tools if isinstance(tool, BaseTool)]
 
+    # Append MCP tools discovered from configured external servers
+    from app.ai.mcp.client_manager import MCPClientManager
+
+    mcp_manager = MCPClientManager()
+    base_tools.extend(mcp_manager.get_all_tools())
+
     _cached_tools = base_tools
     logger.info(f"Created and cached {len(base_tools)} tools for AI chat")
     return base_tools

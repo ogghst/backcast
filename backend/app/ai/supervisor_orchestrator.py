@@ -69,6 +69,7 @@ Review it FIRST — it already contains all specialist findings so far.
 - user_admin -> User and department management
 - visualization_specialist -> Diagrams, visualizations
 - forecast_manager -> Forecasts, schedule baselines
+- mcp_specialist -> External tools via MCP servers (web search, database, etc.)
 - general_purpose -> Unclear or cross-cutting requests
 
 ## Guidelines

@@ -7,3 +7,4 @@ export * from "./useAIModels";
 export * from "./useAIProviderConfigs";
 export * from "./useAIAssistants";
 export * from "./useAITools";
+export * from "./useMCPQuery";

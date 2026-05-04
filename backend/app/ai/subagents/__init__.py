@@ -285,6 +285,30 @@ Explain the impact of forecasts vs. budgets.""",
     "structured_output_schema": ForecastRead,  # Returns structured forecast data
 }
 
+# Subagent: MCP Specialist
+# Handles tasks requiring external tools via MCP servers (web search, DB, etc.)
+MCP_SPECIALIST_SUBAGENT: dict[str, Any] = {
+    "name": "mcp_specialist",
+    "description": (
+        "Handles tasks requiring external tools via MCP servers. "
+        "Has access to web search, database connections, and other external "
+        "services configured by administrators."
+    ),
+    "system_prompt": (
+        "You are an MCP specialist with access to external tools provided by "
+        "MCP (Model Context Protocol) servers.\n\n"
+        "Your tools come from external services configured by administrators. "
+        "Use them to fulfill requests that require external data or services "
+        "such as web search, database queries, or third-party integrations.\n\n"
+        "Rules:\n"
+        "- Always explain what external service you are calling and why.\n"
+        "- Report errors clearly if an external service is unavailable.\n"
+        "- Summarize external results in the context of the user's request.\n"
+    ),
+    "allowed_tools": None,  # Receives all tools; RBAC filters MCP tools by permission
+    "structured_output_schema": None,
+}
+
 # Subagent: General Purpose
 # Fallback agent for tasks that don't fit a specialist domain
 GENERAL_PURPOSE_SUBAGENT: dict[str, Any] = {
@@ -320,6 +344,7 @@ def get_all_subagents() -> list[dict[str, Any]]:
         USER_ADMIN_SUBAGENT,
         VISUALIZATION_SPECIALIST_SUBAGENT,
         FORECAST_MANAGER_SUBAGENT,
+        MCP_SPECIALIST_SUBAGENT,
         GENERAL_PURPOSE_SUBAGENT,
     ]
 
@@ -351,6 +376,7 @@ __all__ = [
     "USER_ADMIN_SUBAGENT",
     "VISUALIZATION_SPECIALIST_SUBAGENT",
     "FORECAST_MANAGER_SUBAGENT",
+    "MCP_SPECIALIST_SUBAGENT",
     "GENERAL_PURPOSE_SUBAGENT",
     "get_all_subagents",
     "get_subagent_by_name",
