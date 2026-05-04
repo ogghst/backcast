@@ -161,9 +161,10 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         project_tools.global_search,
     ]
 
-    # Add context tools (read-only for LLM awareness)
+    # Add context tools (read and write for LLM awareness and control)
     context_tools_list = [
         temporal_tools.get_temporal_context,
+        temporal_tools.set_temporal_context,
         context_tools.get_project_context,
         context_tools.get_project_structure,
     ]
@@ -280,6 +281,12 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
 
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [tool for tool in tools if isinstance(tool, BaseTool)]
+
+    # Append MCP tools discovered from configured external servers
+    from app.ai.mcp.client_manager import MCPClientManager
+
+    mcp_manager = MCPClientManager()
+    base_tools.extend(mcp_manager.get_all_tools())
 
     _cached_tools = base_tools
     logger.info(f"Created and cached {len(base_tools)} tools for AI chat")

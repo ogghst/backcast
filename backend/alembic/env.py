@@ -23,6 +23,7 @@ from app.models.domain import (  # noqa: F401
     dashboard_layout,
     department,
     forecast,
+    mcp_server,
     progress_entry,
     project,
     refresh_token,

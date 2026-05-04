@@ -683,8 +683,10 @@ async def chat_stream(
                             )
                             continue
 
-                        # Replay missed events first
-                        for event in bus.replay():
+                        # Replay missed events (only those after the client's last seen sequence)
+                        for event in bus.replay(
+                            since_sequence=sub_msg.last_seen_sequence
+                        ):
                             payload = {**event.data, "type": event.event_type}
                             try:
                                 await websocket.send_json(payload)

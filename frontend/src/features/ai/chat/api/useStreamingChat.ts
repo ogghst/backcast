@@ -42,6 +42,7 @@ import {
   isSubagentMessage,
   isSubagentResultMessage,
   isAgentCompleteMessage,
+  isAgentTransitionMessage,
   isBriefingMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
@@ -63,7 +64,7 @@ export interface UseStreamingChatConfig {
   /** Callback invoked when a token is received */
   onToken: (token: string, sessionId: string, source?: "main" | "subagent", subagentName?: string, invocationId?: string) => void;
   /** Callback invoked when the complete response is received */
-  onComplete: (sessionId: string, messageId: string, tokenUsage?: TokenUsage) => void;
+  onComplete: (sessionId: string, messageId: string | null, tokenUsage?: TokenUsage) => void;
   /** Callback invoked when an error occurs */
   onError: (error: string) => void;
   /** Optional callback invoked when a tool is called */
@@ -92,6 +93,8 @@ export interface UseStreamingChatConfig {
   onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
   /** Optional callback invoked when a briefing update is received */
   onBriefingUpdate?: (briefing: string, specialistName: string, completedSpecialists: string[]) => void;
+  /** Optional callback invoked when temporal context changes via AI tool */
+  onTemporalContextChange?: (change: import("../types").WSTemporalContextChangeMessage) => void;
 }
 
 /**
@@ -206,6 +209,7 @@ export const useStreamingChat = (
     onRawMessage,
     onExecutionStatus,
     onBriefingUpdate,
+    onTemporalContextChange,
   } = config;
 
   // Get JWT token from auth store
@@ -241,7 +245,17 @@ export const useStreamingChat = (
 
   // Sync external activeExecutionId prop into the ref
   useEffect(() => {
+    const prevId = activeExecutionIdRef.current;
     activeExecutionIdRef.current = activeExecutionId ?? null;
+
+    // When execution ID changes, restore persisted sequence number
+    if (activeExecutionId && activeExecutionId !== prevId) {
+      const stored = sessionStorage.getItem(`ws-seq-${activeExecutionId}`);
+      if (stored) {
+        lastSequenceRef.current = parseInt(stored, 10);
+        sessionStorage.removeItem(`ws-seq-${activeExecutionId}`);
+      }
+    }
   }, [activeExecutionId]);
 
   // WebSocket reference (not in state to avoid re-renders)
@@ -255,6 +269,9 @@ export const useStreamingChat = (
 
   // Timeout reference for reconnection delays
   const reconnectTimeoutRef = useRef<number | null>(null);
+
+  // Timeout reference for recentlyCompleted guard
+  const recentlyCompletedTimeoutRef = useRef<number | null>(null);
 
   // Guard: prevents the activeExecutionId effect from closing the WebSocket
   // shortly after a completion or error event (5 s window)
@@ -278,6 +295,7 @@ export const useStreamingChat = (
     onRawMessage,
     onExecutionStatus,
     onBriefingUpdate,
+    onTemporalContextChange,
   });
 
   // Keep callbacks ref updated (run on every render to capture latest callbacks)
@@ -300,6 +318,7 @@ export const useStreamingChat = (
       onRawMessage,
       onExecutionStatus,
       onBriefingUpdate,
+      onTemporalContextChange,
     };
   });
 
@@ -498,6 +517,21 @@ export const useStreamingChat = (
         return;
       }
 
+      // Handle agent transition messages (supervisor pattern specialist enter/exit)
+      if (isAgentTransitionMessage(serverMessage)) {
+        if (serverMessage.invocation_id) {
+          if (serverMessage.direction === "enter") {
+            callbacks.onSubagentStart?.(
+              serverMessage.agent_name,
+              serverMessage.invocation_id
+            );
+          } else if (serverMessage.direction === "exit") {
+            callbacks.onSubagentComplete?.(serverMessage.invocation_id);
+          }
+        }
+        return;
+      }
+
       // Handle agent complete messages
       if (isAgentCompleteMessage(serverMessage)) {
         if (serverMessage.agent_type === "main") {
@@ -533,6 +567,12 @@ export const useStreamingChat = (
           serverMessage.specialist_name,
           serverMessage.completed_specialists,
         );
+        return;
+      }
+
+      // Handle temporal context change messages (AI tool changed viewing context)
+      if (serverMessage.type === "temporal_context_change") {
+        callbacks.onTemporalContextChange?.(serverMessage as import("../types").WSTemporalContextChangeMessage);
         return;
       }
 
@@ -581,7 +621,13 @@ export const useStreamingChat = (
         // Mark as recently completed to prevent the activeExecutionId
         // effect from closing the WebSocket connection immediately
         recentlyCompletedRef.current = true;
-        setTimeout(() => { recentlyCompletedRef.current = false; }, 5000);
+        if (recentlyCompletedTimeoutRef.current !== null) {
+          window.clearTimeout(recentlyCompletedTimeoutRef.current);
+        }
+        recentlyCompletedTimeoutRef.current = window.setTimeout(() => {
+          recentlyCompletedRef.current = false;
+          recentlyCompletedTimeoutRef.current = null;
+        }, 5000);
         // Keep connection alive — do NOT close here.
         // The connection will be closed when the component unmounts
         // or the user explicitly cancels (via the cancel() function).
@@ -613,7 +659,13 @@ export const useStreamingChat = (
         // Mark as recently completed to prevent the activeExecutionId
         // effect from closing the WebSocket connection immediately
         recentlyCompletedRef.current = true;
-        setTimeout(() => { recentlyCompletedRef.current = false; }, 5000);
+        if (recentlyCompletedTimeoutRef.current !== null) {
+          window.clearTimeout(recentlyCompletedTimeoutRef.current);
+        }
+        recentlyCompletedTimeoutRef.current = window.setTimeout(() => {
+          recentlyCompletedRef.current = false;
+          recentlyCompletedTimeoutRef.current = null;
+        }, 5000);
         // Force-close the potentially broken connection to trigger reconnect
         if (wsRef.current) {
           try {
@@ -743,6 +795,9 @@ export const useStreamingChat = (
           try { ws.close(); } catch { /* ignore */ }
           wsRef.current = null;
         }
+
+        // Reset reconnect counter — this is a user-initiated action, not an automatic retry
+        reconnectAttemptsRef.current = 0;
 
         // Trigger connection if not already connecting
         if (!ws || ws.readyState === WebSocket.CLOSED) {
@@ -1089,6 +1144,28 @@ export const useStreamingChat = (
       connect();
     }
 
+    // Reconnect when the browser tab becomes visible after being hidden.
+    // Backgrounded tabs may have their WebSocket silently killed by the OS.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (cancelledRef.current) return;
+
+      const ws = wsRef.current;
+      if (!activeExecutionIdRef.current && !pendingMessageRef.current) return;
+
+      if (ws === null || ws.readyState !== WebSocket.OPEN) {
+        // Connection lost while tab was hidden — reconnect
+        if (ws && ws.readyState !== WebSocket.CONNECTING) {
+          try { ws.close(); } catch { /* ignore */ }
+          wsRef.current = null;
+        }
+        reconnectAttemptsRef.current = 0;
+        connect();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     // Cleanup on unmount - directly close connection without using cancel()
     return () => {
       // Reset first mount ref to allow reconnection if component remounts
@@ -1097,8 +1174,24 @@ export const useStreamingChat = (
 
       cancelledRef.current = true;
 
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      // Persist last sequence number so reconnection after remount skips already-seen events
+      if (activeExecutionIdRef.current && lastSequenceRef.current > 0) {
+        sessionStorage.setItem(
+          `ws-seq-${activeExecutionIdRef.current}`,
+          String(lastSequenceRef.current)
+        );
+      }
+
       // Clear complete message timeout
       clearCompleteTimeout();
+
+      // Clear recentlyCompleted timeout
+      if (recentlyCompletedTimeoutRef.current !== null) {
+        window.clearTimeout(recentlyCompletedTimeoutRef.current);
+        recentlyCompletedTimeoutRef.current = null;
+      }
 
       // Clear any pending reconnection timeout
       if (reconnectTimeoutRef.current !== null) {

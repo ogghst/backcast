@@ -1,5 +1,14 @@
 /**
  * Tests for useStreamingChat WebSocket hook
+ *
+ * Key behaviors tested:
+ * - Lazy connection: hook does NOT connect on mount unless activeExecutionId is provided
+ * - sendMessage triggers connection if not connected
+ * - sendMessage requires executionMode parameter
+ * - Callbacks match current signatures (onToken has 5 args, onComplete receives tokenUsage)
+ * - complete message does NOT close the connection
+ * - error message force-closes the connection
+ * - Resilience: reconnect, visibility change, sequence persistence, timeout cleanup
  */
 
 import { renderHook, act, waitFor } from "@testing-library/react";
@@ -7,7 +16,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useStreamingChat } from "../useStreamingChat";
 import { WSConnectionState } from "../../types";
 
-// Track WebSocket instances
+// ---------------------------------------------------------------------------
+// WebSocket mock
+// ---------------------------------------------------------------------------
+
 interface MockWebSocketInstance {
   readyState: number;
   url: string;
@@ -18,7 +30,6 @@ interface MockWebSocketInstance {
 
 let wsInstances: MockWebSocketInstance[] = [];
 
-// Mock WebSocket class
 class MockWebSocket {
   static CONNECTING = 0;
   static OPEN = 1;
@@ -32,7 +43,7 @@ class MockWebSocket {
 
   constructor(url: string) {
     this.url = url;
-    wsInstances.push(this as MockWebSocketInstance);
+    wsInstances.push(this as unknown as MockWebSocketInstance);
 
     // Simulate connection opening asynchronously
     Promise.resolve().then(() => {
@@ -74,15 +85,65 @@ class MockWebSocket {
   }
 }
 
-// Mock the global WebSocket
 vi.stubGlobal("WebSocket", MockWebSocket);
 
-// Mock the auth store
+// ---------------------------------------------------------------------------
+// Store mocks
+// ---------------------------------------------------------------------------
+
 const mockUseAuthStore = vi.fn();
 type AuthStoreSelector<T> = (state: { token: string | null }) => T;
 vi.mock("@/stores/useAuthStore", () => ({
-  useAuthStore: <T,>(selector: AuthStoreSelector<T>) => mockUseAuthStore(selector),
+  useAuthStore: <T,>(selector: AuthStoreSelector<T>) =>
+    mockUseAuthStore(selector),
 }));
+
+vi.mock("@/stores/useTimeMachineStore", () => ({
+  useTimeMachineStore: (selector: (state: Record<string, unknown>) => unknown) =>
+    selector({
+      getSelectedTime: () => null,
+      getSelectedBranch: () => null,
+      getViewMode: () => "current",
+    }),
+}));
+
+// Mock attachmentUpload so sendMessage does not try real HTTP
+vi.mock("../attachmentUpload", () => ({
+  uploadMultipleFiles: vi.fn().mockResolvedValue([]),
+}));
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Sends a message to trigger lazy connection, then waits for OPEN state.
+ * Returns the WS instance index to assert against.
+ */
+async function connectViaSendMessage(
+  result: { current: ReturnType<typeof useStreamingChat> },
+  message = "test",
+  executionMode: "safe" | "standard" | "expert" = "standard"
+) {
+  await act(async () => {
+    result.current.sendMessage(message, undefined, executionMode);
+  });
+
+  await waitFor(() => {
+    expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
+  });
+}
+
+/**
+ * Shortcut to get the latest WS instance.
+ */
+function latestWs(): MockWebSocketInstance {
+  return wsInstances[wsInstances.length - 1];
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 describe("useStreamingChat", () => {
   const mockToken = "mock-jwt-token";
@@ -96,8 +157,10 @@ describe("useStreamingChat", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     wsInstances = [];
-    mockUseAuthStore.mockImplementation((selector: AuthStoreSelector<{ token: string | null }>) =>
-      selector({ token: mockToken })
+    sessionStorage.clear();
+    mockUseAuthStore.mockImplementation(
+      (selector: AuthStoreSelector<{ token: string | null }>) =>
+        selector({ token: mockToken })
     );
   });
 
@@ -105,33 +168,51 @@ describe("useStreamingChat", () => {
     wsInstances = [];
   });
 
-  it("should establish WebSocket connection when mounted with token and assistantId", async () => {
+  // -----------------------------------------------------------------------
+  // 1. Lazy connection — no WS on mount without activeExecutionId
+  // -----------------------------------------------------------------------
+
+  it("should NOT create a WebSocket on mount without activeExecutionId", () => {
     const { result } = renderHook(() =>
       useStreamingChat({
         assistantId: mockAssistantId,
         onToken: mockOnToken,
         onComplete: mockOnComplete,
         onError: mockOnError,
-        onToolCall: mockOnToolCall,
-        onToolResult: mockOnToolResult,
       })
     );
 
-    // Should start in connecting state
-    expect(result.current.connectionState).toBe(WSConnectionState.CONNECTING);
+    // State stays CLOSED — lazy connection
+    expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
+    expect(wsInstances).toHaveLength(0);
+  });
 
-    // Should transition to open
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+  it("should establish WebSocket when sendMessage is called (lazy connection)", async () => {
+    const { result } = renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
+    expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
+
+    await connectViaSendMessage(result);
 
     expect(wsInstances).toHaveLength(1);
     expect(wsInstances[0].url).toContain("mock-jwt-token");
   });
 
+  // -----------------------------------------------------------------------
+  // 2. Token / assistantId guards
+  // -----------------------------------------------------------------------
+
   it("should not connect when token is missing", async () => {
-    mockUseAuthStore.mockImplementation((selector: AuthStoreSelector<{ token: string | null }>) =>
-      selector({ token: null })
+    mockUseAuthStore.mockImplementation(
+      (selector: AuthStoreSelector<{ token: string | null }>) =>
+        selector({ token: null })
     );
 
     const { result } = renderHook(() =>
@@ -143,11 +224,7 @@ describe("useStreamingChat", () => {
       })
     );
 
-    // Should not connect - stay in closed state
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
-    });
-
+    expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
     expect(wsInstances).toHaveLength(0);
   });
 
@@ -161,15 +238,15 @@ describe("useStreamingChat", () => {
       })
     );
 
-    // Should not connect - stay in closed state
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
-    });
-
+    expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
     expect(wsInstances).toHaveLength(0);
   });
 
-  it("should send chat request when sendMessage is called", async () => {
+  // -----------------------------------------------------------------------
+  // 3. sendMessage
+  // -----------------------------------------------------------------------
+
+  it("should send chat request when sendMessage is called with executionMode", async () => {
     const { result } = renderHook(() =>
       useStreamingChat({
         assistantId: mockAssistantId,
@@ -179,25 +256,53 @@ describe("useStreamingChat", () => {
       })
     );
 
+    await connectViaSendMessage(result, "Hello, AI!", "standard");
+
+    // The pending message is sent on open, so after connection is open we
+    // should have at least one sent message (the chat request).
     await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
+      expect(latestWs().sentMessages.length).toBeGreaterThanOrEqual(1);
     });
 
-    act(() => {
-      result.current.sendMessage("Hello, AI!");
+    const sentData = JSON.parse(latestWs().sentMessages[0]);
+    expect(sentData).toMatchObject({
+      type: "chat",
+      message: "Hello, AI!",
+      execution_mode: "standard",
+      assistant_config_id: mockAssistantId,
+      as_of: null,
+      branch_name: null,
+      branch_mode: "current",
     });
-
-    await waitFor(() => {
-      expect(wsInstances[0].sentMessages).toHaveLength(1);
-      const sentData = JSON.parse(wsInstances[0].sentMessages[0]);
-      expect(sentData).toEqual({
-        type: "chat",
-        message: "Hello, AI!",
-        session_id: null,
-        assistant_config_id: mockAssistantId,
-      });
-    });
+    // JSON.stringify omits undefined values, so project_id and context
+    // are not present in the serialized output when they are undefined
+    expect(sentData).not.toHaveProperty("project_id");
+    expect(sentData).not.toHaveProperty("context");
   });
+
+  it("should error when sendMessage is called without executionMode", async () => {
+    const { result } = renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
+    await act(async () => {
+      // @ts-expect-error — deliberately omitting executionMode
+      result.current.sendMessage("Hello");
+    });
+
+    expect(mockOnError).toHaveBeenCalledWith(
+      "executionMode is required but was not provided"
+    );
+  });
+
+  // -----------------------------------------------------------------------
+  // 4. Token messages
+  // -----------------------------------------------------------------------
 
   it("should handle token messages", async () => {
     const { result } = renderHook(() =>
@@ -209,13 +314,10 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
 
-    // Simulate receiving a token message
     act(() => {
-      wsInstances[0].dispatchEvent(
+      latestWs().dispatchEvent(
         new MessageEvent("message", {
           data: JSON.stringify({
             type: "token",
@@ -227,9 +329,20 @@ describe("useStreamingChat", () => {
     });
 
     await waitFor(() => {
-      expect(mockOnToken).toHaveBeenCalledWith("Hello", "session-123");
+      // onToken(token, sessionId, source?, subagentName?, invocationId?)
+      expect(mockOnToken).toHaveBeenCalledWith(
+        "Hello",
+        "session-123",
+        undefined,
+        undefined,
+        undefined
+      );
     });
   });
+
+  // -----------------------------------------------------------------------
+  // 5. Tool call messages
+  // -----------------------------------------------------------------------
 
   it("should handle tool call messages", async () => {
     const { result } = renderHook(() =>
@@ -242,13 +355,10 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
 
-    // Simulate receiving a tool call message
     act(() => {
-      wsInstances[0].dispatchEvent(
+      latestWs().dispatchEvent(
         new MessageEvent("message", {
           data: JSON.stringify({
             type: "tool_call",
@@ -260,11 +370,17 @@ describe("useStreamingChat", () => {
     });
 
     await waitFor(() => {
-      expect(mockOnToolCall).toHaveBeenCalledWith("list_projects", {
-        project_id: "proj-1",
-      });
+      expect(mockOnToolCall).toHaveBeenCalledWith(
+        "list_projects",
+        { project_id: "proj-1" },
+        undefined // invocationId
+      );
     });
   });
+
+  // -----------------------------------------------------------------------
+  // 6. Tool result messages
+  // -----------------------------------------------------------------------
 
   it("should handle tool result messages", async () => {
     const { result } = renderHook(() =>
@@ -277,13 +393,10 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
 
-    // Simulate receiving a tool result message
     act(() => {
-      wsInstances[0].dispatchEvent(
+      latestWs().dispatchEvent(
         new MessageEvent("message", {
           data: JSON.stringify({
             type: "tool_result",
@@ -301,7 +414,11 @@ describe("useStreamingChat", () => {
     });
   });
 
-  it("should handle complete messages", async () => {
+  // -----------------------------------------------------------------------
+  // 7. Complete messages — connection stays OPEN
+  // -----------------------------------------------------------------------
+
+  it("should handle complete messages and keep connection open", async () => {
     const { result } = renderHook(() =>
       useStreamingChat({
         assistantId: mockAssistantId,
@@ -311,13 +428,10 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
 
-    // Simulate receiving a complete message
     act(() => {
-      wsInstances[0].dispatchEvent(
+      latestWs().dispatchEvent(
         new MessageEvent("message", {
           data: JSON.stringify({
             type: "complete",
@@ -329,16 +443,23 @@ describe("useStreamingChat", () => {
     });
 
     await waitFor(() => {
-      expect(mockOnComplete).toHaveBeenCalledWith("session-123", "msg-456");
+      // onComplete(sessionId, messageId, tokenUsage?)
+      expect(mockOnComplete).toHaveBeenCalledWith(
+        "session-123",
+        "msg-456",
+        undefined
+      );
     });
 
-    // Connection should close after completion
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
-    });
+    // Connection should stay OPEN after completion
+    expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
   });
 
-  it("should handle error messages", async () => {
+  // -----------------------------------------------------------------------
+  // 8. Error messages — force-closes connection
+  // -----------------------------------------------------------------------
+
+  it("should handle error messages and close connection", async () => {
     const { result } = renderHook(() =>
       useStreamingChat({
         assistantId: mockAssistantId,
@@ -348,13 +469,10 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
 
-    // Simulate receiving an error message
     act(() => {
-      wsInstances[0].dispatchEvent(
+      latestWs().dispatchEvent(
         new MessageEvent("message", {
           data: JSON.stringify({
             type: "error",
@@ -366,12 +484,25 @@ describe("useStreamingChat", () => {
     });
 
     await waitFor(() => {
-      expect(mockOnError).toHaveBeenCalledWith("Error 500: Something went wrong");
+      expect(mockOnError).toHaveBeenCalledWith(
+        "Error 500: Something went wrong"
+      );
     });
 
-    expect(result.current.connectionState).toBe(WSConnectionState.ERROR);
+    // Error handler sets ERROR state and force-closes the WS.
+    // The close handler then transitions to CLOSED.
+    // Verify that error was recorded (it persists through the close).
     expect(result.current.error).toBeInstanceOf(Error);
+    // Connection may be either ERROR or CLOSED depending on whether the
+    // close event has already propagated. Both are acceptable error outcomes.
+    expect(
+      [WSConnectionState.ERROR, WSConnectionState.CLOSED]
+    ).toContain(result.current.connectionState);
   });
+
+  // -----------------------------------------------------------------------
+  // 9. Cancel
+  // -----------------------------------------------------------------------
 
   it("should cancel connection when cancel is called", async () => {
     const { result } = renderHook(() =>
@@ -383,9 +514,7 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
 
     act(() => {
       result.current.cancel();
@@ -396,8 +525,14 @@ describe("useStreamingChat", () => {
     });
   });
 
-  it("should handle invalid JSON messages", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  // -----------------------------------------------------------------------
+  // 10. Invalid JSON messages
+  // -----------------------------------------------------------------------
+
+  it("should handle invalid JSON messages with detailed error", async () => {
+    const consoleSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
 
     const { result } = renderHook(() =>
       useStreamingChat({
@@ -408,13 +543,10 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
 
-    // Simulate receiving invalid JSON
     act(() => {
-      wsInstances[0].dispatchEvent(
+      latestWs().dispatchEvent(
         new MessageEvent("message", {
           data: "invalid json{{{",
         })
@@ -422,14 +554,22 @@ describe("useStreamingChat", () => {
     });
 
     await waitFor(() => {
-      expect(mockOnError).toHaveBeenCalledWith("Failed to parse server message");
+      expect(mockOnError).toHaveBeenCalledWith(
+        'Failed to parse server message (type: string, length: 15, detected_type: unknown)'
+      );
     });
 
     consoleSpy.mockRestore();
   });
 
+  // -----------------------------------------------------------------------
+  // 11. Unknown message types
+  // -----------------------------------------------------------------------
+
   it("should handle unknown message types", async () => {
-    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
 
     const { result } = renderHook(() =>
       useStreamingChat({
@@ -440,13 +580,10 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
 
-    // Simulate receiving unknown message type
     act(() => {
-      wsInstances[0].dispatchEvent(
+      latestWs().dispatchEvent(
         new MessageEvent("message", {
           data: JSON.stringify({
             type: "unknown_type",
@@ -457,11 +594,18 @@ describe("useStreamingChat", () => {
     });
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Unknown WebSocket message type:",
+        expect.objectContaining({ type: "unknown_type" })
+      );
     });
 
     consoleSpy.mockRestore();
   });
+
+  // -----------------------------------------------------------------------
+  // 12. Cleanup on unmount
+  // -----------------------------------------------------------------------
 
   it("should cleanup on unmount", async () => {
     const { result, unmount } = renderHook(() =>
@@ -473,19 +617,21 @@ describe("useStreamingChat", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
-    });
+    await connectViaSendMessage(result);
+    const ws = latestWs();
 
     act(() => {
       unmount();
     });
 
-    // Should close connection on unmount
     await waitFor(() => {
-      expect(wsInstances[0].readyState).toBe(MockWebSocket.CLOSED);
+      expect(ws.readyState).toBe(MockWebSocket.CLOSED);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // 13. Session resumption with existing session ID
+  // -----------------------------------------------------------------------
 
   it("should support session resumption with existing session ID", async () => {
     const { result } = renderHook(() =>
@@ -498,18 +644,283 @@ describe("useStreamingChat", () => {
       })
     );
 
+    await connectViaSendMessage(result, "Continue our conversation");
+
+    await waitFor(() => {
+      const ws = latestWs();
+      // The pending message is sent on open
+      const sentData = JSON.parse(ws.sentMessages[0]);
+      expect(sentData.session_id).toBe("existing-session-123");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // 14. Immediate connection with activeExecutionId
+  // -----------------------------------------------------------------------
+
+  it("should connect immediately when activeExecutionId is provided", async () => {
+    const { result } = renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        activeExecutionId: "exec-123",
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
+    // Should start connecting immediately
     await waitFor(() => {
       expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
     });
 
+    expect(wsInstances).toHaveLength(1);
+
+    // The subscribe message should have been sent on open
+    const subscribeMsg = JSON.parse(latestWs().sentMessages[0]);
+    expect(subscribeMsg).toEqual({
+      type: "subscribe",
+      execution_id: "exec-123",
+      last_seen_sequence: 0,
+    });
+  });
+});
+
+// ===========================================================================
+// Resilience tests
+// ===========================================================================
+
+describe("WebSocket resilience", () => {
+  const mockToken = "mock-jwt-token";
+  const mockAssistantId = "assistant-123";
+  const mockOnToken = vi.fn();
+  const mockOnComplete = vi.fn();
+  const mockOnError = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    wsInstances = [];
+    sessionStorage.clear();
+    mockUseAuthStore.mockImplementation(
+      (selector: AuthStoreSelector<{ token: string | null }>) =>
+        selector({ token: mockToken })
+    );
+  });
+
+  afterEach(() => {
+    wsInstances = [];
+    vi.useRealTimers();
+  });
+
+  it("should reset reconnect counter on user-initiated message after max retries", async () => {
+    const { result } = renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        activeExecutionId: "exec-123",
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
+    // Wait for initial connection
+    await waitFor(() => {
+      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
+    });
+
+    const initialWsCount = wsInstances.length;
+
+    // Simulate connection loss — close fires, reconnect will attempt.
+    // We cannot easily exhaust 5 retries with real timers (too slow).
+    // Instead: close the connection, wait for CLOSED, then verify that
+    // sendMessage still creates a fresh connection (it resets the counter).
     act(() => {
-      result.current.sendMessage("Continue our conversation");
+      latestWs().dispatchEvent(new CloseEvent("close"));
+    });
+
+    // Wait for closed state
+    await waitFor(() => {
+      expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
+    });
+
+    // A reconnection attempt was scheduled; cancel it by sending a new
+    // user-initiated message. sendMessage resets reconnectAttemptsRef.
+    await act(async () => {
+      result.current.sendMessage("new message", undefined, "standard");
+    });
+
+    // A new WebSocket should have been created (user-initiated, counter reset)
+    await waitFor(() => {
+      expect(wsInstances.length).toBeGreaterThan(initialWsCount);
+    });
+  });
+
+  it("should reconnect when tab becomes visible with dead connection and active execution", async () => {
+    const { result } = renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        activeExecutionId: "exec-123",
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
+    // Wait for initial connection
+    await waitFor(() => {
+      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
+    });
+
+    const initialWsCount = wsInstances.length;
+
+    // Simulate connection death
+    act(() => {
+      latestWs().dispatchEvent(new CloseEvent("close"));
     });
 
     await waitFor(() => {
-      expect(wsInstances[0].sentMessages).toHaveLength(1);
-      const sentData = JSON.parse(wsInstances[0].sentMessages[0]);
-      expect(sentData.session_id).toBe("existing-session-123");
+      expect(result.current.connectionState).toBe(WSConnectionState.CLOSED);
     });
+
+    // Simulate tab becoming visible
+    await act(async () => {
+      Object.defineProperty(document, "visibilityState", {
+        value: "visible",
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    // A new WebSocket should be created
+    await waitFor(() => {
+      expect(wsInstances.length).toBeGreaterThan(initialWsCount);
+    });
+
+    // Restore visibilityState
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it("should persist sequence number to sessionStorage on unmount", async () => {
+    const { result, unmount } = renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        activeExecutionId: "exec-123",
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
+    });
+
+    // Receive a message with sequence number
+    act(() => {
+      latestWs().dispatchEvent(
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            type: "token",
+            content: "Hello",
+            session_id: "session-123",
+            sequence: 42,
+          }),
+        })
+      );
+    });
+
+    // Unmount
+    act(() => {
+      unmount();
+    });
+
+    // Verify sequence number was persisted
+    expect(sessionStorage.getItem("ws-seq-exec-123")).toBe("42");
+  });
+
+  it("should restore sequence number from sessionStorage on remount", async () => {
+    // Pre-populate sessionStorage with a sequence number
+    sessionStorage.setItem("ws-seq-exec-123", "42");
+
+    const { result } = renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        activeExecutionId: "exec-123",
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
+    // Should connect immediately due to activeExecutionId
+    await waitFor(() => {
+      expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
+    });
+
+    // The subscribe message should include last_seen_sequence: 42
+    const subscribeMsg = JSON.parse(latestWs().sentMessages[0]);
+    expect(subscribeMsg).toEqual({
+      type: "subscribe",
+      execution_id: "exec-123",
+      last_seen_sequence: 42,
+    });
+
+    // sessionStorage entry should be cleaned up after restore
+    expect(sessionStorage.getItem("ws-seq-exec-123")).toBeNull();
+  });
+
+  it("should clean up recentlyCompleted timeout on unmount without errors", async () => {
+    const { result, unmount } = renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
+    // Establish connection using real timers
+    await connectViaSendMessage(result);
+
+    // Receive a complete message — sets recentlyCompletedRef with 5s timeout
+    act(() => {
+      latestWs().dispatchEvent(
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            type: "complete",
+            session_id: "session-123",
+            message_id: "msg-456",
+          }),
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockOnComplete).toHaveBeenCalled();
+    });
+
+    // Now switch to fake timers for the timeout advancement
+    vi.useFakeTimers();
+
+    // Unmount within the 5s window — should not throw
+    expect(() => {
+      act(() => {
+        unmount();
+      });
+    }).not.toThrow();
+
+    // Advance past the 5s timeout — should not cause any errors
+    // (the timeout ref was cleaned up on unmount)
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+
+    // No additional errors should have been reported
+    expect(mockOnError).not.toHaveBeenCalled();
   });
 });

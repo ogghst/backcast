@@ -1,17 +1,20 @@
 """Temporal context tools for AI agent.
 
-Provides read-only access to temporal context information for the LLM.
-Tools in this module do NOT modify temporal state - they only provide
-visibility into the current temporal context.
+Provides read and write access to temporal context information for the LLM.
+- get_temporal_context: Read-only visibility into current temporal state
+- set_temporal_context: Change the temporal viewing context (as_of, branch, mode)
 """
 
 from datetime import datetime
 from typing import Annotated, Any
+from uuid import UUID
 
 from langchain_core.tools import InjectedToolArg
 
+from app.ai.execution.agent_event import AgentEvent
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import RiskLevel, ToolContext
+from app.services.branch_service import BranchService
 
 
 @ai_tool(
@@ -25,7 +28,7 @@ from app.ai.tools.types import RiskLevel, ToolContext
     "The 'as_of' date represents YOUR CURRENT DATE as the AI agent - use this "
     "to answer questions like 'what is the current day' or 'what month is it'. "
     "NOTE: This is informational only. To change temporal context, "
-    "use the Time Machine component in the UI.",
+    "use the set_temporal_context tool.",
     permissions=[],  # No special permissions required
     category="temporal",
     risk_level=RiskLevel.LOW,
@@ -77,4 +80,117 @@ async def get_temporal_context(
         "current_date": current_time.strftime("%A, %B %d, %Y at %I:%M %p"),
         "branch_name": context.branch_name or "main",
         "branch_mode": context.branch_mode or "merged",
+    }
+
+
+@ai_tool(
+    name="set_temporal_context",
+    description="Change the temporal viewing context for this AI session. "
+    "Use this when the user asks to view data at a different point in time, "
+    "switch to a different branch/change order, or change the branch viewing mode. "
+    "Only the parameters you provide will change; unset parameters remain at their "
+    "current values. Changes take effect for all subsequent tool calls in this conversation.",
+    permissions=["temporal-write"],
+    category="temporal",
+    risk_level=RiskLevel.LOW,
+)
+async def set_temporal_context(
+    as_of: str | None = None,
+    branch_name: str | None = None,
+    branch_mode: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Change the temporal viewing context for this session.
+
+    Only provided parameters are changed; unset parameters remain unchanged.
+
+    Args:
+        as_of: ISO datetime string to set the temporal view point, or "now" to reset to current time (e.g. "2025-01-15" or "2025-06-15T12:30:00")
+        branch_name: Branch name to switch to (e.g. "main", "BR-001"). Must be an existing branch for the current project.
+        branch_mode: How to display branch data - "merged" (combine with main branch) or "isolated" (show only this branch)
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with success status and details of what changed
+
+    Example:
+        >>> await set_temporal_context(as_of="2025-01-15", context=ctx)
+        {"success": True, "message": "Temporal context updated", "changes": {...}}
+    """
+    if as_of is None and branch_name is None and branch_mode is None:
+        return {
+            "error": "At least one parameter must be provided (as_of, branch_name, or branch_mode)"
+        }
+
+    changes: dict[str, dict[str, str | None]] = {}
+
+    # Validate and parse as_of
+    parsed_as_of: datetime | None | object = object()  # sentinel for "not provided"
+    if as_of is not None:
+        if as_of.lower() == "now":
+            parsed_as_of = None
+        else:
+            try:
+                parsed_as_of = datetime.fromisoformat(as_of)
+            except ValueError:
+                return {
+                    "error": f"Invalid as_of format: '{as_of}'. "
+                    "Use ISO format like '2025-01-15' or '2025-06-15T12:30:00', or 'now' for current time"
+                }
+
+    # Validate branch_mode
+    if branch_mode is not None and branch_mode not in ("merged", "isolated"):
+        return {
+            "error": f"Invalid branch_mode: '{branch_mode}'. Must be 'merged' or 'isolated'"
+        }
+
+    # Validate branch_name against DB if project context exists
+    if branch_name is not None and context.project_id is not None:
+        if branch_name != "main":
+            try:
+                svc = BranchService(context.session)
+                branches = await svc.list_branches_as_of(UUID(context.project_id))
+                valid_names = [b.name for b in branches]
+                if branch_name not in valid_names:
+                    return {
+                        "error": f"Branch '{branch_name}' not found for this project. "
+                        f"Available branches: main{', ' + ', '.join(valid_names) if valid_names else ''}"
+                    }
+            except Exception:
+                pass  # Allow on validation failure
+
+    # Capture old values and apply changes
+    if as_of is not None:
+        old_as_of = context.as_of.isoformat() if context.as_of else None
+        context.as_of = parsed_as_of if parsed_as_of is not None else None  # type: ignore[assignment]
+        new_as_of = context.as_of.isoformat() if context.as_of else None
+        changes["as_of"] = {"from": old_as_of, "to": new_as_of}
+
+    if branch_name is not None:
+        old_branch = context.branch_name or "main"
+        context.branch_name = branch_name
+        changes["branch_name"] = {"from": old_branch, "to": branch_name}
+
+    if branch_mode is not None:
+        old_mode = context.branch_mode or "merged"
+        context.branch_mode = branch_mode  # type: ignore[assignment]
+        changes["branch_mode"] = {"from": old_mode, "to": branch_mode}
+
+    # Publish event for frontend
+    if context._event_bus is not None:
+        context._event_bus.publish(
+            AgentEvent(
+                event_type="temporal_context_change",
+                data={
+                    "as_of": context.as_of.isoformat() if context.as_of else None,
+                    "branch_name": context.branch_name or "main",
+                    "branch_mode": context.branch_mode or "merged",
+                },
+            )
+        )
+
+    return {
+        "success": True,
+        "message": "Temporal context updated",
+        "changes": changes,
     }

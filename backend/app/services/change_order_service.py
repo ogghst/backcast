@@ -128,6 +128,28 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             "project_id"
         )  # Already a UUID from Pydantic validation
 
+        # Prevent duplicate drafts from AI agent loops
+        title = co_data.get("title", "")
+        if title:
+            from app.core.enums import ChangeOrderStatus as COStatus
+
+            existing_stmt = select(ChangeOrder).where(
+                ChangeOrder.project_id == project_id,
+                ChangeOrder.title == title,
+                ChangeOrder.branch == "main",
+                ChangeOrder.status == COStatus.DRAFT,
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            ).limit(1)
+            existing_result = await self.session.execute(existing_stmt)
+            existing_co = existing_result.scalar_one_or_none()
+            if existing_co:
+                logger.warning(
+                    f"Draft change order with title '{title}' already exists: "
+                    f"{existing_co.code}, returning existing"
+                )
+                return existing_co
+
         # Generate a UUID for the change_order root
         root_id = uuid4()
 
@@ -1959,9 +1981,14 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         from app.core.enums import ChangeOrderStatus
         from app.models.domain.project import Project
 
-        # Verify project exists
+        # Verify project exists (with temporal filtering — Project is versioned)
         project_result = await self.session.execute(
-            select(Project).where(Project.project_id == project_id)
+            select(Project).where(
+                Project.project_id == project_id,
+                Project.branch == "main",
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
+            ).limit(1)
         )
         project = project_result.scalar_one_or_none()
         if not project:

@@ -1,11 +1,12 @@
-"""Tests for ToolContext temporal parameters."""
+"""Tests for ToolContext temporal parameters and set_temporal_context tool."""
 
 from datetime import datetime
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.tools.temporal_tools import get_temporal_context
+from app.ai.tools.temporal_tools import get_temporal_context, set_temporal_context
 from app.ai.tools.types import ToolContext
 
 
@@ -171,3 +172,179 @@ class TestToolContextTemporalParams:
         # Assert
         assert result["as_of"] == "2025-06-15T12:00:00"
         assert result["current_date"] == "Sunday, June 15, 2025 at 12:00 PM"
+
+
+class TestSetTemporalContext:
+    """Test set_temporal_context tool functionality."""
+
+    @pytest.mark.asyncio
+    async def test_change_as_of_date(self, db_session: AsyncSession):
+        """Test changing only the as_of date."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+            user_role="admin",
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"as_of": "2025-01-15", "context": context}
+        )
+
+        assert result["success"] is True
+        assert "as_of" in result["changes"]
+        assert result["changes"]["as_of"]["from"] is None
+        assert result["changes"]["as_of"]["to"] == "2025-01-15T00:00:00"
+        assert context.as_of == datetime(2025, 1, 15)
+
+    @pytest.mark.asyncio
+    async def test_change_branch_name(self, db_session: AsyncSession):
+        """Test changing only the branch name to main (always valid)."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+            user_role="admin",
+            branch_name="main",
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"branch_mode": "isolated", "context": context}
+        )
+
+        assert result["success"] is True
+        assert "branch_mode" in result["changes"]
+        assert result["changes"]["branch_mode"]["from"] == "merged"
+        assert result["changes"]["branch_mode"]["to"] == "isolated"
+        assert context.branch_mode == "isolated"
+
+    @pytest.mark.asyncio
+    async def test_change_multiple_params(self, db_session: AsyncSession):
+        """Test changing multiple parameters at once."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+            user_role="admin",
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"as_of": "2025-03-01", "branch_mode": "isolated", "context": context}
+        )
+
+        assert result["success"] is True
+        assert len(result["changes"]) == 2
+        assert context.as_of == datetime(2025, 3, 1)
+        assert context.branch_mode == "isolated"
+
+    @pytest.mark.asyncio
+    async def test_unset_params_remain_unchanged(self, db_session: AsyncSession):
+        """Test that unset parameters remain unchanged."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+            user_role="admin",
+            branch_name="BR-001",
+            branch_mode="isolated",  # type: ignore
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"as_of": "2025-01-15", "context": context}
+        )
+
+        assert result["success"] is True
+        assert "branch_name" not in result["changes"]
+        assert "branch_mode" not in result["changes"]
+        assert context.branch_name == "BR-001"
+        assert context.branch_mode == "isolated"
+
+    @pytest.mark.asyncio
+    async def test_error_no_params_provided(self, db_session: AsyncSession):
+        """Test error when no parameters are provided."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+        )
+
+        result = await set_temporal_context.ainvoke({"context": context})
+
+        assert "error" in result
+        assert "At least one parameter" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_error_invalid_as_of_format(self, db_session: AsyncSession):
+        """Test error with invalid date format."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"as_of": "not-a-date", "context": context}
+        )
+
+        assert "error" in result
+        assert "Invalid as_of format" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_error_invalid_branch_mode(self, db_session: AsyncSession):
+        """Test error with invalid branch mode."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"branch_mode": "invalid", "context": context}
+        )
+
+        assert "error" in result
+        assert "Invalid branch_mode" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_reset_as_of_to_now(self, db_session: AsyncSession):
+        """Test resetting as_of to current time."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+            as_of=datetime(2025, 1, 15),
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"as_of": "now", "context": context}
+        )
+
+        assert result["success"] is True
+        assert context.as_of is None
+
+    @pytest.mark.asyncio
+    async def test_publishes_event_on_bus(self, db_session: AsyncSession):
+        """Test that tool publishes event when event bus is available."""
+        mock_bus = MagicMock()
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+            _event_bus=mock_bus,
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"branch_mode": "isolated", "context": context}
+        )
+
+        assert result["success"] is True
+        mock_bus.publish.assert_called_once()
+        event = mock_bus.publish.call_args[0][0]
+        assert event.event_type == "temporal_context_change"
+        assert event.data["branch_mode"] == "isolated"
+
+    @pytest.mark.asyncio
+    async def test_no_event_when_bus_is_none(self, db_session: AsyncSession):
+        """Test that tool works without event bus."""
+        context = ToolContext(
+            session=db_session,
+            user_id="user-123",
+        )
+
+        result = await set_temporal_context.ainvoke(
+            {"branch_mode": "merged", "context": context}
+        )
+
+        assert result["success"] is True
+        assert context.branch_mode == "merged"

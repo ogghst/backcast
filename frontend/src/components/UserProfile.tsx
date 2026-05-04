@@ -19,6 +19,7 @@ import {
   RobotOutlined,
   ApiOutlined,
   SafetyOutlined,
+  CloudServerOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -93,6 +94,15 @@ export const UserProfile: React.FC = () => {
         icon: <ApiOutlined />,
         label: "AI Assistants",
         onClick: () => navigate("/admin/ai-assistants"),
+      });
+    }
+
+    if (can("ai-config-read")) {
+      adminItems.push({
+        key: "/admin/mcp-servers",
+        icon: <CloudServerOutlined />,
+        label: "MCP Servers",
+        onClick: () => navigate("/admin/mcp-servers"),
       });
     }
 

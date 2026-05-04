@@ -111,6 +111,8 @@ async def list_projects(
             limit=limit,
             sort_field=sort_field,
             sort_order=sort_order,
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -181,7 +183,11 @@ async def get_project(
         service = context.project_service
 
         # Call service method
-        project = await service.get_as_of(UUID(project_id))
+        project = await service.get_as_of(
+            UUID(project_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
+        )
 
         if not project:
             not_found_result = {"error": f"Project {project_id} not found"}
@@ -280,6 +286,7 @@ async def create_project(
             budget=budget,
             start_date=datetime.fromisoformat(start_date) if start_date else None,
             end_date=datetime.fromisoformat(end_date) if end_date else None,
+            branch=context.branch_name or "main",
         )
 
         # Call service method (Entity-specific method handles EVCS root_id)
@@ -365,7 +372,7 @@ async def update_project(
             return {"error": "No fields provided for update"}
 
         # Create update schema with only provided fields
-        update_data = ProjectUpdate(**update_kwargs)
+        update_data = ProjectUpdate(**update_kwargs, branch=context.branch_name or "main")
 
         # Call service method
         project = await service.update_project(
@@ -449,6 +456,8 @@ async def list_wbes(
             search=search,
             skip=skip,
             limit=limit,
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format
@@ -514,7 +523,11 @@ async def get_wbe(
         service = WBEService(context.session)
 
         # Call service method
-        wbe = await service.get_as_of(UUID(wbe_id))
+        wbe = await service.get_as_of(
+            UUID(wbe_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
+        )
 
         if not wbe:
             return {"error": f"WBE {wbe_id} not found"}
@@ -607,6 +620,7 @@ async def create_wbe(
             code=code,
             description=description,
             parent_wbe_id=UUID(parent_wbe_id) if parent_wbe_id else None,
+            branch=context.branch_name or "main",
         )
 
         # Call service method (Use specialized create_wbe method)
@@ -693,7 +707,7 @@ async def update_wbe(
             return {"error": "No fields provided for update"}
 
         # Create update schema with only provided fields
-        update_data = WBEUpdate(**update_kwargs)
+        update_data = WBEUpdate(**update_kwargs, branch=context.branch_name or "main")
 
         # Call service method
         wbe = await service.update_wbe(

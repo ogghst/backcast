@@ -102,12 +102,16 @@ async def list_change_orders(
         # Convert project_id to UUID if provided
         project_uuid = UUID(project_id) if project_id else None
 
-        # Call service method
-        change_orders, total = await service.get_change_orders(  # type: ignore[call-arg]
+        # Build filters string from status if provided
+        filters = f"status:{status}" if status else None
+
+        change_orders, total = await service.get_change_orders(
             project_id=project_uuid,  # type: ignore[arg-type]
-            status=status,
             skip=skip,
             limit=limit,
+            branch=context.branch_name or "main",
+            filters=filters,
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -187,7 +191,9 @@ async def get_change_order(
 
         # Call service method
         change_order = await service.get_as_of(
-            UUID(change_order_id), branch=context.branch_name or "main"
+            UUID(change_order_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         if not change_order:
@@ -290,6 +296,7 @@ async def create_change_order(
         change_order = await service.create_change_order(
             change_order_in=co_data,
             actor_id=UUID(context.user_id),
+            control_date=context.as_of,
         )
 
         # Convert to AI-friendly format
@@ -375,6 +382,7 @@ async def generate_change_order_draft(
             description=description,
             reason=reason,
             actor_id=UUID(context.user_id),
+            branch=context.branch_name or "main",
         )
 
         # Extract AI analysis results from impact_analysis_results
@@ -453,7 +461,7 @@ async def submit_change_order_for_approval(
             change_order_id=UUID(change_order_id),
             change_order_in=update_data,
             actor_id=UUID(context.user_id),
-            branch="main",
+            branch=context.branch_name or "main",
         )
 
         # Convert to AI-friendly format
@@ -522,7 +530,7 @@ async def approve_change_order(
             change_order_id=UUID(change_order_id),
             change_order_in=update_data,
             actor_id=UUID(context.user_id),
-            branch="main",
+            branch=context.branch_name or "main",
         )
 
         # Convert to AI-friendly format
@@ -592,7 +600,7 @@ async def reject_change_order(
             change_order_id=UUID(change_order_id),
             change_order_in=update_data,
             actor_id=UUID(context.user_id),
-            branch="main",
+            branch=context.branch_name or "main",
         )
 
         # Convert to AI-friendly format
@@ -659,7 +667,9 @@ async def analyze_change_order_impact(
 
         # Get change order
         change_order = await service.get_as_of(
-            UUID(change_order_id), branch=context.branch_name or "main"
+            UUID(change_order_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
         )
 
         if not change_order:

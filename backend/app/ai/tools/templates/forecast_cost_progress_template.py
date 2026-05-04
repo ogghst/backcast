@@ -142,7 +142,6 @@ async def create_forecast(
     cost_element_id: str,
     eac_amount: float,
     basis_of_estimate: str,
-    branch: str = "main",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new forecast for a cost element.
@@ -153,7 +152,6 @@ async def create_forecast(
         cost_element_id: UUID of the cost element
         eac_amount: Estimate at Complete amount (must be non-negative)
         basis_of_estimate: Explanation for the forecast estimate
-        branch: Branch name (default: "main")
         context: Injected tool execution context
 
     Returns:
@@ -185,14 +183,14 @@ async def create_forecast(
         forecast_in = ForecastCreate(
             eac_amount=Decimal(str(eac_amount)),
             basis_of_estimate=basis_of_estimate,
-            branch=branch,
+            branch=context.branch_name or "main",
         )
 
         # Call service method
         forecast = await service.create_forecast(
             forecast_in=forecast_in,
             actor_id=UUID(context.user_id),
-            branch=branch,
+            branch=context.branch_name or "main",
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -228,7 +226,6 @@ async def update_forecast(
     forecast_id: str,
     eac_amount: float | None = None,
     basis_of_estimate: str | None = None,
-    branch: str = "main",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Update an existing forecast.
@@ -239,7 +236,6 @@ async def update_forecast(
         forecast_id: UUID of the forecast to update
         eac_amount: New EAC amount (optional)
         basis_of_estimate: New basis of estimate (optional)
-        branch: Branch name (default: "main")
         context: Injected tool execution context
 
     Returns:
@@ -267,7 +263,7 @@ async def update_forecast(
         service = ForecastService(context.session)
 
         # Create update schema with only provided fields
-        update_data: dict[str, Any] = {"branch": branch}
+        update_data: dict[str, Any] = {"branch": context.branch_name or "main"}
         if eac_amount is not None:
             update_data["eac_amount"] = Decimal(str(eac_amount))
         if basis_of_estimate is not None:
@@ -280,6 +276,7 @@ async def update_forecast(
             forecast_id=UUID(forecast_id),
             forecast_in=forecast_in,
             actor_id=UUID(context.user_id),
+            control_date=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -424,7 +421,6 @@ async def compare_forecast_to_budget(
 )
 async def get_budget_status(
     cost_element_id: str,
-    as_of_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Get budget status for a cost element.
@@ -433,7 +429,6 @@ async def get_budget_status(
 
     Args:
         cost_element_id: UUID of the cost element
-        as_of_date: Optional date to get status as of (ISO format string)
         context: Injected tool execution context
 
     Returns:
@@ -463,15 +458,10 @@ async def get_budget_status(
 
         service = CostRegistrationService(context.session)
 
-        # Parse as_of date if provided
-        as_of = None
-        if as_of_date:
-            as_of = datetime.fromisoformat(as_of_date)
-
         # Call service method
         status = await service.get_budget_status(
             cost_element_id=UUID(cost_element_id),
-            as_of=as_of,
+            as_of=context.as_of,
             branch=context.branch_name or "main",
         )
 
@@ -611,7 +601,6 @@ async def list_cost_registrations(
     cost_element_id: str,
     skip: int = 0,
     limit: int = 100,
-    as_of_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """List cost registrations for a cost element.
@@ -622,7 +611,6 @@ async def list_cost_registrations(
         cost_element_id: UUID of the cost element to list registrations for
         skip: Number of records to skip (pagination)
         limit: Maximum number of records to return
-        as_of_date: Optional date for time-travel query (ISO format string)
         context: Injected tool execution context
 
     Returns:
@@ -648,17 +636,12 @@ async def list_cost_registrations(
 
         service = CostRegistrationService(context.session)
 
-        # Parse as_of date if provided
-        as_of = None
-        if as_of_date:
-            as_of = datetime.fromisoformat(as_of_date)
-
         # Call service method
         registrations, total = await service.get_cost_registrations(
             filters={"cost_element_id": UUID(cost_element_id)},
             skip=skip,
             limit=limit,
-            as_of=as_of,
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -733,7 +716,11 @@ async def get_cost_registration(
         service = CostRegistrationService(context.session)
 
         # Call service method
-        registration = await service.get_as_of(UUID(cost_registration_id))
+        registration = await service.get_as_of(
+            UUID(cost_registration_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
+        )
 
         if registration is None:
             error_result = {
@@ -850,6 +837,7 @@ async def update_cost_registration(
             cost_registration_id=UUID(cost_registration_id),
             registration_in=registration_in,
             actor_id=UUID(context.user_id),
+            control_date=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -924,6 +912,7 @@ async def delete_cost_registration(
         await service.soft_delete(
             cost_registration_id=UUID(cost_registration_id),
             actor_id=UUID(context.user_id),
+            control_date=context.as_of,
         )
 
         # Return confirmation
@@ -1114,7 +1103,6 @@ async def get_cumulative_costs(
 )
 async def get_latest_progress(
     cost_element_id: str,
-    as_of_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Get the latest progress entry for a cost element.
@@ -1123,7 +1111,6 @@ async def get_latest_progress(
 
     Args:
         cost_element_id: UUID of the cost element to get progress for
-        as_of_date: Optional date for time-travel query (ISO format string)
         context: Injected tool execution context
 
     Returns:
@@ -1146,15 +1133,10 @@ async def get_latest_progress(
 
         service = ProgressEntryService(context.session)
 
-        # Parse as_of date if provided
-        as_of = None
-        if as_of_date:
-            as_of = datetime.fromisoformat(as_of_date)
-
         # Call service method
         progress = await service.get_latest_progress(
             cost_element_id=UUID(cost_element_id),
-            as_of=as_of,
+            as_of=context.as_of,
         )
 
         if not progress:
@@ -1242,6 +1224,7 @@ async def create_progress_entry(
         progress = await service.create(
             actor_id=UUID(context.user_id),
             progress_in=progress_in,
+            control_date=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -1279,7 +1262,6 @@ async def get_progress_history(
     cost_element_id: str,
     skip: int = 0,
     limit: int = 100,
-    as_of_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Get progress entry history for a cost element.
@@ -1290,7 +1272,6 @@ async def get_progress_history(
         cost_element_id: UUID of the cost element to get history for
         skip: Number of records to skip (pagination)
         limit: Maximum number of records to return
-        as_of_date: Optional date for time-travel query (ISO format string)
         context: Injected tool execution context
 
     Returns:
@@ -1316,17 +1297,12 @@ async def get_progress_history(
 
         service = ProgressEntryService(context.session)
 
-        # Parse as_of date if provided
-        as_of = None
-        if as_of_date:
-            as_of = datetime.fromisoformat(as_of_date)
-
         # Call service method
         progress_entries, total = await service.get_progress_history(
             cost_element_id=UUID(cost_element_id),
             skip=skip,
             limit=limit,
-            as_of=as_of,
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -1368,7 +1344,6 @@ async def list_progress_entries(
     cost_element_id: str,
     skip: int = 0,
     limit: int = 100,
-    as_of_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """List progress entries for a cost element.
@@ -1379,7 +1354,6 @@ async def list_progress_entries(
         cost_element_id: UUID of the cost element to list progress entries for
         skip: Number of records to skip (pagination)
         limit: Maximum number of records to return
-        as_of_date: Optional date for time-travel query (ISO format string)
         context: Injected tool execution context
 
     Returns:
@@ -1405,17 +1379,12 @@ async def list_progress_entries(
 
         service = ProgressEntryService(context.session)
 
-        # Parse as_of date if provided
-        as_of = None
-        if as_of_date:
-            as_of = datetime.fromisoformat(as_of_date)
-
         # Call service method (using get_progress_history for listing)
         progress_entries, total = await service.get_progress_history(
             cost_element_id=UUID(cost_element_id),
             skip=skip,
             limit=limit,
-            as_of=as_of,
+            as_of=context.as_of,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -1488,7 +1457,11 @@ async def get_progress_entry(
         service = ProgressEntryService(context.session)
 
         # Call service method
-        progress = await service.get_as_of(UUID(progress_entry_id))
+        progress = await service.get_as_of(
+            UUID(progress_entry_id),
+            branch=context.branch_name or "main",
+            as_of=context.as_of,
+        )
 
         if progress is None:
             error_result = {"error": f"Progress entry not found: {progress_entry_id}"}

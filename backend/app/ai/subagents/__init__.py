@@ -52,6 +52,7 @@ EFFICIENCY RULES:
 - For simple updates (e.g., rename), call the update tool directly — do not run analytics or health checks.""",
     "allowed_tools": [
         "get_temporal_context",
+        "set_temporal_context",
         "global_search",
         "get_project_structure",
         "list_projects",
@@ -146,15 +147,44 @@ You help with:
 - Analyzing change order impact on budget and schedule
 - Tracking change order status
 
+TOOL USAGE GUIDELINES:
+- For creating change orders, always use `generate_change_order_draft` — it automatically generates the business code and runs AI impact analysis.
+- Minimize tool calls — trust the briefing document context. Do NOT re-search for projects or entities already described in the briefing.
+- After creating a change order, one `get_change_order` call is sufficient to confirm. Do not repeatedly check status.
+
+HOW CHANGE ORDERS WORK IN BACKCAST:
+- Each change order creates an isolated branch (named BR-{code}, e.g. BR-CO-2026-001)
+- The branch contains modified versions of project entities (WBEs, cost elements, schedule baselines)
+- Changes in a branch do NOT affect the main project baseline until the change order is approved and implemented
+- When a change order is submitted for approval, the branch is locked to prevent further edits
+
+BRANCH VIEWING MODES:
+- Use set_temporal_context with branch_mode="isolated" to see ONLY the change order's modifications
+- Use set_temporal_context with branch_mode="merged" to see the combined view (main baseline + change order delta)
+- Always switch to the appropriate branch before querying data about a specific change order
+
+CHANGE ORDER WORKFLOW:
+Draft → Submitted for Approval → Under Review → Approved/Rejected → Implemented
+- Draft: Only status where details can be freely edited
+- Approval authority depends on financial impact:
+  - LOW (< €10K): Project Manager
+  - MEDIUM (€10K-€50K): Department Head
+  - HIGH (€50K-€100K): Director
+  - CRITICAL (> €100K): Executive Committee
+
+IMPACT ANALYSIS:
+- Use analyze_change_order_impact to get financial deltas, BAC changes, and schedule impact
+- Impact analysis runs automatically on creation but can be re-run at any time
+
 Critical operations require user approval. Always explain the impact
 of proposed changes before proceeding.
 Ensure proper documentation and audit trails.""",
     "allowed_tools": [
         "get_temporal_context",
+        "set_temporal_context",
         "global_search",
         "list_change_orders",
         "get_change_order",
-        "create_change_order",
         "generate_change_order_draft",
         "submit_change_order_for_approval",
         "approve_change_order",
@@ -259,6 +289,30 @@ Explain the impact of forecasts vs. budgets.""",
     "structured_output_schema": ForecastRead,  # Returns structured forecast data
 }
 
+# Subagent: MCP Specialist
+# Handles tasks requiring external tools via MCP servers (web search, DB, etc.)
+MCP_SPECIALIST_SUBAGENT: dict[str, Any] = {
+    "name": "mcp_specialist",
+    "description": (
+        "Handles tasks requiring external tools via MCP servers. "
+        "Has access to web search, database connections, and other external "
+        "services configured by administrators."
+    ),
+    "system_prompt": (
+        "You are an MCP specialist with access to external tools provided by "
+        "MCP (Model Context Protocol) servers.\n\n"
+        "Your tools come from external services configured by administrators. "
+        "Use them to fulfill requests that require external data or services "
+        "such as web search, database queries, or third-party integrations.\n\n"
+        "Rules:\n"
+        "- Always explain what external service you are calling and why.\n"
+        "- Report errors clearly if an external service is unavailable.\n"
+        "- Summarize external results in the context of the user's request.\n"
+    ),
+    "allowed_tools": None,  # Receives all tools; RBAC filters MCP tools by permission
+    "structured_output_schema": None,
+}
+
 # Subagent: General Purpose
 # Fallback agent for tasks that don't fit a specialist domain
 GENERAL_PURPOSE_SUBAGENT: dict[str, Any] = {
@@ -294,6 +348,7 @@ def get_all_subagents() -> list[dict[str, Any]]:
         USER_ADMIN_SUBAGENT,
         VISUALIZATION_SPECIALIST_SUBAGENT,
         FORECAST_MANAGER_SUBAGENT,
+        MCP_SPECIALIST_SUBAGENT,
         GENERAL_PURPOSE_SUBAGENT,
     ]
 
@@ -325,6 +380,7 @@ __all__ = [
     "USER_ADMIN_SUBAGENT",
     "VISUALIZATION_SPECIALIST_SUBAGENT",
     "FORECAST_MANAGER_SUBAGENT",
+    "MCP_SPECIALIST_SUBAGENT",
     "GENERAL_PURPOSE_SUBAGENT",
     "get_all_subagents",
     "get_subagent_by_name",

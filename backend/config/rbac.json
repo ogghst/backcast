@@ -64,7 +64,8 @@
         "ai-chat",
         "dashboard-template-update",
         "project-budget-settings-read",
-        "project-budget-settings-write"
+        "project-budget-settings-write",
+        "temporal-write"
       ]
     },
     "manager": {
@@ -182,7 +183,8 @@
         "evm-create",
         "evm-update",
         "evm-delete",
-        "ai-chat"
+        "ai-chat",
+        "temporal-write"
       ]
     },
     "ai-admin": {

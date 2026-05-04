@@ -8,6 +8,7 @@ import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
 import { CostElementTypeManagement } from "@/pages/admin/CostElementTypeManagement";
 import { AIProviderManagement } from "@/pages/admin/AIProviderManagement";
 import { AIAssistantManagement } from "@/pages/admin/AIAssistantManagement";
+import { MCPServerManagement } from "@/pages/admin/MCPServerManagement";
 import { RBACConfiguration } from "@/pages/admin/RBACConfiguration";
 import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
@@ -91,6 +92,10 @@ export const router = createBrowserRouter([
       {
         path: "/admin/ai-assistants",
         element: <AIAssistantManagement />,
+      },
+      {
+        path: "/admin/mcp-servers",
+        element: <MCPServerManagement />,
       },
       {
         path: "/admin/rbac",

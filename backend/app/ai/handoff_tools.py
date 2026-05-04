@@ -78,6 +78,11 @@ def create_handoff_tool(
                     rc_kwargs["additional_kwargs"] = {"reasoning_content": rc}
                 break
 
+        # This AIMessage is needed because Command(graph=Command.PARENT) only
+        # propagates the `update` dict to the parent graph. The original AIMessage
+        # from the LLM stays inside the supervisor subgraph and doesn't reach the
+        # parent state. Without this, the parent message history would have a gap
+        # (tool_message with no preceding AIMessage).
         ai_message = AIMessage(
             content="",
             tool_calls=[

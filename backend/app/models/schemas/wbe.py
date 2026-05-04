@@ -4,9 +4,11 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.temporal import format_temporal_range_for_api
+from app.models.schemas.mixins import TemporalComputedMixin
+from app.models.schemas.temporal_validators import TemporalRange
+from app.models.schemas.validators import NotEmptyString
 
 
 class WBEBase(BaseModel):
@@ -45,7 +47,7 @@ class WBECreate(WBEBase):
 class WBEUpdate(BaseModel):
     """Schema for updating an existing WBE."""
 
-    name: str | None = Field(None, max_length=255)
+    name: NotEmptyString = Field(None, max_length=255)
     # NOTE: budget_allocation removed - budget is computed from cost elements
     revenue_allocation: Decimal | None = Field(None, ge=0)
     level: int | None = Field(None, ge=1)
@@ -59,7 +61,7 @@ class WBEUpdate(BaseModel):
     )
 
 
-class WBERead(BaseModel):
+class WBERead(TemporalComputedMixin, BaseModel):
     """Schema for reading WBE data."""
 
     id: UUID
@@ -84,51 +86,8 @@ class WBERead(BaseModel):
     created_by_name: str | None = None
     parent_name: str | None = None
     deleted_by: UUID | None = None
-    valid_time: str | None = None
-    transaction_time: str | None = None
-
-    @field_validator("valid_time", "transaction_time", mode="before")
-    @classmethod
-    def convert_range_to_str(cls, v: object) -> str | None:
-        if v and not isinstance(v, str):
-            return str(v)
-        return v  # type: ignore
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def valid_time_formatted(self) -> dict[str, str | bool | None]:
-        """Display-ready valid_time temporal data.
-
-        Returns pre-formatted temporal range information including:
-        - ISO timestamps for machine processing
-        - Formatted display strings for UI
-        - Validity status
-
-        This allows the frontend to display dates without parsing
-        PostgreSQL range syntax.
-
-        Example:
-            {
-                "lower": "2026-01-15T10:00:00+00:00",
-                "upper": null,
-                "lower_formatted": "January 15, 2026",
-                "upper_formatted": "Present",
-                "is_currently_valid": true
-            }
-        """
-        return format_temporal_range_for_api(self.valid_time)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def transaction_time_formatted(self) -> dict[str, str | bool | None]:
-        """Display-ready transaction_time temporal data.
-
-        Returns pre-formatted temporal range information for the
-        transaction time (when this version was created in the system).
-
-        See valid_time_formatted for response format details.
-        """
-        return format_temporal_range_for_api(self.transaction_time)
+    valid_time: TemporalRange = None
+    transaction_time: TemporalRange = None
 
     model_config = ConfigDict(from_attributes=True)
 

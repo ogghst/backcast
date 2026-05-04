@@ -9,26 +9,91 @@ import os
 import time
 import uuid
 from collections import defaultdict
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
 from fastapi.encoders import jsonable_encoder
-from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
     BaseMessage,
-    BaseMessageChunk,
     HumanMessage,
     SystemMessage,
     ToolMessage,
 )
-from langchain_core.runnables import Runnable
-from langchain_core.tools import BaseTool
+
+if TYPE_CHECKING:
+    from langchain_core.tools import (  # noqa: F401
+        BaseTool,
+        StructuredTool,
+        ToolInterface,
+    )
 from langchain_openai import ChatOpenAI
+
+# langchain-deepseek provides native DeepSeek support with reasoning_content handling
+try:
+    from langchain_deepseek import ChatDeepSeek
+
+    HAS_DEEPSEEK = True
+except ImportError:
+    HAS_DEEPSEEK = False
+    ChatDeepSeek = ChatOpenAI  # type: ignore
+
+# CRITICAL: DeepSeek's thinking mode requires reasoning_content to be passed back
+# in every subsequent assistant turn. langchain-deepseek handles receiving reasoning_content
+# from the API but does NOT handle sending it back. We need to patch the message-to-dict
+# conversion to include reasoning_content from additional_kwargs.
+if HAS_DEEPSEEK:
+    import langchain_openai.chat_models.base as _lc_openai_base
+
+    _original_convert_message_to_dict = _lc_openai_base._convert_message_to_dict
+
+    def _patched_convert_message_to_dict(
+        message: BaseMessage,
+        api: Literal["chat/completions", "responses"] = "chat/completions",
+    ) -> dict[str, Any]:
+        msg_dict = _original_convert_message_to_dict(message, api=api)
+        # Propagate reasoning_content for DeepSeek thinking mode
+        if isinstance(message, AIMessage):
+            rc = message.additional_kwargs.get("reasoning_content")
+            if rc:
+                msg_dict["reasoning_content"] = rc
+            elif message.tool_calls:
+                logger.warning(
+                    "AIMessage with tool_calls but no reasoning_content — "
+                    "DeepSeek thinking mode will reject this."
+                )
+        return msg_dict
+
+    _lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
+
+    # Patch ChatDeepSeek.bind_tools() to strip tool_choice parameter
+    # DeepSeek-reasoner rejects tool_choice, but langchain_create_agent() passes it
+    _original_bind_tools = ChatDeepSeek.bind_tools
+
+    def _patched_bind_tools(  # type: ignore[no-untyped-def]
+        self,
+        tools: Sequence,  # type: ignore[type-arg]  # BaseTool | StructuredTool | ToolInterface - omitted for TYPE_CHECKING
+        *,
+        tool_choice: (
+            dict[str, str] | str | Literal["auto", "none", "required"] | bool | None
+        ) = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Strip tool_choice for DeepSeek models — the API rejects it."""
+        if tool_choice is not None:
+            logger.info(
+                "Stripping tool_choice=%s for DeepSeek model (API rejects this parameter)",
+                tool_choice,
+            )
+            tool_choice = None
+        return _original_bind_tools(self, tools, tool_choice=tool_choice, **kwargs)
+
+    ChatDeepSeek.bind_tools = _patched_bind_tools  # type: ignore[method-assign]
+
 from langgraph.types import Command
 from sqlalchemy import func as sa_func
 from sqlalchemy import select
@@ -48,6 +113,7 @@ from app.ai.graph_cache import (
     set_request_context,
     shared_checkpointer,
 )
+from app.ai.message_utils import extract_tool_output_content
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.subagents import get_all_subagents
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
@@ -90,96 +156,8 @@ _tracer_provider = initialize_telemetry(
     enable_console=os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true",
 )
 
-# ---------------------------------------------------------------------------
-# Monkey-patch langchain-openai to preserve DeepSeek reasoning_content.
-#
-# DeepSeek's thinking mode requires reasoning_content to be passed back in
-# every subsequent assistant turn. langchain-openai silently drops this field
-# during message conversion, so we patch both directions:
-#   _convert_dict_to_message → extracts reasoning_content into additional_kwargs
-#   _convert_message_to_dict → emits reasoning_content back into the API dict
-# ---------------------------------------------------------------------------
-import langchain_openai.chat_models.base as _lc_openai_base  # noqa: E402
-
-_original_convert_dict_to_message = _lc_openai_base._convert_dict_to_message
-
-
-def _patched_convert_dict_to_message(
-    _dict: Mapping[str, Any],
-) -> BaseMessage:
-    msg = _original_convert_dict_to_message(_dict)
-    if isinstance(msg, AIMessage) and "reasoning_content" in _dict:
-        msg.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
-    return msg
-
-
-_lc_openai_base._convert_dict_to_message = _patched_convert_dict_to_message
-
-_original_convert_message_to_dict = _lc_openai_base._convert_message_to_dict
-
-
-def _patched_convert_message_to_dict(
-    message: BaseMessage,
-    api: Literal["chat/completions", "responses"] = "chat/completions",
-) -> dict[str, Any]:
-    msg_dict = _original_convert_message_to_dict(message, api=api)
-    if isinstance(message, AIMessage):
-        rc = message.additional_kwargs.get("reasoning_content")
-        if rc:
-            msg_dict["reasoning_content"] = rc
-        elif message.tool_calls:
-            logger.warning(
-                "AIMessage with tool_calls but no reasoning_content — "
-                "DeepSeek thinking mode will reject this."
-            )
-    return msg_dict
-
-
-_lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
-
-_original_convert_delta_to_message_chunk = (
-    _lc_openai_base._convert_delta_to_message_chunk
-)
-
-
-def _patched_convert_delta_to_message_chunk(
-    _dict: Mapping[str, Any],
-    default_class: type[BaseMessageChunk],
-) -> BaseMessageChunk:
-    chunk = _original_convert_delta_to_message_chunk(_dict, default_class)
-    if (
-        isinstance(chunk, AIMessageChunk)
-        and "reasoning_content" in _dict
-        and _dict.get("reasoning_content")
-    ):
-        chunk.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
-    return chunk
-
-
-_lc_openai_base._convert_delta_to_message_chunk = (
-    _patched_convert_delta_to_message_chunk
-)
-
-
-class _DeepSeekSafeChatModel(ChatOpenAI):
-    """ChatOpenAI subclass that strips ``tool_choice`` for DeepSeek models.
-
-    DeepSeek's API rejects ``tool_choice`` in ``bind_tools()``.  LangChain's
-    ``create_agent`` internally calls ``model.bind_tools(tools, tool_choice=...)``
-    for subagents, which fails at runtime.  This subclass silently drops the
-    parameter when the underlying model is a DeepSeek variant.
-    """
-
-    def bind_tools(
-        self,
-        tools: Sequence[dict[str, Any] | type | Callable[..., Any] | BaseTool],
-        *,
-        tool_choice: dict[str, Any] | str | bool | None = None,
-        **kwargs: Any,
-    ) -> Runnable[LanguageModelInput, AIMessage]:
-        if self.model_name and self.model_name.startswith("deepseek"):
-            tool_choice = None
-        return super().bind_tools(tools, tool_choice=tool_choice, **kwargs)
+# NOTE: DeepSeek reasoning_content handling is now provided natively by
+# langchain-deepseek package (ChatDeepSeek class). No monkey-patches needed.
 
 
 def _extract_reasoning_content(message: AIMessage) -> dict[str, Any] | None:
@@ -297,6 +275,18 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
     return role
 
 
+def _is_transient_stream_error(exc: Exception) -> bool:
+    """Check if a streaming error is transient and worth retrying."""
+    if isinstance(exc, (ConnectionResetError, OSError)):
+        return True
+    # httpcore/httpx errors — check by name to avoid hard imports
+    err_type = type(exc).__name__
+    err_module = type(exc).__module__
+    return (err_type == "ReadError" and "httpcore" in err_module) or (
+        err_type == "RemoteProtocolError" and "httpx" in err_module
+    )
+
+
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
@@ -304,7 +294,6 @@ class AgentService:
         self.session = session
         self._config_service: AIConfigService | None = None
         self._subagent_invocation_counts: dict[str, int] = {}
-        self._cancellation_tokens: dict[UUID, asyncio.Event] = {}
 
     @property
     def config_service(self) -> AIConfigService:
@@ -375,12 +364,15 @@ class AgentService:
         model_name: str,
         temperature: float | None,
         max_tokens: int | None,
-    ) -> ChatOpenAI:
-        """Create a LangChain ChatOpenAI instance from client configuration.
+    ) -> ChatOpenAI | ChatDeepSeek:
+        """Create a LangChain ChatOpenAI or ChatDeepSeek instance from client configuration.
 
-        Context: Creates a ChatOpenAI instance by passing configuration directly
-        to LangChain, allowing it to create and manage its own client properly.
+        Context: Creates a ChatOpenAI or ChatDeepSeek instance by passing configuration
+        directly to LangChain, allowing it to create and manage its own client properly.
         This ensures compatibility with LangChain's streaming implementation.
+
+        For DeepSeek models, uses ChatDeepSeek which provides native reasoning_content
+        support without requiring monkey-patches.
 
         Args:
             client_config: Configuration dictionary for the OpenAI client
@@ -389,7 +381,7 @@ class AgentService:
             max_tokens: Optional max tokens setting
 
         Returns:
-            ChatOpenAI instance configured with the provided parameters
+            ChatOpenAI or ChatDeepSeek instance configured with the provided parameters
         """
         # Pop provider-specific params that aren't standard OpenAI client args
         reasoning_effort = client_config.pop("reasoning_effort", None)
@@ -410,18 +402,24 @@ class AgentService:
             thinking_mode,
         )
 
-        def factory() -> ChatOpenAI:
+        def factory() -> ChatOpenAI | ChatDeepSeek:
             kwargs: dict[str, Any] = {}
             if thinking_mode:
                 kwargs["extra_body"] = {"thinking": {"type": thinking_mode}}
                 if thinking_mode != "disabled" and reasoning_effort:
                     kwargs["reasoning_effort"] = reasoning_effort
-            cls = (
-                _DeepSeekSafeChatModel
-                if model_name.startswith("deepseek")
-                else ChatOpenAI
-            )
-            return cls(
+
+            # Use ChatDeepSeek for DeepSeek models (native reasoning_content support)
+            if HAS_DEEPSEEK and model_name.startswith("deepseek"):
+                return ChatDeepSeek(
+                    **client_config,
+                    model=model_name,
+                    temperature=temp,
+                    max_tokens=tokens,
+                    stream_chunk_timeout=300,
+                    **kwargs,
+                )
+            return ChatOpenAI(
                 **client_config,
                 model=model_name,
                 temperature=temp,
@@ -470,7 +468,7 @@ class AgentService:
 
     async def _create_deep_agent_graph(
         self,
-        llm: ChatOpenAI,
+        llm: ChatOpenAI | ChatDeepSeek,
         tool_context: ToolContext,
         assistant_config: AIAssistantConfig,
         websocket: WebSocket | None = None,
@@ -488,7 +486,7 @@ class AgentService:
         LangChain Deep Agents SDK. Preserves security model and temporal context.
 
         Args:
-            llm: The language model to use (for fallback to LangGraph)
+            llm: The language model to use (ChatOpenAI or ChatDeepSeek)
             tool_context: ToolContext with user permissions and temporal parameters
             assistant_config: AI assistant configuration
             websocket: Optional WebSocket connection for InterruptNode
@@ -539,21 +537,21 @@ class AgentService:
             )
 
             if settings.AI_ORCHESTRATOR == OrchestratorMode.SUPERVISOR:
-                orchestrator = SupervisorOrchestrator(
+                supervisor_orchestrator = SupervisorOrchestrator(
                     model=llm,
                     context=tool_context,
                     system_prompt=system_prompt,
                 )
-                graph = orchestrator.create_supervisor_graph(agent_config)
+                graph = supervisor_orchestrator.create_supervisor_graph(agent_config)
             else:
-                orchestrator = DeepAgentOrchestrator(
+                deep_orchestrator = DeepAgentOrchestrator(
                     model=llm,
                     context=tool_context,
                     system_prompt=system_prompt,
                     enable_subagents=enable_subagents,
                     interrupt_node=None,
                 )
-                graph = orchestrator.create_agent(agent_config)
+                graph = deep_orchestrator.create_agent(agent_config)
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
             logger.info(
@@ -729,9 +727,7 @@ class AgentService:
         )
 
         # Invoke the graph
-        # Note: Task-local sessions are created per tool execution and cleaned up below
         try:
-            # Load briefing from database (source of truth)
             existing_briefing = await self.config_service.get_session_briefing(
                 session_id
             )
@@ -755,7 +751,6 @@ class AgentService:
                 },
             )
 
-            # Save final briefing state to database
             final_briefing = result.get("briefing_data")
             if final_briefing:
                 section_count = len(final_briefing.get("sections", []))
@@ -773,15 +768,12 @@ class AgentService:
                     session_id,
                 )
 
-            # Clear checkpoint to prevent state bloat
             shared_checkpointer.delete_thread(str(session_id))
             logger.info(
                 "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (non-streaming) | session_id=%s",
                 session_id,
             )
         finally:
-            # Clean up any remaining task-local sessions after graph execution
-            # This ensures sessions are properly removed even if tools didn't clean up
             try:
                 await ToolSessionManager.commit()
                 logger.debug(
@@ -844,6 +836,61 @@ class AgentService:
             tool_calls=tool_calls_data if tool_calls_data else None,
         )
 
+    async def _persist_briefing_from_checkpoint(
+        self,
+        session_id: UUID,
+        log_label: str = "BRIEFING_PERSIST",
+    ) -> bool:
+        """Load briefing from checkpoint and persist to database.
+
+        Extracts briefing_data from the LangGraph checkpoint, saves it to the
+        session via config_service, and deletes the checkpoint. Returns True
+        if briefing was found and saved.
+
+        We persist from checkpoint (not graph state) because the streaming
+        events don't carry the final briefing -- it's only in the checkpoint
+        after graph completes.
+        """
+        try:
+            checkpoint_state = await shared_checkpointer.aget(
+                {"configurable": {"thread_id": str(session_id)}}
+            )
+            if not checkpoint_state:
+                return False
+
+            channel_values = checkpoint_state.get("channel_values", {})
+            briefing_data: dict[str, Any] | None = cast(
+                Any, channel_values.get("briefing_data")
+            )
+            if not briefing_data:
+                logger.debug(
+                    "[%s] No briefing_data in checkpoint | session_id=%s",
+                    log_label,
+                    session_id,
+                )
+                return False
+
+            section_count = len(briefing_data.get("sections", []))
+            await self.config_service.save_session_briefing(session_id, briefing_data)
+            # Checkpoint is always deleted to prevent state bloat across sessions.
+            shared_checkpointer.delete_thread(str(session_id))
+            logger.info(
+                "[%s] Saved briefing (%d sections) and deleted checkpoint | session_id=%s",
+                log_label,
+                section_count,
+                session_id,
+            )
+            return True
+        except Exception as exc:
+            logger.error(
+                "[%s] Failed: %s | session_id=%s",
+                log_label,
+                exc,
+                session_id,
+                exc_info=True,
+            )
+            return False
+
     async def _run_agent_graph(
         self,
         message: str,
@@ -859,12 +906,11 @@ class AgentService:
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
         context: dict[str, Any] | None = None,
     ) -> None:
-        """Run the agent graph publishing all events to an AgentEventBus.
+        """Run the agent graph and publish streaming events to an AgentEventBus.
 
-        Context: Decoupled variant of chat_stream() that publishes events to an
-        event bus instead of a WebSocket. Used by start_execution() for
-        background agent runs that can be consumed via REST or WebSocket
-        reconnection.
+        Decoupled from WebSocket: events are published to the bus so any consumer
+        (REST SSE, WebSocket reconnection) can subscribe by execution_id.
+        Communicates results entirely through event_bus.
 
         Args:
             message: The user's input message
@@ -878,10 +924,8 @@ class AgentService:
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries
             execution_mode: Execution mode for tool filtering
-
-        Returns:
-            None (communicates via event_bus)
         """
+        self._subagent_invocation_counts.clear()
         history = await self._build_conversation_history(session_id)
 
         # Enrich context with entity names from DB
@@ -923,6 +967,7 @@ class AgentService:
             branch_name=branch_name,
             branch_mode=branch_mode,
             execution_mode=execution_mode,
+            _event_bus=event_bus,
         )
         available_tools = create_project_tools(tool_context)
 
@@ -958,6 +1003,7 @@ class AgentService:
             else 25
         )
 
+        # -- Stream state --
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
         main_agent_segments: dict[str, list[str]] = {}
@@ -979,9 +1025,7 @@ class AgentService:
         task_initiating_main_invocation_id: str | None = None
         last_entered_agent: str | None = None
 
-        # Event types that the dispatch loop actually handles.
-        # Skipping the rest (~40-60% of LangGraph events) avoids
-        # unnecessary CPU work in the hot streaming path.
+        # Skipping ~40-60% of LangGraph events reduces CPU in the hot streaming path.
         _HANDLED_EVENTS = frozenset(
             {
                 "on_chain_start",
@@ -998,7 +1042,7 @@ class AgentService:
         # Per-invocation token accumulator for batched publishing
         _token_accumulator: dict[str, list[str]] = {}
 
-        # Helper to publish events
+        # -- Event helpers (closures over stream state) --
         def _publish(event_type: str, data: dict[str, Any]) -> None:
             event_bus.publish(
                 AgentEvent(
@@ -1079,11 +1123,12 @@ class AgentService:
         _flush_task = asyncio.create_task(_periodic_flush())
 
         graph_error: Exception | None = None
+        briefing_persisted = False
 
         try:
+            # -- Graph invocation with retry --
             main_invocation_id = str(uuid.uuid4())
 
-            # Load briefing from database (source of truth)
             existing_briefing = await self.config_service.get_session_briefing(
                 session_id
             )
@@ -1092,8 +1137,6 @@ class AgentService:
                     "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (streaming)",
                     len(existing_briefing.get("sections", [])),
                 )
-
-            # NOTE: No checkpoint deletion here - will delete after saving final briefing
 
             # Send thinking event
             _publish("thinking", {"type": "thinking"})
@@ -1138,9 +1181,8 @@ class AgentService:
                             event_type == "on_chain_start"
                             and chain_name in SPECIALIST_AGENT_NAMES
                         ):
-                            # Deduplicate: LangGraph emits on_chain_start for both
-                            # the outer specialist node and the inner compiled graph.
-                            # Skip the inner one to avoid double "enter" events.
+                            # LangGraph emits on_chain_start twice per specialist
+                            # (outer node + inner graph) — deduplicate via last_entered_agent.
                             if last_entered_agent == chain_name:
                                 pass
                             else:
@@ -1164,14 +1206,22 @@ class AgentService:
                             and chain_name in SPECIALIST_AGENT_NAMES
                         ):
                             chain_output = data.get("output")
-                            is_briefing_output = (
-                                isinstance(chain_output, dict)
-                                and "briefing_data" in chain_output
-                            )
-                            if is_briefing_output:
-                                _publish_briefing_update(chain_output, chain_name)
 
-                                # Also emit agent transition exit (first end is inner graph)
+                            # Extract briefing data from either dict
+                            # output or Command.update.  Specialist
+                            # nodes return Command objects, so
+                            # isinstance(dict) is False -- we must
+                            # check Command.update as a fallback.
+                            output_dict: dict[str, Any] | None = None
+                            if isinstance(chain_output, dict):
+                                output_dict = chain_output
+                            elif hasattr(chain_output, "update") and isinstance(
+                                getattr(chain_output, "update", None), dict
+                            ):
+                                output_dict = chain_output.update
+
+                            if output_dict and "briefing_data" in output_dict:
+                                _publish_briefing_update(output_dict, chain_name)
                                 _publish(
                                     "agent_transition",
                                     {
@@ -1181,12 +1231,13 @@ class AgentService:
                                         "invocation_id": current_invocation_id,
                                     },
                                 )
-                                current_subagent_name = None
-                                current_invocation_id = None
-                                last_entered_agent = None
                             elif chain_name == current_subagent_name:
-                                # Inner compiled graph end — flush tokens
                                 _flush_accumulated_tokens(current_invocation_id)
+
+                            # Always reset specialist tracking on chain end
+                            current_subagent_name = None
+                            current_invocation_id = None
+                            last_entered_agent = None
 
                         # Handle supervisor node completion - send briefing to frontend
                         elif (
@@ -1210,10 +1261,10 @@ class AgentService:
                         # Handle token streaming
                         if event_type == "on_chat_model_stream":
                             chunk = data.get("chunk")
-                            # Capture reasoning_content from streaming chunks for
-                            # DeepSeek thinking mode. The accumulated final message
-                            # in on_chat_model_end may not preserve additional_kwargs.
+                            # Token streaming: accumulate per-invocation, flush in batches.
                             if isinstance(chunk, AIMessageChunk):
+                                # Capture reasoning from chunks — the final AIMessage may
+                                # not preserve additional_kwargs.
                                 rc = chunk.additional_kwargs.get("reasoning_content")
                                 if rc and isinstance(rc, str):
                                     if reasoning_content_value is None:
@@ -1264,7 +1315,7 @@ class AgentService:
 
                         # Handle tool start
                         elif event_type == "on_tool_start":
-                            # Flush any accumulated tokens before tool execution
+                            # Flush tokens before tool execution to maintain ordering.
                             _flush_accumulated_tokens(main_invocation_id)
                             if current_invocation_id and current_subagent_name:
                                 _flush_accumulated_tokens(current_invocation_id)
@@ -1358,6 +1409,8 @@ class AgentService:
 
                         # Handle tool end
                         elif event_type == "on_tool_end":
+                            # After a task (subagent delegation) completes, generate a
+                            # new main invocation_id to start a fresh response segment.
                             tool_name = event.get("name", "")
 
                             # Subagent result handling
@@ -1369,39 +1422,9 @@ class AgentService:
                                 _flush_accumulated_tokens(current_invocation_id)
 
                                 tool_output = data.get("output", "")
-                                subagent_content = ""
-
-                                if isinstance(tool_output, ToolMessage):
-                                    raw_content = tool_output.content
-                                    subagent_content = (
-                                        raw_content
-                                        if isinstance(raw_content, str)
-                                        else str(raw_content)
-                                    )
-                                elif isinstance(tool_output, Command):
-                                    update_dict = tool_output.update
-                                    if isinstance(update_dict, dict):
-                                        messages = update_dict.get("messages", [])
-                                        if messages:
-                                            last_msg = messages[-1]
-                                            if isinstance(last_msg, dict):
-                                                subagent_content = last_msg.get(
-                                                    "content", ""
-                                                )
-                                            elif hasattr(last_msg, "content"):
-                                                subagent_content = str(last_msg.content)
-                                            else:
-                                                subagent_content = str(last_msg)
-                                elif (
-                                    isinstance(tool_output, dict)
-                                    and "content" in tool_output
-                                ):
-                                    subagent_content = tool_output["content"]
-                                elif isinstance(tool_output, str):
-                                    subagent_content = tool_output
-
-                                if not isinstance(subagent_content, str):
-                                    subagent_content = str(subagent_content)
+                                subagent_content = extract_tool_output_content(
+                                    tool_output
+                                )
 
                                 if subagent_content:
                                     subagent_type = current_subagent_name or "subagent"
@@ -1561,87 +1584,36 @@ class AgentService:
                                 f"event_bus {event_bus.execution_id}"
                             )
 
+                    # -- Post-stream: persist briefing and cleanup --
                     # Flush all remaining accumulated tokens after stream ends
                     for inv_id in list(_token_accumulator.keys()):
                         _flush_accumulated_tokens(inv_id)
 
-                    # Persist briefing from checkpoint after stream completes
-                    try:
-                        checkpoint_state = await shared_checkpointer.aget(
-                            {"configurable": {"thread_id": str(session_id)}}
-                        )
-                        if checkpoint_state:
-                            channel_values = checkpoint_state.get("channel_values", {})
-                            persist_briefing: dict[str, Any] | None = cast(
-                                Any, channel_values.get("briefing_data")
-                            )
-                            if persist_briefing:
-                                await self.config_service.save_session_briefing(
-                                    session_id, persist_briefing
-                                )
-                                logger.info(
-                                    "[BRIEFING_PERSIST_SUCCESS] Saved briefing from checkpoint with %d sections (streaming) | session_id=%s",
-                                    len(persist_briefing.get("sections", [])),
-                                    session_id,
-                                )
-                                shared_checkpointer.delete_thread(str(session_id))
-                                logger.info(
-                                    "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (streaming) | session_id=%s",
-                                    session_id,
-                                )
-                            else:
-                                logger.info(
-                                    "[BRIEFING_PERSIST] No briefing_data in checkpoint (streaming) | session_id=%s",
-                                    session_id,
-                                )
-                    except Exception as persist_err:
-                        logger.error(
-                            "[BRIEFING_PERSIST] Failed to persist briefing from checkpoint: %s | session_id=%s",
-                            persist_err,
-                            session_id,
-                            exc_info=True,
-                        )
+                    briefing_persisted = await self._persist_briefing_from_checkpoint(
+                        session_id, log_label="BRIEFING_PERSIST_STREAMING"
+                    )
 
                     break  # successful completion, exit retry loop
 
-                except (
-                    ConnectionResetError,
-                    OSError,
-                ) as stream_err:
-                    if _retry_attempt < max_retries:
-                        logger.warning(
-                            f"Transient stream error (attempt "
-                            f"{_retry_attempt + 1}/{max_retries + 1}), "
-                            f"retrying in {retry_delay}s: {stream_err}"
-                        )
-                        await asyncio.sleep(retry_delay)
-                        events_processed = 0
-                    else:
-                        logger.error(
-                            f"Stream failed after {max_retries + 1} "
-                            f"attempts: {stream_err}"
-                        )
-                        raise
                 except Exception as stream_err:
-                    # Check if it's a transient httpcore/httpx error by
-                    # inspecting type name and module to avoid hard imports
-                    err_type_name = type(stream_err).__name__
-                    err_module = type(stream_err).__module__
-                    is_transient = (
-                        err_type_name == "ReadError" and "httpcore" in err_module
-                    ) or (
-                        err_type_name == "RemoteProtocolError" and "httpx" in err_module
-                    )
-                    if is_transient and _retry_attempt < max_retries:
-                        logger.warning(
-                            f"Transient stream error (attempt "
-                            f"{_retry_attempt + 1}/{max_retries + 1}), "
-                            f"retrying in {retry_delay}s: {stream_err}"
-                        )
-                        await asyncio.sleep(retry_delay)
-                        events_processed = 0
-                    else:
+                    if (
+                        not _is_transient_stream_error(stream_err)
+                        or _retry_attempt >= max_retries
+                    ):
+                        if _retry_attempt >= max_retries:
+                            logger.error(
+                                f"Stream failed after {max_retries + 1} "
+                                f"attempts: {stream_err}"
+                            )
                         raise
+                    logger.warning(
+                        f"Transient stream error (attempt "
+                        f"{_retry_attempt + 1}/{max_retries + 1}), "
+                        f"retrying in {retry_delay}s: {stream_err}"
+                    )
+                    await asyncio.sleep(retry_delay)
+                    events_processed = 0
+                    _token_accumulator.clear()
 
         except Exception as e:
             graph_error = e  # capture for later persistence
@@ -1654,6 +1626,8 @@ class AgentService:
                 )
             )
         finally:
+            # Cleanup: cancel background flush, flush remaining tokens,
+            # clear per-request state.
             _flush_task.cancel()
             try:
                 await _flush_task
@@ -1663,43 +1637,19 @@ class AgentService:
                 _flush_accumulated_tokens(inv_id)
             clear_request_context()
             self.unregister_interrupt_node(session_id)
-
-            # CRITICAL: Save briefing to database even on error
-            # This ensures specialist findings are preserved even if streaming fails
             try:
-                checkpoint_state = await shared_checkpointer.aget(
-                    {"configurable": {"thread_id": str(session_id)}}
-                )
-                if checkpoint_state:
-                    channel_values = checkpoint_state.get("channel_values", {})
-                    error_briefing: dict[str, Any] | None = cast(
-                        Any, channel_values.get("briefing_data")
-                    )
-                    if error_briefing:
-                        await self.config_service.save_session_briefing(
-                            session_id, error_briefing
-                        )
-                        section_count = len(error_briefing.get("sections", []))
-                        logger.info(
-                            "[BRIEFING_PERSIST_ERROR_PATH] Saved briefing from checkpoint after error with %d sections (streaming)",
-                            section_count,
-                        )
-                        # Still delete checkpoint to prevent state bloat
-                        shared_checkpointer.delete_thread(str(session_id))
-                        logger.info(
-                            "[BRIEFING_PERSIST_ERROR_PATH] Deleted checkpoint after error-path save"
-                        )
-                    else:
-                        logger.debug(
-                            "[BRIEFING_PERSIST_ERROR_PATH] No briefing_data in checkpoint to save after error"
-                        )
-            except Exception as briefing_save_error:
-                logger.error(
-                    "[BRIEFING_PERSIST_ERROR_PATH] Failed to save briefing after graph error: %s",
-                    briefing_save_error,
-                    exc_info=True,
+                await ToolSessionManager.commit()
+            except Exception:
+                pass
+
+            # Persist briefing on error if not already done — specialist
+            # findings survive even when streaming fails.
+            if not briefing_persisted:
+                await self._persist_briefing_from_checkpoint(
+                    session_id, log_label="BRIEFING_PERSIST_ERROR_PATH"
                 )
 
+        # -- Persist messages to session history --
         # Save assistant messages to session
         try:
             invocation_ids_in_order = list(main_agent_segments.keys())
@@ -2133,25 +2083,25 @@ class AgentService:
     ) -> str:
         """Build system prompt with context awareness.
 
-        Context: Project and temporal context are enforced at the tool level via ToolContext,
+        Context: Project context is enforced at the tool level via ToolContext,
         not in the system prompt. This provides maximum security by preventing prompt injection
         attacks from bypassing constraints. The system prompt provides the LLM with awareness
         of context for better responses, but enforcement happens at the tool level.
 
-        The LLM has no control over temporal parameters (as_of, branch_name, branch_mode) or
-        project_id. These are applied automatically by tools based on the session context.
+        Temporal context (as_of, branch_name, branch_mode) is initialized from the session
+        but can be changed by the LLM via the set_temporal_context tool. Changes propagate
+        to all subsequent tool calls via the shared mutable ToolContext instance.
 
         Args:
             base_prompt: Base system prompt
             project_id: Optional project ID for project-scoped queries
-            as_of: Optional historical date for temporal queries (unused in prompt)
-            branch_name: Optional branch name for temporal queries (unused in prompt)
-            branch_mode: Optional branch mode for temporal queries (unused in prompt)
+            as_of: Optional historical date for temporal queries
+            branch_name: Optional branch name for temporal queries
+            branch_mode: Optional branch mode for temporal queries
             context: Optional context dictionary with type, id, and name
 
         Returns:
-            Base system prompt with context information (temporal enforcement
-            happens at tool level via ToolContext)
+            Base system prompt with context information
         """
         context_sections = []
 
@@ -2219,14 +2169,15 @@ class AgentService:
                 f"[TEMPORAL CONTEXT]\n"
                 f"You are operating in branch '{branch_name}' (mode: {branch_mode}). "
                 f"Changes made in this branch are isolated from the main branch until merged. "
-                f"Use branch-aware tools to query and modify data in this branch."
+                f"You can change the temporal context using the set_temporal_context tool "
+                f"(e.g., switch branches, change as_of date, or toggle branch mode)."
             )
         elif as_of:
             context_sections.append(
                 f"[TEMPORAL CONTEXT]\n"
                 f"You are viewing historical data as of {as_of.strftime('%B %d, %Y at %I:%M %p')}. "
-                f"Use time-travel tools to query data at this point in time. "
-                f"Note: Historical views are read-only."
+                f"You can change the temporal context using the set_temporal_context tool "
+                f"to view a different date, switch branches, or change branch mode."
             )
 
         # Combine base prompt with context sections
@@ -2234,8 +2185,8 @@ class AgentService:
             return base_prompt + "\n\n" + "\n\n".join(context_sections)
 
         # Return base prompt without context additions
-        # Temporal and project enforcement happens at tool level via ToolContext
-        # This provides maximum security against prompt injection attacks
+        # Project enforcement happens at tool level via ToolContext
+        # Temporal context can be changed via set_temporal_context tool
         return base_prompt
 
     async def _build_conversation_history(self, session_id: UUID) -> list[BaseMessage]:

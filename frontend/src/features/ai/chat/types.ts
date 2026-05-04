@@ -218,7 +218,7 @@ export interface TokenUsage {
 export interface WSCompleteMessage {
   type: "complete";
   session_id: string;
-  message_id: string;
+  message_id: string | null;
   token_usage?: TokenUsage;
 }
 
@@ -303,6 +303,17 @@ export interface WSAgentCompleteMessage {
 }
 
 /**
+ * Server -> Client: Agent transition event
+ * Sent when a specialist agent enters or exits in the supervisor pattern
+ */
+export interface WSAgentTransitionMessage {
+  type: "agent_transition";
+  agent_name: string;
+  direction: "enter" | "exit";
+  invocation_id: string | null;
+}
+
+/**
  * Server -> Client: Briefing update event
  * Sent when a specialist agent updates the compiled briefing document
  */
@@ -344,6 +355,18 @@ export interface WSPingMessage {
 }
 
 /**
+ * Server -> Client: Temporal context change event
+ * Sent when the AI assistant changes the temporal viewing context
+ * (as_of date, branch, branch mode) via the set_temporal_context tool
+ */
+export interface WSTemporalContextChangeMessage {
+  type: "temporal_context_change";
+  as_of: string | null;
+  branch_name: string;
+  branch_mode: "merged" | "isolated";
+}
+
+/**
  * Discriminated union of all server message types
  * Use the `type` field to discriminate between message variants
  */
@@ -362,9 +385,11 @@ export type WSServerMessage =
   | WSPollingHeartbeatMessage
   | WSPingMessage
   | WSAgentCompleteMessage
+  | WSAgentTransitionMessage
   | WSExecutionStartedMessage
   | WSExecutionStatusMessage
-  | WSBriefingMessage;
+  | WSBriefingMessage
+  | WSTemporalContextChangeMessage;
 
 /**
  * Type guard to check if a server message is a token message.
@@ -419,7 +444,8 @@ export function isCompleteMessage(message: unknown): message is WSCompleteMessag
   const msg = message as Record<string, unknown>;
   return (
     msg.type === "complete" &&
-    typeof msg.session_id === "string"
+    typeof msg.session_id === "string" &&
+    (msg.message_id === null || typeof msg.message_id === "string")
   );
 }
 
@@ -575,10 +601,28 @@ export function isAgentCompleteMessage(
 }
 
 /**
+ * Type guard to check if a server message is an agent transition message
+ */
+export function isAgentTransitionMessage(
+  message: WSServerMessage
+): message is WSAgentTransitionMessage {
+  return message.type === "agent_transition";
+}
+
+/**
  * Type guard to check if a server message is a briefing update message
  */
 export function isBriefingMessage(
   message: WSServerMessage
 ): message is WSBriefingMessage {
   return message.type === "briefing_update";
+}
+
+/**
+ * Type guard to check if a server message is a temporal context change message
+ */
+export function isTemporalContextChangeMessage(
+  message: WSServerMessage
+): message is WSTemporalContextChangeMessage {
+  return message.type === "temporal_context_change";
 }

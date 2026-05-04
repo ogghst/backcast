@@ -97,7 +97,9 @@ class DeepAgentOrchestrator:
 
         if self.enable_subagents:
             subagent_configs = (
-                config.subagents if config.subagents is not None else get_all_subagents()
+                config.subagents
+                if config.subagents is not None
+                else get_all_subagents()
             )
             compiled_subagents = compile_subagents(
                 self.model,

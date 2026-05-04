@@ -15,7 +15,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown } from "antd";
+import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
@@ -48,6 +48,8 @@ import { useLastAssistantId } from "../../hooks/useLastAssistantId";
 import { ApprovalDialog } from "../../components/ApprovalDialog";
 import { useAIChatContext } from "@/hooks/navigation/useAIChatContext";
 import type { SessionContext } from "../../types";
+import type { WSTemporalContextChangeMessage } from "../types";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 
 const { Sider, Content, Header } = Layout;
 const { useBreakpoint } = Grid;
@@ -74,6 +76,13 @@ interface ChatInterfaceProps {
  * @param props.assistantId - Optional URL-param assistant ID pre-selection
  * @param props.projectId - Optional project ID to scope chat context
  */
+
+const EMPTY_STREAMING_STATE: StreamingState = {
+  main: "",
+  mainStreams: new Map<string, MainAgentStream>(),
+  subagents: new Map<string, SubagentStream>(),
+};
+
 export const ChatInterface = ({
   sessionId: initialSessionId,
   assistantId: initialAssistantId,
@@ -483,7 +492,7 @@ export const ChatInterface = ({
    * @param messageId - The ID of the persisted assistant message
    */
   const handleComplete = useCallback(
-    (sessionId: string, messageId: string, tokenUsage?: TokenUsage) => {
+    (sessionId: string, messageId: string | null, tokenUsage?: TokenUsage) => {
       void messageId;
       // Update session ID if this was a new session (do this first)
       setCurrentSessionId((prev) => prev || sessionId);
@@ -545,11 +554,7 @@ export const ChatInterface = ({
     setError(`Chat error: ${errorMsg}`);
     setPendingUserMessage(null);
     // Clear stuck streaming state
-    setStreamingState({
-      main: "",
-      mainStreams: new Map<string, MainAgentStream>(),
-      subagents: new Map<string, SubagentStream>(),
-    });
+    setStreamingState(EMPTY_STREAMING_STATE);
     setActiveToolCalls([]);
   }, []);
 
@@ -741,6 +746,17 @@ export const ChatInterface = ({
       void sessionId; // Unused but kept for interface consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
     }, [queryClient]),
+    onTemporalContextChange: useCallback((change: WSTemporalContextChangeMessage) => {
+      const store = useTimeMachineStore.getState();
+      if (!store.currentProjectId) return;
+
+      store.selectTime(change.as_of ? new Date(change.as_of) : null);
+      store.selectBranch(change.branch_name);
+      store.selectViewMode(change.branch_mode);
+
+      const dateStr = change.as_of ? new Date(change.as_of).toLocaleDateString() : "current time";
+      message.info(`Time Machine: ${dateStr}, branch: ${change.branch_name} (${change.branch_mode})`);
+    }, []),
   });
 
   // Execution mode hook for managing AI tool risk level
@@ -754,11 +770,7 @@ export const ChatInterface = ({
     setError(null);
     setPendingUserMessage(null);
     // Clear all streaming/briefing state from previous session
-    setStreamingState({
-      main: "",
-      mainStreams: new Map<string, MainAgentStream>(),
-      subagents: new Map<string, SubagentStream>(),
-    });
+    setStreamingState(EMPTY_STREAMING_STATE);
     setActiveToolCalls([]);
     setIsWaitingForResponse(false);
     setLastTokenUsage(null);
@@ -890,11 +902,7 @@ export const ChatInterface = ({
   // Handle canceling the current stream
   const handleCancel = useCallback(() => {
     streamingChat.cancel();
-    setStreamingState({
-      main: "",
-      mainStreams: new Map<string, MainAgentStream>(),
-      subagents: new Map<string, SubagentStream>(),
-    });
+    setStreamingState(EMPTY_STREAMING_STATE);
     setActiveToolCalls([]);
     setIsWaitingForResponse(false);
     setShowStreamSeparator(false);
