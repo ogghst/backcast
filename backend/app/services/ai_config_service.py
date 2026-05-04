@@ -582,9 +582,7 @@ class AIConfigService:
 
     # === Briefing Operations ===
 
-    async def get_session_briefing(
-        self, session_id: UUID
-    ) -> dict[str, Any] | None:
+    async def get_session_briefing(self, session_id: UUID) -> dict[str, Any] | None:
         """Get briefing data for a session.
 
         Args:

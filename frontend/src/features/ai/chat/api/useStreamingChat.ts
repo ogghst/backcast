@@ -93,6 +93,8 @@ export interface UseStreamingChatConfig {
   onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
   /** Optional callback invoked when a briefing update is received */
   onBriefingUpdate?: (briefing: string, specialistName: string, completedSpecialists: string[]) => void;
+  /** Optional callback invoked when temporal context changes via AI tool */
+  onTemporalContextChange?: (change: import("../types").WSTemporalContextChangeMessage) => void;
 }
 
 /**
@@ -207,6 +209,7 @@ export const useStreamingChat = (
     onRawMessage,
     onExecutionStatus,
     onBriefingUpdate,
+    onTemporalContextChange,
   } = config;
 
   // Get JWT token from auth store
@@ -292,6 +295,7 @@ export const useStreamingChat = (
     onRawMessage,
     onExecutionStatus,
     onBriefingUpdate,
+    onTemporalContextChange,
   });
 
   // Keep callbacks ref updated (run on every render to capture latest callbacks)
@@ -314,6 +318,7 @@ export const useStreamingChat = (
       onRawMessage,
       onExecutionStatus,
       onBriefingUpdate,
+      onTemporalContextChange,
     };
   });
 
@@ -562,6 +567,12 @@ export const useStreamingChat = (
           serverMessage.specialist_name,
           serverMessage.completed_specialists,
         );
+        return;
+      }
+
+      // Handle temporal context change messages (AI tool changed viewing context)
+      if (serverMessage.type === "temporal_context_change") {
+        callbacks.onTemporalContextChange?.(serverMessage as import("../types").WSTemporalContextChangeMessage);
         return;
       }
 

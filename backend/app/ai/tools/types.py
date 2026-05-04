@@ -201,6 +201,7 @@ class ToolContext:
     _permission_cache: collections.abc.MutableMapping[str, bool] = field(
         default_factory=lambda: _LRUCache(max_size=1000)
     )
+    _event_bus: Any = field(default=None, repr=False)
 
     def __init__(
         self,
@@ -214,6 +215,7 @@ class ToolContext:
         branch_name: str | None = None,
         branch_mode: Literal["merged", "isolated"] | None = None,
         _permission_cache: collections.abc.MutableMapping[str, bool] | None = None,
+        _event_bus: Any = None,
     ) -> None:
         """Initialize ToolContext with session and user context.
 
@@ -228,6 +230,7 @@ class ToolContext:
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries
             _permission_cache: Optional permission cache (uses LRU with 1000-entry limit if not provided)
+            _event_bus: Optional event bus for publishing events during tool execution
         """
         self._root_session = session
         self.user_id = user_id
@@ -243,6 +246,7 @@ class ToolContext:
             self._permission_cache = _permission_cache
         else:
             self._permission_cache = _LRUCache(max_size=1000)
+        self._event_bus = _event_bus
 
     @property
     def session(self) -> AsyncSession:

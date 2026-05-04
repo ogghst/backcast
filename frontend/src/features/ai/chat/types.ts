@@ -355,6 +355,18 @@ export interface WSPingMessage {
 }
 
 /**
+ * Server -> Client: Temporal context change event
+ * Sent when the AI assistant changes the temporal viewing context
+ * (as_of date, branch, branch mode) via the set_temporal_context tool
+ */
+export interface WSTemporalContextChangeMessage {
+  type: "temporal_context_change";
+  as_of: string | null;
+  branch_name: string;
+  branch_mode: "merged" | "isolated";
+}
+
+/**
  * Discriminated union of all server message types
  * Use the `type` field to discriminate between message variants
  */
@@ -376,7 +388,8 @@ export type WSServerMessage =
   | WSAgentTransitionMessage
   | WSExecutionStartedMessage
   | WSExecutionStatusMessage
-  | WSBriefingMessage;
+  | WSBriefingMessage
+  | WSTemporalContextChangeMessage;
 
 /**
  * Type guard to check if a server message is a token message.
@@ -603,4 +616,13 @@ export function isBriefingMessage(
   message: WSServerMessage
 ): message is WSBriefingMessage {
   return message.type === "briefing_update";
+}
+
+/**
+ * Type guard to check if a server message is a temporal context change message
+ */
+export function isTemporalContextChangeMessage(
+  message: WSServerMessage
+): message is WSTemporalContextChangeMessage {
+  return message.type === "temporal_context_change";
 }

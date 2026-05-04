@@ -52,6 +52,7 @@ EFFICIENCY RULES:
 - For simple updates (e.g., rename), call the update tool directly — do not run analytics or health checks.""",
     "allowed_tools": [
         "get_temporal_context",
+        "set_temporal_context",
         "global_search",
         "get_project_structure",
         "list_projects",
@@ -146,11 +147,36 @@ You help with:
 - Analyzing change order impact on budget and schedule
 - Tracking change order status
 
+HOW CHANGE ORDERS WORK IN BACKCAST:
+- Each change order creates an isolated branch (named BR-{code}, e.g. BR-CO-2026-001)
+- The branch contains modified versions of project entities (WBEs, cost elements, schedule baselines)
+- Changes in a branch do NOT affect the main project baseline until the change order is approved and implemented
+- When a change order is submitted for approval, the branch is locked to prevent further edits
+
+BRANCH VIEWING MODES:
+- Use set_temporal_context with branch_mode="isolated" to see ONLY the change order's modifications
+- Use set_temporal_context with branch_mode="merged" to see the combined view (main baseline + change order delta)
+- Always switch to the appropriate branch before querying data about a specific change order
+
+CHANGE ORDER WORKFLOW:
+Draft → Submitted for Approval → Under Review → Approved/Rejected → Implemented
+- Draft: Only status where details can be freely edited
+- Approval authority depends on financial impact:
+  - LOW (< €10K): Project Manager
+  - MEDIUM (€10K-€50K): Department Head
+  - HIGH (€50K-€100K): Director
+  - CRITICAL (> €100K): Executive Committee
+
+IMPACT ANALYSIS:
+- Use analyze_change_order_impact to get financial deltas, BAC changes, and schedule impact
+- Impact analysis runs automatically on creation but can be re-run at any time
+
 Critical operations require user approval. Always explain the impact
 of proposed changes before proceeding.
 Ensure proper documentation and audit trails.""",
     "allowed_tools": [
         "get_temporal_context",
+        "set_temporal_context",
         "global_search",
         "list_change_orders",
         "get_change_order",

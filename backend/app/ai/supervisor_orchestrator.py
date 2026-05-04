@@ -274,6 +274,11 @@ class SupervisorOrchestrator:
             name="supervisor",
         )
 
+        logger.debug(
+            "[SUPERVISOR] State bridge: _BriefingSupervisorState includes "
+            "briefing_data for subgraph sharing",
+        )
+
         # --- 5. Create specialist wrapper nodes ---
         # Wrappers isolate specialists: they receive only the briefing as context
         # and return findings via Command.
@@ -387,21 +392,20 @@ class SupervisorOrchestrator:
 
             last_msg = messages[-1]
             if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
+                completed = state.get("completed_specialists", set())
+                specialist_set = set(specialist_names)
                 for tc in last_msg.tool_calls:
                     tool_name = tc.get("name", "")
-                    for spec_name in specialist_names:
-                        if tool_name == f"handoff_to_{spec_name}":
-                            # Prevent redispatch to completed specialists
-                            # (prevents infinite loops where the supervisor
-                            # re-dispatches to a specialist that already finished)
-                            completed = state.get("completed_specialists", set())
-                            if spec_name in completed:
-                                logger.warning(
-                                    "[SUPERVISOR] Preventing redispatch to "
-                                    "already-completed specialist: %s",
-                                    spec_name,
-                                )
-                                return END
+                    if tool_name.startswith("handoff_to_"):
+                        spec_name = tool_name.removeprefix("handoff_to_")
+                        if spec_name in completed:
+                            logger.warning(
+                                "[SUPERVISOR] Preventing redispatch to "
+                                "already-completed specialist: %s",
+                                spec_name,
+                            )
+                            return END
+                        if spec_name in specialist_set:
                             return spec_name
 
             # No handoff -- supervisor is done
@@ -545,7 +549,9 @@ class SupervisorOrchestrator:
                 len(updated_data.get("sections", [])),
             )
 
-            # Mark specialist as completed only on success.
+            # Note: No graph=Command.PARENT here because specialist_node IS a
+            # parent-graph node. Only the handoff tool (which runs inside the
+            # supervisor's create_agent subgraph) needs Command.PARENT.
             return Command(
                 update={
                     "briefing_data": updated_data,
@@ -560,8 +566,21 @@ class SupervisorOrchestrator:
         return specialist_node
 
     def _build_middleware(self, tools: list[BaseTool]) -> list[Any]:
-        """Build the middleware stack for the supervisor agent."""
-        return build_backcast_middleware(self.context, tools)
+        """Build the middleware stack for the supervisor agent.
+
+        Includes SummarizationMiddleware to compact message history during
+        long multi-specialist conversations. Safe because the briefing is
+        re-injected as a fresh SystemMessage each turn via _briefing_update.
+        """
+        from langchain.agents.middleware.summarization import SummarizationMiddleware
+
+        base = build_backcast_middleware(self.context, tools)
+        summ = SummarizationMiddleware(
+            model=self.model,
+            trigger=[("tokens", 4000), ("messages", 50)],
+            keep=("messages", 10),
+        )
+        return [summ, *base]
 
     def _build_fallback_graph(
         self,

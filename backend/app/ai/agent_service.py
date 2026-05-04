@@ -967,6 +967,7 @@ class AgentService:
             branch_name=branch_name,
             branch_mode=branch_mode,
             execution_mode=execution_mode,
+            _event_bus=event_bus,
         )
         available_tools = create_project_tools(tool_context)
 
@@ -2082,25 +2083,25 @@ class AgentService:
     ) -> str:
         """Build system prompt with context awareness.
 
-        Context: Project and temporal context are enforced at the tool level via ToolContext,
+        Context: Project context is enforced at the tool level via ToolContext,
         not in the system prompt. This provides maximum security by preventing prompt injection
         attacks from bypassing constraints. The system prompt provides the LLM with awareness
         of context for better responses, but enforcement happens at the tool level.
 
-        The LLM has no control over temporal parameters (as_of, branch_name, branch_mode) or
-        project_id. These are applied automatically by tools based on the session context.
+        Temporal context (as_of, branch_name, branch_mode) is initialized from the session
+        but can be changed by the LLM via the set_temporal_context tool. Changes propagate
+        to all subsequent tool calls via the shared mutable ToolContext instance.
 
         Args:
             base_prompt: Base system prompt
             project_id: Optional project ID for project-scoped queries
-            as_of: Optional historical date for temporal queries (unused in prompt)
-            branch_name: Optional branch name for temporal queries (unused in prompt)
-            branch_mode: Optional branch mode for temporal queries (unused in prompt)
+            as_of: Optional historical date for temporal queries
+            branch_name: Optional branch name for temporal queries
+            branch_mode: Optional branch mode for temporal queries
             context: Optional context dictionary with type, id, and name
 
         Returns:
-            Base system prompt with context information (temporal enforcement
-            happens at tool level via ToolContext)
+            Base system prompt with context information
         """
         context_sections = []
 
@@ -2168,14 +2169,15 @@ class AgentService:
                 f"[TEMPORAL CONTEXT]\n"
                 f"You are operating in branch '{branch_name}' (mode: {branch_mode}). "
                 f"Changes made in this branch are isolated from the main branch until merged. "
-                f"Use branch-aware tools to query and modify data in this branch."
+                f"You can change the temporal context using the set_temporal_context tool "
+                f"(e.g., switch branches, change as_of date, or toggle branch mode)."
             )
         elif as_of:
             context_sections.append(
                 f"[TEMPORAL CONTEXT]\n"
                 f"You are viewing historical data as of {as_of.strftime('%B %d, %Y at %I:%M %p')}. "
-                f"Use time-travel tools to query data at this point in time. "
-                f"Note: Historical views are read-only."
+                f"You can change the temporal context using the set_temporal_context tool "
+                f"to view a different date, switch branches, or change branch mode."
             )
 
         # Combine base prompt with context sections
@@ -2183,8 +2185,8 @@ class AgentService:
             return base_prompt + "\n\n" + "\n\n".join(context_sections)
 
         # Return base prompt without context additions
-        # Temporal and project enforcement happens at tool level via ToolContext
-        # This provides maximum security against prompt injection attacks
+        # Project enforcement happens at tool level via ToolContext
+        # Temporal context can be changed via set_temporal_context tool
         return base_prompt
 
     async def _build_conversation_history(self, session_id: UUID) -> list[BaseMessage]:

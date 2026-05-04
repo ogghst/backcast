@@ -32,7 +32,7 @@ def has_deepseek_credentials() -> bool:
 
 @pytest.mark.skipif(
     not has_deepseek_credentials(),
-    reason="DEEPSEEK_API_KEY not set or invalid - set to enable live tests"
+    reason="DEEPSEEK_API_KEY not set or invalid - set to enable live tests",
 )
 class TestDeepSeekNativeSupport:
     """Test suite for verifying LangChain's native DeepSeek reasoning support."""
@@ -53,10 +53,14 @@ class TestDeepSeekNativeSupport:
         response = model.invoke("What is 2+2? Keep it brief.")
 
         # Check if reasoning_content is in additional_kwargs (current hack behavior)
-        assert isinstance(response, AIMessage), f"Expected AIMessage, got {type(response)}"
+        assert isinstance(response, AIMessage), (
+            f"Expected AIMessage, got {type(response)}"
+        )
 
         reasoning_in_kwargs = response.additional_kwargs.get("reasoning_content")
-        print(f"\n[TEST] reasoning_content in additional_kwargs: {bool(reasoning_in_kwargs)}")
+        print(
+            f"\n[TEST] reasoning_content in additional_kwargs: {bool(reasoning_in_kwargs)}"
+        )
         if reasoning_in_kwargs:
             print(f"[TEST] reasoning_content length: {len(reasoning_in_kwargs)} chars")
             print(f"[TEST] reasoning_content preview: {reasoning_in_kwargs[:200]}...")
@@ -77,14 +81,20 @@ class TestDeepSeekNativeSupport:
         response = model.invoke("What is the capital of France? Be very brief.")
 
         # Try to access content_blocks (LangChain native property)
-        assert hasattr(response, "content_blocks"), "AIMessage should have content_blocks property"
+        assert hasattr(response, "content_blocks"), (
+            "AIMessage should have content_blocks property"
+        )
 
-        content_blocks = list(response.content_blocks) if response.content_blocks else []
+        content_blocks = (
+            list(response.content_blocks) if response.content_blocks else []
+        )
         print(f"\n[TEST] content_blocks type: {type(content_blocks)}")
         print(f"[TEST] content_blocks count: {len(content_blocks)}")
 
         for i, block in enumerate(content_blocks):
-            print(f"[TEST] Block {i}: type={block.get('type')}, keys={list(block.keys())}")
+            print(
+                f"[TEST] Block {i}: type={block.get('type')}, keys={list(block.keys())}"
+            )
 
         # Check for reasoning blocks
         reasoning_blocks = [b for b in content_blocks if b.get("type") == "reasoning"]
@@ -130,9 +140,13 @@ class TestDeepSeekNativeSupport:
             chunk_count += 1
             if isinstance(chunk, AIMessageChunk):
                 # Check content_blocks
-                content_blocks = list(chunk.content_blocks) if chunk.content_blocks else []
+                content_blocks = (
+                    list(chunk.content_blocks) if chunk.content_blocks else []
+                )
 
-                reasoning_blocks = [b for b in content_blocks if b.get("type") == "reasoning"]
+                reasoning_blocks = [
+                    b for b in content_blocks if b.get("type") == "reasoning"
+                ]
                 text_blocks = [b for b in content_blocks if b.get("type") == "text"]
 
                 for rb in reasoning_blocks:
@@ -147,8 +161,12 @@ class TestDeepSeekNativeSupport:
                     all_reasoning.append(rc_in_kwargs)
 
         print(f"[TEST] Received {chunk_count} chunks")
-        print(f"[TEST] Total reasoning chars from content_blocks: {sum(len(r) for r in all_reasoning)}")
-        print(f"[TEST] Total text chars from content_blocks: {sum(len(t) for t in all_text)}")
+        print(
+            f"[TEST] Total reasoning chars from content_blocks: {sum(len(r) for r in all_reasoning)}"
+        )
+        print(
+            f"[TEST] Total text chars from content_blocks: {sum(len(t) for t in all_text)}"
+        )
 
         if all_reasoning:
             print(f"\n[TEST] Reasoning preview: {all_reasoning[0][:200]}...")
@@ -194,7 +212,9 @@ class TestDeepSeekNativeSupport:
         if hasattr(choice.message, "content"):
             print(f"[TEST] Content type: {type(choice.message.content)}")
             if isinstance(choice.message.content, list):
-                print(f"[TEST] Content is list with {len(choice.message.content)} items")
+                print(
+                    f"[TEST] Content is list with {len(choice.message.content)} items"
+                )
                 for i, item in enumerate(choice.message.content[:3]):
                     print(f"[TEST]   Item {i}: {type(item)} = {item}")
 
@@ -211,9 +231,9 @@ def test_synthetic_reasoning_message():
     msg1 = AIMessage(
         content=[
             {"type": "thinking", "thinking": "Let me think about this..."},
-            {"type": "text", "text": "The answer is 42."}
+            {"type": "text", "text": "The answer is 42."},
         ],
-        response_metadata={"model_provider": "anthropic"}
+        response_metadata={"model_provider": "anthropic"},
     )
 
     blocks1 = list(msg1.content_blocks) if msg1.content_blocks else []
@@ -224,7 +244,7 @@ def test_synthetic_reasoning_message():
     # Test 2: Reasoning via additional_kwargs (current DeepSeek hack)
     msg2 = AIMessage(
         content="The answer is 42.",
-        additional_kwargs={"reasoning_content": "Let me think about this..."}
+        additional_kwargs={"reasoning_content": "Let me think about this..."},
     )
 
     blocks2 = list(msg2.content_blocks) if msg2.content_blocks else []
@@ -244,7 +264,7 @@ def test_synthetic_reasoning_message():
             },
             {"type": "text", "text": "The answer is 42."},
         ],
-        response_metadata={"model_provider": "openai"}
+        response_metadata={"model_provider": "openai"},
     )
 
     blocks3 = list(msg3.content_blocks) if msg3.content_blocks else []
@@ -304,4 +324,6 @@ if __name__ == "__main__":
         print("\n" + "=" * 60)
         print("Skipping live tests - set DEEPSEEK_API_KEY to enable")
         print("=" * 60)
-        print("\nExample: DEEPSEEK_API_KEY=sk-xxx python tests/ai/test_deepseek_native_support.py")
+        print(
+            "\nExample: DEEPSEEK_API_KEY=sk-xxx python tests/ai/test_deepseek_native_support.py"
+        )

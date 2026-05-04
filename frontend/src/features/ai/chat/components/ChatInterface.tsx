@@ -15,7 +15,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown } from "antd";
+import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
@@ -48,6 +48,8 @@ import { useLastAssistantId } from "../../hooks/useLastAssistantId";
 import { ApprovalDialog } from "../../components/ApprovalDialog";
 import { useAIChatContext } from "@/hooks/navigation/useAIChatContext";
 import type { SessionContext } from "../../types";
+import type { WSTemporalContextChangeMessage } from "../types";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 
 const { Sider, Content, Header } = Layout;
 const { useBreakpoint } = Grid;
@@ -744,6 +746,17 @@ export const ChatInterface = ({
       void sessionId; // Unused but kept for interface consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
     }, [queryClient]),
+    onTemporalContextChange: useCallback((change: WSTemporalContextChangeMessage) => {
+      const store = useTimeMachineStore.getState();
+      if (!store.currentProjectId) return;
+
+      store.selectTime(change.as_of ? new Date(change.as_of) : null);
+      store.selectBranch(change.branch_name);
+      store.selectViewMode(change.branch_mode);
+
+      const dateStr = change.as_of ? new Date(change.as_of).toLocaleDateString() : "current time";
+      message.info(`Time Machine: ${dateStr}, branch: ${change.branch_name} (${change.branch_mode})`);
+    }, []),
   });
 
   // Execution mode hook for managing AI tool risk level
