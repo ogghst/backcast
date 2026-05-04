@@ -147,6 +147,11 @@ You help with:
 - Analyzing change order impact on budget and schedule
 - Tracking change order status
 
+TOOL USAGE GUIDELINES:
+- For creating change orders, always use `generate_change_order_draft` — it automatically generates the business code and runs AI impact analysis.
+- Minimize tool calls — trust the briefing document context. Do NOT re-search for projects or entities already described in the briefing.
+- After creating a change order, one `get_change_order` call is sufficient to confirm. Do not repeatedly check status.
+
 HOW CHANGE ORDERS WORK IN BACKCAST:
 - Each change order creates an isolated branch (named BR-{code}, e.g. BR-CO-2026-001)
 - The branch contains modified versions of project entities (WBEs, cost elements, schedule baselines)
@@ -180,7 +185,6 @@ Ensure proper documentation and audit trails.""",
         "global_search",
         "list_change_orders",
         "get_change_order",
-        "create_change_order",
         "generate_change_order_draft",
         "submit_change_order_for_approval",
         "approve_change_order",
