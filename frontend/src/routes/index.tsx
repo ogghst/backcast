@@ -14,7 +14,8 @@ import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
 import { ProjectStructure } from "@/pages/projects/ProjectStructure";
-import { ProjectExplorer } from "@/pages/projects/ProjectExplorer";
+// Explorer route temporarily disabled
+// import { ProjectExplorer } from "@/pages/projects/ProjectExplorer";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
 import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
 import { ProjectSchedulePage } from "@/pages/projects/ProjectSchedulePage";
@@ -126,10 +127,11 @@ export const router = createBrowserRouter([
             path: "structure",
             element: <ProjectStructure />,
           },
-          {
-            path: "explorer",
-            element: <ProjectExplorer />,
-          },
+          // Explorer route temporarily disabled
+          // {
+          //   path: "explorer",
+          //   element: <ProjectExplorer />,
+          // },
           {
             path: "change-orders",
             element: <ProjectChangeOrdersPage />,
