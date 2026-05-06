@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     AI_APPROVAL_POLL_INTERVAL_MS: float = 200.0
     AI_APPROVAL_HEARTBEAT_INTERVAL_SECONDS: float = 5.0
 
+    # Specialist retry (transient API errors)
+    AI_SPECIALIST_MAX_RETRIES: int = 3
+
     # Refresh Token Configuration
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days default
 
