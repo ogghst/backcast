@@ -65,6 +65,8 @@
         "dashboard-template-update",
         "project-budget-settings-read",
         "project-budget-settings-write",
+        "change-order-workflow-config-manage",
+        "change-order-workflow-config-override",
         "temporal-write"
       ]
     },

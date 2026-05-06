@@ -15,6 +15,7 @@ import {
 } from "@ant-design/icons";
 import type { ApprovalInfoPublic as ApprovalInfo } from "@/api/generated";
 import { formatDate } from "@/utils/formatters";
+import { useImpactLevelConfig } from "@/features/change-orders/hooks/useImpactLevelConfig";
 
 const { Text } = Typography;
 
@@ -26,22 +27,6 @@ interface ApprovalInfoProps {
   approvalInfo: ApprovalInfo | null;
   /** Whether data is loading */
   isLoading?: boolean;
-}
-
-/**
- * Get color and icon for impact level badge.
- *
- * @param impactLevel - Impact level string (LOW/MEDIUM/HIGH/CRITICAL)
- * @returns Object with color and icon for the badge
- */
-function getImpactLevelStyle(impactLevel: string | null) {
-  const styles: Record<string, { color: string; label: string }> = {
-    LOW: { color: "success", label: "Low Impact" },
-    MEDIUM: { color: "warning", label: "Medium Impact" },
-    HIGH: { color: "error", label: "High Impact" },
-    CRITICAL: { color: "purple", label: "Critical Impact" },
-  };
-  return styles[impactLevel || ""] || { color: "default", label: "Not Assessed" };
 }
 
 /**
@@ -91,13 +76,15 @@ export function ApprovalInfo({
   approvalInfo,
   isLoading = false,
 }: ApprovalInfoProps) {
+  const { getImpactLevelStyle } = useImpactLevelConfig();
+
   // Don't render if no approval info exists
   if (!approvalInfo || !approvalInfo.impact_level) {
     return null;
   }
 
-  const impactStyle = getImpactLevelStyle(approvalInfo.impact_level);
-  const slaStyle = getSLAStatusStyle(approvalInfo.sla_status);
+  const impactStyle = getImpactLevelStyle(approvalInfo.impact_level ?? null);
+  const slaStyle = getSLAStatusStyle(approvalInfo.sla_status ?? null);
   const isFinancialImpactAvailable =
     approvalInfo.financial_impact !== null;
 
@@ -189,7 +176,7 @@ export function ApprovalInfo({
                 <Statistic
                   title="Time Remaining"
                   value={formatBusinessDays(
-                    approvalInfo.sla_business_days_remaining,
+                    approvalInfo.sla_business_days_remaining ?? null,
                   )}
                   valueStyle={{
                     fontSize: "16px",

@@ -30,7 +30,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("0"))
+        impact = await service._classify_impact_level(Decimal("0"))
 
         # Assert
         assert impact == ImpactLevel.LOW
@@ -42,7 +42,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("9999.99"))
+        impact = await service._classify_impact_level(Decimal("9999.99"))
 
         # Assert
         assert impact == ImpactLevel.LOW
@@ -54,7 +54,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("10000"))
+        impact = await service._classify_impact_level(Decimal("10000"))
 
         # Assert
         assert impact == ImpactLevel.MEDIUM
@@ -66,7 +66,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("30000"))
+        impact = await service._classify_impact_level(Decimal("30000"))
 
         # Assert
         assert impact == ImpactLevel.MEDIUM
@@ -78,7 +78,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("50000"))
+        impact = await service._classify_impact_level(Decimal("50000"))
 
         # Assert
         assert impact == ImpactLevel.HIGH
@@ -90,7 +90,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("75000"))
+        impact = await service._classify_impact_level(Decimal("75000"))
 
         # Assert
         assert impact == ImpactLevel.HIGH
@@ -102,7 +102,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("100000"))
+        impact = await service._classify_impact_level(Decimal("100000"))
 
         # Assert
         assert impact == ImpactLevel.CRITICAL
@@ -114,7 +114,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("150000"))
+        impact = await service._classify_impact_level(Decimal("150000"))
 
         # Assert
         assert impact == ImpactLevel.CRITICAL
@@ -126,7 +126,7 @@ class TestClassifyImpactLevel:
         service = FinancialImpactService(db_session)
 
         # Act
-        impact = service._classify_impact_level(Decimal("1000000"))
+        impact = await service._classify_impact_level(Decimal("1000000"))
 
         # Assert
         assert impact == ImpactLevel.CRITICAL

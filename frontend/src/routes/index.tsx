@@ -40,6 +40,7 @@ import { ProjectChat } from "@/pages/projects/ProjectChat";
 import { ProjectMembers } from "@/pages/projects/ProjectMembers";
 import { ProjectAdminPage } from "@/pages/projects/ProjectAdminPage";
 import { DashboardPage } from "@/features/widgets/pages/DashboardPage";
+import { ChangeOrderConfigPage } from "@/features/change-orders/components/ChangeOrderConfigPage";
 
 export const router = createBrowserRouter([
   {
@@ -101,6 +102,10 @@ export const router = createBrowserRouter([
       {
         path: "/admin/rbac",
         element: <RBACConfiguration />,
+      },
+      {
+        path: "/admin/change-order-config",
+        element: <ChangeOrderConfigPage />,
       },
       {
         path: "/chat",

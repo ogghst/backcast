@@ -155,6 +155,13 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         comment="Impact severity score (weighted calculation)",
     )
 
+    # Config snapshot (Phase A: captured at CO submission, immutable thereafter)
+    config_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Workflow config snapshot at submission time (thresholds, SLA, approval matrix)",
+    )
+
     # Relationships
     # Note: relationship to Project uses root ID join and is view-only
     project: Mapped["Project"] = relationship(

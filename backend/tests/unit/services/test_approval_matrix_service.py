@@ -36,28 +36,28 @@ class TestGetUserAuthorityLevel:
         )
 
         # Act
-        authority = service.get_user_authority_level(user)
+        authority = await service.get_user_authority_level(user)
 
         # Assert
         assert authority == "CRITICAL"
 
     @pytest.mark.asyncio
-    async def test_manager_has_high_authority(self, db_session: AsyncSession) -> None:
-        """RED: Manager role should have HIGH authority."""
+    async def test_dept_head_has_high_authority(self, db_session: AsyncSession) -> None:
+        """RED: dept_head role should have HIGH authority."""
         # Arrange
         service = ApprovalMatrixService(db_session)
         user = User(
             user_id=uuid4(),
-            email="manager@example.com",
+            email="depthead@example.com",
             hashed_password="hash",
-            full_name="Manager User",
-            role="manager",
+            full_name="Dept Head User",
+            role="dept_head",
             is_active=True,
             created_by=uuid4(),
         )
 
         # Act
-        authority = service.get_user_authority_level(user)
+        authority = await service.get_user_authority_level(user)
 
         # Assert
         assert authority == "HIGH"
@@ -78,7 +78,7 @@ class TestGetUserAuthorityLevel:
         )
 
         # Act
-        authority = service.get_user_authority_level(user)
+        authority = await service.get_user_authority_level(user)
 
         # Assert
         assert authority == "LOW"
@@ -96,7 +96,7 @@ class TestGetAuthorityForImpact:
         service = ApprovalMatrixService(db_session)
 
         # Act
-        authority = service.get_authority_for_impact(ImpactLevel.LOW)
+        authority = await service.get_authority_for_impact(ImpactLevel.LOW)
 
         # Assert
         assert authority == "LOW"
@@ -110,7 +110,7 @@ class TestGetAuthorityForImpact:
         service = ApprovalMatrixService(db_session)
 
         # Act
-        authority = service.get_authority_for_impact(ImpactLevel.MEDIUM)
+        authority = await service.get_authority_for_impact(ImpactLevel.MEDIUM)
 
         # Assert
         assert authority == "MEDIUM"
@@ -124,7 +124,7 @@ class TestGetAuthorityForImpact:
         service = ApprovalMatrixService(db_session)
 
         # Act
-        authority = service.get_authority_for_impact(ImpactLevel.HIGH)
+        authority = await service.get_authority_for_impact(ImpactLevel.HIGH)
 
         # Assert
         assert authority == "HIGH"
@@ -138,7 +138,7 @@ class TestGetAuthorityForImpact:
         service = ApprovalMatrixService(db_session)
 
         # Act
-        authority = service.get_authority_for_impact(ImpactLevel.CRITICAL)
+        authority = await service.get_authority_for_impact(ImpactLevel.CRITICAL)
 
         # Assert
         assert authority == "CRITICAL"
@@ -151,7 +151,7 @@ class TestGetAuthorityForImpact:
 
         # Act & Assert
         with pytest.raises(ValueError, match="Invalid impact level"):
-            service.get_authority_for_impact("INVALID")
+            await service.get_authority_for_impact("INVALID")
 
 
 class TestCanApprove:
@@ -234,22 +234,22 @@ class TestCanApprove:
         assert can_approve is False
 
     @pytest.mark.asyncio
-    async def test_manager_can_approve_medium_impact(
+    async def test_dept_head_can_approve_medium_impact(
         self, db_session: AsyncSession
     ) -> None:
-        """RED: Manager should be able to approve MEDIUM impact."""
+        """RED: dept_head (HIGH authority) should be able to approve MEDIUM impact."""
         # Arrange
         service = ApprovalMatrixService(db_session)
-        manager = User(
+        dept_head = User(
             user_id=uuid4(),
-            email="manager@example.com",
+            email="depthead@example.com",
             hashed_password="hash",
-            full_name="Manager User",
-            role="manager",
+            full_name="Dept Head User",
+            role="dept_head",
             is_active=True,
             created_by=uuid4(),
         )
-        db_session.add(manager)
+        db_session.add(dept_head)
         await db_session.flush()
 
         change_order = ChangeOrder(
@@ -266,7 +266,7 @@ class TestCanApprove:
         await db_session.flush()
 
         # Act
-        can_approve = await service.can_approve(manager, change_order)
+        can_approve = await service.can_approve(dept_head, change_order)
 
         # Assert
         assert can_approve is True

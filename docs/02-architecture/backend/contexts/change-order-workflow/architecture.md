@@ -1,6 +1,6 @@
 # Change Order Workflow Validation Architecture
 
-**Last Updated:** 2026-04-11
+**Last Updated:** 2026-05-06
 **Owner:** Backend Team
 **Related ADRs:** [ADR-007: RBAC Service](../../decisions/ADR-007-rbac-service.md)
 
@@ -14,8 +14,9 @@ The Change Order Workflow Validation system manages state transitions for Change
 - **Transition Authorization:** Validates user authority to approve/reject based on impact levels
 - **Audit Trail:** Records all status transitions with timestamps, actors, and comments
 - **Branch Locking:** Locks branches on submission to prevent modifications during approval
-- **SLA Tracking:** Calculates and tracks approval deadlines based on financial impact
+- **SLA Tracking:** Calculates and tracks approval deadlines based on financial impact (configurable)
 - **Control Date Validation:** Ensures workflow operations occur in chronological order
+- **Configurable Workflow:** All thresholds, SLA deadlines, approval rules, and impact weights are stored in the database and can be updated without code changes
 
 **Document Scope:**
 
@@ -37,6 +38,7 @@ This document covers the workflow validation architecture:
 graph TB
     subgraph "API Layer"
         A[change_orders.py Routes]
+        A2[change_order_config.py Routes]
     end
 
     subgraph "Service Layer"
@@ -45,41 +47,58 @@ graph TB
         D[ApprovalMatrixService]
         E[SLAService]
         F[FinancialImpactService]
+        G[ChangeOrderConfigService]
     end
 
     subgraph "Validation Layer"
-        G[ControlDateValidator]
+        H[ControlDateValidator]
     end
 
     subgraph "Model Layer"
-        H[ChangeOrder]
-        I[ChangeOrderAuditLog]
+        I[ChangeOrder]
+        J[ChangeOrderAuditLog]
+        K[ChangeOrderWorkflowConfig]
+        L[ChangeOrderImpactLevelConfig]
+        M[ChangeOrderApprovalRuleConfig]
+        N[ChangeOrderSLARuleConfig]
     end
 
     subgraph "Database"
-        J[(change_orders)]
-        K[(change_order_audit_log)]
+        O[(change_orders)]
+        P[(change_order_audit_log)]
+        Q[(co_workflow_config)]
+        R[(co_impact_level_config)]
+        S[(co_approval_rule_config)]
+        T[(co_sla_rule_config)]
     end
 
     A --> B
+    A2 --> G
     B --> C
     C --> D & E & F
-    C --> G
-    G --> I
+    E --> G
+    F --> G
     C --> H
     H --> J
-    I --> K
+    C --> I
+    I --> O
+    J --> P
+    G --> K & L & M & N
+    K --> Q
+    L --> R
+    M --> S
+    N --> T
 ```
 
 ### Layer Responsibilities
 
 | Layer | Responsibility | Key Classes |
 |-------|---------------|-------------|
-| **API** | HTTP endpoints, request/response handling | `change_orders.py` router |
-| **Service** | Business logic orchestration, state transitions | `ChangeOrderWorkflowService`, `ChangeOrderService` |
+| **API** | HTTP endpoints, request/response handling | `change_orders.py`, `change_order_config.py` routers |
+| **Service** | Business logic orchestration, state transitions | `ChangeOrderWorkflowService`, `ChangeOrderService`, `ChangeOrderConfigService` |
 | **Validation** | Control date sequence validation | `ControlDateValidator` |
-| **Model** | Data structures, ORM mapping | `ChangeOrder`, `ChangeOrderAuditLog` |
-| **Database** | Persistence, indexing, constraints | PostgreSQL with audit log |
+| **Model** | Data structures, ORM mapping | `ChangeOrder`, `ChangeOrderAuditLog`, config models |
+| **Database** | Persistence, indexing, constraints | PostgreSQL with audit log, config tables |
 
 ---
 
@@ -220,23 +239,27 @@ Operations must be performed in chronological order.
 
 ### 4. Impact Level-Based Validation
 
-**Impact Levels:**
+**Impact Levels (default configuration):**
 - `LOW`: < €10,000 (Project Manager approval)
 - `MEDIUM`: €10,000 - €50,000 (Department Head approval)
 - `HIGH`: €50,000 - €100,000 (Director approval)
 - `CRITICAL`: > €100,000 (Executive Committee approval)
 
-**Validation:** Impact level is automatically calculated on submission via `FinancialImpactService.calculate_impact_level()`.
+> **Configurable:** All thresholds, score boundaries, and approval rules are stored in `ChangeOrderWorkflowConfig` and can be updated at runtime without code changes. Per-project overrides are supported via `project_id` on the config record.
+
+**Validation:** Impact level is calculated on submission via `FinancialImpactService.calculate_impact_level()`, which reads thresholds and score boundaries from `ChangeOrderConfigService`.
 
 ### 5. SLA Deadline Validation
 
-**SLA Deadlines (Business Days):**
+**SLA Deadlines (default configuration):**
 - `LOW`: 2 business days
 - `MEDIUM`: 5 business days
 - `HIGH`: 10 business days
 - `CRITICAL`: 15 business days
 
-**Implementation:** `SLAService.calculate_sla_deadline()` calculates deadlines based on impact level and submission time.
+> **Configurable:** SLA deadlines are stored in `ChangeOrderSLARuleConfig` and read at runtime by `SLAService` via `ChangeOrderConfigService`.
+
+**Implementation:** `SLAService.calculate_sla_deadline()` calculates deadlines based on impact level and submission time using config-driven SLA rules.
 
 ---
 
@@ -353,6 +376,28 @@ The `control_date` field ensures workflow operations occur in chronological orde
 |--------|---------|
 | `calculate_impact_level()` | Determine impact level from CO changes |
 
+### ChangeOrderConfigService
+
+**Purpose:** Manage and retrieve configurable workflow parameters.
+
+**Key Methods:**
+
+| Method | Purpose |
+|--------|---------|
+| `get_active_config()` | Get effective config (project override or global) |
+| `get_global_config()` | Retrieve global workflow configuration |
+| `get_project_config()` | Retrieve project-specific override |
+| `get_thresholds()` | Get financial impact thresholds |
+| `get_sla_days()` | Get SLA deadlines per impact level |
+| `get_approval_matrix()` | Get approval authority mapping |
+| `get_score_boundaries()` | Get impact score classification boundaries |
+| `get_impact_weights()` | Get weights for impact score formula |
+| `classify_impact_by_score()` | Classify impact level from numeric score |
+| `generate_snapshot()` | Create config snapshot for submission |
+| `update_config()` | Update global configuration (optimistic locking) |
+| `create_project_override()` | Create per-project configuration override |
+| `delete_project_override()` | Remove project override, revert to global |
+
 ---
 
 ## API Endpoints
@@ -373,6 +418,16 @@ The `control_date` field ensures workflow operations occur in chronological orde
 |----------|--------|---------|------------|
 | `/change-orders/pending-approvals` | GET | Get pending approvals for user | `change-order-read` |
 | `/change-orders/{id}/approval-info` | GET | Get approval details and authority | `change-order-read` |
+
+### Configuration Endpoints
+
+| Endpoint | Method | Purpose | Permission |
+|----------|--------|---------|------------|
+| `/change-order-config/global` | GET | Get global workflow configuration | `change-order-read` |
+| `/change-order-config/global` | PUT | Upsert global workflow configuration | `change-order-workflow-config-manage` |
+| `/change-order-config/projects/{id}` | GET | Get project-specific configuration | `change-order-read` |
+| `/change-order-config/projects/{id}` | PUT | Upsert project configuration override | `change-order-workflow-config-override` |
+| `/change-order-config/projects/{id}` | DELETE | Delete project override (revert to global) | `change-order-workflow-config-override` |
 
 ---
 
@@ -397,9 +452,10 @@ The `control_date` field ensures workflow operations occur in chronological orde
 | Service | Purpose |
 |---------|---------|
 | `ApprovalMatrixService` | Approver assignment and authority validation |
-| `SLAService` | SLA deadline calculation |
-| `FinancialImpactService` | Impact level calculation |
+| `SLAService` | SLA deadline calculation (reads from config) |
+| `FinancialImpactService` | Impact level calculation (reads from config) |
 | `ChangeOrderService` | CRUD operations and version management |
+| `ChangeOrderConfigService` | Configurable workflow parameters |
 
 ---
 
@@ -431,6 +487,7 @@ The `control_date` field ensures workflow operations occur in chronological orde
 - **Workflow Service:** `app/services/change_order_workflow_service.py`
 - **Workflow Validation:** `app/services/change_order_workflow_validation.py`
 - **Change Order Service:** `app/services/change_order_service.py`
+- **Config Service:** `app/services/change_order_config_service.py`
 - **Approval Matrix Service:** `app/services/approval_matrix_service.py`
 - **SLA Service:** `app/services/sla_service.py`
 - **Financial Impact Service:** `app/services/financial_impact_service.py`
@@ -438,14 +495,19 @@ The `control_date` field ensures workflow operations occur in chronological orde
 ### Models
 - **Change Order:** `app/models/domain/change_order.py`
 - **Change Order Audit Log:** `app/models/domain/change_order_audit_log.py`
+- **Workflow Config:** `app/models/domain/change_order_config.py`
 - **User:** `app/models/domain/user.py`
 
 ### API Routes
 - **Change Orders:** `app/api/routes/change_orders.py`
+- **Config:** `app/api/routes/change_order_config.py`
 
 ### Tests
 - **Workflow Service Unit Tests:** `tests/unit/services/test_change_order_workflow_service.py`
 - **Workflow Validation Unit Tests:** `tests/unit/services/test_change_order_workflow_validation.py`
+- **Config Service Unit Tests:** `tests/unit/services/test_change_order_config_service.py`
+- **Config Integration Tests:** `tests/integration/services/test_change_order_config_lifecycle.py`
+- **SLA Service Unit Tests:** `tests/unit/services/test_sla_service.py`
 - **Workflow Integration Tests:** `tests/integration/test_change_order_workflow_full_temporal.py`
 - **Approval Workflow Tests:** `tests/integration/ai/test_approval_workflow.py`
 

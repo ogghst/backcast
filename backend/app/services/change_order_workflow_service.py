@@ -212,7 +212,9 @@ class ChangeOrderWorkflowService:
         # Calculate SLA deadline
         sla_service = SLAService(db_session)
         submission_time = datetime.now(UTC)
-        sla_deadline = sla_service.calculate_sla_deadline(impact_level, submission_time)
+        sla_deadline = await sla_service.calculate_sla_deadline(
+            impact_level, submission_time
+        )
 
         # Prepare update data
         update_data = {
@@ -322,11 +324,11 @@ class ChangeOrderWorkflowService:
         if not can_approve:
             # Get required authority for error message (handle None case)
             required_authority = (
-                approval_service.get_authority_for_impact(current_co.impact_level)
+                await approval_service.get_authority_for_impact(current_co.impact_level)
                 if current_co.impact_level
                 else "UNKNOWN"
             )
-            user_authority = approval_service.get_user_authority_level(actor)
+            user_authority = await approval_service.get_user_authority_level(actor)
             raise ValueError(
                 f"User {actor_id} does not have sufficient authority to approve "
                 f"change order with impact level '{current_co.impact_level}'. "
@@ -443,11 +445,11 @@ class ChangeOrderWorkflowService:
         if not can_approve:
             # Get required authority for error message (handle None case)
             required_authority = (
-                approval_service.get_authority_for_impact(current_co.impact_level)
+                await approval_service.get_authority_for_impact(current_co.impact_level)
                 if current_co.impact_level
                 else "UNKNOWN"
             )
-            user_authority = approval_service.get_user_authority_level(actor)
+            user_authority = await approval_service.get_user_authority_level(actor)
             raise ValueError(
                 f"User {actor_id} does not have sufficient authority to reject "
                 f"change order with impact level '{current_co.impact_level}'. "

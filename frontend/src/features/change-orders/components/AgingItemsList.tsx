@@ -8,6 +8,7 @@ import { ExclamationCircleOutlined, ClockCircleOutlined } from "@ant-design/icon
 import { useNavigate } from "react-router-dom";
 import type { ColumnsType } from "antd/es/table";
 import type { AgingChangeOrder } from "@/features/change-orders/api/useChangeOrderStats";
+import { useImpactLevelConfig } from "@/features/change-orders/hooks/useImpactLevelConfig";
 
 const { Title, Text } = Typography;
 
@@ -17,14 +18,6 @@ interface AgingItemsListProps {
   loading?: boolean;
   thresholdDays?: number;
 }
-
-// Impact level color mapping
-const IMPACT_COLORS: Record<string, string> = {
-  LOW: "green",
-  MEDIUM: "gold",
-  HIGH: "orange",
-  CRITICAL: "red",
-};
 
 // SLA status color mapping
 const SLA_COLORS: Record<string, string> = {
@@ -40,6 +33,7 @@ export const AgingItemsList = ({
   thresholdDays = 7,
 }: AgingItemsListProps) => {
   const navigate = useNavigate();
+  const { impactTagColors } = useImpactLevelConfig(projectId);
 
   const columns: ColumnsType<AgingChangeOrder> = [
     {
@@ -92,7 +86,7 @@ export const AgingItemsList = ({
       width: 100,
       render: (level: string | null) =>
         level ? (
-          <Tag color={IMPACT_COLORS[level] || "default"}>{level}</Tag>
+          <Tag color={impactTagColors[level] || "default"}>{level}</Tag>
         ) : (
           <Tag>-</Tag>
         ),

@@ -7,6 +7,7 @@ Provides Protocol-bound command ABCs and concrete implementations:
 Note: Branching commands have been moved to app.core.branching.commands.
 """
 
+import json
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -14,6 +15,7 @@ from uuid import UUID, uuid4
 
 import sqlalchemy
 from sqlalchemy import func, or_, select, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.exceptions import OverlappingVersionError
@@ -332,6 +334,14 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
             placeholder = f":{col_name}"
             value_placeholders.append(placeholder)
             values[col_name] = value
+
+        # Serialize JSONB columns to JSON strings for asyncpg compatibility
+        jsonb_columns = {
+            c.key for c in mapper.columns if isinstance(c.type, JSONB)
+        }
+        for col_name in jsonb_columns:
+            if col_name in values and isinstance(values[col_name], dict):
+                values[col_name] = json.dumps(values[col_name])
 
         # Build and execute the raw SQL INSERT
         # CRITICAL: Set valid_time explicitly using tstzrange() with the new_valid_lower

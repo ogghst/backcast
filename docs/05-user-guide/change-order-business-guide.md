@@ -56,7 +56,7 @@ Your role determines what you can do with change orders. The table below shows t
 
 ### Approval Authority by Impact Level
 
-The system automatically calculates the financial impact of your changes and routes approval to the right authority level.
+The system automatically calculates the financial impact of your changes and routes approval to the right authority level. The values below show the **default configuration** — your system administrator may have customized these for your organization or project.
 
 | Impact Level | Financial Threshold | Required Approver | SLA Deadline |
 |--------------|---------------------|-------------------|--------------|
@@ -65,7 +65,7 @@ The system automatically calculates the financial impact of your changes and rou
 | High | €50,000 — €100,000 | Director | 10 business days |
 | Critical | Over €100,000 | Executive Committee | 15 business days |
 
-The impact level is calculated using a weighted score that considers budget change percentage, schedule impact, revenue impact, and earned value degradation.
+The impact level is calculated using a weighted score that considers budget change percentage, schedule impact, revenue impact, and earned value degradation. The weights and score boundaries are also configurable by administrators.
 
 ---
 
@@ -290,3 +290,42 @@ Contact your system administrator. They have access to the **Recover Workflow** 
 - **Monitor SLA deadlines** — Overdue approvals are visible to administrators and tracked in the analytics dashboard.
 - **Keep change orders focused** — One change order per logical change. Combining unrelated changes makes review harder and increases the chance of rejection.
 - **Review rejection comments carefully** — They contain the approver's reasoning. Address the specific concerns before resubmitting.
+
+---
+
+## 12. Configurable Workflow Settings
+
+Administrators can customize the change order workflow parameters to match organizational policies. This replaces the previous system-wide hardcoded defaults.
+
+### What Can Be Configured
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| **Impact Level Thresholds** | Financial amount boundaries (LOW/MEDIUM/HIGH/CRITICAL) | €10K / €50K / €100K / unlimited |
+| **Score Boundaries** | Impact score ranges for each level | 0-10 / 10-30 / 30-50 / 50+ |
+| **Impact Weights** | Relative weight of budget, schedule, revenue, EVM factors | 0.4 / 0.3 / 0.2 / 0.1 |
+| **Approval Rules** | Which roles can approve at each impact level | PM → LOW, Dept Head → HIGH, Director → HIGH, Admin → CRITICAL |
+| **SLA Deadlines** | Business day limits per impact level | 2 / 5 / 10 / 15 days |
+
+### Global vs. Project-Level Configuration
+
+- **Global defaults** apply to all projects without a project-specific override
+- **Project overrides** allow per-project customization (e.g., stricter thresholds for high-risk projects)
+- When a project override is removed, it reverts to the global defaults
+
+### Accessing Configuration
+
+| Page | URL | Permission Required |
+|------|-----|---------------------|
+| **Global Config** | `/admin/change-order-config` | `change-order-workflow-config-manage` |
+| **Project Override** | Project → Admin → Change Order Workflow | `change-order-workflow-config-override` |
+
+### How It Works
+
+1. Admin navigates to the **Global Config** page under Admin settings
+2. Edits parameters in the tabbed form (Impact Levels, Approval Rules, SLA Rules, Weights & Scores)
+3. Saves with a confirmation dialog — changes take effect immediately on new change orders
+4. For project-specific needs, project managers can override settings from the project admin page
+5. Configuration is **snapshotted** at submission time, so historical change orders retain the values that were active when they were submitted
+
+> **Note:** Changes to configuration do not affect change orders that are already in progress. Only new submissions use the updated values.

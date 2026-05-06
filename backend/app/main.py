@@ -18,6 +18,7 @@ from app.api.routes import (
     ai_config,
     ai_upload,
     auth,
+    change_order_config,
     change_orders,
     cost_element_types,
     cost_elements,
@@ -417,6 +418,11 @@ app.include_router(
     mcp_servers.router,
     prefix=settings.API_V1_STR,
     tags=["MCP Servers"],
+)
+app.include_router(
+    change_order_config.router,
+    prefix=f"{settings.API_V1_STR}/change-order-config",
+    tags=["Change Order Config"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)

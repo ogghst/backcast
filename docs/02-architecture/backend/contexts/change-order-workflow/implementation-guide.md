@@ -1,6 +1,6 @@
 # Change Order Workflow Implementation Guide
 
-**Last Updated:** 2026-04-11
+**Last Updated:** 2026-05-06
 **Owner:** Backend Team
 **Related:** [Workflow Architecture](architecture.md)
 
@@ -257,15 +257,19 @@ async def get_approval_info(
 
 ### SLA Deadline Calculation
 
+SLA deadlines are read from the workflow configuration via `ChangeOrderConfigService`. The `SLAService` delegates to the config service at runtime.
+
 ```python
 from app.services.sla_service import SLAService
+from app.services.change_order_config_service import ChangeOrderConfigService
 from datetime import UTC, datetime
 
-def calculate_sla_deadline_example() -> None:
+async def calculate_sla_deadline_example(db_session: AsyncSession) -> None:
     """Calculate SLA deadline for a change order."""
-    sla_service = SLAService(db_session)
+    config_service = ChangeOrderConfigService(db_session)
+    sla_service = SLAService(db_session, config_service=config_service)
 
-    # Calculate deadline from impact level and start time
+    # SLA days are read from config (default: LOW=2, MEDIUM=5, HIGH=10, CRITICAL=15)
     impact_level = "MEDIUM"
     submission_time = datetime.now(UTC)
 
@@ -273,7 +277,7 @@ def calculate_sla_deadline_example() -> None:
 
     print(f"Impact Level: {impact_level}")
     print(f"Submission Time: {submission_time}")
-    print(f"SLA Deadline: {deadline}")  # 5 business days later
+    print(f"SLA Deadline: {deadline}")  # Config-driven business days later
 ```
 
 ---
@@ -631,22 +635,28 @@ async def batch_submit_with_control_dates(
 ### Workflow Services
 - `app/services/change_order_workflow_service.py` - State machine and workflow orchestration
 - `app/services/change_order_workflow_validation.py` - Control date sequence validation
+- `app/services/change_order_config_service.py` - Configurable workflow parameters
 
 ### Supporting Services
 - `app/services/approval_matrix_service.py` - Approver authority validation
-- `app/services/sla_service.py` - SLA deadline calculation
-- `app/services/financial_impact_service.py` - Impact level calculation
+- `app/services/sla_service.py` - SLA deadline calculation (config-driven)
+- `app/services/financial_impact_service.py` - Impact level calculation (config-driven)
 
 ### Models
 - `app/models/domain/change_order.py` - Change Order entity with status field
 - `app/models/domain/change_order_audit_log.py` - Audit log model
+- `app/models/domain/change_order_config.py` - Workflow config models
 
 ### API Routes
 - `app/api/routes/change_orders.py` - Workflow endpoints
+- `app/api/routes/change_order_config.py` - Config management endpoints
 
 ### Tests
 - `tests/unit/services/test_change_order_workflow_service.py` - Unit tests
 - `tests/unit/services/test_change_order_workflow_validation.py` - Validation tests
+- `tests/unit/services/test_change_order_config_service.py` - Config service tests
+- `tests/unit/services/test_sla_service.py` - SLA service tests
+- `tests/integration/services/test_change_order_config_lifecycle.py` - Config integration tests
 - `tests/integration/test_change_order_workflow_full_temporal.py` - Integration tests
 
 ---
