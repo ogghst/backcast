@@ -445,22 +445,28 @@ def _check_branch_lock(root_id: UUID, branch: str, entity_id: UUID | None = None
 
 ### Impact Levels
 
+> **Note:** The values below are the default configuration. All parameters are now configurable by administrators via the Workflow Config API (`/api/v1/change-order-config/`). Per-project overrides are also supported.
+
 | Impact Level | Budget Range | Required Authority | SLA (business days) |
 |--------------|--------------|-------------------|---------------------|
-| LOW | < €10,000 | Project Manager | 3 |
+| LOW | < €10,000 | Project Manager | 2 |
 | MEDIUM | €10,000 - €50,000 | Department Head | 5 |
-| HIGH | €50,000 - €100,000 | Director | 7 |
-| CRITICAL | > €100,000 | Executive Committee | 10 |
+| HIGH | €50,000 - €100,000 | Director | 10 |
+| CRITICAL | > €100,000 | Executive Committee | 15 |
 
 ### Impact Score Calculation
 
-```
-Score = (budget_delta_percent × 0.4) +
-        (schedule_delta_percent × 0.3) +
-        (revenue_delta_percent × 0.2) +
-        (EVM_degradation × 0.1)
+> Weights and boundaries are configurable via the Workflow Config API. The formula below shows the default values.
 
-Impact Level Thresholds:
+```
+Score = (budget_delta_percent × weight_budget) +
+        (schedule_delta_percent × weight_schedule) +
+        (revenue_delta_percent × weight_revenue) +
+        (EVM_degradation × weight_evm)
+
+Default weights: budget=0.4, schedule=0.3, revenue=0.2, evm=0.1
+
+Impact Level Thresholds (configurable):
 - Score < 10: LOW
 - Score 10-30: MEDIUM
 - Score 30-50: HIGH
@@ -658,6 +664,11 @@ WHERE wbe_id = :id
 | GET | `/change-orders/pending-approvals` | User's pending approvals |
 | GET | `/change-orders/stats` | Aggregated statistics |
 | GET | `/change-orders/next-code` | Next sequential code |
+| GET | `/change-order-config/global` | Get global workflow config |
+| PUT | `/change-order-config/global` | Upsert global workflow config |
+| GET | `/change-order-config/projects/{id}` | Get project config override |
+| PUT | `/change-order-config/projects/{id}` | Upsert project config override |
+| DELETE | `/change-order-config/projects/{id}` | Reset project to global defaults |
 
 ### RBAC Permissions
 
@@ -669,6 +680,8 @@ WHERE wbe_id = :id
 | `change-order-delete` | Soft delete change orders |
 | `change-order-approve` | Approve/reject change orders |
 | `change-order-recover` | Admin recovery operations |
+| `change-order-workflow-config-manage` | Manage global workflow configuration |
+| `change-order-workflow-config-override` | Manage per-project configuration overrides |
 
 ---
 
@@ -1008,16 +1021,34 @@ class ImpactAnalysisStatus:
     SKIPPED = "skipped"
 ```
 
-## Appendix B: SLA Configuration
+## Appendix B: Workflow Configuration
+
+SLA deadlines, impact level thresholds, approval rules, and impact weights are now stored in the database and managed via the Workflow Config API. The `ChangeOrderConfigService` reads these values at runtime.
+
+**Default seeded values:**
 
 ```python
-SLA_BUSINESS_DAYS = {
-    "LOW": 3,
-    "MEDIUM": 5,
-    "HIGH": 7,
-    "CRITICAL": 10,
-}
+# SLA business days (seeded from config)
+LOW: 2, MEDIUM: 5, HIGH: 10, CRITICAL: 15
+
+# Impact score boundaries
+LOW: 0-10, MEDIUM: 10-30, HIGH: 30-50, CRITICAL: 50+
+
+# Impact weights
+budget: 0.4, schedule: 0.3, revenue: 0.2, evm: 0.1
 ```
+
+**Configuration tables:**
+
+| Table | Purpose |
+|-------|---------|
+| `co_workflow_config` | Parent config (global + per-project overrides) |
+| `co_impact_level_config` | Impact level thresholds and score ranges |
+| `co_approval_rule_config` | Approval authority mapping (5-role system) |
+| `co_sla_rule_config` | SLA deadlines per impact level |
+| `co_config_audit_log` | Config change audit trail |
+
+**Config snapshot:** When a change order is submitted, the active config is snapshotted into the `config_snapshot` JSONB column on the `change_orders` table. This preserves the exact configuration used for historical change orders.
 
 ## Appendix C: Related Files
 
@@ -1031,3 +1062,7 @@ SLA_BUSINESS_DAYS = {
 | `backend/app/core/branching/service.py` | Branch management |
 | `backend/app/core/branching/exceptions.py` | Branch exceptions |
 | `backend/app/api/routes/change_orders.py` | API endpoints |
+| `backend/app/services/change_order_config_service.py` | Workflow config CRUD and lookup |
+| `backend/app/models/domain/change_order_config.py` | Config domain models |
+| `backend/app/models/schemas/change_order_config.py` | Config API schemas |
+| `backend/app/api/routes/change_order_config.py` | Config API endpoints |

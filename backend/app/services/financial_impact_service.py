@@ -13,41 +13,43 @@ Service Layer:
 - Raises ValueError for business errors (routes convert to HTTPException)
 """
 
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.change_order import ChangeOrder, ImpactLevel
+from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
+
+if TYPE_CHECKING:
+    from app.services.change_order_config_service import ChangeOrderConfigService
 
 
 class FinancialImpactService:
     """Service for calculating financial impact levels for change orders.
 
     Calculates financial impact by comparing budgets between main branch
-    and change order branch. Classifies impact level according to approval
-    matrix thresholds.
-
-    Impact Levels:
-    - LOW: < €10,000 (Project Manager approval)
-    - MEDIUM: €10,000 - €50,000 (Department Head approval)
-    - HIGH: €50,000 - €100,000 (Director approval)
-    - CRITICAL: > €100,000 (Executive Committee approval)
+    and change order branch. Classifies impact level according to configurable
+    thresholds from the workflow configuration service.
     """
 
-    # Impact level thresholds (in EUR)
-    THRESHOLD_LOW_MAX = Decimal("10000")
-    THRESHOLD_MEDIUM_MAX = Decimal("50000")
-    THRESHOLD_HIGH_MAX = Decimal("100000")
-
-    def __init__(self, db_session: AsyncSession) -> None:
+    def __init__(
+        self,
+        db_session: AsyncSession,
+        config_service: ChangeOrderConfigService | None = None,
+    ) -> None:
         """Initialize the service with a database session.
 
         Args:
             db_session: Async database session for queries
+            config_service: Optional config service for threshold lookup.
+                If not provided, thresholds will be fetched on demand.
         """
         self._db = db_session
+        self._config_service = config_service
 
     async def calculate_impact_level(self, change_order_id: UUID) -> str:
         """Calculate the financial impact level for a change order.
@@ -143,11 +145,13 @@ class FinancialImpactService:
         # Calculate absolute budget delta
         budget_delta = abs(change_budget - main_budget)
 
-        # Classify impact level based on thresholds
-        return self._classify_impact_level(budget_delta)
+        # Classify impact level based on configurable thresholds
+        return await self._classify_impact_level(budget_delta)
 
-    def _classify_impact_level(self, budget_delta: Decimal) -> str:
+    async def _classify_impact_level(self, budget_delta: Decimal) -> str:
         """Classify financial impact level based on budget delta.
+
+        Reads thresholds from the workflow configuration service.
 
         Args:
             budget_delta: Absolute budget change amount (EUR)
@@ -155,14 +159,20 @@ class FinancialImpactService:
         Returns:
             Impact level string: LOW, MEDIUM, HIGH, or CRITICAL
         """
-        if budget_delta < self.THRESHOLD_LOW_MAX:
-            return ImpactLevel.LOW
-        elif budget_delta < self.THRESHOLD_MEDIUM_MAX:
-            return ImpactLevel.MEDIUM
-        elif budget_delta < self.THRESHOLD_HIGH_MAX:
-            return ImpactLevel.HIGH
-        else:
-            return ImpactLevel.CRITICAL
+        from app.services.change_order_config_service import (
+            ChangeOrderConfigService,
+        )
+
+        if self._config_service is not None:
+            thresholds = await self._config_service.get_thresholds()
+            return self._config_service.classify_financial_impact(
+                budget_delta, thresholds
+            )
+
+        # Fallback: create a temporary config service for this session
+        config_service = ChangeOrderConfigService(self._db)
+        thresholds = await config_service.get_thresholds()
+        return config_service.classify_financial_impact(budget_delta, thresholds)
 
     async def get_financial_impact_details(
         self, change_order_id: UUID
@@ -275,7 +285,7 @@ class FinancialImpactService:
 
         budget_delta = change_budget - main_budget
         revenue_delta = change_revenue - main_revenue
-        impact_level = self._classify_impact_level(abs(budget_delta))
+        impact_level = await self._classify_impact_level(abs(budget_delta))
 
         return {
             "main_budget": float(main_budget),

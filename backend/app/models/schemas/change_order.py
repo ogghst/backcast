@@ -158,6 +158,12 @@ class ChangeOrderPublic(ChangeOrderBase):
         None,
         description="Assigned approver details (user_id, full_name, email, role)",
     )
+    config_snapshot: dict[str, Any] | None = Field(
+        None,
+        description="Workflow configuration snapshot at submission time. "
+        "Immutable record of the rules, thresholds, and weights that were active "
+        "when this change order was submitted for approval.",
+    )
 
 
 class ApprovalInfoPublic(BaseModel):

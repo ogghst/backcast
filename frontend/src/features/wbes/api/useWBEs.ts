@@ -80,23 +80,32 @@ export const useWBEs = (params?: WBEListParams) => {
       const sortOrder = sortOrderRaw === "descend" ? "desc" : "asc";
 
       // Manual request to support as_of and mode query params
+      const queryParams = {
+        page: current,
+        per_page: pageSize,
+        project_id: params?.projectId,
+        parent_wbe_id: params?.parentWbeId,
+        branch: branch || "main",
+        mode: mode,
+        search: params?.search,
+        filters: filterString,
+        sort_field: sortField as string,
+        sort_order: sortOrder,
+        as_of: asOf || undefined,
+      };
+
+      console.log('[useWBEs] Fetching WBEs with params:', queryParams);
+
       const response = await __request(OpenAPI, {
         method: "GET",
         url: "/api/v1/wbes",
-        query: {
-          page: current,
-          per_page: pageSize,
-          project_id: params?.projectId,
-          parent_wbe_id: params?.parentWbeId,
-          branch: branch || "main",
-          mode: mode,
-          search: params?.search,
-          filters: filterString,
-          sort_field: sortField as string,
-          sort_order: sortOrder,
-          as_of: asOf || undefined,
-        },
+        query: queryParams,
       });
+
+      console.log('[useWBEs] Response received. Items count:', Array.isArray(response) ? response.length : response?.items?.length || 0);
+      if (!Array.isArray(response) && response?.items) {
+        console.log('[useWBEs] Root WBEs:', response.items.map((w: WBERead) => `${w.code}: ${w.name}`));
+      }
 
       // Normalize response to always be PaginatedResponse
       if (Array.isArray(response)) {

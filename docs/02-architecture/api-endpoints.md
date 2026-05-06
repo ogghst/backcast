@@ -1,6 +1,6 @@
 # API Endpoints Reference
 
-**Last Updated:** 2026-03-02
+**Last Updated:** 2026-05-06
 **Status:** Active
 
 > **Scope:** Quick reference catalog of all API endpoints in Backcast.
@@ -28,6 +28,7 @@
 | WBEs | `/api/v1/wbes` | Work breakdown elements |
 | Cost Elements | `/api/v1/cost-elements` | Cost element management |
 | Change Orders | `/api/v1/change-orders` | Change order processing |
+| CO Config | `/api/v1/change-order-config` | Workflow configuration |
 | EVM | `/api/v1/evm` | Earned value metrics |
 | Users | `/api/v1/users` | User management |
 | Departments | `/api/v1/departments` | Department management |
@@ -298,7 +299,60 @@ GET /api/v1/change-orders/{change_order_id}/impact-analysis
 
 ---
 
-## 5. EVM Analysis
+## 5. Change Order Workflow Configuration
+
+### Get Global Workflow Config
+```
+GET /api/v1/change-order-config/global
+```
+
+**Permission:** `change-order-read`
+
+**Response:** `WorkflowConfigResponse`
+
+### Upsert Global Workflow Config
+```
+PUT /api/v1/change-order-config/global
+```
+
+**Permission:** `change-order-workflow-config-manage`
+
+**Request Body:** `WorkflowConfigUpdateRequest`
+
+**Response:** `WorkflowConfigResponse`
+
+### Get Project Workflow Config
+```
+GET /api/v1/change-order-config/projects/{project_id}
+```
+
+**Permission:** `change-order-read`
+
+**Response:** `WorkflowConfigResponse`
+
+### Upsert Project Workflow Config
+```
+PUT /api/v1/change-order-config/projects/{project_id}
+```
+
+**Permission:** `change-order-workflow-config-override`
+
+**Request Body:** `WorkflowConfigUpdateRequest`
+
+**Response:** `WorkflowConfigResponse`
+
+### Delete Project Workflow Config
+```
+DELETE /api/v1/change-order-config/projects/{project_id}
+```
+
+**Permission:** `change-order-workflow-config-override`
+
+**Response:** `204 No Content`
+
+---
+
+## 6. EVM Analysis
 
 ### Get Project EVM Summary
 ```
@@ -330,7 +384,7 @@ GET /api/v1/evm/projects/{project_id}/time-series
 
 ---
 
-## 6. Users
+## 7. Users
 
 ### List Users
 ```
@@ -373,7 +427,7 @@ DELETE /api/v1/users/{user_id}
 
 ---
 
-## 7. Departments
+## 8. Departments
 
 ### List Departments
 ```

@@ -3,11 +3,13 @@
 Moved from app.core.versioning.commands.
 """
 
+import json
 from datetime import UTC, datetime
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
 from sqlalchemy import func, or_, select, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import VersionedCommandABC
@@ -322,6 +324,15 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
 
         # Get all values from new_version (excluding temporal columns)
         values = {c: getattr(new_version, c) for c in columns}
+        # Serialize JSONB columns to JSON strings for asyncpg compatibility
+        jsonb_columns = {
+            c.key
+            for c in mapper.columns
+            if isinstance(c.type, JSONB)
+        }
+        for col_name in jsonb_columns:
+            if col_name in values and isinstance(values[col_name], dict):
+                values[col_name] = json.dumps(values[col_name])
         # Generate a new UUID for the id
         new_id = uuid4()
         values["id"] = new_id

@@ -307,6 +307,13 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["search", "global", params, asOf, branch, mode] as const,
   },
 
+  // Change Order Config
+  changeOrderConfig: {
+    all: ["change-order-config"] as const,
+    global: ["change-order-config", "global"] as const,
+    project: (projectId: string) => ["change-order-config", "project", projectId] as const,
+  },
+
   // Admin RBAC
   adminRbac: {
     all: ["admin-rbac"] as const,

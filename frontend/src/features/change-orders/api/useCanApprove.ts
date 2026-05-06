@@ -3,6 +3,7 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { usePermission } from "@/hooks/usePermission";
 import { useApprovalInfo } from "./useApprovals";
 import type { ChangeOrderPublic } from "@/api/generated";
+import { useImpactLevelConfig } from "@/features/change-orders/hooks/useImpactLevelConfig";
 
 /**
  * Result of the useCanApprove hook.
@@ -45,6 +46,7 @@ export interface UseCanApproveResult {
 export function useCanApprove(changeOrder: ChangeOrderPublic | undefined): UseCanApproveResult {
   const { can } = usePermission();
   const user = useAuthStore((state) => state.user);
+  const { authorityLevels } = useImpactLevelConfig();
 
   // Fetch approval info from backend
   const { data: approvalInfo, isLoading } = useApprovalInfo(
@@ -136,7 +138,6 @@ export function useCanApprove(changeOrder: ChangeOrderPublic | undefined): UseCa
       }
 
       // Check if user has sufficient authority level
-      const authorityLevels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
       const userLevelIndex = authorityLevels.indexOf(approvalInfo.user_authority_level || "");
       const requiredLevelIndex = authorityLevels.indexOf(approvalInfo.impact_level || "");
 
@@ -163,7 +164,7 @@ export function useCanApprove(changeOrder: ChangeOrderPublic | undefined): UseCa
       authorityLevel: approvalInfo.user_authority_level || null,
       isLoading: false,
     };
-  }, [changeOrder, approvalInfo, isLoading, hasApprovePermission, user]);
+  }, [changeOrder, approvalInfo, isLoading, hasApprovePermission, user, authorityLevels]);
 
   return result;
 }

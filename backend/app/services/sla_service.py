@@ -7,56 +7,51 @@ holidays).
 Context: Used by ChangeOrderWorkflowService to set SLA deadlines when
 change orders are submitted for approval.
 
-Service Layer:
-- Calculates SLA deadlines based on impact level
-- Tracks SLA status (pending/approaching/overdue)
-- Provides business day calculations
+SLA deadlines are now read from the configurable workflow configuration
+service (ChangeOrderConfigService), eliminating the previous hardcoded values.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.change_order import ImpactLevel, SLAStatus
+from app.models.domain.change_order import SLAStatus
+
+if TYPE_CHECKING:
+    from app.services.change_order_config_service import ChangeOrderConfigService
 
 
 class SLAService:
     """Service for calculating SLA deadlines for change order approvals.
 
     Calculates SLA deadlines based on impact level, using business days
-    (Monday-Friday, excluding weekends). Holidays are not yet supported
-    but can be added in a future iteration.
-
-    SLA Deadlines by Impact Level:
-    - LOW: 2 business days
-    - MEDIUM: 5 business days
-    - HIGH: 10 business days
-    - CRITICAL: 15 business days
+    (Monday-Friday, excluding weekends). Business days per impact level
+    are read from the workflow configuration.
     """
 
-    # Business day SLA mapping (impact level -> business days)
-    SLA_BUSINESS_DAYS: dict[str, int] = {
-        ImpactLevel.LOW: 2,
-        ImpactLevel.MEDIUM: 5,
-        ImpactLevel.HIGH: 10,
-        ImpactLevel.CRITICAL: 15,
-    }
-
-    def __init__(self, db_session: AsyncSession) -> None:
+    def __init__(
+        self,
+        db_session: AsyncSession,
+        config_service: ChangeOrderConfigService | None = None,
+    ) -> None:
         """Initialize the service with a database session.
 
         Args:
             db_session: Async database session for queries
+            config_service: Optional config service for SLA lookup.
         """
         self._db = db_session
+        self._config_service = config_service
 
-    def calculate_sla_deadline(
+    async def calculate_sla_deadline(
         self, impact_level: str, start_date: datetime
     ) -> datetime:
         """Calculate SLA deadline based on impact level and start date.
 
-        Adds the required number of business days to the start date.
-        Business days are Monday-Friday (weekends excluded).
+        Reads SLA days from the workflow configuration.
 
         Args:
             impact_level: Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)
@@ -67,20 +62,16 @@ class SLAService:
 
         Raises:
             ValueError: If impact_level is invalid
-
-        Example:
-            >>> service = SLAService(session)
-            >>> deadline = service.calculate_sla_deadline('MEDIUM', datetime.now())
-            >>> print(deadline)
-            datetime.datetime(2026, 2, 10, 14, 30, tzinfo=datetime.timezone.utc)
         """
-        if impact_level not in self.SLA_BUSINESS_DAYS:
+        sla_days_map = await self._get_sla_days()
+
+        if impact_level not in sla_days_map:
             raise ValueError(
                 f"Invalid impact_level: {impact_level}. "
-                f"Must be one of: {list(self.SLA_BUSINESS_DAYS.keys())}"
+                f"Must be one of: {list(sla_days_map.keys())}"
             )
 
-        business_days = self.SLA_BUSINESS_DAYS[impact_level]
+        business_days = sla_days_map[impact_level]
 
         # Add business days (skip weekends)
         deadline = self._add_business_days(start_date, business_days)
@@ -281,3 +272,14 @@ class SLAService:
             await self._db.flush()
 
         return new_status
+
+    async def _get_sla_days(self) -> dict[str, int]:
+        """Get SLA business days per impact level from config."""
+        from app.services.change_order_config_service import (
+            ChangeOrderConfigService,
+        )
+
+        if self._config_service is not None:
+            return await self._config_service.get_sla_days()
+        config_service = ChangeOrderConfigService(self._db)
+        return await config_service.get_sla_days()

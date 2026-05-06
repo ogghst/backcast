@@ -1,6 +1,7 @@
 import { useParams } from "react-router-dom";
 import { Typography, Card, Row, Col, theme } from "antd";
 import { BudgetSettingsWidget } from "@/features/projects/widgets/BudgetSettingsWidget";
+import { ProjectConfigPanel } from "@/features/change-orders/components/ProjectConfigPanel";
 import { Can } from "@/components/auth/Can";
 
 const { Title } = Typography;
@@ -50,16 +51,11 @@ export const ProjectAdminPage = () => {
         </Col>
       </Row>
 
-      {/* Placeholder for future admin settings */}
-      {/* <Row gutter={[token.paddingLG, token.paddingLG]} style={{ marginTop: token.paddingXL }}>
-        <Col xs={24} lg={12} xl={8}>
-          <Card title="More Admin Settings">
-            <Typography.Text type="secondary">
-              Additional administrative settings can be added here in the future.
-            </Typography.Text>
-          </Card>
+      <Row gutter={[token.paddingLG, token.paddingLG]} style={{ marginTop: token.paddingLG }}>
+        <Col xs={24}>
+          <ProjectConfigPanel projectId={projectId} />
         </Col>
-      </Row> */}
+      </Row>
     </div>
   );
 };

@@ -17,6 +17,7 @@ Graph: START -> initialize_briefing -> supervisor <-> specialist_nodes -> END
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Annotated, Any
 
@@ -47,6 +48,7 @@ from app.ai.subagent_compiler import (
 from app.ai.subagents import get_all_subagents
 from app.ai.supervisor_state import BackcastSupervisorState
 from app.ai.tools.types import ToolContext
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -487,45 +489,67 @@ class SupervisorOrchestrator:
             ]
 
             max_iterations = state.get("max_tool_iterations", 25)
+            max_retries = settings.AI_SPECIALIST_MAX_RETRIES
+            result = None
 
             # Run the specialist in isolation with only the briefing as context.
-            try:
-                result = await specialist_graph.ainvoke(
-                    {
-                        "messages": isolated_messages,
-                        "tool_call_count": 0,
-                        "max_tool_iterations": max_iterations,
-                        "next": "agent",
-                    },
-                    config={"recursion_limit": max_iterations},
-                )
-            # Errors are captured in the briefing but the specialist is NOT marked
-            # completed, allowing retry.
-            except Exception as exc:
-                logger.error(
-                    "[SPECIALIST_ERROR] Specialist %s failed: %s",
-                    specialist_name,
-                    exc,
-                    exc_info=True,
-                )
-                error_msg = f"Specialist {specialist_name} encountered an error: {exc}"
-                updated_data = compile_specialist_output(
-                    briefing_data=state.get("briefing_data", {}),
-                    specialist_name=specialist_name,
-                    task_description=f"Failed: {exc}",
-                    specialist_output=error_msg,
-                )
-                return Command(
-                    update={
-                        "briefing_data": updated_data,
-                        "active_agent": "supervisor",
-                        "supervisor_iterations": state.get("supervisor_iterations", 0)
-                        + 1,
-                        "tool_call_count": 0,
-                    },
-                    goto="supervisor",
-                )
+            # Retry transient network errors (e.g. API dropping connections).
+            from app.ai.agent_service import _is_transient_stream_error
 
+            for _retry_attempt in range(max_retries + 1):
+                try:
+                    result = await specialist_graph.ainvoke(
+                        {
+                            "messages": isolated_messages,
+                            "tool_call_count": 0,
+                            "max_tool_iterations": max_iterations,
+                            "next": "agent",
+                        },
+                        config={"recursion_limit": max_iterations},
+                    )
+                    break  # success
+                except Exception as exc:
+                    if _is_transient_stream_error(exc) and _retry_attempt < max_retries:
+                        logger.warning(
+                            "[SPECIALIST_RETRY] Specialist %s transient error "
+                            "(attempt %d/%d), retrying in 2s: %s",
+                            specialist_name,
+                            _retry_attempt + 1,
+                            max_retries + 1,
+                            exc,
+                        )
+                        await asyncio.sleep(2.0)
+                        continue
+                    # Non-transient or retries exhausted — report to supervisor.
+                    logger.error(
+                        "[SPECIALIST_ERROR] Specialist %s failed: %s",
+                        specialist_name,
+                        exc,
+                        exc_info=True,
+                    )
+                    error_msg = (
+                        f"Specialist {specialist_name} encountered an error: {exc}"
+                    )
+                    updated_data = compile_specialist_output(
+                        briefing_data=state.get("briefing_data", {}),
+                        specialist_name=specialist_name,
+                        task_description=f"Failed: {exc}",
+                        specialist_output=error_msg,
+                    )
+                    return Command(
+                        update={
+                            "briefing_data": updated_data,
+                            "active_agent": "supervisor",
+                            "supervisor_iterations": state.get(
+                                "supervisor_iterations", 0
+                            )
+                            + 1,
+                            "tool_call_count": 0,
+                        },
+                        goto="supervisor",
+                    )
+
+            assert result is not None  # guaranteed: break on success, return on failure
             messages = result.get("messages", [])
             # DeepSeek sometimes returns empty AIMessage after tool execution --
             # the utility falls back to tool results.

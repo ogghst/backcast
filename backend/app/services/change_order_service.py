@@ -133,14 +133,18 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         if title:
             from app.core.enums import ChangeOrderStatus as COStatus
 
-            existing_stmt = select(ChangeOrder).where(
-                ChangeOrder.project_id == project_id,
-                ChangeOrder.title == title,
-                ChangeOrder.branch == "main",
-                ChangeOrder.status == COStatus.DRAFT,
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                cast(Any, ChangeOrder).deleted_at.is_(None),
-            ).limit(1)
+            existing_stmt = (
+                select(ChangeOrder)
+                .where(
+                    ChangeOrder.project_id == project_id,
+                    ChangeOrder.title == title,
+                    ChangeOrder.branch == "main",
+                    ChangeOrder.status == COStatus.DRAFT,
+                    func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                    cast(Any, ChangeOrder).deleted_at.is_(None),
+                )
+                .limit(1)
+            )
             existing_result = await self.session.execute(existing_stmt)
             existing_co = existing_result.scalar_one_or_none()
             if existing_co:
@@ -976,17 +980,19 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # These were already calculated during CO creation in _run_impact_analysis
         impact_level = co.impact_level
 
-        # Calculate SLA deadline (business days)
-
-        SLA_BUSINESS_DAYS = {
-            "LOW": 3,
-            "MEDIUM": 5,
-            "HIGH": 7,
-            "CRITICAL": 10,
-        }
-
-        sla_days = SLA_BUSINESS_DAYS.get(impact_level, 5)
+        # Calculate SLA deadline from configurable workflow config
+        sla_days = await self._get_sla_days(impact_level)
         sla_due_date = self._add_business_days(datetime.now(), sla_days)
+
+        # Snapshot workflow config at submission time (Decision 7 & 13)
+        from app.services.change_order_config_service import (
+            ChangeOrderConfigService,
+        )
+
+        config_service = ChangeOrderConfigService(self.session)
+        config_snapshot = await config_service.generate_snapshot(
+            project_id=co.project_id
+        )
 
         # Store old status for audit log
         old_status = co.status
@@ -1003,6 +1009,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 "sla_assigned_at": sla_assigned_at,
                 "sla_due_date": sla_due_date,
                 "sla_status": "pending",
+                "config_snapshot": config_snapshot,
             },
         )
         updated_co = await status_cmd.execute(self.session)
@@ -1488,7 +1495,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
             # Phase 6 Task #2: Calculate impact score and level
             impact_score = self._calculate_impact_score(impact_analysis)
-            impact_level = self._map_score_to_impact_level(impact_score)
+            impact_level = await self._map_score_to_impact_level(impact_score)
 
             # Phase 6 Task #3: Assign approver based on impact level
             assigned_approver_id = await self._assign_approver_for_impact(
@@ -1675,8 +1682,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Round to 2 decimal places and return as Decimal
         return Decimal(str(round(total_score, 2)))
 
-    def _map_score_to_impact_level(self, score: Decimal) -> str:
-        """Map impact score to impact level.
+    async def _map_score_to_impact_level(self, score: Decimal) -> str:
+        """Map impact score to impact level using configurable boundaries.
 
         Context: Phase 6 Task #2 - Impact level classification.
         Maps numeric score to LOW/MEDIUM/HIGH/CRITICAL levels.
@@ -1686,24 +1693,14 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         Returns:
             Impact level string: LOW, MEDIUM, HIGH, or CRITICAL
-
-        Thresholds:
-            - Score < 10: LOW
-            - Score 10-30: MEDIUM
-            - Score 30-50: HIGH
-            - Score >= 50: CRITICAL
         """
-        # Import ImpactLevel constants for consistency
-        from app.models.domain.change_order import ImpactLevel
+        from app.services.change_order_config_service import (
+            ChangeOrderConfigService,
+        )
 
-        if score < 10:
-            return ImpactLevel.LOW
-        elif score < 30:
-            return ImpactLevel.MEDIUM
-        elif score < 50:
-            return ImpactLevel.HIGH
-        else:
-            return ImpactLevel.CRITICAL
+        config_service = ChangeOrderConfigService(self.session)
+        boundaries = await config_service.get_score_boundaries()
+        return config_service.classify_impact_by_score(score, boundaries)
 
     def _add_business_days(self, start_date: datetime, days: int) -> datetime:
         """Add business days to a date, excluding weekends.
@@ -1763,8 +1760,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         return business_days
 
-    def _get_sla_days(self, impact_level: str | None) -> int:
+    async def _get_sla_days(self, impact_level: str | None) -> int:
         """Get the number of SLA business days for an impact level.
+
+        Reads from the configurable workflow configuration.
 
         Args:
             impact_level: Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)
@@ -1772,14 +1771,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         Returns:
             Number of business days for SLA
         """
-        SLA_BUSINESS_DAYS = {
-            "LOW": 3,
-            "MEDIUM": 5,
-            "HIGH": 7,
-            "CRITICAL": 10,
-        }
+        from app.services.change_order_config_service import (
+            ChangeOrderConfigService,
+        )
 
-        return SLA_BUSINESS_DAYS.get(impact_level or "LOW", 5)
+        config_service = ChangeOrderConfigService(self.session)
+        sla_days_map = await config_service.get_sla_days()
+        return sla_days_map.get(impact_level or "LOW", 5)
 
     async def _to_public(self, co: ChangeOrder) -> "ChangeOrderPublic":
         """Convert a ChangeOrder domain model to ChangeOrderPublic schema with workflow metadata.
@@ -1856,6 +1854,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             "sla_due_date": co.sla_due_date,
             "sla_status": co.sla_status,
             "assigned_approver": assigned_approver,
+            "config_snapshot": co.config_snapshot,
         }
 
         return ChangeOrderPublic(**public_data)
@@ -1983,12 +1982,14 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Verify project exists (with temporal filtering — Project is versioned)
         project_result = await self.session.execute(
-            select(Project).where(
+            select(Project)
+            .where(
                 Project.project_id == project_id,
                 Project.branch == "main",
                 func.upper(cast(Any, Project).valid_time).is_(None),
                 cast(Any, Project).deleted_at.is_(None),
-            ).limit(1)
+            )
+            .limit(1)
         )
         project = project_result.scalar_one_or_none()
         if not project:

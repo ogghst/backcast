@@ -995,7 +995,7 @@ async def get_change_order_approval_info(
                 }
 
         # Get current user's authority level
-        user_authority = approval_service.get_user_authority_level(current_user)
+        user_authority = await approval_service.get_user_authority_level(current_user)
 
         # Check if current user can approve
         can_approve = await approval_service.can_approve(current_user, co)

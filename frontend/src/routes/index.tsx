@@ -14,7 +14,8 @@ import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
 import { ProjectStructure } from "@/pages/projects/ProjectStructure";
-import { ProjectExplorer } from "@/pages/projects/ProjectExplorer";
+// Explorer route temporarily disabled
+// import { ProjectExplorer } from "@/pages/projects/ProjectExplorer";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
 import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
 import { ProjectSchedulePage } from "@/pages/projects/ProjectSchedulePage";
@@ -39,6 +40,7 @@ import { ProjectChat } from "@/pages/projects/ProjectChat";
 import { ProjectMembers } from "@/pages/projects/ProjectMembers";
 import { ProjectAdminPage } from "@/pages/projects/ProjectAdminPage";
 import { DashboardPage } from "@/features/widgets/pages/DashboardPage";
+import { ChangeOrderConfigPage } from "@/features/change-orders/components/ChangeOrderConfigPage";
 
 export const router = createBrowserRouter([
   {
@@ -102,6 +104,10 @@ export const router = createBrowserRouter([
         element: <RBACConfiguration />,
       },
       {
+        path: "/admin/change-order-config",
+        element: <ChangeOrderConfigPage />,
+      },
+      {
         path: "/chat",
         element: (
           <ProtectedRoute permission="ai-chat">
@@ -126,10 +132,11 @@ export const router = createBrowserRouter([
             path: "structure",
             element: <ProjectStructure />,
           },
-          {
-            path: "explorer",
-            element: <ProjectExplorer />,
-          },
+          // Explorer route temporarily disabled
+          // {
+          //   path: "explorer",
+          //   element: <ProjectExplorer />,
+          // },
           {
             path: "change-orders",
             element: <ProjectChangeOrdersPage />,

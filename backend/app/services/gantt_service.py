@@ -279,11 +279,7 @@ class GanttService:
         project_end: datetime | None = None
 
         for row in rows:
-            # Skip WBE rows without cost elements
-            if row.cost_element_id is None:
-                continue
-
-            # Track project date range
+            # Track project date range (only for rows with schedule data)
             if row.start_date is not None:
                 if project_start is None or row.start_date < project_start:
                     project_start = row.start_date
@@ -291,6 +287,7 @@ class GanttService:
                 if project_end is None or row.end_date > project_end:
                     project_end = row.end_date
 
+            # Include all WBEs, even those without cost elements
             items.append(
                 GanttItem(
                     cost_element_id=row.cost_element_id,

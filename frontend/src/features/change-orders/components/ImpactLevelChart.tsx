@@ -6,6 +6,7 @@
 import { Card, Typography, Empty, Spin } from "antd";
 import { Pie } from "@ant-design/charts";
 import type { ChangeOrderImpactStats } from "@/features/change-orders/api/useChangeOrderStats";
+import { useImpactLevelConfig } from "@/features/change-orders/hooks/useImpactLevelConfig";
 
 const { Title } = Typography;
 
@@ -14,19 +15,12 @@ interface ImpactLevelChartProps {
   loading?: boolean;
 }
 
-// Impact level color mapping
-const IMPACT_COLORS: Record<string, string> = {
-  LOW: "#52c41a",
-  MEDIUM: "#faad14",
-  HIGH: "#fa8c16",
-  CRITICAL: "#ff4d4f",
-  Unassigned: "#8c8c8c",
-};
-
 export const ImpactLevelChart = ({
   data,
   loading,
 }: ImpactLevelChartProps) => {
+  const { impactColors } = useImpactLevelConfig();
+
   const chartData = data?.map((item) => ({
     impact_level: item.impact_level,
     count: item.count,
@@ -47,7 +41,7 @@ export const ImpactLevelChart = ({
     angleField: "count",
     colorField: "impact_level",
     color: ({ impact_level }: { impact_level: string }) =>
-      IMPACT_COLORS[impact_level] || "#1890ff",
+      impactColors[impact_level] || "#1890ff",
     radius: 0.8,
     innerRadius: 0.6,
     label: {

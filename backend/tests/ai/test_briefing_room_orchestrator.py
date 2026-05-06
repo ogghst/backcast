@@ -1181,6 +1181,110 @@ class TestSpecialistWrapper:
         call_args = mock_graph.ainvoke.call_args
         assert call_args[1]["config"]["recursion_limit"] == 15
 
+    @pytest.mark.asyncio
+    async def test_transient_error_retries_and_succeeds(self) -> None:
+        """Transient errors are retried; specialist succeeds on 3rd attempt."""
+        orchestrator = SupervisorOrchestrator(
+            model="openai:gpt-4o",
+            context=_make_tool_context(),
+        )
+        mock_graph = AsyncMock()
+        transient_err = ConnectionResetError("peer closed connection")
+        mock_graph.ainvoke.side_effect = [
+            transient_err,
+            transient_err,
+            {"messages": [AIMessage(content="Recovered.")], "tool_call_count": 1},
+        ]
+
+        wrapper = orchestrator._create_specialist_wrapper(
+            specialist_name="evm_analyst",
+            specialist_graph=mock_graph,
+        )
+
+        with patch(
+            "app.ai.supervisor_orchestrator.settings"
+        ) as mock_settings:
+            mock_settings.AI_SPECIALIST_MAX_RETRIES = 3
+            result = await wrapper(
+                {
+                    "messages": [],
+                    "completed_specialists": set(),
+                    "supervisor_iterations": 0,
+                    "briefing_data": _make_briefing_data("Test"),
+                    "max_tool_iterations": 25,
+                }
+            )
+
+        assert result.goto == "supervisor"
+        assert result.update["completed_specialists"] == {"evm_analyst"}
+        assert mock_graph.ainvoke.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_non_transient_error_no_retry(self) -> None:
+        """Non-transient errors are NOT retried; returns error immediately."""
+        orchestrator = SupervisorOrchestrator(
+            model="openai:gpt-4o",
+            context=_make_tool_context(),
+        )
+        mock_graph = AsyncMock()
+        mock_graph.ainvoke.side_effect = ValueError("bad input")
+
+        wrapper = orchestrator._create_specialist_wrapper(
+            specialist_name="evm_analyst",
+            specialist_graph=mock_graph,
+        )
+
+        with patch(
+            "app.ai.supervisor_orchestrator.settings"
+        ) as mock_settings:
+            mock_settings.AI_SPECIALIST_MAX_RETRIES = 3
+            result = await wrapper(
+                {
+                    "messages": [],
+                    "completed_specialists": set(),
+                    "supervisor_iterations": 0,
+                    "briefing_data": _make_briefing_data("Test"),
+                    "max_tool_iterations": 25,
+                }
+            )
+
+        assert result.goto == "supervisor"
+        assert "evm_analyst" not in result.update.get("completed_specialists", set())
+        assert mock_graph.ainvoke.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_transient_error_exhausts_retries(self) -> None:
+        """All retries exhausted returns error Command after max_retries + 1 attempts."""
+        orchestrator = SupervisorOrchestrator(
+            model="openai:gpt-4o",
+            context=_make_tool_context(),
+        )
+        mock_graph = AsyncMock()
+        mock_graph.ainvoke.side_effect = ConnectionResetError("peer closed")
+
+        wrapper = orchestrator._create_specialist_wrapper(
+            specialist_name="evm_analyst",
+            specialist_graph=mock_graph,
+        )
+
+        with patch(
+            "app.ai.supervisor_orchestrator.settings"
+        ) as mock_settings:
+            mock_settings.AI_SPECIALIST_MAX_RETRIES = 3
+            result = await wrapper(
+                {
+                    "messages": [],
+                    "completed_specialists": set(),
+                    "supervisor_iterations": 0,
+                    "briefing_data": _make_briefing_data("Test"),
+                    "max_tool_iterations": 25,
+                }
+            )
+
+        assert result.goto == "supervisor"
+        assert "evm_analyst" not in result.update.get("completed_specialists", set())
+        assert mock_graph.ainvoke.call_count == 4  # 3 retries + 1 initial
+
 
 # ---------------------------------------------------------------------------
 # _build_middleware

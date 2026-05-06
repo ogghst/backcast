@@ -6,14 +6,14 @@ to required authority levels and assigning appropriate approvers based on user r
 Context: Used by ChangeOrderWorkflowService to assign approvers on submission
 and validate approval authority during the approval workflow.
 
-Service Layer:
-- Validates approver authority for change orders
-- Assigns approvers based on impact level
-- Maps user roles to approval authority levels
-- Provides complete approval information for UI display
+Authority and role mappings are now read from the configurable workflow
+configuration service (ChangeOrderConfigService), supporting the 5-role system
+(viewer, editor_pm, dept_head, director, admin).
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import cast as sql_cast
@@ -21,8 +21,11 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.change_order import ChangeOrder, ImpactLevel
+from app.models.domain.change_order import ChangeOrder
 from app.models.domain.user import User
+
+if TYPE_CHECKING:
+    from app.services.change_order_config_service import ChangeOrderConfigService
 
 
 class ApprovalMatrixService:
@@ -30,71 +33,41 @@ class ApprovalMatrixService:
 
     Manages the approval matrix that maps impact levels to required authority
     and assigns appropriate approvers based on user roles and permissions.
-
-    Authority Levels:
-    - LOW: Can approve LOW impact changes (< €10,000)
-    - MEDIUM: Can approve MEDIUM impact changes (€10,000 - €50,000)
-    - HIGH: Can approve HIGH impact changes (€50,000 - €100,000)
-    - CRITICAL: Can approve CRITICAL impact changes (> €100,000)
-
-    Role to Authority Mapping:
-    - admin role: CRITICAL authority
-    - manager role: HIGH authority
-    - viewer role: LOW authority
+    All mappings are read from the configurable workflow configuration.
     """
 
-    # Role to authority level mapping
-    ROLE_AUTHORITY: dict[str, str] = {
-        "admin": "CRITICAL",
-        "manager": "HIGH",
-        "viewer": "LOW",
-    }
-
-    # Impact level to required authority mapping
-    IMPACT_AUTHORITY: dict[str, str] = {
-        ImpactLevel.LOW: "LOW",
-        ImpactLevel.MEDIUM: "MEDIUM",
-        ImpactLevel.HIGH: "HIGH",
-        ImpactLevel.CRITICAL: "CRITICAL",
-    }
-
-    # Authority hierarchy (higher index = higher authority)
-    AUTHORITY_HIERARCHY: dict[str, int] = {
-        "LOW": 1,
-        "MEDIUM": 2,
-        "HIGH": 3,
-        "CRITICAL": 4,
-    }
-
-    def __init__(self, db_session: AsyncSession) -> None:
+    def __init__(
+        self,
+        db_session: AsyncSession,
+        config_service: ChangeOrderConfigService | None = None,
+    ) -> None:
         """Initialize the service with a database session.
 
         Args:
             db_session: Async database session for queries
+            config_service: Optional config service for approval matrix lookup.
         """
         self._db = db_session
+        self._config_service = config_service
 
-    def get_user_authority_level(self, user: User) -> str:
+    async def get_user_authority_level(self, user: User) -> str:
         """Get the user's approval authority level based on their role.
+
+        Reads role-to-authority mapping from workflow configuration.
 
         Args:
             user: User domain object
 
         Returns:
             Authority level string: LOW, MEDIUM, HIGH, or CRITICAL
-
-        Example:
-            >>> service = ApprovalMatrixService(session)
-            >>> authority = service.get_user_authority_level(admin_user)
-            >>> print(authority)
-            'CRITICAL'
         """
-        # Map role to authority level
-        authority = self.ROLE_AUTHORITY.get(user.role, "LOW")
-        return authority
+        role_authority = await self._get_role_authority()
+        return role_authority.get(user.role, "LOW")
 
-    def get_authority_for_impact(self, impact_level: str) -> str:
+    async def get_authority_for_impact(self, impact_level: str) -> str:
         """Get the required authority level for a given impact level.
+
+        Reads impact-to-authority mapping from workflow configuration.
 
         Args:
             impact_level: Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)
@@ -104,20 +77,14 @@ class ApprovalMatrixService:
 
         Raises:
             ValueError: If impact_level is invalid
-
-        Example:
-            >>> service = ApprovalMatrixService(session)
-            >>> authority = service.get_authority_for_impact('HIGH')
-            >>> print(authority)
-            'HIGH'
         """
-        if impact_level not in self.IMPACT_AUTHORITY:
+        impact_authority = await self._get_impact_authority()
+        if impact_level not in impact_authority:
             raise ValueError(
                 f"Invalid impact level: {impact_level}. "
-                f"Must be one of: {list(self.IMPACT_AUTHORITY.keys())}"
+                f"Must be one of: {list(impact_authority.keys())}"
             )
-
-        return self.IMPACT_AUTHORITY[impact_level]
+        return impact_authority[impact_level]
 
     async def can_approve(self, user: User, change_order: ChangeOrder) -> bool:
         """Check if a user has authority to approve a change order.
@@ -150,14 +117,15 @@ class ApprovalMatrixService:
             return False
 
         # Get user's authority level
-        user_authority = self.get_user_authority_level(user)
+        user_authority = await self.get_user_authority_level(user)
 
         # Get required authority for this impact level
-        required_authority = self.get_authority_for_impact(impact_level)
+        required_authority = await self.get_authority_for_impact(impact_level)
 
-        # Compare authority levels using hierarchy
-        user_level = self.AUTHORITY_HIERARCHY.get(user_authority, 0)
-        required_level = self.AUTHORITY_HIERARCHY.get(required_authority, 0)
+        # Compare authority levels using hierarchy from config
+        hierarchy = await self._get_authority_hierarchy()
+        user_level = hierarchy.get(user_authority, 0)
+        required_level = hierarchy.get(required_authority, 0)
 
         return user_level >= required_level
 
@@ -186,14 +154,17 @@ class ApprovalMatrixService:
         from typing import cast as typing_cast
 
         # Get required authority for this impact level
-        required_authority = self.get_authority_for_impact(impact_level)
+        required_authority = await self.get_authority_for_impact(impact_level)
 
-        # Find all users with sufficient authority
+        # Get role-to-authority mapping and hierarchy from config
+        role_authority = await self._get_role_authority()
+        hierarchy = await self._get_authority_hierarchy()
+
+        # Find all roles with sufficient authority
         eligible_roles = [
             role
-            for role, authority in self.ROLE_AUTHORITY.items()
-            if self.AUTHORITY_HIERARCHY.get(authority, 0)
-            >= self.AUTHORITY_HIERARCHY.get(required_authority, 0)
+            for role, authority in role_authority.items()
+            if hierarchy.get(authority, 0) >= hierarchy.get(required_authority, 0)
         ]
 
         if not eligible_roles:
@@ -280,19 +251,18 @@ class ApprovalMatrixService:
         if impact_level is None:
             required_authority = None
         else:
-            required_authority = self.get_authority_for_impact(impact_level)
+            required_authority = await self.get_authority_for_impact(impact_level)
 
         # Get current user's authority
-        user_authority = self.get_user_authority_level(current_user)
+        user_authority = await self.get_user_authority_level(current_user)
 
         # Check if current user can approve
         can_approve = False
         if impact_level and current_user.is_active:
-            user_level = self.AUTHORITY_HIERARCHY.get(user_authority, 0)
+            hierarchy = await self._get_authority_hierarchy()
+            user_level = hierarchy.get(user_authority, 0)
             required_level = (
-                self.AUTHORITY_HIERARCHY.get(required_authority, 0)
-                if required_authority
-                else 0
+                hierarchy.get(required_authority, 0) if required_authority else 0
             )
             can_approve = user_level >= required_level
 
@@ -304,3 +274,30 @@ class ApprovalMatrixService:
             "can_approve": can_approve,
             "user_authority": user_authority,
         }
+
+    # --- Private helpers for config-based lookups ---
+
+    async def _get_config_service(self) -> ChangeOrderConfigService:
+        """Get or create the config service."""
+        from app.services.change_order_config_service import (
+            ChangeOrderConfigService,
+        )
+
+        if self._config_service is not None:
+            return self._config_service
+        return ChangeOrderConfigService(self._db)
+
+    async def _get_role_authority(self) -> dict[str, str]:
+        """Get role-to-authority mapping from config."""
+        config_service = await self._get_config_service()
+        return await config_service.get_role_authority_mapping()
+
+    async def _get_impact_authority(self) -> dict[str, str]:
+        """Get impact-level-to-required-authority mapping from config."""
+        config_service = await self._get_config_service()
+        return await config_service.get_impact_authority_mapping()
+
+    async def _get_authority_hierarchy(self) -> dict[str, int]:
+        """Get authority hierarchy from config."""
+        config_service = await self._get_config_service()
+        return await config_service.get_authority_hierarchy()

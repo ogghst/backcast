@@ -3,6 +3,7 @@
 # Import all route modules for easy access
 from app.api.routes import (
     auth,
+    change_order_config,
     change_orders,
     cost_element_types,
     cost_elements,
@@ -24,6 +25,7 @@ from app.api.routes import (
 
 __all__ = [
     "auth",
+    "change_order_config",
     "change_orders",
     "cost_element_types",
     "cost_elements",

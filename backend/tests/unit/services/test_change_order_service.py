@@ -755,20 +755,20 @@ class TestChangeOrderServiceImpactScore:
         service = ChangeOrderService(db_session)
 
         # Act & Assert - Test all boundaries
-        assert service._map_score_to_impact_level(Decimal("0")) == "LOW"
-        assert service._map_score_to_impact_level(Decimal("5.5")) == "LOW"
-        assert service._map_score_to_impact_level(Decimal("9.99")) == "LOW"
+        assert await service._map_score_to_impact_level(Decimal("0")) == "LOW"
+        assert await service._map_score_to_impact_level(Decimal("5.5")) == "LOW"
+        assert await service._map_score_to_impact_level(Decimal("9.99")) == "LOW"
 
-        assert service._map_score_to_impact_level(Decimal("10")) == "MEDIUM"
-        assert service._map_score_to_impact_level(Decimal("20")) == "MEDIUM"
-        assert service._map_score_to_impact_level(Decimal("29.99")) == "MEDIUM"
+        assert await service._map_score_to_impact_level(Decimal("10")) == "MEDIUM"
+        assert await service._map_score_to_impact_level(Decimal("20")) == "MEDIUM"
+        assert await service._map_score_to_impact_level(Decimal("29.99")) == "MEDIUM"
 
-        assert service._map_score_to_impact_level(Decimal("30")) == "HIGH"
-        assert service._map_score_to_impact_level(Decimal("40")) == "HIGH"
-        assert service._map_score_to_impact_level(Decimal("49.99")) == "HIGH"
+        assert await service._map_score_to_impact_level(Decimal("30")) == "HIGH"
+        assert await service._map_score_to_impact_level(Decimal("40")) == "HIGH"
+        assert await service._map_score_to_impact_level(Decimal("49.99")) == "HIGH"
 
-        assert service._map_score_to_impact_level(Decimal("50")) == "CRITICAL"
-        assert service._map_score_to_impact_level(Decimal("100")) == "CRITICAL"
+        assert await service._map_score_to_impact_level(Decimal("50")) == "CRITICAL"
+        assert await service._map_score_to_impact_level(Decimal("100")) == "CRITICAL"
 
     @pytest.mark.asyncio
     async def test_create_change_order_sets_impact_score_and_level(
@@ -1164,7 +1164,7 @@ class TestChangeOrderServiceApproverAssignment:
 
         # Act - Calculate score to verify logic works
         score = service._calculate_impact_score(impact_analysis)
-        level = service._map_score_to_impact_level(score)
+        level = await service._map_score_to_impact_level(score)
 
         # Assert - Score and level calculation works correctly
         assert score < 10, f"Expected LOW impact score < 10, got {score}"
@@ -1349,3 +1349,75 @@ class TestChangeOrderServiceGetNextCode:
         # Assert
         expected = "CO-2027-001"
         assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+
+class TestChangeOrderServiceConfigIntegration:
+    """Test that ChangeOrderService uses config service for score boundaries and SLA.
+
+    Verifies FR-10: ChangeOrderService uses config service for score-to-impact
+    mapping, and _get_sla_days delegates to config service.
+    """
+
+    @pytest.mark.asyncio
+    async def test_map_score_to_impact_level_uses_config_boundaries(
+        self, db_session: AsyncSession
+    ) -> None:
+        """_map_score_to_impact_level reads score boundaries from config."""
+        from decimal import Decimal
+
+        service = ChangeOrderService(db_session)
+
+        # Verify default boundaries from seeded config
+        # Score boundaries: LOW=10, MEDIUM=30, HIGH=50, CRITICAL=999
+
+        # Below LOW boundary (10) -> LOW
+        assert await service._map_score_to_impact_level(Decimal("0")) == "LOW"
+        assert await service._map_score_to_impact_level(Decimal("5.5")) == "LOW"
+        assert await service._map_score_to_impact_level(Decimal("9.99")) == "LOW"
+
+        # Between LOW (10) and MEDIUM (30) -> MEDIUM
+        assert await service._map_score_to_impact_level(Decimal("10")) == "MEDIUM"
+        assert await service._map_score_to_impact_level(Decimal("20")) == "MEDIUM"
+        assert await service._map_score_to_impact_level(Decimal("29.99")) == "MEDIUM"
+
+        # Between MEDIUM (30) and HIGH (50) -> HIGH
+        assert await service._map_score_to_impact_level(Decimal("30")) == "HIGH"
+        assert await service._map_score_to_impact_level(Decimal("40")) == "HIGH"
+        assert await service._map_score_to_impact_level(Decimal("49.99")) == "HIGH"
+
+        # Above HIGH (50) -> CRITICAL
+        assert await service._map_score_to_impact_level(Decimal("50")) == "CRITICAL"
+        assert await service._map_score_to_impact_level(Decimal("100")) == "CRITICAL"
+
+    @pytest.mark.asyncio
+    async def test_get_sla_days_delegates_to_config_service(
+        self, db_session: AsyncSession
+    ) -> None:
+        """_get_sla_days returns values from config service."""
+        service = ChangeOrderService(db_session)
+
+        # Verify default SLA days from seeded config
+        assert await service._get_sla_days("LOW") == 2
+        assert await service._get_sla_days("MEDIUM") == 5
+        assert await service._get_sla_days("HIGH") == 10
+        assert await service._get_sla_days("CRITICAL") == 15
+
+    @pytest.mark.asyncio
+    async def test_get_sla_days_default_for_none(
+        self, db_session: AsyncSession
+    ) -> None:
+        """_get_sla_days returns default (5) for None impact level."""
+        service = ChangeOrderService(db_session)
+
+        # None defaults to "LOW" lookup, but the method uses .get with fallback
+        assert await service._get_sla_days(None) == 2  # LOW value
+
+    @pytest.mark.asyncio
+    async def test_get_sla_days_default_for_unknown_level(
+        self, db_session: AsyncSession
+    ) -> None:
+        """_get_sla_days returns fallback (5) for unknown impact level."""
+        service = ChangeOrderService(db_session)
+
+        # Unknown level falls back to default of 5
+        assert await service._get_sla_days("UNKNOWN") == 5

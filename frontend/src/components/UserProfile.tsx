@@ -20,6 +20,7 @@ import {
   ApiOutlined,
   SafetyOutlined,
   CloudServerOutlined,
+  ControlOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -112,6 +113,15 @@ export const UserProfile: React.FC = () => {
         icon: <SafetyOutlined />,
         label: "RBAC Configuration",
         onClick: () => navigate("/admin/rbac"),
+      });
+    }
+
+    if (can("change-order-workflow-config-manage")) {
+      adminItems.push({
+        key: "/admin/change-order-config",
+        icon: <ControlOutlined />,
+        label: "Change Order Config",
+        onClick: () => navigate("/admin/change-order-config"),
       });
     }
 
