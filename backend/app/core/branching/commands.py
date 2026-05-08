@@ -325,11 +325,7 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # Get all values from new_version (excluding temporal columns)
         values = {c: getattr(new_version, c) for c in columns}
         # Serialize JSONB columns to JSON strings for asyncpg compatibility
-        jsonb_columns = {
-            c.key
-            for c in mapper.columns
-            if isinstance(c.type, JSONB)
-        }
+        jsonb_columns = {c.key for c in mapper.columns if isinstance(c.type, JSONB)}
         for col_name in jsonb_columns:
             if col_name in values and isinstance(values[col_name], dict):
                 values[col_name] = json.dumps(values[col_name])

@@ -46,6 +46,8 @@ from app.core.config import settings
 from app.core.exceptions.filtering import FilterError
 from app.core.logging import setup_logging
 
+# Suppress all PendingDeprecationWarnings from LangGraph (safe to ignore as they come from dependencies)
+
 logger = logging.getLogger(__name__)
 
 # Import models to ensure they are registered with SQLAlchemy
