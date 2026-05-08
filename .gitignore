@@ -57,6 +57,7 @@ htmlcov/
 .playwright-mcp/
 .ruff_cache/
 .benchmarks
+.mcp.json
 
 # Claude Code skills (external dependencies)
 .claude/skills/
