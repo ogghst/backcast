@@ -437,6 +437,19 @@ class TestConfigSnapshot:
         )
         assert low_sla["business_days"] == 20
 
+    @pytest.mark.asyncio
+    async def test_snapshot_includes_new_config_keys(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Snapshot includes holiday_country_code and custom_fields keys."""
+        service = ChangeOrderConfigService(db_session)
+
+        snapshot = await service.generate_snapshot()
+
+        # Verify new keys are present in the snapshot
+        assert "holiday_country_code" in snapshot
+        assert "custom_fields" in snapshot
+
 
 class TestHelperMethodsWithOverride:
     """Integration tests for config helper methods with project overrides."""

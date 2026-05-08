@@ -14,6 +14,13 @@ class NotificationEvent(StrEnum):
     UNHANDLED_EXCEPTION = "unhandled_exception"
     USER_LOGIN = "user_login"
 
+    # CO workflow events
+    CO_SUBMITTED = "co_submitted"
+    CO_APPROVED = "co_approved"
+    CO_REJECTED = "co_rejected"
+    CO_ESCALATED = "co_escalated"
+    CO_STATUS_CHANGED = "co_status_changed"
+
 
 class NotificationPayload:
     """Lightweight payload passed to the notifier."""

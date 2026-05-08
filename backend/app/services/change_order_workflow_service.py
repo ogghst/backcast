@@ -1,19 +1,22 @@
-"""Change Order Workflow Service - flexible state machine.
+"""Change Order Workflow Service - configurable state machine.
 
 This service encapsulates Change Order workflow state transitions and business rules.
-It is designed as a simple state machine that can be replaced with a full business
-process workflow engine (e.g., Camunda, Temporal) in a future iteration.
+Transition rules are loaded from the workflow configuration (co_workflow_config table)
+with fallback to hardcoded defaults when no config is available.
 
 Workflow States (from FR-8.3):
-Draft → Submitted for Approval → Under Review → Approved/Rejected → Implemented
+Draft -> Submitted for Approval -> Under Review -> Approved/Rejected -> Implemented
 
 Context: This service orchestrates the approval workflow by integrating with
 FinancialImpactService, ApprovalMatrixService, and SLAService to manage the
 complete approval lifecycle from submission to approval/rejection.
 """
 
+from __future__ import annotations
+
+import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,45 +28,76 @@ from app.services.approval_matrix_service import ApprovalMatrixService
 from app.services.financial_impact_service import FinancialImpactService
 from app.services.sla_service import SLAService
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
+    from app.services.change_order_config_service import ChangeOrderConfigService
     from app.services.change_order_service import ChangeOrderService  # noqa: F401
 
 
 class ChangeOrderWorkflowService:
     """Encapsulates Change Order workflow state transitions and business rules.
 
-    This service is designed as a simple state machine that can be replaced
-    with a full business process workflow engine in future iterations.
-
-    Workflow States (from FR-8.3):
-    Draft → Submitted for Approval → Under Review → Approved/Rejected → Implemented
-
-    Future Migration: Replace implementation with Camunda/Temporal while keeping
-    the same interface methods.
+    Transitions are loaded from config when a config_service is provided,
+    otherwise falls back to hardcoded defaults.
     """
 
-    # Define valid transitions
-    _TRANSITIONS: dict[str, list[str]] = {
+    # Default transition rules (used when no config available)
+    _DEFAULT_TRANSITIONS: dict[str, list[str]] = {
         "Draft": ["Submitted for Approval"],
         "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
         "Under Review": ["Approved", "Rejected"],
         "Rejected": ["Draft", "Submitted for Approval"],
         "Approved": ["Implemented"],
-        "Implemented": [],  # Terminal state
+        "Implemented": [],
     }
 
-    # Define which transitions trigger branch lock
-    _LOCK_TRANSITIONS: set[tuple[str, str]] = {
+    _DEFAULT_LOCK_TRANSITIONS: set[tuple[str, str]] = {
         ("Draft", "Submitted for Approval"),
     }
 
-    # Define which transitions trigger branch unlock
-    _UNLOCK_TRANSITIONS: set[tuple[str, str]] = {
+    _DEFAULT_UNLOCK_TRANSITIONS: set[tuple[str, str]] = {
         ("Under Review", "Rejected"),
     }
 
-    # Define which statuses allow editing
-    _EDITABLE_STATUSES: set[str] = {"Draft", "Rejected"}
+    _DEFAULT_EDITABLE_STATUSES: set[str] = {"Draft", "Rejected"}
+
+    def __init__(
+        self,
+        config_service: ChangeOrderConfigService | None = None,
+        project_id: UUID | None = None,
+    ) -> None:
+        self._config_service = config_service
+        self._project_id = project_id
+        self._loaded_transitions: dict[str, Any] | None = None
+
+    async def _load_transitions(self) -> dict[str, Any]:
+        """Load workflow transitions from config, fallback to defaults."""
+        if self._loaded_transitions is not None:
+            return self._loaded_transitions
+
+        if self._config_service is not None:
+            from app.services.change_order_config_service import ConfigurationError
+
+            try:
+                transitions = await self._config_service.get_workflow_transitions(
+                    self._project_id
+                )
+                if transitions is not None:
+                    self._loaded_transitions = transitions
+                    return transitions
+            except ConfigurationError:
+                pass
+
+        self._loaded_transitions = {
+            "transitions": self._DEFAULT_TRANSITIONS,
+            "lock_transitions": [[p[0], p[1]] for p in self._DEFAULT_LOCK_TRANSITIONS],
+            "unlock_transitions": [
+                [p[0], p[1]] for p in self._DEFAULT_UNLOCK_TRANSITIONS
+            ],
+            "editable_statuses": list(self._DEFAULT_EDITABLE_STATUSES),
+        }
+        return self._loaded_transitions
 
     async def get_next_status(self, current: str) -> str | None:
         """Get the single next status if the workflow is linear from current state.
@@ -77,7 +111,8 @@ class ChangeOrderWorkflowService:
         Returns:
             Next status str if linear, None if multiple options
         """
-        options = self._TRANSITIONS.get(current, [])
+        config = await self._load_transitions()
+        options = config["transitions"].get(current, [])
         return options[0] if len(options) == 1 else None
 
     async def get_available_transitions(self, current: str) -> list[str]:
@@ -89,7 +124,8 @@ class ChangeOrderWorkflowService:
         Returns:
             List of valid status strings that can be transitioned to
         """
-        return self._TRANSITIONS.get(current, []).copy()
+        config = await self._load_transitions()
+        return config["transitions"].get(current, []).copy()
 
     async def should_lock_on_transition(self, from_status: str, to_status: str) -> bool:
         """Determine if a status transition should lock the branch.
@@ -101,7 +137,9 @@ class ChangeOrderWorkflowService:
         Returns:
             True if branch should be locked after this transition
         """
-        return (from_status, to_status) in self._LOCK_TRANSITIONS
+        config = await self._load_transitions()
+        lock_pairs = config.get("lock_transitions", [])
+        return [from_status, to_status] in lock_pairs
 
     async def should_unlock_on_transition(
         self, from_status: str, to_status: str
@@ -115,7 +153,9 @@ class ChangeOrderWorkflowService:
         Returns:
             True if branch should be unlocked after this transition
         """
-        return (from_status, to_status) in self._UNLOCK_TRANSITIONS
+        config = await self._load_transitions()
+        unlock_pairs = config.get("unlock_transitions", [])
+        return [from_status, to_status] in unlock_pairs
 
     async def can_edit_on_status(self, status: str) -> bool:
         """Determine if Change Order details can be edited in this status.
@@ -126,7 +166,8 @@ class ChangeOrderWorkflowService:
         Returns:
             True if CO fields can be modified, False if read-only
         """
-        return status in self._EDITABLE_STATUSES
+        config = await self._load_transitions()
+        return status in config.get("editable_statuses", [])
 
     async def is_valid_transition(self, from_status: str, to_status: str) -> bool:
         """Validate if a status transition is allowed.
@@ -138,8 +179,35 @@ class ChangeOrderWorkflowService:
         Returns:
             True if transition is valid per workflow rules
         """
-        valid_options = self._TRANSITIONS.get(from_status, [])
+        config = await self._load_transitions()
+        valid_options = config["transitions"].get(from_status, [])
         return to_status in valid_options
+
+    async def _send_notification(
+        self,
+        db_session: AsyncSession,
+        user_id: UUID,
+        event_type: str,
+        title: str,
+        message: str,
+        resource_type: str = "change_order",
+        resource_id: UUID | None = None,
+    ) -> None:
+        """Send notification, silently logging failures."""
+        try:
+            from app.services.notification_service import NotificationService
+
+            notif_service = NotificationService(db_session)
+            await notif_service.create_notification(
+                user_id=user_id,
+                event_type=event_type,
+                title=title,
+                message=message,
+                resource_type=resource_type,
+                resource_id=resource_id,
+            )
+        except Exception:
+            logger.exception("Failed to send notification")
 
     async def submit_for_approval(
         self,
@@ -249,6 +317,15 @@ class ChangeOrderWorkflowService:
         )
         db_session.add(audit_entry)
         await db_session.flush()
+
+        await self._send_notification(
+            db_session,
+            approver_id,
+            "co_submitted",
+            "Change Order Submitted for Approval",
+            f"Change order requires your approval. Impact level: {impact_level}",
+            resource_id=change_order_id,
+        )
 
         return updated_co
 
@@ -367,6 +444,15 @@ class ChangeOrderWorkflowService:
             )
             db_session.add(audit_entry)
             await db_session.flush()
+
+        await self._send_notification(
+            db_session,
+            current_co.created_by,
+            "co_approved",
+            "Change Order Approved",
+            f"Your change order has been approved by {actor.full_name}",
+            resource_id=change_order_id,
+        )
 
         return updated_co
 
@@ -492,5 +578,14 @@ class ChangeOrderWorkflowService:
             )
             db_session.add(audit_entry)
             await db_session.flush()
+
+        await self._send_notification(
+            db_session,
+            current_co.created_by,
+            "co_rejected",
+            "Change Order Rejected",
+            f"Your change order has been rejected by {actor.full_name}",
+            resource_id=change_order_id,
+        )
 
         return updated_co

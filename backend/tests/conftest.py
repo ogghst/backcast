@@ -150,6 +150,7 @@ def apply_migrations() -> Generator[None, None, None]:
                     "ai_conversation_sessions",
                     "ai_conversation_messages",
                     "dashboard_layouts",
+                    "notifications",
                 ]
 
                 for table_name in required_tables:
@@ -232,6 +233,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
                     "ai_provider_configs",
                     "ai_providers",
                     "dashboard_layouts",
+                    "notifications",
                     "cost_registrations",
                     "progress_entries",
                     "cost_elements",

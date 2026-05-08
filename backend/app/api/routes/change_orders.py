@@ -919,6 +919,52 @@ async def recover_change_order(
         ) from e
 
 
+@router.post(
+    "/{change_order_id}/escalate",
+    response_model=ChangeOrderPublic,
+    operation_id="escalate_change_order",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-escalate"))],
+)
+async def escalate_change_order(
+    change_order_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_db),
+) -> ChangeOrderPublic:
+    """Manually escalate a change order's SLA status.
+
+    Triggers SLA escalation when the approval process is taking too long.
+    Requires change-order-escalate permission.
+
+    Args:
+        change_order_id: UUID of the change order to escalate
+        current_user: Authenticated user triggering escalation
+        session: Database session
+
+    Returns:
+        Updated change order with escalated SLA status
+    """
+    from app.services.sla_service import SLAService
+
+    try:
+        sla_service = SLAService(session)
+        co = await sla_service.escalate_change_order(
+            str(change_order_id), current_user.user_id
+        )
+        service = ChangeOrderService(session)
+        return await service._to_public(co)
+    except ValueError as e:
+        error_message = str(e)
+        if "not found" in error_message.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_message,
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message,
+        ) from e
+
+
 @router.get(
     "/{change_order_id}/approval-info",
     response_model=ApprovalInfoPublic,
@@ -1023,6 +1069,8 @@ async def get_change_order_approval_info(
 
             if time_remaining < 0:
                 sla_status = "overdue"
+            elif co.sla_status == "escalated":
+                sla_status = "escalated"
             elif time_remaining < ((await service._get_sla_days(co.impact_level)) / 2):
                 sla_status = "approaching"
             else:

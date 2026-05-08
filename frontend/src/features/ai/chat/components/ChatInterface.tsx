@@ -220,10 +220,14 @@ export const ChatInterface = ({
 
   // Find current session to get its assistant ID
   const currentSession = sessions?.find((s) => s.id === currentSessionId);
+  const prevSessionIdRef = useRef<string | undefined>(currentSession?.id);
 
   // Set assistant from session when session changes (only if not already set)
   useEffect(() => {
-    if (currentSession && !selectedAssistantId) {
+    const sessionIdChanged = prevSessionIdRef.current !== currentSession?.id;
+    prevSessionIdRef.current = currentSession?.id;
+
+    if (currentSession && !selectedAssistantId && sessionIdChanged) {
       setSelectedAssistantId(currentSession.assistant_config_id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,13 +267,21 @@ export const ChatInterface = ({
   }, [isWaitingForResponse]);
 
   // Clear optimistic user message when persisted messages arrive
+  const prevMessagesLengthRef = useRef<number>(messages?.length ?? 0);
   useEffect(() => {
-    if (pendingUserMessage && messages) {
+    const currentLength = messages?.length ?? 0;
+    const lengthChanged = prevMessagesLengthRef.current !== currentLength;
+    prevMessagesLengthRef.current = currentLength;
+
+    if (pendingUserMessage && messages && lengthChanged) {
       const persisted = messages.some(
         (m) => m.role === "user" && m.content === pendingUserMessage.content
       );
       if (persisted) {
-        setPendingUserMessage(null);
+        // Defer state update to avoid cascading renders
+        requestAnimationFrame(() => {
+          setPendingUserMessage(null);
+        });
       }
     }
   }, [messages, pendingUserMessage]);

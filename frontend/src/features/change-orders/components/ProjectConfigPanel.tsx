@@ -31,12 +31,14 @@ import {
   type SLARuleConfig,
   type ImpactWeights,
   type ScoreBoundaries,
+  type WorkflowTransitionsConfig,
   type WorkflowConfigUpdateRequest,
 } from "../api/useWorkflowConfig";
 import { ImpactLevelsTab } from "./ChangeOrderConfigPage";
 import { ApprovalRulesTab } from "./ChangeOrderConfigPage";
 import { SLARulesTab } from "./ChangeOrderConfigPage";
 import { WeightsScoresTab } from "./ChangeOrderConfigPage";
+import { WorkflowTransitionsTab } from "./ChangeOrderConfigPage";
 
 const { Text } = Typography;
 
@@ -83,22 +85,32 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
     HIGH: 75,
     CRITICAL: 90,
   });
+  const [workflowTransitions, setWorkflowTransitions] =
+    useState<WorkflowTransitionsConfig | null>(null);
 
   // Sync server data into local state
+  const prevSourceRef = useRef<typeof projectConfig | typeof globalConfig | null>(null);
   useEffect(() => {
     const source = projectConfig || globalConfig;
-    if (source) {
+    // Only update if source actually changed (by reference or content)
+    if (source && source !== prevSourceRef.current) {
       setImpactLevels(source.impact_levels);
       setApprovalRules(source.approval_rules);
       setSlaRules(source.sla_rules);
       setWeights(source.impact_weights);
       setBoundaries(source.score_boundaries);
+      setWorkflowTransitions(source.workflow_transitions ?? null);
+      prevSourceRef.current = source;
     }
   }, [projectConfig, globalConfig]);
 
   // Keep toggle in sync when projectConfig appears/disappears
+  const prevHasOverrideRef = useRef(hasOverride);
   useEffect(() => {
-    setUseOverride(hasOverride);
+    if (prevHasOverrideRef.current !== hasOverride) {
+      setUseOverride(hasOverride);
+      prevHasOverrideRef.current = hasOverride;
+    }
   }, [hasOverride]);
 
   // Validation
@@ -118,6 +130,7 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
       sla_rules: slaRules,
       impact_weights: weights,
       score_boundaries: boundaries,
+      workflow_transitions: workflowTransitions,
     };
 
     Modal.confirm({
@@ -128,7 +141,7 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
       okButtonProps: { danger: true },
       onOk: () => updateMutation.mutate(payload),
     });
-  }, [impactLevels, approvalRules, slaRules, weights, boundaries, updateMutation]);
+  }, [impactLevels, approvalRules, slaRules, weights, boundaries, workflowTransitions, updateMutation]);
 
   const handleReset = useCallback(() => {
     Modal.confirm({
@@ -260,6 +273,17 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
                       onWeightsChange={setWeights}
                       boundaries={boundaries}
                       onBoundariesChange={setBoundaries}
+                      readOnly={isReadOnly}
+                    />
+                  ),
+                },
+                {
+                  key: "workflow",
+                  label: "Workflow",
+                  children: (
+                    <WorkflowTransitionsTab
+                      config={workflowTransitions}
+                      onChange={setWorkflowTransitions}
                       readOnly={isReadOnly}
                     />
                   ),

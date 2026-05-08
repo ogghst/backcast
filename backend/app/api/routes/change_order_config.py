@@ -85,6 +85,17 @@ async def upsert_global_config(
                 sla_rules=[rule.model_dump() for rule in config_in.sla_rules],
                 impact_weights=config_in.impact_weights.model_dump(mode="json"),
                 score_boundaries=config_in.score_boundaries.model_dump(mode="json"),
+                workflow_transitions=(
+                    config_in.workflow_transitions.model_dump(mode="json")
+                    if config_in.workflow_transitions
+                    else None
+                ),
+                holiday_country_code=config_in.holiday_country_code,
+                custom_fields=(
+                    [f.model_dump() for f in config_in.custom_fields]
+                    if config_in.custom_fields
+                    else None
+                ),
             )
         else:
             config = await service.update_config(
@@ -96,6 +107,17 @@ async def upsert_global_config(
                 sla_rules=[rule.model_dump() for rule in config_in.sla_rules],
                 impact_weights=config_in.impact_weights.model_dump(mode="json"),
                 score_boundaries=config_in.score_boundaries.model_dump(mode="json"),
+                workflow_transitions=(
+                    config_in.workflow_transitions.model_dump(mode="json")
+                    if config_in.workflow_transitions
+                    else None
+                ),
+                holiday_country_code=config_in.holiday_country_code,
+                custom_fields=(
+                    [f.model_dump() for f in config_in.custom_fields]
+                    if config_in.custom_fields
+                    else None
+                ),
             )
         return config
     except ConfigurationConflictError as e:
@@ -167,6 +189,17 @@ async def upsert_project_config(
                 sla_rules=[rule.model_dump() for rule in config_in.sla_rules],
                 impact_weights=config_in.impact_weights.model_dump(mode="json"),
                 score_boundaries=config_in.score_boundaries.model_dump(mode="json"),
+                workflow_transitions=(
+                    config_in.workflow_transitions.model_dump(mode="json")
+                    if config_in.workflow_transitions
+                    else None
+                ),
+                holiday_country_code=config_in.holiday_country_code,
+                custom_fields=(
+                    [f.model_dump() for f in config_in.custom_fields]
+                    if config_in.custom_fields
+                    else None
+                ),
             )
         else:
             config = await service.update_config(
@@ -178,6 +211,17 @@ async def upsert_project_config(
                 sla_rules=[rule.model_dump() for rule in config_in.sla_rules],
                 impact_weights=config_in.impact_weights.model_dump(mode="json"),
                 score_boundaries=config_in.score_boundaries.model_dump(mode="json"),
+                workflow_transitions=(
+                    config_in.workflow_transitions.model_dump(mode="json")
+                    if config_in.workflow_transitions
+                    else None
+                ),
+                holiday_country_code=config_in.holiday_country_code,
+                custom_fields=(
+                    [f.model_dump() for f in config_in.custom_fields]
+                    if config_in.custom_fields
+                    else None
+                ),
             )
         return config
     except ConfigurationConflictError as e:

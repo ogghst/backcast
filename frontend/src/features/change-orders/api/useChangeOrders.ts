@@ -88,10 +88,13 @@ export const useCreateChangeOrder = (
     mutationFn: (data: ChangeOrderCreate) => {
       // Only include control_date if asOf is set (not null/undefined)
       // Remove effective_date if not set
+      // Extract custom_field_values separately since it's Record<string, any>
+      // and doesn't fit the primitive-only params record
+      const { custom_field_values, ...rest } = data;
       const payload: Record<
         string,
         string | number | boolean | null | undefined
-      > = { ...data };
+      > = { ...rest };
       if (asOf) {
         payload.control_date = asOf;
       } else {
@@ -100,9 +103,10 @@ export const useCreateChangeOrder = (
       if (!payload.effective_date) {
         delete payload.effective_date;
       }
-      return ChangeOrdersService.createChangeOrder(
-        payload as ChangeOrderCreate,
-      );
+      return ChangeOrdersService.createChangeOrder({
+        ...(payload as Omit<ChangeOrderCreate, "custom_field_values">),
+        custom_field_values,
+      });
     },
     onSuccess: async (data, ...args) => {
       // Invalidate change orders queries for this project
@@ -151,19 +155,22 @@ export const useUpdateChangeOrder = (
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ChangeOrderUpdate }) => {
       // Remove control_date if not set
+      // Extract custom_field_values separately since it's Record<string, any>
+      // and doesn't fit the primitive-only params record
+      const { custom_field_values, ...rest } = data;
       const payload: Record<
         string,
         string | number | boolean | null | undefined
-      > = { ...data };
+      > = { ...rest };
       if (asOf) {
         payload.control_date = asOf;
       } else {
         delete payload.control_date;
       }
-      return ChangeOrdersService.updateChangeOrder(
-        id,
-        payload as ChangeOrderUpdate,
-      );
+      return ChangeOrdersService.updateChangeOrder(id, {
+        ...(payload as Omit<ChangeOrderUpdate, "custom_field_values">),
+        custom_field_values,
+      });
     },
     onSuccess: (data, ...args) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });

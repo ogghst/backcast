@@ -38,7 +38,13 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
   const [svgContent, setSvgContent] = useState<string>('');
   const [mermaidInstance, setMermaidInstance] = useState<Mermaid | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const renderIdRef = useRef<string>(`mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const renderIdRef = useRef<string>('');
+  const renderCounterRef = useRef<number>(0);
+
+  // Generate stable render ID on mount (not during render)
+  useEffect(() => {
+    renderIdRef.current = `mermaid-${renderCounterRef.current++}`;
+  }, []);
 
   const isDarkMode = token.colorBgBase === '#141414' || token.colorBgBase === '#000000';
 

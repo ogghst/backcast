@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WorkflowButtons } from "./WorkflowButtons";
 import type { ChangeOrderPublic } from "@/api/generated";
+import { ChangeOrderStatus } from "@/api/generated";
 import type { MergeConflict } from "../api/useChangeOrders";
 
 // Mock the workflow actions hook
@@ -22,6 +23,8 @@ const mockApprove = vi.fn();
 const mockReject = vi.fn();
 const mockMerge = vi.fn();
 const mockArchive = vi.fn();
+const mockReview = vi.fn();
+const mockReopen = vi.fn();
 
 describe("WorkflowButtons", () => {
   let queryClient: QueryClient;
@@ -31,7 +34,7 @@ describe("WorkflowButtons", () => {
     change_order_id: "BR-123",
     code: "CO-001",
     title: "Test Change Order",
-    status: "Draft",
+    status: ChangeOrderStatus.DRAFT,
     description: "Test description",
     project_id: "proj-123",
     branch: "BR-CO-001",
@@ -58,12 +61,14 @@ describe("WorkflowButtons", () => {
     };
     vi.mocked(useWorkflowActions).mockReturnValue({
       submit: mockSubmit,
+      review: mockReview,
       approve: mockApprove,
       reject: mockReject,
+      reopen: mockReopen,
       merge: mockMerge,
       archive: mockArchive,
       isLoading: false,
-      mutation: mockMutation as unknown,
+      mutation: mockMutation as unknown as ReturnType<typeof useWorkflowActions>["mutation"],
     });
 
     vi.mocked(isActionAvailable).mockImplementation((action) => {
@@ -216,12 +221,14 @@ describe("WorkflowButtons", () => {
       };
       vi.mocked(useWorkflowActions).mockReturnValue({
         submit: mockSubmit,
+        review: mockReview,
         approve: mockApprove,
         reject: mockReject,
+        reopen: mockReopen,
         merge: mockMerge,
         archive: mockArchive,
         isLoading: true,
-        mutation: mockMutation as unknown,
+        mutation: mockMutation as unknown as ReturnType<typeof useWorkflowActions>["mutation"],
       });
 
       render(<WorkflowButtons changeOrder={mockChangeOrder} />, { wrapper });
@@ -272,7 +279,7 @@ describe("WorkflowButtons", () => {
     it("should show Archive button when available for Rejected status", () => {
       vi.mocked(isActionAvailable).mockImplementation((action) => action === "ARCHIVE");
 
-      const rejectedChangeOrder = { ...mockChangeOrder, status: "Rejected" };
+      const rejectedChangeOrder = { ...mockChangeOrder, status: ChangeOrderStatus.REJECTED };
       render(<WorkflowButtons changeOrder={rejectedChangeOrder} />, { wrapper });
 
       expect(screen.getByText("Archive Branch")).toBeInTheDocument();

@@ -104,8 +104,13 @@ export const EntityGrid = <T,>({
   const [localSearch, setLocalSearch] = useState(searchValue);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sync local search with external searchValue, but only when they differ
+  const prevSearchValueRef = useRef(searchValue);
   useEffect(() => {
-    setLocalSearch(searchValue);
+    if (prevSearchValueRef.current !== searchValue) {
+      setLocalSearch(searchValue);
+      prevSearchValueRef.current = searchValue;
+    }
   }, [searchValue]);
 
   useEffect(() => {

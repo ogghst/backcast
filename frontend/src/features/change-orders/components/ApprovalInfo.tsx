@@ -32,13 +32,14 @@ interface ApprovalInfoProps {
 /**
  * Get color and label for SLA status.
  *
- * @param slaStatus - SLA status string (pending/approaching/overdue)
+ * @param slaStatus - SLA status string (pending/approaching/escalated/overdue)
  * @returns Object with color and label for the status
  */
 function getSLAStatusStyle(slaStatus: string | null) {
   const styles: Record<string, { color: string; label: string }> = {
     pending: { color: "blue", label: "On Track" },
     approaching: { color: "orange", label: "Deadline Approaching" },
+    escalated: { color: "purple", label: "Escalated" },
     overdue: { color: "red", label: "Overdue" },
   };
   return styles[slaStatus || ""] || { color: "default", label: "Not Started" };

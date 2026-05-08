@@ -30,6 +30,7 @@ from app.api.routes import (
     forecasts,
     gantt,
     mcp_servers,
+    notifications,
     progress_entries,
     project_budget_settings,
     project_members,
@@ -425,6 +426,11 @@ app.include_router(
     change_order_config.router,
     prefix=f"{settings.API_V1_STR}/change-order-config",
     tags=["Change Order Config"],
+)
+app.include_router(
+    notifications.router,
+    prefix=f"{settings.API_V1_STR}/notifications",
+    tags=["Notifications"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)

@@ -119,20 +119,33 @@ export const EVMAnalyzerModal = ({
   const [activeTab, setActiveTab] = React.useState("overview");
 
   // Handle modal open/close
+  const prevOpenRef = React.useRef(open);
+  const needsSyncRef = React.useRef(false);
   React.useEffect(() => {
-    if (open && !modalOpen) {
+    const isOpening = open && !prevOpenRef.current;
+    const isClosing = !open && prevOpenRef.current;
+
+    if (isOpening) {
       // Modal is opening - increment key to trigger chart re-render
       setModalOpen(true);
       setChartKey((prev) => prev + 1);
-    } else if (!open && modalOpen) {
+      needsSyncRef.current = false;
+    } else if (isClosing) {
       setModalOpen(false);
+      needsSyncRef.current = false;
+    } else if (needsSyncRef.current) {
+      // Sync with external open prop on next render
+      setModalOpen(open);
+      needsSyncRef.current = false;
+    }
+
+    prevOpenRef.current = open;
+
+    // Mark for sync if open state differs and not handled above
+    if (open !== modalOpen && !isOpening && !isClosing) {
+      needsSyncRef.current = true;
     }
   }, [open, modalOpen]);
-
-  // Sync with external open prop
-  React.useEffect(() => {
-    setModalOpen(open);
-  }, [open]);
 
   /**
    * Render loading state

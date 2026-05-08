@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ChangeOrderModal } from "./ChangeOrderModal";
 import type { ChangeOrderPublic } from "@/api/generated";
+import { ChangeOrderStatus } from "@/api/generated";
 
 // Mock matchedMedia for AntD modal
 Object.defineProperty(window, 'matchMedia', {
@@ -31,12 +32,32 @@ vi.mock("../hooks/useWorkflowInfo", () => ({
   })),
 }));
 
+// Mock the workflow config hooks (custom fields)
+vi.mock("../api/useWorkflowConfig", () => ({
+  useGlobalConfig: vi.fn(() => ({
+    data: { custom_fields: null },
+    isLoading: false,
+  })),
+  useProjectConfig: vi.fn(() => ({
+    data: undefined,
+    isLoading: false,
+  })),
+}));
+
+// Mock the next code hook
+vi.mock("../api/useChangeOrders", () => ({
+  useNextChangeOrderCode: vi.fn(() => ({
+    data: { code: "CO-2026-001" },
+    isLoading: false,
+  })),
+}));
+
 const mockChangeOrder: ChangeOrderPublic = {
   id: "BR-123",
   change_order_id: "BR-123",
   code: "CO-2026-001",
   title: "Test Change Order",
-  status: "Draft",
+  status: ChangeOrderStatus.DRAFT,
   description: "Test description with enough characters for validation",
   justification: "Test justification",
   effective_date: "2026-01-15",
@@ -66,7 +87,6 @@ describe("ChangeOrderModal", () => {
         onCancel={onCancel}
         confirmLoading={false}
         projectId="proj-123"
-        existingCodes={[]}
       />
     );
 
@@ -109,7 +129,6 @@ describe("ChangeOrderModal", () => {
         onCancel={onCancel}
         confirmLoading={false}
         projectId="proj-123"
-        existingCodes={[]}
       />
     );
     

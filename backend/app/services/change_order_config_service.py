@@ -292,6 +292,38 @@ class ChangeOrderConfigService:
             "evm": Decimal("0.1"),
         }
 
+    async def get_workflow_transitions(
+        self, project_id: UUID | None = None
+    ) -> dict[str, Any] | None:
+        """Get workflow transitions from active config.
+
+        Args:
+            project_id: Optional project for per-project override
+
+        Returns:
+            Transition graph dict or None if not configured
+        """
+        config = await self.get_active_config(project_id)
+        return config.workflow_transitions
+
+    async def get_escalation_triggers(
+        self, project_id: UUID | None = None
+    ) -> dict[str, Decimal]:
+        """Get escalation trigger percentages per impact level.
+
+        Args:
+            project_id: Optional project for per-project override
+
+        Returns:
+            Dict mapping level_name -> escalation_trigger_pct
+        """
+        config = await self.get_active_config(project_id)
+        result: dict[str, Decimal] = {}
+        for rule in config.sla_rules:
+            if rule.escalation_trigger_pct is not None:
+                result[rule.impact_level_name] = rule.escalation_trigger_pct
+        return result
+
     def classify_impact_by_score(
         self,
         score: Decimal,
@@ -378,11 +410,19 @@ class ChangeOrderConfigService:
                 {
                     "impact_level_name": rule.impact_level_name,
                     "business_days": rule.business_days,
+                    "escalation_trigger_pct": (
+                        float(rule.escalation_trigger_pct)
+                        if rule.escalation_trigger_pct
+                        else None
+                    ),
                 }
                 for rule in config.sla_rules
             ],
             "impact_weights": config.impact_weights,
             "score_boundaries": config.score_boundaries,
+            "workflow_transitions": config.workflow_transitions,
+            "holiday_country_code": config.holiday_country_code,
+            "custom_fields": config.custom_fields,
         }
 
         return snapshot
@@ -395,6 +435,9 @@ class ChangeOrderConfigService:
         sla_rules: list[dict[str, Any]],
         impact_weights: dict[str, Any],
         score_boundaries: dict[str, Any],
+        workflow_transitions: dict[str, Any] | None = None,
+        holiday_country_code: str | None = None,
+        custom_fields: list[dict[str, Any]] | None = None,
     ) -> ChangeOrderWorkflowConfig:
         """Create the global workflow configuration.
 
@@ -426,6 +469,9 @@ class ChangeOrderConfigService:
             sla_rules=sla_rules,
             impact_weights=impact_weights,
             score_boundaries=score_boundaries,
+            workflow_transitions=workflow_transitions,
+            holiday_country_code=holiday_country_code,
+            custom_fields=custom_fields,
         )
 
     async def update_config(
@@ -438,6 +484,9 @@ class ChangeOrderConfigService:
         sla_rules: list[dict[str, Any]],
         impact_weights: dict[str, Any],
         score_boundaries: dict[str, Any],
+        workflow_transitions: dict[str, Any] | None = None,
+        holiday_country_code: str | None = None,
+        custom_fields: list[dict[str, Any]] | None = None,
     ) -> ChangeOrderWorkflowConfig:
         """Update an existing workflow configuration.
 
@@ -496,6 +545,9 @@ class ChangeOrderConfigService:
         config.updated_by = actor_id
         config.impact_weights = impact_weights
         config.score_boundaries = score_boundaries
+        config.workflow_transitions = workflow_transitions
+        config.holiday_country_code = holiday_country_code
+        config.custom_fields = custom_fields
 
         # Create new child records
         await self._create_impact_levels(config.id, impact_levels)
@@ -532,6 +584,9 @@ class ChangeOrderConfigService:
         sla_rules: list[dict[str, Any]],
         impact_weights: dict[str, Any],
         score_boundaries: dict[str, Any],
+        workflow_transitions: dict[str, Any] | None = None,
+        holiday_country_code: str | None = None,
+        custom_fields: list[dict[str, Any]] | None = None,
     ) -> ChangeOrderWorkflowConfig:
         """Create a per-project configuration override.
 
@@ -565,6 +620,9 @@ class ChangeOrderConfigService:
             sla_rules=sla_rules,
             impact_weights=impact_weights,
             score_boundaries=score_boundaries,
+            workflow_transitions=workflow_transitions,
+            holiday_country_code=holiday_country_code,
+            custom_fields=custom_fields,
         )
 
     async def delete_project_override(self, project_id: UUID, actor_id: UUID) -> None:
@@ -625,6 +683,9 @@ class ChangeOrderConfigService:
         sla_rules: list[dict[str, Any]],
         impact_weights: dict[str, Any],
         score_boundaries: dict[str, Any],
+        workflow_transitions: dict[str, Any] | None = None,
+        holiday_country_code: str | None = None,
+        custom_fields: list[dict[str, Any]] | None = None,
     ) -> ChangeOrderWorkflowConfig:
         """Create a new workflow configuration with child records."""
         config_id = uuid4()
@@ -637,6 +698,9 @@ class ChangeOrderConfigService:
             updated_by=None,
             impact_weights=impact_weights,
             score_boundaries=score_boundaries,
+            workflow_transitions=workflow_transitions,
+            holiday_country_code=holiday_country_code,
+            custom_fields=custom_fields,
         )
         self._db.add(config)
         await self._db.flush()
@@ -736,6 +800,9 @@ class ChangeOrderConfigService:
                 }
                 for s in config.sla_rules
             ],
+            "workflow_transitions": config.workflow_transitions,
+            "holiday_country_code": config.holiday_country_code,
+            "custom_fields": config.custom_fields,
         }
 
     async def _write_audit_log(
