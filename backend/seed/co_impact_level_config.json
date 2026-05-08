@@ -1,0 +1,42 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000010",
+    "config_id": "00000000-0000-0000-0000-000000000001",
+    "level_name": "LOW",
+    "level_order": 1,
+    "threshold_amount": 10000,
+    "score_threshold_min": 0,
+    "score_threshold_max": 10,
+    "is_active": true
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000011",
+    "config_id": "00000000-0000-0000-0000-000000000001",
+    "level_name": "MEDIUM",
+    "level_order": 2,
+    "threshold_amount": 50000,
+    "score_threshold_min": 10,
+    "score_threshold_max": 30,
+    "is_active": true
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000012",
+    "config_id": "00000000-0000-0000-0000-000000000001",
+    "level_name": "HIGH",
+    "level_order": 3,
+    "threshold_amount": 100000,
+    "score_threshold_min": 30,
+    "score_threshold_max": 50,
+    "is_active": true
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000013",
+    "config_id": "00000000-0000-0000-0000-000000000001",
+    "level_name": "CRITICAL",
+    "level_order": 4,
+    "threshold_amount": 100000,
+    "score_threshold_min": 50,
+    "score_threshold_max": 100,
+    "is_active": true
+  }
+]
