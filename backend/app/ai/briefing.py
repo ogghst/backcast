@@ -6,8 +6,6 @@ document. No AI framework dependencies — only Pydantic.
 
 from __future__ import annotations
 
-import re
-
 from pydantic import BaseModel
 
 

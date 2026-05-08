@@ -35,4 +35,6 @@ class MCPServer(SimpleEntityBase):
     )
 
     def __repr__(self) -> str:
-        return f"<MCPServer(id={self.id}, name={self.name!r}, is_active={self.is_active})>"
+        return (
+            f"<MCPServer(id={self.id}, name={self.name!r}, is_active={self.is_active})>"
+        )

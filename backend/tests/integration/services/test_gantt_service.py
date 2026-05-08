@@ -6,11 +6,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.cost_element import CostElement
-from app.models.domain.cost_element_type import CostElementType
-from app.models.domain.department import Department
-from app.models.domain.project import Project
-from app.models.domain.wbe import WBE
 from app.models.schemas.cost_element import CostElementCreate
 from app.models.schemas.cost_element_type import CostElementTypeCreate
 from app.models.schemas.department import DepartmentCreate

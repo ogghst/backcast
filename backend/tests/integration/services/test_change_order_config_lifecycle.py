@@ -385,14 +385,18 @@ class TestConfigSnapshot:
         assert len(snapshot["approval_rules"]) == 5
 
         # Verify impact level structure
-        low_level = next(il for il in snapshot["impact_levels"] if il["level_name"] == "LOW")
+        low_level = next(
+            il for il in snapshot["impact_levels"] if il["level_name"] == "LOW"
+        )
         assert "threshold_amount" in low_level
         assert "score_threshold_min" in low_level
         assert "score_threshold_max" in low_level
         assert "level_order" in low_level
 
         # Verify SLA rule structure
-        low_sla = next(s for s in snapshot["sla_rules"] if s["impact_level_name"] == "LOW")
+        low_sla = next(
+            s for s in snapshot["sla_rules"] if s["impact_level_name"] == "LOW"
+        )
         assert low_sla["business_days"] == 2
 
         # Verify weights
@@ -428,7 +432,9 @@ class TestConfigSnapshot:
         snapshot = await service.generate_snapshot(project_id)
 
         # Verify snapshot uses project override values
-        low_sla = next(s for s in snapshot["sla_rules"] if s["impact_level_name"] == "LOW")
+        low_sla = next(
+            s for s in snapshot["sla_rules"] if s["impact_level_name"] == "LOW"
+        )
         assert low_sla["business_days"] == 20
 
 

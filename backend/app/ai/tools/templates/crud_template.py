@@ -372,7 +372,9 @@ async def update_project(
             return {"error": "No fields provided for update"}
 
         # Create update schema with only provided fields
-        update_data = ProjectUpdate(**update_kwargs, branch=context.branch_name or "main")
+        update_data = ProjectUpdate(
+            **update_kwargs, branch=context.branch_name or "main"
+        )
 
         # Call service method
         project = await service.update_project(

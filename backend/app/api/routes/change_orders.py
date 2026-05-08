@@ -1023,7 +1023,7 @@ async def get_change_order_approval_info(
 
             if time_remaining < 0:
                 sla_status = "overdue"
-            elif time_remaining < (service._get_sla_days(co.impact_level) / 2):
+            elif time_remaining < ((await service._get_sla_days(co.impact_level)) / 2):
                 sla_status = "approaching"
             else:
                 sla_status = "pending"

@@ -11,7 +11,9 @@ from langchain_core.tools import BaseTool, StructuredTool
 
 from app.ai.tools.types import RiskLevel, ToolMetadata
 
-BACKCAST_INJECTED_PARAMS = frozenset({"branch_name", "branch_mode", "as_of", "project_id"})
+BACKCAST_INJECTED_PARAMS = frozenset(
+    {"branch_name", "branch_mode", "as_of", "project_id"}
+)
 
 
 def _strip_backcast_kwargs(

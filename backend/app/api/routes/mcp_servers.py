@@ -171,6 +171,10 @@ async def get_server_tools(
 
     mcp_manager = MCPClientManager()
     server_tools = [
-        t for t in mcp_manager.get_all_tools() if mcp_manager._is_server_tool(t, server.name)
+        t
+        for t in mcp_manager.get_all_tools()
+        if mcp_manager._is_server_tool(t, server.name)
     ]
-    return [MCPToolInfo(name=t.name, description=t.description or "") for t in server_tools]
+    return [
+        MCPToolInfo(name=t.name, description=t.description or "") for t in server_tools
+    ]

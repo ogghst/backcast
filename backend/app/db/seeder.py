@@ -939,7 +939,6 @@ class DataSeeder:
                         system_prompt=assistant_dict.get("system_prompt"),
                         temperature=assistant_dict.get("temperature"),
                         max_tokens=assistant_dict.get("max_tokens"),
-                        allowed_tools=assistant_dict.get("allowed_tools"),
                         is_active=assistant_dict.get("is_active", True),
                         default_role=assistant_dict.get("default_role"),
                     )
@@ -1110,6 +1109,135 @@ class DataSeeder:
             f"Permissions: {permission_created_count} created, {permission_skipped_count} skipped"
         )
 
+    async def seed_co_workflow_config(self, session: AsyncSession) -> None:
+        """Seed change order workflow configuration.
+
+        Creates global workflow config with impact levels, approval rules, and SLA rules.
+        Required for change order impact analysis.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.change_order_config import (
+            ChangeOrderApprovalRuleConfig,
+            ChangeOrderImpactLevelConfig,
+            ChangeOrderSLARuleConfig,
+            ChangeOrderWorkflowConfig,
+        )
+
+        logger.info("Starting CO Workflow Config seeding...")
+
+        # Load all config files
+        workflow_data = self.load_seed_file("co_workflow_config.json")
+        impact_levels_data = self.load_seed_file("co_impact_level_config.json")
+        approval_rules_data = self.load_seed_file("co_approval_rule_config.json")
+        sla_rules_data = self.load_seed_file("co_sla_rule_config.json")
+
+        if not workflow_data:
+            logger.info("No CO workflow config seed data found")
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for config_dict in workflow_data:
+                try:
+                    config_id = UUID(config_dict["config_id"])
+
+                    # Check if config already exists
+                    stmt = sql_select(ChangeOrderWorkflowConfig).where(
+                        ChangeOrderWorkflowConfig.config_id == config_id
+                    )
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        logger.debug(
+                            f"CO Workflow Config {config_id} already exists, skipping"
+                        )
+                        skipped_count += 1
+                        continue
+
+                    # Create workflow config
+                    config = ChangeOrderWorkflowConfig(
+                        id=UUID(config_dict["id"]),
+                        config_id=config_id,
+                        project_id=UUID(config_dict["project_id"])
+                        if config_dict.get("project_id")
+                        else None,
+                        is_active=config_dict["is_active"],
+                        version=config_dict["version"],
+                        created_by=UUID(config_dict["created_by"]),
+                        updated_by=UUID(config_dict["updated_by"])
+                        if config_dict.get("updated_by")
+                        else None,
+                        impact_weights=config_dict["impact_weights"],
+                        score_boundaries=config_dict["score_boundaries"],
+                    )
+                    session.add(config)
+                    await session.flush()
+
+                    # Seed impact levels
+                    if impact_levels_data:
+                        for level_dict in impact_levels_data:
+                            if UUID(level_dict["config_id"]) == config_id:
+                                level = ChangeOrderImpactLevelConfig(
+                                    id=UUID(level_dict["id"]),
+                                    config_id=config_id,
+                                    level_name=level_dict["level_name"],
+                                    level_order=level_dict["level_order"],
+                                    threshold_amount=level_dict["threshold_amount"],
+                                    score_threshold_min=level_dict[
+                                        "score_threshold_min"
+                                    ],
+                                    score_threshold_max=level_dict[
+                                        "score_threshold_max"
+                                    ],
+                                    is_active=level_dict["is_active"],
+                                )
+                                session.add(level)
+
+                    # Seed approval rules
+                    if approval_rules_data:
+                        for rule_dict in approval_rules_data:
+                            if UUID(rule_dict["config_id"]) == config_id:
+                                approval_rule = ChangeOrderApprovalRuleConfig(
+                                    id=UUID(rule_dict["id"]),
+                                    config_id=config_id,
+                                    impact_level_name=rule_dict["impact_level_name"],
+                                    required_authority_level=rule_dict[
+                                        "required_authority_level"
+                                    ],
+                                    approver_role=rule_dict["approver_role"],
+                                )
+                                session.add(approval_rule)
+
+                    # Seed SLA rules
+                    if sla_rules_data:
+                        for rule_dict in sla_rules_data:
+                            if UUID(rule_dict["config_id"]) == config_id:
+                                sla_rule = ChangeOrderSLARuleConfig(
+                                    id=UUID(rule_dict["id"]),
+                                    config_id=config_id,
+                                    impact_level_name=rule_dict["impact_level_name"],
+                                    business_days=rule_dict["business_days"],
+                                )
+                                session.add(sla_rule)
+
+                    created_count += 1
+                    logger.info(f"Created CO Workflow Config: {config_id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed CO workflow config: {e}")
+                    skipped_count += 1
+
+        logger.info(
+            f"CO Workflow Config seeding complete: {created_count} created, {skipped_count} skipped"
+        )
+
     async def seed_all(self, session: AsyncSession) -> None:
         """Execute all seeding operations in the correct order.
 
@@ -1127,6 +1255,9 @@ class DataSeeder:
 
             # Then seed users (depend on roles and departments)
             await self.seed_users(session)
+
+            # Seed CO Workflow Config (required by change orders)
+            await self.seed_co_workflow_config(session)
 
             # Seed Cost Element Types
             await self.seed_cost_element_types(session)
