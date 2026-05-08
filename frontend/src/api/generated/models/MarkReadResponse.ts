@@ -2,10 +2,13 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type Body_upload_ai_image = {
+/**
+ * Schema for mark-read confirmation.
+ */
+export type MarkReadResponse = {
     /**
-     * Image file (PNG, JPG, JPEG, max 5MB)
+     * Number of notifications marked as read
      */
-    file: Blob;
+    updated_count: number;
 };
 

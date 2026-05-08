@@ -4,17 +4,19 @@
 /* eslint-disable */
 /**
  * A single item in the Gantt chart (cost element with schedule).
+ *
+ * Supports WBEs without cost elements - cost element fields will be null.
  */
 export type GanttItem = {
-    cost_element_id: string;
-    cost_element_code: string;
-    cost_element_name: string;
+    cost_element_id?: (string | null);
+    cost_element_code?: (string | null);
+    cost_element_name?: (string | null);
     wbe_id: string;
     wbe_code: string;
     wbe_name: string;
     wbe_level: number;
-    parent_wbe_id: (string | null);
-    budget_amount: string;
+    parent_wbe_id?: (string | null);
+    budget_amount?: (string | null);
     start_date?: (string | null);
     end_date?: (string | null);
     progression_type?: (string | null);

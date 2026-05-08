@@ -67,6 +67,9 @@ export type ProjectRead = {
          * "upper_formatted": "Present",
          * "is_currently_valid": true
          * }
+         *
+         * Returns:
+         * Dictionary with formatted temporal range information
          */
         readonly valid_time_formatted: Record<string, (string | boolean | null)>;
         /**
@@ -76,6 +79,9 @@ export type ProjectRead = {
          * transaction time (when this version was created in the system).
          *
          * See valid_time_formatted for response format details.
+         *
+         * Returns:
+         * Dictionary with formatted temporal range information
          */
         readonly transaction_time_formatted: Record<string, (string | boolean | null)>;
     };
