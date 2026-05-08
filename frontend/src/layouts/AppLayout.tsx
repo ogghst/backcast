@@ -165,7 +165,7 @@ const AppLayout: React.FC = () => {
           <Outlet />
         </div>
       </Content>
-      <Footer style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+      <Footer style={{ position: "relative", zIndex: 1, textAlign: "center", background: "transparent" }}>
         <Space size="small">
           <span>Backcast ©{new Date().getFullYear()}</span>
           {BUILD_SHA && BUILD_SHA !== "dev" && BUILD_DATE && BUILD_DATE !== "dev" && (
