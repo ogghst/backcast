@@ -27,5 +27,9 @@ export type ChangeOrderUpdate = {
      * Optional comment for status transitions (Submit, Approve, Reject, Merge)
      */
     comment?: (string | null);
+    /**
+     * Custom field values matching config.custom_fields definitions
+     */
+    custom_field_values?: (Record<string, any> | null);
 };
 

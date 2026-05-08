@@ -49,17 +49,19 @@ class SLAStatus:
     Status progression:
     - pending: More than 50% of SLA time remaining
     - approaching: Less than 50% of SLA time remaining
+    - escalated: Elapsed time exceeds escalation trigger percentage
     - overdue: Past SLA due date
     """
 
     PENDING = "pending"
     APPROACHING = "approaching"
+    ESCALATED = "escalated"
     OVERDUE = "overdue"
 
     @classmethod
     def all(cls) -> list[str]:
         """Return all valid SLA statuses."""
-        return [cls.PENDING, cls.APPROACHING, cls.OVERDUE]
+        return [cls.PENDING, cls.APPROACHING, cls.ESCALATED, cls.OVERDUE]
 
 
 class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
@@ -160,6 +162,13 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         JSONB,
         nullable=True,
         comment="Workflow config snapshot at submission time (thresholds, SLA, approval matrix)",
+    )
+
+    # Custom field values (Phase C: populated from config.custom_fields definitions)
+    # Example: {"region": "EMEA", "priority": "High"}
+    custom_field_values: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
     )
 
     # Relationships

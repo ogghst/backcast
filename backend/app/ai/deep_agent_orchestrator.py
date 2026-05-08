@@ -148,7 +148,7 @@ class DeepAgentOrchestrator:
             model=self.model,
             tools=tools,
             system_prompt=final_system_prompt,
-            middleware=middleware,  # type: ignore[arg-type]
+            middleware=middleware,
             checkpointer=config.checkpointer,
             context_schema=config.context_schema,
         )

@@ -11,6 +11,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.models.schemas.custom_field import CustomFieldDefinition
+
 
 class ImpactLevelConfigSchema(BaseModel):
     """Schema for a single impact level configuration."""
@@ -104,6 +106,40 @@ class ScoreBoundariesSchema(BaseModel):
         return self
 
 
+class WorkflowTransitionsSchema(BaseModel):
+    """Schema for workflow state machine transition configuration."""
+
+    transitions: dict[str, list[str]] = Field(
+        ..., description="Map of source status -> list of valid target statuses"
+    )
+    lock_transitions: list[list[str]] = Field(
+        ..., description="Pairs of [from_status, to_status] that trigger branch lock"
+    )
+    unlock_transitions: list[list[str]] = Field(
+        ..., description="Pairs of [from_status, to_status] that trigger branch unlock"
+    )
+    editable_statuses: list[str] = Field(
+        ..., description="Statuses that allow CO field editing"
+    )
+
+    @model_validator(mode="after")
+    def validate_transitions_consistency(self) -> "WorkflowTransitionsSchema":
+        """Ensure all referenced statuses exist in the transition graph."""
+        all_statuses = set(self.transitions.keys())
+        for targets in self.transitions.values():
+            all_statuses.update(targets)
+        for pair in self.lock_transitions:
+            if pair[0] not in all_statuses or pair[1] not in all_statuses:
+                raise ValueError(f"Lock transition references unknown status: {pair}")
+        for pair in self.unlock_transitions:
+            if pair[0] not in all_statuses or pair[1] not in all_statuses:
+                raise ValueError(f"Unlock transition references unknown status: {pair}")
+        for status in self.editable_statuses:
+            if status not in all_statuses:
+                raise ValueError(f"Editable status '{status}' not found in transitions")
+        return self
+
+
 class WorkflowConfigUpdateRequest(BaseModel):
     """Request schema for creating/updating workflow configuration."""
 
@@ -124,6 +160,15 @@ class WorkflowConfigUpdateRequest(BaseModel):
     )
     score_boundaries: ScoreBoundariesSchema = Field(
         ..., description="Score-to-impact-level boundaries"
+    )
+    workflow_transitions: WorkflowTransitionsSchema | None = Field(
+        None, description="Workflow transition configuration"
+    )
+    holiday_country_code: str | None = Field(
+        None, description="ISO 3166-1 alpha-2 country code for holiday calendar"
+    )
+    custom_fields: list[CustomFieldDefinition] | None = Field(
+        None, description="Custom field definitions for change orders"
     )
 
 
@@ -157,6 +202,15 @@ class WorkflowConfigResponse(BaseModel):
     )
     score_boundaries: ScoreBoundariesSchema = Field(
         ..., description="Score-to-impact-level boundaries"
+    )
+    workflow_transitions: WorkflowTransitionsSchema | None = Field(
+        None, description="Workflow transition configuration"
+    )
+    holiday_country_code: str | None = Field(
+        None, description="ISO 3166-1 alpha-2 country code for holiday calendar"
+    )
+    custom_fields: list[CustomFieldDefinition] | None = Field(
+        None, description="Custom field definitions for change orders"
     )
 
 

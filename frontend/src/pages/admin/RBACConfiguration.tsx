@@ -399,10 +399,17 @@ const RoleModal: React.FC<RoleModalProps> = ({
 }) => {
   const [form] = Form.useForm<RBACRoleCreate>();
 
-  // Reset form with new initial values when modal opens
   useEffect(() => {
     if (open) {
-      form.resetFields();
+      if (initialValues) {
+        form.setFieldsValue({
+          name: initialValues.name,
+          description: initialValues.description ?? "",
+          permissions: initialValues.permissions.map((p) => p.permission),
+        });
+      } else {
+        form.resetFields();
+      }
     }
   }, [open, initialValues, form]);
 
@@ -418,7 +425,7 @@ const RoleModal: React.FC<RoleModalProps> = ({
       width={720}
     >
       <Form<RBACRoleCreate>
-        key={initialValues?.id ?? "create"}
+        key={initialValues?.id || "create"}
         form={form}
         layout="vertical"
         initialValues={
@@ -639,6 +646,7 @@ export const RBACConfiguration: React.FC = () => {
       />
 
       <RoleModal
+        key={selectedRole?.id || "create"}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={handleModalOk}

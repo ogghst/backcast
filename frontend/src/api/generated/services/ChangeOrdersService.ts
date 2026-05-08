@@ -664,6 +664,38 @@ export class ChangeOrdersService {
         });
     }
     /**
+     * Escalate Change Order
+     * Manually escalate a change order's SLA status.
+     *
+     * Triggers SLA escalation when the approval process is taking too long.
+     * Requires change-order-escalate permission.
+     *
+     * Args:
+     * change_order_id: UUID of the change order to escalate
+     * current_user: Authenticated user triggering escalation
+     * session: Database session
+     *
+     * Returns:
+     * Updated change order with escalated SLA status
+     * @param changeOrderId
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static escalateChangeOrder(
+        changeOrderId: string,
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/change-orders/{change_order_id}/escalate',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Get Change Order Approval Info
      * Get approval information for a change order.
      *

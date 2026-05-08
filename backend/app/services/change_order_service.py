@@ -29,6 +29,7 @@ from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 from app.services.change_order_workflow_validation import ControlDateValidator
 from app.services.cost_element_service import CostElementService
+from app.services.custom_field_service import CustomFieldService
 from app.services.entity_discovery_service import EntityDiscoveryService
 from app.services.wbe import WBEService
 
@@ -57,7 +58,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(ChangeOrder, session)
-        self.workflow = ChangeOrderWorkflowService()
+        from app.services.change_order_config_service import ChangeOrderConfigService
+
+        config_service = ChangeOrderConfigService(session)
+        self.workflow = ChangeOrderWorkflowService(config_service=config_service)
         self.branch_service = BranchService(session)
 
     async def create_root(
@@ -127,6 +131,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         project_id = co_data.get(
             "project_id"
         )  # Already a UUID from Pydantic validation
+
+        # Validate custom field values against active config definitions
+        cfv = co_data.get("custom_field_values")
+        if cfv and project_id is not None:
+            await self._validate_custom_field_values(project_id, cfv)
 
         # Prevent duplicate drafts from AI agent loops
         title = co_data.get("title", "")
@@ -290,6 +299,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Extract comment for audit log (not stored in ChangeOrder model)
         comment = update_data.pop("comment", None)
+
+        # Validate custom field values against active config definitions
+        cfv = update_data.get("custom_field_values")
+        if cfv:
+            await self._validate_custom_field_values(current.project_id, cfv)
 
         # Determine target branch
         target_branch = branch if branch is not None else current.branch
@@ -1454,6 +1468,38 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         return list(change_orders), total
 
+    async def _validate_custom_field_values(
+        self, project_id: UUID, values: dict[str, Any]
+    ) -> None:
+        """Validate custom field values against the active config's field definitions.
+
+        Loads the workflow config's custom_fields, parses them into
+        CustomFieldDefinition objects, and runs validation. Raises ValueError
+        if any validation errors are found.
+
+        Args:
+            project_id: Project UUID to resolve the active config
+            values: Custom field values dict to validate
+
+        Raises:
+            ValueError: If validation errors exist
+        """
+        from app.models.schemas.custom_field import CustomFieldDefinition
+        from app.services.change_order_config_service import (
+            ChangeOrderConfigService,
+        )
+
+        config_service = ChangeOrderConfigService(self.session)
+        config = await config_service.get_active_config(project_id)
+
+        raw_fields = config.custom_fields or []
+        definitions = [CustomFieldDefinition(**f) for f in raw_fields]
+
+        validator = CustomFieldService()
+        errors = validator.validate_field_values(definitions, values)
+        if errors:
+            raise ValueError(f"Custom field validation failed: {'; '.join(errors)}")
+
     async def _run_impact_analysis(
         self, change_order: ChangeOrder, branch_name: str
     ) -> None:
@@ -1855,6 +1901,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             "sla_status": co.sla_status,
             "assigned_approver": assigned_approver,
             "config_snapshot": co.config_snapshot,
+            "custom_field_values": co.custom_field_values,
         }
 
         return ChangeOrderPublic(**public_data)

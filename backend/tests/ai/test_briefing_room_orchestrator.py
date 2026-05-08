@@ -1201,9 +1201,7 @@ class TestSpecialistWrapper:
             specialist_graph=mock_graph,
         )
 
-        with patch(
-            "app.ai.supervisor_orchestrator.settings"
-        ) as mock_settings:
+        with patch("app.ai.supervisor_orchestrator.settings") as mock_settings:
             mock_settings.AI_SPECIALIST_MAX_RETRIES = 3
             result = await wrapper(
                 {
@@ -1234,9 +1232,7 @@ class TestSpecialistWrapper:
             specialist_graph=mock_graph,
         )
 
-        with patch(
-            "app.ai.supervisor_orchestrator.settings"
-        ) as mock_settings:
+        with patch("app.ai.supervisor_orchestrator.settings") as mock_settings:
             mock_settings.AI_SPECIALIST_MAX_RETRIES = 3
             result = await wrapper(
                 {
@@ -1267,9 +1263,7 @@ class TestSpecialistWrapper:
             specialist_graph=mock_graph,
         )
 
-        with patch(
-            "app.ai.supervisor_orchestrator.settings"
-        ) as mock_settings:
+        with patch("app.ai.supervisor_orchestrator.settings") as mock_settings:
             mock_settings.AI_SPECIALIST_MAX_RETRIES = 3
             result = await wrapper(
                 {

@@ -7,6 +7,7 @@ import { UserProfile } from "@/components/UserProfile";
 import { HeaderNavigation } from "@/components/navigation/HeaderNavigation";
 import { WaveBackground } from "@/components/common/WaveBackground";
 import { SearchDialog, useSearchShortcut } from "@/features/search";
+import { NotificationBell } from "@/features/notifications";
 
 const BUILD_SHA = import.meta.env.VITE_GIT_SHA || "dev";
 const BUILD_DATE = import.meta.env.VITE_BUILD_DATE || "dev";
@@ -39,7 +40,6 @@ const AppLayout: React.FC = () => {
       colorBorder,
       colorPrimary,
       borderRadiusLG,
-      fontWeightBold,
       fontSizeXL,
       paddingMD,
       paddingLG,
@@ -65,10 +65,10 @@ const AppLayout: React.FC = () => {
   const projectId = urlProjectId || storeProjectId;
 
   // Fetch project data for timeline
-  const { data: project } = useProject(projectId);
+  const { data: project } = useProject(projectId ?? undefined);
 
   // Fetch branches for the project (main + change order branches)
-  const { data: branches = [] } = useProjectBranches(projectId);
+  const { data: branches = [] } = useProjectBranches(projectId ?? undefined);
 
   // Time machine expanded state
   const isTimeMachineExpanded = useTimeMachineStore((s) => s.isExpanded);
@@ -96,7 +96,7 @@ const AppLayout: React.FC = () => {
           {!isMobile && (
             <div
               style={{
-                fontWeight: fontWeightBold,
+                fontWeight: 600,
                 fontSize: fontSizeXL,
                 color: colorPrimary,
                 whiteSpace: "nowrap",
@@ -128,8 +128,11 @@ const AppLayout: React.FC = () => {
           {projectId && <TimeMachineCompact projectId={projectId} />}
         </div>
 
-        {/* Right: UserProfile - always visible */}
-        <UserProfile />
+        {/* Right: NotificationBell + UserProfile - always visible */}
+        <Space size="small" align="center">
+          <NotificationBell />
+          <UserProfile />
+        </Space>
       </Header>
 
       {/* Time Machine Expanded Panel (below header) */}
@@ -138,9 +141,11 @@ const AppLayout: React.FC = () => {
           projectId={projectId}
           projectName={project?.name}
           timelineData={{
-            startDate:
-              parseTemporalRangeLower(project?.valid_time ?? null) ??
-              (project?.start_date ? new Date(project.start_date) : null),
+            startDate: (() => {
+              const parsed = parseTemporalRangeLower(project?.valid_time ?? null);
+              if (parsed) return new Date(parsed);
+              return project?.start_date ? new Date(project.start_date) : null;
+            })(),
             endDate: project?.end_date ? new Date(project.end_date) : null,
             branches: branches.map((b) => b.name),
             events: [], // TODO: Fetch branch events from API
@@ -160,7 +165,7 @@ const AppLayout: React.FC = () => {
           <Outlet />
         </div>
       </Content>
-      <Footer style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+      <Footer style={{ position: "relative", zIndex: 1, textAlign: "center", background: "transparent" }}>
         <Space size="small">
           <span>Backcast ©{new Date().getFullYear()}</span>
           {BUILD_SHA && BUILD_SHA !== "dev" && BUILD_DATE && BUILD_DATE !== "dev" && (

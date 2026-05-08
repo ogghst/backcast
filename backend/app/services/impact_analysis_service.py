@@ -1713,6 +1713,14 @@ class ImpactAnalysisService:
                 if not (schedule.start_date and schedule.end_date):
                     continue
 
+                # Validate dates before calculating progress (start_date < end_date)
+                if schedule.start_date >= schedule.end_date:
+                    logger.warning(
+                        f"Invalid date range for schedule baseline {ce.code}: "
+                        f"start_date={schedule.start_date}, end_date={schedule.end_date}"
+                    )
+                    continue
+
                 try:
                     # Budget/PV: Use progression strategy
                     strategy = get_progression_strategy(schedule.progression_type)
@@ -1752,6 +1760,14 @@ class ImpactAnalysisService:
                 if not (schedule.start_date and schedule.end_date):
                     continue
 
+                # Validate dates before calculating progress (start_date < end_date)
+                if schedule.start_date >= schedule.end_date:
+                    logger.warning(
+                        f"Invalid date range for schedule baseline {ce.code}: "
+                        f"start_date={schedule.start_date}, end_date={schedule.end_date}"
+                    )
+                    continue
+
                 try:
                     # Budget/PV: Use progression strategy
                     strategy = get_progression_strategy(schedule.progression_type)
@@ -1789,6 +1805,14 @@ class ImpactAnalysisService:
                 if wbe.wbe_id in only_in_main:
                     budget = ce.budget_amount or Decimal("0")
                     if not (schedule.start_date and schedule.end_date):
+                        continue
+
+                    # Validate dates before calculating progress (start_date < end_date)
+                    if schedule.start_date >= schedule.end_date:
+                        logger.warning(
+                            f"Invalid date range for schedule baseline {ce.code}: "
+                            f"start_date={schedule.start_date}, end_date={schedule.end_date}"
+                        )
                         continue
 
                     try:

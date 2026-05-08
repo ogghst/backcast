@@ -72,6 +72,21 @@ class ChangeOrderWorkflowConfig(SimpleEntityBase):
         JSONB, nullable=False, default=dict
     )
 
+    # Workflow state machine (JSONB)
+    # Example: {"transitions": {"Draft": ["Submitted for Approval"]}, "lock_transitions": [["Draft", "Submitted for Approval"]], "unlock_transitions": [["Under Review", "Rejected"]], "editable_statuses": ["Draft", "Rejected"]}
+    workflow_transitions: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
+    # ISO 3166-1 alpha-2 country code for holiday calendar (e.g. "DE", "US")
+    holiday_country_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    # Custom field definitions for change orders (JSONB)
+    # Example: [{"name": "region", "label": "Region", "type": "select", "options": ["EMEA", "APAC", "AMER"]}]
+    custom_fields: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
     # Relationships
     impact_levels: Mapped[list["ChangeOrderImpactLevelConfig"]] = relationship(
         "ChangeOrderImpactLevelConfig",

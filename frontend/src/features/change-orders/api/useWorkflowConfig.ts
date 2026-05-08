@@ -55,6 +55,20 @@ export interface ScoreBoundaries {
   CRITICAL: number;
 }
 
+export interface WorkflowTransitionsConfig {
+  transitions: Record<string, string[]>;
+  lock_transitions: [string, string][];
+  unlock_transitions: [string, string][];
+  editable_statuses: string[];
+}
+
+export interface CustomFieldDefinition {
+  name: string;
+  type: "text" | "number" | "date" | "select";
+  required: boolean;
+  options: string[];
+}
+
 export interface WorkflowConfigResponse {
   id: string;
   config_id: string;
@@ -70,6 +84,9 @@ export interface WorkflowConfigResponse {
   sla_rules: SLARuleConfig[];
   impact_weights: ImpactWeights;
   score_boundaries: ScoreBoundaries;
+  workflow_transitions: WorkflowTransitionsConfig | null;
+  custom_fields: CustomFieldDefinition[] | null;
+  holiday_country_code: string | null;
 }
 
 export interface WorkflowConfigUpdateRequest {
@@ -78,6 +95,9 @@ export interface WorkflowConfigUpdateRequest {
   sla_rules: SLARuleConfig[];
   impact_weights: ImpactWeights;
   score_boundaries: ScoreBoundaries;
+  workflow_transitions: WorkflowTransitionsConfig | null;
+  custom_fields?: CustomFieldDefinition[] | null;
+  holiday_country_code?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +177,7 @@ export function useGlobalConfig(
         OpenAPI,
         getConfig("/api/v1/change-order-config/global"),
       );
-      return transformConfigResponse(raw);
+      return transformConfigResponse(raw as WorkflowConfigResponse);
     },
     ...options,
   });
@@ -181,7 +201,7 @@ export function useProjectConfig(
         OpenAPI,
         getConfig(`/api/v1/change-order-config/projects/${projectId}`),
       );
-      return transformConfigResponse(raw);
+      return transformConfigResponse(raw as WorkflowConfigResponse);
     },
     enabled: !!projectId && (options?.enabled ?? true),
     ...options,

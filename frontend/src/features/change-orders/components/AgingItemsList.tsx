@@ -23,6 +23,7 @@ interface AgingItemsListProps {
 const SLA_COLORS: Record<string, string> = {
   pending: "blue",
   approaching: "orange",
+  escalated: "purple",
   overdue: "red",
 };
 

@@ -294,6 +294,19 @@ class EVMService:
             # Calculate progress percentage using progression strategy
             from app.services.progression import get_progression_strategy
 
+            # Validate dates before calculating progress
+            if (
+                schedule_baseline.start_date is None
+                or schedule_baseline.end_date is None
+                or schedule_baseline.start_date >= schedule_baseline.end_date
+            ):
+                logger.warning(
+                    f"Invalid date range for schedule baseline {cost_element_id}: "
+                    f"start_date={schedule_baseline.start_date}, "
+                    f"end_date={schedule_baseline.end_date}"
+                )
+                return Decimal("0")
+
             strategy = get_progression_strategy(schedule_baseline.progression_type)
 
             progress = strategy.calculate_progress(
@@ -497,15 +510,30 @@ class EVMService:
         pv = Decimal("0")
         if schedule_baseline:
             try:
-                from app.services.progression import get_progression_strategy
+                # Validate dates before calculating progress
+                if (
+                    schedule_baseline.start_date is None
+                    or schedule_baseline.end_date is None
+                    or schedule_baseline.start_date >= schedule_baseline.end_date
+                ):
+                    logger.warning(
+                        f"Invalid date range for schedule baseline {cost_element_id}: "
+                        f"start_date={schedule_baseline.start_date}, "
+                        f"end_date={schedule_baseline.end_date}"
+                    )
+                    pv = Decimal("0")
+                else:
+                    from app.services.progression import get_progression_strategy
 
-                strategy = get_progression_strategy(schedule_baseline.progression_type)
-                progress = strategy.calculate_progress(
-                    current_date=control_date,
-                    start_date=schedule_baseline.start_date,
-                    end_date=schedule_baseline.end_date,
-                )
-                pv = bac * Decimal(str(progress))
+                    strategy = get_progression_strategy(
+                        schedule_baseline.progression_type
+                    )
+                    progress = strategy.calculate_progress(
+                        current_date=control_date,
+                        start_date=schedule_baseline.start_date,
+                        end_date=schedule_baseline.end_date,
+                    )
+                    pv = bac * Decimal(str(progress))
             except Exception as e:
                 logger.error(f"Error calculating PV for {cost_element_id}: {e}")
                 pv = Decimal("0")
@@ -1512,24 +1540,40 @@ class EVMService:
                 if date > baseline_end_for_projection:
                     pv = bac  # PV is capped at BAC (100% progress)
                 else:
-                    progress = strategy.calculate_progress(
-                        current_date=date,
-                        start_date=schedule_baseline.start_date,
-                        end_date=schedule_baseline.end_date,
-                    )
-                    pv = bac * Decimal(str(progress))
+                    # Validate dates before calculating progress
+                    if (
+                        schedule_baseline.start_date is None
+                        or schedule_baseline.end_date is None
+                        or schedule_baseline.start_date >= schedule_baseline.end_date
+                    ):
+                        pv = Decimal("0")
+                    else:
+                        progress = strategy.calculate_progress(
+                            current_date=date,
+                            start_date=schedule_baseline.start_date,
+                            end_date=schedule_baseline.end_date,
+                        )
+                        pv = bac * Decimal(str(progress))
             else:
                 # Past and current dates: use actual/fetched values
                 # If date is beyond baseline end, cap progress at 1.0
                 if date > baseline_end_for_projection:
                     pv = bac  # PV is capped at BAC
                 else:
-                    progress = strategy.calculate_progress(
-                        current_date=date,
-                        start_date=schedule_baseline.start_date,
-                        end_date=schedule_baseline.end_date,
-                    )
-                    pv = bac * Decimal(str(progress))
+                    # Validate dates before calculating progress
+                    if (
+                        schedule_baseline.start_date is None
+                        or schedule_baseline.end_date is None
+                        or schedule_baseline.start_date >= schedule_baseline.end_date
+                    ):
+                        pv = Decimal("0")
+                    else:
+                        progress = strategy.calculate_progress(
+                            current_date=date,
+                            start_date=schedule_baseline.start_date,
+                            end_date=schedule_baseline.end_date,
+                        )
+                        pv = bac * Decimal(str(progress))
 
             # 2. Calculate EV and AC
             if date > control_date:
@@ -1698,18 +1742,34 @@ class EVMService:
                     if date > baseline_end:
                         pv = bac
                     else:
-                        progress = strategy.calculate_progress(
-                            date, baseline.start_date, baseline.end_date
-                        )
-                        pv = bac * Decimal(str(progress))
+                        # Validate dates before calculating progress
+                        if (
+                            baseline.start_date is None
+                            or baseline.end_date is None
+                            or baseline.start_date >= baseline.end_date
+                        ):
+                            pv = Decimal("0")
+                        else:
+                            progress = strategy.calculate_progress(
+                                date, baseline.start_date, baseline.end_date
+                            )
+                            pv = bac * Decimal(str(progress))
                 else:
                     if date > baseline_end:
                         pv = bac
                     else:
-                        progress = strategy.calculate_progress(
-                            date, baseline.start_date, baseline.end_date
-                        )
-                        pv = bac * Decimal(str(progress))
+                        # Validate dates before calculating progress
+                        if (
+                            baseline.start_date is None
+                            or baseline.end_date is None
+                            or baseline.start_date >= baseline.end_date
+                        ):
+                            pv = Decimal("0")
+                        else:
+                            progress = strategy.calculate_progress(
+                                date, baseline.start_date, baseline.end_date
+                            )
+                            pv = bac * Decimal(str(progress))
 
                 # EV and AC
                 if date > control_date:
@@ -1913,6 +1973,18 @@ class EVMService:
             if ts.end_date > overall_end_date:
                 overall_end_date = ts.end_date
 
+        # Ensure start_date is not after end_date
+        if overall_start_date > overall_end_date:
+            # This can happen if cost elements have invalid date ranges
+            # Use control_date for both
+            logger.warning(
+                f"WBE {wbe_id} has invalid date range: "
+                f"start_date={overall_start_date}, end_date={overall_end_date}. "
+                f"Using control_date={control_date} for both."
+            )
+            overall_start_date = control_date
+            overall_end_date = control_date
+
         # Generate date intervals for the aggregated range
         dates = self._generate_date_intervals(
             start_date=overall_start_date,
@@ -2074,6 +2146,18 @@ class EVMService:
             overall_start_date = project_start
         if project_end > overall_end_date:
             overall_end_date = project_end
+
+        # Ensure start_date is not after end_date
+        if overall_start_date > overall_end_date:
+            # This can happen if project dates are invalid or reversed
+            # Swap them and log a warning
+            logger.warning(
+                f"Project {project_id} has invalid date range: "
+                f"start_date={overall_start_date}, end_date={overall_end_date}. "
+                f"Using control_date={control_date} for both."
+            )
+            overall_start_date = control_date
+            overall_end_date = control_date
 
         # Generate date intervals and aggregate
         dates = self._generate_date_intervals(

@@ -50,7 +50,10 @@ export function useDashboardPersistence(projectId: string) {
 
   // Ref-copy of mutations so the async save function stays current
   const mutationsRef = useRef({ createMutation, updateMutation });
-  mutationsRef.current = { createMutation, updateMutation };
+  // Update ref when mutations change (not during render)
+  useEffect(() => {
+    mutationsRef.current = { createMutation, updateMutation };
+  }, [createMutation, updateMutation]);
 
   // ------------------------------------------------------------------
   // Save function -- creates or updates based on backendId

@@ -59,5 +59,9 @@ export type ChangeOrderCreate = {
      * SLA status
      */
     sla_status?: (string | null);
+    /**
+     * Custom field values matching config.custom_fields definitions
+     */
+    custom_field_values?: (Record<string, any> | null);
 };
 

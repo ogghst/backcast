@@ -111,5 +111,13 @@ export type ChangeOrderPublic = {
      * Assigned approver details (user_id, full_name, email, role)
      */
     assigned_approver?: (Record<string, any> | null);
+    /**
+     * Workflow configuration snapshot at submission time. Immutable record of the rules, thresholds, and weights that were active when this change order was submitted for approval.
+     */
+    config_snapshot?: (Record<string, any> | null);
+    /**
+     * Custom field values matching config.custom_fields definitions
+     */
+    custom_field_values?: (Record<string, any> | null);
 };
 

@@ -28,6 +28,14 @@ export type AIConversationSessionPublic = {
      * Currently active agent execution, if any
      */
     active_execution?: (AgentExecutionPublic | null);
+    /**
+     * Compiled briefing markdown from specialist contributions
+     */
+    briefing_markdown?: (string | null);
+    /**
+     * Names of specialists that contributed to the briefing
+     */
+    briefing_specialists?: Array<string>;
     created_at: string;
     updated_at: string;
 };

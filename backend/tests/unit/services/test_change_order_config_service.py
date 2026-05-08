@@ -24,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.change_order_config import (
     ChangeOrderConfigAuditLog,
-    ChangeOrderWorkflowConfig,
 )
 from app.services.change_order_config_service import (
     ChangeOrderConfigService,
@@ -140,7 +139,7 @@ class TestGetGlobalConfig:
         assert config.version == 1
 
         # Verify impact levels
-        levels = sorted(config.impact_levels, key=lambda l: l.level_order)
+        levels = sorted(config.impact_levels, key=lambda level: level.level_order)
         assert len(levels) == 4
         assert levels[0].level_name == "LOW"
         assert levels[0].threshold_amount == Decimal("10000.00")
@@ -203,7 +202,7 @@ class TestUpdateGlobalConfig:
         assert updated.version == original_version + 1
 
         # Verify new thresholds
-        levels = sorted(updated.impact_levels, key=lambda l: l.level_order)
+        levels = sorted(updated.impact_levels, key=lambda level: level.level_order)
         assert levels[0].threshold_amount == Decimal("25000")
         assert levels[1].threshold_amount == Decimal("75000")
 
@@ -252,9 +251,7 @@ class TestMissingConfig:
     """Test behavior when config is missing."""
 
     @pytest.mark.asyncio
-    async def test_missing_config_raises_error(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_missing_config_raises_error(self, db_session: AsyncSession) -> None:
         """When no global config exists, get_active_config raises
         ConfigurationError."""
         service = ChangeOrderConfigService(db_session)
@@ -274,9 +271,7 @@ class TestGenerateSnapshot:
     """Test snapshot generation."""
 
     @pytest.mark.asyncio
-    async def test_generate_config_snapshot(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_generate_config_snapshot(self, db_session: AsyncSession) -> None:
         """Verify snapshot generation produces valid dict with all sections."""
         service = ChangeOrderConfigService(db_session)
 
@@ -312,9 +307,7 @@ class TestProjectOverride:
     """Test per-project override CRUD."""
 
     @pytest.mark.asyncio
-    async def test_create_project_override(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_create_project_override(self, db_session: AsyncSession) -> None:
         """Create a project-specific override, verify it coexists with global."""
         service = ChangeOrderConfigService(db_session)
         project_id = uuid4()
@@ -384,9 +377,7 @@ class TestProjectOverride:
         assert sla_map["LOW"] == 99
 
     @pytest.mark.asyncio
-    async def test_delete_project_override(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_delete_project_override(self, db_session: AsyncSession) -> None:
         """Delete project config, verify it is gone."""
         service = ChangeOrderConfigService(db_session)
         project_id = uuid4()
@@ -459,9 +450,7 @@ class TestAuditLog:
     """Test audit log creation on config changes."""
 
     @pytest.mark.asyncio
-    async def test_audit_log_created_on_update(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_audit_log_created_on_update(self, db_session: AsyncSession) -> None:
         """After updating config, verify audit log entry exists."""
         service = ChangeOrderConfigService(db_session)
         actor_id = uuid4()
@@ -572,9 +561,7 @@ class TestHelperMethods:
         assert "director" in roles
 
     @pytest.mark.asyncio
-    async def test_get_impact_authority_mapping(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_impact_authority_mapping(self, db_session: AsyncSession) -> None:
         """get_impact_authority_mapping returns impact -> authority."""
         service = ChangeOrderConfigService(db_session)
 
@@ -586,9 +573,7 @@ class TestHelperMethods:
         assert mapping["CRITICAL"] == "CRITICAL"
 
     @pytest.mark.asyncio
-    async def test_get_role_authority_mapping(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_role_authority_mapping(self, db_session: AsyncSession) -> None:
         """get_role_authority_mapping returns role -> highest authority."""
         service = ChangeOrderConfigService(db_session)
 
@@ -599,17 +584,48 @@ class TestHelperMethods:
         assert mapping["admin"] == "CRITICAL"
 
     @pytest.mark.asyncio
-    async def test_classify_financial_impact(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_classify_financial_impact(self, db_session: AsyncSession) -> None:
         """classify_financial_impact returns correct level for amounts."""
         service = ChangeOrderConfigService(db_session)
 
-        assert service.classify_financial_impact(Decimal("0"), {"LOW": Decimal("10000")}) == "LOW"
-        assert service.classify_financial_impact(Decimal("5000"), {"LOW": Decimal("10000")}) == "LOW"
-        assert service.classify_financial_impact(Decimal("10000"), {"LOW": Decimal("10000"), "MEDIUM": Decimal("50000")}) == "MEDIUM"
-        assert service.classify_financial_impact(Decimal("50000"), {"LOW": Decimal("10000"), "MEDIUM": Decimal("50000"), "HIGH": Decimal("100000")}) == "HIGH"
-        assert service.classify_financial_impact(Decimal("100000"), {"LOW": Decimal("10000"), "MEDIUM": Decimal("50000"), "HIGH": Decimal("100000")}) == "CRITICAL"
+        assert (
+            service.classify_financial_impact(Decimal("0"), {"LOW": Decimal("10000")})
+            == "LOW"
+        )
+        assert (
+            service.classify_financial_impact(
+                Decimal("5000"), {"LOW": Decimal("10000")}
+            )
+            == "LOW"
+        )
+        assert (
+            service.classify_financial_impact(
+                Decimal("10000"), {"LOW": Decimal("10000"), "MEDIUM": Decimal("50000")}
+            )
+            == "MEDIUM"
+        )
+        assert (
+            service.classify_financial_impact(
+                Decimal("50000"),
+                {
+                    "LOW": Decimal("10000"),
+                    "MEDIUM": Decimal("50000"),
+                    "HIGH": Decimal("100000"),
+                },
+            )
+            == "HIGH"
+        )
+        assert (
+            service.classify_financial_impact(
+                Decimal("100000"),
+                {
+                    "LOW": Decimal("10000"),
+                    "MEDIUM": Decimal("50000"),
+                    "HIGH": Decimal("100000"),
+                },
+            )
+            == "CRITICAL"
+        )
 
     @pytest.mark.asyncio
     async def test_get_score_boundaries(self, db_session: AsyncSession) -> None:
@@ -636,9 +652,7 @@ class TestHelperMethods:
         assert weights["evm"] == Decimal("0.1")
 
     @pytest.mark.asyncio
-    async def test_get_config_by_config_id(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_config_by_config_id(self, db_session: AsyncSession) -> None:
         """get_config_by_config_id returns config by root UUID."""
         service = ChangeOrderConfigService(db_session)
 

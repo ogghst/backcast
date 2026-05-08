@@ -1,0 +1,30 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000020",
+    "config_id": "00000000-0000-0000-0000-000000000001",
+    "impact_level_name": "LOW",
+    "required_authority_level": "LOW",
+    "approver_role": "manager"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000021",
+    "config_id": "00000000-0000-0000-0000-000000000001",
+    "impact_level_name": "MEDIUM",
+    "required_authority_level": "MEDIUM",
+    "approver_role": "manager"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000022",
+    "config_id": "00000000-0000-0000-0000-000000000001",
+    "impact_level_name": "HIGH",
+    "required_authority_level": "HIGH",
+    "approver_role": "admin"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000023",
+    "config_id": "00000000-0000-0000-0000-000000000001",
+    "impact_level_name": "CRITICAL",
+    "required_authority_level": "CRITICAL",
+    "approver_role": "admin"
+  }
+]

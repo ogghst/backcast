@@ -13,12 +13,10 @@ Or with DeepSeek API key:
 """
 
 import os
-import sys
-from typing import Any
 
 import pytest
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import AIMessage, AIMessageChunk
+from langchain_openai import ChatOpenAI
 
 # Test configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
@@ -203,10 +201,10 @@ class TestDeepSeekNativeSupport:
         print(f"[TEST] Raw message keys: {list(message_dict.keys())}")
 
         if "reasoning_content" in message_dict:
-            print(f"[TEST] Found reasoning_content in raw API response!")
+            print("[TEST] Found reasoning_content in raw API response!")
             print(f"[TEST] Length: {len(message_dict['reasoning_content'])} chars")
         else:
-            print(f"[TEST] No reasoning_content in raw API response")
+            print("[TEST] No reasoning_content in raw API response")
 
         # Check content structure
         if hasattr(choice.message, "content"):

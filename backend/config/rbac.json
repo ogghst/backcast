@@ -67,6 +67,7 @@
         "project-budget-settings-write",
         "change-order-workflow-config-manage",
         "change-order-workflow-config-override",
+        "change-order-escalate",
         "temporal-write"
       ]
     },
@@ -94,7 +95,7 @@
         "change-order-create",
         "change-order-update",
         "change-order-submit",
-        "forecast-read",
+        "change-order-escalate",
         "forecast-create",
         "forecast-update",
         "schedule-baseline-read",
@@ -169,6 +170,7 @@
         "change-order-update",
         "change-order-submit",
         "change-order-approve",
+        "change-order-escalate",
         "forecast-read",
         "forecast-create",
         "forecast-update",

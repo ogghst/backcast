@@ -52,6 +52,10 @@ class ChangeOrderCreate(ChangeOrderBase):
     sla_assigned_at: datetime | None = Field(None, description="SLA assigned timestamp")
     sla_due_date: datetime | None = Field(None, description="SLA due date")
     sla_status: str | None = Field(None, description="SLA status")
+    custom_field_values: dict[str, Any] | None = Field(
+        None,
+        description="Custom field values matching config.custom_fields definitions",
+    )
 
 
 class ChangeOrderUpdate(BaseModel):
@@ -78,6 +82,10 @@ class ChangeOrderUpdate(BaseModel):
     comment: str | None = Field(
         None,
         description="Optional comment for status transitions (Submit, Approve, Reject, Merge)",
+    )
+    custom_field_values: dict[str, Any] | None = Field(
+        None,
+        description="Custom field values matching config.custom_fields definitions",
     )
 
 
@@ -163,6 +171,10 @@ class ChangeOrderPublic(ChangeOrderBase):
         description="Workflow configuration snapshot at submission time. "
         "Immutable record of the rules, thresholds, and weights that were active "
         "when this change order was submitted for approval.",
+    )
+    custom_field_values: dict[str, Any] | None = Field(
+        None,
+        description="Custom field values matching config.custom_fields definitions",
     )
 
 

@@ -26,6 +26,8 @@ import {
   SaveOutlined,
   ReloadOutlined,
   QuestionCircleOutlined,
+  DeleteOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -39,6 +41,8 @@ import {
   type ImpactWeights,
   type ScoreBoundaries,
   type WorkflowConfigUpdateRequest,
+  type WorkflowTransitionsConfig,
+  type CustomFieldDefinition,
 } from "../api/useWorkflowConfig";
 
 const { Title, Text } = Typography;
@@ -247,14 +251,33 @@ export function ApprovalRulesTab({
 // Tab: SLA Rules
 // ---------------------------------------------------------------------------
 
+const HOLIDAY_COUNTRY_OPTIONS = [
+  { value: "", label: "None (weekdays only)" },
+  { value: "AT", label: "Austria" },
+  { value: "BE", label: "Belgium" },
+  { value: "CH", label: "Switzerland" },
+  { value: "DE", label: "Germany" },
+  { value: "ES", label: "Spain" },
+  { value: "FR", label: "France" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "IT", label: "Italy" },
+  { value: "NL", label: "Netherlands" },
+  { value: "PL", label: "Poland" },
+  { value: "PT", label: "Portugal" },
+  { value: "US", label: "United States" },
+];
+
 interface SLARulesTabProps {
   rules: SLARuleConfig[];
   onChange: (rules: SLARuleConfig[]) => void;
+  holidayCountryCode: string | null;
+  onHolidayCountryCodeChange: (value: string | null) => void;
   readOnly?: boolean;
 }
 
-export function SLARulesTab({ rules, onChange, readOnly }: SLARulesTabProps) {
+export function SLARulesTab({ rules, onChange, holidayCountryCode, onHolidayCountryCodeChange, readOnly }: SLARulesTabProps) {
   const { token } = theme.useToken();
+  const { colors } = useThemeTokens();
 
   const columns: ColumnsType<SLARuleConfig> = [
     {
@@ -311,14 +334,44 @@ export function SLARulesTab({ rules, onChange, readOnly }: SLARulesTabProps) {
   ];
 
   return (
-    <Table
-      dataSource={rules}
-      columns={columns}
-      rowKey="impact_level_name"
-      pagination={false}
-      size="small"
-      style={{ marginTop: token.marginSM }}
-    />
+    <div style={{ display: "flex", flexDirection: "column", gap: token.marginLG }}>
+      <Card
+        title="Holiday Calendar"
+        size="small"
+        extra={
+          <Tooltip title="Country for holiday calendar used in SLA business day calculation.">
+            <QuestionCircleOutlined style={{ color: colors.textSecondary }} />
+          </Tooltip>
+        }
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: token.marginSM }}>
+          <Text style={{ width: 140 }}>Holiday Country</Text>
+          {readOnly ? (
+            <Text strong>
+              {HOLIDAY_COUNTRY_OPTIONS.find((o) => o.value === (holidayCountryCode ?? ""))?.label ?? holidayCountryCode ?? "None"}
+            </Text>
+          ) : (
+            <Select
+              options={HOLIDAY_COUNTRY_OPTIONS}
+              value={holidayCountryCode ?? ""}
+              style={{ width: 240 }}
+              onChange={(v) => onHolidayCountryCodeChange(v || null)}
+            />
+          )}
+        </div>
+        <Text type="secondary" style={{ marginTop: token.marginXS, display: "block" }}>
+          Country for holiday calendar (affects SLA business day calculation)
+        </Text>
+      </Card>
+
+      <Table
+        dataSource={rules}
+        columns={columns}
+        rowKey="impact_level_name"
+        pagination={false}
+        size="small"
+      />
+    </div>
   );
 }
 
@@ -496,6 +549,352 @@ export function WeightsScoresTab({
 }
 
 // ---------------------------------------------------------------------------
+// Tab: Workflow Transitions
+// ---------------------------------------------------------------------------
+
+const KNOWN_STATUSES = [
+  "Draft",
+  "Submitted for Approval",
+  "Under Review",
+  "Approved",
+  "Rejected",
+  "Implemented",
+];
+
+interface WorkflowTransitionsTabProps {
+  config: WorkflowTransitionsConfig | null;
+  onChange: (config: WorkflowTransitionsConfig | null) => void;
+  readOnly?: boolean;
+}
+
+export function WorkflowTransitionsTab({
+  config,
+  onChange,
+  readOnly,
+}: WorkflowTransitionsTabProps) {
+  const { token } = theme.useToken();
+
+  const transitions = config?.transitions ?? {};
+  const lockTransitions = config?.lock_transitions ?? [];
+  const unlockTransitions = config?.unlock_transitions ?? [];
+  const editableStatuses = config?.editable_statuses ?? [];
+
+  const updateField = (
+    field: Partial<WorkflowTransitionsConfig>,
+  ) => {
+    if (!config) {
+      onChange({
+        transitions: {},
+        lock_transitions: [],
+        unlock_transitions: [],
+        editable_statuses: [],
+        ...field,
+      } as WorkflowTransitionsConfig);
+    } else {
+      onChange({ ...config, ...field });
+    }
+  };
+
+  const toggleTransitionPair = (
+    pair: [string, string],
+    list: [string, string][],
+    field: "lock_transitions" | "unlock_transitions",
+    checked: boolean,
+  ) => {
+    const updated = checked
+      ? [...list, pair]
+      : list.filter(
+          (p) => !(p[0] === pair[0] && p[1] === pair[1]),
+        );
+    updateField({ [field]: updated });
+  };
+
+  const toggleEditableStatus = (
+    status: string,
+    checked: boolean,
+  ) => {
+    const updated = checked
+      ? [...editableStatuses, status]
+      : editableStatuses.filter((s) => s !== status);
+    updateField({ editable_statuses: updated });
+  };
+
+  const allTransitionPairs = Object.entries(transitions).flatMap(
+    ([from, targets]) => targets.map((to) => [from, to] as [string, string]),
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: token.marginLG }}>
+      <Card title="Status Transitions" size="small">
+        <Table
+          dataSource={KNOWN_STATUSES.map((status) => ({
+            key: status,
+            status,
+          }))}
+          pagination={false}
+          size="small"
+          columns={[
+            {
+              title: "From Status",
+              dataIndex: "status",
+              key: "status",
+              width: 200,
+              render: (status: string) => (
+                <Text strong>{status}</Text>
+              ),
+            },
+            {
+              title: "Allowed Transitions",
+              key: "targets",
+              render: (_: unknown, { status }: { key: string; status: string }) => (
+                <Select
+                  mode="multiple"
+                  value={transitions[status] ?? []}
+                  onChange={(values: string[]) =>
+                    updateField({
+                      transitions: { ...transitions, [status]: values },
+                    })
+                  }
+                  options={KNOWN_STATUSES.filter((s) => s !== status).map(
+                    (s) => ({ value: s, label: s }),
+                  )}
+                  style={{ minWidth: 300 }}
+                  disabled={readOnly}
+                  placeholder="Select allowed transitions"
+                />
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <Card title="Lock Transitions" size="small">
+        <Space wrap>
+          {allTransitionPairs.map(([from, to]) => (
+            <Switch
+              key={`lock-${from}-${to}`}
+              checked={lockTransitions.some(
+                (p) => p[0] === from && p[1] === to,
+              )}
+              onChange={(checked) =>
+                toggleTransitionPair(
+                  [from, to],
+                  lockTransitions,
+                  "lock_transitions",
+                  checked,
+                )
+              }
+              disabled={readOnly}
+              checkedChildren={`${from} → ${to}`}
+              unCheckedChildren={`${from} → ${to}`}
+            />
+          ))}
+        </Space>
+      </Card>
+
+      <Card title="Unlock Transitions" size="small">
+        <Space wrap>
+          {allTransitionPairs.map(([from, to]) => (
+            <Switch
+              key={`unlock-${from}-${to}`}
+              checked={unlockTransitions.some(
+                (p) => p[0] === from && p[1] === to,
+              )}
+              onChange={(checked) =>
+                toggleTransitionPair(
+                  [from, to],
+                  unlockTransitions,
+                  "unlock_transitions",
+                  checked,
+                )
+              }
+              disabled={readOnly}
+              checkedChildren={`${from} → ${to}`}
+              unCheckedChildren={`${from} → ${to}`}
+            />
+          ))}
+        </Space>
+      </Card>
+
+      <Card title="Editable Statuses" size="small">
+        <Space wrap>
+          {KNOWN_STATUSES.map((status) => (
+            <Switch
+              key={`editable-${status}`}
+              checked={editableStatuses.includes(status)}
+              onChange={(checked) =>
+                toggleEditableStatus(status, checked)
+              }
+              disabled={readOnly}
+              checkedChildren={status}
+              unCheckedChildren={status}
+            />
+          ))}
+        </Space>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Custom Fields
+// ---------------------------------------------------------------------------
+
+interface CustomFieldsTabProps {
+  fields: CustomFieldDefinition[];
+  onChange: (fields: CustomFieldDefinition[]) => void;
+  readOnly?: boolean;
+}
+
+const FIELD_TYPE_OPTIONS = [
+  { value: "text", label: "Text" },
+  { value: "number", label: "Number" },
+  { value: "date", label: "Date" },
+  { value: "select", label: "Select" },
+];
+
+export function CustomFieldsTab({ fields, onChange, readOnly }: CustomFieldsTabProps) {
+  const { token } = theme.useToken();
+  const { colors } = useThemeTokens();
+
+  const handleAdd = () => {
+    onChange([
+      ...fields,
+      { name: "", type: "text", required: false, options: [] },
+    ]);
+  };
+
+  const handleRemove = (index: number) => {
+    onChange(fields.filter((_, i) => i !== index));
+  };
+
+  const handleUpdate = (index: number, patch: Partial<CustomFieldDefinition>) => {
+    const next = [...fields];
+    next[index] = { ...next[index], ...patch };
+    // Clear options when switching away from select type
+    if (patch.type && patch.type !== "select") {
+      next[index] = { ...next[index], options: [] };
+    }
+    onChange(next);
+  };
+
+  if (fields.length === 0 && readOnly) {
+    return (
+      <div style={{ padding: token.paddingLG, textAlign: "center" }}>
+        <Text type="secondary">
+          No custom fields configured. Add a field to collect additional data on
+          change orders.
+        </Text>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: token.marginMD }}>
+      {!readOnly && (
+        <Button
+          type="dashed"
+          icon={<PlusOutlined />}
+          onClick={handleAdd}
+          style={{ alignSelf: "flex-start" }}
+        >
+          Add Field
+        </Button>
+      )}
+
+      {fields.length === 0 && !readOnly && (
+        <Card size="small" style={{ textAlign: "center", borderColor: colors.border }}>
+          <Text type="secondary">
+            No custom fields configured. Add a field to collect additional data on
+            change orders.
+          </Text>
+        </Card>
+      )}
+
+      {fields.map((field, index) => (
+        <Card
+          key={index}
+          size="small"
+          extra={
+            !readOnly && (
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleRemove(index)}
+              />
+            )
+          }
+          style={{ borderColor: colors.border }}
+        >
+          <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>
+            <div style={{ display: "flex", alignItems: "center", gap: token.marginSM }}>
+              <Text style={{ width: 100 }}>Name</Text>
+              {readOnly ? (
+                <Text strong>{field.name || "-"}</Text>
+              ) : (
+                <Input
+                  placeholder="Field name"
+                  value={field.name}
+                  style={{ flex: 1 }}
+                  onChange={(e) => handleUpdate(index, { name: e.target.value })}
+                />
+              )}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: token.marginSM }}>
+              <Text style={{ width: 100 }}>Type</Text>
+              {readOnly ? (
+                <Text strong>{FIELD_TYPE_OPTIONS.find((o) => o.value === field.type)?.label ?? field.type}</Text>
+              ) : (
+                <Select
+                  options={FIELD_TYPE_OPTIONS}
+                  value={field.type}
+                  style={{ width: 160 }}
+                  onChange={(v) => handleUpdate(index, { type: v })}
+                />
+              )}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: token.marginSM }}>
+              <Text style={{ width: 100 }}>Required</Text>
+              {readOnly ? (
+                <Text strong>{field.required ? "Yes" : "No"}</Text>
+              ) : (
+                <Switch
+                  checked={field.required}
+                  onChange={(checked) => handleUpdate(index, { required: checked })}
+                />
+              )}
+            </div>
+
+            {field.type === "select" && (
+              <div style={{ display: "flex", alignItems: "center", gap: token.marginSM }}>
+                <Text style={{ width: 100 }}>Options</Text>
+                {readOnly ? (
+                  <Text strong>{field.options.join(", ") || "-"}</Text>
+                ) : (
+                  <Select
+                    mode="tags"
+                    placeholder="Type and press Enter to add options"
+                    value={field.options}
+                    style={{ flex: 1 }}
+                    open={false}
+                    onChange={(values: string[]) =>
+                      handleUpdate(index, { options: values })
+                    }
+                  />
+                )}
+              </div>
+            )}
+          </Space>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page Component
 // ---------------------------------------------------------------------------
 
@@ -521,6 +920,10 @@ export function ChangeOrderConfigPage() {
     HIGH: 75,
     CRITICAL: 90,
   });
+  const [workflowTransitions, setWorkflowTransitions] =
+    useState<WorkflowTransitionsConfig | null>(null);
+  const [holidayCountryCode, setHolidayCountryCode] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
 
   // Sync server data into local state when it arrives
   useEffect(() => {
@@ -531,6 +934,9 @@ export function ChangeOrderConfigPage() {
       setSlaRules(config.sla_rules);
       setWeights(config.impact_weights);
       setBoundaries(config.score_boundaries);
+      setWorkflowTransitions(config.workflow_transitions);
+      setHolidayCountryCode(config.holiday_country_code);
+      setCustomFields(config.custom_fields ?? []);
     }
   }, [config]);
 
@@ -550,6 +956,9 @@ export function ChangeOrderConfigPage() {
       sla_rules: slaRules,
       impact_weights: weights,
       score_boundaries: boundaries,
+      workflow_transitions: workflowTransitions,
+      custom_fields: customFields,
+      holiday_country_code: holidayCountryCode,
     };
 
     Modal.confirm({
@@ -560,7 +969,7 @@ export function ChangeOrderConfigPage() {
       okButtonProps: { danger: true },
       onOk: () => updateMutation.mutate(payload),
     });
-  }, [impactLevels, approvalRules, slaRules, weights, boundaries, updateMutation]);
+  }, [impactLevels, approvalRules, slaRules, weights, boundaries, workflowTransitions, customFields, holidayCountryCode, updateMutation]);
 
   if (isLoading) {
     return (
@@ -647,7 +1056,12 @@ export function ChangeOrderConfigPage() {
               key: "sla-rules",
               label: "SLA Rules",
               children: (
-                <SLARulesTab rules={slaRules} onChange={setSlaRules} />
+                <SLARulesTab
+                  rules={slaRules}
+                  onChange={setSlaRules}
+                  holidayCountryCode={holidayCountryCode}
+                  onHolidayCountryCodeChange={setHolidayCountryCode}
+                />
               ),
             },
             {
@@ -659,6 +1073,26 @@ export function ChangeOrderConfigPage() {
                   onWeightsChange={setWeights}
                   boundaries={boundaries}
                   onBoundariesChange={setBoundaries}
+                />
+              ),
+            },
+            {
+              key: "workflow",
+              label: "Workflow",
+              children: (
+                <WorkflowTransitionsTab
+                  config={workflowTransitions}
+                  onChange={setWorkflowTransitions}
+                />
+              ),
+            },
+            {
+              key: "custom-fields",
+              label: "Custom Fields",
+              children: (
+                <CustomFieldsTab
+                  fields={customFields}
+                  onChange={setCustomFields}
                 />
               ),
             },

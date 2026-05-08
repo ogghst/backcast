@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 /**
@@ -12,7 +12,9 @@ export function useWidgetAutoRefresh(
 ): { isStale: boolean; lastRefreshed: Date | null } {
   const queryClient = useQueryClient();
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [isStale, setIsStale] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stalenessCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (intervalRef.current) {
@@ -38,13 +40,31 @@ export function useWidgetAutoRefresh(
     };
   }, [queryClient, queryKey, refreshInterval, isVisible]);
 
-  // Compute staleness from query state (derived data, not impure call during render)
-  const dataUpdatedAt = queryClient.getQueryState(queryKey)?.dataUpdatedAt;
-  const isStale = useMemo(() => {
-    if (!refreshInterval || !dataUpdatedAt) return false;
-    return dataUpdatedAt + refreshInterval < Date.now();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshInterval, dataUpdatedAt, lastRefreshed]);
+  // Check staleness periodically (every second) instead of during render
+  useEffect(() => {
+    if (!refreshInterval) return;
+
+    const checkStaleness = () => {
+      if (!lastRefreshed) {
+        setIsStale(false);
+        return;
+      }
+      const now = Date.now();
+      setIsStale(lastRefreshed.getTime() + refreshInterval < now);
+    };
+
+    // Check immediately
+    checkStaleness();
+
+    // Then check every second
+    stalenessCheckRef.current = setInterval(checkStaleness, 1000);
+
+    return () => {
+      if (stalenessCheckRef.current) {
+        clearInterval(stalenessCheckRef.current);
+      }
+    };
+  }, [refreshInterval, lastRefreshed]);
 
   return { isStale, lastRefreshed };
 }

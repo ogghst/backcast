@@ -385,14 +385,18 @@ class TestConfigSnapshot:
         assert len(snapshot["approval_rules"]) == 5
 
         # Verify impact level structure
-        low_level = next(il for il in snapshot["impact_levels"] if il["level_name"] == "LOW")
+        low_level = next(
+            il for il in snapshot["impact_levels"] if il["level_name"] == "LOW"
+        )
         assert "threshold_amount" in low_level
         assert "score_threshold_min" in low_level
         assert "score_threshold_max" in low_level
         assert "level_order" in low_level
 
         # Verify SLA rule structure
-        low_sla = next(s for s in snapshot["sla_rules"] if s["impact_level_name"] == "LOW")
+        low_sla = next(
+            s for s in snapshot["sla_rules"] if s["impact_level_name"] == "LOW"
+        )
         assert low_sla["business_days"] == 2
 
         # Verify weights
@@ -428,8 +432,23 @@ class TestConfigSnapshot:
         snapshot = await service.generate_snapshot(project_id)
 
         # Verify snapshot uses project override values
-        low_sla = next(s for s in snapshot["sla_rules"] if s["impact_level_name"] == "LOW")
+        low_sla = next(
+            s for s in snapshot["sla_rules"] if s["impact_level_name"] == "LOW"
+        )
         assert low_sla["business_days"] == 20
+
+    @pytest.mark.asyncio
+    async def test_snapshot_includes_new_config_keys(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Snapshot includes holiday_country_code and custom_fields keys."""
+        service = ChangeOrderConfigService(db_session)
+
+        snapshot = await service.generate_snapshot()
+
+        # Verify new keys are present in the snapshot
+        assert "holiday_country_code" in snapshot
+        assert "custom_fields" in snapshot
 
 
 class TestHelperMethodsWithOverride:

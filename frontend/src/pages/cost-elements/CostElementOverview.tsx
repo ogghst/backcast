@@ -115,7 +115,6 @@ export const UnifiedMetricsSection = ({ costElement }: UnifiedMetricsSectionProp
   const { token } = theme.useToken();
   const { branch: tmBranch, asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
-  const { modal } = Modal;
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 

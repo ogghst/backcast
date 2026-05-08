@@ -326,6 +326,14 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     providerStatus: ["admin-rbac", "provider-status"] as const,
   },
 
+  // Notifications
+  notifications: {
+    all: ["notifications"] as const,
+    list: (params?: { page?: number; pageSize?: number; unreadOnly?: boolean }) =>
+      ["notifications", "list", params] as const,
+    unreadCount: ["notifications", "unread-count"] as const,
+  },
+
   // Quality Events
   qualityEvents: {
     all: ["quality-events"] as const,
