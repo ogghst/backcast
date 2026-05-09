@@ -182,6 +182,12 @@ const AUTHORITY_OPTIONS = [
   { value: "CRITICAL", label: "CRITICAL" },
 ];
 
+const APPROVER_ROLE_OPTIONS = [
+  { value: "admin", label: "Admin" },
+  { value: "manager", label: "Manager" },
+  { value: "viewer", label: "Viewer" },
+];
+
 export function ApprovalRulesTab({
   rules,
   onChange,
@@ -223,11 +229,13 @@ export function ApprovalRulesTab({
         readOnly ? (
           <Text>{val}</Text>
         ) : (
-          <Input
+          <Select
+            options={APPROVER_ROLE_OPTIONS}
             value={val}
-            onChange={(e) => {
+            style={{ width: "100%" }}
+            onChange={(v) => {
               const next = [...rules];
-              next[idx] = { ...next[idx], approver_role: e.target.value };
+              next[idx] = { ...next[idx], approver_role: v };
               onChange(next);
             }}
           />

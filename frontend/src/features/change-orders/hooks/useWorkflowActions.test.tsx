@@ -15,6 +15,7 @@ vi.mock("../api/useChangeOrders", () => ({
 
 // Mock the approvals API hooks
 vi.mock("../api/useApprovals", () => ({
+  useSubmitForApproval: vi.fn(),
   useApproveChangeOrder: vi.fn(),
   useRejectChangeOrder: vi.fn(),
   useArchiveChangeOrder: vi.fn(),
@@ -26,6 +27,7 @@ import {
 } from "../api/useChangeOrders";
 
 import {
+  useSubmitForApproval,
   useApproveChangeOrder,
   useRejectChangeOrder,
   useArchiveChangeOrder,
@@ -70,6 +72,18 @@ describe("useWorkflowActions", () => {
     );
 
     // Setup mock implementations for approval hooks
+    vi.mocked(useSubmitForApproval).mockImplementation(
+      (options) =>
+        ({
+          mutateAsync: vi.fn(async () => {
+            const result = { status: "Submitted for Approval" };
+            options?.onSuccess?.(result);
+            return result;
+          }),
+          isPending: false,
+        }) as unknown as ReturnType<typeof useSubmitForApproval>,
+    );
+
     vi.mocked(useApproveChangeOrder).mockImplementation(
       (options) =>
         ({
@@ -194,10 +208,10 @@ describe("useWorkflowActions", () => {
     });
 
     it("should return isLoading state", () => {
-      vi.mocked(useUpdateChangeOrder).mockReturnValue({
+      vi.mocked(useSubmitForApproval).mockReturnValue({
         mutateAsync: vi.fn(),
         isPending: true,
-      } as unknown as ReturnType<typeof useUpdateChangeOrder>);
+      } as unknown as ReturnType<typeof useSubmitForApproval>);
 
       const { result } = renderHook(() => useWorkflowActions("BR-123"), {
         wrapper,
@@ -305,7 +319,7 @@ describe("useWorkflowActions", () => {
       const error = new Error("API Error");
 
       // Override the mock to reject
-      vi.mocked(useUpdateChangeOrder).mockImplementation(
+      vi.mocked(useSubmitForApproval).mockImplementation(
         (options) =>
           ({
             mutateAsync: vi.fn(async () => {
@@ -313,7 +327,7 @@ describe("useWorkflowActions", () => {
               throw error;
             }),
             isPending: false,
-          }) as unknown as ReturnType<typeof useUpdateChangeOrder>,
+          }) as unknown as ReturnType<typeof useSubmitForApproval>,
       );
 
       const { result } = renderHook(
