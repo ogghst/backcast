@@ -1,6 +1,6 @@
 # Change Order Workflow Implementation Guide
 
-**Last Updated:** 2026-05-06
+**Last Updated:** 2026-05-09
 **Owner:** Backend Team
 **Related:** [Workflow Architecture](architecture.md)
 
@@ -270,6 +270,7 @@ async def calculate_sla_deadline_example(db_session: AsyncSession) -> None:
     sla_service = SLAService(db_session, config_service=config_service)
 
     # SLA days are read from config (default: LOW=2, MEDIUM=5, HIGH=10, CRITICAL=15)
+    # SLA status progression: pending → approaching → escalated → overdue
     impact_level = "MEDIUM"
     submission_time = datetime.now(UTC)
 

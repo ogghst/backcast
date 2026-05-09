@@ -136,9 +136,12 @@ You can view impact in two modes:
 1. Open the Draft change order.
 2. Click **Submit for Approval**.
 3. The system automatically:
+   - Runs impact analysis (comparing isolation branch against main).
    - Calculates the financial impact level (Low/Medium/High/Critical).
    - Assigns the appropriate approver based on impact level.
    - Starts the SLA countdown timer.
+   - Snapshots the current workflow configuration for audit purposes.
+   - Forks all project entities to the isolation branch for complete data isolation.
    - **Locks the branch** — no further edits are possible while under review.
 4. Add an optional comment for the reviewer.
 
@@ -236,6 +239,7 @@ When a change order is submitted for approval, an SLA timer starts based on the 
 |------------|---------|
 | **Pending** | More than half the SLA time remains |
 | **Approaching** | Less than half the SLA time remains |
+| **Escalated** | Manually escalated for urgent attention |
 | **Overdue** | The SLA deadline has passed |
 
 The SLA countdown is visible on the change order detail page in the approval section. Overdue items are highlighted in the analytics dashboard.
