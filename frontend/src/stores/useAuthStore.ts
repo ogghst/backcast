@@ -9,6 +9,7 @@ interface AuthState {
   permissions: string[];
   token: string | null;
   refreshToken: string | null;
+  tokenExpiresAt: number | null;
   isAuthenticated: boolean;
 
   // Permission check helpers
@@ -34,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
         permissions: [],
         token: null,
         refreshToken: null,
+        tokenExpiresAt: null,
         isAuthenticated: false,
 
         hasPermission: (permission: Permission | string): boolean => {
@@ -68,6 +70,7 @@ export const useAuthStore = create<AuthState>()(
         setToken: (token) =>
           set((state) => ({
             token,
+            tokenExpiresAt: token ? state.tokenExpiresAt : null,
             isAuthenticated: !!token,
             // Populate permissions from stored user if available
             ...(token && state.user ? { permissions: state.user.permissions || [] } : {}),
@@ -79,13 +82,18 @@ export const useAuthStore = create<AuthState>()(
           }),
 
         setTokens: (token, refreshToken) =>
-          set((state) => ({
-            token,
-            refreshToken,
-            isAuthenticated: !!token,
-            // Populate permissions from stored user if available
-            ...(token && state.user ? { permissions: state.user.permissions || [] } : {}),
-          })),
+          set((state) => {
+            // Calculate token expiration (60 minutes from now, matching backend ACCESS_TOKEN_EXPIRE_MINUTES)
+            const tokenExpiresAt = token ? Date.now() + 60 * 60 * 1000 : null;
+            return {
+              token,
+              refreshToken,
+              tokenExpiresAt,
+              isAuthenticated: !!token,
+              // Populate permissions from stored user if available
+              ...(token && state.user ? { permissions: state.user.permissions || [] } : {}),
+            };
+          }),
 
         refreshAccessToken: async () => {
           const { refreshToken } = get();
@@ -97,6 +105,7 @@ export const useAuthStore = create<AuthState>()(
             const response = await apiRefreshAccessToken(refreshToken);
             set({
               token: response.access_token,
+              tokenExpiresAt: Date.now() + 60 * 60 * 1000, // 60 minutes from now
               isAuthenticated: true,
             });
             return true;
@@ -123,6 +132,7 @@ export const useAuthStore = create<AuthState>()(
             permissions: [],
             token: null,
             refreshToken: null,
+            tokenExpiresAt: null,
             isAuthenticated: false,
           });
         },
@@ -133,7 +143,8 @@ export const useAuthStore = create<AuthState>()(
           token: state.token,
           user: state.user,
           refreshToken: state.refreshToken,
-        }), // Persist token, user, and refresh token
+          tokenExpiresAt: state.tokenExpiresAt,
+        }), // Persist token, user, refresh token, and token expiration
         onRehydrateStorage: () => (state) => {
           // After rehydration, update permissions from user
           if (state?.user) {
