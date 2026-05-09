@@ -281,6 +281,74 @@ async def get_next_change_order_code(
 
 
 @router.get(
+    "/pending-approvals",
+    response_model=None,  # Will be PaginatedResponse[ChangeOrderPublic]
+    operation_id="get_pending_approvals",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_pending_approvals(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(20, ge=1, description="Items per page"),
+    branch: str = Query("main", description="Branch name"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> dict[str, Any]:
+    """Get change orders pending approval for the current user.
+
+    Filters change orders by:
+    - assigned_approver_id = current_user.user_id
+    - status in ("Submitted for Approval", "Under Review")
+    - branch name (default: "main")
+
+    Returns paginated list of change orders awaiting the user's approval.
+
+    Requires read permission.
+    """
+    from app.core.versioning.enums import BranchMode
+    from app.models.schemas.common import PaginatedResponse
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
+    # Calculate skip from page number
+    skip = (page - 1) * per_page
+
+    try:
+        # Get pending approvals for current user
+        change_orders, total = await service.get_pending_approvals(
+            user_id=current_user.user_id,
+            skip=skip,
+            limit=per_page,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+
+        # Convert to Pydantic models with workflow metadata
+        items = [await service._to_public(co) for co in change_orders]
+
+        # Return paginated response
+        response = PaginatedResponse[ChangeOrderPublic](
+            items=items,
+            total=total,
+            page=page,
+            per_page=per_page,
+        )
+
+        return response.model_dump()
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving pending approvals: {str(e)}",
+        ) from e
+
+
+@router.get(
     "/{change_order_id}",
     response_model=ChangeOrderPublic,
     operation_id="get_change_order",
@@ -709,7 +777,7 @@ async def submit_change_order_for_approval(
 )
 async def approve_change_order(
     change_order_id: UUID,
-    approval: ChangeOrderApproval,
+    approval: ChangeOrderApproval | None = None,
     branch: str = Query("main", description="Branch name"),
     control_date: datetime | None = Query(
         None, description="Control date for the operation (defaults to now)"
@@ -735,8 +803,8 @@ async def approve_change_order(
             approver_id=current_user.user_id,
             actor_id=current_user.user_id,
             branch=branch,
-            comments=approval.comments,
-            control_date=approval.control_date or control_date,
+            comments=approval.comments if approval else None,
+            control_date=(approval.control_date if approval else None) or control_date,
         )
         return await service._to_public(approved_co)
     except ControlDateSequenceViolationError as e:
@@ -759,7 +827,7 @@ async def approve_change_order(
 )
 async def reject_change_order(
     change_order_id: UUID,
-    approval: ChangeOrderApproval,
+    approval: ChangeOrderApproval | None = None,
     branch: str = Query("main", description="Branch name"),
     control_date: datetime | None = Query(
         None, description="Control date for the operation (defaults to now)"
@@ -785,8 +853,8 @@ async def reject_change_order(
             rejecter_id=current_user.user_id,
             actor_id=current_user.user_id,
             branch=branch,
-            comments=approval.comments,
-            control_date=approval.control_date or control_date,
+            comments=approval.comments if approval else None,
+            control_date=(approval.control_date if approval else None) or control_date,
         )
         return await service._to_public(rejected_co)
     except ControlDateSequenceViolationError as e:
@@ -1093,72 +1161,4 @@ async def get_change_order_approval_info(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving approval info: {str(e)}",
-        ) from e
-
-
-@router.get(
-    "/pending-approvals",
-    response_model=None,  # Will be PaginatedResponse[ChangeOrderPublic]
-    operation_id="get_pending_approvals",
-    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
-)
-async def get_pending_approvals(
-    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    per_page: int = Query(20, ge=1, description="Items per page"),
-    branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
-        description="Branch mode: merged (combine with main) or isolated (current branch only)",
-    ),
-    current_user: User = Depends(get_current_active_user),
-    service: ChangeOrderService = Depends(get_change_order_service),
-) -> dict[str, Any]:
-    """Get change orders pending approval for the current user.
-
-    Filters change orders by:
-    - assigned_approver_id = current_user.user_id
-    - status in ("Submitted for Approval", "Under Review")
-    - branch name (default: "main")
-
-    Returns paginated list of change orders awaiting the user's approval.
-
-    Requires read permission.
-    """
-    from app.core.versioning.enums import BranchMode
-    from app.models.schemas.common import PaginatedResponse
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
-
-    # Calculate skip from page number
-    skip = (page - 1) * per_page
-
-    try:
-        # Get pending approvals for current user
-        change_orders, total = await service.get_pending_approvals(
-            user_id=current_user.user_id,
-            skip=skip,
-            limit=per_page,
-            branch=branch,
-            branch_mode=branch_mode,
-        )
-
-        # Convert to Pydantic models with workflow metadata
-        items = [await service._to_public(co) for co in change_orders]
-
-        # Return paginated response
-        response = PaginatedResponse[ChangeOrderPublic](
-            items=items,
-            total=total,
-            page=page,
-            per_page=per_page,
-        )
-
-        return response.model_dump()
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving pending approvals: {str(e)}",
         ) from e
