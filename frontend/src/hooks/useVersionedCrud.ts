@@ -158,13 +158,20 @@ export const createVersionedResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
     mutationOptions?: Omit<UseMutationOptions<T, Error, TCreate>, "mutationFn">,
   ) => {
     const queryClient = useQueryClient();
+    const { branch } = useTimeMachineParams();
 
     return useMutation({
       mutationFn: (data: TCreate) => {
         if (!apiMethods.create) {
           throw new Error("create method not implemented");
         }
-        return apiMethods.create(data);
+        // Inject branch from Time Machine context
+        // Explicit branch in data takes precedence over Time Machine branch
+        const requestData = {
+          ...data,
+          branch: (data as { branch?: string }).branch || branch || "main",
+        };
+        return apiMethods.create(requestData);
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("create");
@@ -187,13 +194,20 @@ export const createVersionedResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
     >,
   ) => {
     const queryClient = useQueryClient();
+    const { branch } = useTimeMachineParams();
 
     return useMutation({
       mutationFn: ({ id, data }: { id: string; data: TUpdate }) => {
         if (!apiMethods.update) {
           throw new Error("update method not implemented");
         }
-        return apiMethods.update(id, data);
+        // Inject branch from Time Machine context
+        // Explicit branch in data takes precedence over Time Machine branch
+        const requestData = {
+          ...data,
+          branch: (data as { branch?: string }).branch || branch || "main",
+        };
+        return apiMethods.update(id, requestData);
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("update");
@@ -216,13 +230,18 @@ export const createVersionedResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
     >,
   ) => {
     const queryClient = useQueryClient();
+    const { branch } = useTimeMachineParams();
 
     return useMutation({
       mutationFn: (id: string) => {
         if (!apiMethods.delete) {
           throw new Error("delete method not implemented");
         }
-        return apiMethods.delete(id);
+        // Try to call delete with branch parameter
+        // Some APIs support branch (e.g., CostElements), others don't (e.g., Projects, WBEs)
+        // We pass branch as a parameter and let the API ignore it if not supported
+        const branchParam = branch || "main";
+        return (apiMethods.delete as (id: string, params?: { branch: string }) => Promise<void>)(id, { branch: branchParam });
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("delete");
