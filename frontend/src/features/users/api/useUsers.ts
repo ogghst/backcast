@@ -16,7 +16,7 @@ import { queryKeys } from "@/api/queryKeys";
  */
 export const useUsers = (limit = 100) => {
   return useQuery({
-    queryKey: queryKeys.users.list,
+    queryKey: queryKeys.users.list({ per_page: limit }),
     queryFn: () => UsersService.getUsers(0, limit),
   });
 };
