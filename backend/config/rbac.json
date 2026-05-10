@@ -126,6 +126,7 @@
         "cost-element-type-read",
         "cost-registration-read",
         "change-order-read",
+        "change-order-approve",
         "forecast-read",
         "schedule-baseline-read",
         "quality-event-read"

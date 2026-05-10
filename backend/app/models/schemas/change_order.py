@@ -87,6 +87,16 @@ class ChangeOrderUpdate(BaseModel):
         None,
         description="Custom field values matching config.custom_fields definitions",
     )
+    assigned_approver_id: UUID | None = Field(
+        None, description="Assigned approver (None to clear)"
+    )
+    sla_assigned_at: datetime | None = Field(
+        None, description="SLA assigned timestamp (None to clear)"
+    )
+    sla_due_date: datetime | None = Field(
+        None, description="SLA due date (None to clear)"
+    )
+    sla_status: str | None = Field(None, description="SLA status (None to clear)")
 
 
 class MergeRequest(BaseModel):

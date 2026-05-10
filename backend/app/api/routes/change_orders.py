@@ -1099,7 +1099,7 @@ async def get_change_order_approval_info(
             from app.services.user import UserService
 
             user_service = UserService(service.session)
-            approver = await user_service.get_by_id(co.assigned_approver_id)
+            approver = await user_service.get_user(co.assigned_approver_id)
             if approver:
                 assigned_approver = {
                     "user_id": approver.user_id,
