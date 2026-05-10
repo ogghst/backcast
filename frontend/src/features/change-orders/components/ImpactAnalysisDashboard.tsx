@@ -74,7 +74,7 @@ export const ImpactAnalysisDashboard = ({
   if (impactError || !impactData) {
     return (
       <Alert
-        message="Error loading impact analysis"
+        title="Error loading impact analysis"
         description={
           impactError instanceof Error
             ? impactError.message

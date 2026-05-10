@@ -79,7 +79,7 @@ export function ChangeOrderImpactSection({
     return renderContent(
       "Impact Analysis",
       <Alert
-        message="Error"
+        title="Error"
         description={`Failed to load impact analysis: ${error instanceof Error ? error.message : "Unknown error"}`}
         type="error"
         showIcon

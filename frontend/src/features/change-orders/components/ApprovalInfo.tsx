@@ -97,10 +97,10 @@ export function ApprovalInfo({
           <span>Approval Information</span>
         </Space>
       }
-      bordered
+      variant="outlined"
       loading={isLoading}
     >
-      <Space direction="vertical" style={{ width: "100%" }} size="large">
+      <Space orientation="vertical" style={{ width: "100%" }} size="large">
         {/* Impact Level Badge */}
         <div>
           <Text type="secondary">Impact Level</Text>
@@ -172,21 +172,23 @@ export function ApprovalInfo({
                 <Statistic
                   title="Due Date"
                   value={formatDate(approvalInfo.sla_due_date)}
-                  valueStyle={{ fontSize: "16px" }}
+                  styles={{ content: { fontSize: "16px" } }}
                 />
                 <Statistic
                   title="Time Remaining"
                   value={formatBusinessDays(
                     approvalInfo.sla_business_days_remaining ?? null,
                   )}
-                  valueStyle={{
-                    fontSize: "16px",
-                    color:
-                      slaStyle.color === "red"
-                        ? "#ff4d4f"
-                        : slaStyle.color === "orange"
-                          ? "#faad14"
-                          : undefined,
+                  styles={{
+                    content: {
+                      fontSize: "16px",
+                      color:
+                        slaStyle.color === "red"
+                          ? "#ff4d4f"
+                          : slaStyle.color === "orange"
+                            ? "#faad14"
+                            : undefined,
+                    },
                   }}
                 />
                 <div>

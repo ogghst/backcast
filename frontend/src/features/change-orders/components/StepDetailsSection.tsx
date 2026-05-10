@@ -106,7 +106,7 @@ export function StepDetailsSection({
         <Alert
           type="success"
           showIcon
-          message={content.success}
+          title={content.success}
         />
       )}
 
@@ -114,7 +114,7 @@ export function StepDetailsSection({
         <Alert
           type="warning"
           showIcon
-          message={content.warning}
+          title={content.warning}
         />
       )}
 
@@ -137,7 +137,7 @@ export function StepDetailsSection({
         <Alert
           type="info"
           showIcon
-          message={content.info}
+          title={content.info}
           style={{ fontSize: "12px" }}
         />
       )}

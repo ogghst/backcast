@@ -41,7 +41,7 @@ export const ChangeOrderSummaryCard = ({
         </Space>
       }
     >
-      <Descriptions bordered column={1} labelStyle={{ width: "150px" }}>
+      <Descriptions bordered column={1} styles={{ label: { width: "150px" } }}>
         <Descriptions.Item label="Code">
           <Tag color="blue">{changeOrder.code}</Tag>
         </Descriptions.Item>

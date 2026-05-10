@@ -164,7 +164,7 @@ export function ChangeOrderRecoveryDialog({
         }}
         cancelText="Cancel"
         width={600}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginBottom: 16 }}>
           <p>

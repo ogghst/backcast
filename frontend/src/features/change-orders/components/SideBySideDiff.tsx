@@ -314,7 +314,7 @@ export const SideBySideDiff = ({
           {groupedChanges.added.map((change) => (
             <Col key={change.key} xs={24} md={12}>
               <Card size="small" styles={{ body: { padding: "12px" } }}>
-                <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                <Space orientation="vertical" size="small" style={{ width: "100%" }}>
                   <Space>
                     {getBadge(change.changeType)}
                     <Text strong>{change.label}</Text>
@@ -349,7 +349,7 @@ export const SideBySideDiff = ({
           {groupedChanges.modified.map((change) => (
             <Col key={change.key} xs={24} md={12}>
               <Card size="small" styles={{ body: { padding: "12px" } }}>
-                <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                <Space orientation="vertical" size="small" style={{ width: "100%" }}>
                   <Space>
                     {getBadge(change.changeType)}
                     <Text strong>{change.label}</Text>
@@ -385,7 +385,7 @@ export const SideBySideDiff = ({
           {groupedChanges.removed.map((change) => (
             <Col key={change.key} xs={24} md={12}>
               <Card size="small" styles={{ body: { padding: "12px" } }}>
-                <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                <Space orientation="vertical" size="small" style={{ width: "100%" }}>
                   <Space>
                     {getBadge(change.changeType)}
                     <Text strong>{change.label}</Text>
@@ -434,7 +434,7 @@ export const SideBySideDiff = ({
 
   return (
     <Card>
-      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
         {/* Filter Controls */}
         <Space wrap>
           <Text strong>Filter:</Text>

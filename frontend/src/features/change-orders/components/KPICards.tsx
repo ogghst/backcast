@@ -119,7 +119,7 @@ const KPIMetricCard = ({
   const rawDisplayValue = metric.delta;
 
   return (
-    <Card bordered>
+    <Card variant="outlined">
       <Statistic
         title={title}
         value={rawDisplayValue ?? 0}
@@ -180,13 +180,12 @@ const PerformanceIndexCard = ({
   const changeValue = formatNumber(metric.change_value);
 
   return (
-    <Card bordered>
+    <Card variant="outlined">
       <Statistic
         title={title}
         value={mergedValue}
         precision={2}
         styles={{ content: { color } }}
-        valueStyle={{ color }}
       />
       <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
         <div>
@@ -237,7 +236,7 @@ const ScheduleDurationCard = ({
   const rawDisplayValue = metric.merged_value ?? metric.change_value;
 
   return (
-    <Card bordered>
+    <Card variant="outlined">
       <Statistic
         title={title}
         value={rawDisplayValue ?? 0}

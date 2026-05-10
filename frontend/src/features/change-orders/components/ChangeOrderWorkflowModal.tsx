@@ -67,7 +67,7 @@ export function ChangeOrderWorkflowModal({
       onCancel={onCancel}
       width={modalWidth}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       {isLoading ? (
         <div style={{ textAlign: "center", padding: "40px 0" }}>
@@ -76,7 +76,7 @@ export function ChangeOrderWorkflowModal({
       ) : error ? (
         <Alert
           type="error"
-          message="Error loading change order"
+          title="Error loading change order"
           description={error.message}
           showIcon
           action={
@@ -92,7 +92,7 @@ export function ChangeOrderWorkflowModal({
       ) : !changeOrder ? (
         <Alert
           type="warning"
-          message="Change Order not found"
+          title="Change Order not found"
           description="The requested change order could not be loaded."
         />
       ) : (
