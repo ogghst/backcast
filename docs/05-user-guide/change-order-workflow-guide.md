@@ -142,6 +142,8 @@ classDiagram
 | `impact_analysis_status` | str(20) | Analysis state (pending/in_progress/completed/failed/skipped) |
 | `impact_analysis_results` | jsonb | KPI Scorecard results |
 | `impact_score` | Decimal(10,2) | Weighted impact severity score |
+| `config_snapshot` | jsonb | Workflow config snapshot at submission time (immutable) |
+| `custom_field_values` | jsonb | Dynamic custom field values (e.g., {"region": "EMEA"}) |
 
 ---
 
@@ -190,7 +192,7 @@ _TRANSITIONS = {
     "Draft": ["Submitted for Approval"],
     "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
     "Under Review": ["Approved", "Rejected"],
-    "Rejected": ["Submitted for Approval"],
+    "Rejected": ["Draft", "Submitted for Approval"],
     "Approved": ["Implemented"],
     "Implemented": [],  # Terminal state
 }
@@ -215,9 +217,9 @@ _TRANSITIONS = {
 
 | Method | From Status | To Status | Branch Lock | Side Effects |
 |--------|-------------|-----------|-------------|--------------|
-| `submit_for_approval()` | Draft | Submitted for Approval | **Lock** | Calculate impact, assign approver, set SLA |
-| `approve_change_order()` | Submitted/Under Review | Approved | Stays locked | Audit log entry |
-| `reject_change_order()` | Submitted/Under Review | Rejected | **Unlock** | Clear SLA fields |
+| `submit_for_approval()` | Draft | Submitted for Approval | **Lock** | Calculate impact, assign approver, set SLA, fork entities to isolation branch |
+| `approve_change_order()` | Submitted/Under Review | Approved | Stays locked | Validates assigned approver matches, audit log entry |
+| `reject_change_order()` | Submitted/Under Review | Rejected | **Unlock** | Validates authority, clears SLA fields, unlocks branch |
 | `merge_change_order()` | Approved | Implemented | Unlock | Merge entities, audit log |
 | `archive_change_order_branch()` | Implemented/Rejected | - | - | Soft-delete branch |
 
@@ -234,15 +236,20 @@ async def submit_for_approval(
 ```
 
 **Validates:**
-- Impact analysis must be completed
-- Current status must be "Draft"
+- Current status must be "Draft" or "Rejected"
 - Branch must not already be locked
+- Impact analysis must complete successfully
 
 **Side Effects:**
 - Sets `status` to "Submitted for Approval"
-- Locks branch via `BranchingService.lock_branch()`
+- Runs impact analysis (compares isolation branch vs main)
+- Calculates impact level and score
 - Assigns approver based on impact level
-- Calculates SLA due date
+- Calculates SLA due date from config
+- Snapshots workflow config (`config_snapshot`)
+- Forks ALL project entities to isolation branch (eager forking)
+- Locks isolation branch via `BranchingService.lock()`
+- Sends notification to assigned approver
 
 #### approve_change_order
 ```python
@@ -258,6 +265,7 @@ async def approve_change_order(
 **Validates:**
 - Approver has `change-order-approve` permission
 - Current status is "Submitted for Approval" or "Under Review"
+- Approver is the assigned approver (`assigned_approver_id` must match)
 
 **Side Effects:**
 - Sets `status` to "Approved"
@@ -335,9 +343,13 @@ classDiagram
     note for BranchableProtocol "Projects, WBEs, CostElements, ChangeOrders"
 ```
 
-### 5.2 Lazy Branching Pattern
+### 5.2 Branch Isolation Pattern
 
-The EVCS uses a "lazy branching" pattern where entities are only forked to a change order branch when they are actually modified, not proactively when the branch is created.
+The EVCS uses a two-phase branching pattern:
+
+1. **Branch Creation (CO Creation):** An empty `BR-{code}` branch is created when the CO is created. No project data is forked at this point.
+
+2. **Eager Forking (CO Submission):** When the CO is submitted for approval, ALL project entities (WBEs, CostElements) are forked from `main` to the isolation branch. This ensures the isolation branch has a complete, consistent snapshot of the project for change tracking. The branch is then locked.
 
 ```mermaid
 flowchart TD
@@ -404,7 +416,7 @@ sequenceDiagram
 
     alt CO was forked
         COService->>Branching: merge_branch(CO, source, target)
-    else CO not forked
+    else CO not forked (legacy)
         Note over COService: Use existing main version
     end
 
@@ -479,6 +491,7 @@ Impact Level Thresholds (configurable):
 |--------|-----------|
 | `pending` | More than 50% of SLA time remaining |
 | `approaching` | Less than 50% of SLA time remaining |
+| `escalated` | Manually escalated by authorized user |
 | `overdue` | Past SLA due date |
 
 ---
@@ -487,7 +500,7 @@ Impact Level Thresholds (configurable):
 
 ### Overview
 
-Impact analysis is automatically triggered when a Change Order is created and recalculated when entities are modified on the branch.
+Impact analysis is triggered when a Change Order is submitted for approval (not at creation time). At submission, the system compares the isolation branch against the main branch to determine financial and schedule impact. This ensures actual user changes are captured in the analysis rather than comparing an empty branch.
 
 ### Branch Modes
 
@@ -530,14 +543,13 @@ The impact analysis includes:
 
 ### 8.1 Unforked Change Order
 
-**Scenario:** CO created but never modified on its branch.
+**Scenario:** CO created but never submitted (or submitted without any entity changes).
 
 **Behavior:**
-- The ChangeOrder entity itself only exists on `main`
-- During merge, the system checks if CO exists on source branch
-- If not forked, the existing main version is used
-- Only child entities (WBEs, CostElements) are merged
-- Status still updates to "Implemented"
+- In the current workflow, the CO is always forked to the isolation branch at submission time
+- During merge, the system expects the CO to exist on the source branch
+- If the CO was never submitted (still in Draft), merge will fail with "No active version found on isolation branch"
+- Only child entities (WBEs, CostElements) that differ between branches are merged
 
 **Code Check:**
 ```python
@@ -660,6 +672,7 @@ WHERE wbe_id = :id
 | PUT | `/change-orders/{id}/reject` | Reject CO |
 | POST | `/change-orders/{id}/archive` | Archive branch |
 | POST | `/change-orders/{id}/recover` | Admin recovery |
+| POST | `/change-orders/{id}/escalate` | Escalate SLA status |
 | GET | `/change-orders/{id}/approval-info` | Approval details |
 | GET | `/change-orders/pending-approvals` | User's pending approvals |
 | GET | `/change-orders/stats` | Aggregated statistics |
@@ -680,6 +693,7 @@ WHERE wbe_id = :id
 | `change-order-delete` | Soft delete change orders |
 | `change-order-approve` | Approve/reject change orders |
 | `change-order-recover` | Admin recovery operations |
+| `change-order-escalate` | Escalate SLA status for change orders |
 | `change-order-workflow-config-manage` | Manage global workflow configuration |
 | `change-order-workflow-config-override` | Manage per-project configuration overrides |
 
@@ -1011,6 +1025,7 @@ class ImpactLevel:
 class SLAStatus:
     PENDING = "pending"
     APPROACHING = "approaching"
+    ESCALATED = "escalated"
     OVERDUE = "overdue"
 
 class ImpactAnalysisStatus:
@@ -1063,6 +1078,7 @@ budget: 0.4, schedule: 0.3, revenue: 0.2, evm: 0.1
 | `backend/app/core/branching/exceptions.py` | Branch exceptions |
 | `backend/app/api/routes/change_orders.py` | API endpoints |
 | `backend/app/services/change_order_config_service.py` | Workflow config CRUD and lookup |
+| `backend/app/services/change_order_reporting_service.py` | Reporting and statistics |
 | `backend/app/models/domain/change_order_config.py` | Config domain models |
 | `backend/app/models/schemas/change_order_config.py` | Config API schemas |
 | `backend/app/api/routes/change_order_config.py` | Config API endpoints |

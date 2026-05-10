@@ -159,6 +159,68 @@ graph TB
 
 ## Core Concepts
 
+### User Identifiers: user_id vs id
+
+The User entity follows EVCS patterns and has TWO important identifiers:
+
+#### user_id (EVCS Root ID)
+
+- **Purpose:** Canonical identifier for the user across all versions
+- **Stability:** Never changes
+- **Use When:** Fetching current active version, updates, history
+- **Method:** `UserService.get_user(user_id)` or `TemporalService.get_as_of(user_id)`
+- **Example:** API requests, RBAC lookups, change order assignments
+
+```python
+# Get current active user (uses EVCS root ID)
+user = await user_service.get_user(user_id)
+
+# Change order assignment uses user_id (EVCS root ID)
+co.assigned_approver_id = user.user_id  # ✅ CORRECT
+```
+
+#### id (Database Primary Key)
+
+- **Purpose:** Identifies a specific version in the version chain
+- **Stability:** Changes with each update
+- **Use When:** Referencing specific historical state, parent linking
+- **Method:** `UserService.get_by_id(id)` or `session.get(User, id)`
+- **Example:** Audit trails, version history queries
+
+```python
+# Get specific version (uses database PK)
+user = await user_service.get_by_id(version_id)
+
+# Version parent linking uses id (database PK)
+new_version.parent_id = old_version.id  # ✅ CORRECT
+```
+
+#### Common Pitfalls
+
+```python
+# ❌ WRONG: Using PK for current state
+user = await user_service.get_by_id(user_id)  # user_id is not PK!
+
+# ❌ WRONG: Using root ID for specific version
+user = await user_service.get_user(version_id)  # version_id is not root ID!
+
+# ✅ CORRECT: Use root ID for current state
+user = await user_service.get_user(user_id)
+
+# ✅ CORRECT: Use PK for specific version
+user = await user_service.get_by_id(version_id)
+```
+
+#### When to Use Each Method
+
+| Scenario | Identifier | Method | Example |
+|----------|------------|--------|---------|
+| API request contains user_id | user_id (root ID) | `get_user(user_id)` | `GET /api/v1/users/{user_id}` |
+| Change order assignment | user_id (root ID) | `get_user(user_id)` | `co.assigned_approver_id = user.user_id` |
+| Audit trail of specific version | id (PK) | `get_by_id(id)` | `parent_id = version.id` |
+| Version history query | user_id (root ID) | `get_user_history(user_id)` | `history = service.get_user_history(user_id)` |
+| Time travel query | user_id (root ID) | `get_user_as_of(user_id, as_of)` | `user = await service.get_user_as_of(user_id, date)` |
+
 ### Root ID vs Version ID
 
 Every versioned entity has TWO important identifiers:

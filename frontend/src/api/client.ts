@@ -39,13 +39,24 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Request interceptor: Add JWT token to Authorization header
+// Request interceptor: Add JWT token to Authorization header and debug logging
 axios.interceptors.request.use(
   (config) => {
     const token = useAuthStore.getState().token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Debug logging for empty POST request bodies (helps diagnose May 7 validation error)
+    if (config.method === "post" && !config.data) {
+      console.warn("[API] Empty POST data detected:", {
+        url: config.url,
+        method: config.method,
+        headers: config.headers,
+        data: config.data,
+      });
+    }
+
     return config;
   },
   (error) => {
@@ -119,25 +130,32 @@ axios.interceptors.response.use(
       }
     }
 
-    // 2. Handle 403 Forbidden (Branch Locked)
+    // 2. Handle 403 Forbidden (Permission denied / Branch Locked)
     if (error.response?.status === 403) {
-      // Use the detailed error message from backend
-      const detail = error.response.data?.detail;
-      if (detail) {
-        // The backend provides a detailed message with context
-        toast.error(detail, { duration: 6000 });
-      } else {
-        // Fallback to generic message
-        toast.error("Operation not permitted", {
-          description: "You do not have permission to perform this action.",
-        });
+      // Check if this request opted into silent error handling (e.g. supplementary queries)
+      const silentError = error.config?.headers?.["X-Silent-Error"];
+      if (!silentError) {
+        // Use the detailed error message from backend
+        const detail = error.response.data?.detail;
+        if (detail) {
+          // The backend provides a detailed message with context
+          toast.error(detail, { duration: 6000 });
+        } else {
+          // Fallback to generic message
+          toast.error("Operation not permitted", {
+            description: "You do not have permission to perform this action.",
+          });
+        }
       }
       return Promise.reject(error);
     }
 
     // 3. Handle Generic Errors (Toaster)
-    const message = getErrorMessage(error);
-    toast.error(message);
+    const silentError = error.config?.headers?.["X-Silent-Error"];
+    if (!silentError) {
+      const message = getErrorMessage(error);
+      toast.error(message);
+    }
 
     return Promise.reject(error);
   }

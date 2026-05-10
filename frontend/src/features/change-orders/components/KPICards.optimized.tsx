@@ -111,7 +111,7 @@ const KPIMetricCard = memo(function KPIMetricCard({
   const changeValue = formatCurrency(metric.change_value);
 
   return (
-    <Card bordered>
+    <Card variant="outlined">
       <Statistic
         title={title}
         value={metric.change_value ?? "0"}
@@ -165,13 +165,12 @@ const PerformanceIndexCard = memo(function PerformanceIndexCard({
   const changeValue = formatNumber(value);
 
   return (
-    <Card bordered>
+    <Card variant="outlined">
       <Statistic
         title={title}
         value={value}
         precision={2}
         styles={{ content: { color } }}
-        valueStyle={{ color }}
       />
       <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
         <div>
@@ -210,7 +209,7 @@ const ScheduleDurationCard = memo(function ScheduleDurationCard({
   const changeValue = formatDays(metric.change_value);
 
   return (
-    <Card bordered>
+    <Card variant="outlined">
       <Statistic
         title={title}
         value={metric.change_value ?? "0"}

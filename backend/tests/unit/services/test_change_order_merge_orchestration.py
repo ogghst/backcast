@@ -40,6 +40,7 @@ class TestChangeOrderMergeOrchestration:
             status="Approved",
             change_order_id=change_order_id,
             project_id=project_id,
+            branch_name=None,
         )
 
         # Mock the service methods
@@ -50,6 +51,9 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
+        # Mock branch_service to avoid real DB operations
+        service.branch_service = AsyncMock()
+
         with (
             patch(
                 "app.services.change_order_service.EntityDiscoveryService"
@@ -57,6 +61,9 @@ class TestChangeOrderMergeOrchestration:
             patch(
                 "app.services.change_order_service.UpdateChangeOrderStatusCommand"
             ) as MockStatusCommand,
+            patch(
+                "app.services.change_order_service.CreateChangeOrderAuditLogCommand"
+            ) as MockAuditCommand,
             patch("app.services.project.ProjectService") as MockProjectService,
         ):
             mock_discovery = AsyncMock()
@@ -66,6 +73,10 @@ class TestChangeOrderMergeOrchestration:
             mock_status_cmd = AsyncMock()
             MockStatusCommand.return_value = mock_status_cmd
             mock_status_cmd.execute = AsyncMock()
+
+            # Mock audit command
+            mock_audit_cmd = AsyncMock()
+            MockAuditCommand.return_value = mock_audit_cmd
 
             # Mock ProjectService for budget update
             mock_project_service = AsyncMock()
@@ -119,6 +130,7 @@ class TestChangeOrderMergeOrchestration:
             status="Approved",
             change_order_id=change_order_id,
             project_id=project_id,
+            branch_name=None,
         )
 
         # Create mock WBEs (not deleted)
@@ -137,6 +149,9 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
+        # Mock branch_service to avoid real DB operations
+        service.branch_service = AsyncMock()
+
         with (
             patch(
                 "app.services.change_order_service.EntityDiscoveryService"
@@ -145,6 +160,9 @@ class TestChangeOrderMergeOrchestration:
             patch(
                 "app.services.change_order_service.UpdateChangeOrderStatusCommand"
             ) as MockStatusCommand,
+            patch(
+                "app.services.change_order_service.CreateChangeOrderAuditLogCommand"
+            ) as MockAuditCommand,
             patch("app.services.project.ProjectService") as MockProjectService,
         ):
             mock_discovery = AsyncMock()
@@ -154,6 +172,10 @@ class TestChangeOrderMergeOrchestration:
             mock_status_cmd = AsyncMock()
             MockStatusCommand.return_value = mock_status_cmd
             mock_status_cmd.execute = AsyncMock()
+
+            # Mock audit command
+            mock_audit_cmd = AsyncMock()
+            MockAuditCommand.return_value = mock_audit_cmd
 
             # Mock ProjectService for budget update
             mock_project_service = AsyncMock()
@@ -223,6 +245,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co.status = "Approved"
         mock_co.change_order_id = change_order_id
         mock_co.project_id = uuid4()  # Add project_id for budget recalculation
+        mock_co.branch_name = None
 
         service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
 
@@ -231,6 +254,9 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
+        # Mock branch_service to avoid real DB operations
+        service.branch_service = AsyncMock()
+
         with (
             patch(
                 "app.services.change_order_service.EntityDiscoveryService"
@@ -238,6 +264,9 @@ class TestChangeOrderMergeOrchestration:
             patch(
                 "app.services.change_order_service.UpdateChangeOrderStatusCommand"
             ) as MockStatusCommand,
+            patch(
+                "app.services.change_order_service.CreateChangeOrderAuditLogCommand"
+            ) as MockAuditCommand,
             patch("app.services.project.ProjectService") as MockProjectService,
         ):
             mock_discovery = AsyncMock()
@@ -248,6 +277,10 @@ class TestChangeOrderMergeOrchestration:
             MockStatusCommand.return_value = mock_status_cmd
             mock_updated_co = MagicMock(spec=ChangeOrder)
             mock_status_cmd.execute = AsyncMock(return_value=mock_updated_co)
+
+            # Mock audit command
+            mock_audit_cmd = AsyncMock()
+            MockAuditCommand.return_value = mock_audit_cmd
 
             # Mock ProjectService for budget update
             mock_project_service = AsyncMock()
@@ -276,13 +309,19 @@ class TestChangeOrderMergeOrchestration:
                 target_branch=target_branch,
             )
 
-            # Assert - Command should be called with "Implemented"
+            # Assert - Command should be called with "Implemented" and SLA cleanup
             MockStatusCommand.assert_called_once_with(
                 change_order_id=change_order_id,
                 new_status="Implemented",
                 actor_id=actor_id,
                 branch=target_branch,
                 control_date=None,
+                additional_updates={
+                    "assigned_approver_id": None,
+                    "sla_assigned_at": None,
+                    "sla_due_date": None,
+                    "sla_status": None,
+                },
             )
             mock_status_cmd.execute.assert_called_once_with(db_session)
 
@@ -308,6 +347,7 @@ class TestChangeOrderMergeOrchestration:
             status="Approved",
             change_order_id=change_order_id,
             project_id=uuid4(),
+            branch_name=None,
         )
 
         # Create mock WBE (not deleted, so merge will be attempted)
@@ -321,6 +361,9 @@ class TestChangeOrderMergeOrchestration:
         db_session.add = MagicMock()
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
+
+        # Mock branch_service to avoid real DB operations
+        service.branch_service = AsyncMock()
 
         with (
             patch(
@@ -375,6 +418,7 @@ class TestChangeOrderMergeOrchestration:
             status="Approved",
             change_order_id=change_order_id,
             project_id=uuid4(),
+            branch_name=None,
         )
 
         service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
@@ -406,3 +450,207 @@ class TestChangeOrderMergeOrchestration:
         # Verify the error contains the conflicts
         assert exc_info.value.conflicts == conflicts
         service._detect_all_merge_conflicts.assert_called_once_with("BR-888", "main")
+
+    @pytest.mark.asyncio
+    async def test_sla_fields_cleared_on_implementation(self, db_session: AsyncSession):
+        """Test that SLA fields are cleared when CO transitions to Implemented.
+
+        When a CO is merged (Approved -> Implemented), the SLA tracking fields
+        (assigned_approver_id, sla_assigned_at, sla_due_date, sla_status)
+        should be cleared to None on the returned CO.
+
+        RED: This test will fail because merge_change_order() does not currently
+        pass SLA cleanup fields to UpdateChangeOrderStatusCommand.
+        """
+        # Arrange
+        service = ChangeOrderService(db_session)
+        change_order_id = uuid4()
+        actor_id = uuid4()
+        target_branch = "main"
+        project_id = uuid4()
+        approver_id = uuid4()
+
+        # Create a mock CO in "Approved" status with SLA fields populated
+        mock_co = MagicMock()
+        mock_co.configure_mock(
+            code="SLA-001",
+            status="Approved",
+            change_order_id=change_order_id,
+            project_id=project_id,
+            branch_name="BR-SLA-001",
+            assigned_approver_id=approver_id,
+            sla_assigned_at="2026-05-09T10:00:00",
+            sla_due_date="2026-05-16T10:00:00",
+            sla_status="pending",
+        )
+
+        service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
+
+        db_session.add = MagicMock()
+        db_session.flush = AsyncMock()
+        db_session.refresh = AsyncMock()
+
+        service.branch_service = AsyncMock()
+
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch(
+                "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+            ) as MockStatusCommand,
+            patch(
+                "app.services.change_order_service.CreateChangeOrderAuditLogCommand"
+            ) as MockAuditCommand,
+            patch("app.services.project.ProjectService") as MockProjectService,
+        ):
+            mock_discovery = AsyncMock()
+            MockDiscoveryService.return_value = mock_discovery
+
+            # Mock status command - the returned CO should have SLA fields cleared
+            mock_status_cmd = AsyncMock()
+            MockStatusCommand.return_value = mock_status_cmd
+
+            # The executed command returns a CO with SLA fields cleared
+            mock_updated_co = MagicMock(spec=ChangeOrder)
+            mock_updated_co.configure_mock(
+                status="Implemented",
+                assigned_approver_id=None,
+                sla_assigned_at=None,
+                sla_due_date=None,
+                sla_status=None,
+            )
+            mock_status_cmd.execute = AsyncMock(return_value=mock_updated_co)
+
+            # Mock audit command
+            mock_audit_cmd = AsyncMock()
+            MockAuditCommand.return_value = mock_audit_cmd
+
+            # Mock ProjectService for budget update
+            mock_project_service = AsyncMock()
+            MockProjectService.return_value = mock_project_service
+            mock_project_service.update_project = AsyncMock()
+
+            # Mock session.execute to return a budget sum
+            mock_budget_result = MagicMock()
+            mock_budget_result.scalar_one.return_value = 100000
+            db_session.execute = AsyncMock(return_value=mock_budget_result)
+
+            mock_discovery.discover_all_wbes.return_value = []
+            mock_discovery.discover_all_cost_elements.return_value = []
+
+            service.merge_branch = AsyncMock(return_value=mock_co)
+            service._detect_all_merge_conflicts = AsyncMock(return_value=[])
+
+            # Act
+            result = await service.merge_change_order(
+                change_order_id=change_order_id,
+                actor_id=actor_id,
+                target_branch=target_branch,
+            )
+
+            # Assert - SLA fields should be cleared on the returned CO
+            assert result.assigned_approver_id is None
+            assert result.sla_assigned_at is None
+            assert result.sla_due_date is None
+            assert result.sla_status is None
+
+    @pytest.mark.asyncio
+    async def test_sla_cleanup_atomic_single_version(self, db_session: AsyncSession):
+        """Test that SLA cleanup happens atomically in the status transition version.
+
+        The SLA fields should be passed via additional_updates to
+        UpdateChangeOrderStatusCommand, creating a single new version
+        (not a separate update call).
+
+        RED: This test will fail because merge_change_order() does not currently
+        pass additional_updates to the status command.
+        """
+        # Arrange
+        service = ChangeOrderService(db_session)
+        change_order_id = uuid4()
+        actor_id = uuid4()
+        target_branch = "main"
+        project_id = uuid4()
+        approver_id = uuid4()
+
+        mock_co = MagicMock()
+        mock_co.configure_mock(
+            code="ATM-001",
+            status="Approved",
+            change_order_id=change_order_id,
+            project_id=project_id,
+            branch_name="BR-ATM-001",
+            assigned_approver_id=approver_id,
+            sla_assigned_at="2026-05-09T10:00:00",
+            sla_due_date="2026-05-16T10:00:00",
+            sla_status="pending",
+        )
+
+        service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
+
+        db_session.add = MagicMock()
+        db_session.flush = AsyncMock()
+        db_session.refresh = AsyncMock()
+
+        service.branch_service = AsyncMock()
+
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch(
+                "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+            ) as MockStatusCommand,
+            patch(
+                "app.services.change_order_service.CreateChangeOrderAuditLogCommand"
+            ) as MockAuditCommand,
+            patch("app.services.project.ProjectService") as MockProjectService,
+        ):
+            mock_discovery = AsyncMock()
+            MockDiscoveryService.return_value = mock_discovery
+
+            mock_status_cmd = AsyncMock()
+            MockStatusCommand.return_value = mock_status_cmd
+            mock_updated_co = MagicMock(spec=ChangeOrder)
+            mock_status_cmd.execute = AsyncMock(return_value=mock_updated_co)
+
+            mock_audit_cmd = AsyncMock()
+            MockAuditCommand.return_value = mock_audit_cmd
+
+            mock_project_service = AsyncMock()
+            MockProjectService.return_value = mock_project_service
+            mock_project_service.update_project = AsyncMock()
+
+            mock_budget_result = MagicMock()
+            mock_budget_result.scalar_one.return_value = 100000
+            db_session.execute = AsyncMock(return_value=mock_budget_result)
+
+            mock_discovery.discover_all_wbes.return_value = []
+            mock_discovery.discover_all_cost_elements.return_value = []
+
+            service.merge_branch = AsyncMock(return_value=mock_co)
+            service._detect_all_merge_conflicts = AsyncMock(return_value=[])
+
+            # Act
+            await service.merge_change_order(
+                change_order_id=change_order_id,
+                actor_id=actor_id,
+                target_branch=target_branch,
+            )
+
+            # Assert - UpdateChangeOrderStatusCommand should be called with
+            # additional_updates containing SLA cleanup fields
+            MockStatusCommand.assert_called_once_with(
+                change_order_id=change_order_id,
+                new_status="Implemented",
+                actor_id=actor_id,
+                branch=target_branch,
+                control_date=None,
+                additional_updates={
+                    "assigned_approver_id": None,
+                    "sla_assigned_at": None,
+                    "sla_due_date": None,
+                    "sla_status": None,
+                },
+            )

@@ -13,6 +13,7 @@ configuration service (ChangeOrderConfigService), supporting the 5-role system
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -26,6 +27,8 @@ from app.models.domain.user import User
 
 if TYPE_CHECKING:
     from app.services.change_order_config_service import ChangeOrderConfigService
+
+logger = logging.getLogger(__name__)
 
 
 class ApprovalMatrixService:
@@ -134,16 +137,16 @@ class ApprovalMatrixService:
     ) -> UUID | None:
         """Find an appropriate approver for a given impact level.
 
-        Selects an active user with sufficient authority to approve the
-        change order. For now, uses a simplified approach to find the first
-        eligible user.
+        Selects an active project member with sufficient authority to approve
+        the change order. Falls back to any eligible active user if no project
+        member is found.
 
         Args:
-            project_id: Project ID (for future project-specific assignment)
+            project_id: Project ID to scope the approver search to project members
             impact_level: Financial impact level
 
         Returns:
-            User ID of eligible approver, or None if no eligible approver found
+            user_id (EVCS root ID) of eligible approver, or None if none found
 
         Example:
             >>> service = ApprovalMatrixService(session)
@@ -152,6 +155,8 @@ class ApprovalMatrixService:
             ... )
         """
         from typing import cast as typing_cast
+
+        from app.models.domain.project_member import ProjectMember
 
         # Get required authority for this impact level
         required_authority = await self.get_authority_for_impact(impact_level)
@@ -170,12 +175,14 @@ class ApprovalMatrixService:
         if not eligible_roles:
             return None
 
-        # Query for active users with eligible roles
-        # Use first match for now (can be enhanced later for project-specific assignment)
         as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
-        stmt = (
+
+        # Strategy 1: Prefer project members with eligible roles
+        project_member_stmt = (
             select(User)
+            .join(ProjectMember, ProjectMember.user_id == User.user_id)
             .where(
+                ProjectMember.project_id == project_id,
                 User.role.in_(eligible_roles),
                 User.is_active == True,  # noqa: E712
                 typing_cast(Any, User).valid_time.op("@>")(as_of_tstz),
@@ -186,7 +193,34 @@ class ApprovalMatrixService:
             .limit(1)
         )
 
-        result = await self._db.execute(stmt)
+        result = await self._db.execute(project_member_stmt)
+        approver = result.scalar_one_or_none()
+
+        if approver:
+            return approver.user_id
+
+        # Strategy 2: Fallback to any active user with eligible roles
+        logger.warning(
+            "No eligible project member found for project %s with %s impact. "
+            "Falling back to global user search.",
+            project_id,
+            impact_level,
+        )
+
+        fallback_stmt = (
+            select(User)
+            .where(
+                User.role.in_(eligible_roles),
+                User.is_active == True,  # noqa: E712
+                typing_cast(Any, User).valid_time.op("@>")(as_of_tstz),
+                func.lower(typing_cast(Any, User).valid_time) <= as_of_tstz,
+                typing_cast(Any, User).deleted_at.is_(None),
+            )
+            .order_by(User.role.desc())
+            .limit(1)
+        )
+
+        result = await self._db.execute(fallback_stmt)
         approver = result.scalar_one_or_none()
 
         return approver.user_id if approver else None

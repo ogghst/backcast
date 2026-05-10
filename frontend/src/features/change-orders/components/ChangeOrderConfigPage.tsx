@@ -182,6 +182,12 @@ const AUTHORITY_OPTIONS = [
   { value: "CRITICAL", label: "CRITICAL" },
 ];
 
+const APPROVER_ROLE_OPTIONS = [
+  { value: "admin", label: "Admin" },
+  { value: "manager", label: "Manager" },
+  { value: "viewer", label: "Viewer" },
+];
+
 export function ApprovalRulesTab({
   rules,
   onChange,
@@ -223,11 +229,13 @@ export function ApprovalRulesTab({
         readOnly ? (
           <Text>{val}</Text>
         ) : (
-          <Input
+          <Select
+            options={APPROVER_ROLE_OPTIONS}
             value={val}
-            onChange={(e) => {
+            style={{ width: "100%" }}
+            onChange={(v) => {
               const next = [...rules];
-              next[idx] = { ...next[idx], approver_role: e.target.value };
+              next[idx] = { ...next[idx], approver_role: v };
               onChange(next);
             }}
           />
@@ -315,20 +323,22 @@ export function SLARulesTab({ rules, onChange, holidayCountryCode, onHolidayCoun
         readOnly ? (
           <Text>{val != null ? `${val}%` : "-"}</Text>
         ) : (
-          <InputNumber
-            min={0}
-            max={100}
-            precision={1}
-            placeholder="Optional"
-            value={val}
-            style={{ width: "100%" }}
-            addonAfter="%"
-            onChange={(v) => {
-              const next = [...rules];
-              next[idx] = { ...next[idx], escalation_trigger_pct: v };
-              onChange(next);
-            }}
-          />
+          <Space.Compact>
+            <InputNumber
+              min={0}
+              max={100}
+              precision={1}
+              placeholder="Optional"
+              value={val}
+              style={{ width: "100%" }}
+              onChange={(v) => {
+                const next = [...rules];
+                next[idx] = { ...next[idx], escalation_trigger_pct: v };
+                onChange(next);
+              }}
+            />
+            <Space.Addon>%</Space.Addon>
+          </Space.Compact>
         ),
     },
   ];
@@ -419,7 +429,7 @@ export function WeightsScoresTab({
         }
       >
         <Space
-          direction="vertical"
+          orientation="vertical"
           style={{ width: "100%" }}
           size={token.marginSM}
         >
@@ -494,7 +504,7 @@ export function WeightsScoresTab({
         }
       >
         <Space
-          direction="vertical"
+          orientation="vertical"
           style={{ width: "100%" }}
           size={token.marginSM}
         >
@@ -537,7 +547,7 @@ export function WeightsScoresTab({
           {!boundariesAsc && (
             <Alert
               type="error"
-              message="Boundaries must be in ascending order: LOW < MEDIUM < HIGH < CRITICAL"
+              title="Boundaries must be in ascending order: LOW < MEDIUM < HIGH < CRITICAL"
               showIcon
               style={{ marginTop: token.marginSM }}
             />
@@ -827,7 +837,7 @@ export function CustomFieldsTab({ fields, onChange, readOnly }: CustomFieldsTabP
           }
           style={{ borderColor: colors.border }}
         >
-          <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>
+          <Space orientation="vertical" style={{ width: "100%" }} size={token.marginSM}>
             <div style={{ display: "flex", alignItems: "center", gap: token.marginSM }}>
               <Text style={{ width: 100 }}>Name</Text>
               {readOnly ? (
@@ -986,7 +996,7 @@ export function ChangeOrderConfigPage() {
         <div style={{ padding: spacing.xl }}>
           <Alert
             type="error"
-            message="Access Denied"
+            title="Access Denied"
             description="You do not have permission to manage workflow configuration."
             showIcon
           />

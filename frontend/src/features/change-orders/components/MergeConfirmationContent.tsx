@@ -42,7 +42,7 @@ export function MergeConfirmationContent({
         type="info"
         showIcon
         icon={<InfoCircleOutlined />}
-        message={
+        title={
           <Space orientation="vertical" size={0}>
             <Text strong>Merge {sourceBranch} → {targetBranch}</Text>
             <Text type="secondary">

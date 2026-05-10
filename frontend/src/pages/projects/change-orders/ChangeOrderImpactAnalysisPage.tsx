@@ -33,8 +33,10 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
     changeOrderId,
   );
 
-  // Fetch project data for breadcrumb
-  const { data: project, isLoading: isLoadingProject } = useProject(projectId);
+  // Fetch project data for breadcrumb (suppress 403 toasts for viewers)
+  const { data: project, isLoading: isLoadingProject } = useProject(projectId, {
+    requestHeaders: { "X-Silent-Error": "true" },
+  });
 
   const handleBack = () => {
     navigate(`/projects/${projectId!}/change-orders/${changeOrderId}`);

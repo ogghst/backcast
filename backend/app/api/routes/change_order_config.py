@@ -142,19 +142,20 @@ async def get_project_config(
     project_id: UUID,
     service: ChangeOrderConfigService = Depends(get_config_service),
 ) -> object:
-    """Get the project-specific workflow configuration override.
+    """Get the workflow configuration for a specific project.
 
-    Returns the per-project config if it exists, or 404 if the project
-    uses global defaults.
+    Returns the per-project override if it exists, otherwise returns
+    the global default configuration. This ensures the frontend always
+    has a valid configuration to work with.
     """
-    config = await service.get_project_config(project_id)
-    if config is None:
+    try:
+        config = await service.get_active_config(project_id)
+        return config
+    except ConfigurationError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No configuration override found for project {project_id}. "
-            f"This project uses the global default configuration.",
-        )
-    return config
+            detail=str(e),
+        ) from e
 
 
 @router.put(

@@ -104,6 +104,10 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         else:
             valid_upper = closing_timestamp
 
+        # Guard: ensure valid_upper >= valid_lower to prevent inverted ranges
+        if valid_upper < valid_lower:
+            valid_upper = valid_lower
+
         # Always use the same timestamp for transaction_time upper bound
         tx_upper = closing_timestamp
 
@@ -283,11 +287,10 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         )
 
         # Determine valid_time lower bound
-        # If control_date was provided and is later, use it; otherwise use the closed upper bound
+        # Use the later of control_date and closed_upper to prevent inverted ranges
+        new_valid_lower = closed_upper
         if self.control_date and closed_upper and self.control_date > closed_upper:
             new_valid_lower = self.control_date
-        else:
-            new_valid_lower = closed_upper
 
         # CRITICAL FIX: Use raw SQL INSERT to bypass database DEFAULT values
         # This prevents exclusion constraint violations by setting valid_time explicitly
@@ -549,12 +552,14 @@ class LinkCostElementCommand:
         )
 
         # Use raw SQL to update the FK
+        # CRITICAL: Exclude empty ranges to avoid updating invalid versions
         stmt = text(
             f"""
             UPDATE cost_elements
             SET {fk_field} = :parent_id
             WHERE cost_element_id = :cost_element_id
             AND upper(valid_time) IS NULL
+            AND NOT isempty(valid_time)
             AND deleted_at IS NULL
             """
         )
@@ -624,14 +629,16 @@ class UpdateChangeOrderStatusCommand:
         # Build updates dict
         updates = {"status": self.new_status, **self.additional_updates}
 
-        # Get current version
+        # Get current version using temporal query pattern consistent with service layer
+        # CRITICAL: Exclude empty ranges to avoid selecting invalid versions
         stmt = text(
             """
-            SELECT id, valid_time
+            SELECT id, valid_time, transaction_time
             FROM change_orders
             WHERE change_order_id = :change_order_id
             AND branch = :branch
             AND upper(valid_time) IS NULL
+            AND NOT isempty(valid_time)
             AND deleted_at IS NULL
             """
         )
@@ -652,6 +659,7 @@ class UpdateChangeOrderStatusCommand:
 
         current_id = row.id
         current_valid_time = row.valid_time
+        current_transaction_time = row.transaction_time
         current_lower = current_valid_time.lower if current_valid_time else None
 
         # Determine control_date for valid_time
@@ -676,8 +684,35 @@ class UpdateChangeOrderStatusCommand:
                 {
                     "lower": current_lower,
                     "upper": self.control_date,
-                    "tx_lower": current_valid_time.lower
-                    if current_valid_time
+                    "tx_lower": current_transaction_time.lower
+                    if current_transaction_time
+                    else update_timestamp,
+                    "tx_upper": update_timestamp,
+                    "version_id": current_id,
+                },
+            )
+            await session.flush()
+        elif current_lower:
+            # CRITICAL FIX: control_date == current_lower (resubmission scenario).
+            # The old version must still be closed to prevent two open-ended versions
+            # on the same branch. Close valid_time at update_timestamp (strictly > current_lower)
+            # to avoid creating an empty range, and close transaction_time at update_timestamp.
+            close_stmt = text(
+                """
+                UPDATE change_orders
+                SET
+                    valid_time = tstzrange(:lower, :upper, '[)'),
+                    transaction_time = tstzrange(:tx_lower, :tx_upper, '[)')
+                WHERE id = :version_id
+                """
+            )
+            await session.execute(
+                close_stmt,
+                {
+                    "lower": current_lower,
+                    "upper": update_timestamp,
+                    "tx_lower": current_transaction_time.lower
+                    if current_transaction_time
                     else update_timestamp,
                     "tx_upper": update_timestamp,
                     "version_id": current_id,

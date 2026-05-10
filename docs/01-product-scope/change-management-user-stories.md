@@ -1,7 +1,7 @@
 # Change Management User Stories & Workflow
 
-**Last Updated:** 2026-01-11  
-**Status:** Draft  
+**Last Updated:** 2026-05-09
+**Status:** Draft
 **Related:** [Functional Requirements](functional-requirements.md) | [Time Travel & Branching Architecture](../02-architecture/cross-cutting/temporal-query-reference.md) | [EVM Requirements](evm-requirements.md)
 
 ---
@@ -134,10 +134,14 @@ graph TD
 
 **Functionality:**
 
-- **State Transition:** User changes status from "Draft" to "Submitted" (or "Pending Approval").
+- **State Transition:** User changes status from "Draft" to "Submitted for Approval".
+- **Impact Analysis:** System runs impact analysis comparing isolation branch against main branch.
+- **Approver Assignment:** System assigns an approver based on calculated impact level.
+- **SLA Tracking:** System sets an SLA deadline based on impact level configuration.
+- **Config Snapshot:** System captures current workflow configuration for audit purposes.
 - **Branch Locking:** The system **Locks** the branch `BR-{change_order_id}`.
-  - **Read-Only:** No further edits to WBEs or Costs are allowed in this branch while in "Submitted" state.
-  - **Unlock:** If rework is needed, the status must be moved back to "Draft" (potentially requiring special permissions).
+  - **Read-Only:** No further edits to WBEs or Costs are allowed in this branch while in "Submitted for Approval" state.
+  - **Unlock:** If rejected, the branch is unlocked for rework.
 
 ### 3.6 Accepting the Change (Merge)
 
@@ -151,14 +155,16 @@ graph TD
 
 **Functionality:**
 
-- **Approval Action:** User clicks "Approve Change".
-- **Merge Operation:** The system checks out the **Target Branch** (e.g., `main` or another active change branch) and **Merges** the `BR-{change_order_id}` branch into it.
+- **Approval Action:** The assigned approver clicks "Approve Change". System validates the approver is the assigned approver.
+- **Merge Operation:** After approval, the Project Manager triggers merge. The system checks out the **Target Branch** (e.g., `main` or another active change branch) and **Merges** the `BR-{change_order_id}` branch into it.
+  - **Conflict Detection:** Pre-merge check for entities modified on both source and target branches.
   - **Resolution:** The logic typically follows a "Change Wins" strategy (overwriting Target with Source values), assuming the Target hasn't diverged significantly in a conflicting way (concurrency checks apply).
+  - **Budget Recalculation:** Project budget is recalculated from merged CostElements.
   - **History:** The versions in the Target branch are effectively superseded by the versions from the CO branch.
 - **Closure:**
-  - Change Order Status becomes "Implemented" or "Approved".
-  - The CO branch is marked as **Merged** (archived).
-  - Users are automatically switched back to the `main` branch.
+  - Change Order Status becomes "Implemented".
+  - The isolation branch is unlocked.
+  - The CO branch can be archived (soft-deleted) after implementation.
 
 ### 3.7 Rejecting or Deleting the Change
 
@@ -208,10 +214,11 @@ This section defines the rigorous state machine for a Change Order, including th
 
 | State           | Description                                                                             | Allowed Actions                                                                                                              | Next State                          | Authorized Roles                                           |
 | :-------------- | :-------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- | :---------------------------------- | :--------------------------------------------------------- |
-| **Draft**       | Initial state. Scope definition and costing in progress. Branch is open for read/write. | **Submit**: Finalize scope and lock branch for review.<br>**Delete**: Discard the draft and soft-delete the branch.          | `Submitted`<br>`Deleted`            | **Project Manager**<br>**System Admin**                    |
-| **Submitted**   | Under review. Branch is **Locked** (Read-Only). Impact analysis is being performed.     | **Approve**: Accept the change and trigger merge.<br>**Reject**: Deny the change.<br>**Request Rework**: Send back to draft. | `Approved`<br>`Rejected`<br>`Draft` | **Project Controller**<br>**Dept. Manager**<br>(Reviewers) |
+| **Draft**       | Initial state. Scope definition and costing in progress. Branch is open for read/write. | **Submit**: Finalize scope, run impact analysis, lock branch for review.<br>**Delete**: Discard the draft and soft-delete the branch. | `Submitted for Approval`<br>`Deleted` | **Project Manager**<br>**System Admin**                    |
+| **Submitted**   | Under review. Branch is **Locked** (Read-Only). Impact analysis has been performed.     | **Review**: Move to Under Review.<br>**Approve**: Accept the change.<br>**Reject**: Deny the change. | `Under Review`<br>`Approved`<br>`Rejected` | **Project Controller**<br>**Dept. Manager**<br>(Reviewers) |
+| **Under Review**| Active review by approvers. Branch remains locked.                                      | **Approve**: Accept the change.<br>**Reject**: Deny the change and unlock branch. | `Approved`<br>`Rejected` | **Project Controller**<br>**Dept. Manager**<br>(Reviewers) |
 | **Approved**    | Change accepted. Waiting for system implementation (Merge).                             | **Implement**: Execute the merge to Target Branch.                                                                           | `Implemented`                       | **System Admin**<br>**Project Manager**                    |
-| **Rejected**    | Change denied. Branch remains locked.                                                   | **Reopen**: Send back to draft for modification.<br>**Archive**: Finalize rejection.                                         | `Draft`<br>`Archived`               | **Project Manager**<br>**System Admin**                    |
+| **Rejected**    | Change denied. Branch is **unlocked** for rework.                                       | **Resubmit**: Submit again for approval.<br>**Edit**: Return to Draft for modification.<br>**Archive**: Archive the branch. | `Submitted for Approval`<br>`Draft` | **Project Manager**<br>**System Admin**                    |
 | **Implemented** | Final state. Changes merged to Target. Branch archived.                                 | _None (Terminal State)_                                                                                                      | _None_                              | _System_ (Auto)                                            |
 
 ---

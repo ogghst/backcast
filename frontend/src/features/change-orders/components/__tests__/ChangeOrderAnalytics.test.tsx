@@ -92,8 +92,8 @@ vi.mock("antd", async () => {
     ...actual,
     Spin: ({ tip }: { tip: string }) =>
       React.createElement("div", { "data-testid": "loading-spinner" }, tip),
-    Alert: ({ type, message }: { type: string; message: string }) =>
-      React.createElement("div", { "data-testid": `alert-${type}` }, message),
+    Alert: ({ type, message, title }: { type: string; message?: string; title?: string }) =>
+      React.createElement("div", { "data-testid": `alert-${type}` }, title || message),
     Empty: ({ description }: { description: string }) =>
       React.createElement("div", { "data-testid": "empty-state" }, description),
   };

@@ -204,9 +204,14 @@ export const useDeleteProject = (
  */
 export const useProject = (
   id: string | undefined,
-  queryOptions?: Omit<UseQueryOptions<ProjectRead, Error>, "queryKey">,
+  queryOptions?: Omit<UseQueryOptions<ProjectRead, Error>, "queryKey"> & {
+    /** Custom headers to pass to the API request (e.g. { 'X-Silent-Error': 'true' }) */
+    requestHeaders?: Record<string, string>;
+  },
 ) => {
   const { asOf } = useTimeMachineParams();
+  // Extract custom headers before spreading options into useQuery
+  const { requestHeaders, ...tanstackOptions } = queryOptions || {};
 
   return useQuery({
     queryKey: queryKeys.projects.detail(id),
@@ -218,10 +223,11 @@ export const useProject = (
         method: "GET",
         url: `/api/v1/projects/${id}`,
         query: asOf ? { as_of: asOf } : undefined,
+        headers: requestHeaders,
       }) as Promise<ProjectRead>;
     },
     enabled: !!id,
-    ...queryOptions,
+    ...tanstackOptions,
   });
 };
 

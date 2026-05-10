@@ -39,7 +39,7 @@ export const ChangeOrderAnalytics = ({
     return (
       <Alert
         type="error"
-        message="Error loading analytics"
+        title="Error loading analytics"
         description={error.message}
         showIcon
       />
@@ -91,7 +91,7 @@ export const ChangeOrderAnalytics = ({
               title="Total Cost Exposure"
               value={formatCurrency(stats.total_cost_exposure)}
               prefix={<DollarOutlined />}
-              valueStyle={{ color: stats.total_cost_exposure > 0 ? "#cf1322" : "#3f8600" }}
+              styles={{ content: { color: stats.total_cost_exposure > 0 ? "#cf1322" : "#3f8600" } }}
             />
           </Card>
         </Col>
@@ -101,7 +101,7 @@ export const ChangeOrderAnalytics = ({
               title="Pending Value"
               value={formatCurrency(stats.pending_value)}
               prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: "#faad14" }}
+              styles={{ content: { color: "#faad14" } }}
             />
           </Card>
         </Col>
@@ -111,7 +111,7 @@ export const ChangeOrderAnalytics = ({
               title="Approved Value"
               value={formatCurrency(stats.approved_value)}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: "#52c41a" }}
+              styles={{ content: { color: "#52c41a" } }}
             />
           </Card>
         </Col>

@@ -74,8 +74,10 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
   const { data: approvalInfo, isLoading: isLoadingApprovalInfo } =
     useApprovalInfo(changeOrderId && !createMode ? changeOrderId : undefined);
 
-  // Fetch project data for breadcrumb
-  const { data: project } = useProject(projectId);
+  // Fetch project data for breadcrumb (suppress 403 toasts for viewers)
+  const { data: project } = useProject(projectId, {
+    requestHeaders: { "X-Silent-Error": "true" },
+  });
 
   // Mutations
   const { mutateAsync: createChangeOrder } = useCreateChangeOrder({
@@ -218,9 +220,28 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
               children: (
                 <ChangeOrderWorkflowSection
                   changeOrder={changeOrder || null}
-                  onActionSuccess={() => {
-                    queryClient.invalidateQueries({
+                  onActionSuccess={async () => {
+                    // Invalidate all change order queries (covers list, detail, approval-info, stats)
+                    await queryClient.invalidateQueries({
                       queryKey: queryKeys.changeOrders.all,
+                    });
+                    // Force refetch detail and approval queries for this specific CO
+                    // to ensure the summary card and approval info update immediately
+                    if (changeOrderId) {
+                      await queryClient.refetchQueries({
+                        predicate: (query) => {
+                          const key = query.queryKey;
+                          return (
+                            Array.isArray(key) &&
+                            key[0] === "change-orders" &&
+                            (key[1] === changeOrderId || key[2] === changeOrderId)
+                          );
+                        },
+                      });
+                    }
+                    // Invalidate project branches to reflect status changes
+                    queryClient.invalidateQueries({
+                      queryKey: queryKeys.projects.branches(projectId!),
                     });
                   }}
                   useCollapsibleCard

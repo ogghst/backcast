@@ -1,6 +1,6 @@
 # Change Order Workflow Validation Architecture
 
-**Last Updated:** 2026-05-06
+**Last Updated:** 2026-05-09
 **Owner:** Backend Team
 **Related ADRs:** [ADR-007: RBAC Service](../../decisions/ADR-007-rbac-service.md)
 
@@ -208,7 +208,7 @@ async def is_valid_transition(self, from_status: str, to_status: str) -> bool:
 
 ### 2. Approver Authority Validation
 
-**Rule:** Users can only approve/reject change orders if their authority level meets or exceeds the required authority for the impact level.
+**Rule:** Users can only approve/reject change orders if their authority level meets or exceeds the required authority for the impact level, AND they are the assigned approver for that specific change order.
 
 **Authority Hierarchy:**
 ```
@@ -220,7 +220,9 @@ CRITICAL (4) > HIGH (3) > MEDIUM (2) > LOW (1)
 - `manager` role → HIGH authority
 - `viewer` role → LOW authority
 
-**Implementation:** `ApprovalMatrixService.can_approve(actor, change_order)`
+**Assigned Approver Check:** The approver must match the `assigned_approver_id` on the change order. This prevents unauthorized users from approving even if they have sufficient authority level.
+
+**Implementation:** `ApprovalMatrixService.can_approve(actor, change_order)` + `ChangeOrderService` validates `co.assigned_approver_id == approver_id`
 
 ### 3. Control Date Sequence Validation
 
@@ -247,7 +249,7 @@ Operations must be performed in chronological order.
 
 > **Configurable:** All thresholds, score boundaries, and approval rules are stored in `ChangeOrderWorkflowConfig` and can be updated at runtime without code changes. Per-project overrides are supported via `project_id` on the config record.
 
-**Validation:** Impact level is calculated on submission via `FinancialImpactService.calculate_impact_level()`, which reads thresholds and score boundaries from `ChangeOrderConfigService`.
+**Validation:** Impact level is calculated at submission time (not creation time) via `FinancialImpactService.calculate_impact_level()`, which reads thresholds and score boundaries from `ChangeOrderConfigService`. The impact analysis compares the isolation branch against the main branch to determine actual financial deltas.
 
 ### 5. SLA Deadline Validation
 
@@ -260,6 +262,12 @@ Operations must be performed in chronological order.
 > **Configurable:** SLA deadlines are stored in `ChangeOrderSLARuleConfig` and read at runtime by `SLAService` via `ChangeOrderConfigService`.
 
 **Implementation:** `SLAService.calculate_sla_deadline()` calculates deadlines based on impact level and submission time using config-driven SLA rules.
+
+**SLA Status Tracking:**
+- `pending`: More than 50% of SLA time remaining
+- `approaching`: Less than 50% of SLA time remaining
+- `escalated`: Manually escalated by authorized user via `/escalate` endpoint
+- `overdue`: Past SLA due date
 
 ---
 
@@ -365,6 +373,7 @@ The `control_date` field ensures workflow operations occur in chronological orde
 | Method | Purpose |
 |--------|---------|
 | `calculate_sla_deadline()` | Calculate deadline from impact level and start date |
+| `escalate_change_order()` | Manually escalate SLA status for a change order |
 
 ### FinancialImpactService
 
@@ -397,6 +406,7 @@ The `control_date` field ensures workflow operations occur in chronological orde
 | `update_config()` | Update global configuration (optimistic locking) |
 | `create_project_override()` | Create per-project configuration override |
 | `delete_project_override()` | Remove project override, revert to global |
+| `get_workflow_transitions()` | Get configurable workflow transition rules for a project |
 
 ---
 
@@ -411,6 +421,7 @@ The `control_date` field ensures workflow operations occur in chronological orde
 | `/change-orders/{id}/reject` | PUT | Reject CO | `change-order-approve` |
 | `/change-orders/{id}/recover` | POST | Recover stuck workflow (admin) | `change-order-recover` |
 | `/change-orders/{id}/archive` | POST | Archive CO branch | `change-order-update` |
+| `/change-orders/{id}/escalate` | POST | Manually escalate SLA status | `change-order-escalate` |
 
 ### Query Endpoints
 
@@ -490,6 +501,7 @@ The `control_date` field ensures workflow operations occur in chronological orde
 - **Config Service:** `app/services/change_order_config_service.py`
 - **Approval Matrix Service:** `app/services/approval_matrix_service.py`
 - **SLA Service:** `app/services/sla_service.py`
+- **Reporting Service:** `app/services/change_order_reporting_service.py`
 - **Financial Impact Service:** `app/services/financial_impact_service.py`
 
 ### Models

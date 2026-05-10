@@ -762,6 +762,38 @@ class TestAIRoles:
                 f"ai-manager should NOT have '{perm}'"
             )
 
+    # --- system viewer tests ---
+
+    def test_system_viewer_has_change_order_approve_permission(self) -> None:
+        """System viewer role must include change-order-approve for approval matrix.
+
+        The approval matrix (co_approval_rule_config) assigns LOW-impact change
+        orders to viewer-level users. The dedicated approve/reject endpoints use
+        RoleChecker with change-order-approve, which checks against the JSON RBAC
+        config. The system 'viewer' role must have this permission.
+
+        Given:
+            The real rbac.json configuration
+        When:
+            viewer role permissions are checked for change-order-approve
+        Then:
+            change-order-approve is granted
+            change-order-create and change-order-update are denied
+        """
+        # Act & Assert: viewer must have approve permission
+        assert self.service.has_permission("viewer", "change-order-approve"), (
+            "System 'viewer' role must include 'change-order-approve' for "
+            "approval matrix compatibility"
+        )
+
+        # Assert: viewer should NOT have create or update permissions
+        assert not self.service.has_permission("viewer", "change-order-create"), (
+            "System 'viewer' should NOT have 'change-order-create'"
+        )
+        assert not self.service.has_permission("viewer", "change-order-update"), (
+            "System 'viewer' should NOT have 'change-order-update'"
+        )
+
     # --- ai-admin tests ---
 
     def test_ai_admin_has_admin_permissions(self) -> None:

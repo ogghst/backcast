@@ -10,6 +10,7 @@ import {
   useMergeChangeOrder,
 } from "../api/useChangeOrders";
 import {
+  useSubmitForApproval,
   useApproveChangeOrder,
   useRejectChangeOrder,
   useArchiveChangeOrder,
@@ -49,11 +50,19 @@ export type WorkflowActionKey = keyof typeof WORKFLOW_ACTIONS;
 export function useWorkflowActions(changeOrderId: string, options?: WorkflowActionsOptions) {
   const queryClient = useQueryClient();
 
-  // Update mutation for status transitions
+  // Update mutation for status transitions (review and reopen only)
   const updateMutation = useUpdateChangeOrder({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.branches });
+      options?.onSuccess?.(data);
+    },
+    onError: options?.onError,
+  });
+
+  // Submit for approval mutation using dedicated endpoint
+  const submitMutation = useSubmitForApproval({
+    onSuccess: (data) => {
       options?.onSuccess?.(data);
     },
     onError: options?.onError,
@@ -94,16 +103,13 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
 
   /**
    * Submit the Change Order for review (Draft → Submitted for Approval)
+   * Uses the dedicated submit-for-approval endpoint
    */
   const submit = useCallback(
     async (comment?: string) => {
-      const data: ChangeOrderUpdate = {
-        status: WORKFLOW_ACTIONS.SUBMIT.status,
-        comment,
-      };
-      return updateMutation.mutateAsync({ id: changeOrderId, data });
+      return submitMutation.mutateAsync({ id: changeOrderId, comment });
     },
-    [changeOrderId, updateMutation]
+    [changeOrderId, submitMutation]
   );
 
   /**
@@ -198,7 +204,7 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
     reopen,
     merge,
     archive,
-    isLoading: updateMutation.isPending || approveMutation.isPending || rejectMutation.isPending || mergeMutation.isPending || archiveMutation.isPending,
+    isLoading: submitMutation.isPending || updateMutation.isPending || approveMutation.isPending || rejectMutation.isPending || mergeMutation.isPending || archiveMutation.isPending,
     mutation: updateMutation,
   };
 }

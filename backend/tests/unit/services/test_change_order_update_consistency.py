@@ -198,6 +198,12 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
     assert updated.description == "Updated Desc"
     assert updated.status == "Submitted for Approval"
 
+    # 4.5. REJECT (Required before deletion)
+    # Only Draft or Rejected COs can be deleted
+    reject_in = ChangeOrderUpdate(status="Rejected")
+    rejected = await service.update_change_order(co_id, reject_in, actor_id=actor_id)
+    assert rejected.status == "Rejected"
+
     # 5. DELETE (Soft Delete)
     deleted = await service.delete_change_order(co_id, actor_id=actor_id)
     assert deleted.deleted_at is not None

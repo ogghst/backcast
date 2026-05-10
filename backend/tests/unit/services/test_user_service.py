@@ -180,6 +180,94 @@ class TestUserServiceDelete:
             await service.delete_user(non_existent_id, actor_id=uuid4())
 
 
+class TestServiceGetById:
+    """Test UserService.get_by_id() method - PK lookup."""
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_returns_none_when_not_found(
+        self, db_session: AsyncSession
+    ) -> None:
+        """RED: Test that get_by_id returns None for non-existent PK."""
+        # Arrange
+        service = UserService(db_session)
+        non_existent_pk = uuid4()
+
+        # Act
+        result = await service.get_by_id(non_existent_pk)
+
+        # Assert
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_returns_user_when_found(
+        self, db_session: AsyncSession
+    ) -> None:
+        """RED: Test that get_by_id returns User when found by PK."""
+        # Arrange
+        service = UserService(db_session)
+        actor_id = uuid4()
+
+        # Create a user directly in DB for testing
+        user = User(
+            user_id=uuid4(),
+            email="test@example.com",
+            hashed_password="hashed_pw",
+            full_name="Test User",
+            role="viewer",
+            is_active=True,
+            created_by=actor_id,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+
+        # Act - get_by_id uses PK (id), not user_id
+        result = await service.get_by_id(user.id)
+
+        # Assert
+        assert result is not None
+        assert result.id == user.id
+        assert result.email == "test@example.com"
+        assert result.full_name == "Test User"
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_vs_get_user_difference(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test that get_by_id uses PK while get_user uses user_id (root_id)."""
+        # Arrange
+        service = UserService(db_session)
+        actor_id = uuid4()
+
+        # Create a user
+        user = User(
+            user_id=uuid4(),
+            email="distinction@example.com",
+            hashed_password="hashed_pw",
+            full_name="Distinction Test",
+            role="viewer",
+            is_active=True,
+            created_by=actor_id,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+
+        # Act & Assert
+        # get_by_id uses PK (id) - should work
+        result_by_pk = await service.get_by_id(user.id)
+        assert result_by_pk is not None
+        assert result_by_pk.id == user.id
+
+        # get_user uses user_id (root_id) - should also work
+        result_by_root = await service.get_user(user.user_id)
+        assert result_by_root is not None
+        assert result_by_root.user_id == user.user_id
+
+        # Both return the same user
+        assert result_by_pk.id == result_by_root.id
+
+
 class TestUserServicePreferences:
     """Test UserService preference methods."""
 
@@ -203,6 +291,254 @@ class TestUserServicePreferences:
 
         # Assert
         assert prefs == {}
+
+
+class TestUserIdentifiers:
+    """Test UserService user_id vs id (PK) resolution methods.
+
+    These tests verify the architectural decision that:
+    - get_user(user_id) uses EVCS root ID (user.user_id) - the canonical identifier
+    - get_by_id(id) uses database PK (user.id) - for specific version lookups
+
+    Context: BE-003 - Standardize user_id usage across services
+    """
+
+    @pytest.mark.asyncio
+    async def test_get_user_vs_get_by_id_both_work_with_correct_identifiers(
+        self, db_session: AsyncSession
+    ) -> None:
+        """RED: Test that get_user and get_by_id both work with correct identifiers.
+
+        This test demonstrates:
+        - get_user(user_id) works when called with user.user_id (EVCS root ID)
+        - get_by_id(id) works when called with user.id (database PK)
+        - Both return the same user entity
+        """
+        # Arrange
+        service = UserService(db_session)
+        user_in = UserRegister(
+            email="identifier_test@example.com",
+            password="secret_password",
+            full_name="Identifier Test",
+            role="viewer",
+        )
+        created_user = await service.create_user(user_in, actor_id=uuid4())
+
+        # Act & Assert
+        # get_user should work with user.user_id (EVCS root ID)
+        result_by_user_id = await service.get_user(created_user.user_id)
+        assert result_by_user_id is not None
+        assert result_by_user_id.user_id == created_user.user_id
+        assert result_by_user_id.email == "identifier_test@example.com"
+
+        # get_by_id should work with user.id (database PK)
+        result_by_pk = await service.get_by_id(created_user.id)
+        assert result_by_pk is not None
+        assert result_by_pk.id == created_user.id
+        assert result_by_pk.email == "identifier_test@example.com"
+
+        # Both should return the same user entity
+        assert result_by_user_id.id == result_by_pk.id
+        assert result_by_user_id.user_id == result_by_pk.user_id
+
+    @pytest.mark.asyncio
+    async def test_get_user_fails_with_database_pk(
+        self, db_session: AsyncSession
+    ) -> None:
+        """RED: Test that get_user fails when called with database PK instead of user_id.
+
+        This test demonstrates that get_user expects user.user_id (EVCS root ID),
+        not user.id (database PK).
+        """
+        # Arrange
+        service = UserService(db_session)
+        user_in = UserRegister(
+            email="pk_test@example.com",
+            password="secret_password",
+            full_name="PK Test",
+            role="viewer",
+        )
+        created_user = await service.create_user(user_in, actor_id=uuid4())
+
+        # Act
+        # Try to call get_user with database PK (incorrect usage)
+        result = await service.get_user(created_user.id)
+
+        # Assert
+        # Should return None because created_user.id is not a valid user_id
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_fails_with_evcs_root_id(
+        self, db_session: AsyncSession
+    ) -> None:
+        """RED: Test that get_by_id fails when called with user_id instead of database PK.
+
+        This test demonstrates that get_by_id expects user.id (database PK),
+        not user.user_id (EVCS root ID).
+        """
+        # Arrange
+        service = UserService(db_session)
+        user_in = UserRegister(
+            email="root_id_test@example.com",
+            password="secret_password",
+            full_name="Root ID Test",
+            role="viewer",
+        )
+        created_user = await service.create_user(user_in, actor_id=uuid4())
+
+        # Act
+        # Try to call get_by_id with user.user_id (incorrect usage)
+        result = await service.get_by_id(created_user.user_id)
+
+        # Assert
+        # Should return None because created_user.user_id is not a valid database PK
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_user_returns_current_active_version(
+        self, db_session: AsyncSession
+    ) -> None:
+        """GREEN: Test that get_user always returns the current active version.
+
+        This test verifies that get_user follows EVCS patterns and returns
+        the current active version, not historical versions.
+        """
+        # Arrange
+        service = UserService(db_session)
+        user_in = UserRegister(
+            email="version_test@example.com",
+            password="secret_password",
+            full_name="Version Test Original",
+            role="viewer",
+        )
+        v1 = await service.create_user(user_in, actor_id=uuid4())
+        user_id = v1.user_id
+
+        # Create a new version (update)
+        update_in = UserUpdate(full_name="Version Test Updated")
+        v2 = await service.update_user(user_id, update_in, actor_id=uuid4())
+
+        # Act
+        # get_user should return the current active version (v2)
+        current = await service.get_user(user_id)
+
+        # Assert
+        assert current is not None
+        assert current.user_id == user_id
+        assert current.full_name == "Version Test Updated"
+        assert current.id == v2.id  # Should be v2's PK
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_returns_specific_version_by_pk(
+        self, db_session: AsyncSession
+    ) -> None:
+        """GREEN: Test that get_by_id returns a specific version by PK.
+
+        This test verifies that get_by_id can retrieve any specific version
+        (including historical) by its database PK.
+        """
+        # Arrange
+        service = UserService(db_session)
+        user_in = UserRegister(
+            email="specific_version_test@example.com",
+            password="secret_password",
+            full_name="Specific Version Original",
+            role="viewer",
+        )
+        v1 = await service.create_user(user_in, actor_id=uuid4())
+        v1_id = v1.id  # Save v1's PK
+        user_id = v1.user_id
+
+        # Create a new version (update)
+        update_in = UserUpdate(full_name="Specific Version Updated")
+        v2 = await service.update_user(user_id, update_in, actor_id=uuid4())
+
+        # Act
+        # get_by_id with v1's PK should return v1 (historical version)
+        historical = await service.get_by_id(v1_id)
+        # get_by_id with v2's PK should return v2 (current version)
+        current = await service.get_by_id(v2.id)
+
+        # Assert
+        assert historical is not None
+        assert historical.id == v1_id
+        assert historical.full_name == "Specific Version Original"
+
+        assert current is not None
+        assert current.id == v2.id
+        assert current.full_name == "Specific Version Updated"
+
+    @pytest.mark.asyncio
+    async def test_get_user_after_soft_delete_returns_none(
+        self, db_session: AsyncSession
+    ) -> None:
+        """GREEN: Test that get_user returns None for soft-deleted users.
+
+        This test verifies that get_user respects soft deletes and returns
+        None for deleted users, maintaining data isolation.
+        """
+        # Arrange
+        service = UserService(db_session)
+        user_in = UserRegister(
+            email="delete_test@example.com",
+            password="secret_password",
+            full_name="Delete Test",
+            role="viewer",
+        )
+        user = await service.create_user(user_in, actor_id=uuid4())
+        user_id = user.user_id
+
+        # Soft delete the user
+        await service.delete_user(user_id, actor_id=uuid4())
+
+        # Act
+        result = await service.get_user(user_id)
+
+        # Assert
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_after_soft_delete_returns_deleted_version(
+        self, db_session: AsyncSession
+    ) -> None:
+        """GREEN: Test that get_by_id can still retrieve soft-deleted user versions.
+
+        This test verifies that get_by_id can retrieve historical versions
+        even after soft delete, for audit trail purposes.
+        """
+        # Arrange
+        service = UserService(db_session)
+        user_in = UserRegister(
+            email="delete_pk_test@example.com",
+            password="secret_password",
+            full_name="Delete PK Test",
+            role="viewer",
+        )
+        user = await service.create_user(user_in, actor_id=uuid4())
+        user_id = user.user_id
+        user_pk = user.id
+
+        # Soft delete the user
+        deleted_user = await service.delete_user(user_id, actor_id=uuid4())
+        deleted_user_pk = deleted_user.id
+
+        # Act
+        # get_by_id should still return the deleted version (for audit trail)
+        result = await service.get_by_id(user_pk)
+        deleted_result = await service.get_by_id(deleted_user_pk)
+
+        # Assert
+        # The original version should be retrievable by PK
+        assert result is not None
+        assert result.id == user_pk
+        assert result.full_name == "Delete PK Test"
+
+        # The deleted version should also be retrievable by PK
+        assert deleted_result is not None
+        assert deleted_result.id == deleted_user_pk
+        assert deleted_result.is_deleted is True
+        assert deleted_result.deleted_at is not None
 
     @pytest.mark.asyncio
     async def test_get_user_preferences_raises_for_nonexistent_user(

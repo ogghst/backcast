@@ -28,7 +28,7 @@ export function MergeConflictsList({
         type="error"
         showIcon
         icon={<CloseCircleOutlined />}
-        message={
+        title={
           message ||
           `Merge blocked: ${conflictCount} conflict${conflictCount > 1 ? "s" : ""} detected`
         }

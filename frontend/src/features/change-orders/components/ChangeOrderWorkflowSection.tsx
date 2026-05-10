@@ -115,7 +115,7 @@ export function ChangeOrderWorkflowSection({
       {/* Lock warning */}
       {branch_locked && (
         <Alert
-          message="Branch Locked"
+          title="Branch Locked"
           description="This change order is currently under review. The branch is locked and no modifications are allowed."
           type="warning"
           showIcon

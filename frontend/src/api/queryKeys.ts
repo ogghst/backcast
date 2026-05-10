@@ -243,7 +243,10 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   // Users
   users: {
     all: ["users"] as const,
-    list: ["users", "list"] as const,
+    lists: () => ["users", "list"] as const,
+    list: (params?: { page?: number; per_page?: number }) =>
+      ["users", "list", params] as const,
+    details: () => ["users", "detail"] as const,
     detail: (id: string) => ["users", "detail", id] as const,
     me: ["users", "me"] as const,
   },

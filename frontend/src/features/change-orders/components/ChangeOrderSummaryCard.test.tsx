@@ -2,11 +2,13 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ChangeOrderSummaryCard } from "./ChangeOrderSummaryCard";
 import type { ChangeOrderPublic } from "@/api/generated";
+import { useWorkflowInfo } from "../hooks/useWorkflowInfo";
 
 // Mock the workflow info hook
 vi.mock("../hooks/useWorkflowInfo", () => ({
   useWorkflowInfo: vi.fn(() => ({
     isBranchLocked: false,
+    isStatusDisabled: false,
     lockedBranchWarning: null,
   })),
 }));
@@ -58,5 +60,23 @@ describe("ChangeOrderSummaryCard", () => {
 
     fireEvent.click(screen.getByText("Edit"));
     expect(onEdit).toHaveBeenCalled();
+  });
+
+  it("disables edit button when isStatusDisabled is true", () => {
+    vi.mocked(useWorkflowInfo).mockReturnValue({
+      statusOptions: [{ label: "Implemented", value: "Implemented" }],
+      isStatusDisabled: true,
+      isBranchLocked: false,
+      lockedBranchWarning: null,
+    });
+
+    render(
+      <ChangeOrderSummaryCard
+        changeOrder={{ ...mockChangeOrder, status: "Implemented", can_edit_status: false }}
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Edit").closest("button")).toBeDisabled();
   });
 });
