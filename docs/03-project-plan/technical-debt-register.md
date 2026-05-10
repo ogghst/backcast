@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-04-27
-**Total Open Items:** 8
-**Total Estimated Effort:** ~8 days
+**Last Updated:** 2026-05-10
+**Total Open Items:** 11
+**Total Estimated Effort:** ~13 days
 
 ---
 
@@ -11,6 +11,48 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 ---
 
 ## High Severity (P0 - P1)
+
+### [TD-092] Frontend TypeScript Errors (Pre-existing)
+
+- **Source:** 2026-05-10-co-critical-fixes CHECK phase report
+- **Description:** 26 TypeScript errors exist in frontend codebase, unrelated to iteration changes. Errors include: mock data incomplete (missing `level`, `valid_time_formatted` fields), test setup type mismatches, component prop type mismatches. These errors existed before the iteration and were documented during CHECK phase verification.
+- **Impact:** Reduces type safety confidence, may cause runtime issues, blocks full TypeScript strict mode adoption
+- **Estimated Effort:** 4 hours
+- **Status:** Open
+- **Owner:** Frontend Developer
+- **Priority:** P2 (Medium)
+- **Blocker:** No
+- **Suggested Approach:** Fix mock data first (easiest wins), then address component prop types, finally tackle test setup issues. Add baseline tracking to CI to distinguish new errors from pre-existing.
+
+---
+
+### [TD-093] Test Coverage Gap (Project-Wide)
+
+- **Source:** 2026-05-10-co-critical-fixes CHECK phase report
+- **Description:** Project-wide test coverage is 31.97%, significantly below the 80% target. Services needing coverage: AI services (agent_service, ai_tool_service), RBAC (rbac_service, rbac_admin_service), change_order, and several other services. New code in this iteration achieved 100% coverage but project-wide debt remains.
+- **Impact:** Reduced confidence in code changes, higher regression risk, difficulty refactoring without safety net
+- **Estimated Effort:** 8 hours (ongoing)
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P1 (High)
+- **Blocker:** No
+- **Suggested Approach:** Prioritize coverage for high-risk services (RBAC, change_order), then add tests for AI services. Use `pytest --cov=app --cov-report=term-missing` to identify untested lines. Target 80% coverage per service, not project-wide.
+
+---
+
+### [TD-094] Missing E2E Integration Tests for Change Order Workflows
+
+- **Source:** 2026-05-10-co-critical-fixes CHECK phase report
+- **Description:** Change order workflows (submit, approve, reject, recover) lack E2E integration tests. Manual verification was performed during this iteration but automated tests are needed for regression prevention. Frontend crash blocking E2E testing has been fixed, removing blocker.
+- **Impact:** High-risk workflows without automated validation, manual testing required for each change
+- **Estimated Effort:** 2 days
+- **Status:** Open
+- **Owner:** QA/Backend Developer
+- **Priority:** P1 (High)
+- **Blocker:** No (frontend crash fixed in 2026-05-10-co-critical-fixes)
+- **Suggested Approach:** Create test suite `tests/integration/test_change_order_workflow_e2e.py` covering: submit → approve → merge, submit → reject → discard, admin recovery workflow, empty branch handling. Use test database and real API routes.
+
+---
 
 ### [TD-088] Test Fixture RBAC Implementations Outdated
 
@@ -121,10 +163,10 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 4 | ~6 days |
-| Medium (P2-P3) | 4 | ~2 days |
+| High (P0-P1) | 6 | ~11 days |
+| Medium (P2-P3) | 5 | ~2 days |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **8** | **~8 days** |
+| **Total** | **11** | **~13 days** |
 
 ---
 
