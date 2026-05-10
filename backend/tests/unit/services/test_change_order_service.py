@@ -1246,14 +1246,15 @@ class TestChangeOrderServiceGetNextCode:
         assert next_code == expected, f"Expected {expected}, got {next_code}"
 
     @pytest.mark.asyncio
-    async def test_get_next_code_scoped_to_project(
+    async def test_get_next_code_globally_scoped(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that codes are scoped to project.
+        """Test that codes are globally scoped across all projects.
 
         Acceptance Criteria:
-        - Codes from other projects don't affect this project's sequence
-        - Each project has independent numbering
+        - Codes are globally unique across all projects
+        - Creating a CO in one project affects the next code for all projects
+        - This prevents 409 conflicts on create
         """
         # Arrange
         service = ChangeOrderService(db_session)
@@ -1262,7 +1263,7 @@ class TestChangeOrderServiceGetNextCode:
         actor_id = uuid4()
         current_year = datetime.now(UTC).year
 
-        # Create CO in project 1
+        # Create CO in project 1 with code 003
         co_in = ChangeOrderCreate(
             project_id=project_id_1,
             code=f"CO-{current_year}-003",
@@ -1271,11 +1272,11 @@ class TestChangeOrderServiceGetNextCode:
         )
         await service.create_change_order(co_in, actor_id=actor_id)
 
-        # Act - Get next code for project 2 (should start from 001)
+        # Act - Get next code for project 2 (should be 004, not 001)
         next_code = await service.get_next_code(project_id_2)
 
-        # Assert
-        expected = f"CO-{current_year}-001"
+        # Assert - codes are globally scoped, so next is 004
+        expected = f"CO-{current_year}-004"
         assert next_code == expected, f"Expected {expected}, got {next_code}"
 
     @pytest.mark.asyncio

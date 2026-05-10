@@ -18,6 +18,7 @@ from app.services.approval_matrix_service import ApprovalMatrixService
 class TestApprovalMatrixServiceUserIDFix:
     """Test that get_approver_for_impact returns root user_id not PK."""
 
+    @pytest.mark.asyncio
     async def test_returns_root_user_id_not_pk(self) -> None:
         """Test that get_approver_for_impact returns root user_id.
 
@@ -67,6 +68,7 @@ class TestApprovalMatrixServiceUserIDFix:
             "Should return root user_id, not primary key (id)"
         )
 
+    @pytest.mark.asyncio
     async def test_returns_none_when_no_approver_found(self) -> None:
         """Test that None is returned when no eligible approver exists."""
         # Create mock database session

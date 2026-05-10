@@ -998,3 +998,31 @@ class TestProjectRoleEnum:
         # Editor has more permissions than viewer (can create/update)
         assert "cost-element-create" in editor_perms
         assert "cost-element-create" not in viewer_perms
+
+    def test_project_viewer_has_change_order_approve_permission(self) -> None:
+        """Viewer role must include change-order-approve for approval matrix compatibility.
+
+        The approval matrix (co_approval_rule_config) assigns LOW-impact change
+        orders to viewer-level users. The dedicated approve/reject endpoints use
+        change-order-approve permission, so the viewer must have it to reach those
+        endpoints.
+
+        Given:
+            The project_viewer role
+        When:
+            Getting permissions
+        Then:
+            change-order-approve is present
+            change-order-create and change-order-update are absent (viewer can only approve)
+        """
+        permissions = EnumProjectRole.PROJECT_VIEWER.permissions
+
+        # Viewer must be able to approve COs assigned by the approval matrix
+        assert "change-order-approve" in permissions, (
+            f"Viewer role must include 'change-order-approve' for approval matrix "
+            f"compatibility. Current permissions: {permissions}"
+        )
+
+        # Viewer should NOT be able to create or edit CO content
+        assert "change-order-create" not in permissions
+        assert "change-order-update" not in permissions

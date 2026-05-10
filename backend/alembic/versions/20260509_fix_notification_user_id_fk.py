@@ -33,8 +33,6 @@ Changes:
 from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = "20260509_fix_notification_fk"
@@ -51,10 +49,12 @@ def upgrade() -> None:
     2. Update existing notification records: Map user_id from PK to root ID
     3. Keep index on notifications.user_id for query performance
     """
-    # Step 1: Drop foreign key constraint
-    # FK constraints don't work well with versioned entities since the
-    # root user_id is not the primary key and only has a partial unique index
-    op.drop_constraint("fk_notifications_user_id", "notifications", type_="foreignkey")
+    # Step 1: Drop foreign key constraint using IF EXISTS to avoid
+    # transaction abort when the constraint has already been dropped
+    op.execute("""
+        ALTER TABLE notifications
+        DROP CONSTRAINT IF EXISTS fk_notifications_user_id
+    """)
 
     # Step 2: Update existing notification records
     # Map from PK values to root ID values
@@ -66,17 +66,10 @@ def upgrade() -> None:
     """)
 
     # Step 3: Ensure index exists (should already exist from table creation)
-    # This is a no-op if the index already exists
-    try:
-        op.create_index(
-            "ix_notifications_user_id",
-            "notifications",
-            ["user_id"],
-            unique=False
-        )
-    except Exception:
-        # Index already exists, ignore error
-        pass
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_notifications_user_id
+        ON notifications (user_id)
+    """)
 
 
 def downgrade() -> None:
@@ -98,7 +91,9 @@ def downgrade() -> None:
     # Recreate the FK constraint (for rollback only)
     op.create_foreign_key(
         "fk_notifications_user_id",
-        "notifications", "users",
-        ["user_id"], ["id"],
-        ondelete="CASCADE"
+        "notifications",
+        "users",
+        ["user_id"],
+        ["id"],
+        ondelete="CASCADE",
     )
