@@ -9,9 +9,10 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, desc, func, or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.branching.commands import (
     BranchableSoftDeleteCommand,
@@ -520,6 +521,9 @@ class BranchableService[TBranchable: BranchableProtocol]:
                     # Valid Time Coverage
                     cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
                     func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
+                    func.not_(
+                        func.isempty(self.entity_class.valid_time)
+                    ),  # Exclude empty ranges
                     # Deleted At Check (respect temporal deletion)
                     func.coalesce(
                         cast(Any, self.entity_class).deleted_at,
@@ -533,6 +537,9 @@ class BranchableService[TBranchable: BranchableProtocol]:
             conditions.extend(
                 [
                     func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                    func.not_(
+                        func.isempty(self.entity_class.valid_time)
+                    ),  # Exclude empty ranges
                     cast(Any, self.entity_class).deleted_at.is_(None),
                 ]
             )
@@ -715,7 +722,9 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         target = await self.get_as_of(entity_id=root_id, branch=target_branch)
         if not target:
-            raise ValueError(f"No current version on target branch '{target_branch}'")
+            # Entity only exists on source branch (newly created there).
+            # No conflict possible — it's an addition, not a modification.
+            return []
 
         # Find the divergence point by walking parent chains
         # The divergence point is the common ancestor where branches split
@@ -876,3 +885,48 @@ class BranchableService[TBranchable: BranchableProtocol]:
             "branch_a": version_a,
             "branch_b": version_b,
         }
+
+    async def get_recently_updated(
+        self,
+        user_id: UUID | None = None,
+        limit: int = 10,
+        branch: str = "main",
+        eager_load_project: bool = False,
+    ) -> list[TBranchable]:
+        """Get recently updated entities, optionally filtered by user.
+
+        Args:
+            user_id: Optional user ID to filter by (only entities updated by this user)
+            limit: Maximum number of entities to return
+            branch: Branch name to query (default: "main")
+            eager_load_project: If True, preload the project relationship to avoid N+1 queries
+                             Note: Only applicable for entities with a 'project' relationship
+
+        Returns:
+            List of recently updated entities ordered by transaction_time descending
+        """
+        stmt = select(self.entity_class).where(
+            cast(Any, self.entity_class).branch == branch
+        )
+
+        if user_id:
+            stmt = stmt.where(cast(Any, self.entity_class).created_by == user_id)
+
+        # Get current versions (not deleted)
+        stmt = stmt.where(
+            func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+            func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
+            cast(Any, self.entity_class).deleted_at.is_(None),
+        )
+
+        # Eager load project relationship if requested (for dashboard optimization)
+        if eager_load_project and hasattr(self.entity_class, "project"):
+            stmt = stmt.options(selectinload(cast(Any, self.entity_class).project))
+
+        # Order by transaction_time descending (most recent first)
+        stmt = stmt.order_by(
+            desc(cast(Any, self.entity_class).transaction_time)
+        ).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

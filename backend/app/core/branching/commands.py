@@ -372,12 +372,37 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
             )
 
         # 2. Target
-        # For now, enforce target existence. Later allows create-on-merge.
         target = await self._get_current_on_branch(session, self.target_branch)
         if not target:
-            raise ValueError(
-                f"Target branch {self.target_branch} not found or inactive."
+            # Entity only exists on source branch (newly created there).
+            # No conflict possible — it's an addition, not a modification.
+            merged = cast(
+                TBranchable,
+                source.clone(
+                    branch=self.target_branch,
+                    parent_id=None,
+                    merge_from_branch=self.source_branch,
+                ),
             )
+            merge_timestamp = self.control_date if self.control_date else datetime.now(UTC)
+            session.add(merged)
+            await session.flush()
+            tablename = str(getattr(self.entity_class, "__tablename__", ""))
+            stmt = text(
+                f"""
+                UPDATE {tablename}
+                SET
+                    valid_time = tstzrange(:merge_timestamp, NULL, '[]'),
+                    transaction_time = tstzrange(:merge_timestamp, NULL, '[]')
+                WHERE id = :version_id
+                """
+            )
+            await session.execute(
+                stmt, {"merge_timestamp": merge_timestamp, "version_id": merged.id}
+            )
+            await session.flush()
+            await session.refresh(merged)
+            return merged
 
         # 3. Clone Source -> Target
         # Logic: New version on Target, content from Source, parent=Target.id

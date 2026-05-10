@@ -552,12 +552,14 @@ class LinkCostElementCommand:
         )
 
         # Use raw SQL to update the FK
+        # CRITICAL: Exclude empty ranges to avoid updating invalid versions
         stmt = text(
             f"""
             UPDATE cost_elements
             SET {fk_field} = :parent_id
             WHERE cost_element_id = :cost_element_id
             AND upper(valid_time) IS NULL
+            AND NOT isempty(valid_time)
             AND deleted_at IS NULL
             """
         )
@@ -627,7 +629,8 @@ class UpdateChangeOrderStatusCommand:
         # Build updates dict
         updates = {"status": self.new_status, **self.additional_updates}
 
-        # Get current version
+        # Get current version using temporal query pattern consistent with service layer
+        # CRITICAL: Exclude empty ranges to avoid selecting invalid versions
         stmt = text(
             """
             SELECT id, valid_time, transaction_time
@@ -635,6 +638,7 @@ class UpdateChangeOrderStatusCommand:
             WHERE change_order_id = :change_order_id
             AND branch = :branch
             AND upper(valid_time) IS NULL
+            AND NOT isempty(valid_time)
             AND deleted_at IS NULL
             """
         )
@@ -680,6 +684,33 @@ class UpdateChangeOrderStatusCommand:
                 {
                     "lower": current_lower,
                     "upper": self.control_date,
+                    "tx_lower": current_transaction_time.lower
+                    if current_transaction_time
+                    else update_timestamp,
+                    "tx_upper": update_timestamp,
+                    "version_id": current_id,
+                },
+            )
+            await session.flush()
+        elif current_lower:
+            # CRITICAL FIX: control_date == current_lower (resubmission scenario).
+            # The old version must still be closed to prevent two open-ended versions
+            # on the same branch. Close valid_time at update_timestamp (strictly > current_lower)
+            # to avoid creating an empty range, and close transaction_time at update_timestamp.
+            close_stmt = text(
+                """
+                UPDATE change_orders
+                SET
+                    valid_time = tstzrange(:lower, :upper, '[)'),
+                    transaction_time = tstzrange(:tx_lower, :tx_upper, '[)')
+                WHERE id = :version_id
+                """
+            )
+            await session.execute(
+                close_stmt,
+                {
+                    "lower": current_lower,
+                    "upper": update_timestamp,
                     "tx_lower": current_transaction_time.lower
                     if current_transaction_time
                     else update_timestamp,

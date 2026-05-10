@@ -129,6 +129,7 @@ class ProjectRole(str, Enum):
                 "wbe-read",
                 "progress-entry-read",
                 "change-order-read",
+                "change-order-approve",
                 "forecast-read",
                 "quality-event-read",
             ],
