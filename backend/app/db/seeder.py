@@ -1029,6 +1029,10 @@ class DataSeeder:
         skipped_count = 0
         permission_created_count = 0
         permission_skipped_count = 0
+        permission_removed_count = 0
+
+        desired_perms: set[tuple[str, str]] = set()
+        role_id_map: dict[str, str] = {}  # role_name -> role_id_str
 
         now = datetime.now(UTC)
 
@@ -1041,7 +1045,6 @@ class DataSeeder:
                             f"Role {role_name} already exists, skipping creation"
                         )
                         skipped_count += 1
-                        # Still need to ensure permissions exist
                         stmt_role = select(RBACRole).where(RBACRole.name == role_name)
                         result_role = await session.execute(stmt_role)
                         role = result_role.scalar_one_or_none()
@@ -1053,7 +1056,6 @@ class DataSeeder:
                             )
                             continue
                     else:
-                        # Create new role
                         from uuid import uuid4
 
                         role_id = uuid4()
@@ -1061,7 +1063,7 @@ class DataSeeder:
                             id=role_id,
                             name=role_name,
                             description=role_def.get("description"),
-                            is_system=True,  # Mark as system role (cannot be deleted via API)
+                            is_system=True,
                             created_at=now,
                             updated_at=now,
                         )
@@ -1070,17 +1072,16 @@ class DataSeeder:
                         created_count += 1
                         logger.info(f"Created RBAC role: {role_name}")
 
-                    # Create permissions for this role
                     permissions = role_def.get("permissions", [])
-                    # Convert role_id to string for permission checking
-                    # (database stores UUID as string)
                     role_id_str = str(role_id)
+                    role_id_map[role_name] = role_id_str
                     logger.debug(
-                        f"Processing {len(permissions)} permissions for role {role_name} (role_id={role_id_str})"
+                        f"Processing {len(permissions)} permissions for role"
+                        f" {role_name} (role_id={role_id_str})"
                     )
 
                     for perm in permissions:
-                        # Check if permission already exists
+                        desired_perms.add((role_id_str, perm))
                         if (role_id_str, perm) in existing_perms:
                             logger.debug(
                                 f"Skipping existing permission: {role_name}.{perm}"
@@ -1088,7 +1089,6 @@ class DataSeeder:
                             permission_skipped_count += 1
                             continue
 
-                        # Create permission (created_at will be set by database default)
                         from uuid import uuid4
 
                         role_perm = RBACRolePermission(
@@ -1104,9 +1104,34 @@ class DataSeeder:
                     logger.error(f"Failed to seed role {role_name}: {e}")
                     continue
 
+            # Remove permissions present in DB but not in the config file
+            stale_perms = existing_perms - desired_perms
+            for role_id_str, perm in stale_perms:
+                # Only clean up permissions for roles that are still defined in config
+                if role_id_str not in role_id_map.values():
+                    continue
+                try:
+                    from sqlalchemy import delete
+
+                    await session.execute(
+                        delete(RBACRolePermission).where(
+                            RBACRolePermission.role_id == role_id_str,
+                            RBACRolePermission.permission == perm,
+                        )
+                    )
+                    permission_removed_count += 1
+                    logger.info(f"Removed stale permission: {role_id_str}.{perm}")
+                except Exception as e:
+                    logger.error(
+                        f"Failed to remove stale permission {role_id_str}.{perm}: {e}"
+                    )
+
         logger.info(
-            f"RBAC role seeding complete: {created_count} created, {skipped_count} skipped | "
-            f"Permissions: {permission_created_count} created, {permission_skipped_count} skipped"
+            f"RBAC role seeding complete: {created_count} created,"
+            f" {skipped_count} skipped | "
+            f"Permissions: {permission_created_count} created,"
+            f" {permission_skipped_count} skipped,"
+            f" {permission_removed_count} removed"
         )
 
     async def seed_co_workflow_config(self, session: AsyncSession) -> None:

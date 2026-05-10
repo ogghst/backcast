@@ -15,7 +15,7 @@ export const ChangeOrderSummaryCard = ({
   onEdit,
   isLoading,
 }: ChangeOrderSummaryCardProps) => {
-  const { isBranchLocked } = useWorkflowInfo(
+  const { isStatusDisabled } = useWorkflowInfo(
     changeOrder.status,
     changeOrder.available_transitions,
     changeOrder.can_edit_status,
@@ -34,7 +34,7 @@ export const ChangeOrderSummaryCard = ({
             type="primary"
             icon={<EditOutlined />}
             onClick={onEdit}
-            disabled={isBranchLocked || isLoading}
+            disabled={isStatusDisabled || isLoading}
           >
             Edit
           </Button>
