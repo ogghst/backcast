@@ -35,6 +35,36 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         """Get user by ID (current version)."""
         return await self.get_as_of(user_id)
 
+    async def get_by_id(self, id: UUID) -> User | None:
+        """Get user by database primary key (PK).
+
+        This method retrieves a specific version by its database primary key (id),
+        not by the user_id (root entity identifier).
+
+        Use this method when:
+        - You have a database PK from a previous query
+        - You need to retrieve a specific version (including historical)
+        - Working with legacy/internal code that uses PKs
+
+        Use get_user(user_id) when:
+        - You have the user_id from an API request
+        - You need the current active version
+        - Following standard EVCS patterns (user_id is the canonical identifier)
+
+        Args:
+            id: Database primary key (UUID) of a specific user version
+
+        Returns:
+            User if found, None otherwise
+
+        Example:
+            >>> # PK lookup - gets specific version
+            >>> user = await service.get_by_id(uuid)
+            >>> # Root ID lookup - gets current active version
+            >>> user = await service.get_user(user_id)
+        """
+        return await self.session.get(User, id)
+
     async def get_users(self, skip: int = 0, limit: int = 100000) -> list[User]:
         """Get all users with pagination."""
         return await self.get_all(skip, limit)
