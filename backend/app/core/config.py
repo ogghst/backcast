@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     RBAC_POLICY_FILE: str
 
     # Provider configuration
-    RBAC_PROVIDER: str = "json"  # "json" | "database" (future: "entra")
+    RBAC_PROVIDER: str = "database"  # "json" (legacy) | "database" | "entra" (future)
     AUTH_PROVIDER: str = "local"  # "local" | "oidc" (future)
     USER_PROVIDER: str = "local"  # "local" | "entra" | "hybrid" (future)
 

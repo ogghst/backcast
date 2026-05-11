@@ -345,6 +345,83 @@ class MockRBACService(RBACServiceABC):
         return None
 
 
+class MockUnifiedRBACService:
+    """Mock UnifiedRBACService for testing.
+
+    Provides default-true responses for all permission checks.
+    Tests can override specific methods as needed.
+    """
+
+    def __init__(self) -> None:
+        self._permissions: dict[str, list[str]] = {
+            "admin": ["*"],
+            "manager": [
+                "project-read",
+                "project-update",
+                "cost-element-read",
+                "cost-element-create",
+                "wbe-read",
+                "wbe-create",
+                "forecast-read",
+                "forecast-create",
+                "ai-chat",
+            ],
+            "viewer": [
+                "project-read",
+                "cost-element-read",
+                "wbe-read",
+                "forecast-read",
+            ],
+            "ai-admin": ["*"],
+            "ai-manager": ["ai-chat", "ai-admin-read"],
+            "ai-viewer": ["ai-chat"],
+        }
+
+    async def has_permission(
+        self,
+        user_id: UUID,
+        required_permission: str,
+        scope_type: str = "global",
+        scope_id: UUID | None = None,
+    ) -> bool:
+        return True  # Default allow in tests
+
+    async def has_project_access(
+        self, user_id: UUID, project_id: UUID, required_permission: str
+    ) -> bool:
+        return True  # Default allow in tests
+
+    async def get_user_roles(
+        self,
+        user_id: UUID,
+        scope_type: str = "global",
+        scope_id: UUID | None = None,
+    ) -> list[str]:
+        return ["admin"]  # Default admin in tests
+
+    async def get_accessible_projects(self, user_id: UUID) -> list[UUID]:
+        return []  # Will be overridden by tests that need specific projects
+
+    async def get_project_role(
+        self, user_id: UUID, project_id: UUID
+    ) -> str | None:
+        return "project_admin"
+
+    async def get_user_permissions(
+        self,
+        user_id: UUID,
+        scope_type: str = "global",
+        scope_id: UUID | None = None,
+    ) -> list[str]:
+        return ["*"]  # Default all permissions in tests
+
+    def _get_cached_permissions(self, role_name: str) -> list[str] | None:
+        return self._permissions.get(role_name)
+
+    async def refresh_permissions_cache(self) -> None:
+        pass
+
+
 def _create_mock_user(
     user_id: UUID | None = None,
     email: str = "test@example.com",
@@ -523,10 +600,22 @@ def override_auth(
     """
     from app.api.dependencies.auth import get_current_active_user, get_current_user
 
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_service,
+    )
+
     app.dependency_overrides[get_current_user] = lambda: mock_admin_user
     app.dependency_overrides[get_current_active_user] = lambda: mock_admin_user
     app.dependency_overrides[get_rbac_service] = lambda: mock_rbac_service
+
+    unified_mock = MockUnifiedRBACService()
+    original_unified = get_unified_rbac_service()
+    set_unified_rbac_service(unified_mock)  # type: ignore[arg-type]
+
     yield
+
+    set_unified_rbac_service(original_unified)
     app.dependency_overrides = {}
 
 

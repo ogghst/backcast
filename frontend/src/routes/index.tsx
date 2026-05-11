@@ -10,6 +10,7 @@ import { AIProviderManagement } from "@/pages/admin/AIProviderManagement";
 import { AIAssistantManagement } from "@/pages/admin/AIAssistantManagement";
 import { MCPServerManagement } from "@/pages/admin/MCPServerManagement";
 import { RBACConfiguration } from "@/pages/admin/RBACConfiguration";
+import { RoleAssignments } from "@/pages/admin/RoleAssignments";
 import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
@@ -41,6 +42,7 @@ import { ProjectMembers } from "@/pages/projects/ProjectMembers";
 import { ProjectAdminPage } from "@/pages/projects/ProjectAdminPage";
 import { DashboardPage } from "@/features/widgets/pages/DashboardPage";
 import { ChangeOrderConfigPage } from "@/features/change-orders/components/ChangeOrderConfigPage";
+import { ChangeOrderRedirect } from "@/features/change-orders/components/ChangeOrderRedirect";
 
 export const router = createBrowserRouter([
   {
@@ -104,6 +106,10 @@ export const router = createBrowserRouter([
         element: <RBACConfiguration />,
       },
       {
+        path: "/admin/role-assignments",
+        element: <RoleAssignments />,
+      },
+      {
         path: "/admin/change-order-config",
         element: <ChangeOrderConfigPage />,
       },
@@ -118,6 +124,10 @@ export const router = createBrowserRouter([
       {
         path: "/profile",
         element: <Profile />,
+      },
+      {
+        path: "/change-orders/:changeOrderId",
+        element: <ChangeOrderRedirect />,
       },
 
       {

@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-05-10
-**Total Open Items:** 11
-**Total Estimated Effort:** ~13 days
+**Last Updated:** 2026-05-11
+**Total Open Items:** 19
+**Total Estimated Effort:** ~20 days
 
 ---
 
@@ -11,6 +11,76 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 ---
 
 ## High Severity (P0 - P1)
+
+### [TD-099] Test DB Fixture Uses create_all() Instead of Alembic Migrations
+
+- **Source:** 2026-05-10-rbac-seeding-fix CHECK phase -- Root cause analysis of 13 pre-existing test_seeder.py failures
+- **Description:** The test database session fixture in `tests/conftest.py` uses SQLAlchemy `create_all()` (model metadata) instead of running the full Alembic migration chain. After the `user_role_assignments` table was added in the unified RBAC iteration (migration `20260510_add_user_role_assignments_table.py`), the FK constraint `FOREIGN KEY(granted_by) REFERENCES users(user_id)` fails because `create_all()` does not replicate the unique constraint on `users.user_id` that was added in an earlier migration (`42751fa7cef1`). This causes 13 existing seeder tests to ERROR with `asyncpg.exceptions.InvalidForeignKeyError`.
+- **Impact:** HIGH -- 13 tests in `test_seeder.py` ERROR at setup. Any future migration adding cross-table FK relationships will cause similar failures. Test DB schema does not match production schema.
+- **Estimated Effort:** 1 day
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P1 (High)
+- **Blocker:** No
+- **Suggested Approach:** Replace `create_all()` in the test session fixture with `alembic.command.upgrade(config, "head")` to run the full migration chain against the test database. Alternatively, add the missing unique constraint explicitly in the test fixture. Verify by running the full test_seeder.py suite. Consider creating a dedicated CI step that validates all Alembic migrations against a fresh database.
+
+---
+
+### [TD-095] Migration Verification Tests for Unified RBAC
+
+- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-020)
+- **Description:** The data migration `20260510b_migrate_existing_roles_to_unified_rbac.py` copies User.role and ProjectMember data into the unified `user_role_assignments` table. This migration has no automated verification tests. The SQL looks correct but is untested. The downgrade logic is imprecise -- deletes by pattern rather than migration tracking, which could delete manually-created assignments.
+- **Impact:** HIGH -- Data integrity risk during production migration. Could lose role assignments or create duplicates without detection.
+- **Estimated Effort:** 4 hours
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P1 (High)
+- **Blocker:** No (but should be completed before next production deployment)
+- **Suggested Approach:** Create `tests/integration/test_rbac_migration.py` with tests for: up migration with existing User.role data, up migration with ProjectMember data, idempotency (run twice), down migration cleanup, edge cases (NULL roles, missing users). Consider adding migration_id column for precise downgrade tracking.
+
+---
+
+### [TD-096] Security Tests for Unified RBAC
+
+- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-025)
+- **Description:** The unified RBAC system has fail-secure defaults tested at the unit level, but lacks dedicated security tests for edge cases: metadata injection (arbitrary authority_level values in JSONB), expired role denial, cache poisoning scenarios, privilege escalation via scope manipulation, and concurrent assignment modification.
+- **Impact:** MEDIUM -- Fail-secure defaults work, but no automated tests for adversarial edge cases.
+- **Estimated Effort:** 1 day
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P2 (Medium)
+- **Blocker:** No
+- **Suggested Approach:** Create `tests/unit/core/test_rbac_unified_security.py` with tests for: setting arbitrary authority_level values, expired role assignments being denied, concurrent cache invalidation, role assignment with conflicting scopes, admin bypass verification.
+
+---
+
+### [TD-097] Performance Benchmarks for Unified RBAC
+
+- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-024)
+- **Description:** The unified RBAC uses a two-tier cache (1h permissions, 5min assignments) designed for <5ms cached permission checks. No performance benchmarks exist to verify this target. The cache-first design should achieve this, but it is unverified.
+- **Impact:** LOW -- Cache design is sound, but target is unverified.
+- **Estimated Effort:** 4 hours
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P3 (Low)
+- **Blocker:** No
+- **Suggested Approach:** Create `tests/perf/bench_rbac_unified.py` with benchmarks for: cached permission check latency, cache miss latency, bulk assignment loading, cache invalidation performance. Target: cached check <5ms, cold check <50ms.
+
+---
+
+### [TD-098] Delete Deprecated RBAC Files After Validation
+
+- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-027), updated 2026-05-11 unified RBAC cutover
+- **Description:** The unified RBAC cutover is complete. All active app code now uses `UnifiedRBACService` exclusively. Legacy RBAC files (`rbac.py`, `rbac_database.py`) have deprecation notices but still exist. `RoleChecker`/`ProjectRoleChecker` no longer have fallback logic. The `RBAC_PROVIDER` config defaults to `"database"`. These legacy files can be fully removed after production validation.
+- **Impact:** LOW -- Legacy files are dead code with deprecation notices. No user-facing impact.
+- **Estimated Effort:** 2 hours
+- **Status:** Deferred (waiting for production validation)
+- **Owner:** Backend Developer
+- **Priority:** P3 (Low)
+- **Blocker:** Requires 1-2 weeks production validation with zero issues
+- **Suggested Approach:** After production validation: (1) Delete `app/core/rbac.py`, `app/core/rbac_database.py`, (2) Delete `app/api/routes/project_members.py`, `app/services/project_member.py`, (3) Remove `RBAC_PROVIDER` config setting, (4) Remove `project_members` model/schema files, (5) Run full test suite to verify no regressions.
+
+---
 
 ### [TD-092] Frontend TypeScript Errors (Pre-existing)
 
@@ -159,14 +229,56 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
+### [TD-100] Role Dropdown Shows All Roles in Project Context
+
+- **Source:** 2026-05-11 unified RBAC cutover CHECK phase (E2E Finding #2)
+- **Description:** The "Select Role" dropdown in the Add Project Member modal shows all 11 RBAC roles including `ai-admin`, `ai-manager`, `ai-viewer`, `change_order_approver`. Only the 4 project-scoped roles (`project_admin`, `project_manager`, `project_editor`, `project_viewer`) are meaningful at project scope.
+- **Impact:** LOW -- Cosmetic/UX issue, no security impact. Users could accidentally assign an AI-specific role at project scope.
+- **Estimated Effort:** 2 hours
+- **Status:** Open
+- **Owner:** Frontend Developer
+- **Priority:** P3 (Low)
+- **Blocker:** No
+- **Suggested Approach:** Filter the role dropdown by roles that have project-applicable permissions. The `rbac_roles` table has `is_system=True` for all roles — add a `scope_applicability` column (e.g., `['global', 'project']`) or create a frontend-side filter list. Alternatively, the role-assignments API could expose a `/roles?scope=project` endpoint.
+
+---
+
+### [TD-101] Admin Role Assignments Page Shows "—" for User Name
+
+- **Source:** 2026-05-11 unified RBAC cutover CHECK phase (E2E Finding #3)
+- **Description:** The admin Role Assignments page (`/admin/role-assignments`) shows "—" in the User Name column. The `GET /api/v1/role-assignments/` list endpoint returns `user_id` but doesn't enrich with user info (email, full_name). The frontend would need to join or batch-fetch user details.
+- **Impact:** LOW -- UX issue. Admins can't identify who an assignment belongs to without cross-referencing user IDs.
+- **Estimated Effort:** 3 hours
+- **Status:** Open
+- **Owner:** Full Stack Developer
+- **Priority:** P3 (Low)
+- **Blocker:** No
+- **Suggested Approach:** Either: (A) Enrich the list endpoint response with user details via a JOIN on the `users` table (add `user_email` and `user_name` fields to `UserRoleAssignmentRead`), or (B) Have the frontend batch-fetch user details via a separate endpoint. Option A is simpler and avoids N+1.
+
+---
+
+### [TD-102] Dual-Source RBAC Config (JSON vs DB) Without Sync Validation
+
+- **Source:** 2026-05-11 unified RBAC cutover CHECK phase
+- **Description:** The system has two sources of RBAC role/permission definitions: `config/rbac.json` (used by `JsonRBACService` for legacy tests) and `seed/rbac_roles.json` + `rbac_roles` table (used by `UnifiedRBACService`). During the cutover, `change-order-approve` was accidentally removed from the `viewer` role in `rbac.json`, causing a test regression. There is no validation that the two sources stay in sync.
+- **Impact:** MEDIUM -- Config drift between JSON and DB causes confusing test failures. The `RBAC_PROVIDER` now defaults to `"database"` but some tests still use `JsonRBACService` via `rbac.json`.
+- **Estimated Effort:** 1 day
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P2 (Medium)
+- **Blocker:** No
+- **Suggested Approach:** Short-term: Add a CI test that validates `config/rbac.json` permissions are a subset of `seed/rbac_roles.json` permissions for each role. Long-term: Remove `JsonRBACService` and `rbac.json` entirely, making the DB the single source of truth for both runtime and tests. Update `test_rbac.py` to test against the database seed data instead of JSON config.
+
+---
+
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 6 | ~11 days |
-| Medium (P2-P3) | 5 | ~2 days |
+| High (P0-P1) | 8 | ~13 days |
+| Medium (P2-P3) | 11 | ~6.5 days |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **11** | **~13 days** |
+| **Total** | **19** | **~19.5 days** |
 
 ---
 

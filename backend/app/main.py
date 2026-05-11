@@ -33,12 +33,12 @@ from app.api.routes import (
     notifications,
     progress_entries,
     project_budget_settings,
-    project_members,
     projects,
     quality_events,
     rbac_admin,
     schedule_baselines,
     search,
+    user_role_assignments,
     users,
     wbes,
 )
@@ -97,14 +97,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await seeder.seed_rbac_roles(session)
             await session.commit()
 
-            from app.core.rbac import get_rbac_service, set_rbac_session
-            from app.core.rbac_database import DatabaseRBACService
+            from app.core.rbac_unified import (
+                get_unified_rbac_service,
+                set_unified_rbac_session,
+            )
 
-            set_rbac_session(session)
-            rbac_svc = get_rbac_service()
-            if isinstance(rbac_svc, DatabaseRBACService):
-                await rbac_svc.refresh_cache()
-            set_rbac_session(None)
+            set_unified_rbac_session(session)
+            unified_svc = get_unified_rbac_service()
+            await unified_svc.refresh_permissions_cache()
+            set_unified_rbac_session(None)
 
     logger.info("[STARTUP] rbac_init OK %.0fms", (_time.time() - _t0) * 1000)
 
@@ -280,6 +281,26 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     """Catch-all for unhandled exceptions."""
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
 
+    # Check for transaction errors specifically
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.core.db_utils import is_transaction_aborted
+
+    if isinstance(exc, SQLAlchemyError) and is_transaction_aborted(exc):
+        logger.error(
+            "Transaction error detected on %s %s: %s",
+            request.method,
+            request.url.path,
+            str(exc),
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "A database transaction error occurred. Please try again.",
+                "error_type": "transaction_error",
+            },
+        )
+
     from app.core.notifications import notifier
     from app.core.notifications._types import NotificationEvent, NotificationPayload
 
@@ -321,11 +342,6 @@ app.include_router(
     gantt.router,
     prefix=f"{settings.API_V1_STR}/projects",
     tags=["Gantt"],
-)
-app.include_router(
-    project_members.router,
-    prefix=settings.API_V1_STR,
-    tags=["Project Members"],
 )
 app.include_router(
     project_budget_settings.router,
@@ -431,6 +447,11 @@ app.include_router(
     notifications.router,
     prefix=f"{settings.API_V1_STR}/notifications",
     tags=["Notifications"],
+)
+app.include_router(
+    user_role_assignments.router,
+    prefix=f"{settings.API_V1_STR}/role-assignments",
+    tags=["Role Assignments"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)

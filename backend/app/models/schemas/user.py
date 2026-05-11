@@ -5,7 +5,6 @@ from uuid import UUID
 from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field
 
 if TYPE_CHECKING:
-    from app.core.rbac import RBACServiceABC
     from app.models.domain.user import User
 
 
@@ -97,17 +96,21 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_user(cls, user: "User", rbac_service: "RBACServiceABC") -> "UserPublic":
+    def from_user(cls, user: "User") -> "UserPublic":
         """Create UserPublic from User domain object with RBAC permissions.
 
         Args:
             user: User domain object
-            rbac_service: RBAC service to fetch permissions
 
         Returns:
             UserPublic instance with permissions populated
         """
-        permissions = rbac_service.get_user_permissions(user.role)
+        from app.core.rbac_unified import get_unified_rbac_service
+
+        unified_service = get_unified_rbac_service()
+        perms = unified_service._get_cached_permissions(user.role)
+        permissions = perms if perms is not None else []
+
         return cls(
             id=user.id,
             user_id=user.user_id,

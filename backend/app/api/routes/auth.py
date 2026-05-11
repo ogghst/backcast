@@ -111,10 +111,7 @@ async def read_users_me(
     Returns user data including their role-based permissions for use
     in frontend authorization checks.
     """
-    from app.core.rbac import get_rbac_service
-
-    rbac_service = get_rbac_service()
-    return UserPublic.from_user(current_user, rbac_service)
+    return UserPublic.from_user(current_user)
 
 
 @router.post("/refresh", response_model=Token, operation_id="refresh_token")

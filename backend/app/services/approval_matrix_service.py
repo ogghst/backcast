@@ -133,7 +133,10 @@ class ApprovalMatrixService:
         return user_level >= required_level
 
     async def get_approver_for_impact(
-        self, project_id: UUID, impact_level: str
+        self,
+        project_id: UUID,
+        impact_level: str,
+        exclude_user_id: UUID | None = None,
     ) -> UUID | None:
         """Find an appropriate approver for a given impact level.
 
@@ -144,6 +147,7 @@ class ApprovalMatrixService:
         Args:
             project_id: Project ID to scope the approver search to project members
             impact_level: Financial impact level
+            exclude_user_id: Optional user ID to exclude from results (for SoD)
 
         Returns:
             user_id (EVCS root ID) of eligible approver, or None if none found
@@ -151,12 +155,13 @@ class ApprovalMatrixService:
         Example:
             >>> service = ApprovalMatrixService(session)
             >>> approver_id = await service.get_approver_for_impact(
-            ...     project_id, 'HIGH'
+            ...     project_id, 'HIGH', exclude_user_id=creator_id
             ... )
         """
         from typing import cast as typing_cast
 
-        from app.models.domain.project_member import ProjectMember
+        from app.models.domain.rbac import RBACRole
+        from app.models.domain.user_role_assignment import UserRoleAssignment
 
         # Get required authority for this impact level
         required_authority = await self.get_authority_for_impact(impact_level)
@@ -177,19 +182,25 @@ class ApprovalMatrixService:
 
         as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
 
-        # Strategy 1: Prefer project members with eligible roles
+        # Strategy 1: Prefer project-scoped role assignments with eligible roles
+        project_member_conditions: list[Any] = [
+            UserRoleAssignment.scope_type == "project",
+            UserRoleAssignment.scope_id == project_id,
+            RBACRole.name.in_(eligible_roles),
+            User.is_active == True,  # noqa: E712
+            typing_cast(Any, User).valid_time.op("@>")(as_of_tstz),
+            func.lower(typing_cast(Any, User).valid_time) <= as_of_tstz,
+            typing_cast(Any, User).deleted_at.is_(None),
+        ]
+        if exclude_user_id is not None:
+            project_member_conditions.append(User.user_id != exclude_user_id)
+
         project_member_stmt = (
             select(User)
-            .join(ProjectMember, ProjectMember.user_id == User.user_id)
-            .where(
-                ProjectMember.project_id == project_id,
-                User.role.in_(eligible_roles),
-                User.is_active == True,  # noqa: E712
-                typing_cast(Any, User).valid_time.op("@>")(as_of_tstz),
-                func.lower(typing_cast(Any, User).valid_time) <= as_of_tstz,
-                typing_cast(Any, User).deleted_at.is_(None),
-            )
-            .order_by(User.role.desc())  # Prefer higher authority roles
+            .join(UserRoleAssignment, UserRoleAssignment.user_id == User.user_id)
+            .join(RBACRole, RBACRole.id == UserRoleAssignment.role_id)
+            .where(*project_member_conditions)
+            .order_by(RBACRole.name.desc())  # Prefer higher authority roles
             .limit(1)
         )
 
@@ -199,7 +210,7 @@ class ApprovalMatrixService:
         if approver:
             return approver.user_id
 
-        # Strategy 2: Fallback to any active user with eligible roles
+        # Strategy 2: Fallback to global role assignments with eligible roles
         logger.warning(
             "No eligible project member found for project %s with %s impact. "
             "Falling back to global user search.",
@@ -207,16 +218,23 @@ class ApprovalMatrixService:
             impact_level,
         )
 
+        fallback_conditions: list[Any] = [
+            UserRoleAssignment.scope_type == "global",
+            RBACRole.name.in_(eligible_roles),
+            User.is_active == True,  # noqa: E712
+            typing_cast(Any, User).valid_time.op("@>")(as_of_tstz),
+            func.lower(typing_cast(Any, User).valid_time) <= as_of_tstz,
+            typing_cast(Any, User).deleted_at.is_(None),
+        ]
+        if exclude_user_id is not None:
+            fallback_conditions.append(User.user_id != exclude_user_id)
+
         fallback_stmt = (
             select(User)
-            .where(
-                User.role.in_(eligible_roles),
-                User.is_active == True,  # noqa: E712
-                typing_cast(Any, User).valid_time.op("@>")(as_of_tstz),
-                func.lower(typing_cast(Any, User).valid_time) <= as_of_tstz,
-                typing_cast(Any, User).deleted_at.is_(None),
-            )
-            .order_by(User.role.desc())
+            .join(UserRoleAssignment, UserRoleAssignment.user_id == User.user_id)
+            .join(RBACRole, RBACRole.id == UserRoleAssignment.role_id)
+            .where(*fallback_conditions)
+            .order_by(RBACRole.name.desc())
             .limit(1)
         )
 

@@ -62,6 +62,15 @@ export const UserProfile: React.FC = () => {
       });
     }
 
+    if (hasRole("admin")) {
+      adminItems.push({
+        key: "/admin/role-assignments",
+        icon: <TeamOutlined />,
+        label: "Role Assignments",
+        onClick: () => navigate("/admin/role-assignments"),
+      });
+    }
+
     if (can("department-read")) {
       adminItems.push({
         key: "/admin/departments",

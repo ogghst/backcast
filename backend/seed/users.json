@@ -31,7 +31,7 @@
     "email": "eng.lead@backcast.org",
     "password": "backcast",
     "full_name": "Engineering Lead",
-    "role": "contributor",
+    "role": "manager",
     "department": "ENG",
     "control_date": "2026-01-01T00:00:00"
   },
@@ -40,8 +40,26 @@
     "email": "const.super@backcast.org",
     "password": "backcast",
     "full_name": "Construction Super",
-    "role": "contributor",
+    "role": "manager",
     "department": "CONST",
+    "control_date": "2026-01-01T00:00:00"
+  },
+  {
+    "user_id": "f2bae59b-8af5-43fd-8f74-6933449e6bc1",
+    "email": "dept.head@backcast.org",
+    "password": "backcast",
+    "full_name": "Department Head",
+    "role": "dept_head",
+    "department": "ENG",
+    "control_date": "2026-01-01T00:00:00"
+  },
+  {
+    "user_id": "43e37d1a-5064-4e63-9386-d7c954a95e14",
+    "email": "director@backcast.org",
+    "password": "backcast",
+    "full_name": "Director",
+    "role": "director",
+    "department": "EXEC",
     "control_date": "2026-01-01T00:00:00"
   }
 ]

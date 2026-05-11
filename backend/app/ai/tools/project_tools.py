@@ -17,7 +17,6 @@ from app.ai.tools.temporal_logging import (
     log_temporal_context,
 )
 from app.ai.tools.types import RiskLevel, ToolContext
-from app.core.rbac import inject_rbac_session
 
 logger = logging.getLogger(__name__)
 
@@ -72,20 +71,20 @@ async def list_projects(
     try:
         from uuid import UUID
 
-        from app.core.rbac import get_rbac_service
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
 
         # Get user's accessible projects
-        rbac_service = get_rbac_service()
-
-        # Inject session for project-level access checks
-        inject_rbac_session(rbac_service, context.session)
+        set_unified_rbac_session(context.session)
+        unified_service = get_unified_rbac_service()
 
         user_uuid = UUID(context.user_id)
 
         # Get projects user has access to
-        accessible_project_ids = await rbac_service.get_user_projects(
+        accessible_project_ids = await unified_service.get_accessible_projects(
             user_id=user_uuid,
-            user_role=context.user_role,
         )
 
         # Build filter string if status is provided
@@ -312,7 +311,6 @@ async def global_search(
         response = await service.search(
             query,
             user_id=UUID(context.user_id),
-            user_role=context.user_role,
             project_id=effective_project_id,
             wbe_id=effective_wbe_id,
             branch=branch,

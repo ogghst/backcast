@@ -1,6 +1,9 @@
 """Authentication dependencies for FastAPI routes.
 
 Provides dependency injection for current user authentication and authorization.
+
+RoleChecker and ProjectRoleChecker delegate to the unified RBAC system
+(UnifiedRBACService) for all permission checks.
 """
 
 from typing import Annotated
@@ -11,9 +14,13 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.jwt_utils import validate_jwt_token
-from app.core.rbac import RBACServiceABC, get_rbac_service, set_rbac_session
+from app.core.rbac_unified import (
+    get_unified_rbac_service,
+    set_unified_rbac_session,
+)
 from app.db.session import get_db
 from app.models.domain.user import User
+from app.models.domain.user_role_assignment import ScopeType
 from app.services.user import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -65,17 +72,12 @@ async def get_current_active_user(
 class RoleChecker:
     """FastAPI dependency for role-based and permission-based authorization.
 
+    Delegates to the UnifiedRBACService for permission checks.
+
     Can be used in three modes:
     1. Role-only: RoleChecker(["admin", "manager"])
     2. Permission-only: RoleChecker(required_permission="delete")
     3. Combined (OR logic): RoleChecker(["admin"], "delete")
-
-    Example usage:
-        @app.post("/users/", dependencies=[Depends(RoleChecker(["admin"]))])
-        async def create_user(): ...
-
-        @app.delete("/items/{id}", dependencies=[Depends(RoleChecker(required_permission="delete"))])
-        async def delete_item(): ...
     """
 
     def __init__(
@@ -99,13 +101,13 @@ class RoleChecker:
     async def __call__(
         self,
         current_user: Annotated[User, Depends(get_current_user)],
-        rbac_service: Annotated[RBACServiceABC, Depends(get_rbac_service)],
+        session: Annotated[AsyncSession, Depends(get_db)],
     ) -> User:
         """Check if current user has required role or permission.
 
         Args:
             current_user: The authenticated user from JWT token
-            rbac_service: The RBAC service for authorization checks
+            session: Database session
 
         Returns:
             The current user if authorized
@@ -113,17 +115,32 @@ class RoleChecker:
         Raises:
             HTTPException: 403 Forbidden if user lacks required role/permission
         """
-        # Check role-based authorization
-        if self.allowed_roles is not None:
-            if rbac_service.has_role(current_user.role, self.allowed_roles):
-                return current_user
+        try:
+            set_unified_rbac_session(session)
+            unified_service = get_unified_rbac_service()
 
-        # Check permission-based authorization
-        if self.required_permission is not None:
-            if rbac_service.has_permission(current_user.role, self.required_permission):
-                return current_user
+            # Check role-based authorization via unified system
+            if self.allowed_roles is not None:
+                global_roles = await unified_service.get_user_roles(
+                    current_user.user_id, ScopeType.GLOBAL, None
+                )
+                if any(role in global_roles for role in self.allowed_roles):
+                    return current_user
 
-        # If we reach here, neither role nor permission matched
+            # Check permission-based authorization via unified system
+            if self.required_permission is not None:
+                has_perm = await unified_service.has_permission(
+                    user_id=current_user.user_id,
+                    required_permission=self.required_permission,
+                    scope_type=ScopeType.GLOBAL,
+                    scope_id=None,
+                )
+                if has_perm:
+                    return current_user
+        finally:
+            set_unified_rbac_session(None)
+
+        # Neither role nor permission granted access
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions",
@@ -133,13 +150,7 @@ class RoleChecker:
 class ProjectRoleChecker:
     """FastAPI dependency for project-level role-based authorization.
 
-    Checks if a user has the required permission for a specific project.
-    System admins bypass project-level checks and always have access.
-
-    Example usage:
-        @app.get("/projects/{project_id}/wbes",
-                 dependencies=[Depends(ProjectRoleChecker(required_permission="project-read"))])
-        async def get_project_wbes(project_id: UUID): ...
+    Delegates to the UnifiedRBACService for project-scoped permission checks.
     """
 
     def __init__(self, required_permission: str) -> None:
@@ -154,7 +165,6 @@ class ProjectRoleChecker:
         self,
         project_id: UUID,
         current_user: Annotated[User, Depends(get_current_active_user)],
-        rbac_service: Annotated[RBACServiceABC, Depends(get_rbac_service)],
         session: Annotated[AsyncSession, Depends(get_db)],
     ) -> User:
         """Check if current user has required permission for the project.
@@ -162,7 +172,6 @@ class ProjectRoleChecker:
         Args:
             project_id: The project ID to check access for
             current_user: The authenticated user from JWT token
-            rbac_service: The RBAC service for authorization checks
             session: Database session for project-level lookups
 
         Returns:
@@ -171,24 +180,22 @@ class ProjectRoleChecker:
         Raises:
             HTTPException: 403 Forbidden if user lacks required permission
         """
-        # Inject session via contextvar for task-scoped isolation
-        set_rbac_session(session)
         try:
-            # Check if user has access to the project
-            has_access = await rbac_service.has_project_access(
+            set_unified_rbac_session(session)
+            unified_service = get_unified_rbac_service()
+
+            has_perm = await unified_service.has_permission(
                 user_id=current_user.user_id,
-                user_role=current_user.role,
-                project_id=project_id,
                 required_permission=self.required_permission,
+                scope_type=ScopeType.PROJECT,
+                scope_id=project_id,
             )
-
-            if not has_access:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Insufficient permissions for project {project_id}",
-                )
-
-            return current_user
+            if has_perm:
+                return current_user
         finally:
-            # Clean up contextvar to prevent session leaks
-            set_rbac_session(None)
+            set_unified_rbac_session(None)
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Insufficient permissions for project {project_id}",
+        )

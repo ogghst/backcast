@@ -25,7 +25,7 @@ from app.ai.graph_cache import get_request_interrupt_node, get_request_tool_cont
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.core.config import settings
-from app.core.rbac import get_rbac_service, set_rbac_session
+from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +200,6 @@ class BackcastSecurityMiddleware(AgentMiddleware):
 
     async def _check_single_permission(
         self,
-        rbac_service: Any,
         ctx: ToolContext,
         permission: str,
         project_id: str | None,
@@ -210,10 +209,9 @@ class BackcastSecurityMiddleware(AgentMiddleware):
 
         Handles both project-level and global permission checks. When
         project_id is provided, injects the session and uses project-scoped
-        RBAC if available, otherwise falls back to global role check.
+        RBAC. Otherwise performs a global permission check.
 
         Args:
-            rbac_service: RBAC service instance for permission checks
             ctx: Resolved ToolContext for the current request
             permission: Permission string to check (e.g. "project:read")
             project_id: Optional project ID for project-level checks
@@ -222,18 +220,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         Returns:
             None if permitted, error message string if denied
         """
+        set_unified_rbac_session(ctx.session)
+        unified_service = get_unified_rbac_service()
+
         if project_id is not None:
-            set_rbac_session(ctx.session)
-
-            if not hasattr(rbac_service, "has_project_access"):
-                # Fallback to global check when project access not supported
-                if not rbac_service.has_permission(ctx.user_role, permission):
-                    return (
-                        f"Permission denied: {permission} required "
-                        f"(user_role: {ctx.user_role}, tool: {tool_name})"
-                    )
-                return None
-
             # Project-level access check
             try:
                 project_uuid = (
@@ -241,9 +231,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                 )
                 user_uuid = UUID(ctx.user_id)
 
-                has_access = await rbac_service.has_project_access(
+                has_access = await unified_service.has_project_access(
                     user_id=user_uuid,
-                    user_role=ctx.user_role,
                     project_id=project_uuid,
                     required_permission=permission,
                 )
@@ -259,8 +248,12 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                     f"Permission denied: Invalid project_id format (tool: {tool_name})"
                 )
         else:
-            # Global permission check (no project context, no session injection needed)
-            if not rbac_service.has_permission(ctx.user_role, permission):
+            # Global permission check
+            has_perm = await unified_service.has_permission(
+                user_id=UUID(ctx.user_id),
+                required_permission=permission,
+            )
+            if not has_perm:
                 return (
                     f"Permission denied: {permission} required "
                     f"(user_role: {ctx.user_role}, tool: {tool_name})"
@@ -313,13 +306,9 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         # Extract project_id from tool_args if present
         project_id = tool_args.get("project_id")
 
-        # Get RBAC service
-        rbac_service = get_rbac_service()
-
         # Check all permissions using unified method
         for permission in metadata.permissions:
             error = await self._check_single_permission(
-                rbac_service=rbac_service,
                 ctx=ctx,
                 permission=permission,
                 project_id=project_id,

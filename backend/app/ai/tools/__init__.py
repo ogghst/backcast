@@ -82,18 +82,14 @@ def filter_tools_by_role(
     Returns:
         Filtered list of tools the role is permitted to use
     """
-    from app.core.rbac import RBACServiceABC, get_rbac_service
+    from app.core.rbac_unified import get_unified_rbac_service
 
-    rbac_service = get_rbac_service()
+    unified_service = get_unified_rbac_service()
     filtered: list[BaseTool] = []
 
-    # Batch: load all permissions once, use set.issubset instead of N calls
-    if isinstance(rbac_service, RBACServiceABC):
-        role_permissions: set[str] = set(rbac_service.get_user_permissions(role))
-        use_batch = True
-    else:
-        role_permissions = set()
-        use_batch = False
+    # Batch: load all permissions once from cache, use set.issubset
+    perms = unified_service._get_cached_permissions(role)
+    role_permissions: set[str] = set(perms) if perms else set()
 
     for tool in tools:
         metadata = getattr(tool, "_tool_metadata", None)
@@ -103,12 +99,7 @@ def filter_tools_by_role(
             continue
 
         # Check ALL required permissions for this tool
-        if use_batch:
-            has_all = set(metadata.permissions).issubset(role_permissions)
-        else:
-            has_all = all(
-                rbac_service.has_permission(role, perm) for perm in metadata.permissions
-            )
+        has_all = set(metadata.permissions).issubset(role_permissions)
 
         if has_all:
             filtered.append(tool)

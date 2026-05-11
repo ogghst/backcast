@@ -174,16 +174,14 @@ async def read_wbes(
 )
 async def create_wbe(
     wbe_in: WBECreate,
+    branch: str = Query("main", description="Branch name"),
     current_user: User = Depends(get_current_active_user),
     service: WBEService = Depends(get_wbe_service),
 ) -> WBE:
     """Create a new WBE. Requires create permission."""
     try:
-        # Extract control_date from payload if present
-        # We need to exclude it from the dict passed to the service if the service
-        # treats it separate, OR we let the service handle it.
-        # WBEService.create_wbe takes control_date as explicit arg.
-        # So we explicitly extract it.
+        # Override schema branch with query param for branch context
+        wbe_in.branch = branch
 
         # Check if WBE code already exists in the project
         existing = await service.get_by_code(

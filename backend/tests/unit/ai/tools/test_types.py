@@ -1,10 +1,12 @@
 """Tests for AI tool types."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
 from app.ai.tools.types import ToolContext, ToolMetadata
+from app.core.rbac_unified import set_unified_rbac_service, set_unified_rbac_session
 
 
 class TestToolContext:
@@ -14,11 +16,12 @@ class TestToolContext:
     async def test_context_initialization(self):
         """Test ToolContext initializes with session and user_id."""
         mock_session = MagicMock()
-        context = ToolContext(session=mock_session, user_id="user123")
+        user_id = str(uuid4())
+        context = ToolContext(session=mock_session, user_id=user_id)
 
         # The original session is stored in _root_session
         assert context._root_session == mock_session
-        assert context.user_id == "user123"
+        assert context.user_id == user_id
         # The session property returns a task-local session (AsyncSession from scoped factory)
         # This is different from the original mock session to enable concurrent tool execution
 
@@ -26,13 +29,14 @@ class TestToolContext:
     async def test_permission_checking_with_cache(self):
         """Test permission checking with caching."""
         mock_session = MagicMock()
-        mock_rbac = MagicMock()
-        mock_rbac.has_permission.return_value = True
-
-        with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
+        mock_service = MagicMock()
+        mock_service.has_permission = AsyncMock(return_value=True)
+        set_unified_rbac_service(mock_service)
+        set_unified_rbac_session(AsyncMock())
+        try:
             # Use "admin" role which has all permissions in the RBAC config
             context = ToolContext(
-                session=mock_session, user_id="user123", user_role="admin"
+                session=mock_session, user_id=str(uuid4()), user_role="admin"
             )
 
             # First check
@@ -47,19 +51,23 @@ class TestToolContext:
             assert "project-read:global" in context._permission_cache
 
             # has_permission called only once (second hit uses cache)
-            assert mock_rbac.has_permission.call_count == 1
+            assert mock_service.has_permission.call_count == 1
+        finally:
+            set_unified_rbac_service(None)  # type: ignore[arg-type]
+            set_unified_rbac_session(None)
 
     @pytest.mark.asyncio
     async def test_permission_checking_different_permissions(self):
         """Test permission checking for different permissions."""
         mock_session = MagicMock()
-        mock_rbac = MagicMock()
-        mock_rbac.has_permission.return_value = True
-
-        with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
+        mock_service = MagicMock()
+        mock_service.has_permission = AsyncMock(return_value=True)
+        set_unified_rbac_service(mock_service)
+        set_unified_rbac_session(AsyncMock())
+        try:
             # Use "admin" role which has all permissions in the RBAC config
             context = ToolContext(
-                session=mock_session, user_id="user123", user_role="admin"
+                session=mock_session, user_id=str(uuid4()), user_role="admin"
             )
 
             # Check different permissions
@@ -73,12 +81,15 @@ class TestToolContext:
             assert len(context._permission_cache) == 2
             assert "project-read:global" in context._permission_cache
             assert "user-update:global" in context._permission_cache
+        finally:
+            set_unified_rbac_service(None)  # type: ignore[arg-type]
+            set_unified_rbac_session(None)
 
     @pytest.mark.asyncio
     async def test_service_accessor(self):
         """Test project_service accessor."""
         mock_session = MagicMock()
-        context = ToolContext(session=mock_session, user_id="user123")
+        context = ToolContext(session=mock_session, user_id=str(uuid4()))
 
         service = context.project_service
         assert service is not None

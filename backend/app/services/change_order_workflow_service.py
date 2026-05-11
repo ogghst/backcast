@@ -21,6 +21,10 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rbac_unified import (
+    get_unified_rbac_service,
+    set_unified_rbac_session,
+)
 from app.models.domain.change_order import ChangeOrder, SLAStatus
 from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
 from app.models.domain.user import User
@@ -265,10 +269,10 @@ class ChangeOrderWorkflowService:
         financial_service = FinancialImpactService(db_session)
         impact_level = await financial_service.calculate_impact_level(change_order_id)
 
-        # Assign approver based on impact level
+        # Assign approver based on impact level (excluding CO creator for SoD)
         approval_service = ApprovalMatrixService(db_session)
         approver_id = await approval_service.get_approver_for_impact(
-            current_co.project_id, impact_level
+            current_co.project_id, impact_level, exclude_user_id=current_co.created_by
         )
 
         if approver_id is None:
@@ -374,6 +378,13 @@ class ChangeOrderWorkflowService:
         if current_co is None:
             raise ValueError(f"Change order {change_order_id} not found")
 
+        # Separation of duties: creator cannot approve their own CO
+        if current_co.created_by == actor_id:
+            raise ValueError(
+                "Cannot approve your own change order. "
+                "Separation of duties requires a different approver."
+            )
+
         # Validate current status is "Submitted for Approval"
         if current_co.status not in ["Submitted for Approval", "Under Review"]:
             raise ValueError(
@@ -394,23 +405,33 @@ class ChangeOrderWorkflowService:
         if actor is None:
             raise ValueError(f"User {actor_id} not found")
 
-        # Validate approver authority
-        approval_service = ApprovalMatrixService(db_session)
-        can_approve = await approval_service.can_approve(actor, current_co)
+        # Validate approver authority via unified RBAC
+        set_unified_rbac_session(db_session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+
+            # Check if user has permission to approve change orders
+            can_approve = await unified_rbac.has_permission(
+                user_id=actor_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=current_co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if not can_approve:
-            # Get required authority for error message (handle None case)
+            # Fallback to ApprovalMatrixService for detailed error message
+            approval_service = ApprovalMatrixService(db_session)
             required_authority = (
                 await approval_service.get_authority_for_impact(current_co.impact_level)
                 if current_co.impact_level
                 else "UNKNOWN"
             )
-            user_authority = await approval_service.get_user_authority_level(actor)
             raise ValueError(
                 f"User {actor_id} does not have sufficient authority to approve "
                 f"change order with impact level '{current_co.impact_level}'. "
-                f"Required authority: {required_authority}, "
-                f"User authority: {user_authority}"
+                f"Required authority: {required_authority}"
             )
 
         # Prepare update data with comment
@@ -524,23 +545,30 @@ class ChangeOrderWorkflowService:
         if actor is None:
             raise ValueError(f"User {actor_id} not found")
 
-        # Validate approver authority
-        approval_service = ApprovalMatrixService(db_session)
-        can_approve = await approval_service.can_approve(actor, current_co)
+        # Validate approver authority via unified RBAC
+        set_unified_rbac_session(db_session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            can_approve = await unified_rbac.has_permission(
+                user_id=actor_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=current_co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if not can_approve:
-            # Get required authority for error message (handle None case)
+            approval_service = ApprovalMatrixService(db_session)
             required_authority = (
                 await approval_service.get_authority_for_impact(current_co.impact_level)
                 if current_co.impact_level
                 else "UNKNOWN"
             )
-            user_authority = await approval_service.get_user_authority_level(actor)
             raise ValueError(
                 f"User {actor_id} does not have sufficient authority to reject "
                 f"change order with impact level '{current_co.impact_level}'. "
-                f"Required authority: {required_authority}, "
-                f"User authority: {user_authority}"
+                f"Required authority: {required_authority}"
             )
 
         # Prepare update data - clear SLA fields and set status, include comment

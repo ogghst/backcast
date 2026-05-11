@@ -1,12 +1,14 @@
-import { App, Button, Input, Space, Tag, theme } from "antd";
+import { App, Button, Input, Space, Tag, Tooltip, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   HistoryOutlined,
   SearchOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CreateUserPayload, UpdateUserPayload, User } from "@/types/user";
 import { UserModal } from "@/features/users/components/UserModal";
 import type { ColumnType } from "antd/es/table";
@@ -18,6 +20,11 @@ import { UsersService } from "@/api/generated";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { Can } from "@/components/auth/Can";
+import { useRoleAssignments } from "@/features/admin/role-assignments/hooks/useRoleAssignments";
+import type {
+  ScopeType,
+  UserRoleAssignmentRead,
+} from "@/api/types/roleAssignment";
 
 import type { PaginatedResponse } from "@/types/api";
 
@@ -61,12 +68,26 @@ import { UserFilters } from "@/types/filters";
 
 export const UserList = () => {
   const { token } = theme.useToken();
+  const navigate = useNavigate();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     User,
     UserFilters
   >();
   const { data, isLoading, refetch } = useList(tableParams);
   const users = useMemo(() => data?.items || [], [data]);
+
+  // Fetch all role assignments and index them by user_id
+  const { data: allAssignments } = useRoleAssignments();
+  const userAssignmentsMap = useMemo(() => {
+    const map = new Map<string, UserRoleAssignmentRead[]>();
+    if (!allAssignments) return map;
+    for (const a of allAssignments) {
+      const list = map.get(a.user_id) || [];
+      list.push(a);
+      map.set(a.user_id, list);
+    }
+    return map;
+  }, [allAssignments]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -177,16 +198,65 @@ export const UserList = () => {
       ...getColumnSearchProps("email"),
     },
     {
-      title: "Role",
-      dataIndex: "role",
-      key: "role",
-      filters: [
-        { text: "Admin", value: "admin" },
-        { text: "User", value: "user" },
-        { text: "Viewer", value: "viewer" },
-      ],
-      onFilter: (value, record) => record.role === value,
-      render: (role: string) => <Tag color="blue">{role.toUpperCase()}</Tag>,
+      title: "Roles",
+      key: "roles",
+      render: (_: unknown, record: User) => {
+        const assignments = userAssignmentsMap.get(record.user_id) || [];
+
+        if (assignments.length === 0) {
+          // Fallback to legacy single-role field
+          return <Tag color="blue">{record.role.toUpperCase()}</Tag>;
+        }
+
+        const scopeColor = (scope: ScopeType) => {
+          switch (scope) {
+            case "global":
+              return "blue";
+            case "project":
+              return "green";
+            case "change_order":
+              return "orange";
+            default:
+              return "default";
+          }
+        };
+
+        const scopeLabel = (a: UserRoleAssignmentRead) => {
+          const name = a.role_name || "Unknown";
+          if (a.scope_type === "global") {
+            return `${name} (Global)`;
+          }
+          // For project/change_order, include the scope_id as a short hint
+          const scopeHint = a.scope_id
+            ? a.scope_id.slice(0, 8)
+            : a.scope_type;
+          return `${name} - ${scopeHint}`;
+        };
+
+        const MAX_VISIBLE = 3;
+        const visible = assignments.slice(0, MAX_VISIBLE);
+        const remaining = assignments.length - MAX_VISIBLE;
+
+        return (
+          <Space size={4} wrap>
+            {visible.map((a) => (
+              <Tag key={a.id} color={scopeColor(a.scope_type)}>
+                {scopeLabel(a)}
+              </Tag>
+            ))}
+            {remaining > 0 && (
+              <Tooltip
+                title={assignments
+                  .slice(MAX_VISIBLE)
+                  .map((a) => scopeLabel(a))
+                  .join("\n")}
+              >
+                <Tag>+{remaining} more</Tag>
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: "Department",
@@ -215,6 +285,13 @@ export const UserList = () => {
       key: "actions",
       render: (_, record) => (
         <Space>
+          <Button
+            icon={<TeamOutlined />}
+            onClick={() =>
+              navigate(`/admin/role-assignments?userId=${record.user_id}`)
+            }
+            title="View Assignments"
+          />
           <Button
             icon={<HistoryOutlined />}
             onClick={() => {
@@ -313,9 +390,12 @@ export const UserList = () => {
         onCancel={() => setModalOpen(false)}
         onOk={async (values) => {
           if (selectedUser) {
-            await updateUser({ id: selectedUser.user_id, data: values });
+            return await updateUser({
+              id: selectedUser.user_id,
+              data: values,
+            });
           } else {
-            await createUser(values as CreateUserPayload);
+            return await createUser(values as CreateUserPayload);
           }
         }}
         confirmLoading={isLoading}

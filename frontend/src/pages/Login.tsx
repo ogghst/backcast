@@ -67,7 +67,7 @@ export default function Login() {
 
         {errorMessage && (
           <Form.Item>
-            <Alert title={errorMessage} type="error" showIcon closable />
+            <Alert message={errorMessage} type="error" showIcon closable />
           </Form.Item>
         )}
 

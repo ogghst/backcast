@@ -3,6 +3,10 @@
 Provides CRUD operations for managing user roles within projects.
 """
 
+# DEPRECATED: This service is superseded by UnifiedRBACService.
+# Project member management now uses user_role_assignments via the unified RBAC system.
+# This file is kept for backward compatibility during transition.
+
 from uuid import UUID
 
 from sqlalchemy import select

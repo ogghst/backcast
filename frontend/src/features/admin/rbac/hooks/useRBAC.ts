@@ -23,7 +23,7 @@ const BASE_URL = "/api/v1/admin/rbac";
 // Queries
 // ---------------------------------------------------------------------------
 
-export function useRBACRoles() {
+export function useRBACRoles(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.adminRbac.roles.list,
     queryFn: async () => {
@@ -32,10 +32,11 @@ export function useRBACRoles() {
       );
       return data;
     },
+    enabled: options?.enabled ?? true,
   });
 }
 
-export function useRBACPermissions() {
+export function useRBACPermissions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.adminRbac.permissions,
     queryFn: async () => {
@@ -44,10 +45,11 @@ export function useRBACPermissions() {
       );
       return data;
     },
+    enabled: options?.enabled ?? true,
   });
 }
 
-export function useRBACProviderStatus() {
+export function useRBACProviderStatus(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.adminRbac.providerStatus,
     queryFn: async () => {
@@ -56,6 +58,7 @@ export function useRBACProviderStatus() {
       );
       return data;
     },
+    enabled: options?.enabled ?? true,
   });
 }
 

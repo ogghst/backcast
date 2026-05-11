@@ -1134,6 +1134,112 @@ class DataSeeder:
             f" {permission_removed_count} removed"
         )
 
+    async def seed_user_role_assignments(self, session: AsyncSession) -> None:
+        """Seed global UserRoleAssignment records for each user.
+
+        Creates one GLOBAL-scoped UserRoleAssignment for each user, matching
+        their User.role value to the corresponding RBACRole. Uses direct
+        SQLAlchemy queries consistent with seed_rbac_roles() pattern.
+
+        Idempotent - skips users that already have a global assignment.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select
+
+        from app.models.domain.rbac import RBACRole
+        from app.models.domain.user import User
+        from app.models.domain.user_role_assignment import (
+            ScopeType,
+            UserRoleAssignment,
+        )
+
+        logger.info("Starting user role assignment seeding...")
+
+        # Load all users with their role values
+        stmt_users = select(User)
+        result_users = await session.execute(stmt_users)
+        users = result_users.scalars().all()
+
+        if not users:
+            logger.info("No users found, skipping role assignment seeding")
+            return
+
+        # Load all RBAC roles
+        stmt_roles = select(RBACRole)
+        result_roles = await session.execute(stmt_roles)
+        roles = result_roles.scalars().all()
+
+        # Build role name -> role_id lookup
+        role_map: dict[str, UUID] = {role.name: role.id for role in roles}
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for user in users:
+                user_role_name = user.role
+                if not user_role_name:
+                    logger.warning(
+                        f"User {user.email} has no role, skipping assignment"
+                    )
+                    skipped_count += 1
+                    continue
+
+                # Look up the RBACRole for the user's role name
+                if user_role_name not in role_map:
+                    logger.warning(
+                        f"User {user.email} has unrecognized role "
+                        f"'{user_role_name}', skipping assignment"
+                    )
+                    skipped_count += 1
+                    continue
+
+                role_id = role_map[user_role_name]
+
+                # Check if global assignment already exists
+                stmt_existing = select(UserRoleAssignment).where(
+                    UserRoleAssignment.user_id == user.user_id,
+                    UserRoleAssignment.scope_type == ScopeType.GLOBAL,
+                    UserRoleAssignment.scope_id.is_(None),
+                )
+                result_existing = await session.execute(stmt_existing)
+                existing = result_existing.scalar_one_or_none()
+
+                if existing:
+                    logger.debug(
+                        f"User {user.email} already has global role assignment, "
+                        f"skipping"
+                    )
+                    skipped_count += 1
+                    continue
+
+                # Create the global assignment
+                from uuid import uuid4
+
+                assignment = UserRoleAssignment(
+                    id=uuid4(),
+                    user_id=user.user_id,
+                    role_id=role_id,
+                    scope_type=ScopeType.GLOBAL,
+                    scope_id=None,
+                    granted_at=datetime.now(UTC),
+                )
+                session.add(assignment)
+                created_count += 1
+                logger.info(
+                    f"Created global role assignment: {user.email} -> {user_role_name}"
+                )
+
+            if created_count > 0:
+                await session.flush()
+
+        logger.info(
+            f"User role assignment seeding complete: {created_count} created, "
+            f"{skipped_count} skipped"
+        )
+
     async def seed_co_workflow_config(self, session: AsyncSession) -> None:
         """Seed change order workflow configuration.
 
@@ -1280,6 +1386,9 @@ class DataSeeder:
 
             # Then seed users (depend on roles and departments)
             await self.seed_users(session)
+
+            # Seed user role assignments (depends on users and rbac_roles)
+            await self.seed_user_role_assignments(session)
 
             # Seed CO Workflow Config (required by change orders)
             await self.seed_co_workflow_config(session)

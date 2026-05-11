@@ -62,6 +62,11 @@
         "ai-config-update",
         "ai-config-delete",
         "ai-chat",
+        "mcp-server-read",
+        "mcp-server-create",
+        "mcp-server-update",
+        "mcp-server-delete",
+        "mcp-tool-execute",
         "dashboard-template-update",
         "project-budget-settings-read",
         "project-budget-settings-write",
@@ -94,8 +99,12 @@
         "change-order-read",
         "change-order-create",
         "change-order-update",
+        "change-order-delete",
         "change-order-submit",
+        "change-order-approve",
+        "change-order-implement",
         "change-order-escalate",
+        "forecast-read",
         "forecast-create",
         "forecast-update",
         "schedule-baseline-read",
@@ -189,7 +198,8 @@
         "evm-update",
         "evm-delete",
         "ai-chat",
-        "temporal-write"
+        "temporal-write",
+        "mcp-tool-execute"
       ]
     },
     "ai-admin": {
@@ -206,7 +216,23 @@
         "cost-element-type-read",
         "cost-element-type-create",
         "cost-element-type-update",
-        "cost-element-type-delete"
+        "cost-element-type-delete",
+        "mcp-server-read",
+        "mcp-server-create",
+        "mcp-server-update",
+        "mcp-server-delete",
+        "mcp-tool-execute"
+      ]
+    },
+    "change_order_approver": {
+      "permissions": [
+        "change-order-read",
+        "change-order-approve",
+        "change-order-submit",
+        "change-order-escalate",
+        "project-read",
+        "cost-element-read",
+        "forecast-read"
       ]
     }
   }

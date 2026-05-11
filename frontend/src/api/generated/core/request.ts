@@ -4,7 +4,8 @@
 /* eslint-disable */
 import axios from 'axios';
 import type { AxiosError, AxiosRequestConfig, AxiosResponse, AxiosInstance } from 'axios';
-import FormData from 'form-data';
+// FormData from 'form-data' doesn't work in browser, use native instead
+// import FormData from 'form-data';
 
 import { ApiError } from './ApiError';
 import type { ApiRequestOptions } from './ApiRequestOptions';
@@ -108,15 +109,17 @@ const getUrl = (config: OpenAPIConfig, options: ApiRequestOptions): string => {
     return url;
 };
 
-export const getFormData = (options: ApiRequestOptions): FormData | undefined => {
+export const getFormData = (options: ApiRequestOptions): string | undefined => {
     if (options.formData) {
-        const formData = new FormData();
+        // Return URL-encoded form data string instead of FormData object
+        // for application/x-www-form-urlencoded content type
+        const params: string[] = [];
 
         const process = (key: string, value: any) => {
             if (isString(value) || isBlob(value)) {
-                formData.append(key, value);
+                params.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
             } else {
-                formData.append(key, JSON.stringify(value));
+                params.push(`${encodeURIComponent(key)}=${encodeURIComponent(JSON.stringify(value))}`);
             }
         };
 
@@ -130,7 +133,7 @@ export const getFormData = (options: ApiRequestOptions): FormData | undefined =>
                 }
             });
 
-        return formData;
+        return params.join('&');
     }
     return undefined;
 };
@@ -144,7 +147,7 @@ export const resolve = async <T>(options: ApiRequestOptions, resolver?: T | Reso
     return resolver;
 };
 
-export const getHeaders = async (config: OpenAPIConfig, options: ApiRequestOptions, formData?: FormData): Promise<Record<string, string>> => {
+export const getHeaders = async (config: OpenAPIConfig, options: ApiRequestOptions, formData?: string): Promise<Record<string, string>> => {
     const [token, username, password, additionalHeaders] = await Promise.all([
         resolve(options, config.TOKEN),
         resolve(options, config.USERNAME),
@@ -152,13 +155,10 @@ export const getHeaders = async (config: OpenAPIConfig, options: ApiRequestOptio
         resolve(options, config.HEADERS),
     ]);
 
-    const formHeaders = typeof formData?.getHeaders === 'function' && formData?.getHeaders() || {}
-
     const headers = Object.entries({
         Accept: 'application/json',
         ...additionalHeaders,
         ...options.headers,
-        ...formHeaders,
     })
     .filter(([_, value]) => isDefined(value))
     .reduce((headers, [key, value]) => ({
@@ -182,9 +182,12 @@ export const getHeaders = async (config: OpenAPIConfig, options: ApiRequestOptio
             headers['Content-Type'] = options.body.type || 'application/octet-stream';
         } else if (isString(options.body)) {
             headers['Content-Type'] = 'text/plain';
-        } else if (!isFormData(options.body)) {
+        } else {
             headers['Content-Type'] = 'application/json';
         }
+    } else if (formData !== undefined) {
+        // Set Content-Type for URL-encoded form data
+        headers['Content-Type'] = options.mediaType || 'application/x-www-form-urlencoded';
     }
 
     return headers;
@@ -202,7 +205,7 @@ export const sendRequest = async <T>(
     options: ApiRequestOptions,
     url: string,
     body: any,
-    formData: FormData | undefined,
+    formData: string | undefined,
     headers: Record<string, string>,
     onCancel: OnCancel,
     axiosClient: AxiosInstance

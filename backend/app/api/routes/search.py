@@ -63,7 +63,6 @@ async def global_search(
     return await service.search(
         q,
         user_id=current_user.user_id,
-        user_role=current_user.role,
         project_id=project_id,
         wbe_id=wbe_id,
         branch=branch,

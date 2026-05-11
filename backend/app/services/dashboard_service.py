@@ -13,6 +13,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db_utils import safe_db_execute
+
 # Defer imports to avoid circular import issues
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
@@ -76,68 +78,73 @@ class DashboardService:
         # Note: user_id validation skipped for now since auth is handled at API layer
         # In the future, this could be used to filter dashboard data by user permissions
 
-        # Get recent activity for all entities with eager loading to avoid N+1 queries
-        recent_projects: list[
-            Project
-        ] = await self.project_service.get_recently_updated(
-            user_id=None,  # Get all projects, not just user's
-            limit=activity_limit,
-            branch="main",
-        )
-
-        recent_wbes: list[WBE] = await self.wbe_service.get_recently_updated(
-            user_id=None,
-            limit=activity_limit,
-            branch="main",
-            eager_load_project=True,  # Eager load project to avoid N+1 queries
-        )
-
-        recent_cost_elements: list[
-            CostElement
-        ] = await self.cost_element_service.get_recently_updated(
-            user_id=None,
-            limit=activity_limit,
-            branch="main",
-            eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
-        )
-
-        recent_change_orders: list[
-            ChangeOrder
-        ] = await self.change_order_service.get_recently_updated(
-            user_id=None,
-            limit=activity_limit,
-            branch="main",
-            eager_load_project=True,  # Eager load project to avoid N+1 queries
-        )
-
-        # Convert to dashboard activities
-        project_activities = [self._project_to_activity(p) for p in recent_projects]
-        wbe_activities = [await self._wbe_to_activity(w) for w in recent_wbes]
-        cost_element_activities = [
-            await self._cost_element_to_activity(ce)
-            for ce in recent_cost_elements or []
-        ]
-        change_order_activities = [
-            await self._change_order_to_activity(co)
-            for co in recent_change_orders or []
-        ]
-
-        # Get last edited project with metrics
-        last_edited_project = None
-        if recent_projects:
-            last_edited_project = await self._get_project_spotlight(
-                recent_projects[0].project_id
+        try:
+            # Get recent activity for all entities with eager loading to avoid N+1 queries
+            recent_projects: list[
+                Project
+            ] = await self.project_service.get_recently_updated(
+                user_id=None,  # Get all projects, not just user's
+                limit=activity_limit,
+                branch="main",
             )
 
-        return DashboardData(
-            last_edited_project=last_edited_project,
-            recent_activity={
-                "projects": project_activities,
-                "wbes": wbe_activities,
-                "cost_elements": cost_element_activities,
-                "change_orders": change_order_activities,
-            },
-        )
+            recent_wbes: list[WBE] = await self.wbe_service.get_recently_updated(
+                user_id=None,
+                limit=activity_limit,
+                branch="main",
+                eager_load_project=True,  # Eager load project to avoid N+1 queries
+            )
+
+            recent_cost_elements: list[
+                CostElement
+            ] = await self.cost_element_service.get_recently_updated(
+                user_id=None,
+                limit=activity_limit,
+                branch="main",
+                eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
+            )
+
+            recent_change_orders: list[
+                ChangeOrder
+            ] = await self.change_order_service.get_recently_updated(
+                user_id=None,
+                limit=activity_limit,
+                branch="main",
+                eager_load_project=True,  # Eager load project to avoid N+1 queries
+            )
+
+            # Convert to dashboard activities
+            project_activities = [self._project_to_activity(p) for p in recent_projects]
+            wbe_activities = [await self._wbe_to_activity(w) for w in recent_wbes]
+            cost_element_activities = [
+                await self._cost_element_to_activity(ce)
+                for ce in recent_cost_elements or []
+            ]
+            change_order_activities = [
+                await self._change_order_to_activity(co)
+                for co in recent_change_orders or []
+            ]
+
+            # Get last edited project with metrics
+            last_edited_project = None
+            if recent_projects:
+                last_edited_project = await self._get_project_spotlight(
+                    recent_projects[0].project_id
+                )
+
+            return DashboardData(
+                last_edited_project=last_edited_project,
+                recent_activity={
+                    "projects": project_activities,
+                    "wbes": wbe_activities,
+                    "cost_elements": cost_element_activities,
+                    "change_orders": change_order_activities,
+                },
+            )
+        except Exception as e:
+            # Rollback transaction on error to prevent InFailedSQLTransactionError
+            await self.session.rollback()
+            raise ValueError(f"Failed to get dashboard data: {str(e)}") from e
 
     def _project_to_activity(self, project: Project) -> DashboardActivity:
         """Convert a Project to DashboardActivity.
@@ -372,7 +379,11 @@ class DashboardService:
                 cast(Any, WBE).deleted_at.is_(None),
             )
         )
-        wbe_result = await self.session.execute(wbe_stmt)
+        wbe_result = await safe_db_execute(
+            self.session,
+            self.session.execute(wbe_stmt),
+            "Failed to count WBEs for project metrics"
+        )
         total_wbes = wbe_result.scalar() or 0
 
         # Count Cost Elements
@@ -393,7 +404,11 @@ class DashboardService:
                 cast(Any, CostElement).deleted_at.is_(None),
             )
         )
-        ce_result = await self.session.execute(ce_stmt)
+        ce_result = await safe_db_execute(
+            self.session,
+            self.session.execute(ce_stmt),
+            "Failed to count cost elements for project metrics"
+        )
         total_cost_elements = ce_result.scalar() or 0
 
         # Count active change orders
@@ -410,7 +425,11 @@ class DashboardService:
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
         )
-        co_result = await self.session.execute(co_stmt)
+        co_result = await safe_db_execute(
+            self.session,
+            self.session.execute(co_stmt),
+            "Failed to count change orders for project metrics"
+        )
         active_change_orders = co_result.scalar() or 0
 
         # Get EVM status (simplified - could be enhanced with actual EVM calculations)

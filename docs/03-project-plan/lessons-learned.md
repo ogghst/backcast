@@ -1,6 +1,6 @@
 # Lessons Learned
 
-**Last Updated:** 2026-01-09
+**Last Updated:** 2026-05-10
 
 This document captures key learnings from project iterations to improve future development practices.
 
@@ -17,6 +17,54 @@ This document captures key learnings from project iterations to improve future d
 ---
 
 ## Backend Development
+
+### Delegation Pattern for High-Risk Migrations
+
+**Iteration:** Unified RBAC Refactoring (2026-05-10)
+
+**Problem:** Replacing all route-level RBAC checkers in a big-bang change is high-risk and could break all 17 route files simultaneously.
+
+**Learning:** Using a delegation pattern (existing checkers delegate to new service first, fallback to legacy) preserves backward compatibility while achieving the same effect with zero-risk rollout.
+
+**Solution:**
+
+```python
+# RoleChecker.__call__ delegates to unified first
+try:
+    set_unified_rbac_session(session)
+    unified_service = get_unified_rbac_service()
+    # ... unified check ...
+except Exception:
+    logger.warning("Unified RBAC check failed, falling back to legacy")
+    # Fallback: try legacy RBAC service
+```
+
+**Best Practice:** For service-level migrations, prefer delegation over replacement. Add logging for fallback triggers to monitor production health before removing legacy code.
+
+---
+
+### N+1 Query Pattern in API Enrichment
+
+**Iteration:** Unified RBAC Refactoring (2026-05-10)
+
+**Problem:** The `list_assignments` endpoint executed individual DB queries per assignment to enrich role names (N+1 pattern).
+
+**Learning:** When enriching a list response with related data, batch the lookups using a single query with `IN` clause instead of individual queries per item.
+
+**Solution:**
+
+```python
+# Collect unique IDs, single batch query, map results
+role_ids = {a.role_id for a in assignments}
+role_result = await session.execute(
+    select(RBACRole.id, RBACRole.name).where(RBACRole.id.in_(role_ids))
+)
+role_name_map = {row[0]: row[1] for row in role_result.all()}
+```
+
+**Best Practice:** After writing any list endpoint with enrichment, verify the query pattern is batched, not per-item.
+
+---
 
 ### Type Casting in Generic Filters
 
@@ -180,6 +228,30 @@ await page.click(".ant-select-item");
 
 ## Architecture & Design
 
+### Dual Config File Divergence Prevention
+
+**Iteration:** RBAC Seeding Fix (2026-05-10)
+
+**Problem:** Two JSON files (`seed/rbac_roles.json` for database seeding and `config/rbac.json` for runtime RBAC policy) diverged silently over multiple iterations. Role names, permission sets, and even entire roles differed between the files, causing `seed_all()` to produce a database state that did not match what the runtime RBAC service expected.
+
+**Learning:** When two configuration files serve overlapping purposes (seeding vs. runtime), divergence is inevitable without an automated enforcement mechanism. Manual synchronization is insufficient because each file is edited independently during different iterations.
+
+**Solution:**
+
+- Synchronized both files to contain structurally identical role and permission definitions
+- Added a CI-sync test (`test_rbac_config_sync.py`) that parses both JSON files and asserts identical role names and permission sets, failing the build if they diverge
+
+```python
+# CI-sync test prevents future divergence
+def test_same_permissions_per_role():
+    for role_name in seed_roles:
+        assert sorted(seed_roles[role_name]["permissions"]) == sorted(config_roles[role_name]["permissions"])
+```
+
+**Best Practice:** When two config files share structural data, add a CI-sync test immediately -- not after the first divergence incident. The test should compare the structural content (not comments or descriptions) and run on every PR.
+
+---
+
 ### Generic vs. Specific Implementations
 
 **Iteration:** Multiple iterations
@@ -272,18 +344,18 @@ await page.click(".ant-select-item");
 
 | Category              | Lessons | Iterations |
 | --------------------- | ------- | ---------- |
-| Backend Development   | 2       | 2          |
+| Backend Development   | 4       | 3          |
 | Frontend Development  | 2       | 2          |
 | Testing               | 4       | 2          |
-| Architecture & Design | 2       | 3          |
+| Architecture & Design | 3       | 4          |
 | Process & Workflow    | 3       | 4          |
 
-**Total Lessons Captured:** 13
-**Most Common Category:** Testing (31%)
+**Total Lessons Captured:** 16
+**Most Common Category:** Backend Development & Testing (tied)
 
 ---
 
 ## Next Review
 
-**Date:** 2026-01-16
+**Date:** 2026-05-17
 **Focus:** Review new lessons from upcoming iterations

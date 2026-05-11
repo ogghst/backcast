@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
+from app.core.db_utils import safe_db_execute
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -251,7 +252,11 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         # Get total count (before pagination)
         count_stmt = select(func.count()).select_from(stmt.subquery())
-        total_result = await self.session.execute(count_stmt)
+        total_result = await safe_db_execute(
+            self.session,
+            self.session.execute(count_stmt),
+            "Failed to get project count"
+        )
         total = total_result.scalar_one()
 
         # Apply sorting
@@ -275,7 +280,12 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         stmt = stmt.offset(skip).limit(limit)
 
         # Execute query
-        result = await self.session.execute(stmt)
+        result = await safe_db_execute(
+            self.session,
+            self.session.execute(stmt),
+            "Failed to execute projects query"
+        )
+
         projects = []
         for row in result.all():
             project = row[0]

@@ -4,6 +4,10 @@ Provides authorization functionality based on roles and permissions.
 Supports pluggable implementations via abstract base class.
 """
 
+# DEPRECATED: The RBACServiceABC and its implementations (JsonRBACService, DatabaseRBACService)
+# are superseded by UnifiedRBACService (app.core.rbac_unified). No application code should
+# import from this module. Kept for reference during transition.
+
 import contextvars
 import json
 import logging

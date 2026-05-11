@@ -2,7 +2,7 @@
 
 Provides CRUD operations for RBACRole with permission management
 through the RBACRolePermission relationship.  Refreshes the
-DatabaseRBACService cache after every write.
+UnifiedRBACService cache after every write.
 """
 
 from uuid import UUID
@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.rbac_database import DatabaseRBACService
 from app.models.domain.rbac import RBACRole, RBACRolePermission
 
 
@@ -173,10 +172,12 @@ class RBACAdminService:
         Replaces the entire cache with fresh data from the database.
         Called after flush() so the same transaction sees the changes.
         """
-        from app.core.rbac import get_rbac_service, set_rbac_session
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
 
-        service = get_rbac_service()
-        if isinstance(service, DatabaseRBACService):
-            set_rbac_session(self.session)
-            await service.refresh_cache()
-            set_rbac_session(None)
+        set_unified_rbac_session(self.session)
+        service = get_unified_rbac_service()
+        await service.refresh_permissions_cache()
+        set_unified_rbac_session(None)

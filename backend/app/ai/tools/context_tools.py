@@ -19,7 +19,7 @@ from app.ai.tools.temporal_logging import (
     log_temporal_context,
 )
 from app.ai.tools.types import RiskLevel, ToolContext
-from app.core.rbac import set_rbac_session
+from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
 
 logger = logging.getLogger(__name__)
 
@@ -103,14 +103,17 @@ async def get_project_context(
     try:
         from uuid import UUID
 
-        from app.core.rbac import get_rbac_service
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
 
         # Validate project_id format
         project_uuid = UUID(context.project_id)
 
         # Set session for project-level access checks
-        rbac_service = get_rbac_service()
-        set_rbac_session(context.session)
+        set_unified_rbac_session(context.session)
+        unified_service = get_unified_rbac_service()
 
         # Get project details
         from app.core.versioning.enums import BranchMode
@@ -140,7 +143,7 @@ async def get_project_context(
 
         # Get user's role in the project
         user_uuid = UUID(context.user_id)
-        user_role = await rbac_service.get_project_role(
+        user_role = await unified_service.get_project_role(
             user_id=user_uuid,
             project_id=project_uuid,
         )
@@ -271,7 +274,6 @@ async def get_project_structure(
     """
     from uuid import UUID
 
-    from app.core.rbac import get_rbac_service
     from app.core.versioning.enums import BranchMode
     from app.services.cost_element_service import CostElementService
     from app.services.wbe import WBEService
@@ -295,13 +297,12 @@ async def get_project_structure(
         project_uuid = UUID(context.project_id)
 
         # Set session for project-level access checks
-        rbac_service = get_rbac_service()
-        set_rbac_session(context.session)
+        set_unified_rbac_session(context.session)
+        unified_service = get_unified_rbac_service()
 
         user_uuid = UUID(context.user_id)
-        accessible_project_ids = await rbac_service.get_user_projects(
+        accessible_project_ids = await unified_service.get_accessible_projects(
             user_id=user_uuid,
-            user_role=context.user_role,
         )
 
         if project_uuid not in accessible_project_ids:

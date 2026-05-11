@@ -31,10 +31,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { ColumnType } from "antd/es/table";
+import { usePermission } from "@/hooks/usePermission";
 
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
+import { Can } from "@/components/auth/Can";
 import {
   useRBACRoles,
   useRBACPermissions,
@@ -477,11 +479,13 @@ export const RBACConfiguration: React.FC = () => {
   const { token } = theme.useToken();
   const { tableParams, handleTableChange } = useTableParams<RBACRoleRead>();
   const { modal } = App.useApp();
+  const { hasRole } = usePermission();
+  const isAdmin = hasRole("admin");
 
-  // Data queries
-  const { data: roles, isLoading } = useRBACRoles();
-  const { data: allPermissions = [] } = useRBACPermissions();
-  const { data: providerStatus } = useRBACProviderStatus();
+  // Data queries — skip API calls for non-admin users to avoid 403 errors
+  const { data: roles, isLoading } = useRBACRoles({ enabled: isAdmin });
+  const { data: allPermissions = [] } = useRBACPermissions({ enabled: isAdmin });
+  const { data: providerStatus } = useRBACProviderStatus({ enabled: isAdmin });
 
   const isEditable = providerStatus?.editable ?? false;
 
@@ -594,67 +598,79 @@ export const RBACConfiguration: React.FC = () => {
   ];
 
   return (
-    <div>
-      {/* Provider status banner */}
-      {providerStatus && (
+    <Can
+      role="admin"
+      fallback={
         <Alert
-          type={isEditable ? "success" : "info"}
-          title={
-            isEditable
-              ? "RBAC Provider: Database"
-              : "RBAC Provider: JSON (read-only)"
-          }
-          description={
-            isEditable
-              ? "Roles and permissions are managed via the database."
-              : 'To manage roles, switch the RBAC_PROVIDER setting to "database".'
-          }
+          type="error"
+          title="Access Denied"
+          description="You do not have permission to view RBAC configuration. Admin role is required."
           showIcon
-          style={{ marginBottom: token.marginMD }}
-          icon={isEditable ? undefined : <LockOutlined />}
         />
-      )}
+      }
+    >
+      <div>
+        {/* Provider status banner */}
+        {providerStatus && (
+          <Alert
+            type={isEditable ? "success" : "info"}
+            title={
+              isEditable
+                ? "RBAC Provider: Database"
+                : "RBAC Provider: JSON (read-only)"
+            }
+            description={
+              isEditable
+                ? "Roles and permissions are managed via the database."
+                : 'To manage roles, switch the RBAC_PROVIDER setting to "database".'
+            }
+            showIcon
+            style={{ marginBottom: token.marginMD }}
+            icon={isEditable ? undefined : <LockOutlined />}
+          />
+        )}
 
-      <StandardTable<RBACRoleRead>
-        tableParams={tableParams}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={roles || []}
-        columns={columns}
-        rowKey="id"
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
-              RBAC Configuration
-            </div>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleCreate}
-              disabled={!isEditable}
+        <StandardTable<RBACRoleRead>
+          tableParams={tableParams}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={roles || []}
+          columns={columns}
+          rowKey="id"
+          toolbar={
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
             >
-              Create Role
-            </Button>
-          </div>
-        }
-      />
+              <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
+                RBAC Configuration
+              </div>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleCreate}
+                disabled={!isEditable}
+              >
+                Create Role
+              </Button>
+            </div>
+          }
+        />
 
-      <RoleModal
-        key={selectedRole?.id || "create"}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={handleModalOk}
-        confirmLoading={isCreating || isUpdating}
-        initialValues={selectedRole}
-        allPermissions={allPermissions}
-        editable={isEditable}
-      />
-    </div>
+        <RoleModal
+          key={selectedRole?.id || "create"}
+          open={modalOpen}
+          onCancel={() => setModalOpen(false)}
+          onOk={handleModalOk}
+          confirmLoading={isCreating || isUpdating}
+          initialValues={selectedRole}
+          allPermissions={allPermissions}
+          editable={isEditable}
+        />
+      </div>
+    </Can>
   );
 };

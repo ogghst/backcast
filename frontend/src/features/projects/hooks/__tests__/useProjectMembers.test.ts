@@ -1,38 +1,43 @@
 /**
- * useProjectMembers Hook Tests
+ * Tests for useProjectMembers hooks.
  *
- * Tests for project member management hooks including fetching, adding, removing, and updating members.
+ * Verifies that each hook delegates correctly to the unified
+ * role-assignments API hooks and maps data shapes properly.
+ * The underlying hooks are mocked so these tests are purely
+ * unit-level delegation tests.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
-import { ProjectRole } from "../../types/projectMembers";
-import type { ProjectMemberRead, ProjectMemberCreate, ProjectMemberUpdate } from "../../types/projectMembers";
+import type { UserRoleAssignmentRead } from "@/api/types/roleAssignment";
+import type { ProjectMemberCreate } from "../../types/projectMembers";
 
-// Mock the OpenAPI and request module
-vi.mock("@/api/generated/core/OpenAPI", () => ({
-  OpenAPI: {
-    BASE: "http://localhost:8000",
-    HEADERS: {},
-  },
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+const mockUseRoleAssignments = vi.fn();
+const mockUseCreateRoleAssignment = vi.fn();
+const mockUseUpdateRoleAssignment = vi.fn();
+const mockUseDeleteRoleAssignment = vi.fn();
+const mockUseRBACRoles = vi.fn();
+
+vi.mock(
+  "@/features/admin/role-assignments/hooks/useRoleAssignments",
+  () => ({
+    useRoleAssignments: (...args: unknown[]) => mockUseRoleAssignments(...args),
+    useCreateRoleAssignment: () => mockUseCreateRoleAssignment(),
+    useUpdateRoleAssignment: () => mockUseUpdateRoleAssignment(),
+    useDeleteRoleAssignment: () => mockUseDeleteRoleAssignment(),
+  }),
+);
+
+vi.mock("@/features/admin/rbac/hooks/useRBAC", () => ({
+  useRBACRoles: () => mockUseRBACRoles(),
 }));
 
-vi.mock("@/api/generated/core/request", () => ({
-  request: vi.fn(),
-}));
-
-// Mock queryKeys
-vi.mock("@/api/queryKeys", () => ({
-  queryKeys: {
-    projects: {
-      list: (path: string[]) => ["projects", ...path],
-    },
-  },
-}));
-
-// Mock sonner toast
 vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
@@ -40,786 +45,495 @@ vi.mock("sonner", () => ({
   },
 }));
 
-import { request } from "@/api/generated/core/request";
-import { useProjectMembers, useAddProjectMember, useRemoveProjectMember, useUpdateProjectMember } from "../useProjectMembers";
+// Import after mocks are set up
+import {
+  useProjectMembers,
+  useAddProjectMember,
+  useRemoveProjectMember,
+  useUpdateProjectMember,
+  useProjectRoleMap,
+} from "../useProjectMembers";
 import { toast } from "sonner";
 
-const mockRequest = vi.mocked(request);
+// ---------------------------------------------------------------------------
+// Test data
+// ---------------------------------------------------------------------------
 
-// Helper to create wrapper with QueryClient
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-      mutations: {
-        retry: false,
-      },
-    },
-  });
-
-  return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(QueryClientProvider, { client: queryClient }, children);
+const mockAssignment: UserRoleAssignmentRead = {
+  id: "assignment-1",
+  user_id: "user-1",
+  role_id: "role-admin",
+  scope_type: "project",
+  scope_id: "proj-1",
+  metadata: null,
+  granted_by: "user-2",
+  granted_at: "2026-01-01T00:00:00Z",
+  expires_at: null,
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+  role_name: "project_admin",
+  user_name: "Alice",
+  granted_by_name: "Bob",
 };
 
+const mockAssignment2: UserRoleAssignmentRead = {
+  id: "assignment-2",
+  user_id: "user-2",
+  role_id: "role-viewer",
+  scope_type: "project",
+  scope_id: "proj-1",
+  metadata: null,
+  granted_by: "user-2",
+  granted_at: "2026-01-02T00:00:00Z",
+  expires_at: null,
+  created_at: "2026-01-02T00:00:00Z",
+  updated_at: "2026-01-02T00:00:00Z",
+  role_name: "project_viewer",
+  user_name: "Carol",
+  granted_by_name: "Bob",
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+function createWrapper() {
+  const queryClient = createTestQueryClient();
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 describe("useProjectMembers", () => {
-  const mockProjectId = "project-123";
-
-  const mockMembers: ProjectMemberRead[] = [
-    {
-      id: "member-1",
-      user_id: "user-1",
-      project_id: mockProjectId,
-      role: ProjectRole.PROJECT_ADMIN,
-      assigned_at: "2026-01-01T00:00:00Z",
-      assigned_by: "user-1",
-      created_at: "2026-01-01T00:00:00Z",
-      updated_at: "2026-01-01T00:00:00Z",
-      user_name: "Admin User",
-      user_email: "admin@example.com",
-    },
-    {
-      id: "member-2",
-      user_id: "user-2",
-      project_id: mockProjectId,
-      role: ProjectRole.PROJECT_VIEWER,
-      assigned_at: "2026-01-02T00:00:00Z",
-      assigned_by: "user-1",
-      created_at: "2026-01-02T00:00:00Z",
-      updated_at: "2026-01-02T00:00:00Z",
-      user_name: "Viewer User",
-      user_email: "viewer@example.com",
-    },
-  ];
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("useProjectMembers Query Hook", () => {
-    it("should fetch and cache member data successfully", async () => {
-      mockRequest.mockResolvedValueOnce(mockMembers);
+  // ---- useProjectMembers query ----
 
-      const { result } = renderHook(
-        () => useProjectMembers(mockProjectId),
-        { wrapper: createWrapper() }
-      );
+  describe("useProjectMembers", () => {
+    it("delegates to useRoleAssignments with correct params and maps response", async () => {
+      mockUseRoleAssignments.mockReturnValue({
+        data: [mockAssignment, mockAssignment2],
+        isSuccess: true,
+        isLoading: false,
+        isError: false,
+      });
 
-      // Initially loading
+      const { result } = renderHook(() => useProjectMembers("proj-1"), {
+        wrapper: createWrapper(),
+      });
+
+      // Verify delegation
+      expect(mockUseRoleAssignments).toHaveBeenCalledWith({
+        scopeType: "project",
+        scopeId: "proj-1",
+      });
+
+      // Verify mapping from UserRoleAssignmentRead to ProjectMemberRead
+      const members = result.current.data;
+      expect(members).toEqual([
+        {
+          id: "assignment-1",
+          user_id: "user-1",
+          project_id: "proj-1",
+          role: "project_admin",
+          assigned_at: "2026-01-01T00:00:00Z",
+          assigned_by: "user-2",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+          user_name: "Alice",
+          user_email: undefined,
+          assigned_by_name: "Bob",
+        },
+        {
+          id: "assignment-2",
+          user_id: "user-2",
+          project_id: "proj-1",
+          role: "project_viewer",
+          assigned_at: "2026-01-02T00:00:00Z",
+          assigned_by: "user-2",
+          created_at: "2026-01-02T00:00:00Z",
+          updated_at: "2026-01-02T00:00:00Z",
+          user_name: "Carol",
+          user_email: undefined,
+          assigned_by_name: "Bob",
+        },
+      ]);
+    });
+
+    it("returns undefined data when useRoleAssignments has no data", () => {
+      mockUseRoleAssignments.mockReturnValue({
+        data: undefined,
+        isSuccess: false,
+        isLoading: true,
+        isError: false,
+      });
+
+      const { result } = renderHook(() => useProjectMembers("proj-1"), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.data).toBeUndefined();
+    });
+
+    it("passes undefined projectId to useRoleAssignments", () => {
+      mockUseRoleAssignments.mockReturnValue({
+        data: undefined,
+        isSuccess: false,
+        isLoading: true,
+        isError: false,
+      });
+
+      renderHook(() => useProjectMembers(undefined), {
+        wrapper: createWrapper(),
+      });
+
+      expect(mockUseRoleAssignments).toHaveBeenCalledWith({
+        scopeType: "project",
+        scopeId: undefined,
+      });
+    });
+
+    it("passes through query metadata (isLoading, isError, etc.)", () => {
+      mockUseRoleAssignments.mockReturnValue({
+        data: undefined,
+        isSuccess: false,
+        isLoading: true,
+        isFetching: true,
+        isError: false,
+        error: null,
+      });
+
+      const { result } = renderHook(() => useProjectMembers("proj-1"), {
+        wrapper: createWrapper(),
+      });
+
       expect(result.current.isLoading).toBe(true);
-
-      // Wait for success
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      // Verify data
-      expect(result.current.data).toEqual(mockMembers);
-      expect(result.current.isLoading).toBe(false);
-
-      // Verify API call
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          method: "GET",
-          url: `/api/v1/projects/${mockProjectId}/members`,
-        })
-      );
+      expect(result.current.isFetching).toBe(true);
+      expect(result.current.isError).toBe(false);
     });
 
-    it("should not fetch when projectId is undefined", async () => {
-      const { result } = renderHook(
-        () => useProjectMembers(undefined),
-        { wrapper: createWrapper() }
-      );
+    it("handles role_name fallback to project_viewer when null", () => {
+      const assignmentNoRole: UserRoleAssignmentRead = {
+        ...mockAssignment,
+        role_name: null,
+      };
 
-      // Query should be disabled
-      expect(result.current.isFetching).toBe(false);
-      expect(mockRequest).not.toHaveBeenCalled();
-    });
-
-    it("should handle fetch errors", async () => {
-      const mockError = new Error("Failed to fetch members");
-      mockRequest.mockRejectedValueOnce(mockError);
-
-      const { result } = renderHook(
-        () => useProjectMembers(mockProjectId),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
+      mockUseRoleAssignments.mockReturnValue({
+        data: [assignmentNoRole],
+        isSuccess: true,
+        isLoading: false,
+        isError: false,
       });
 
-      expect(result.current.error).toEqual(mockError);
-    });
-
-    it("should cache data and not refetch for same project", async () => {
-      mockRequest.mockResolvedValue(mockMembers);
-
-      const queryClient = new QueryClient({
-        defaultOptions: {
-          queries: {
-            retry: false,
-            staleTime: Infinity, // Prevent refetching
-          },
-        },
+      const { result } = renderHook(() => useProjectMembers("proj-1"), {
+        wrapper: createWrapper(),
       });
 
-      const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(QueryClientProvider, { client: queryClient }, children);
-
-      // First render
-      const { result: result1 } = renderHook(
-        () => useProjectMembers(mockProjectId),
-        { wrapper }
-      );
-
-      await waitFor(() => {
-        expect(result1.current.isSuccess).toBe(true);
-      });
-
-      const callCount = mockRequest.mock.calls.length;
-
-      // Second render with same project - should use cache
-      const { result: result2 } = renderHook(
-        () => useProjectMembers(mockProjectId),
-        { wrapper }
-      );
-
-      await waitFor(() => {
-        expect(result2.current.isSuccess).toBe(true);
-      });
-
-      // Should not make another request (call count should be the same)
-      expect(mockRequest.mock.calls.length).toBe(callCount);
-    });
-
-    it("should refetch for different project", async () => {
-      mockRequest.mockResolvedValue(mockMembers);
-
-      const queryClient = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false },
-        },
-      });
-
-      const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(QueryClientProvider, { client: queryClient }, children);
-
-      // First project
-      const { result: result1 } = renderHook(
-        () => useProjectMembers("project-1"),
-        { wrapper }
-      );
-
-      await waitFor(() => {
-        expect(result1.current.isSuccess).toBe(true);
-      });
-
-      // Second project
-      const { result: result2 } = renderHook(
-        () => useProjectMembers("project-2"),
-        { wrapper }
-      );
-
-      await waitFor(() => {
-        expect(result2.current.isSuccess).toBe(true);
-      });
-
-      // Should make two requests
-      expect(mockRequest).toHaveBeenCalledTimes(2);
+      expect(result.current.data?.[0]?.role).toBe("project_viewer");
     });
   });
 
-  describe("useAddProjectMember Mutation", () => {
-    const newMemberData: ProjectMemberCreate = {
-      user_id: "user-3",
-      project_id: mockProjectId,
-      role: ProjectRole.PROJECT_EDITOR,
-      assigned_by: "user-1",
-    };
+  // ---- useAddProjectMember mutation ----
 
-    const createdMember: ProjectMemberRead = {
-      id: "member-3",
-      ...newMemberData,
-      assigned_at: "2026-01-03T00:00:00Z",
-      created_at: "2026-01-03T00:00:00Z",
-      updated_at: "2026-01-03T00:00:00Z",
-      user_name: "New Editor",
-      user_email: "editor@example.com",
-    };
+  describe("useAddProjectMember", () => {
+    it("delegates to useCreateRoleAssignment and maps the result", async () => {
+      const createdAssignment: UserRoleAssignmentRead = {
+        ...mockAssignment,
+        id: "assignment-new",
+        user_id: "user-3",
+        role_name: "project_editor",
+      };
 
-    it("should add member successfully and invalidate queries", async () => {
-      mockRequest.mockResolvedValueOnce(createdMember);
-
-      const queryClient = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false },
-          mutations: { retry: false },
-        },
+      const mockMutateAsync = vi
+        .fn()
+        .mockResolvedValue(createdAssignment);
+      mockUseCreateRoleAssignment.mockReturnValue({
+        mutateAsync: mockMutateAsync,
       });
 
-      const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(QueryClientProvider, { client: queryClient }, children);
-
-      // Pre-populate cache
-      await queryClient.prefetchQuery({
-        queryKey: ["projects", mockProjectId, "members"],
-        queryFn: () => Promise.resolve(mockMembers),
+      const { result } = renderHook(() => useAddProjectMember(), {
+        wrapper: createWrapper(),
       });
 
-      const { result } = renderHook(
-        () => useAddProjectMember(),
-        { wrapper }
-      );
+      const input: ProjectMemberCreate & { role_id: string } = {
+        user_id: "user-3",
+        project_id: "proj-1",
+        role: "project_editor" as ProjectMemberCreate["role"],
+        assigned_by: "user-2",
+        role_id: "role-editor",
+      };
 
-      // Mutate
-      result.current.mutate(newMemberData);
+      result.current.mutate(input);
 
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(mockMutateAsync).toHaveBeenCalledWith({
+        user_id: "user-3",
+        role_id: "role-editor",
+        scope_type: "project",
+        scope_id: "proj-1",
+        granted_by: "user-2",
       });
 
-      // Verify API call
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          method: "POST",
-          url: `/api/v1/projects/${mockProjectId}/members`,
-          body: newMemberData,
-        })
-      );
+      expect(result.current.data).toEqual({
+        id: "assignment-new",
+        user_id: "user-3",
+        project_id: "proj-1",
+        role: "project_editor",
+        assigned_at: "2026-01-01T00:00:00Z",
+        assigned_by: "user-2",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        user_name: "Alice",
+        user_email: undefined,
+        assigned_by_name: "Bob",
+      });
 
-      // Verify success toast
       expect(toast.success).toHaveBeenCalledWith("Member added successfully");
-
-      // Verify query was invalidated
-      const invalidatedQueries = queryClient.getQueryCache().findAll({
-        queryKey: ["projects", mockProjectId, "members"],
-      });
-      expect(invalidatedQueries.length).toBeGreaterThan(0);
     });
 
-    it("should handle add member errors", async () => {
-      const mockError = new Error("User not found");
-      mockRequest.mockRejectedValueOnce(mockError);
-
-      const { result } = renderHook(
-        () => useAddProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.mutate(newMemberData);
-
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
+    it("shows error toast on failure", async () => {
+      const mockMutateAsync = vi
+        .fn()
+        .mockRejectedValue(new Error("Conflict"));
+      mockUseCreateRoleAssignment.mockReturnValue({
+        mutateAsync: mockMutateAsync,
       });
 
-      expect(result.current.error).toEqual(mockError);
-      expect(toast.error).toHaveBeenCalledWith(
-        `Error adding member: ${mockError.message}`
-      );
-    });
-
-    it("should call onSuccess callback if provided", async () => {
-      const onSuccess = vi.fn();
-      mockRequest.mockResolvedValueOnce(createdMember);
-
-      const { result } = renderHook(
-        () =>
-          useAddProjectMember({
-            onSuccess,
-          }),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.mutate(newMemberData);
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
+      const { result } = renderHook(() => useAddProjectMember(), {
+        wrapper: createWrapper(),
       });
 
-      // TanStack Query v5 passes additional context parameters
-      expect(onSuccess).toHaveBeenCalledWith(
-        createdMember,
-        newMemberData,
-        undefined, // context
-        expect.any(Object) // mutation meta
-      );
-    });
-
-    it("should call onError callback if provided", async () => {
-      const onError = vi.fn();
-      const mockError = new Error("Failed to add");
-      mockRequest.mockRejectedValueOnce(mockError);
-
-      const { result } = renderHook(
-        () =>
-          useAddProjectMember({
-            onError,
-          }),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.mutate(newMemberData);
-
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
-      });
-
-      // TanStack Query v5 passes additional context parameters
-      expect(onError).toHaveBeenCalledWith(
-        mockError,
-        newMemberData,
-        undefined, // context
-        expect.any(Object) // mutation meta
-      );
-    });
-  });
-
-  describe("useRemoveProjectMember Mutation", () => {
-    const removeArgs = {
-      projectId: mockProjectId,
-      userId: "user-2",
-    };
-
-    it("should remove member successfully with confirmation", async () => {
-      mockRequest.mockResolvedValueOnce(undefined);
-
-      const queryClient = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false },
-          mutations: { retry: false },
-        },
-      });
-
-      const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(QueryClientProvider, { client: queryClient }, children);
-
-      // Pre-populate cache
-      await queryClient.prefetchQuery({
-        queryKey: ["projects", mockProjectId, "members"],
-        queryFn: () => Promise.resolve(mockMembers),
-      });
-
-      const { result } = renderHook(
-        () => useRemoveProjectMember(),
-        { wrapper }
-      );
-
-      // Mutate (simulating confirmation was done)
-      result.current.mutate(removeArgs);
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      // Verify API call
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          method: "DELETE",
-          url: `/api/v1/projects/${mockProjectId}/members/${removeArgs.userId}`,
-        })
-      );
-
-      // Verify success toast
-      expect(toast.success).toHaveBeenCalledWith("Member removed successfully");
-
-      // Verify query was invalidated
-      const invalidatedQueries = queryClient.getQueryCache().findAll({
-        queryKey: ["projects", mockProjectId, "members"],
-      });
-      expect(invalidatedQueries.length).toBeGreaterThan(0);
-    });
-
-    it("should handle remove member errors", async () => {
-      const mockError = new Error("Cannot remove last admin");
-      mockRequest.mockRejectedValueOnce(mockError);
-
-      const { result } = renderHook(
-        () => useRemoveProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.mutate(removeArgs);
-
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
-      });
-
-      expect(result.current.error).toEqual(mockError);
-      expect(toast.error).toHaveBeenCalledWith(
-        `Error removing member: ${mockError.message}`
-      );
-    });
-
-    it("should call onSuccess callback if provided", async () => {
-      const onSuccess = vi.fn();
-      mockRequest.mockResolvedValueOnce(undefined);
-
-      const { result } = renderHook(
-        () =>
-          useRemoveProjectMember({
-            onSuccess,
-          }),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.mutate(removeArgs);
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      // TanStack Query v5 passes additional context parameters
-      expect(onSuccess).toHaveBeenCalledWith(
-        undefined,
-        removeArgs,
-        undefined, // context
-        expect.any(Object) // mutation meta
-      );
-    });
-
-    it("should handle different user removals", async () => {
-      mockRequest.mockResolvedValue(undefined);
-
-      const { result } = renderHook(
-        () => useRemoveProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      const testCases = [
-        { userId: "user-1", projectId: "project-1" },
-        { userId: "user-2", projectId: "project-2" },
-        { userId: "user-3", projectId: "project-3" },
-      ];
-
-      for (const args of testCases) {
-        result.current.mutate(args);
-
-        await waitFor(() => {
-          expect(result.current.isSuccess).toBe(true);
-        });
-
-        expect(mockRequest).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.objectContaining({
-            url: `/api/v1/projects/${args.projectId}/members/${args.userId}`,
-          })
-        );
-
-        vi.clearAllMocks();
-      }
-    });
-  });
-
-  describe("useUpdateProjectMember Mutation", () => {
-    const updateArgs = {
-      projectId: mockProjectId,
-      userId: "user-2",
-      update: {
-        role: ProjectRole.PROJECT_MANAGER,
-        assigned_by: "user-1",
-      } satisfies ProjectMemberUpdate,
-    };
-
-    const updatedMember: ProjectMemberRead = {
-      id: "member-2",
-      user_id: "user-2",
-      project_id: mockProjectId,
-      role: ProjectRole.PROJECT_MANAGER,
-      assigned_at: "2026-01-02T00:00:00Z",
-      assigned_by: "user-1",
-      created_at: "2026-01-02T00:00:00Z",
-      updated_at: "2026-01-03T00:00:00Z",
-      user_name: "Viewer User",
-      user_email: "viewer@example.com",
-    };
-
-    it("should update member role successfully and invalidate queries", async () => {
-      mockRequest.mockResolvedValueOnce(updatedMember);
-
-      const queryClient = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false },
-          mutations: { retry: false },
-        },
-      });
-
-      const wrapper = ({ children }: { children: React.ReactNode }) =>
-        React.createElement(QueryClientProvider, { client: queryClient }, children);
-
-      // Pre-populate cache
-      await queryClient.prefetchQuery({
-        queryKey: ["projects", mockProjectId, "members"],
-        queryFn: () => Promise.resolve(mockMembers),
-      });
-
-      const { result } = renderHook(
-        () => useUpdateProjectMember(),
-        { wrapper }
-      );
-
-      // Mutate
-      result.current.mutate(updateArgs);
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      // Verify API call
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          method: "PATCH",
-          url: `/api/v1/projects/${mockProjectId}/members/${updateArgs.userId}`,
-          body: updateArgs.update,
-        })
-      );
-
-      // Verify success toast
-      expect(toast.success).toHaveBeenCalledWith("Member role updated successfully");
-
-      // Verify query was invalidated
-      const invalidatedQueries = queryClient.getQueryCache().findAll({
-        queryKey: ["projects", mockProjectId, "members"],
-      });
-      expect(invalidatedQueries.length).toBeGreaterThan(0);
-    });
-
-    it("should handle update role errors", async () => {
-      const mockError = new Error("Invalid role");
-      mockRequest.mockRejectedValueOnce(mockError);
-
-      const { result } = renderHook(
-        () => useUpdateProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.mutate(updateArgs);
-
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
-      });
-
-      expect(result.current.error).toEqual(mockError);
-      expect(toast.error).toHaveBeenCalledWith(
-        `Error updating member role: ${mockError.message}`
-      );
-    });
-
-    it("should call onSuccess callback if provided", async () => {
-      const onSuccess = vi.fn();
-      mockRequest.mockResolvedValueOnce(updatedMember);
-
-      const { result } = renderHook(
-        () =>
-          useUpdateProjectMember({
-            onSuccess,
-          }),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.mutate(updateArgs);
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      // TanStack Query v5 passes additional context parameters
-      expect(onSuccess).toHaveBeenCalledWith(
-        updatedMember,
-        updateArgs,
-        undefined, // context
-        expect.any(Object) // mutation meta
-      );
-    });
-
-    it("should handle different role updates", async () => {
-      mockRequest.mockResolvedValue(updatedMember);
-
-      const { result } = renderHook(
-        () => useUpdateProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      const roleUpdates: ProjectRole[] = [
-        ProjectRole.PROJECT_VIEWER,
-        ProjectRole.PROJECT_EDITOR,
-        ProjectRole.PROJECT_MANAGER,
-        ProjectRole.PROJECT_ADMIN,
-      ];
-
-      for (const role of roleUpdates) {
-        const args = {
-          projectId: mockProjectId,
-          userId: "user-2",
-          update: {
-            role,
-            assigned_by: "user-1",
-          } satisfies ProjectMemberUpdate,
-        };
-
-        result.current.mutate(args);
-
-        await waitFor(() => {
-          expect(result.current.isSuccess).toBe(true);
-        });
-
-        expect(mockRequest).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.objectContaining({
-            body: { role, assigned_by: "user-1" },
-          })
-        );
-
-        vi.clearAllMocks();
-      }
-    });
-
-    it("should handle multiple member updates in sequence", async () => {
-      mockRequest.mockResolvedValue(updatedMember);
-
-      const { result } = renderHook(
-        () => useUpdateProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      const updates = [
-        { userId: "user-1", role: ProjectRole.PROJECT_ADMIN },
-        { userId: "user-2", role: ProjectRole.PROJECT_MANAGER },
-        { userId: "user-3", role: ProjectRole.PROJECT_EDITOR },
-      ];
-
-      for (const update of updates) {
-        const args = {
-          projectId: mockProjectId,
-          userId: update.userId,
-          update: {
-            role: update.role,
-            assigned_by: "user-1",
-          } satisfies ProjectMemberUpdate,
-        };
-
-        result.current.mutate(args);
-
-        await waitFor(() => {
-          expect(result.current.isSuccess).toBe(true);
-        });
-
-        expect(mockRequest).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.objectContaining({
-            url: `/api/v1/projects/${mockProjectId}/members/${update.userId}`,
-            body: { role: update.role, assigned_by: "user-1" },
-          })
-        );
-
-        vi.clearAllMocks();
-      }
-    });
-  });
-
-  describe("Mutation Error States and Loading", () => {
-    it("should handle add mutation successfully", async () => {
-      const testMember: ProjectMemberRead = {
-        id: "member-3",
+      result.current.mutate({
         user_id: "user-3",
-        project_id: mockProjectId,
-        role: ProjectRole.PROJECT_EDITOR,
-        assigned_at: "2026-01-03T00:00:00Z",
-        assigned_by: "user-1",
-        created_at: "2026-01-03T00:00:00Z",
-        updated_at: "2026-01-03T00:00:00Z",
-        user_name: "New Editor",
-        user_email: "editor@example.com",
-      };
-
-      mockRequest.mockResolvedValueOnce(testMember);
-
-      const { result } = renderHook(
-        () => useAddProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      const newMember: ProjectMemberCreate = {
-        user_id: "user-3",
-        project_id: mockProjectId,
-        role: ProjectRole.PROJECT_EDITOR,
-        assigned_by: "user-1",
-      };
-
-      result.current.mutate(newMember);
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
+        project_id: "proj-1",
+        role: "project_editor" as ProjectMemberCreate["role"],
+        assigned_by: "user-2",
+        role_id: "role-editor",
       });
 
-      expect(result.current.isPending).toBe(false);
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(toast.error).toHaveBeenCalledWith(
+        "Error adding member: Conflict",
+      );
+    });
+  });
+
+  // ---- useRemoveProjectMember mutation ----
+
+  describe("useRemoveProjectMember", () => {
+    it("delegates to useDeleteRoleAssignment with the assignmentId", async () => {
+      const mockMutateAsync = vi.fn().mockResolvedValue(undefined);
+      mockUseDeleteRoleAssignment.mockReturnValue({
+        mutateAsync: mockMutateAsync,
+      });
+
+      const { result } = renderHook(() => useRemoveProjectMember(), {
+        wrapper: createWrapper(),
+      });
+
+      const args = {
+        projectId: "proj-1",
+        userId: "user-2",
+        assignmentId: "assignment-2",
+      };
+
+      result.current.mutate(args);
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      // Only assignmentId should be forwarded
+      expect(mockMutateAsync).toHaveBeenCalledWith("assignment-2");
+      expect(toast.success).toHaveBeenCalledWith(
+        "Member removed successfully",
+      );
     });
 
-    it("should handle remove mutation successfully", async () => {
-      mockRequest.mockResolvedValueOnce(undefined);
-
-      const { result } = renderHook(
-        () => useRemoveProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      const removeArgs = {
-        projectId: mockProjectId,
-        userId: "user-2",
-      };
-
-      result.current.mutate(removeArgs);
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
+    it("shows error toast on failure", async () => {
+      const mockMutateAsync = vi
+        .fn()
+        .mockRejectedValue(new Error("Forbidden"));
+      mockUseDeleteRoleAssignment.mockReturnValue({
+        mutateAsync: mockMutateAsync,
       });
 
-      expect(result.current.isPending).toBe(false);
+      const { result } = renderHook(() => useRemoveProjectMember(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate({
+        projectId: "proj-1",
+        userId: "user-2",
+        assignmentId: "assignment-2",
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(toast.error).toHaveBeenCalledWith(
+        "Error removing member: Forbidden",
+      );
+    });
+  });
+
+  // ---- useUpdateProjectMember mutation ----
+
+  describe("useUpdateProjectMember", () => {
+    it("delegates to useUpdateRoleAssignment and maps the result", async () => {
+      const updatedAssignment: UserRoleAssignmentRead = {
+        ...mockAssignment,
+        role_id: "role-manager",
+        role_name: "project_manager",
+      };
+
+      const mockMutateAsync = vi
+        .fn()
+        .mockResolvedValue(updatedAssignment);
+      mockUseUpdateRoleAssignment.mockReturnValue({
+        mutateAsync: mockMutateAsync,
+      });
+
+      const { result } = renderHook(() => useUpdateProjectMember(), {
+        wrapper: createWrapper(),
+      });
+
+      const args = {
+        projectId: "proj-1",
+        userId: "user-1",
+        assignmentId: "assignment-1",
+        update: { role_id: "role-manager" },
+      };
+
+      result.current.mutate(args);
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(mockMutateAsync).toHaveBeenCalledWith({
+        id: "assignment-1",
+        role_id: "role-manager",
+      });
+
+      expect(result.current.data).toEqual({
+        id: "assignment-1",
+        user_id: "user-1",
+        project_id: "proj-1",
+        role: "project_manager",
+        assigned_at: "2026-01-01T00:00:00Z",
+        assigned_by: "user-2",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        user_name: "Alice",
+        user_email: undefined,
+        assigned_by_name: "Bob",
+      });
+
+      expect(toast.success).toHaveBeenCalledWith(
+        "Member role updated successfully",
+      );
     });
 
-    it("should handle update mutation successfully", async () => {
-      const testMember: ProjectMemberRead = {
-        id: "member-2",
-        user_id: "user-2",
-        project_id: mockProjectId,
-        role: ProjectRole.PROJECT_MANAGER,
-        assigned_at: "2026-01-02T00:00:00Z",
-        assigned_by: "user-1",
-        created_at: "2026-01-02T00:00:00Z",
-        updated_at: "2026-01-03T00:00:00Z",
-        user_name: "Viewer User",
-        user_email: "viewer@example.com",
-      };
-
-      mockRequest.mockResolvedValueOnce(testMember);
-
-      const { result } = renderHook(
-        () => useUpdateProjectMember(),
-        { wrapper: createWrapper() }
-      );
-
-      const updateArgs = {
-        projectId: mockProjectId,
-        userId: "user-2",
-        update: {
-          role: ProjectRole.PROJECT_MANAGER,
-          assigned_by: "user-1",
-        } satisfies ProjectMemberUpdate,
-      };
-
-      result.current.mutate(updateArgs);
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
+    it("shows error toast on failure", async () => {
+      const mockMutateAsync = vi
+        .fn()
+        .mockRejectedValue(new Error("Not found"));
+      mockUseUpdateRoleAssignment.mockReturnValue({
+        mutateAsync: mockMutateAsync,
       });
 
-      expect(result.current.isPending).toBe(false);
+      const { result } = renderHook(() => useUpdateProjectMember(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate({
+        projectId: "proj-1",
+        userId: "user-1",
+        assignmentId: "assignment-1",
+        update: { role_id: "role-manager" },
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(toast.error).toHaveBeenCalledWith(
+        "Error updating member role: Not found",
+      );
+    });
+  });
+
+  // ---- useProjectRoleMap hook ----
+
+  describe("useProjectRoleMap", () => {
+    it("builds roleNameToId and roleIdToName maps from RBAC roles", () => {
+      mockUseRBACRoles.mockReturnValue({
+        data: [
+          { id: "role-1", name: "project_admin" },
+          { id: "role-2", name: "project_viewer" },
+          { id: "role-3", name: "project_editor" },
+        ],
+        isLoading: false,
+      });
+
+      const { result } = renderHook(() => useProjectRoleMap(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.roleNameToId.get("project_admin")).toBe("role-1");
+      expect(result.current.roleNameToId.get("project_viewer")).toBe("role-2");
+      expect(result.current.roleNameToId.get("project_editor")).toBe("role-3");
+
+      expect(result.current.roleIdToName.get("role-1")).toBe("project_admin");
+      expect(result.current.roleIdToName.get("role-2")).toBe("project_viewer");
+      expect(result.current.roleIdToName.get("role-3")).toBe("project_editor");
+
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    it("returns empty maps when roles are not loaded", () => {
+      mockUseRBACRoles.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+      });
+
+      const { result } = renderHook(() => useProjectRoleMap(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.roles).toEqual([]);
+      expect(result.current.roleNameToId.size).toBe(0);
+      expect(result.current.roleIdToName.size).toBe(0);
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    it("returns empty maps when roles list is empty", () => {
+      mockUseRBACRoles.mockReturnValue({
+        data: [],
+        isLoading: false,
+      });
+
+      const { result } = renderHook(() => useProjectRoleMap(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.roles).toEqual([]);
+      expect(result.current.roleNameToId.size).toBe(0);
+      expect(result.current.roleIdToName.size).toBe(0);
     });
   });
 });

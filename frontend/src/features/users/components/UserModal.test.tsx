@@ -3,14 +3,30 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { UserModal } from "./UserModal";
 import { User } from "@/types/user";
 
-// Mock matchMedia for Ant Design (already done in setupTests but good to be safe if specific query needed)
-// Using standard setupTests mocks.
+// Mock RBAC hooks
+vi.mock("@/features/admin/rbac/hooks/useRBAC", () => ({
+  useRBACRoles: () => ({
+    data: [
+      { id: "role-admin", name: "admin", description: null, is_system: true, permissions: [], created_at: "", updated_at: "" },
+      { id: "role-viewer", name: "viewer", description: null, is_system: true, permissions: [], created_at: "", updated_at: "" },
+    ],
+    isLoading: false,
+  }),
+}));
+
+// Mock role assignment hooks
+vi.mock("@/features/admin/role-assignments/hooks/useRoleAssignments", () => ({
+  useRoleAssignments: () => ({ data: [], isLoading: false }),
+  useCreateRoleAssignment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRoleAssignment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRoleAssignment: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 
 describe("UserModal", () => {
   const defaultProps = {
     open: true,
     onCancel: vi.fn(),
-    onOk: vi.fn(),
+    onOk: vi.fn().mockResolvedValue(undefined),
     confirmLoading: false,
   };
 
@@ -24,8 +40,8 @@ describe("UserModal", () => {
     expect(screen.getByText("Create User")).toBeInTheDocument();
     expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Password/i)).toBeInTheDocument(); // Password present in create
-    expect(screen.getByLabelText(/Role/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
+    expect(screen.getByTestId("global-role-field")).toBeInTheDocument();
   });
 
   it("renders edit mode fields correctly", () => {
@@ -42,9 +58,8 @@ describe("UserModal", () => {
     render(<UserModal {...defaultProps} initialValues={mockUser} />);
 
     expect(screen.getByText("Edit User")).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Password/i)).not.toBeInTheDocument(); // Password usually hidden/separate for edit
+    expect(screen.queryByLabelText(/Password/i)).not.toBeInTheDocument();
 
-    // Antd form initialValues are set heavily, might need waitFor or check value
     expect(screen.getByDisplayValue("Edit User")).toBeInTheDocument();
     expect(screen.getByDisplayValue("edit@test.com")).toBeInTheDocument();
   });
@@ -64,7 +79,7 @@ describe("UserModal", () => {
     expect(defaultProps.onOk).not.toHaveBeenCalled();
   });
 
-  it("submits form with valid data", async () => {
+  it("submits form without the legacy role field", async () => {
     render(<UserModal {...defaultProps} />);
 
     fireEvent.change(screen.getByLabelText(/Full Name/i), {
@@ -77,13 +92,6 @@ describe("UserModal", () => {
       target: { value: "password123" },
     });
 
-    // Role Select handling in Antd testing is tricky.
-    // We can use fireEvent.mouseDown on the select trigger
-    const roleSelect = screen.getByLabelText(/Role/i);
-    fireEvent.mouseDown(roleSelect);
-    const viewerOption = await screen.findByText("Viewer"); // Assumes 'viewer' maps to 'Viewer' text
-    fireEvent.click(viewerOption);
-
     const submitBtn = await screen.findByTestId("submit-user-btn");
     fireEvent.click(submitBtn);
 
@@ -92,9 +100,14 @@ describe("UserModal", () => {
         expect.objectContaining({
           full_name: "New User",
           email: "new@test.com",
-          role: "viewer",
-        })
+        }),
       );
+      // Should NOT contain the legacy 'role' field
+      const calledValues = defaultProps.onOk.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(calledValues).not.toHaveProperty("role");
     });
   });
 });

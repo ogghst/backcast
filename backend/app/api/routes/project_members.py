@@ -3,6 +3,10 @@
 Provides endpoints for managing project-level role assignments.
 """
 
+# DEPRECATED: This module is superseded by the unified role-assignments API.
+# The frontend now uses /api/v1/role-assignments/ for project member management.
+# This file is kept for API backward compatibility during transition.
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
