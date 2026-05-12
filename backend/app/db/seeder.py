@@ -957,6 +957,28 @@ class DataSeeder:
             f"AI Assistant seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
+    async def seed_ai_tools_test_data(self, session: AsyncSession) -> None:
+        """Seed AI Tools test data from ai_tools_test_data.json file.
+
+        Args:
+            session: Database session
+        """
+        from app.db.ai_tools_seeder import AIToolsTestDataSeeder
+
+        logger.info("Starting AI Tools test data seeding...")
+
+        # Check if test data file exists
+        test_data_file = self.seed_dir / "ai_tools_test_data.json"
+        if not test_data_file.exists():
+            logger.info("No AI Tools test data file found, skipping")
+            return
+
+        try:
+            ai_tools_seeder = AIToolsTestDataSeeder(seed_dir=self.seed_dir)
+            await ai_tools_seeder.seed_all(session)
+        except Exception as e:
+            logger.warning(f"AI Tools test data seeding failed (non-critical): {e}")
+
     async def seed_rbac_roles(self, session: AsyncSession) -> None:
         """Seed RBAC roles and permissions from config/rbac.json or seed/rbac_roles.json.
 
@@ -1422,6 +1444,9 @@ class DataSeeder:
 
             # Seed AI Assistants
             await self.seed_ai_assistants(session)
+
+            # Seed AI Tools Test Data
+            await self.seed_ai_tools_test_data(session)
 
             # Commit all changes (services usually commit internally for writes?
             # Or depend on session commit at end. If services use execute() they might depend on session commit.)
