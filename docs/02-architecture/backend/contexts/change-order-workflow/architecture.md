@@ -1,6 +1,6 @@
 # Change Order Workflow Validation Architecture
 
-**Last Updated:** 2026-05-09
+**Last Updated:** 2026-05-12
 **Owner:** Backend Team
 **Related ADRs:** [ADR-007: RBAC Service](../../decisions/ADR-007-rbac-service.md)
 
@@ -188,6 +188,53 @@ Change Orders can only be edited in specific states:
 ```python
 _EDITABLE_STATUSES: set[str] = {"Draft", "Rejected"}
 ```
+
+### Workflow Configuration Schema
+
+The workflow transitions, locking rules, and editable statuses are configurable through the `workflow_transitions` JSONB column on `co_workflow_config`. This allows organizations to customize their change approval workflows without code changes.
+
+**Schema Structure:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `transitions` | `dict[str, list[str]]` | Maps each status to a list of allowed target statuses |
+| `lock_transitions` | `list[tuple[str, str]]` | List of `[from_status, to_status]` pairs that trigger branch locking |
+| `unlock_transitions` | `list[tuple[str, str]]` | List of `[from_status, to_status]` pairs that trigger branch unlocking |
+| `editable_statuses` | `list[str]` | List of statuses where change order metadata can be modified |
+
+**Term Definitions:**
+
+- **Lock Transitions:** Determines when a change order's Git-style branch should be **locked** to prevent further modifications during critical workflow stages. Used for transitions where data should be frozen during review/approval. Example: `[["draft", "submitted_for_approval"]]` locks the branch when submitting for approval.
+
+- **Unlock Transitions:** Determines when a previously locked branch should be **released** back to an editable state. Used when a change order needs modification for resubmission. Example: `[["under_review", "rejected"]]` unlocks the branch when rejected, allowing edits.
+
+- **Editable Statuses:** Defines which workflow states allow modification of change order metadata (title, description, justification, etc.). This is separate from status transitions—read-only statuses typically represent points of no-return in the approval workflow. Example: `["draft", "rejected"]` means only draft and rejected orders are editable.
+
+**Configuration Example:**
+
+```json
+{
+  "transitions": {
+    "draft": ["submitted_for_approval"],
+    "submitted_for_approval": ["under_review", "approved", "rejected"],
+    "under_review": ["approved", "rejected"],
+    "rejected": ["draft", "submitted_for_approval"],
+    "approved": ["implemented"],
+    "implemented": []
+  },
+  "lock_transitions": [["draft", "submitted_for_approval"]],
+  "unlock_transitions": [["under_review", "rejected"]],
+  "editable_statuses": ["draft", "rejected"]
+}
+```
+
+**Implementation Notes:**
+
+- Stored as JSONB in `co_workflow_config.workflow_transitions`
+- Follows the same pattern as `impact_weights` and `score_boundaries`
+- Per-project overrides supported via `project_id` on config record
+- Fallback to hardcoded defaults when no config exists (system bootstrapping)
+- Cross-validation ensures all status references are valid according to the transitions graph
 
 ---
 

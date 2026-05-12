@@ -1038,9 +1038,9 @@ class ImpactAnalysisStatus:
 
 ## Appendix B: Workflow Configuration
 
-SLA deadlines, impact level thresholds, approval rules, and impact weights are now stored in the database and managed via the Workflow Config API. The `ChangeOrderConfigService` reads these values at runtime.
+SLA deadlines, impact level thresholds, approval rules, impact weights, and workflow transitions are now stored in the database and managed via the Workflow Config API. The `ChangeOrderConfigService` reads these values at runtime.
 
-**Default seeded values:**
+### Default Seeded Values
 
 ```python
 # SLA business days (seeded from config)
@@ -1053,7 +1053,46 @@ LOW: 0-10, MEDIUM: 10-30, HIGH: 30-50, CRITICAL: 50+
 budget: 0.4, schedule: 0.3, revenue: 0.2, evm: 0.1
 ```
 
-**Configuration tables:**
+### Workflow Transition Configuration
+
+The workflow state machine is configurable through the `workflow_transitions` JSONB column. This allows organizations to customize their approval workflows without code changes.
+
+**Schema Structure:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `transitions` | `dict[str, list[str]]` | Maps each status to a list of allowed target statuses |
+| `lock_transitions` | `list[tuple[str, str]]` | List of `[from_status, to_status]` pairs that trigger branch locking |
+| `unlock_transitions` | `list[tuple[str, str]]` | List of `[from_status, to_status]` pairs that trigger branch unlocking |
+| `editable_statuses` | `list[str]` | List of statuses where change order metadata can be modified |
+
+**Term Definitions:**
+
+- **Lock Transitions:** Determines when a change order's Git-style branch should be **locked** to prevent further modifications during critical workflow stages. Used for transitions where data should be frozen during review/approval. Example: `[["draft", "submitted_for_approval"]]` locks the branch when submitting for approval.
+
+- **Unlock Transitions:** Determines when a previously locked branch should be **released** back to an editable state. Used when a change order needs modification for resubmission. Example: `[["under_review", "rejected"]]` unlocks the branch when rejected, allowing edits.
+
+- **Editable Statuses:** Defines which workflow states allow modification of change order metadata (title, description, justification, etc.). This is separate from status transitions—read-only statuses typically represent points of no-return in the approval workflow. Example: `["draft", "rejected"]` means only draft and rejected orders are editable.
+
+**Default Configuration:**
+
+```json
+{
+  "transitions": {
+    "draft": ["submitted_for_approval"],
+    "submitted_for_approval": ["under_review", "approved", "rejected"],
+    "under_review": ["approved", "rejected"],
+    "rejected": ["draft", "submitted_for_approval"],
+    "approved": ["implemented"],
+    "implemented": []
+  },
+  "lock_transitions": [["draft", "submitted_for_approval"]],
+  "unlock_transitions": [["under_review", "rejected"]],
+  "editable_statuses": ["draft", "rejected"]
+}
+```
+
+### Configuration Tables
 
 | Table | Purpose |
 |-------|---------|
