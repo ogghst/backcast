@@ -118,7 +118,7 @@ async def test_get_branches_with_cos(
             "project_id": pid,
             "code": "CO-1",
             "title": "C1",
-            "status": "Draft",
+            "status": "draft",
             "description": "Desc",
         },
     )
@@ -131,7 +131,7 @@ async def test_get_branches_with_cos(
             "project_id": pid,
             "code": "CO-2",
             "title": "C2",
-            "status": "Approved",
+            "status": "approved",
             "description": "Desc",
         },
     )
@@ -155,5 +155,5 @@ async def test_get_branches_with_cos(
 
     assert co1_branch["type"] == "change_order"
     assert co1_branch["change_order_code"] == "CO-1"
-    assert co1_branch["change_order_status"] == "Draft"
+    assert co1_branch["change_order_status"] == "draft"
     assert co1_branch["is_default"] is False

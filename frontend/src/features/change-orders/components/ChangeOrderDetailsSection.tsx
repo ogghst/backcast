@@ -1,6 +1,7 @@
 import { Descriptions, Space, Tag, Typography } from "antd";
 import type { ChangeOrderPublic } from "@/api/generated";
 import { formatDate } from "@/utils/formatters";
+import { getChangeOrderStatusColor } from "@/lib/status";
 
 const { Text, Paragraph } = Typography;
 
@@ -18,18 +19,6 @@ interface ChangeOrderDetailsSectionProps {
 export function ChangeOrderDetailsSection({
   changeOrder,
 }: ChangeOrderDetailsSectionProps) {
-  // Status color mapping
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      Draft: "default",
-      "Submitted for Approval": "processing",
-      "Under Review": "processing",
-      Approved: "success",
-      Implemented: "success",
-      Rejected: "error",
-    };
-    return colors[status] || "default";
-  };
 
   return (
     <Descriptions
@@ -43,7 +32,7 @@ export function ChangeOrderDetailsSection({
         },
         {
           label: "Status",
-          children: <Tag color={getStatusColor(changeOrder.status || "")}>{changeOrder.status || "Unknown"}</Tag>,
+          children: <Tag color={getChangeOrderStatusColor(changeOrder.status || "")}>{changeOrder.status || "Unknown"}</Tag>,
         },
         {
           label: "Title",

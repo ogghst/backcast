@@ -1,0 +1,35 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - region "Notifications alt+T"
+    - generic [ref=e4]:
+      - generic:
+        - img
+      - main [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - img "Backcast" [ref=e8]
+            - heading "Backcast" [level=2] [ref=e9]
+            - text: Agentic warping your project dimensions
+          - generic [ref=e10]:
+            - generic [ref=e12]:
+              - generic "Email" [ref=e14]: "* Email"
+              - generic [ref=e18]:
+                - img "user" [ref=e20]:
+                  - img [ref=e21]
+                - textbox "* Email" [ref=e23]:
+                  - /placeholder: email@example.com
+            - generic [ref=e25]:
+              - generic "Password" [ref=e27]: "* Password"
+              - generic [ref=e31]:
+                - img "lock" [ref=e33]:
+                  - img [ref=e34]
+                - textbox "* Password" [ref=e36]:
+                  - /placeholder: Password
+                - img "eye-invisible" [ref=e38] [cursor=pointer]:
+                  - img [ref=e39]
+            - button "Log In" [ref=e47] [cursor=pointer]:
+              - generic [ref=e48]: Log In
+  - generic [ref=e49]:
+    - img [ref=e51]
+    - button "Open Tanstack query devtools" [ref=e99] [cursor=pointer]:
+      - img [ref=e100]

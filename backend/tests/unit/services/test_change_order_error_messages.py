@@ -369,7 +369,7 @@ async def test_approve_change_order_wrong_approver_includes_context(
         branch="main",
         control_date=datetime.now(UTC),
         updates={
-            "status": "Submitted for Approval",
+            "status": "submitted_for_approval",
             "assigned_approver_id": admin_user.user_id,
         },
     )
@@ -435,7 +435,7 @@ async def test_submit_for_approval_invalid_status_includes_context(
 ) -> None:
     """Verify error for submitting CO with invalid status includes all context fields.
 
-    Note: This test manually sets the CO status to "Submitted for Approval"
+    Note: This test manually sets the CO status to "submitted_for_approval"
     to simulate an already-submitted CO, then tries to submit again.
     """
     db_session.add(project)
@@ -452,7 +452,7 @@ async def test_submit_for_approval_invalid_status_includes_context(
     )
     co = await service.create_change_order(co_create, actor_id=admin_user.user_id)
 
-    # Manually set status to "Submitted for Approval" to simulate already submitted
+    # Manually set status to "submitted_for_approval" to simulate already submitted
     from app.core.branching.commands import UpdateCommand
 
     update_cmd = UpdateCommand(
@@ -461,7 +461,7 @@ async def test_submit_for_approval_invalid_status_includes_context(
         actor_id=admin_user.user_id,
         branch="main",
         control_date=datetime.now(UTC),
-        updates={"status": "Submitted for Approval"},
+        updates={"status": "submitted_for_approval"},
     )
     await update_cmd.execute(db_session)
     await db_session.commit()

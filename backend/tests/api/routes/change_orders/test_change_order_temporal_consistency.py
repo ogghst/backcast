@@ -173,7 +173,7 @@ async def test_change_order_update_temporal_consistency(
         "project_id": project_id,
         "code": "TEMP-001",
         "title": "Initial Title",
-        "status": "Draft",
+        "status": "draft",
         "description": "Initial description",
     }
 

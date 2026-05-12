@@ -141,6 +141,6 @@ async def test_change_order_branch_visibility_future_control_date(
     )
 
     # 7. Verify Change Order Status
-    assert co_branch_future["change_order_status"] == "Draft", (
+    assert co_branch_future["change_order_status"] == "draft", (
         f"Expected status 'Draft', got {co_branch_future.get('change_order_status')}"
     )

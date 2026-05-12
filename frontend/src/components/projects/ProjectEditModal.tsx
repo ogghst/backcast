@@ -31,11 +31,11 @@ interface FormValues {
 }
 
 const PROJECT_STATUSES = [
-  { label: "Draft", value: "Draft" },
-  { label: "Active", value: "Active" },
-  { label: "On Hold", value: "On Hold" },
-  { label: "Completed", value: "Completed" },
-  { label: "Cancelled", value: "Cancelled" },
+  { label: "draft", value: "draft" },
+  { label: "active", value: "active" },
+  { label: "on hold", value: "on_hold" },
+  { label: "completed", value: "completed" },
+  { label: "cancelled", value: "cancelled" },
 ];
 
 /**
@@ -58,7 +58,7 @@ export const ProjectEditModal = ({
     if (open && project) {
       form.setFieldsValue({
         name: project.name,
-        status: project.status || "Draft",
+        status: project.status || "draft",
         contract_value: project.contract_value
           ? Number(project.contract_value)
           : undefined,

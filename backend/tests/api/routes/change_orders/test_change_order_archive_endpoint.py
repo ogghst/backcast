@@ -119,7 +119,7 @@ async def test_archive_implemented_change_order_success(
         title="Implemented Change Order",
         description="Test CO for archive endpoint",
         project_id=project_id,
-        status="Implemented",
+        status="implemented",
         branch_name=branch_name,  # Required for archive to find the branch
     )
 
@@ -139,7 +139,7 @@ async def test_archive_implemented_change_order_success(
     assert response.status_code == 200
     data = response.json()
     assert data["change_order_id"] == str(co_id)
-    assert data["status"] == "Implemented"
+    assert data["status"] == "implemented"
 
     # Assert - Branch is soft-deleted (not found by standard query)
     stmt = select(Branch).where(
@@ -181,7 +181,7 @@ async def test_archive_rejected_change_order_success(
         title="Rejected Change Order",
         description="Test CO for archive endpoint",
         project_id=project_id,
-        status="Rejected",
+        status="rejected",
         branch_name=branch_name,  # Required for archive to find the branch
     )
 
@@ -201,7 +201,7 @@ async def test_archive_rejected_change_order_success(
     assert response.status_code == 200
     data = response.json()
     assert data["change_order_id"] == str(co_id)
-    assert data["status"] == "Rejected"
+    assert data["status"] == "rejected"
 
 
 @pytest.mark.asyncio
@@ -231,7 +231,7 @@ async def test_archive_active_change_order_fails(
         title="Draft Change Order",
         description="Test CO for archive endpoint",
         project_id=project_id,
-        status="Draft",
+        status="draft",
     )
 
     # Act - Call archive endpoint

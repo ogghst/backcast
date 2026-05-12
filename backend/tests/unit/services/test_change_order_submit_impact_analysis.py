@@ -120,7 +120,7 @@ class TestSubmitForApprovalImpactAnalysis:
         assert submitted_co.impact_level is not None
         assert submitted_co.impact_level in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
         assert submitted_co.impact_score is not None
-        assert submitted_co.status == "Submitted for Approval"
+        assert submitted_co.status == "submitted_for_approval"
 
     @pytest.mark.asyncio
     async def test_submit_for_approval_assigns_approver_based_on_impact(
@@ -523,7 +523,7 @@ class TestSubmitForApprovalImpactAnalysis:
         await db_session.refresh(submitted_co)
 
         # Assert - Submission succeeded despite empty branch
-        assert submitted_co.status == "Submitted for Approval"
+        assert submitted_co.status == "submitted_for_approval"
         assert submitted_co.impact_analysis_status == "completed"
 
         # Empty branch should result in LOW impact (no changes = minimal impact)
@@ -805,7 +805,7 @@ class TestSubmitForApprovalIntegration:
         - Approver is assigned based on impact level
         - SLA due date is calculated correctly
         - Branch is locked
-        - Status transitions to "Submitted for Approval"
+        - Status transitions to "submitted_for_approval"
         - Audit log is created
 
         Context: BE-006 - Full workflow integration test
@@ -880,7 +880,7 @@ class TestSubmitForApprovalIntegration:
 
         # Assert - Verify complete workflow
         # 1. Status transitioned
-        assert submitted_co.status == "Submitted for Approval"
+        assert submitted_co.status == "submitted_for_approval"
 
         # 2. Impact analysis completed
         assert submitted_co.impact_analysis_status == "completed"
@@ -921,12 +921,12 @@ class TestSubmitForApprovalIntegration:
                 log
                 for log in audit_logs
                 if log.new_status is not None
-                and log.new_status == "Submitted for Approval"
+                and log.new_status == "submitted_for_approval"
             ),
             None,
         )
         assert submission_log is not None
-        assert submission_log.old_status == "Draft"
+        assert submission_log.old_status == "draft"
         # Comment is optional, but we provided one in the submission
         assert submission_log.comment is not None
         assert "Submitting for approval" in submission_log.comment

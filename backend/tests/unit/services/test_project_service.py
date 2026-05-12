@@ -21,7 +21,7 @@ class TestProjectServiceCreate:
             name="Alpha Project",
             code="ALPHA",
             budget=Decimal("100000.00"),
-            status="Draft",
+            status="draft",
         )
 
         # Act
@@ -140,7 +140,7 @@ class TestProjectServiceGetProjects:
                 name="Draft Project",
                 code="DRAFT1",
                 budget=Decimal("30000.00"),
-                status="Draft",
+                status="draft",
             ),
             actor_id=uuid4(),
         )
@@ -159,7 +159,7 @@ class TestProjectServiceGetProjects:
         # Assert
         assert len(projects) == 1
         assert total == 1
-        assert projects[0].status == "Draft"
+        assert projects[0].status == "draft"
 
     @pytest.mark.asyncio
     async def test_get_projects_with_multiple_status_filter(
@@ -183,7 +183,7 @@ class TestProjectServiceGetProjects:
                 name="Draft Project",
                 code="DRAFT",
                 budget=Decimal("20000.00"),
-                status="Draft",
+                status="draft",
             ),
             actor_id=uuid4(),
         )
@@ -203,7 +203,7 @@ class TestProjectServiceGetProjects:
         # Assert
         assert len(projects) == 2
         assert total == 2
-        assert {p.status for p in projects} == {"Active", "Draft"}
+        assert {p.status for p in projects} == {"Active", "draft"}
 
     @pytest.mark.asyncio
     async def test_get_projects_with_search_and_filter(
@@ -227,7 +227,7 @@ class TestProjectServiceGetProjects:
                 name="Alpha Draft",
                 code="ALPHA2",
                 budget=Decimal("20000.00"),
-                status="Draft",
+                status="draft",
             ),
             actor_id=uuid4(),
         )
@@ -349,7 +349,7 @@ class TestProjectServiceGetProjects:
                     name=f"Draft {i}",
                     code=f"DRAFT{i}",
                     budget=Decimal("10000.00"),
-                    status="Draft",
+                    status="draft",
                 ),
                 actor_id=uuid4(),
             )
@@ -386,7 +386,7 @@ class TestProjectServiceUpdate:
             name="Original Name",
             code="PROJ1",
             budget=Decimal("10000.00"),
-            status="Draft",
+            status="draft",
         )
 
         # Create initial

@@ -151,7 +151,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                     ChangeOrder.project_id == project_id,
                     ChangeOrder.title == title,
                     ChangeOrder.branch == "main",
-                    ChangeOrder.status == COStatus.DRAFT,
+                    ChangeOrder.status == COStatus.DRAFT.value,
                     func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
                     cast(Any, ChangeOrder).deleted_at.is_(None),
                 )
@@ -207,11 +207,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         )
 
         # Create the corresponding branch in the SAME transaction
-        initial_status = co_data.get("status", "Draft")
+        from app.core.enums import ChangeOrderStatus as COStatus
+        initial_status = co_data.get("status", COStatus.DRAFT.value)
 
         # Check if the initial status should lock the branch
         # (e.g., if CO is created directly with "Submitted for Approval" status)
-        should_lock = initial_status != "Draft"
+        should_lock = initial_status != COStatus.DRAFT.value
 
         # Create the corresponding branch entity using CreateVersionCommand
         # This ensures proper valid_time setting based on control_date
@@ -469,9 +470,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Dispatch notifications based on status transitions
         if old_status != new_status and updated_co:
+            from app.core.enums import ChangeOrderStatus as COStatus
             # Transition to "Submitted for Approval" - notify assigned approver
             if (
-                new_status == "Submitted for Approval"
+                new_status == COStatus.SUBMITTED_FOR_APPROVAL.value
                 and updated_co.assigned_approver_id
             ):
                 await self._send_notification(
@@ -483,7 +485,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                     resource_id=change_order_id,
                 )
             # Transition to "Approved" - notify submitter/creator
-            elif new_status == "Approved":
+            elif new_status == COStatus.APPROVED.value:
                 await self._send_notification(
                     user_id=updated_co.created_by,
                     event_type="co_approved",
@@ -493,7 +495,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                     resource_id=change_order_id,
                 )
             # Transition to "Rejected" - notify submitter/creator
-            elif new_status == "Rejected":
+            elif new_status == COStatus.REJECTED.value:
                 await self._send_notification(
                     user_id=updated_co.created_by,
                     event_type="co_rejected",
@@ -532,12 +534,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status
+        from app.core.enums import ChangeOrderStatus as COStatus
         # Validate status
-        if co.status not in ["Implemented", "Rejected"]:  # pragma: no cover
+        if co.status not in [COStatus.IMPLEMENTED.value, COStatus.REJECTED.value]:  # pragma: no cover
             raise ValueError(
                 f"Cannot archive active Change Order. "
                 f"Current status: {co.status}. "
-                f"Must be 'Implemented' or 'Rejected'."
+                f"Must be '{COStatus.IMPLEMENTED.value}' or '{COStatus.REJECTED.value}'."
             )
 
         # Get branch name
@@ -589,10 +592,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         if not co:
             raise ValueError(f"Change Order {change_order_id} not found")
 
-        if co.status not in ("Draft", "Rejected"):
+        from app.core.enums import ChangeOrderStatus as COStatus
+        if co.status not in (COStatus.DRAFT.value, COStatus.REJECTED.value):
             raise ValueError(
                 f"Cannot delete Change Order in '{co.status}' status. "
-                f"Only Draft or Rejected COs can be deleted."
+                f"Only {COStatus.DRAFT.value} or {COStatus.REJECTED.value} COs can be deleted."
             )
 
         return await self.soft_delete(
@@ -962,10 +966,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             )
 
         # 6. Update CO status to "Implemented" using Command (RSC compliance)
+        from app.core.enums import ChangeOrderStatus as COStatus
         old_status = current.status
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
-            new_status="Implemented",
+            new_status=COStatus.IMPLEMENTED.value,
             actor_id=actor_id,
             branch=target_branch,
             control_date=control_date,
@@ -983,7 +988,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status="Implemented",
+            new_status=COStatus.IMPLEMENTED.value,
             actor_id=actor_id,
             comment="Change order implemented via merge",
             control_date=control_date,
@@ -1061,13 +1066,14 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status transition
+        from app.core.enums import ChangeOrderStatus as COStatus
         if not await self.workflow.is_valid_transition(
-            co.status, "Submitted for Approval"
+            co.status, COStatus.SUBMITTED_FOR_APPROVAL.value
         ):
             available = await self.workflow.get_available_transitions(co.status)
             raise ValueError(
                 f"Cannot submit change order {co.code} (status: {co.status}) for approval by user {actor_id}. "
-                f"Current status must be 'Draft' or 'Rejected'. "
+                f"Current status must be '{COStatus.DRAFT.value}' or '{COStatus.REJECTED.value}'. "
                 f"Available transitions: {available}. "
                 f"Project: {co.project_id}. "
                 f"Action: submit_for_approval"
@@ -1152,7 +1158,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         sla_assigned_at = datetime.now()
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
-            new_status="Submitted for Approval",
+            new_status=COStatus.SUBMITTED_FOR_APPROVAL.value,
             actor_id=actor_id,
             branch=branch,
             control_date=control_date,
@@ -1169,7 +1175,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status="Submitted for Approval",
+            new_status=COStatus.SUBMITTED_FOR_APPROVAL.value,
             actor_id=actor_id,
             comment=comment or f"Submitted for approval with {impact_level} impact",
             control_date=control_date,
@@ -1293,7 +1299,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status transition
-        if not await self.workflow.is_valid_transition(co.status, "Approved"):
+        from app.core.enums import ChangeOrderStatus as COStatus
+        if not await self.workflow.is_valid_transition(co.status, COStatus.APPROVED.value):
             available = await self.workflow.get_available_transitions(co.status)
             raise ValueError(
                 f"Cannot approve CO with status '{co.status}'. "
@@ -1336,7 +1343,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Update status to Approved using versioned command
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
-            new_status="Approved",
+            new_status=COStatus.APPROVED.value,
             actor_id=actor_id,
             branch=branch,
             control_date=control_date,
@@ -1347,7 +1354,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status="Approved",
+            new_status=COStatus.APPROVED.value,
             actor_id=actor_id,
             comment=comments or "Change order approved",
             control_date=control_date,
@@ -1426,7 +1433,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status transition
-        if not await self.workflow.is_valid_transition(co.status, "Rejected"):
+        from app.core.enums import ChangeOrderStatus as COStatus
+        if not await self.workflow.is_valid_transition(co.status, COStatus.REJECTED.value):
             available = await self.workflow.get_available_transitions(co.status)
             raise ValueError(
                 f"Cannot reject CO with status '{co.status}'. "
@@ -1462,7 +1470,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Update status to Rejected using versioned command
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
-            new_status="Rejected",
+            new_status=COStatus.REJECTED.value,
             actor_id=actor_id,
             branch=branch,
             control_date=control_date,
@@ -1485,7 +1493,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status="Rejected",
+            new_status=COStatus.REJECTED.value,
             actor_id=actor_id,
             comment=comments or "Change order rejected",
             control_date=control_date,
@@ -1629,11 +1637,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         old_analysis_status = co.impact_analysis_status
 
         # Determine new status for recovery
+        from app.core.enums import ChangeOrderStatus as COStatus
         new_status = co.status
-        if co.status == "Draft":
-            new_status = "Under Review"
-        elif co.status in ("Submitted for Approval", "Under Review"):
-            new_status = "Under Review"
+        if co.status == COStatus.DRAFT.value:
+            new_status = COStatus.UNDER_REVIEW.value
+        elif co.status in (COStatus.SUBMITTED_FOR_APPROVAL.value, COStatus.UNDER_REVIEW.value):
+            new_status = COStatus.UNDER_REVIEW.value
 
         # Update change order with recovery values using versioned command
         new_analysis_status = "skipped" if skip_impact_analysis else "completed"
@@ -1711,9 +1720,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         from sqlalchemy import func
 
         # Build query for pending approvals
+        from app.core.enums import ChangeOrderStatus as COStatus
         stmt = select(ChangeOrder).where(
             ChangeOrder.assigned_approver_id == user_id,
-            ChangeOrder.status.in_(["Submitted for Approval", "Under Review"]),
+            ChangeOrder.status.in_([
+                COStatus.SUBMITTED_FOR_APPROVAL.value,
+                COStatus.UNDER_REVIEW.value
+            ]),
             ChangeOrder.branch == branch,
             func.upper(cast(Any, ChangeOrder).valid_time).is_(None),  # Current versions
             cast(Any, ChangeOrder).deleted_at.is_(None),

@@ -150,10 +150,10 @@ export const ProjectList = () => {
             allowClear
             style={{ minWidth: 120 }}
             options={[
-              { label: "Draft", value: "Draft" },
-              { label: "Active", value: "Active" },
-              { label: "Completed", value: "Completed" },
-              { label: "On Hold", value: "On Hold" },
+              { label: "draft", value: "draft" },
+              { label: "active", value: "active" },
+              { label: "completed", value: "completed" },
+              { label: "on_hold", value: "on_hold" },
             ]}
             value={tableParams.filters?.status?.[0] as string | undefined}
             onChange={(val) => {

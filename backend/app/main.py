@@ -95,6 +95,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
             seeder = DataSeeder()
             await seeder.seed_rbac_roles(session)
+            await seeder.seed_user_role_assignments(session)
             await session.commit()
 
             from app.core.rbac_unified import (
@@ -211,10 +212,12 @@ app = FastAPI(
 )
 
 # Set all CORS enabled origins
+# Note: When allow_credentials=True, origins cannot be wildcard ("*")
+# Specific origins must be listed in BACKEND_CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=True,  # Required for cookie-based authentication
     allow_methods=settings.BACKEND_CORS_METHODS,
     allow_headers=settings.BACKEND_CORS_HEADERS,
     expose_headers=["*"],

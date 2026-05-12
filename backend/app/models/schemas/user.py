@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from uuid import UUID
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from app.models.domain.user import User
@@ -99,17 +100,80 @@ class UserPublic(BaseModel):
     def from_user(cls, user: "User") -> "UserPublic":
         """Create UserPublic from User domain object with RBAC permissions.
 
+        DEPRECATED: Use from_user_async() for proper permission loading.
+        This synchronous version may return empty permissions if cache is not populated.
+
         Args:
             user: User domain object
 
         Returns:
-            UserPublic instance with permissions populated
+            UserPublic instance with permissions populated from cache (may be empty)
         """
         from app.core.rbac_unified import get_unified_rbac_service
 
         unified_service = get_unified_rbac_service()
         perms = unified_service._get_cached_permissions(user.role)
         permissions = perms if perms is not None else []
+
+        return cls(
+            id=user.id,
+            user_id=user.user_id,
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            is_active=user.is_active,
+            permissions=permissions,
+        )
+
+    @classmethod
+    async def from_user_async(cls, user: "User", session: "AsyncSession") -> "UserPublic":
+        """Create UserPublic from User domain object with RBAC permissions.
+
+        This async version properly loads permissions from the database if cache is empty.
+        Use this for accurate permission checks.
+
+        Args:
+            user: User domain object
+            session: Database session for RBAC service
+
+        Returns:
+            UserPublic instance with permissions populated
+        """
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
+
+        try:
+            set_unified_rbac_session(session)
+            unified_service = get_unified_rbac_service()
+
+            # Try cache first
+            perms = unified_service._get_cached_permissions(user.role)
+
+            # If cache miss, load from database
+            if perms is None:
+                from sqlalchemy import select
+
+                from app.models.domain.rbac import RBACRole, RBACRolePermission
+
+                # Load role and permissions from database
+                stmt = (
+                    select(RBACRolePermission.permission)
+                    .join(RBACRole, RBACRolePermission.role_id == RBACRole.id)
+                    .where(RBACRole.name == user.role)
+                )
+                result = await session.execute(stmt)
+                perms = [row[0] for row in result.all()]
+
+                # Cache the result
+                if perms:
+                    unified_service._cache_permissions(user.role, perms)
+
+            permissions = perms if perms is not None else []
+
+        finally:
+            set_unified_rbac_session(None)
 
         return cls(
             id=user.id,

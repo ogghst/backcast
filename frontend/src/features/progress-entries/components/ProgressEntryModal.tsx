@@ -90,7 +90,7 @@ export const ProgressEntryModal = ({
       onOk={handleSubmit}
       okText="Record"
       confirmLoading={confirmLoading}
-      destroyOnClose
+      destroyOnHidden
       width={600}
     >
       <Form

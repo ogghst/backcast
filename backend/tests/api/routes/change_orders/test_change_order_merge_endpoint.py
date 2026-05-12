@@ -100,7 +100,7 @@ async def test_merge_endpoint_returns_200(
 
     ARRANGE: Create a project, change order with branch, WBEs and CostElements on both branches
     ACT: Call POST /api/v1/change-orders/{id}/merge
-    ASSERT: Response is 200, all entities merged to main, CO status is "Implemented"
+    ASSERT: Response is 200, all entities merged to main, CO status is "implemented"
     """
     # Arrange - Setup services and IDs
     actor_id = mock_admin_user.user_id
@@ -133,7 +133,7 @@ async def test_merge_endpoint_returns_200(
         title="Test Change Order",
         description="Test CO for merge endpoint",
         project_id=project_id,
-        status="Approved",
+        status="approved",
     )
 
     # Arrange - Create WBE on main branch first
@@ -171,7 +171,7 @@ async def test_merge_endpoint_returns_200(
         title="Test Change Order",
         description="Test CO for merge endpoint",
         project_id=project_id,
-        status="Approved",
+        status="approved",
     )
 
     # Arrange - Create modified WBE on source branch
@@ -205,7 +205,7 @@ async def test_merge_endpoint_returns_200(
     # Assert - Response is 200
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "Implemented"
+    assert data["status"] == "implemented"
 
     # Assert - WBE merged to main (has source branch version)
     result = await db_session.execute(

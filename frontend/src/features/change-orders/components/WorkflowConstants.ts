@@ -13,12 +13,12 @@ export type WorkflowStepKey = (typeof WORKFLOW_STEPS)[number]["key"];
  */
 export function getStepIndex(status: string): number {
   const statusToKey: Record<string, WorkflowStepKey> = {
-    Draft: "draft",
-    "Submitted for Approval": "submitted",
-    "Under Review": "under_review",
-    Approved: "approved",
-    Implemented: "implemented",
-    Rejected: "draft", // Rejected returns to Draft
+    draft: "draft",
+    submitted_for_approval: "submitted",
+    under_review: "under_review",
+    approved: "approved",
+    implemented: "implemented",
+    rejected: "draft", // Rejected returns to draft
   };
   const key = statusToKey[status] || "draft";
   return WORKFLOW_STEPS.findIndex((step) => step.key === key);

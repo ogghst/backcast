@@ -106,7 +106,7 @@ export function ChangeOrderWorkflowModal({
               children: (
                 <div style={{ minHeight: 300 }}>
                   {/* Workflow stepper */}
-                  <WorkflowStepper status={changeOrder.status || "Draft"} />
+                  <WorkflowStepper status={changeOrder.status || "draft"} />
 
                   {/* Action buttons */}
                   <div style={{ marginBottom: 24 }}>
@@ -115,7 +115,7 @@ export function ChangeOrderWorkflowModal({
 
                   {/* Current status info */}
                   <StepDetailsSection
-                    status={changeOrder.status || "Draft"}
+                    status={changeOrder.status || "draft"}
                     availableTransitions={changeOrder.available_transitions || []}
                     branchLocked={changeOrder.branch_locked || false}
                   />

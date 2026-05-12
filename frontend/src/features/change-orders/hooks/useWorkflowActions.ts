@@ -5,6 +5,7 @@ import type {
   ChangeOrderUpdate,
   MergeRequest,
 } from "@/api/generated";
+import { ChangeOrderStatus } from "@/api/generated";
 import {
   useUpdateChangeOrder,
   useMergeChangeOrder,
@@ -28,13 +29,13 @@ interface WorkflowActionsOptions {
  * Workflow action types with their corresponding status values.
  */
 export const WORKFLOW_ACTIONS = {
-  SUBMIT: { label: "Submit", status: "Submitted for Approval" },
-  REVIEW: { label: "Put Under Review", status: "Under Review" },
-  APPROVE: { label: "Approve", status: "Approved" },
-  REJECT: { label: "Reject", status: "Rejected" },
-  REOPEN: { label: "Reopen", status: "Draft" },
-  MERGE: { label: "Merge to Main", status: "Implemented" },
-  ARCHIVE: { label: "Archive Branch", status: "Archived" },
+  SUBMIT: { label: "Submit", status: ChangeOrderStatus.SUBMITTED_FOR_APPROVAL },
+  REVIEW: { label: "Put Under Review", status: ChangeOrderStatus.UNDER_REVIEW },
+  APPROVE: { label: "Approve", status: ChangeOrderStatus.APPROVED },
+  REJECT: { label: "Reject", status: ChangeOrderStatus.REJECTED },
+  REOPEN: { label: "Reopen", status: ChangeOrderStatus.DRAFT },
+  MERGE: { label: "Merge to Main", status: ChangeOrderStatus.IMPLEMENTED },
+  ARCHIVE: { label: "Archive Branch", status: "archived" },
 } as const;
 
 export type WorkflowActionKey = keyof typeof WORKFLOW_ACTIONS;

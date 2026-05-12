@@ -73,7 +73,11 @@
         "change-order-workflow-config-manage",
         "change-order-workflow-config-override",
         "change-order-escalate",
-        "temporal-write"
+        "temporal-write",
+        "role-assignment-read",
+        "role-assignment-create",
+        "role-assignment-update",
+        "role-assignment-delete"
       ]
     },
     "manager": {

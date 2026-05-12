@@ -26,7 +26,7 @@ export function StepDetailsSection({
   // Get content for current status
   const getStatusContent = () => {
     switch (status) {
-      case "Draft":
+      case "draft":
         return {
           title: "Draft Phase",
           description: "Your change order is in draft mode. You can modify all details.",
@@ -34,7 +34,7 @@ export function StepDetailsSection({
           availableActions: availableTransitions || [],
         };
 
-      case "Submitted for Approval":
+      case "submitted_for_approval":
         return {
           title: "Submitted for Review",
           description: "Change order has been submitted and is awaiting review.",
@@ -47,7 +47,7 @@ export function StepDetailsSection({
             : undefined,
         };
 
-      case "Under Review":
+      case "under_review":
         return {
           title: "Under Review",
           description: "A reviewer is evaluating your change order.",
@@ -60,7 +60,7 @@ export function StepDetailsSection({
             : undefined,
         };
 
-      case "Approved":
+      case "approved":
         return {
           title: "Approved",
           description: "Change order has been approved and is ready to merge.",
@@ -69,7 +69,7 @@ export function StepDetailsSection({
           info: "After merging, the status will automatically change to Implemented.",
         };
 
-      case "Implemented":
+      case "implemented":
         return {
           title: "Implemented",
           description: "Change order has been merged to main branch.",
@@ -78,7 +78,7 @@ export function StepDetailsSection({
           success: "All changes have been successfully applied.",
         };
 
-      case "Rejected":
+      case "rejected":
         return {
           title: "Rejected",
           description: "Change order was rejected.",
@@ -157,7 +157,7 @@ export function StepDetailsSection({
       )}
 
       {/* Empty state for no actions */}
-      {content.availableActions.length === 0 && status !== "Implemented" && (
+      {content.availableActions.length === 0 && status !== "implemented" && (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description="No actions available at this time"

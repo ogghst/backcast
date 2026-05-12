@@ -143,7 +143,7 @@ class TestChangeOrderEmptyBranchImpact:
         """Test submit_for_approval works correctly with empty isolation branch.
 
         Acceptance Criteria:
-        - Status changes to "Submitted for Approval"
+        - Status changes to "submitted_for_approval"
         - Impact analysis completes successfully
         - Impact level is set to "LOW"
         - Approver is assigned based on LOW impact level
@@ -182,8 +182,8 @@ class TestChangeOrderEmptyBranchImpact:
             pytest.fail(f"submit_for_approval failed on empty branch: {e}")
 
         # Assert - Verify successful submission
-        assert updated_co.status == "Submitted for Approval", (
-            f"Expected status 'Submitted for Approval', got '{updated_co.status}'"
+        assert updated_co.status == "submitted_for_approval", (
+            f"Expected status 'submitted_for_approval', got '{updated_co.status}'"
         )
 
         assert updated_co.impact_analysis_status == "completed", (

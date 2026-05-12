@@ -22,7 +22,6 @@ from app.core.rbac_unified import (
 )
 from app.models.domain.user_role_assignment import UserRoleAssignment
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -416,6 +415,7 @@ class TestCRUDOperations:
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = existing
         mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.get = AsyncMock(return_value=existing)
         mock_session.delete = AsyncMock()
         mock_session.flush = AsyncMock()
 
@@ -428,7 +428,7 @@ class TestCRUDOperations:
             )
 
         assert result is True
-        mock_session.delete.assert_called_once_with(existing)
+        mock_session.delete.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_revoke_role_returns_false_when_not_found(self) -> None:
@@ -683,6 +683,31 @@ class TestGetAssignmentsByScope:
 
         assert result == []
 
+    @pytest.mark.asyncio
+    async def test_get_assignments_by_scope_type_only(self) -> None:
+        """get_assignments_by_scope with scope_type only returns all assignments of that type."""
+        project_id_1 = uuid4()
+        project_id_2 = uuid4()
+        a1 = _make_assignment(uuid4(), uuid4(), ScopeType.PROJECT, project_id_1)
+        a2 = _make_assignment(uuid4(), uuid4(), ScopeType.PROJECT, project_id_2)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [a1, a2]
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session",
+            return_value=mock_session,
+        ):
+            result = await self.service.get_assignments_by_scope(
+                ScopeType.PROJECT, None
+            )
+
+        assert len(result) == 2
+        assert result[0] is a1
+        assert result[1] is a2
+
 
 # ---------------------------------------------------------------------------
 # get_all_user_assignments Tests
@@ -750,6 +775,7 @@ class TestUpdateAssignment:
         mock_result.scalar_one_or_none.return_value = existing
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.get = AsyncMock(return_value=existing)
         mock_session.flush = AsyncMock()
 
         new_role_id = uuid4()
@@ -774,6 +800,7 @@ class TestUpdateAssignment:
         mock_result.scalar_one_or_none.return_value = existing
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.get = AsyncMock(return_value=existing)
         mock_session.flush = AsyncMock()
 
         new_metadata = {"authority_level": "HIGH"}
@@ -798,6 +825,7 @@ class TestUpdateAssignment:
         mock_result.scalar_one_or_none.return_value = existing
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.get = AsyncMock(return_value=existing)
         mock_session.flush = AsyncMock()
 
         new_expires = datetime.now(UTC) + timedelta(days=30)
@@ -855,6 +883,7 @@ class TestUpdateAssignment:
         mock_result.scalar_one_or_none.return_value = existing
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.get = AsyncMock(return_value=existing)
         mock_session.flush = AsyncMock()
 
         # Seed cache

@@ -31,7 +31,7 @@ vi.mock("@/features/change-orders/api/useChangeOrders", () => ({
       change_order_id: "BR-123",
       code: "CO-2026-001",
       title: "Test Change Order",
-      status: "Draft",
+      status: "draft",
       description: "Test description",
       justification: "Test justification",
       effective_date: "2026-01-15",
@@ -102,8 +102,8 @@ vi.mock("@/features/change-orders/hooks/useWorkflowActions", () => ({
 vi.mock("@/features/change-orders/hooks/useWorkflowInfo", () => ({
   useWorkflowInfo: () => ({
     statusOptions: [
-      { label: "Draft", value: "Draft" },
-      { label: "Submitted for Approval", value: "Submitted for Approval" },
+      { label: "draft", value: "draft" },
+      { label: "submitted for approval", value: "submitted for approval" },
     ],
     isStatusDisabled: false,
     isBranchLocked: false,

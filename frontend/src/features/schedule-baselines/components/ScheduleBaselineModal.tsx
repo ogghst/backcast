@@ -163,7 +163,7 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
       onCancel={onClose}
       footer={null}
       width={700}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         layout="vertical"

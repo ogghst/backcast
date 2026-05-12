@@ -1,7 +1,7 @@
 """Integration tests for Change Order resubmission temporal correctness.
 
 Tests the bug fix for bitemporal data corruption on Change Order resubmission
-(Rejected -> Submitted for Approval). Verifies that:
+(Rejected -> submitted_for_approval). Verifies that:
 
 1. The previous version's valid_time and transaction_time are properly closed.
 2. get_as_of() returns the new Submitted version, not the stale Rejected one.
@@ -43,7 +43,7 @@ async def test_resubmission_closes_previous_version_temporal_ranges(
     - T1: Create CO in Draft status
     - T2: Submit for Approval (Draft -> Submitted)
     - T3: Reject (Submitted -> Rejected)
-    - T4: Resubmit (Rejected -> Submitted for Approval)
+    - T4: Resubmit (Rejected -> submitted_for_approval)
 
     After resubmission, the Rejected version must have closed valid_time
     and transaction_time, and get_as_of() must return the Submitted version.
@@ -76,7 +76,7 @@ async def test_resubmission_closes_previous_version_temporal_ranges(
             title="Resubmission Test CO",
             description="Testing resubmission temporal correctness",
             project_id=project_id,
-            status="Draft",
+            status="draft",
         ),
         actor_id=actor_id,
         control_date=T1,
@@ -87,51 +87,51 @@ async def test_resubmission_closes_previous_version_temporal_ranges(
     co_submitted = await co_service.update_change_order(
         change_order_id=co_id,
         change_order_in=ChangeOrderUpdate(
-            status="Submitted for Approval",
+            status="submitted_for_approval",
             comment="Initial submission",
         ),
         actor_id=actor_id,
         control_date=T2,
         branch="main",
     )
-    assert co_submitted.status == "Submitted for Approval"
+    assert co_submitted.status == "submitted_for_approval"
 
     # T3: Reject
     co_rejected = await co_service.update_change_order(
         change_order_id=co_id,
         change_order_in=ChangeOrderUpdate(
-            status="Rejected",
+            status="rejected",
             comment="Needs revision",
         ),
         actor_id=actor_id,
         control_date=T3,
         branch="main",
     )
-    assert co_rejected.status == "Rejected"
+    assert co_rejected.status == "rejected"
 
     # Verify we see the Rejected version before resubmission
     current = await co_service.get_as_of(co_id, branch="main")
     assert current is not None
-    assert current.status == "Rejected"
+    assert current.status == "rejected"
 
-    # T4: Resubmit (Rejected -> Submitted for Approval)
+    # T4: Resubmit (Rejected -> submitted_for_approval)
     co_resubmitted = await co_service.update_change_order(
         change_order_id=co_id,
         change_order_in=ChangeOrderUpdate(
-            status="Submitted for Approval",
+            status="submitted_for_approval",
             comment="Resubmission after revision",
         ),
         actor_id=actor_id,
         control_date=T4,
         branch="main",
     )
-    assert co_resubmitted.status == "Submitted for Approval"
+    assert co_resubmitted.status == "submitted_for_approval"
 
     # CORE ASSERTION: get_as_of() must return the Submitted version, not Rejected
     current_after = await co_service.get_as_of(co_id, branch="main")
     assert current_after is not None, "get_as_of() should find the current version"
-    assert current_after.status == "Submitted for Approval", (
-        f"Expected 'Submitted for Approval' but got '{current_after.status}'. "
+    assert current_after.status == "submitted_for_approval", (
+        f"Expected 'submitted_for_approval' but got '{current_after.status}'. "
         "The Rejected version's temporal ranges were not properly closed."
     )
 
@@ -149,7 +149,7 @@ async def test_resubmission_closes_previous_version_temporal_ranges(
         f"Expected exactly 1 open-ended version on main, found {len(open_versions)}: "
         f"{[v.status for v in open_versions]}"
     )
-    assert open_versions[0].status == "Submitted for Approval"
+    assert open_versions[0].status == "submitted_for_approval"
 
 
 @pytest.mark.asyncio
@@ -188,7 +188,7 @@ async def test_resubmission_with_same_control_date_closes_previous(
             code="CO-SAME-001",
             title="Same Control Date Resubmission",
             project_id=project_id,
-            status="Draft",
+            status="draft",
         ),
         actor_id=actor_id,
         control_date=T1,
@@ -198,7 +198,7 @@ async def test_resubmission_with_same_control_date_closes_previous(
     # Submit at T1
     await co_service.update_change_order(
         change_order_id=co_id,
-        change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+        change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
         actor_id=actor_id,
         control_date=T1 + timedelta(seconds=1),
         branch="main",
@@ -207,7 +207,7 @@ async def test_resubmission_with_same_control_date_closes_previous(
     # Reject at T_reject_resubmit
     await co_service.update_change_order(
         change_order_id=co_id,
-        change_order_in=ChangeOrderUpdate(status="Rejected"),
+        change_order_in=ChangeOrderUpdate(status="rejected"),
         actor_id=actor_id,
         control_date=T_reject_resubmit,
         branch="main",
@@ -216,18 +216,18 @@ async def test_resubmission_with_same_control_date_closes_previous(
     # Resubmit at the SAME T_reject_resubmit
     co_resubmitted = await co_service.update_change_order(
         change_order_id=co_id,
-        change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+        change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
         actor_id=actor_id,
         control_date=T_reject_resubmit,
         branch="main",
     )
-    assert co_resubmitted.status == "Submitted for Approval"
+    assert co_resubmitted.status == "submitted_for_approval"
 
     # Verify get_as_of returns Submitted, not Rejected
     current = await co_service.get_as_of(co_id, branch="main")
     assert current is not None
-    assert current.status == "Submitted for Approval", (
-        f"Expected 'Submitted for Approval' but got '{current.status}'. "
+    assert current.status == "submitted_for_approval", (
+        f"Expected 'submitted_for_approval' but got '{current.status}'. "
         "The Rejected version was not closed when control_date == current_lower."
     )
 
@@ -267,7 +267,7 @@ async def test_empty_valid_time_ranges_excluded_from_current_query(
             code="CO-EMPTY-001",
             title="Empty Range Test CO",
             project_id=project_id,
-            status="Draft",
+            status="draft",
         ),
         actor_id=actor_id,
         control_date=T1,
@@ -309,7 +309,7 @@ async def test_empty_valid_time_ranges_excluded_from_current_query(
     assert current.status != "Corrupted", (
         "get_as_of() should not return a version with empty valid_time range"
     )
-    assert current.status == "Draft"
+    assert current.status == "draft"
 
 
 @pytest.mark.asyncio
@@ -349,7 +349,7 @@ async def test_full_lifecycle_draft_submit_reject_resubmit(
             code="CO-LIFE-001",
             title="Full Lifecycle CO",
             project_id=project_id,
-            status="Draft",
+            status="draft",
         ),
         actor_id=actor_id,
         control_date=T1,
@@ -357,51 +357,51 @@ async def test_full_lifecycle_draft_submit_reject_resubmit(
     co_id = co.change_order_id
 
     current = await co_service.get_as_of(co_id, branch="main")
-    assert current is not None and current.status == "Draft"
+    assert current is not None and current.status == "draft"
 
     # Step 2: Submit for Approval
     await co_service.update_change_order(
         change_order_id=co_id,
-        change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+        change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
         actor_id=actor_id,
         control_date=T2,
         branch="main",
     )
     current = await co_service.get_as_of(co_id, branch="main")
-    assert current is not None and current.status == "Submitted for Approval"
+    assert current is not None and current.status == "submitted_for_approval"
 
     # Step 3: Reject
     await co_service.update_change_order(
         change_order_id=co_id,
-        change_order_in=ChangeOrderUpdate(status="Rejected"),
+        change_order_in=ChangeOrderUpdate(status="rejected"),
         actor_id=actor_id,
         control_date=T3,
         branch="main",
     )
     current = await co_service.get_as_of(co_id, branch="main")
-    assert current is not None and current.status == "Rejected"
+    assert current is not None and current.status == "rejected"
 
     # Step 4: Resubmit
     await co_service.update_change_order(
         change_order_id=co_id,
-        change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+        change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
         actor_id=actor_id,
         control_date=T4,
         branch="main",
     )
     current = await co_service.get_as_of(co_id, branch="main")
-    assert current is not None and current.status == "Submitted for Approval"
+    assert current is not None and current.status == "submitted_for_approval"
 
-    # Step 5: Approve (skip Under Review for simplicity via update_change_order)
+    # Step 5: Approve (skip under_review for simplicity via update_change_order)
     await co_service.update_change_order(
         change_order_id=co_id,
-        change_order_in=ChangeOrderUpdate(status="Approved"),
+        change_order_in=ChangeOrderUpdate(status="approved"),
         actor_id=actor_id,
         control_date=T5,
         branch="main",
     )
     current = await co_service.get_as_of(co_id, branch="main")
-    assert current is not None and current.status == "Approved"
+    assert current is not None and current.status == "approved"
 
     # Verify history has no empty ranges
     history = await co_service.get_history(co_id)
@@ -415,16 +415,16 @@ async def test_full_lifecycle_draft_submit_reject_resubmit(
     # Verify time-travel queries return correct statuses at each point
     assert (
         await co_service.get_as_of(co_id, as_of=T1, branch="main")
-    ).status == "Draft"
+    ).status == "draft"
     assert (
         await co_service.get_as_of(co_id, as_of=T2, branch="main")
-    ).status == "Submitted for Approval"
+    ).status == "submitted_for_approval"
     assert (
         await co_service.get_as_of(co_id, as_of=T3, branch="main")
-    ).status == "Rejected"
+    ).status == "rejected"
     assert (
         await co_service.get_as_of(co_id, as_of=T4, branch="main")
-    ).status == "Submitted for Approval"
+    ).status == "submitted_for_approval"
     assert (
         await co_service.get_as_of(co_id, as_of=T5, branch="main")
-    ).status == "Approved"
+    ).status == "approved"

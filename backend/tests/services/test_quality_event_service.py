@@ -26,7 +26,7 @@ async def create_test_project(db_session: AsyncSession, admin_user, project_id: 
             "project_id": str(project_id),
             "name": "Test Project",
             "code": "TEST-PROJ",
-            "status": "Active",
+            "status": "active",
             "branch": "main",
             "now": datetime.now(UTC),
             "created_by": str(admin_user.id),

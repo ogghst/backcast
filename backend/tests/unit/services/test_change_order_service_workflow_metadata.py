@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import ChangeOrderStatus
 from app.models.domain.branch import Branch
 from app.models.domain.change_order import ChangeOrder
 from app.models.schemas.change_order import ChangeOrderPublic
@@ -33,7 +34,7 @@ async def test_to_public_includes_available_transitions(db_session: AsyncSession
         code="CO-001",
         project_id=project_id,
         title="Test Change Order",
-        status="Draft",
+        status=ChangeOrderStatus.DRAFT.value,
         branch="main",
         created_by=user_id,
         parent_id=None,
@@ -45,7 +46,7 @@ async def test_to_public_includes_available_transitions(db_session: AsyncSession
 
     # Mock workflow service async methods to return specific values
     service.workflow.get_available_transitions = AsyncMock(
-        return_value=["Submitted for Approval"]
+        return_value=[ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
     )
     service.workflow.can_edit_on_status = AsyncMock(return_value=True)
 
@@ -61,16 +62,22 @@ async def test_to_public_includes_available_transitions(db_session: AsyncSession
     assert isinstance(result, ChangeOrderPublic), (
         "Result should be ChangeOrderPublic schema"
     )
-    assert result.available_transitions == ["Submitted for Approval"], (
+    assert result.available_transitions == [
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value
+    ], (
         "available_transitions should match workflow service response"
     )
     assert result.can_edit_status is True, "Draft status should be editable"
     assert result.branch_locked is False, "No branch means not locked"
     (
-        service.workflow.get_available_transitions.assert_called_once_with("Draft"),
+        service.workflow.get_available_transitions.assert_called_once_with(
+            ChangeOrderStatus.DRAFT.value
+        ),
         ("Workflow service should be called with current status"),
     )
-    service.workflow.can_edit_on_status.assert_called_once_with("Draft")
+    service.workflow.can_edit_on_status.assert_called_once_with(
+        ChangeOrderStatus.DRAFT.value
+    )
 
 
 @pytest.mark.asyncio
@@ -79,7 +86,7 @@ async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
 
     Acceptance Criteria:
     - can_edit_status field reflects workflow rules
-    - Submitted for Approval status should not allow editing
+    - submitted_for_approval status should not allow editing
     """
     # Arrange
     co_id = uuid4()
@@ -91,7 +98,7 @@ async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
         code="CO-002",
         project_id=project_id,
         title="Submitted CO",
-        status="Submitted for Approval",
+        status=ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
         branch="main",
         created_by=user_id,
         parent_id=None,
@@ -102,7 +109,7 @@ async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
 
     # Mock workflow: Submitted status cannot be edited
     service.workflow.get_available_transitions = AsyncMock(
-        return_value=["Under Review"]
+        return_value=[ChangeOrderStatus.UNDER_REVIEW.value]
     )
     service.workflow.can_edit_on_status = AsyncMock(return_value=False)
 
@@ -115,7 +122,9 @@ async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
 
     # Assert
     assert result.can_edit_status is False, "Submitted status should not be editable"
-    assert result.available_transitions == ["Under Review"]
+    assert result.available_transitions == [
+        ChangeOrderStatus.UNDER_REVIEW.value
+    ]
 
 
 @pytest.mark.asyncio
@@ -138,7 +147,7 @@ async def test_to_public_branch_locked_true_when_branch_locked(
         code="CO-003",
         project_id=project_id,
         title="Locked CO",
-        status="Under Review",
+        status=ChangeOrderStatus.UNDER_REVIEW.value,
         branch="main",
         branch_name="BR-CO-003",
         created_by=user_id,
@@ -149,7 +158,7 @@ async def test_to_public_branch_locked_true_when_branch_locked(
     service = ChangeOrderService(db_session)
 
     service.workflow.get_available_transitions = AsyncMock(
-        return_value=["Approved", "Rejected"]
+        return_value=[ChangeOrderStatus.APPROVED.value, ChangeOrderStatus.REJECTED.value]
     )
     service.workflow.can_edit_on_status = AsyncMock(return_value=False)
 
@@ -197,7 +206,7 @@ async def test_to_public_branch_locked_false_when_branch_unlocked(
         code="CO-004",
         project_id=project_id,
         title="Unlocked CO",
-        status="Draft",
+        status=ChangeOrderStatus.DRAFT.value,
         branch="main",
         branch_name="BR-CO-004",
         created_by=user_id,
@@ -208,7 +217,7 @@ async def test_to_public_branch_locked_false_when_branch_unlocked(
     service = ChangeOrderService(db_session)
 
     service.workflow.get_available_transitions = AsyncMock(
-        return_value=["Submitted for Approval"]
+        return_value=[ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
     )
     service.workflow.can_edit_on_status = AsyncMock(return_value=True)
 
@@ -234,11 +243,11 @@ async def test_to_public_branch_locked_false_when_branch_unlocked(
 
 @pytest.mark.asyncio
 async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSession):
-    """Verify that Rejected status allows resubmission to Submitted for Approval.
+    """Verify that Rejected status allows resubmission to submitted_for_approval.
 
     Acceptance Criteria:
     - Rejected Change Orders can be resubmitted
-    - available_transitions includes "Submitted for Approval"
+    - available_transitions includes "submitted_for_approval"
     """
     # Arrange
     co_id = uuid4()
@@ -250,7 +259,7 @@ async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSe
         code="CO-005",
         project_id=project_id,
         title="Rejected CO",
-        status="Rejected",
+        status=ChangeOrderStatus.REJECTED.value,
         branch="main",
         branch_name="BR-CO-005",
         created_by=user_id,
@@ -262,7 +271,7 @@ async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSe
 
     # Rejected status allows resubmission
     service.workflow.get_available_transitions = AsyncMock(
-        return_value=["Submitted for Approval"]
+        return_value=[ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
     )
     service.workflow.can_edit_on_status = AsyncMock(
         return_value=True
@@ -276,7 +285,9 @@ async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSe
     result = await service._to_public(co)
 
     # Assert
-    assert result.available_transitions == ["Submitted for Approval"]
+    assert result.available_transitions == [
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value
+    ]
     assert result.can_edit_status is True, (
         "Rejected status should allow editing for resubmission"
     )
@@ -302,7 +313,7 @@ async def test_to_public_approved_status_allows_implemented_only(
         code="CO-006",
         project_id=project_id,
         title="Approved CO",
-        status="Approved",
+        status="approved",
         branch="main",
         branch_name="BR-CO-006",
         created_by=user_id,
@@ -312,7 +323,7 @@ async def test_to_public_approved_status_allows_implemented_only(
 
     service = ChangeOrderService(db_session)
 
-    service.workflow.get_available_transitions = AsyncMock(return_value=["Implemented"])
+    service.workflow.get_available_transitions = AsyncMock(return_value=["implemented"])
     service.workflow.can_edit_on_status = AsyncMock(return_value=False)
 
     service.branch_service.get_by_name_and_project = AsyncMock(
@@ -323,5 +334,5 @@ async def test_to_public_approved_status_allows_implemented_only(
     result = await service._to_public(co)
 
     # Assert
-    assert result.available_transitions == ["Implemented"]
+    assert result.available_transitions == ["implemented"]
     assert result.can_edit_status is False, "Approved status should not allow editing"

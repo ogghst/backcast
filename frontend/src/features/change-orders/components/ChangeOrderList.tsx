@@ -20,21 +20,11 @@ import {
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { formatDate } from "@/utils/formatters";
 import { ChangeOrdersService } from "@/api/generated";
+import { getChangeOrderStatusColor } from "@/lib/status";
 
 interface ChangeOrderListProps {
   projectId: string;
 }
-
-// Status tag colors
-const STATUS_COLORS: Record<string, string> = {
-  Draft: "default",
-  Submitted: "blue",
-  "Under Review": "cyan",
-  Approved: "green",
-  Rejected: "red",
-  Implemented: "purple",
-  Closed: "default",
-};
 
 export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
   const navigate = useNavigate();
@@ -88,7 +78,7 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
       key: "status",
       width: 130,
       render: (status: string) => (
-        <Tag color={STATUS_COLORS[status]}>{status}</Tag>
+        <Tag color={getChangeOrderStatusColor(status)}>{status}</Tag>
       ),
     },
     {

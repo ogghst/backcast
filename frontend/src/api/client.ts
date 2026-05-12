@@ -10,6 +10,9 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8020";
 
 // Configure generated client
 OpenAPI.BASE = API_URL;
+// Enable credentials for CORS to match global axios config
+// This is required for cookie-based auth and proper CORS handling
+OpenAPI.WITH_CREDENTIALS = true;
 // Note: We don't set OpenAPI.TOKEN here because it would add auth header to login request
 // The axios interceptor handles token injection for authenticated requests
 

@@ -32,7 +32,7 @@ async def test_create_change_order_creates_branch_in_transaction(db_session):
         project_id=project.project_id,
         title="Test Change Order",
         description="Test Description",
-        status="Draft",
+        status="draft",
     )
 
     # Act: Create Change Order
@@ -68,7 +68,7 @@ async def test_create_change_order_creates_branch_in_transaction(db_session):
 
 @pytest.mark.asyncio
 async def test_status_change_draft_to_submitted_locks_branch(db_session):
-    """Test that changing status from Draft to Submitted for Approval locks the branch."""
+    """Test that changing status from Draft to submitted_for_approval locks the branch."""
     # Arrange: Create a project and Change Order
     user_id = uuid4()
     project = Project(
@@ -86,7 +86,7 @@ async def test_status_change_draft_to_submitted_locks_branch(db_session):
         project_id=project.project_id,
         title="Test Change Order 2",
         description="Test Description",
-        status="Draft",
+        status="draft",
     )
 
     co_service = ChangeOrderService(db_session)
@@ -96,8 +96,8 @@ async def test_status_change_draft_to_submitted_locks_branch(db_session):
     )
     await db_session.commit()
 
-    # Act: Update status to "Submitted for Approval"
-    co_update = ChangeOrderUpdate(status="Submitted for Approval")
+    # Act: Update status to "submitted_for_approval"
+    co_update = ChangeOrderUpdate(status="submitted_for_approval")
     updated_co = await co_service.update_change_order(
         change_order_id=change_order.change_order_id,
         change_order_in=co_update,
@@ -106,7 +106,7 @@ async def test_status_change_draft_to_submitted_locks_branch(db_session):
     await db_session.commit()
 
     # Assert: Status updated
-    assert updated_co.status == "Submitted for Approval"
+    assert updated_co.status == "submitted_for_approval"
 
     # Assert: Branch is locked
     branch_service = BranchService(db_session)
@@ -119,7 +119,7 @@ async def test_status_change_draft_to_submitted_locks_branch(db_session):
 
 @pytest.mark.asyncio
 async def test_status_change_under_review_to_rejected_unlocks_branch(db_session):
-    """Test that changing status from Under Review to Rejected unlocks the branch."""
+    """Test that changing status from under_review to Rejected unlocks the branch."""
     # Arrange: Create a project and Change Order in locked state
     user_id = uuid4()
     project = Project(
@@ -132,13 +132,13 @@ async def test_status_change_under_review_to_rejected_unlocks_branch(db_session)
     db_session.add(project)
     await db_session.commit()
 
-    # Create CO with "Submitted for Approval" status (which locks the branch)
+    # Create CO with "submitted_for_approval" status (which locks the branch)
     co_in = ChangeOrderCreate(
         code="CO-2026-003",
         project_id=project.project_id,
         title="Test Change Order 3",
         description="Test Description",
-        status="Submitted for Approval",  # This will lock the branch
+        status="submitted_for_approval",  # This will lock the branch
     )
 
     co_service = ChangeOrderService(db_session)
@@ -147,8 +147,8 @@ async def test_status_change_under_review_to_rejected_unlocks_branch(db_session)
         actor_id=user_id,
     )
 
-    # Update to Under Review
-    co_update = ChangeOrderUpdate(status="Under Review")
+    # Update to under_review
+    co_update = ChangeOrderUpdate(status="under_review")
     change_order = await co_service.update_change_order(
         change_order_id=change_order.change_order_id,
         change_order_in=co_update,
@@ -165,7 +165,7 @@ async def test_status_change_under_review_to_rejected_unlocks_branch(db_session)
     assert branch.locked is True
 
     # Act: Update status to Rejected
-    co_update = ChangeOrderUpdate(status="Rejected")
+    co_update = ChangeOrderUpdate(status="rejected")
     updated_co = await co_service.update_change_order(
         change_order_id=change_order.change_order_id,
         change_order_in=co_update,
@@ -174,7 +174,7 @@ async def test_status_change_under_review_to_rejected_unlocks_branch(db_session)
     await db_session.commit()
 
     # Assert: Status updated
-    assert updated_co.status == "Rejected"
+    assert updated_co.status == "rejected"
 
     # Assert: Branch is unlocked (re-fetch to get current version)
     branch = await branch_service.get_by_name_and_project(
@@ -204,7 +204,7 @@ async def test_invalid_status_transition_raises_error(db_session):
         project_id=project.project_id,
         title="Test Change Order 4",
         description="Test Description",
-        status="Draft",
+        status="draft",
     )
 
     co_service = ChangeOrderService(db_session)
@@ -215,7 +215,7 @@ async def test_invalid_status_transition_raises_error(db_session):
     await db_session.commit()
 
     # Act & Assert: Try to skip directly to Approved (invalid)
-    co_update = ChangeOrderUpdate(status="Approved")
+    co_update = ChangeOrderUpdate(status="approved")
 
     with pytest.raises(ValueError) as exc_info:
         await co_service.update_change_order(

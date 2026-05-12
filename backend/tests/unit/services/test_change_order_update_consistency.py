@@ -178,7 +178,7 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
     co = await service.create_change_order(co_in, actor_id=actor_id)
 
     assert co.title == "CRUD Title"
-    assert co.status == "Draft"
+    assert co.status == "draft"
     assert co.branch_name == "BR-CO-CRUD-001"
 
     co_id = co.change_order_id
@@ -189,20 +189,20 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
     assert fetched.change_order_id == co_id
 
     # 4. UPDATE
-    # Use valid transition "Submitted for Approval"
+    # Use valid transition "submitted_for_approval"
     update_in = ChangeOrderUpdate(
-        description="Updated Desc", status="Submitted for Approval"
+        description="Updated Desc", status="submitted_for_approval"
     )
     updated = await service.update_change_order(co_id, update_in, actor_id=actor_id)
 
     assert updated.description == "Updated Desc"
-    assert updated.status == "Submitted for Approval"
+    assert updated.status == "submitted_for_approval"
 
     # 4.5. REJECT (Required before deletion)
     # Only Draft or Rejected COs can be deleted
-    reject_in = ChangeOrderUpdate(status="Rejected")
+    reject_in = ChangeOrderUpdate(status="rejected")
     rejected = await service.update_change_order(co_id, reject_in, actor_id=actor_id)
-    assert rejected.status == "Rejected"
+    assert rejected.status == "rejected"
 
     # 5. DELETE (Soft Delete)
     deleted = await service.delete_change_order(co_id, actor_id=actor_id)

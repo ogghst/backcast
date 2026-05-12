@@ -300,10 +300,10 @@ class DashboardService:
 
         # Determine action based on status
         action = "updated"
-        if change_order.status == "Draft":
+        if change_order.status == "draft":
             action = "created"
-        elif change_order.status in ("Approved", "Rejected", "Merged"):
-            action = change_order.status.lower()
+        elif change_order.status in ("approved", "rejected", "implemented"):
+            action = change_order.status
 
         return DashboardActivity(
             entity_id=change_order.change_order_id,
@@ -419,7 +419,7 @@ class DashboardService:
                 ChangeOrder.project_id == project_id,
                 ChangeOrder.branch == "main",
                 ChangeOrder.status.in_(
-                    ["Draft", "Submitted for Approval", "Under Review"]
+                    ["draft", "submitted_for_approval", "under_review"]
                 ),
                 func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
                 cast(Any, ChangeOrder).deleted_at.is_(None),

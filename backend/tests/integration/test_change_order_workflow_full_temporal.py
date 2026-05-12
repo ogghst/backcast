@@ -249,7 +249,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 title="Expand Assembly Station 1",
                 description="Add capacity to Assembly Station 1",
                 project_id=project_id,
-                status="Draft",
+                status="draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -257,7 +257,7 @@ class TestChangeOrderWorkflowFullTemporal:
         co_id = co.change_order_id
 
         assert co.code == "CO-2026-001"
-        assert co.status == "Draft"
+        assert co.status == "draft"
         assert co.branch == "main"
         assert co.branch_name == "BR-CO-2026-001"
 
@@ -414,16 +414,16 @@ class TestChangeOrderWorkflowFullTemporal:
         # 1. Submit
         await co_service.update_change_order(
             change_order_id=co_id,
-            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
             actor_id=actor_id,
             control_date=T3,
             branch=source_branch,
         )
 
-        # 2. Under Review
+        # 2. under_review
         await co_service.update_change_order(
             change_order_id=co_id,
-            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            change_order_in=ChangeOrderUpdate(status="under_review"),
             actor_id=actor_id,
             control_date=T3 + timedelta(seconds=1),
             branch=source_branch,
@@ -432,7 +432,7 @@ class TestChangeOrderWorkflowFullTemporal:
         # 3. Approve
         await co_service.update_change_order(
             change_order_id=co_id,
-            change_order_in=ChangeOrderUpdate(status="Approved"),
+            change_order_in=ChangeOrderUpdate(status="approved"),
             actor_id=actor_id,
             control_date=T3 + timedelta(seconds=2),
             branch=source_branch,
@@ -446,7 +446,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Verify CO status
-        assert merged_co.status == "Implemented"
+        assert merged_co.status == "implemented"
 
         # Verify WBE1 merged
         wbe1_main_merged = await wbe_service.get_as_of(
@@ -552,7 +552,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Draft",
+                status="draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -642,7 +642,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Approved",
+                status="approved",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -801,7 +801,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Draft",
+                status="draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -825,21 +825,21 @@ class TestChangeOrderWorkflowFullTemporal:
         # Transition ensuring intermediate states
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
             actor_id=actor_id,
             control_date=T1,
             branch=co.branch_name,
         )
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            change_order_in=ChangeOrderUpdate(status="under_review"),
             actor_id=actor_id,
             control_date=T1 + timedelta(seconds=1),
             branch=co.branch_name,
         )
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Approved"),
+            change_order_in=ChangeOrderUpdate(status="approved"),
             actor_id=actor_id,
             control_date=T1 + timedelta(seconds=2),
             branch=co.branch_name,
@@ -852,7 +852,7 @@ class TestChangeOrderWorkflowFullTemporal:
             control_date=T1,
         )
 
-        assert merged_co.status == "Implemented"
+        assert merged_co.status == "implemented"
 
         # Verify CE merged
         ce_merged = await ce_service.get_as_of(
@@ -915,7 +915,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Draft",
+                status="draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -937,21 +937,21 @@ class TestChangeOrderWorkflowFullTemporal:
         # Merge
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
             actor_id=actor_id,
             control_date=T2,
             branch=co.branch_name,
         )
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            change_order_in=ChangeOrderUpdate(status="under_review"),
             actor_id=actor_id,
             control_date=T2 + timedelta(seconds=1),
             branch=co.branch_name,
         )
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Approved"),
+            change_order_in=ChangeOrderUpdate(status="approved"),
             actor_id=actor_id,
             control_date=T2 + timedelta(seconds=2),
             branch=co.branch_name,

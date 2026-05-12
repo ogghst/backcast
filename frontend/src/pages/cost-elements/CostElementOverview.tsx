@@ -507,7 +507,7 @@ export const UnifiedMetricsSection = ({ costElement }: UnifiedMetricsSectionProp
         onCancel={() => setShowProgressHistory(false)}
         footer={null}
         width={1000}
-        destroyOnClose
+        destroyOnHidden
       >
         <ProgressEntriesTab costElement={costElement} />
       </Modal>

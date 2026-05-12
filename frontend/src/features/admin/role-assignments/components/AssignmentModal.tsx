@@ -9,6 +9,7 @@ import {
 import { apiClient } from "@/api/client";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import type {
   UserRoleAssignmentRead,
   ScopeType,
@@ -41,11 +42,12 @@ interface ChangeOrderOption {
 // ---------------------------------------------------------------------------
 
 function useScopeProjects(enabled: boolean) {
+  const { branch, mode } = useTimeMachineParams();
   return useQuery<ProjectOption[]>({
-    queryKey: queryKeys.projects.list({}),
+    queryKey: queryKeys.projects.list({ branch, mode }),
     queryFn: async () => {
       const { data } = await apiClient.get("/api/v1/projects", {
-        params: { per_page: 200 },
+        params: { per_page: 200, branch, mode },
       });
       // API returns paginated { items: [...] }
       const items = data?.items ?? data;
@@ -61,12 +63,13 @@ function useScopeProjects(enabled: boolean) {
   });
 }
 
-function useScopeChangeOrders(enabled: boolean) {
+function useScopeChangeOrders(enabled: boolean, projectId?: string) {
   return useQuery<ChangeOrderOption[]>({
-    queryKey: queryKeys.changeOrders.lists(),
+    queryKey: queryKeys.changeOrders.list(projectId || "", { per_page: 200 }),
     queryFn: async () => {
+      if (!projectId) return [];
       const { data } = await apiClient.get("/api/v1/change-orders", {
-        params: { per_page: 200, branch: "main" },
+        params: { per_page: 200, project_id: projectId, branch: "main" },
       });
       const items = data?.items ?? data;
       return (Array.isArray(items) ? items : []).map(
@@ -77,7 +80,7 @@ function useScopeChangeOrders(enabled: boolean) {
         }),
       );
     },
-    enabled,
+    enabled: enabled && !!projectId,
   });
 }
 
@@ -113,9 +116,13 @@ export const AssignmentModal = ({
   const needsScopeEntity =
     scopeType === "project" || scopeType === "change_order";
 
-  const { data: projects } = useScopeProjects(scopeType === "project");
+  // For change_order scope, we need a project selection first
+  const scopeProjectId = Form.useWatch("scope_project_id", form) as string | undefined;
+
+  const { data: projects } = useScopeProjects(scopeType === "project" || scopeType === "change_order");
   const { data: changeOrders } = useScopeChangeOrders(
     scopeType === "change_order",
+    scopeProjectId,
   );
 
   // Mutations
@@ -139,6 +146,12 @@ export const AssignmentModal = ({
 
   // Clear scope_id when scope_type changes
   const handleScopeTypeChange = () => {
+    form.setFieldValue("scope_id", undefined);
+    form.setFieldValue("scope_project_id", undefined);
+  };
+
+  // Clear scope_id when scope_project_id changes (for change_order scope)
+  const handleScopeProjectChange = () => {
     form.setFieldValue("scope_id", undefined);
   };
 
@@ -169,9 +182,18 @@ export const AssignmentModal = ({
     } catch (error) {
       // Form validation errors are handled silently;
       // mutation errors are displayed here.
-      if (error && typeof error === "object" && "message" in error) {
-        messageApi.error((error as { message: string }).message);
+      console.error("Error submitting assignment:", error);
+      let errorMessage = "An error occurred";
+      if (error && typeof error === "object") {
+        // Check for Axios error with response data
+        if ("response" in error && error.response) {
+          const responseData = (error.response as { data?: { detail?: string } })?.data;
+          errorMessage = responseData?.detail || ((error as unknown) as { message?: string })?.message || errorMessage;
+        } else if ("message" in error) {
+          errorMessage = (error as { message: string }).message;
+        }
       }
+      messageApi.error(errorMessage);
     }
   };
 
@@ -241,47 +263,80 @@ export const AssignmentModal = ({
             />
           </Form.Item>
 
-          {needsScopeEntity && (
+          {/* For change_order scope, first select a project */}
+          {scopeType === "change_order" && (
+            <Form.Item
+              name="scope_project_id"
+              label="Project"
+              rules={[{ required: true, message: "Please select a project first" }]}
+            >
+              <Select
+                showSearch
+                placeholder="Search projects..."
+                optionFilterProp="label"
+                onChange={handleScopeProjectChange}
+              >
+                {(projects ?? []).map((p) => (
+                  <Select.Option
+                    key={p.project_id}
+                    value={p.project_id}
+                    label={p.name}
+                  >
+                    {p.name} ({p.code})
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
+
+          {needsScopeEntity && scopeType !== "change_order" && (
             <Form.Item
               name="scope_id"
-              label={
-                scopeType === "project" ? "Project" : "Change Order"
-              }
-              rules={[{ required: true, message: "Please select an entity" }]}
+              label="Project"
+              rules={[{ required: true, message: "Please select a project" }]}
             >
-              {scopeType === "project" ? (
-                <Select
-                  showSearch
-                  placeholder="Search projects..."
-                  optionFilterProp="label"
-                >
-                  {(projects ?? []).map((p) => (
-                    <Select.Option
-                      key={p.project_id}
-                      value={p.project_id}
-                      label={p.name}
-                    >
-                      {p.name} ({p.code})
-                    </Select.Option>
-                  ))}
-                </Select>
-              ) : (
-                <Select
-                  showSearch
-                  placeholder="Search change orders..."
-                  optionFilterProp="label"
-                >
-                  {(changeOrders ?? []).map((co) => (
-                    <Select.Option
-                      key={co.change_order_id}
-                      value={co.change_order_id}
-                      label={`${co.code} - ${co.title}`}
-                    >
-                      {co.code} &mdash; {co.title}
-                    </Select.Option>
-                  ))}
-                </Select>
-              )}
+              <Select
+                showSearch
+                placeholder="Search projects..."
+                optionFilterProp="label"
+              >
+                {(projects ?? []).map((p) => (
+                  <Select.Option
+                    key={p.project_id}
+                    value={p.project_id}
+                    label={p.name}
+                  >
+                    {p.name} ({p.code})
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
+
+          {/* For change_order scope, select the change order after project */}
+          {scopeType === "change_order" && (
+            <Form.Item
+              name="scope_id"
+              label="Change Order"
+              rules={[{ required: true, message: "Please select a change order" }]}
+            >
+              <Select
+                showSearch
+                placeholder="Search change orders..."
+                optionFilterProp="label"
+                disabled={!scopeProjectId}
+                loading={scopeProjectId ? !changeOrders : false}
+              >
+                {(changeOrders ?? []).map((co) => (
+                  <Select.Option
+                    key={co.change_order_id}
+                    value={co.change_order_id}
+                    label={`${co.code} - ${co.title}`}
+                  >
+                    {co.code} &mdash; {co.title}
+                  </Select.Option>
+                ))}
+              </Select>
             </Form.Item>
           )}
         </Form>

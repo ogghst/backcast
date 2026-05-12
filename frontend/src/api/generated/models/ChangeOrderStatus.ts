@@ -6,12 +6,13 @@
  * Change Order workflow statuses.
  *
  * Each status has an associated Ant Design color name for UI rendering.
+ * All status values are lowercase with underscores for consistency.
  */
 export enum ChangeOrderStatus {
-    DRAFT = 'Draft',
-    SUBMITTED_FOR_APPROVAL = 'Submitted for Approval',
-    UNDER_REVIEW = 'Under Review',
-    APPROVED = 'Approved',
-    IMPLEMENTED = 'Implemented',
-    REJECTED = 'Rejected',
+    DRAFT = 'draft',
+    SUBMITTED_FOR_APPROVAL = 'submitted_for_approval',
+    UNDER_REVIEW = 'under_review',
+    APPROVED = 'approved',
+    IMPLEMENTED = 'implemented',
+    REJECTED = 'rejected',
 }

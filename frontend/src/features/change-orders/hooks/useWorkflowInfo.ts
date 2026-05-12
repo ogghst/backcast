@@ -36,7 +36,7 @@ export function useWorkflowInfo(
   const statusOptions = useMemo(() => {
     if (!currentStatus) {
       // Create mode: Only Draft option
-      return [{ label: "Draft", value: "Draft" }];
+      return [{ label: "Draft", value: "draft" }];
     }
 
     // Edit mode: Filter by available transitions

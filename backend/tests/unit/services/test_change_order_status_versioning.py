@@ -32,7 +32,7 @@ def mock_change_order() -> ChangeOrder:
     co = MagicMock(spec=ChangeOrder)
     co.id = uuid4()
     co.change_order_id = uuid4()
-    co.status = "Draft"
+    co.status = "draft"
     co.clone = MagicMock(return_value=co)
     co.valid_time = MagicMock()
     co.valid_time.lower = datetime.now(UTC) - timedelta(days=1)
@@ -50,7 +50,7 @@ class TestUpdateChangeOrderStatusCommand:
 
         cmd = UpdateChangeOrderStatusCommand(
             change_order_id=co_id,
-            new_status="Submitted for Approval",
+            new_status="submitted_for_approval",
             actor_id=actor_id,
             branch="main",
             control_date=control_date,
@@ -58,7 +58,7 @@ class TestUpdateChangeOrderStatusCommand:
         )
 
         assert cmd.change_order_id == co_id
-        assert cmd.new_status == "Submitted for Approval"
+        assert cmd.new_status == "submitted_for_approval"
         assert cmd.actor_id == actor_id
         assert cmd.branch == "main"
         assert cmd.control_date == control_date
@@ -71,7 +71,7 @@ class TestUpdateChangeOrderStatusCommand:
 
         cmd = UpdateChangeOrderStatusCommand(
             change_order_id=co_id,
-            new_status="Approved",
+            new_status="approved",
             actor_id=actor_id,
         )
 
@@ -100,7 +100,7 @@ class TestUpdateChangeOrderStatusCommand:
 
         cmd = UpdateChangeOrderStatusCommand(
             change_order_id=co_id,
-            new_status="Submitted for Approval",
+            new_status="submitted_for_approval",
             actor_id=actor_id,
             control_date=control_date,
         )
@@ -133,7 +133,7 @@ class TestUpdateChangeOrderStatusCommand:
 
         cmd = UpdateChangeOrderStatusCommand(
             change_order_id=co_id,
-            new_status="Approved",
+            new_status="approved",
             actor_id=actor_id,
         )
 
@@ -165,7 +165,7 @@ class TestUpdateChangeOrderStatusCommand:
 
         cmd = UpdateChangeOrderStatusCommand(
             change_order_id=mock_change_order.change_order_id,
-            new_status="Approved",
+            new_status="approved",
             actor_id=actor_id,
             control_date=datetime(2026, 3, 1, 10, 0, 0, tzinfo=UTC),
         )
@@ -176,7 +176,7 @@ class TestUpdateChangeOrderStatusCommand:
         mock_change_order.clone.assert_called_once()
         call_kwargs = mock_change_order.clone.call_args[1]
         assert call_kwargs["created_by"] == actor_id
-        assert call_kwargs["status"] == "Approved"
+        assert call_kwargs["status"] == "approved"
 
         # Verify the new version was added to session
         mock_session.add.assert_called_once()
@@ -204,7 +204,7 @@ class TestUpdateChangeOrderStatusCommand:
 
         cmd = UpdateChangeOrderStatusCommand(
             change_order_id=co_id,
-            new_status="Submitted for Approval",
+            new_status="submitted_for_approval",
             actor_id=actor_id,
             control_date=control_date,
             additional_updates={

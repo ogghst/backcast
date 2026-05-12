@@ -55,7 +55,7 @@ export interface BranchOption {
   label: string;
   isDefault?: boolean;
   /** Change Order status (for CO branches) */
-  changeOrderStatus?: "Draft" | "Submitted" | "Under Review" | "Approved" | "Rejected" | "Implemented" | "Closed";
+  changeOrderStatus?: "draft" | "submitted_for_approval" | "under_review" | "approved" | "rejected" | "implemented" | "closed";
   /** Whether this is a change order branch */
   isChangeOrderBranch?: boolean;
 }

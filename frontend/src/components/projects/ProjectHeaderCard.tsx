@@ -111,7 +111,7 @@ export const ProjectHeaderCard = ({
             margin: 0,
           }}
         >
-          {project.status || "Draft"}
+          {project.status || "draft"}
         </Tag>
       </Flex>
 

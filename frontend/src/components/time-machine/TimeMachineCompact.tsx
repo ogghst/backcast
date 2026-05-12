@@ -90,19 +90,19 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
   const getStatusIcon = React.useMemo(() => {
     const status = currentBranch?.change_order_status;
 
-    if (!status || status === "Draft") {
-      return null; // No icon for Draft or main branch
+    if (!status || status === "draft") {
+      return null; // No icon for draft or main branch
     }
 
-    if (status === "Approved") {
+    if (status === "approved") {
       return <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: token.fontSize }} />;
     }
 
-    if (status === "Pending") {
+    if (status === "submitted_for_approval") {
       return <ExclamationCircleOutlined style={{ color: token.colorWarning, fontSize: token.fontSize }} />;
     }
 
-    if (status === "Rejected") {
+    if (status === "rejected") {
       return <CloseCircleOutlined style={{ color: token.colorError, fontSize: token.fontSize }} />;
     }
 

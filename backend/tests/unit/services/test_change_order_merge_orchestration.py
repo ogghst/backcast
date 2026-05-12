@@ -37,7 +37,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co = MagicMock()
         mock_co.configure_mock(
             code="123",
-            status="Approved",
+            status="approved",
             change_order_id=change_order_id,
             project_id=project_id,
             branch_name=None,
@@ -127,7 +127,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co = MagicMock()
         mock_co.configure_mock(
             code="456",
-            status="Approved",
+            status="approved",
             change_order_id=change_order_id,
             project_id=project_id,
             branch_name=None,
@@ -229,9 +229,9 @@ class TestChangeOrderMergeOrchestration:
 
     @pytest.mark.asyncio
     async def test_merge_updates_status_to_implemented(self, db_session: AsyncSession):
-        """Test that merge updates CO status to "Implemented" after successful merge.
+        """Test that merge updates CO status to "implemented" after successful merge.
 
-        Expected: UpdateChangeOrderStatusCommand is called with "Implemented".
+        Expected: UpdateChangeOrderStatusCommand is called with "implemented".
         """
         # Arrange
         service = ChangeOrderService(db_session)
@@ -242,7 +242,7 @@ class TestChangeOrderMergeOrchestration:
         # Create a mock ChangeOrder
         mock_co = MagicMock(spec=ChangeOrder)
         mock_co.code = "789"
-        mock_co.status = "Approved"
+        mock_co.status = "approved"
         mock_co.change_order_id = change_order_id
         mock_co.project_id = uuid4()  # Add project_id for budget recalculation
         mock_co.branch_name = None
@@ -309,10 +309,10 @@ class TestChangeOrderMergeOrchestration:
                 target_branch=target_branch,
             )
 
-            # Assert - Command should be called with "Implemented" and SLA cleanup
+            # Assert - Command should be called with "implemented" and SLA cleanup
             MockStatusCommand.assert_called_once_with(
                 change_order_id=change_order_id,
-                new_status="Implemented",
+                new_status="implemented",
                 actor_id=actor_id,
                 branch=target_branch,
                 control_date=None,
@@ -344,7 +344,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co = MagicMock()
         mock_co.configure_mock(
             code="999",
-            status="Approved",
+            status="approved",
             change_order_id=change_order_id,
             project_id=uuid4(),
             branch_name=None,
@@ -415,7 +415,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co = MagicMock()
         mock_co.configure_mock(
             code="888",
-            status="Approved",
+            status="approved",
             change_order_id=change_order_id,
             project_id=uuid4(),
             branch_name=None,
@@ -470,11 +470,11 @@ class TestChangeOrderMergeOrchestration:
         project_id = uuid4()
         approver_id = uuid4()
 
-        # Create a mock CO in "Approved" status with SLA fields populated
+        # Create a mock CO in "approved" status with SLA fields populated
         mock_co = MagicMock()
         mock_co.configure_mock(
             code="SLA-001",
-            status="Approved",
+            status="approved",
             change_order_id=change_order_id,
             project_id=project_id,
             branch_name="BR-SLA-001",
@@ -514,7 +514,7 @@ class TestChangeOrderMergeOrchestration:
             # The executed command returns a CO with SLA fields cleared
             mock_updated_co = MagicMock(spec=ChangeOrder)
             mock_updated_co.configure_mock(
-                status="Implemented",
+                status="implemented",
                 assigned_approver_id=None,
                 sla_assigned_at=None,
                 sla_due_date=None,
@@ -577,7 +577,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co = MagicMock()
         mock_co.configure_mock(
             code="ATM-001",
-            status="Approved",
+            status="approved",
             change_order_id=change_order_id,
             project_id=project_id,
             branch_name="BR-ATM-001",
@@ -643,7 +643,7 @@ class TestChangeOrderMergeOrchestration:
             # additional_updates containing SLA cleanup fields
             MockStatusCommand.assert_called_once_with(
                 change_order_id=change_order_id,
-                new_status="Implemented",
+                new_status="implemented",
                 actor_id=actor_id,
                 branch=target_branch,
                 control_date=None,

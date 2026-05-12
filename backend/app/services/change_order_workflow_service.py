@@ -21,6 +21,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import ChangeOrderStatus
 from app.core.rbac_unified import (
     get_unified_rbac_service,
     set_unified_rbac_session,
@@ -48,23 +49,36 @@ class ChangeOrderWorkflowService:
 
     # Default transition rules (used when no config available)
     _DEFAULT_TRANSITIONS: dict[str, list[str]] = {
-        "Draft": ["Submitted for Approval"],
-        "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
-        "Under Review": ["Approved", "Rejected"],
-        "Rejected": ["Draft", "Submitted for Approval"],
-        "Approved": ["Implemented"],
-        "Implemented": [],
+        ChangeOrderStatus.DRAFT.value: [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value],
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value: [
+            ChangeOrderStatus.UNDER_REVIEW.value,
+            ChangeOrderStatus.APPROVED.value,
+            ChangeOrderStatus.REJECTED.value,
+        ],
+        ChangeOrderStatus.UNDER_REVIEW.value: [
+            ChangeOrderStatus.APPROVED.value,
+            ChangeOrderStatus.REJECTED.value,
+        ],
+        ChangeOrderStatus.REJECTED.value: [
+            ChangeOrderStatus.DRAFT.value,
+            ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+        ],
+        ChangeOrderStatus.APPROVED.value: [ChangeOrderStatus.IMPLEMENTED.value],
+        ChangeOrderStatus.IMPLEMENTED.value: [],
     }
 
     _DEFAULT_LOCK_TRANSITIONS: set[tuple[str, str]] = {
-        ("Draft", "Submitted for Approval"),
+        (ChangeOrderStatus.DRAFT.value, ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value),
     }
 
     _DEFAULT_UNLOCK_TRANSITIONS: set[tuple[str, str]] = {
-        ("Under Review", "Rejected"),
+        (ChangeOrderStatus.UNDER_REVIEW.value, ChangeOrderStatus.REJECTED.value),
     }
 
-    _DEFAULT_EDITABLE_STATUSES: set[str] = {"Draft", "Rejected"}
+    _DEFAULT_EDITABLE_STATUSES: set[str] = {
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.REJECTED.value,
+    }
 
     def __init__(
         self,
@@ -225,7 +239,7 @@ class ChangeOrderWorkflowService:
         1. Calculating financial impact level using FinancialImpactService
         2. Assigning appropriate approver using ApprovalMatrixService
         3. Setting SLA deadline using SLAService
-        4. Transitioning status from "Draft" to "Submitted for Approval"
+        4. Transitioning status from "Draft" to "Submitted for Approval" (using enum values)
         5. Creating audit log entry
 
         Args:
@@ -259,10 +273,10 @@ class ChangeOrderWorkflowService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         # Validate current status is Draft
-        if current_co.status != "Draft":
+        if current_co.status != ChangeOrderStatus.DRAFT.value:
             raise ValueError(
                 f"Cannot submit change order in status '{current_co.status}'. "
-                "Only Draft change orders can be submitted for approval."
+                f"Only {ChangeOrderStatus.DRAFT.value} change orders can be submitted for approval."
             )
 
         # Calculate financial impact level
@@ -290,7 +304,7 @@ class ChangeOrderWorkflowService:
 
         # Prepare update data
         update_data = {
-            "status": "Submitted for Approval",
+            "status": ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
             "impact_level": impact_level,
             "assigned_approver_id": approver_id,
             "sla_assigned_at": submission_time,
@@ -314,8 +328,8 @@ class ChangeOrderWorkflowService:
         # Create audit log entry for submission
         audit_entry = ChangeOrderAuditLog(
             change_order_id=change_order_id,
-            old_status="Draft",
-            new_status="Submitted for Approval",
+            old_status=ChangeOrderStatus.DRAFT.value,
+            new_status=ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
             comment=f"Submitted for approval. Impact level: {impact_level}, SLA deadline: {sla_deadline.isoformat()}",
             changed_by=actor_id,
         )
@@ -386,10 +400,14 @@ class ChangeOrderWorkflowService:
             )
 
         # Validate current status is "Submitted for Approval"
-        if current_co.status not in ["Submitted for Approval", "Under Review"]:
+        if current_co.status not in [
+            ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+            ChangeOrderStatus.UNDER_REVIEW.value,
+        ]:
             raise ValueError(
                 f"Cannot approve change order in status '{current_co.status}'. "
-                "Only change orders in 'Submitted for Approval' or 'Under Review' status can be approved."
+                f"Only change orders in '{ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value}' or "
+                f"'{ChangeOrderStatus.UNDER_REVIEW.value}' status can be approved."
             )
 
         # Get actor (approver) user object
@@ -436,7 +454,7 @@ class ChangeOrderWorkflowService:
 
         # Prepare update data with comment
         update_data = {
-            "status": "Approved",
+            "status": ChangeOrderStatus.APPROVED.value,
             "comment": comments,
         }
 
@@ -458,8 +476,8 @@ class ChangeOrderWorkflowService:
         if not comments:
             audit_entry = ChangeOrderAuditLog(
                 change_order_id=change_order_id,
-                old_status="Submitted for Approval",
-                new_status="Approved",
+                old_status=ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+                new_status=ChangeOrderStatus.APPROVED.value,
                 comment=f"Approved by {actor.full_name}",
                 changed_by=actor_id,
             )
@@ -526,10 +544,14 @@ class ChangeOrderWorkflowService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         # Validate current status is "Submitted for Approval"
-        if current_co.status not in ["Submitted for Approval", "Under Review"]:
+        if current_co.status not in [
+            ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+            ChangeOrderStatus.UNDER_REVIEW.value,
+        ]:
             raise ValueError(
                 f"Cannot reject change order in status '{current_co.status}'. "
-                "Only change orders in 'Submitted for Approval' or 'Under Review' status can be rejected."
+                f"Only change orders in '{ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value}' or "
+                f"'{ChangeOrderStatus.UNDER_REVIEW.value}' status can be rejected."
             )
 
         # Get actor (approver) user object
@@ -573,7 +595,7 @@ class ChangeOrderWorkflowService:
 
         # Prepare update data - clear SLA fields and set status, include comment
         update_data = {
-            "status": "Rejected",
+            "status": ChangeOrderStatus.REJECTED.value,
             "assigned_approver_id": None,
             "sla_assigned_at": None,
             "sla_due_date": None,
@@ -599,8 +621,8 @@ class ChangeOrderWorkflowService:
         if not comments:
             audit_entry = ChangeOrderAuditLog(
                 change_order_id=change_order_id,
-                old_status="Submitted for Approval",
-                new_status="Rejected",
+                old_status=ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+                new_status=ChangeOrderStatus.REJECTED.value,
                 comment=f"Rejected by {actor.full_name}",
                 changed_by=actor_id,
             )

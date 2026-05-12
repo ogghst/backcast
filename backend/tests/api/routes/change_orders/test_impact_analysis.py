@@ -105,7 +105,7 @@ async def test_change_order(
         "project_id": project_id,
         "code": "CO-IMPACT-001",
         "title": "Impact Test Change Order",
-        "status": "Draft",
+        "status": "draft",
         "description": "Testing impact analysis",
     }
     response = await client.post("/api/v1/change-orders", json=co_data)

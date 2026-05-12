@@ -17,6 +17,7 @@ from app.core.rbac_unified import (
 )
 from app.db.session import get_db
 from app.models.domain.rbac import RBACRole
+from app.models.domain.user import User
 from app.models.domain.user_role_assignment import UserRoleAssignment
 from app.models.schemas.user_role_assignment import (
     UserRoleAssignmentCreate,
@@ -75,6 +76,7 @@ async def create_assignment(
 )
 async def list_assignments(
     user_id: UUID | None = Query(None, alias="userId"),
+    role_id: UUID | None = Query(None, alias="roleId"),
     scope_type: str | None = Query(None, alias="scopeType"),
     scope_id: UUID | None = Query(None, alias="scopeId"),
     session: AsyncSession = Depends(get_db),
@@ -86,6 +88,11 @@ async def list_assignments(
 
         if user_id is not None:
             assignments = await service.get_all_user_assignments(user_id)
+        elif role_id is not None:
+            result = await session.execute(
+                select(UserRoleAssignment).where(UserRoleAssignment.role_id == role_id).limit(100)
+            )
+            assignments = list(result.scalars().all())
         elif scope_type is not None:
             assignments = await service.get_assignments_by_scope(scope_type, scope_id)
         else:
@@ -95,7 +102,11 @@ async def list_assignments(
 
         # Enrich with role names (batch query to avoid N+1)
         role_name_map: dict[UUID, str] = {}
+        user_name_map: dict[UUID, str] = {}
+        granted_by_name_map: dict[UUID, str] = {}
+
         if assignments:
+            # Batch query role names
             role_ids = {a.role_id for a in assignments}
             role_result = await session.execute(
                 select(RBACRole.id, RBACRole.name).where(RBACRole.id.in_(role_ids))
@@ -103,10 +114,29 @@ async def list_assignments(
             for row in role_result.all():
                 role_name_map[row[0]] = row[1]
 
+            # Batch query user names
+            user_ids = {a.user_id for a in assignments}
+            user_result = await session.execute(
+                select(User.user_id, User.full_name).where(User.user_id.in_(user_ids))
+            )
+            for row in user_result.all():
+                user_name_map[row[0]] = row[1]
+
+            # Batch query granted_by names
+            granted_by_ids = {a.granted_by for a in assignments if a.granted_by is not None}
+            if granted_by_ids:
+                granted_by_result = await session.execute(
+                    select(User.user_id, User.full_name).where(User.user_id.in_(granted_by_ids))
+                )
+                for row in granted_by_result.all():
+                    granted_by_name_map[row[0]] = row[1]
+
         response = []
         for a in assignments:
             read = UserRoleAssignmentRead.model_validate(a)
             read.role_name = role_name_map.get(a.role_id)
+            read.user_name = user_name_map.get(a.user_id)
+            read.granted_by_name = granted_by_name_map.get(a.granted_by) if a.granted_by else None
             response.append(read)
 
         return response
@@ -143,6 +173,19 @@ async def get_assignment(
         select(RBACRole.name).where(RBACRole.id == assignment.role_id)
     )
     read.role_name = role_result.scalar_one_or_none()
+
+    # Enrich with user name
+    user_result = await session.execute(
+        select(User.full_name).where(User.user_id == assignment.user_id)
+    )
+    read.user_name = user_result.scalar_one_or_none()
+
+    # Enrich with granted_by name
+    if assignment.granted_by is not None:
+        granted_by_result = await session.execute(
+            select(User.full_name).where(User.user_id == assignment.granted_by)
+        )
+        read.granted_by_name = granted_by_result.scalar_one_or_none()
 
     return read
 
@@ -196,16 +239,40 @@ async def delete_assignment(
     session: AsyncSession = Depends(get_db),
 ) -> None:
     """Delete a role assignment by ID."""
-    result = await session.execute(
-        select(UserRoleAssignment).where(UserRoleAssignment.id == assignment_id)
-    )
-    assignment = result.scalar_one_or_none()
+    set_unified_rbac_session(session)
+    try:
+        service = get_unified_rbac_service()
 
-    if assignment is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Role assignment not found",
+        # First get the assignment to find user_id, scope_type, scope_id
+        result = await session.execute(
+            select(UserRoleAssignment).where(UserRoleAssignment.id == assignment_id)
+        )
+        assignment = result.scalar_one_or_none()
+
+        if assignment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Role assignment not found",
+            )
+
+        # Use service.revoke_role() to ensure cache invalidation
+        deleted = await service.revoke_role(
+            user_id=assignment.user_id,
+            scope_type=assignment.scope_type,
+            scope_id=assignment.scope_id,
         )
 
-    await session.delete(assignment)
-    await session.commit()
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Role assignment not found",
+            )
+
+        await session.commit()
+    except HTTPException:
+        raise
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        set_unified_rbac_session(None)

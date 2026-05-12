@@ -1,6 +1,6 @@
 # Context: Authentication & Authorization
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-05-11
 
 ## 1. Overview
 
@@ -8,7 +8,9 @@ This context handles user identity verification (Authentication) and access cont
 
 1.  Users are correctly identified via JWT tokens.
 2.  Protected resources are only accessible to authorized users.
-3.  The UI reacts dynamically to user permissions and roles.
+3.  The UI reacts dynamically to user permissions and scoped roles.
+
+> **Note:** The backend uses the **Unified RBAC System** (ADR-008) with scoped role assignments (global/project/change_order). Frontend permission checks receive a flattened list of all permissions the user has across all scopes.
 
 ## 2. Technical Patterns
 
@@ -61,10 +63,13 @@ React Router wrapper that guards entire pages.
 1.  **Request**: Component asks "Can user perform X?"
 2.  **Resolution**:
     - `useAuthStore.getState().hasPermission('X')` checks the `permissions` array.
-    - This array is populated by the Backend's RBAC service during the `/auth/me` call.
+    - This array is populated by the Backend's `UnifiedRBACService` during the `/auth/me` call.
+    - Permissions are flattened across all scopes (global + project + change_order) for the user.
 3.  **Enforcement**:
     - **Frontend**: Hides UI element via `<Can>` or redirects via `ProtectedRoute`.
-    - **Backend**: API endpoints enforce the same check using `RoleChecker` dependency. This ensures security even if Frontend logic is bypassed.
+    - **Backend**: API endpoints enforce the same check using `RoleChecker` or `ProjectRoleChecker` dependencies, which delegate to `UnifiedRBACService`. This ensures security even if Frontend logic is bypassed.
+
+> **Scoped Permissions Note:** The backend resolves permissions based on the request context (e.g., project ID in URL). The frontend receives all permissions but may not know which scope granted them. For project-scoped actions, the backend validates access to the specific project.
 
 ## 4. Key Components
 

@@ -54,7 +54,7 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
     )
 
     # Status
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="Draft")
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft")
 
     # Schedule
     start_date: Mapped[datetime | None] = mapped_column(

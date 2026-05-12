@@ -563,12 +563,12 @@ export function WeightsScoresTab({
 // ---------------------------------------------------------------------------
 
 const KNOWN_STATUSES = [
-  "Draft",
-  "Submitted for Approval",
-  "Under Review",
-  "Approved",
-  "Rejected",
-  "Implemented",
+  "draft",
+  "submitted_for_approval",
+  "under_review",
+  "approved",
+  "rejected",
+  "implemented",
 ];
 
 interface WorkflowTransitionsTabProps {

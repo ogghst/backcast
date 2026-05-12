@@ -16,12 +16,12 @@ interface StatusDistributionChartProps {
 
 // Status color mapping
 const STATUS_COLORS: Record<string, string> = {
-  Draft: "#8c8c8c",
-  "Submitted for Approval": "#1890ff",
-  "Under Review": "#722ed1",
-  Approved: "#52c41a",
-  Rejected: "#ff4d4f",
-  Implemented: "#13c2c2",
+  draft: "#8c8c8c",
+  submitted_for_approval: "#1890ff",
+  under_review: "#722ed1",
+  approved: "#52c41a",
+  rejected: "#ff4d4f",
+  implemented: "#13c2c2",
 };
 
 export const StatusDistributionChart = ({

@@ -19,6 +19,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.simple.service import SimpleService
 from app.models.domain.rbac import RBACRole, RBACRolePermission
 from app.models.domain.user_role_assignment import (
     ScopeType,
@@ -73,6 +74,23 @@ class UnifiedRBACService:
         self._assignment_cache: dict[
             tuple[UUID, str, UUID | None], tuple[list[str], datetime]
         ] = {}
+
+    # ------------------------------------------------------------------
+    # SimpleService property for CRUD delegation
+    # ------------------------------------------------------------------
+
+    @property
+    def _get_assignment_service(self) -> "SimpleService[UserRoleAssignment]":  # type: ignore[type-var]
+        """Get SimpleService for UserRoleAssignment CRUD.
+
+        Creates a new instance per call to ensure fresh session context.
+        UserRoleAssignment satisfies SimpleEntityProtocol via SimpleEntityBase.
+        """
+        session = get_unified_rbac_session()
+        if session is None:
+            msg = "No database session available"
+            raise RuntimeError(msg)
+        return SimpleService[UserRoleAssignment](session, UserRoleAssignment)  # type: ignore[type-var]
 
     # ------------------------------------------------------------------
     # Cache management
@@ -365,8 +383,6 @@ class UnifiedRBACService:
         ]
         if scope_id is not None:
             conditions.append(UserRoleAssignment.scope_id == scope_id)
-        else:
-            conditions.append(UserRoleAssignment.scope_id.is_(None))
 
         stmt = select(UserRoleAssignment).where(*conditions)
         result = await session.execute(stmt)
@@ -410,7 +426,7 @@ class UnifiedRBACService:
             session = get_unified_rbac_session()
             if session is None:
                 return []
-            result = await session.execute(select(Project.id))
+            result = await session.execute(select(Project.project_id))
             return [row[0] for row in result.all()]
 
         # Non-admin: project-scoped assignments
@@ -579,7 +595,9 @@ class UnifiedRBACService:
             )
             raise ValueError(msg)
 
-        assignment = UserRoleAssignment(
+        # Use SimpleService for CRUD
+        service = self._get_assignment_service
+        assignment = await service.create(
             id=uuid4(),
             user_id=user_id,
             role_id=role_id,
@@ -590,9 +608,6 @@ class UnifiedRBACService:
             granted_at=datetime.now(UTC),
             expires_at=expires_at,
         )
-
-        session.add(assignment)
-        await session.flush()
 
         # Invalidate cache
         self._invalidate_assignment_cache(user_id, scope_type, scope_id)
@@ -623,6 +638,7 @@ class UnifiedRBACService:
         Returns:
             True if an assignment was found and deleted.
         """
+        # First find the assignment ID
         session = get_unified_rbac_session()
         if session is None:
             msg = "No database session available"
@@ -643,20 +659,21 @@ class UnifiedRBACService:
         if assignment is None:
             return False
 
-        await session.delete(assignment)
-        await session.flush()
+        # Use SimpleService for CRUD
+        service = self._get_assignment_service
+        deleted = await service.delete(assignment.id)
 
-        # Invalidate cache
-        self._invalidate_assignment_cache(user_id, scope_type, scope_id)
+        if deleted:
+            # Invalidate cache
+            self._invalidate_assignment_cache(user_id, scope_type, scope_id)
+            logger.info(
+                "Revoked role from user %s in scope %s/%s",
+                user_id,
+                scope_type,
+                scope_id,
+            )
 
-        logger.info(
-            "Revoked role from user %s in scope %s/%s",
-            user_id,
-            scope_type,
-            scope_id,
-        )
-
-        return True
+        return deleted
 
     async def update_assignment(
         self,
@@ -676,6 +693,7 @@ class UnifiedRBACService:
         Returns:
             Updated UserRoleAssignment or None if not found.
         """
+        # First get the current assignment to know user_id, scope_type, scope_id for cache invalidation
         session = get_unified_rbac_session()
         if session is None:
             msg = "No database session available"
@@ -689,21 +707,28 @@ class UnifiedRBACService:
         if assignment is None:
             return None
 
+        # Build updates dict
+        updates: dict[str, Any] = {}
         if role_id is not None:
-            assignment.role_id = role_id
+            updates["role_id"] = role_id
         if metadata is not None:
-            assignment.metadata_ = metadata
+            updates["metadata_"] = metadata
         if expires_at is not None:
-            assignment.expires_at = expires_at
+            updates["expires_at"] = expires_at
 
-        await session.flush()
+        # Use SimpleService for CRUD
+        service = self._get_assignment_service
+        try:
+            updated = await service.update(assignment_id, **updates)
+        except ValueError:
+            return None
 
         # Invalidate cache for this user/scope
         self._invalidate_assignment_cache(
             assignment.user_id, assignment.scope_type, assignment.scope_id
         )
 
-        return assignment
+        return updated
 
 
 # ---------------------------------------------------------------------------

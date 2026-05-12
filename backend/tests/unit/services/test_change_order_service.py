@@ -47,7 +47,8 @@ class TestChangeOrderServiceCreate:
         assert created_co.project_id == project_id
         assert created_co.code == "CO-2026-001"
         assert created_co.title == "Add Additional Safety Sensors"
-        assert created_co.status == "Draft"
+        from app.core.enums import ChangeOrderStatus
+        assert created_co.status == ChangeOrderStatus.DRAFT.value
         assert created_co.branch == "main"  # Initial version on main
         assert created_co.created_by == actor_id
         # change_order_id should be a UUID (auto-generated)
@@ -213,7 +214,7 @@ class TestChangeOrderServiceGetCurrent:
             project_id=project_id,
             title="Future CO",
             control_date=future_date,  # Future date
-            status="Draft",
+            status="draft",
         )
 
         # Act
@@ -259,7 +260,7 @@ class TestChangeOrderServiceGetCurrent:
             project_id=project_id,
             title="Past CO",
             control_date=past_date,  # Past date
-            status="Draft",
+            status="draft",
         )
 
         # Act
@@ -297,7 +298,7 @@ class TestChangeOrderServiceGetCurrent:
             project_id=project_id,
             title="Initial",
             control_date=datetime.now(UTC) - timedelta(days=10),
-            status="Draft",
+            status="draft",
         )
         created1 = await service.create_change_order(co_in1, user_id)
         initial_id = created1.id
@@ -402,7 +403,8 @@ class TestChangeOrderServiceImpactAnalysis:
 
         # Assert - CO should be created successfully without impact analysis
         assert created_co is not None
-        assert created_co.status == "Draft"
+        from app.core.enums import ChangeOrderStatus
+        assert created_co.status == ChangeOrderStatus.DRAFT.value
         # Impact analysis should NOT have run yet
         assert created_co.impact_analysis_status is None
 

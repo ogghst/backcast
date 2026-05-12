@@ -162,22 +162,22 @@ describe("useWorkflowActions", () => {
     });
 
     it("should return true when action status is in available transitions", () => {
-      expect(isActionAvailable("SUBMIT", ["Submitted for Approval"])).toBe(
+      expect(isActionAvailable("SUBMIT", ["submitted for approval"])).toBe(
         true,
       );
-      expect(isActionAvailable("APPROVE", ["Approved"])).toBe(true);
-      expect(isActionAvailable("MERGE", ["Implemented"])).toBe(true);
-      expect(isActionAvailable("ARCHIVE", ["Archived"])).toBe(true);
+      expect(isActionAvailable("APPROVE", ["approved"])).toBe(true);
+      expect(isActionAvailable("MERGE", ["implemented"])).toBe(true);
+      expect(isActionAvailable("ARCHIVE", ["archived"])).toBe(true);
     });
 
     it("should return false when action status is not in available transitions", () => {
-      expect(isActionAvailable("MERGE", ["Under Review"])).toBe(false);
-      expect(isActionAvailable("APPROVE", ["Implemented"])).toBe(false);
-      expect(isActionAvailable("ARCHIVE", ["Draft"])).toBe(false);
+      expect(isActionAvailable("MERGE", ["in review"])).toBe(false);
+      expect(isActionAvailable("APPROVE", ["implemented"])).toBe(false);
+      expect(isActionAvailable("ARCHIVE", ["draft"])).toBe(false);
     });
 
     it("should check for specific status in transitions", () => {
-      const transitions = ["Approved", "Rejected"];
+      const transitions = ["approved", "rejected"];
       // APPROVE action has target status "Approved" - should return true
       expect(isActionAvailable("APPROVE", transitions)).toBe(true);
       // REJECT action has target status "Rejected" - should return true

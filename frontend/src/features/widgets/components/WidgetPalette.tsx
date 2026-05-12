@@ -118,7 +118,7 @@ export function WidgetPalette({ open, onClose }: WidgetPaletteProps) {
       onCancel={onClose}
       footer={null}
       width={520}
-      destroyOnClose
+      destroyOnHidden
     >
       <style>{`
         .${PALETTE_ITEM_CLASS}:hover {

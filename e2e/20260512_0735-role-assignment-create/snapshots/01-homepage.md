@@ -1,0 +1,115 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - region "Notifications alt+T"
+    - generic [ref=e4]:
+      - generic:
+        - img
+      - banner [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e8]: Backcast
+          - menu [ref=e151]:
+            - menuitem "home" [ref=e152] [cursor=pointer]:
+              - img "home" [ref=e153]:
+                - img [ref=e154]
+            - menuitem "appstore" [ref=e156] [cursor=pointer]:
+              - img "appstore" [ref=e157]:
+                - img [ref=e158]
+            - menuitem "message" [ref=e160] [cursor=pointer]:
+              - img "message" [ref=e161]:
+                - img [ref=e162]
+        - button "search" [ref=e10] [cursor=pointer]:
+          - img "search" [ref=e12]:
+            - img [ref=e13]
+        - generic [ref=e15]:
+          - button "bell" [ref=e18] [cursor=pointer]:
+            - img "bell" [ref=e20]:
+              - img [ref=e21]
+          - img "user" [ref=e27] [cursor=pointer]:
+            - img [ref=e28]
+      - main [ref=e30]:
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - generic [ref=e166]: Welcome back,
+            - heading "System" [level=1] [ref=e167]
+          - generic [ref=e168]:
+            - generic [ref=e169]:
+              - img "folder" [ref=e170]:
+                - img [ref=e171]
+              - generic [ref=e173]:
+                - heading "Test Project E2E" [level=3] [ref=e174]
+                - text: E2E-TEST
+            - generic [ref=e175]:
+              - generic [ref=e176]:
+                - img "dollar" [ref=e178]:
+                  - img [ref=e179]
+                - generic [ref=e181]: Budget
+                - generic [ref=e182]: $0
+              - generic [ref=e183]:
+                - img "check-circle" [ref=e185]:
+                  - img [ref=e186]
+                - generic [ref=e189]: EVM Status
+                - generic [ref=e190]: N/A
+              - generic [ref=e191]:
+                - img "branches" [ref=e193]:
+                  - img [ref=e194]
+                - generic [ref=e196]: Changes
+                - generic [ref=e197]: 0 Active
+            - generic [ref=e198]:
+              - generic [ref=e199]: 9 hours ago
+              - button "View Project →" [ref=e200] [cursor=pointer]:
+                - generic [ref=e201]: View Project →
+          - generic [ref=e202]:
+            - generic [ref=e204]:
+              - generic [ref=e205]:
+                - generic [ref=e206]:
+                  - img "folder" [ref=e208]:
+                    - img [ref=e209]
+                  - generic [ref=e211]: Recent Projects
+                - link "View all recent projects" [ref=e212] [cursor=pointer]:
+                  - /url: /projects
+                  - text: View All →
+              - list "Recent recent projects" [ref=e213]:
+                - button "View Test Project E2E details" [ref=e214] [cursor=pointer]:
+                  - generic [ref=e215]:
+                    - generic [ref=e216]: •
+                    - generic "Test Project E2E" [ref=e217]
+                  - generic [ref=e218]:
+                    - generic [ref=e219]: updated
+                    - generic [ref=e220]: 9 hours ago
+            - generic [ref=e222]:
+              - generic [ref=e223]:
+                - generic [ref=e224]:
+                  - img "apartment" [ref=e226]:
+                    - img [ref=e227]
+                  - generic [ref=e229]: Recent WBEs
+                - link "View all recent wbes" [ref=e230] [cursor=pointer]:
+                  - /url: /admin/wbes
+                  - text: View All →
+              - list "Recent recent wbes" [ref=e231]:
+                - generic [ref=e232]: No recent activity
+            - generic [ref=e234]:
+              - generic [ref=e236]:
+                - img "dollar-circle" [ref=e238]:
+                  - img [ref=e239]
+                - generic [ref=e241]: Cost Elements
+              - list "Recent cost elements" [ref=e242]:
+                - generic [ref=e243]: No recent activity
+            - generic [ref=e245]:
+              - generic [ref=e247]:
+                - img "branches" [ref=e249]:
+                  - img [ref=e250]
+                - generic [ref=e252]: Change Orders
+              - list "Recent change orders" [ref=e253]:
+                - button "View Test Change Order E2E details" [ref=e254] [cursor=pointer]:
+                  - generic [ref=e255]:
+                    - generic [ref=e256]: •
+                    - generic "Test Change Order E2E" [ref=e257]
+                  - generic [ref=e258]:
+                    - generic [ref=e259]: updated
+                    - generic [ref=e260]: 9 hours ago
+      - contentinfo [ref=e146]:
+        - generic [ref=e149]: Backcast ©2026
+  - generic [ref=e261]:
+    - img [ref=e263]
+    - button "Open Tanstack query devtools" [ref=e311] [cursor=pointer]:
+      - img [ref=e312]

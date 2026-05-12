@@ -85,7 +85,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
   const navigate = useNavigate();
   const { token } = theme.useToken();
 
-  // Debounce input by 300ms; component is re-mounted on each open (destroyOnClose)
+  // Debounce input by 300ms; component is re-mounted on each open (destroyOnHidden)
   useEffect(() => {
     if (!open) return;
 
@@ -145,7 +145,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
         body: { padding: 0 },
         content: { top: 80 },
       }}
-      destroyOnClose
+      destroyOnHidden
     >
       <div style={{ padding: `${token.paddingMD}px ${token.paddingLG}px` }}>
         <Input

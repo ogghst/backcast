@@ -652,7 +652,7 @@ async def test_project(db_session: AsyncSession) -> Project:
         name="Test Project",
         code="TEST-PROJ",
         budget=Decimal("100000.00"),
-        status="Active",
+        status="active",
     )
     return await service.create_project(project_in, actor_id=uuid4())
 
@@ -852,7 +852,7 @@ async def test_entity_hierarchy(
         name="Project Alpha",
         code="PROJ-A",
         budget=Decimal("1000000.00"),
-        status="Active",
+        status="active",
         description="Test project for automated testing",
     )
     project = await project_service.create_project(project_in, actor_id=uuid4())
@@ -928,7 +928,7 @@ async def api_test_project(client: AsyncClient) -> dict[str, Any]:
         json={
             "name": "API Test Project",
             "code": f"API-PROJ-{uuid4().hex[:6].upper()}",
-            "status": "Active",
+            "status": "active",
         },
     )
     assert response.status_code == 201
@@ -1068,7 +1068,7 @@ async def api_test_entity_hierarchy(client: AsyncClient) -> dict[str, dict[str, 
         json={
             "name": "Hierarchy Project",
             "code": f"HIER-PROJ-{uuid4().hex[:6].upper()}",
-            "status": "Active",
+            "status": "active",
         },
     )
     assert project_response.status_code == 201

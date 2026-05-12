@@ -37,7 +37,7 @@ async def test_create_change_order_temporal_branch_creation(db_session):
         project_id=project.project_id,
         code="CO-TEMP-001",
         title="Temporal CO",
-        status="Draft",
+        status="draft",
     )
 
     co = await service.create_change_order(
@@ -90,7 +90,7 @@ async def test_change_order_workflow_locking_temporal(db_session):
         project_id=project.project_id,
         code="CO-LOCK-001",
         title="Lock Test CO",
-        status="Draft",
+        status="draft",
     )
     co = await service.create_change_order(co_in, actor_id)
 
@@ -107,18 +107,18 @@ async def test_change_order_workflow_locking_temporal(db_session):
     from app.models.schemas.change_order import ChangeOrderUpdate
 
     # Need to mock/bypass workflow validation or ensure transition is valid?
-    # ChangeOrderWorkflowService defaults usually allow Draft -> Submitted for Approval
+    # ChangeOrderWorkflowService defaults usually allow Draft -> submitted_for_approval
     # Assuming standard workflow is active.
 
     # We might need to ensure workflow service returns valid for this transition.
-    # The default workflow usually requires 'Submitted for Approval' exact string?
+    # The default workflow usually requires 'submitted_for_approval' exact string?
     # Let's assume standard status names.
 
     # Note: If workflow validation fails, we might need to mock it.
     # But integration test usually wants real workflow.
     # Check simple transition.
 
-    update_in = ChangeOrderUpdate(status="Submitted for Approval")
+    update_in = ChangeOrderUpdate(status="submitted_for_approval")
 
     # Move time forward
     update_time = datetime.now(UTC) + timedelta(minutes=10)
@@ -130,7 +130,7 @@ async def test_change_order_workflow_locking_temporal(db_session):
         control_date=update_time,
     )
 
-    assert updated_co.status == "Submitted for Approval"
+    assert updated_co.status == "submitted_for_approval"
 
     # Verify Branch is now LOCKED
     # And it should be a NEW VERSION

@@ -47,8 +47,8 @@ class TestControlDateValidator:
         # Earlier entry
         audit1 = ChangeOrderAuditLog(
             change_order_id=change_order_id,
-            old_status="Draft",
-            new_status="Submitted for Approval",
+            old_status="draft",
+            new_status="submitted_for_approval",
             changed_by=actor_id,
             control_date=earlier,
         )
@@ -58,8 +58,8 @@ class TestControlDateValidator:
         # Later entry
         audit2 = ChangeOrderAuditLog(
             change_order_id=change_order_id,
-            old_status="Submitted for Approval",
-            new_status="Under Review",
+            old_status="submitted_for_approval",
+            new_status="under_review",
             changed_by=actor_id,
             control_date=latest,
         )
@@ -102,8 +102,8 @@ class TestControlDateValidator:
 
         audit = ChangeOrderAuditLog(
             change_order_id=change_order_id,
-            old_status="Draft",
-            new_status="Submitted for Approval",
+            old_status="draft",
+            new_status="submitted_for_approval",
             changed_by=actor_id,
             control_date=earlier,
         )
@@ -132,8 +132,8 @@ class TestControlDateValidator:
 
         audit = ChangeOrderAuditLog(
             change_order_id=change_order_id,
-            old_status="Draft",
-            new_status="Submitted for Approval",
+            old_status="draft",
+            new_status="submitted_for_approval",
             changed_by=actor_id,
             control_date=control_date,
         )
@@ -160,8 +160,8 @@ class TestControlDateValidator:
 
         audit = ChangeOrderAuditLog(
             change_order_id=change_order_id,
-            old_status="Draft",
-            new_status="Submitted for Approval",
+            old_status="draft",
+            new_status="submitted_for_approval",
             changed_by=actor_id,
             control_date=later,
         )
@@ -200,8 +200,8 @@ class TestControlDateValidator:
 
         audit1 = ChangeOrderAuditLog(
             change_order_id=change_order_id_1,
-            old_status="Draft",
-            new_status="Submitted for Approval",
+            old_status="draft",
+            new_status="submitted_for_approval",
             changed_by=actor_id,
             control_date=later,
         )
