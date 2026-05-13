@@ -104,6 +104,7 @@ from app.ai.config import AgentConfig, OrchestratorMode
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
+from app.ai.execution.agent_metrics import AgentExecutionMetrics
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.graph import create_graph
 from app.ai.graph_cache import (
@@ -905,7 +906,7 @@ class AgentService:
         branch_mode: Literal["merged", "isolated"] | None = None,
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
         context: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> AgentExecutionMetrics:
         """Run the agent graph and publish streaming events to an AgentEventBus.
 
         Decoupled from WebSocket: events are published to the bus so any consumer
@@ -924,6 +925,9 @@ class AgentService:
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries
             execution_mode: Execution mode for tool filtering
+
+        Returns:
+            AgentExecutionMetrics with aggregated token usage and tool call count.
         """
         self._subagent_invocation_counts.clear()
         history = await self._build_conversation_history(session_id)
@@ -1788,6 +1792,11 @@ class AgentService:
             execution_id=event_bus.execution_id,
         )
 
+        return AgentExecutionMetrics(
+            total_tokens=usage_dict["total_tokens"],
+            tool_calls_count=tool_calls_count,
+        )
+
     async def start_execution(
         self,
         message: str,
@@ -1858,6 +1867,8 @@ class AgentService:
             db_session = session_result.scalar_one_or_none()
 
             try:
+                metrics: AgentExecutionMetrics | None = None
+
                 # Create execution tracking row
                 execution = AIAgentExecution(
                     session_id=str(session_id),
@@ -1877,7 +1888,7 @@ class AgentService:
                 exec_service = AgentService(db)
 
                 # Run the agent graph, publishing events to the bus
-                await exec_service._run_agent_graph(
+                metrics = await exec_service._run_agent_graph(
                     message=message,
                     assistant_config=assistant_config,
                     session_id=session_id,
@@ -1892,9 +1903,11 @@ class AgentService:
                     context=db_session.context if db_session else None,
                 )
 
-                # Update execution tracking row
+                # Update execution tracking row with metrics
                 execution.status = "completed"
                 execution.completed_at = datetime.now()  # type: ignore[assignment]
+                execution.total_tokens = metrics.total_tokens
+                execution.tool_calls_count = metrics.tool_calls_count
                 await db.commit()
 
                 # Clear active_execution_id on session
@@ -1906,14 +1919,40 @@ class AgentService:
                 logger.error(
                     f"Error in start_execution {execution_id}: {e}", exc_info=True
                 )
-                # Update execution tracking row with error
+                # Update execution tracking row with error and partial metrics
                 try:
                     execution.status = "error"
-                    execution.error_message = str(e)
+                    execution.error_message = str(e)[:2000]
                     execution.completed_at = datetime.now()  # type: ignore[assignment]
+                    # Persist partial metrics if available
+                    if metrics is not None:
+                        execution.total_tokens = metrics.total_tokens
+                        execution.tool_calls_count = metrics.tool_calls_count
                     await db.commit()
                 except Exception:
                     await db.rollback()
+                    # Retry with a fresh query in case the session was invalidated
+                    try:
+                        stmt = select(AIAgentExecution).where(
+                            AIAgentExecution.id == str(execution.id)
+                        )
+                        result = await db.execute(stmt)
+                        fresh_execution = result.scalar_one_or_none()
+                        if fresh_execution is not None:
+                            fresh_execution.status = "error"
+                            fresh_execution.error_message = str(e)[:2000]
+                            fresh_execution.completed_at = datetime.now()  # type: ignore[assignment]
+                            if metrics is not None:
+                                fresh_execution.total_tokens = metrics.total_tokens
+                                fresh_execution.tool_calls_count = (
+                                    metrics.tool_calls_count
+                                )
+                            await db.commit()
+                    except Exception:
+                        logger.error(
+                            "Failed to update execution row on error path",
+                            exc_info=True,
+                        )
 
                 # Clear active_execution_id on session (best-effort)
                 if db_session is not None:

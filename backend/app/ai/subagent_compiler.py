@@ -14,6 +14,7 @@ from langchain_core.tools import BaseTool
 
 from app.ai.config import AgentConfig
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
+from app.ai.middleware.sequential_tool_calls import SequentialToolCallsMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.tools import (
     create_project_tools,
@@ -86,6 +87,7 @@ def build_backcast_middleware(
         List with TemporalContextMiddleware and BackcastSecurityMiddleware.
     """
     return [
+        SequentialToolCallsMiddleware(),
         TemporalContextMiddleware(context),
         BackcastSecurityMiddleware(
             context,
