@@ -26,6 +26,7 @@ from app.models.domain.user_role_assignment import UserRoleAssignment
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_assignment(
     user_id: UUID,
     role_id: UUID,
@@ -104,24 +105,18 @@ class TestAssignmentCache:
         self.user_id = uuid4()
 
     def test_cache_assignments_stores_entry(self) -> None:
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
         result = self.service._get_cached_assignments(
             self.user_id, ScopeType.GLOBAL, None
         )
         assert result == ["admin"]
 
     def test_get_cached_assignments_returns_none_on_miss(self) -> None:
-        result = self.service._get_cached_assignments(
-            uuid4(), ScopeType.GLOBAL, None
-        )
+        result = self.service._get_cached_assignments(uuid4(), ScopeType.GLOBAL, None)
         assert result is None
 
     def test_get_cached_assignments_returns_none_on_expired(self) -> None:
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
         # Expire
         cache_key = (self.user_id, ScopeType.GLOBAL, None)
         cached_at = datetime.now(UTC) - timedelta(minutes=10)
@@ -133,25 +128,22 @@ class TestAssignmentCache:
         assert result is None
 
     def test_invalidate_assignment_cache_by_user(self) -> None:
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
         self.service._cache_assignments(
             self.user_id, ScopeType.PROJECT, uuid4(), ["editor"]
         )
 
         self.service._invalidate_assignment_cache(self.user_id)
 
-        assert self.service._get_cached_assignments(
-            self.user_id, ScopeType.GLOBAL, None
-        ) is None
+        assert (
+            self.service._get_cached_assignments(self.user_id, ScopeType.GLOBAL, None)
+            is None
+        )
         assert self.service._assignment_cache == {}
 
     def test_invalidate_assignment_cache_by_scope(self) -> None:
         project_id = uuid4()
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
         self.service._cache_assignments(
             self.user_id, ScopeType.PROJECT, project_id, ["editor"]
         )
@@ -165,9 +157,12 @@ class TestAssignmentCache:
             self.user_id, ScopeType.GLOBAL, None
         ) == ["admin"]
         # Project should be invalidated
-        assert self.service._get_cached_assignments(
-            self.user_id, ScopeType.PROJECT, project_id
-        ) is None
+        assert (
+            self.service._get_cached_assignments(
+                self.user_id, ScopeType.PROJECT, project_id
+            )
+            is None
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -190,9 +185,7 @@ class TestPermissionChecks:
         # Seed cache: admin has all permissions
         self.service._cache_permissions("admin", ["everything"])
         # Seed assignment cache
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
 
         with patch(
             "app.core.rbac_unified.get_unified_rbac_session", return_value=MagicMock()
@@ -257,9 +250,7 @@ class TestPermissionChecks:
     @pytest.mark.asyncio
     async def test_fail_secure_on_no_session(self) -> None:
         """Permission check returns False when no session available."""
-        with patch(
-            "app.core.rbac_unified.get_unified_rbac_session", return_value=None
-        ):
+        with patch("app.core.rbac_unified.get_unified_rbac_session", return_value=None):
             result = await self.service.has_permission(
                 self.user_id, "any-permission", ScopeType.GLOBAL, None
             )
@@ -281,9 +272,7 @@ class TestAuthorityLevel:
     @pytest.mark.asyncio
     async def test_admin_has_all_authority(self) -> None:
         """Admin users always have authority."""
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
 
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=MagicMock())
@@ -313,9 +302,7 @@ class TestAuthorityLevel:
             "app.core.rbac_unified.get_unified_rbac_session",
             return_value=mock_session,
         ):
-            result = await self.service.has_authority_level(
-                self.user_id, "HIGH", None
-            )
+            result = await self.service.has_authority_level(self.user_id, "HIGH", None)
         assert result is False
 
 
@@ -451,9 +438,7 @@ class TestCRUDOperations:
     @pytest.mark.asyncio
     async def test_assign_role_no_session_raises(self) -> None:
         """assign_role raises RuntimeError when no session available."""
-        with patch(
-            "app.core.rbac_unified.get_unified_rbac_session", return_value=None
-        ):
+        with patch("app.core.rbac_unified.get_unified_rbac_session", return_value=None):
             with pytest.raises(RuntimeError, match="No database session"):
                 await self.service.assign_role(
                     self.user_id, self.role_id, ScopeType.GLOBAL
@@ -662,9 +647,7 @@ class TestGetAssignmentsByScope:
             "app.core.rbac_unified.get_unified_rbac_session",
             return_value=mock_session,
         ):
-            result = await self.service.get_assignments_by_scope(
-                ScopeType.GLOBAL, None
-            )
+            result = await self.service.get_assignments_by_scope(ScopeType.GLOBAL, None)
 
         assert len(result) == 1
 
@@ -878,7 +861,9 @@ class TestUpdateAssignment:
     async def test_update_assignment_invalidates_cache(self) -> None:
         """update_assignment invalidates assignment cache for the user/scope."""
         project_id = uuid4()
-        existing = _make_assignment(self.user_id, self.role_id, ScopeType.PROJECT, project_id)
+        existing = _make_assignment(
+            self.user_id, self.role_id, ScopeType.PROJECT, project_id
+        )
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = existing
         mock_session = MagicMock()
@@ -926,9 +911,7 @@ class TestGetAccessibleProjects:
         """Admin users receive all project IDs from the Project table."""
         project_ids = [uuid4(), uuid4(), uuid4()]
 
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
 
         mock_result = MagicMock()
         mock_result.all.return_value = [(pid,) for pid in project_ids]
@@ -991,9 +974,7 @@ class TestGetAccessibleProjects:
     @pytest.mark.asyncio
     async def test_no_session_returns_empty_list(self) -> None:
         """Returns empty list when no database session is available."""
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
 
         with patch(
             "app.core.rbac_unified.get_unified_rbac_session",
@@ -1097,9 +1078,7 @@ class TestGetProjectRole:
     @pytest.mark.asyncio
     async def test_admin_returns_project_admin(self) -> None:
         """Admin users always get 'project_admin' as their project role."""
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
 
         result = await self.service.get_project_role(self.user_id, uuid4())
         assert result == "project_admin"
@@ -1177,9 +1156,7 @@ class TestGetUserPermissions:
     @pytest.mark.asyncio
     async def test_admin_returns_wildcard(self) -> None:
         """Admin role returns ['*'] wildcard permissions."""
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
 
         result = await self.service.get_user_permissions(
             self.user_id, ScopeType.GLOBAL, None

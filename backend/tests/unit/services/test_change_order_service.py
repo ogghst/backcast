@@ -48,6 +48,7 @@ class TestChangeOrderServiceCreate:
         assert created_co.code == "CO-2026-001"
         assert created_co.title == "Add Additional Safety Sensors"
         from app.core.enums import ChangeOrderStatus
+
         assert created_co.status == ChangeOrderStatus.DRAFT.value
         assert created_co.branch == "main"  # Initial version on main
         assert created_co.created_by == actor_id
@@ -404,6 +405,7 @@ class TestChangeOrderServiceImpactAnalysis:
         # Assert - CO should be created successfully without impact analysis
         assert created_co is not None
         from app.core.enums import ChangeOrderStatus
+
         assert created_co.status == ChangeOrderStatus.DRAFT.value
         # Impact analysis should NOT have run yet
         assert created_co.impact_analysis_status is None

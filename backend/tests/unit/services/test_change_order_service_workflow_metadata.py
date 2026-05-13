@@ -64,9 +64,7 @@ async def test_to_public_includes_available_transitions(db_session: AsyncSession
     )
     assert result.available_transitions == [
         ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value
-    ], (
-        "available_transitions should match workflow service response"
-    )
+    ], "available_transitions should match workflow service response"
     assert result.can_edit_status is True, "Draft status should be editable"
     assert result.branch_locked is False, "No branch means not locked"
     (
@@ -122,9 +120,7 @@ async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
 
     # Assert
     assert result.can_edit_status is False, "Submitted status should not be editable"
-    assert result.available_transitions == [
-        ChangeOrderStatus.UNDER_REVIEW.value
-    ]
+    assert result.available_transitions == [ChangeOrderStatus.UNDER_REVIEW.value]
 
 
 @pytest.mark.asyncio
@@ -158,7 +154,10 @@ async def test_to_public_branch_locked_true_when_branch_locked(
     service = ChangeOrderService(db_session)
 
     service.workflow.get_available_transitions = AsyncMock(
-        return_value=[ChangeOrderStatus.APPROVED.value, ChangeOrderStatus.REJECTED.value]
+        return_value=[
+            ChangeOrderStatus.APPROVED.value,
+            ChangeOrderStatus.REJECTED.value,
+        ]
     )
     service.workflow.can_edit_on_status = AsyncMock(return_value=False)
 

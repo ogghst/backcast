@@ -388,7 +388,10 @@ async def test_approve_change_order_wrong_approver_includes_context(
     error_message = str(exc_info.value)
 
     # Verify context fields - error should mention the assignment mismatch
-    assert str(another_user_id) in error_message or str(admin_user.user_id) in error_message
+    assert (
+        str(another_user_id) in error_message
+        or str(admin_user.user_id) in error_message
+    )
     assert "approver" in error_message.lower() or "assigned" in error_message.lower()
 
 

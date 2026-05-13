@@ -5,6 +5,7 @@ Context: Bug #6 — non-admin users couldn't log in because their passwords
 were either not properly hashed or unknown. This script resets all seed
 user passwords using the application's bcrypt hashing.
 """
+
 import asyncio
 import sys
 from pathlib import Path
@@ -35,7 +36,9 @@ async def reset_passwords() -> None:
     async with async_session_maker() as session:
         for email, password in PASSWORDS.items():
             hashed = get_password_hash(password)
-            stmt = update(User).where(User.email == email).values(hashed_password=hashed)
+            stmt = (
+                update(User).where(User.email == email).values(hashed_password=hashed)
+            )
             await session.execute(stmt)
             print(f"Reset password for {email}")
         await session.commit()

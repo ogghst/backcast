@@ -87,7 +87,9 @@ async def session_health_middleware(
     return response
 
 
-def create_transaction_error_response(detail: str = "Database transaction error") -> JSONResponse:
+def create_transaction_error_response(
+    detail: str = "Database transaction error",
+) -> JSONResponse:
     """Create a standardized error response for transaction errors.
 
     Args:

@@ -9,8 +9,8 @@ Tests follow Red-Green-Refactor TDD cycle for BE-005:
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4, UUID
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,7 +51,6 @@ class TestChangeOrderEmptyBranchImpact:
         project_id = uuid4()
 
         from sqlalchemy import select
-        from sqlalchemy.dialects.postgresql import TSTZRANGE
 
         # Create change order using the proper creation pattern
         # Use insert().returning() to bypass ORM hybrid property issues

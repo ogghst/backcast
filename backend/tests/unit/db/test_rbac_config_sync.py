@@ -74,8 +74,7 @@ class TestRBACConfigSync:
                 differences.append(f"  {role_name}: {', '.join(details)}")
 
         assert not differences, (
-            "Permission mismatches between seed and config:\n"
-            + "\n".join(differences)
+            "Permission mismatches between seed and config:\n" + "\n".join(differences)
         )
 
     def test_change_order_approver_exists_in_seed(self) -> None:
@@ -116,7 +115,9 @@ class TestRBACConfigSync:
         with users_file.open() as f:
             users = json.load(f)
 
-        contributor_users = [u["email"] for u in users if u.get("role") == "contributor"]
+        contributor_users = [
+            u["email"] for u in users if u.get("role") == "contributor"
+        ]
         assert not contributor_users, (
             f"Users with 'contributor' role found: {contributor_users}. "
             "All should be 'manager'."

@@ -53,13 +53,9 @@ async def safe_db_execute[T](
         if rollback_on_error:
             try:
                 await session.rollback()
-                logger.warning(
-                    f"Transaction rolled back due to error: {error_message}"
-                )
+                logger.warning(f"Transaction rolled back due to error: {error_message}")
             except Exception as rollback_error:
-                logger.error(
-                    f"Failed to rollback transaction: {rollback_error}"
-                )
+                logger.error(f"Failed to rollback transaction: {rollback_error}")
 
         # Provide more context in error message
         error_msg = f"{error_message}: {str(e)}"

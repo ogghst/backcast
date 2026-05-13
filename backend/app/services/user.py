@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_password_hash
+from app.core.temporal_queries import is_current_version
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -71,17 +72,17 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
 
     async def get_by_email(self, email: str) -> User | None:
         """Get user by email address (current active version)."""
-        # Use upper(valid_time) IS NULL for open-ended ranges (consistent with get_all)
+        # Use GIST-indexable current version filter
         from typing import Any, cast
-
-        from sqlalchemy import func
 
         stmt = (
             select(User)
             .where(
                 User.email == email,
-                func.upper(cast(Any, User).valid_time).is_(None),
-                cast(Any, User).deleted_at.is_(None),
+                is_current_version(
+                    cast(Any, User).valid_time,
+                    cast(Any, User).deleted_at,
+                ),
             )
             .order_by(cast(Any, User).valid_time.desc())
             .limit(1)

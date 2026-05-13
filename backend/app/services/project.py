@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
 from app.core.db_utils import safe_db_execute
+from app.core.temporal_queries import is_current_version, is_current_version_on_branch
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -81,12 +82,18 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
-                WBE.branch == branch,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, WBE).valid_time,
+                    WBE.branch,
+                    branch,
+                    cast(Any, WBE).deleted_at,
+                ),
+                is_current_version_on_branch(
+                    cast(Any, CostElement).valid_time,
+                    CostElement.branch,
+                    branch,
+                    cast(Any, CostElement).deleted_at,
+                ),
             )
         )
 
@@ -124,12 +131,18 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             .join(CostElement, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id.in_([p.project_id for p in projects]),
-                WBE.branch == branch,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, WBE).valid_time,
+                    WBE.branch,
+                    branch,
+                    cast(Any, WBE).deleted_at,
+                ),
+                is_current_version_on_branch(
+                    cast(Any, CostElement).valid_time,
+                    CostElement.branch,
+                    branch,
+                    cast(Any, CostElement).deleted_at,
+                ),
             )
             .group_by(WBE.project_id)
         )
@@ -224,8 +237,10 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         else:
             # Get current version (open upper bound) and not deleted
             stmt = stmt.where(
-                func.upper(cast(Any, Project).valid_time).is_(None),
-                cast(Any, Project).deleted_at.is_(None),
+                is_current_version(
+                    cast(Any, Project).valid_time,
+                    cast(Any, Project).deleted_at,
+                ),
             )
 
         # Apply search (across code and name)
@@ -255,7 +270,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         total_result = await safe_db_execute(
             self.session,
             self.session.execute(count_stmt),
-            "Failed to get project count"
+            "Failed to get project count",
         )
         total = total_result.scalar_one()
 
@@ -281,9 +296,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         # Execute query
         result = await safe_db_execute(
-            self.session,
-            self.session.execute(stmt),
-            "Failed to execute projects query"
+            self.session, self.session.execute(stmt), "Failed to execute projects query"
         )
 
         projects = []
@@ -308,15 +321,16 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         """Get project by code (current version in specified branch)."""
         from typing import cast
 
-        from sqlalchemy import func
-
         stmt = (
             select(Project)
             .where(
                 Project.code == code,
-                Project.branch == branch,
-                func.upper(cast(Any, Project).valid_time).is_(None),
-                cast(Any, Project).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, Project).valid_time,
+                    Project.branch,
+                    branch,
+                    cast(Any, Project).deleted_at,
+                ),
             )
             .order_by(cast(Any, Project).valid_time.desc())
             .limit(1)
@@ -559,8 +573,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         else:
             # Current versions
             stmt = stmt.where(
-                func.upper(Branch.valid_time).is_(None),
-                Branch.deleted_at.is_(None),
+                is_current_version(Branch.valid_time, Branch.deleted_at),
             )
 
         stmt = stmt.order_by(func.lower(Branch.valid_time).desc())
@@ -601,8 +614,12 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
                     )
                 else:
                     co_stmt = co_stmt.where(
-                        func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                        cast(Any, ChangeOrder).deleted_at.is_(None),
+                        is_current_version_on_branch(
+                            cast(Any, ChangeOrder).valid_time,
+                            ChangeOrder.branch,
+                            "main",
+                            cast(Any, ChangeOrder).deleted_at,
+                        ),
                     )
 
                 co_stmt = co_stmt.order_by(
@@ -658,8 +675,12 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         # Get current versions (not deleted)
         stmt = stmt.where(
-            func.upper(cast(Any, Project).valid_time).is_(None),
-            cast(Any, Project).deleted_at.is_(None),
+            is_current_version_on_branch(
+                cast(Any, Project).valid_time,
+                Project.branch,
+                branch,
+                cast(Any, Project).deleted_at,
+            ),
         )
 
         # Order by transaction_time descending (most recent first)

@@ -2,7 +2,7 @@
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import DBAPIError, SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db_utils import is_transaction_aborted, safe_db_execute
@@ -22,6 +22,7 @@ async def test_safe_db_execute_success(async_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_safe_db_execute_with_error(async_session: AsyncSession):
     """Test safe_db_execute handles errors and rolls back."""
+
     # Create a query that will fail
     async def failing_query():
         return await async_session.execute(text("SELECT * FROM nonexistent_table"))
@@ -36,11 +37,14 @@ async def test_safe_db_execute_with_error(async_session: AsyncSession):
 
 def test_is_transaction_aborted_with_transaction_error():
     """Test is_transaction_aborted detects transaction errors."""
+
     # Create a mock error that mimics InFailedSQLTransactionError
     class MockTransactionError(Exception):
         pass
 
-    error = MockTransactionError("InFailedSQLTransactionError: current transaction is aborted")
+    error = MockTransactionError(
+        "InFailedSQLTransactionError: current transaction is aborted"
+    )
     assert is_transaction_aborted(error) is True
 
 

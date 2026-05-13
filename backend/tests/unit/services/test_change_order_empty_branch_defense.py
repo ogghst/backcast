@@ -126,7 +126,10 @@ class TestChangeOrderImpactAnalysisDefense:
         # Verify impact_analysis_results contains the error info
         assert change_order.impact_analysis_results is not None
         assert "error" in change_order.impact_analysis_results
-        assert "empty branch" in change_order.impact_analysis_results.get("note", "").lower()
+        assert (
+            "empty branch"
+            in change_order.impact_analysis_results.get("note", "").lower()
+        )
 
     @pytest.mark.asyncio
     async def test_service_exception_sets_medium_impact_defaults(

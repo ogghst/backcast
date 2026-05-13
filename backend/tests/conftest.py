@@ -402,9 +402,7 @@ class MockUnifiedRBACService:
     async def get_accessible_projects(self, user_id: UUID) -> list[UUID]:
         return []  # Will be overridden by tests that need specific projects
 
-    async def get_project_role(
-        self, user_id: UUID, project_id: UUID
-    ) -> str | None:
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
         return "project_admin"
 
     async def get_user_permissions(
@@ -599,7 +597,6 @@ def override_auth(
             ...
     """
     from app.api.dependencies.auth import get_current_active_user, get_current_user
-
     from app.core.rbac_unified import (
         get_unified_rbac_service,
         set_unified_rbac_service,

@@ -7,7 +7,6 @@ Tests follow Red-Green-Refactor TDD cycle for BE-005:
 - Return reasonable defaults when branch is empty (e.g., impact_level = LOW, zero financial impact)
 """
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -15,7 +14,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import ChangeOrderStatus
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.project import Project
 from app.models.domain.wbe import WBE
 from app.services.change_order_service import ChangeOrderService
@@ -74,10 +72,9 @@ class TestChangeOrderEmptyBranchImpact:
         isolation_branch = change_order.branch_name
 
         # Verify no WBEs or cost elements exist on the isolation branch
-        from sqlalchemy import select, func
-        from sqlalchemy import cast as sql_cast
-        from sqlalchemy.dialects.postgresql import TIMESTAMP
         from typing import Any, cast
+
+        from sqlalchemy import func, select
 
         # Check for WBEs on isolation branch
         wbe_stmt = select(WBE).where(

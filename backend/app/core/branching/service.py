@@ -22,6 +22,7 @@ from app.core.branching.commands import (
     UpdateCommand,
 )
 from app.core.branching.exceptions import BranchLockedException
+from app.core.temporal_queries import is_current_version, is_current_version_on_branch
 from app.core.versioning.commands import CreateVersionCommand
 from app.core.versioning.enums import BranchMode
 from app.models.protocols import BranchableProtocol
@@ -536,11 +537,15 @@ class BranchableService[TBranchable: BranchableProtocol]:
             # Current Version Coverage
             conditions.extend(
                 [
-                    func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                    # Note: We can't use is_current_version_on_branch here because
+                    # the branch filter is applied separately below
+                    is_current_version(
+                        cast(Any, self.entity_class).valid_time,
+                        cast(Any, self.entity_class).deleted_at,
+                    ),
                     func.not_(
                         func.isempty(self.entity_class.valid_time)
                     ),  # Exclude empty ranges
-                    cast(Any, self.entity_class).deleted_at.is_(None),
                 ]
             )
 
@@ -681,8 +686,10 @@ class BranchableService[TBranchable: BranchableProtocol]:
         else:
             # Current state: only non-deleted, currently valid versions
             stmt = stmt.where(
-                cast(Any, self.entity_class).deleted_at.is_(None),
-                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                is_current_version(
+                    cast(Any, self.entity_class).valid_time,
+                    cast(Any, self.entity_class).deleted_at,
+                ),
             )
 
         # Get distinct branch names
@@ -914,9 +921,15 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         # Get current versions (not deleted)
         stmt = stmt.where(
-            func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-            func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
-            cast(Any, self.entity_class).deleted_at.is_(None),
+            is_current_version_on_branch(
+                cast(Any, self.entity_class).valid_time,
+                cast(Any, self.entity_class).branch,
+                branch,
+                cast(Any, self.entity_class).deleted_at,
+            ),
+            func.not_(
+                func.isempty(self.entity_class.valid_time)
+            ),  # Exclude empty ranges
         )
 
         # Eager load project relationship if requested (for dashboard optimization)
@@ -924,9 +937,9 @@ class BranchableService[TBranchable: BranchableProtocol]:
             stmt = stmt.options(selectinload(cast(Any, self.entity_class).project))
 
         # Order by transaction_time descending (most recent first)
-        stmt = stmt.order_by(
-            desc(cast(Any, self.entity_class).transaction_time)
-        ).limit(limit)
+        stmt = stmt.order_by(desc(cast(Any, self.entity_class).transaction_time)).limit(
+            limit
+        )
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

@@ -700,16 +700,12 @@ class TestSeedAllUserRoleAssignments:
         with patch.object(seeder, "seed_rbac_roles"):
             with patch.object(seeder, "seed_departments"):
                 with patch.object(seeder, "seed_users"):
-                    with patch.object(
-                        seeder, "seed_user_role_assignments"
-                    ) as mock_ura:
+                    with patch.object(seeder, "seed_user_role_assignments") as mock_ura:
                         with patch.object(seeder, "seed_co_workflow_config"):
                             with patch.object(seeder, "seed_cost_element_types"):
                                 with patch.object(seeder, "seed_projects"):
                                     with patch.object(seeder, "seed_wbes"):
-                                        with patch.object(
-                                            seeder, "seed_cost_elements"
-                                        ):
+                                        with patch.object(seeder, "seed_cost_elements"):
                                             with patch.object(
                                                 seeder, "seed_cost_registrations"
                                             ):
@@ -731,8 +727,10 @@ class TestSeedAllUserRoleAssignments:
                                                                     seeder,
                                                                     "seed_ai_assistants",
                                                                 ):
-                                                                    await seeder.seed_all(
-                                                                        session
+                                                                    await (
+                                                                        seeder.seed_all(
+                                                                            session
+                                                                        )
                                                                     )
 
                                                                     mock_ura.assert_called_once_with(

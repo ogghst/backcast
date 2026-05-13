@@ -15,9 +15,7 @@ async def test_get_available_transitions_draft():
     service = ChangeOrderWorkflowService()
 
     # Act
-    transitions = await service.get_available_transitions(
-        ChangeOrderStatus.DRAFT.value
-    )
+    transitions = await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
 
     # Assert
     assert transitions == [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]

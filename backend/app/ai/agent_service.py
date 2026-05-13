@@ -1641,10 +1641,16 @@ class AgentService:
                 _flush_accumulated_tokens(inv_id)
             clear_request_context()
             self.unregister_interrupt_node(session_id)
+            # Commit tool session - critical for cost element persistence
             try:
                 await ToolSessionManager.commit()
-            except Exception:
-                pass
+            except Exception as commit_err:
+                logger.error(
+                    f"[TOOL_SESSION] Failed to commit tool session: {commit_err}",
+                    exc_info=True,
+                )
+                # Re-raise to ensure commit failures are surfaced
+                raise
 
             # Persist briefing on error if not already done — specialist
             # findings survive even when streaming fails.

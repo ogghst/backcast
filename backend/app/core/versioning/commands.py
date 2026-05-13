@@ -18,6 +18,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.temporal_queries import is_current_version_raw_sql
 from app.core.versioning.exceptions import OverlappingVersionError
 from app.models.protocols import VersionableProtocol
 
@@ -553,14 +554,14 @@ class LinkCostElementCommand:
 
         # Use raw SQL to update the FK
         # CRITICAL: Exclude empty ranges to avoid updating invalid versions
+        where_clause = is_current_version_raw_sql("valid_time", "deleted_at")
         stmt = text(
             f"""
             UPDATE cost_elements
             SET {fk_field} = :parent_id
             WHERE cost_element_id = :cost_element_id
-            AND upper(valid_time) IS NULL
+            AND {where_clause}
             AND NOT isempty(valid_time)
-            AND deleted_at IS NULL
             """
         )
         await session.execute(
@@ -631,15 +632,15 @@ class UpdateChangeOrderStatusCommand:
 
         # Get current version using temporal query pattern consistent with service layer
         # CRITICAL: Exclude empty ranges to avoid selecting invalid versions
+        where_clause = is_current_version_raw_sql()
         stmt = text(
-            """
+            f"""
             SELECT id, valid_time, transaction_time
             FROM change_orders
             WHERE change_order_id = :change_order_id
             AND branch = :branch
-            AND upper(valid_time) IS NULL
+            AND {where_clause}
             AND NOT isempty(valid_time)
-            AND deleted_at IS NULL
             """
         )
         result = await session.execute(

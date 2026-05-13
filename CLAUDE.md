@@ -99,6 +99,15 @@ The codebase and test suite are large. To improve efficiency, perform quality ch
 - **Branchable:** `EntityBase + VersionableMixin + BranchableMixin` → `BranchableService` (`app/core/branching/service.py`)
 - **Entity guide:** `docs/02-architecture/backend/contexts/evcs-core/entity-classification.md`
 
+**EVCS Relationships:**
+
+Versioned entities (Project, WBE, CostElement) use two identifiers:
+
+- **Root ID** (`project_id`, `wbe_id`, `cost_element_id`): Stable identifier across all versions. Used in foreign keys, URLs, and API endpoints. References the entity's identity, not a specific version.
+- **Version ID** (`id`): Primary key of each version row. Unique per version, but not used in relationships.
+
+Relationships between versioned entities use **root IDs**, not version IDs. No database-level FK constraints because root_id is not unique across versions (integrity enforced at application level). Example: `WBE.project_id` references the root `project_id`, not a specific version's `id`.
+
 ## Documentation
 
 [`docs/00-meta/README.md`](docs/00-meta/README.md)

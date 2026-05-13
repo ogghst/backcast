@@ -88,9 +88,7 @@ class TestUserRoleAssignmentUpdate:
         assert schema.expires_at is None
 
     def test_update_metadata(self) -> None:
-        schema = UserRoleAssignmentUpdate(
-            metadata_={"authority_level": "CRITICAL"}
-        )
+        schema = UserRoleAssignmentUpdate(metadata_={"authority_level": "CRITICAL"})
         assert schema.metadata_["authority_level"] == "CRITICAL"
 
     def test_empty_update(self) -> None:

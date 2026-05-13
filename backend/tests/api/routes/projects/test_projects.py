@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
-    get_unified_rbac_service,
     set_unified_rbac_service,
 )
 from app.main import app

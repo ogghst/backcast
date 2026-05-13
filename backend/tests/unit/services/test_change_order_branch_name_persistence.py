@@ -13,7 +13,6 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.project import Project
 from app.models.domain.user import User
 from app.models.schemas.change_order import ChangeOrderCreate
@@ -81,9 +80,7 @@ async def test_branch_name_persisted_on_co_creation(
 
     # 4. Verify branch_name is persisted in database
     # Query the database directly to ensure it's not just in-memory
-    stmt = text(
-        "SELECT branch_name FROM change_orders WHERE change_order_id = :coid"
-    )
+    stmt = text("SELECT branch_name FROM change_orders WHERE change_order_id = :coid")
     result = await db_session.execute(stmt, {"coid": str(co.change_order_id)})
     row = result.fetchone()
 
@@ -151,9 +148,7 @@ async def test_branch_name_persisted_after_update(
     )
 
     # 5. Verify branch_name is still set after update
-    assert updated_co.branch_name is not None, (
-        "branch_name should be set after update"
-    )
+    assert updated_co.branch_name is not None, "branch_name should be set after update"
     assert updated_co.branch_name == expected_branch_name, (
         f"branch_name should still be {expected_branch_name} after update, "
         f"got {updated_co.branch_name}"
@@ -167,7 +162,9 @@ async def test_branch_name_persisted_after_update(
     row = result.fetchone()
 
     assert row is not None, "Change order should be persisted after update"
-    assert row[0] is not None, "branch_name should be persisted to database after update"
+    assert row[0] is not None, (
+        "branch_name should be persisted to database after update"
+    )
     assert row[0] == expected_branch_name, (
         f"Persisted branch_name after update should be {expected_branch_name}, got {row[0]}"
     )

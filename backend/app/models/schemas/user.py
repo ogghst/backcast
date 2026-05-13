@@ -126,7 +126,9 @@ class UserPublic(BaseModel):
         )
 
     @classmethod
-    async def from_user_async(cls, user: "User", session: "AsyncSession") -> "UserPublic":
+    async def from_user_async(
+        cls, user: "User", session: "AsyncSession"
+    ) -> "UserPublic":
         """Create UserPublic from User domain object with RBAC permissions.
 
         This async version properly loads permissions from the database if cache is empty.

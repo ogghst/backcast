@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db_utils import safe_db_execute
+from app.core.temporal_queries import is_current_version, is_current_version_on_branch
 
 # Defer imports to avoid circular import issues
 from app.models.domain.change_order import ChangeOrder
@@ -374,15 +375,18 @@ class DashboardService:
             .select_from(WBE)
             .where(
                 WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, WBE).valid_time,
+                    WBE.branch,
+                    "main",
+                    cast(Any, WBE).deleted_at,
+                ),
             )
         )
         wbe_result = await safe_db_execute(
             self.session,
             self.session.execute(wbe_stmt),
-            "Failed to count WBEs for project metrics"
+            "Failed to count WBEs for project metrics",
         )
         total_wbes = wbe_result.scalar() or 0
 
@@ -394,20 +398,26 @@ class DashboardService:
                 CostElement.wbe_id.in_(
                     select(WBE.wbe_id).where(
                         WBE.project_id == project_id,
-                        WBE.branch == "main",
-                        func.upper(cast(Any, WBE).valid_time).is_(None),
-                        cast(Any, WBE).deleted_at.is_(None),
+                        is_current_version_on_branch(
+                            cast(Any, WBE).valid_time,
+                            WBE.branch,
+                            "main",
+                            cast(Any, WBE).deleted_at,
+                        ),
                     )
                 ),
-                CostElement.branch == "main",
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, CostElement).valid_time,
+                    CostElement.branch,
+                    "main",
+                    cast(Any, CostElement).deleted_at,
+                ),
             )
         )
         ce_result = await safe_db_execute(
             self.session,
             self.session.execute(ce_stmt),
-            "Failed to count cost elements for project metrics"
+            "Failed to count cost elements for project metrics",
         )
         total_cost_elements = ce_result.scalar() or 0
 
@@ -421,14 +431,18 @@ class DashboardService:
                 ChangeOrder.status.in_(
                     ["draft", "submitted_for_approval", "under_review"]
                 ),
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                cast(Any, ChangeOrder).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, ChangeOrder).valid_time,
+                    ChangeOrder.branch,
+                    "main",
+                    cast(Any, ChangeOrder).deleted_at,
+                ),
             )
         )
         co_result = await safe_db_execute(
             self.session,
             self.session.execute(co_stmt),
-            "Failed to count change orders for project metrics"
+            "Failed to count change orders for project metrics",
         )
         active_change_orders = co_result.scalar() or 0
 
@@ -458,8 +472,10 @@ class DashboardService:
         """
         stmt = select(User).where(
             User.user_id == user_id,
-            func.upper(cast(Any, User).transaction_time).is_(None),
-            cast(Any, User).deleted_at.is_(None),
+            is_current_version(
+                cast(Any, User).transaction_time,
+                cast(Any, User).deleted_at,
+            ),
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

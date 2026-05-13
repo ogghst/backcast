@@ -29,7 +29,9 @@ def _make_mock_unified_service(
     service = MagicMock()
 
     async def has_permission(
-        user_id: UUID, required_permission: str, scope_type: str = "global",
+        user_id: UUID,
+        required_permission: str,
+        scope_type: str = "global",
         scope_id: UUID | None = None,
     ) -> bool:
         # Determine role by looking up which role has this permission.
@@ -39,7 +41,9 @@ def _make_mock_unified_service(
         return True
 
     async def has_project_access(
-        user_id: UUID, project_id: UUID, required_permission: str,
+        user_id: UUID,
+        project_id: UUID,
+        required_permission: str,
     ) -> bool:
         return True
 
@@ -331,9 +335,7 @@ class TestRBACToolNode:
             call_count += 1
             return call_count == 1  # grant first, deny second
 
-        mock_service.has_permission = AsyncMock(
-            side_effect=has_permission_side_effect
-        )
+        mock_service.has_permission = AsyncMock(side_effect=has_permission_side_effect)
         set_unified_rbac_service(mock_service)
         set_unified_rbac_session(AsyncMock())
 

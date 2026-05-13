@@ -178,8 +178,8 @@ async def test_list_projects_logs_temporal_context_with_params(
         mock_project.start_date = None
         mock_project.end_date = None
 
-        mock_tool_context_with_temporal_params.project_service.get_projects = (
-            AsyncMock(return_value=([mock_project], 1))
+        mock_tool_context_with_temporal_params.project_service.get_projects = AsyncMock(
+            return_value=([mock_project], 1)
         )
 
         await list_projects.ainvoke(
@@ -307,9 +307,7 @@ async def test_get_project_logs_temporal_context(mock_tool_context):
     mock_project.end_date = None
     mock_project.branch = "main"
 
-    mock_tool_context.project_service.get_as_of = AsyncMock(
-        return_value=mock_project
-    )
+    mock_tool_context.project_service.get_as_of = AsyncMock(return_value=mock_project)
 
     handler, records = _make_log_handler()
     logger = logging.getLogger(TEMPORAL_LOGGER)

@@ -90,7 +90,9 @@ async def list_assignments(
             assignments = await service.get_all_user_assignments(user_id)
         elif role_id is not None:
             result = await session.execute(
-                select(UserRoleAssignment).where(UserRoleAssignment.role_id == role_id).limit(100)
+                select(UserRoleAssignment)
+                .where(UserRoleAssignment.role_id == role_id)
+                .limit(100)
             )
             assignments = list(result.scalars().all())
         elif scope_type is not None:
@@ -123,10 +125,14 @@ async def list_assignments(
                 user_name_map[row[0]] = row[1]
 
             # Batch query granted_by names
-            granted_by_ids = {a.granted_by for a in assignments if a.granted_by is not None}
+            granted_by_ids = {
+                a.granted_by for a in assignments if a.granted_by is not None
+            }
             if granted_by_ids:
                 granted_by_result = await session.execute(
-                    select(User.user_id, User.full_name).where(User.user_id.in_(granted_by_ids))
+                    select(User.user_id, User.full_name).where(
+                        User.user_id.in_(granted_by_ids)
+                    )
                 )
                 for row in granted_by_result.all():
                     granted_by_name_map[row[0]] = row[1]
@@ -136,7 +142,9 @@ async def list_assignments(
             read = UserRoleAssignmentRead.model_validate(a)
             read.role_name = role_name_map.get(a.role_id)
             read.user_name = user_name_map.get(a.user_id)
-            read.granted_by_name = granted_by_name_map.get(a.granted_by) if a.granted_by else None
+            read.granted_by_name = (
+                granted_by_name_map.get(a.granted_by) if a.granted_by else None
+            )
             response.append(read)
 
         return response

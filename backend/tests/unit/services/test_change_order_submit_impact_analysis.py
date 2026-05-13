@@ -331,9 +331,7 @@ class TestSubmitForApprovalImpactAnalysis:
         )
 
         # Allow 1 minute tolerance for test execution time
-        time_diff = abs(
-            (submitted_co.sla_due_date - expected_due_date).total_seconds()
-        )
+        time_diff = abs((submitted_co.sla_due_date - expected_due_date).total_seconds())
         assert time_diff < 60  # Less than 1 minute difference
 
     @pytest.mark.asyncio

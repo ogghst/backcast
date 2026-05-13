@@ -384,7 +384,9 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
                     merge_from_branch=self.source_branch,
                 ),
             )
-            merge_timestamp = self.control_date if self.control_date else datetime.now(UTC)
+            merge_timestamp = (
+                self.control_date if self.control_date else datetime.now(UTC)
+            )
             session.add(merged)
             await session.flush()
             tablename = str(getattr(self.entity_class, "__tablename__", ""))

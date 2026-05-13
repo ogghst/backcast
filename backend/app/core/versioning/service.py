@@ -73,23 +73,13 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Get all entities (current versions) with pagination.
 
         Filters by upper(valid_time) IS NULL (open-ended) and deleted_at IS NULL.
-        Excludes empty ranges to avoid selecting invalid versions.
         """
-        from typing import Any, cast
-
-        from sqlalchemy import func
+        from app.core.temporal_queries import is_current_version
 
         stmt = (
             select(self.entity_class)
             .where(
-                # CRITICAL FIX: Use upper(valid_time) IS NULL instead of @> operator
-                # The @> operator can match recently-closed versions if query runs
-                # at the exact same microsecond as the close operation
-                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                func.not_(
-                    func.isempty(self.entity_class.valid_time)
-                ),  # Exclude empty ranges
-                cast(Any, self.entity_class).deleted_at.is_(None),
+                is_current_version(self.entity_class.valid_time, self.entity_class.deleted_at)
             )
             .offset(skip)
             .limit(limit)

@@ -465,9 +465,7 @@ class UnifiedRBACService:
             user_id, required_permission, ScopeType.PROJECT, project_id
         )
 
-    async def get_project_role(
-        self, user_id: UUID, project_id: UUID
-    ) -> str | None:
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
         """Get the user's role name for a specific project.
 
         Admin users return "project_admin" as they have full access.
