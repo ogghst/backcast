@@ -7,9 +7,10 @@ export const useCostElementTypes = () => {
   return useQuery({
     queryKey: queryKeys.costElementTypes.list,
     queryFn: async () => {
-      const res = await CostElementTypesService.getCostElementTypes(1, 1000);
-      const items: CostElementTypeRead[] = Array.isArray(res) ? res : (res as PaginatedResponse<CostElementTypeRead>).items || [];
-      return items;
+      const res = await CostElementTypesService.getCostElementTypes(1, 1000, undefined, undefined, undefined, undefined, 'asc');
+      // Backend always returns PaginatedResponse with items array
+      const paginatedRes = res as PaginatedResponse<CostElementTypeRead>;
+      return paginatedRes.items || [];
     },
     staleTime: 5 * 60 * 1000,
   });

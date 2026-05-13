@@ -102,6 +102,7 @@ export const ProjectEVMAnalysis: React.FC = () => {
       {evmMetrics && (
         <EVMSummaryView
           metrics={evmMetrics}
+          timeSeries={timeSeries}
           onAdvanced={() => setIsEVMModalOpen(true)}
         />
       )}

@@ -1,191 +1,189 @@
 import React, { useMemo, useCallback } from "react";
-import { Collapse, Button, Space, Typography, Row, Col, type CollapseProps } from "antd";
 import {
-  LineChartOutlined,
-  DollarOutlined,
-  ThunderboltOutlined,
-  ClockCircleOutlined,
-} from "@ant-design/icons";
+  Card,
+  Collapse,
+  Button,
+  Typography,
+  Row,
+  Col,
+  Divider,
+  theme,
+} from "antd";
+import { LineChartOutlined } from "@ant-design/icons";
+
 import { MetricCard } from "./MetricCard";
-import { EVMMetricsResponse, MetricCategory, getMetricStatus, getMetricsByCategory, type MetricMetadata } from "../types";
+import { EVMCompactSCurve } from "./EVMCompactSCurve";
+import { EVMKPIIndicator } from "./EVMKPIIndicator";
+import { EVMForecastBar } from "./EVMForecastBar";
+import {
+  EVMMetricsResponse,
+  EVMTimeSeriesResponse,
+  getMetricStatus,
+  METRIC_DEFINITIONS,
+} from "../types";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
-/**
- * Props for the EVMSummaryView component.
- */
 export interface EVMSummaryViewProps {
-  /** EVM metrics to display */
   metrics: EVMMetricsResponse;
-  /** Callback when Advanced button is clicked */
+  timeSeries?: EVMTimeSeriesResponse;
   onAdvanced?: () => void;
-  /** When true, skip the title and Advanced button header */
   hideHeader?: boolean;
 }
 
-/**
- * Category configuration for organizing metrics.
- */
-interface CategoryConfig {
-  key: string;
-  title: string;
-  icon: React.ReactNode;
+const DETAIL_METRICS = ["sv", "cv", "ac", "etc"] as const;
+
+function getEACStatus(
+  eac: number | null,
+  bac: number,
+): "good" | "warning" | "bad" {
+  if (eac === null) return "warning";
+  if (eac <= bac) return "good";
+  if (eac <= bac * 1.1) return "warning";
+  return "bad";
 }
 
-/**
- * Default active keys for Collapse (all categories expanded).
- */
-const DEFAULT_ACTIVE_KEYS = ["Schedule", "Cost", "Performance", "Forecast"] as const;
-
-/**
- * Category configurations with icons and titles.
- */
-const CATEGORY_CONFIGS: readonly CategoryConfig[] = [
-  {
-    key: "Schedule",
-    title: "Schedule Metrics",
-    icon: <ClockCircleOutlined />,
-  },
-  {
-    key: "Cost",
-    title: "Cost Metrics",
-    icon: <DollarOutlined />,
-  },
-  {
-    key: "Performance",
-    title: "Performance Metrics",
-    icon: <ThunderboltOutlined />,
-  },
-  {
-    key: "Forecast",
-    title: "Forecast Metrics",
-    icon: <LineChartOutlined />,
-  },
-] as const;
-
-/**
- * Render metric cards for a specific category.
- */
-function renderMetricCards(
-  categoryMetrics: readonly MetricMetadata[],
-  metrics: EVMMetricsResponse
-): React.ReactNode {
-  return (
-    <Row gutter={[16, 16]}>
-      {categoryMetrics.map((metadata) => {
-        const value = metrics[metadata.key] as number | null;
-        const status = getMetricStatus(metadata.key, value);
-
-        return (
-          <Col xs={24} sm={12} lg={8} key={metadata.key}>
-            <MetricCard
-              metadata={metadata}
-              value={value}
-              status={status}
-              size="medium"
-              showDescription
-            />
-          </Col>
-        );
-      })}
-    </Row>
-  );
-}
-
-/**
- * EVMSummaryView Component
- *
- * A comprehensive summary view for displaying EVM (Earned Value Management) metrics.
- * Organizes metrics by category (Schedule, Cost, Performance, Forecast) in collapsible sections.
- *
- * Features:
- * - Collapsible sections for each metric category
- * - MetricCard components for individual metrics with status indicators
- * - Short descriptions next to each metric
- * - Advanced button to open EVM Analyzer modal
- * - Responsive grid layout for metric cards
- * - Proper TypeScript typing
- * - Memoized collapse items for performance
- *
- * @example
- * ```tsx
- * <EVMSummaryView
- *   metrics={evmMetrics}
- *   onAdvanced={() => setIsModalOpen(true)}
- * />
- * ```
- */
 export const EVMSummaryView: React.FC<EVMSummaryViewProps> = ({
   metrics,
+  timeSeries,
   onAdvanced,
   hideHeader = false,
 }) => {
-  /**
-   * Handle Advanced button click.
-   * Memoized to prevent unnecessary recreations.
-   */
+  const { token } = theme.useToken();
+
   const handleAdvancedClick = useCallback(() => {
     onAdvanced?.();
   }, [onAdvanced]);
 
-  /**
-   * Generate collapse items for each metric category.
-   * Memoized to prevent unnecessary recalculations when metrics change.
-   */
-  const collapseItems: CollapseProps['items'] = useMemo(
-    () => CATEGORY_CONFIGS.map((categoryConfig) => {
-      const categoryMetrics = getMetricsByCategory(categoryConfig.key as MetricCategory);
-
-      return {
-        key: categoryConfig.key,
-        label: (
-          <Space>
-            {categoryConfig.icon}
-            <span>{categoryConfig.title}</span>
-          </Space>
+  const collapseItems = useMemo(
+    () => [
+      {
+        key: "detail",
+        label: <Text style={{ fontWeight: 500 }}>Detail Metrics</Text>,
+        children: (
+          <Row gutter={[16, 16]}>
+            {DETAIL_METRICS.map((key) => {
+              const metadata = METRIC_DEFINITIONS[key];
+              if (!metadata) return null;
+              const value = metrics[key] as number | null;
+              const status = getMetricStatus(key, value);
+              return (
+                <Col xs={24} sm={12} lg={8} key={key}>
+                  <MetricCard
+                    metadata={metadata}
+                    value={value}
+                    status={status}
+                    size="small"
+                  />
+                </Col>
+              );
+            })}
+          </Row>
         ),
-        children: renderMetricCards(categoryMetrics, metrics),
-      };
-    }),
-    [metrics]
+      },
+    ],
+    [metrics],
   );
 
   return (
-    <Space
-      orientation="vertical"
-      size="large"
-      style={{ width: "100%" }}
+    <Card
+      variant="borderless"
+      style={{
+        backgroundColor: token.colorBgContainer,
+        borderRadius: token.borderRadiusLG,
+      }}
+      styles={{ body: { padding: token.paddingLG } }}
     >
-      {/* Header with Advanced button */}
-      {!hideHeader && (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {!hideHeader && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Title level={4} style={{ margin: 0 }}>
+              EVM Summary
+            </Title>
+            <Button
+              type="default"
+              icon={<LineChartOutlined />}
+              onClick={handleAdvancedClick}
+            >
+              Advanced
+            </Button>
+          </div>
+        )}
+
+        <EVMCompactSCurve timeSeries={timeSeries} height={220} />
+
+        <Divider style={{ margin: 0 }} />
+
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 16,
           }}
         >
-          <Title level={3} style={{ margin: 0 }}>
-            EVM Summary
-          </Title>
-          <Button
-            type="primary"
-            icon={<LineChartOutlined />}
-            onClick={handleAdvancedClick}
-          >
-            Advanced
-          </Button>
+          <EVMKPIIndicator
+            label="CPI"
+            value={metrics.cpi}
+            format="number"
+            status={getMetricStatus("cpi", metrics.cpi)}
+          />
+          <EVMKPIIndicator
+            label="SPI"
+            value={metrics.spi}
+            format="number"
+            status={getMetricStatus("spi", metrics.spi)}
+          />
+          <EVMKPIIndicator
+            label="BAC"
+            value={metrics.bac}
+            format="currency"
+            status="good"
+            neutral
+          />
+          <EVMKPIIndicator
+            label="EAC"
+            value={metrics.eac}
+            format="currency"
+            status={getEACStatus(metrics.eac, metrics.bac)}
+          />
+          <EVMKPIIndicator
+            label="VAC"
+            value={metrics.vac}
+            format="currency"
+            status={getMetricStatus("vac", metrics.vac)}
+          />
+          <EVMKPIIndicator
+            label="Progress"
+            value={metrics.progress_percentage / 100}
+            format="percentage"
+            status="good"
+            neutral
+          />
         </div>
-      )}
 
-      {/* Collapsible metric categories */}
-      <Collapse
-        defaultActiveKey={[...DEFAULT_ACTIVE_KEYS]}
-        items={collapseItems}
-        bordered
-        style={{ backgroundColor: "transparent" }}
-      />
-    </Space>
+        <Divider style={{ margin: 0 }} />
+
+        <EVMForecastBar
+          bac={metrics.bac}
+          eac={metrics.eac}
+          ac={metrics.ac}
+          etc={metrics.etc}
+          vac={metrics.vac}
+        />
+
+        <Collapse
+          ghost
+          items={collapseItems}
+          style={{ backgroundColor: "transparent" }}
+        />
+      </div>
+    </Card>
   );
 };
 

@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { EVMSummaryView } from "../EVMSummaryView";
-import { EVMMetricsResponse } from "../../types";
+import { EVMMetricsResponse, EVMTimeSeriesResponse } from "../../types";
 
-// Mock the theme hook
+vi.mock("echarts-for-react", () => ({
+  __esModule: true,
+  default: () => <div data-testid="echarts-mock" />,
+}));
+
 vi.mock("antd", async () => {
   const actual = await vi.importActual("antd");
   return {
@@ -16,42 +20,64 @@ vi.mock("antd", async () => {
           colorText: "#000000",
           colorTextSecondary: "#666666",
           colorTextTertiary: "#999999",
+          colorSuccess: "#5da572",
+          colorWarning: "#d4a549",
+          colorError: "#c95d5f",
+          colorPrimary: "#4a7c91",
           borderRadiusLG: 8,
-          colorPrimary: "#1890ff",
+          borderRadiusSM: 4,
+          paddingXXS: 4,
+          paddingMD: 16,
+          paddingLG: 24,
+          paddingXL: 32,
+          colorFillSecondary: "#f0f0f0",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+          colorBorderSecondary: "#f0f0f0",
+          colorBgElevated: "#ffffff",
         },
       }),
     },
   };
 });
 
-describe("EVMSummaryView", () => {
-  const mockMetrics: EVMMetricsResponse = {
-    entity_type: "project" as const,
-    entity_id: "proj-123",
-    bac: 1000000,
-    pv: 800000,
-    ac: 750000,
-    ev: 720000,
-    cv: -30000,
-    sv: -80000,
-    cpi: 0.96,
-    spi: 0.9,
-    eac: 1041667,
-    vac: -41667,
-    etc: 291667,
-    control_date: "2025-01-15T10:00:00Z",
-    branch: "main",
-    progress_percentage: 72,
-  };
+const mockMetrics: EVMMetricsResponse = {
+  entity_type: "project" as const,
+  entity_id: "proj-123",
+  bac: 1000000,
+  pv: 800000,
+  ac: 750000,
+  ev: 720000,
+  cv: -30000,
+  sv: -80000,
+  cpi: 0.96,
+  spi: 0.9,
+  eac: 1041667,
+  vac: -41667,
+  etc: 291667,
+  control_date: "2025-01-15T10:00:00Z",
+  branch: "main",
+  progress_percentage: 72,
+};
 
+const mockTimeSeries: EVMTimeSeriesResponse = {
+  granularity: "week" as const,
+  points: [
+    { date: "2025-01-06", pv: 200000, ev: 180000, ac: 190000, forecast: 185000, actual: 188000, cpi: 0.95, spi: 0.9 },
+    { date: "2025-01-13", pv: 400000, ev: 360000, ac: 380000, forecast: 370000, actual: 375000, cpi: 0.95, spi: 0.9 },
+    { date: "2025-01-20", pv: 600000, ev: 540000, ac: 560000, forecast: 555000, actual: 558000, cpi: 0.96, spi: 0.9 },
+    { date: "2025-01-27", pv: 800000, ev: 720000, ac: 750000, forecast: 740000, actual: 745000, cpi: 0.96, spi: 0.9 },
+  ],
+  start_date: "2025-01-06",
+  end_date: "2025-01-27",
+  total_points: 4,
+};
+
+describe("EVMSummaryView", () => {
   describe("Basic Rendering", () => {
-    it("renders all metric categories", () => {
+    it("renders EVM Summary header", () => {
       render(<EVMSummaryView metrics={mockMetrics} />);
 
-      expect(screen.getByText("Schedule Metrics")).toBeInTheDocument();
-      expect(screen.getByText("Cost Metrics")).toBeInTheDocument();
-      expect(screen.getByText("Performance Metrics")).toBeInTheDocument();
-      expect(screen.getByText("Forecast Metrics")).toBeInTheDocument();
+      expect(screen.getByText("EVM Summary")).toBeInTheDocument();
     });
 
     it("renders Advanced button", () => {
@@ -60,45 +86,69 @@ describe("EVMSummaryView", () => {
       expect(screen.getByRole("button", { name: /advanced/i })).toBeInTheDocument();
     });
 
-    it("renders schedule metrics", () => {
+    it("renders KPI indicators", () => {
       render(<EVMSummaryView metrics={mockMetrics} />);
 
-      expect(screen.getAllByText(/Schedule Performance Index/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Schedule Variance/i).length).toBeGreaterThan(0);
+      expect(screen.getByText("CPI")).toBeInTheDocument();
+      expect(screen.getByText("SPI")).toBeInTheDocument();
+      expect(screen.getByText("BAC")).toBeInTheDocument();
+      expect(screen.getByText("EAC")).toBeInTheDocument();
+      expect(screen.getByText("VAC")).toBeInTheDocument();
+      expect(screen.getByText("Progress")).toBeInTheDocument();
     });
 
-    it("renders cost metrics", () => {
+    it("renders forecast bar with budget labels", () => {
       render(<EVMSummaryView metrics={mockMetrics} />);
 
-      expect(screen.getAllByText(/Budget at Completion/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Actual Cost/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Cost Variance/i).length).toBeGreaterThan(0);
+      const bacElements = screen.getAllByText(/BAC/);
+      expect(bacElements.length).toBeGreaterThanOrEqual(1);
+      const eacElements = screen.getAllByText(/EAC/);
+      expect(eacElements.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText(/Spent/)).toBeInTheDocument();
+      expect(screen.getByText(/Remaining/)).toBeInTheDocument();
     });
 
-    it("renders performance metrics", () => {
+    it("renders Detail Metrics collapse collapsed by default", () => {
       render(<EVMSummaryView metrics={mockMetrics} />);
 
-      expect(screen.getAllByText(/Cost Performance Index/i).length).toBeGreaterThan(0);
+      expect(screen.getByText("Detail Metrics")).toBeInTheDocument();
+      expect(screen.queryByText("Schedule Variance")).not.toBeInTheDocument();
     });
 
-    it("renders forecast metrics", () => {
-      render(<EVMSummaryView metrics={mockMetrics} />);
+    it("hides header when hideHeader is true", () => {
+      render(<EVMSummaryView metrics={mockMetrics} hideHeader />);
 
-      expect(screen.getAllByText(/Estimate at Completion/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Variance at Completion/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Estimate to Complete/i).length).toBeGreaterThan(0);
+      expect(screen.queryByText("EVM Summary")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /advanced/i })).not.toBeInTheDocument();
     });
   });
 
-  describe("Metric Values", () => {
-    it("displays correct metric values", () => {
+  describe("KPI Strip Values", () => {
+    it("displays correct CPI value", () => {
       render(<EVMSummaryView metrics={mockMetrics} />);
 
-      expect(screen.getByText("0.90")).toBeInTheDocument(); // SPI
-      expect(screen.getByText("0.96")).toBeInTheDocument(); // CPI
+      expect(screen.getByText("0.96")).toBeInTheDocument();
     });
 
-    it("handles null metric values gracefully", () => {
+    it("displays correct SPI value", () => {
+      render(<EVMSummaryView metrics={mockMetrics} />);
+
+      expect(screen.getByText("0.90")).toBeInTheDocument();
+    });
+
+    it("displays BAC as currency", () => {
+      render(<EVMSummaryView metrics={mockMetrics} />);
+
+      expect(screen.getByText("€1,000,000.00")).toBeInTheDocument();
+    });
+
+    it("displays progress as percentage", () => {
+      render(<EVMSummaryView metrics={mockMetrics} />);
+
+      expect(screen.getByText("72%")).toBeInTheDocument();
+    });
+
+    it("shows N/A for null values", () => {
       const metricsWithNulls: EVMMetricsResponse = {
         ...mockMetrics,
         cpi: null,
@@ -110,43 +160,23 @@ describe("EVMSummaryView", () => {
 
       render(<EVMSummaryView metrics={metricsWithNulls} />);
 
-      // Should show N/A for null values
-      expect(screen.getAllByText("N/A").length).toBeGreaterThan(0);
+      const naElements = screen.getAllByText("N/A");
+      expect(naElements.length).toBeGreaterThanOrEqual(4);
     });
   });
 
-  describe("Collapsible Sections", () => {
-    it("renders collapsible sections for each category", () => {
-      const { container } = render(<EVMSummaryView metrics={mockMetrics} />);
+  describe("Detail Metrics", () => {
+    it("expands to show metric cards when clicked", () => {
+      render(<EVMSummaryView metrics={mockMetrics} />);
 
-      // Ant Design Collapse renders with specific class
-      const collapse = container.querySelector(".ant-collapse");
-      expect(collapse).toBeInTheDocument();
-    });
+      const collapseHeader = screen.getByText("Detail Metrics").closest(".ant-collapse-header");
+      expect(collapseHeader).toBeInTheDocument();
+      fireEvent.click(collapseHeader!);
 
-    it("allows collapsing and expanding sections", () => {
-      const { container } = render(<EVMSummaryView metrics={mockMetrics} />);
-
-      // Find collapse panels
-      const collapsePanels = container.querySelectorAll(".ant-collapse-header");
-      expect(collapsePanels.length).toBeGreaterThan(0);
-
-      // Click the first panel to collapse
-      const firstPanel = collapsePanels[0];
-      fireEvent.click(firstPanel);
-
-      // After clicking, the panel should collapse
-      // Ant Design adds 'ant-collapse-item-active' class to expanded items
-      const firstPanelItem = firstPanel.closest(".ant-collapse-item");
-      expect(firstPanelItem).toBeInTheDocument();
-    });
-
-    it("all sections are expanded by default", () => {
-      const { container } = render(<EVMSummaryView metrics={mockMetrics} />);
-
-      // All panels should have the active class initially
-      const activePanels = container.querySelectorAll(".ant-collapse-item-active");
-      expect(activePanels.length).toBe(4); // Schedule, Cost, Performance, Forecast
+      expect(screen.getByText("Schedule Variance")).toBeInTheDocument();
+      expect(screen.getByText("Cost Variance")).toBeInTheDocument();
+      expect(screen.getByText("Actual Cost")).toBeInTheDocument();
+      expect(screen.getByText("Estimate to Complete")).toBeInTheDocument();
     });
   });
 
@@ -162,7 +192,7 @@ describe("EVMSummaryView", () => {
       expect(onAdvanced).toHaveBeenCalledTimes(1);
     });
 
-    it("does not throw error when onAdvanced is not provided", () => {
+    it("does not throw when onAdvanced is not provided", () => {
       expect(() => {
         render(<EVMSummaryView metrics={mockMetrics} />);
 
@@ -172,55 +202,8 @@ describe("EVMSummaryView", () => {
     });
   });
 
-  describe("Layout and Organization", () => {
-    it("groups metrics by correct categories", () => {
-      const { container } = render(<EVMSummaryView metrics={mockMetrics} />);
-
-      // Check that we have 4 collapse panels (one per category)
-      const panels = container.querySelectorAll(".ant-collapse-item");
-      expect(panels.length).toBe(4);
-    });
-
-    it("displays metrics in a grid layout", () => {
-      const { container } = render(<EVMSummaryView metrics={mockMetrics} />);
-
-      // MetricCard components should be rendered
-      const metricCards = container.querySelectorAll(".ant-card");
-      expect(metricCards.length).toBeGreaterThan(0);
-    });
-
-    it("shows metric descriptions when cards are rendered", () => {
-      render(<EVMSummaryView metrics={mockMetrics} />);
-
-      // Check for descriptions from the metric definitions
-      expect(
-        screen.getByText(/Ratio of earned value to planned value/i)
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(/Ratio of earned value to actual cost/i)
-      ).toBeInTheDocument();
-    });
-  });
-
-  describe("Accessibility", () => {
-    it("has proper ARIA labels for collapsible sections", () => {
-      const { container } = render(<EVMSummaryView metrics={mockMetrics} />);
-
-      // Ant Design Collapse should have proper accessibility attributes
-      const collapse = container.querySelector(".ant-collapse");
-      expect(collapse).toBeInTheDocument();
-    });
-
-    it("Advanced button is accessible", () => {
-      render(<EVMSummaryView metrics={mockMetrics} />);
-
-      const advancedButton = screen.getByRole("button", { name: /advanced/i });
-      expect(advancedButton).toBeInTheDocument();
-    });
-  });
-
   describe("Edge Cases", () => {
-    it("handles metrics with zero values", () => {
+    it("handles zero values", () => {
       const zeroMetrics: EVMMetricsResponse = {
         ...mockMetrics,
         bac: 0,
@@ -234,6 +217,7 @@ describe("EVMSummaryView", () => {
         eac: null,
         vac: null,
         etc: null,
+        progress_percentage: 0,
       };
 
       expect(() => {
@@ -241,7 +225,7 @@ describe("EVMSummaryView", () => {
       }).not.toThrow();
     });
 
-    it("handles metrics with negative values", () => {
+    it("handles negative values", () => {
       const negativeMetrics: EVMMetricsResponse = {
         ...mockMetrics,
         cv: -100000,
@@ -254,7 +238,7 @@ describe("EVMSummaryView", () => {
       }).not.toThrow();
     });
 
-    it("handles metrics with very large values", () => {
+    it("handles very large values", () => {
       const largeMetrics: EVMMetricsResponse = {
         ...mockMetrics,
         bac: 10000000000,
@@ -265,25 +249,34 @@ describe("EVMSummaryView", () => {
         render(<EVMSummaryView metrics={largeMetrics} />);
       }).not.toThrow();
     });
+
+    it("handles null EAC, ETC, and VAC", () => {
+      const nullForecastMetrics: EVMMetricsResponse = {
+        ...mockMetrics,
+        eac: null,
+        etc: null,
+        vac: null,
+      };
+
+      render(<EVMSummaryView metrics={nullForecastMetrics} />);
+
+      const naElements = screen.getAllByText("N/A");
+      expect(naElements.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
-  describe("Type Safety", () => {
-    it("accepts valid EVMMetricsResponse", () => {
-      expect(() => {
-        render(<EVMSummaryView metrics={mockMetrics} />);
-      }).not.toThrow();
+  describe("TimeSeries prop", () => {
+    it("renders Skeleton when timeSeries is undefined", () => {
+      const { container } = render(<EVMSummaryView metrics={mockMetrics} />);
+
+      expect(container.querySelector(".ant-skeleton")).toBeInTheDocument();
+      expect(screen.queryByTestId("echarts-mock")).not.toBeInTheDocument();
     });
 
-    it("properly types the onAdvanced callback", () => {
-      const onAdvanced = vi.fn();
+    it("renders chart when timeSeries is provided", () => {
+      render(<EVMSummaryView metrics={mockMetrics} timeSeries={mockTimeSeries} />);
 
-      render(<EVMSummaryView metrics={mockMetrics} onAdvanced={onAdvanced} />);
-
-      const advancedButton = screen.getByRole("button", { name: /advanced/i });
-      fireEvent.click(advancedButton);
-
-      // Callback should be called
-      expect(onAdvanced).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("echarts-mock")).toBeInTheDocument();
     });
   });
 });
