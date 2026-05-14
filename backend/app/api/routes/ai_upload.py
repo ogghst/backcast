@@ -8,7 +8,7 @@ Provides endpoints for:
 import base64
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -97,7 +97,7 @@ async def upload_image(
         content=encoded,
         file_size=len(content),
         content_type=file.content_type,
-        uploaded_at=datetime.utcnow(),
+        uploaded_at=datetime.now(UTC),
     )
 
 
@@ -191,5 +191,5 @@ async def upload_file(
         file_size=len(content),
         content_type=file.content_type,
         file_type=file_type,
-        uploaded_at=datetime.utcnow(),
+        uploaded_at=datetime.now(UTC),
     )

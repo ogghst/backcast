@@ -5,7 +5,7 @@ creation on CO creation and workflow-driven branch locking.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
@@ -786,8 +786,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         Returns:
             Next available code string
         """
-        from datetime import UTC
-
         if year is None:
             year = datetime.now(UTC).year
 
@@ -1080,8 +1078,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found or invalid status transition
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from datetime import UTC
-
         # Default control_date to now if not provided
         if control_date is None:
             control_date = datetime.now(UTC)
@@ -1173,7 +1169,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Calculate SLA deadline from configurable workflow config
         sla_days = await self._get_sla_days(impact_level)
-        sla_due_date = self._add_business_days(datetime.now(), sla_days)
+        sla_due_date = self._add_business_days(datetime.now(UTC), sla_days)
 
         # Snapshot workflow config at submission time (Decision 7 & 13)
         from app.services.change_order_config_service import (
@@ -1189,7 +1185,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         old_status = co.status
 
         # Update change order with SLA tracking using versioned command
-        sla_assigned_at = datetime.now()
+        sla_assigned_at = datetime.now(UTC)
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
             new_status=COStatus.SUBMITTED_FOR_APPROVAL.value,
@@ -1311,8 +1307,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found, invalid status, or insufficient authority
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from datetime import UTC
-
         from app.services.approval_matrix_service import ApprovalMatrixService
         from app.services.user import UserService
 
@@ -1450,8 +1444,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found, invalid status, or insufficient authority
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from datetime import UTC
-
         from app.services.approval_matrix_service import ApprovalMatrixService
         from app.services.user import UserService
 
@@ -1607,8 +1599,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found, invalid state, or invalid data
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from datetime import UTC
-
         from app.services.user import UserService
 
         # Default control_date to now if not provided
@@ -2182,12 +2172,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         """
         from datetime import timedelta
 
-        # Normalize timezones to prevent "can't subtract offset-naive and offset-aware datetimes" error
-        # If one is aware and the other is naive, assume the naive one is in the same timezone
-        if from_date.tzinfo is not None and to_date.tzinfo is None:
-            to_date = to_date.replace(tzinfo=from_date.tzinfo)
-        elif from_date.tzinfo is None and to_date.tzinfo is not None:
-            from_date = from_date.replace(tzinfo=to_date.tzinfo)
+        if from_date.tzinfo is None:
+            from_date = from_date.replace(tzinfo=UTC)
+        if to_date.tzinfo is None:
+            to_date = to_date.replace(tzinfo=UTC)
 
         if from_date >= to_date:
             return 0
@@ -2535,8 +2523,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             }
 
         # Generate change order code
-        from datetime import UTC
-
         year = datetime.now(UTC).year
         code = await self.get_next_code(project_id, year)
 

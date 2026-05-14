@@ -8,7 +8,7 @@ Used in Phase 3: Approval Workflow
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -70,7 +70,7 @@ class ApprovalAuditLogger:
             "event": "tool_execution",
             "session_id": str(self.session_id),
             "user_id": str(self.user_id),
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "tool_name": tool_name,
             "tool_args": tool_args,
             "risk_level": risk_level.value,
@@ -98,7 +98,7 @@ class ApprovalAuditLogger:
             "event": "approval_request",
             "session_id": str(self.session_id),
             "user_id": str(self.user_id),
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "approval_id": approval_id,
             "tool_name": tool_name,
             "tool_args": tool_args,
@@ -128,7 +128,7 @@ class ApprovalAuditLogger:
             "event": "approval_response",
             "session_id": str(self.session_id),
             "user_id": str(user_id),
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "approval_id": approval_id,
             "tool_name": tool_name,
             "approved": approved,
@@ -152,7 +152,7 @@ class ApprovalAuditLogger:
             "event": "approval_timeout",
             "session_id": str(self.session_id),
             "user_id": str(self.user_id),
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "approval_id": approval_id,
             "tool_name": tool_name,
         }
@@ -178,7 +178,7 @@ class ApprovalAuditLogger:
             "event": "tool_result",
             "session_id": str(self.session_id),
             "user_id": str(self.user_id),
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "tool_name": tool_name,
             "success": success,
             "error_message": error_message,
@@ -207,7 +207,7 @@ class ApprovalAuditLogger:
             "event": "error",
             "session_id": str(self.session_id),
             "user_id": str(self.user_id),
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "error_type": error_type,
             "message": message,
             "context": context or {},

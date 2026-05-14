@@ -109,15 +109,8 @@ class ControlDateValidator:
         if last_control_date is None:
             return
 
-        # Normalize timezones for comparison
-        # If one is aware and the other is naive, assume the naive one is in the same timezone
         new_cd = new_control_date
         last_cd = last_control_date
-
-        if new_cd.tzinfo is not None and last_cd.tzinfo is None:
-            last_cd = last_cd.replace(tzinfo=new_cd.tzinfo)
-        elif new_cd.tzinfo is None and last_cd.tzinfo is not None:
-            new_cd = new_cd.replace(tzinfo=last_cd.tzinfo)
 
         # Check sequence - new must be >= last
         if new_cd < last_cd:

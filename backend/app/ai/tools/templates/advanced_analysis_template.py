@@ -11,7 +11,7 @@ for proper context injection and docstring parsing.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from statistics import mean, stdev
 from typing import Annotated, Any
 from uuid import UUID
@@ -92,7 +92,7 @@ async def assess_project_health(
         evm_data = await evm_service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=context.as_of or datetime.now(),
+            control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
             branch_mode=BranchMode.MERGE
             if (context.branch_mode or "merged") == "merged"
@@ -149,7 +149,7 @@ async def assess_project_health(
                 "risk": risk_health,
             },
             "recommendations": all_issues[:10],  # Top 10 recommendations
-            "assessment_date": datetime.now().isoformat(),
+            "assessment_date": datetime.now(UTC).isoformat(),
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -242,7 +242,7 @@ def _calculate_schedule_health(
             if (
                 wbe.actual_end_date is None
                 and wbe.planned_end_date
-                and wbe.planned_end_date < datetime.now()
+                and wbe.planned_end_date < datetime.now(UTC)
             ):
                 delayed_wbes.append(wbe.code)
 
@@ -437,7 +437,7 @@ async def detect_evm_anomalies(
             entity_type=EntityType.PROJECT,
             entity_id=UUID(project_id),
             granularity=EVMTimeSeriesGranularity.WEEK,
-            control_date=context.as_of or datetime.now(),
+            control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
             branch_mode=BranchMode.MERGE
             if (context.branch_mode or "merged") == "merged"
@@ -713,7 +713,7 @@ async def analyze_forecast_trends(
         evm_data = await service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=context.as_of or datetime.now(),
+            control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
             branch_mode=BranchMode.MERGE
             if (context.branch_mode or "merged") == "merged"
@@ -724,7 +724,7 @@ async def analyze_forecast_trends(
             entity_type=EntityType.PROJECT,
             entity_id=UUID(project_id),
             granularity=EVMTimeSeriesGranularity.WEEK,
-            control_date=context.as_of or datetime.now(),
+            control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
             branch_mode=BranchMode.MERGE
             if (context.branch_mode or "merged") == "merged"
@@ -1051,7 +1051,7 @@ async def generate_optimization_suggestions(
         evm_data = await evm_service.calculate_evm_metrics_batch(
             entity_type=EntityType.PROJECT,
             entity_ids=[UUID(project_id)],
-            control_date=context.as_of or datetime.now(),
+            control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
             branch_mode=BranchMode.MERGE
             if (context.branch_mode or "merged") == "merged"
@@ -1116,7 +1116,7 @@ async def generate_optimization_suggestions(
             "suggestions": all_suggestions[:20],  # Top 20 suggestions
             "summary": summary,
             "quick_wins": quick_wins[:5],  # Top 5 quick wins
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -1215,7 +1215,7 @@ def _generate_schedule_optimizations(
         for w in wbes
         if hasattr(w, "planned_end_date")
         and w.planned_end_date
-        and w.planned_end_date < datetime.now()
+        and w.planned_end_date < datetime.now(UTC)
     ]
 
     if len(delayed_wbes) > 2:

@@ -297,7 +297,7 @@ class AIToolsTestDataSeeder:
             forecast_data: Forecast data dictionary
             actor_id: ID of the user creating the forecast
         """
-        from datetime import datetime
+        from datetime import UTC, datetime
 
         from sqlalchemy import update
 
@@ -312,8 +312,8 @@ class AIToolsTestDataSeeder:
                 basis_of_estimate=forecast_data["basis_of_estimate"],
                 created_by=actor_id,
                 branch="main",
-                valid_time=[datetime.utcnow(), None],
-                transaction_time=[datetime.utcnow(), None],
+                valid_time=[datetime.now(UTC), None],
+                transaction_time=[datetime.now(UTC), None],
             )
             session.add(forecast)
             await session.flush()

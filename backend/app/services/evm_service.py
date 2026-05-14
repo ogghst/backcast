@@ -1416,10 +1416,8 @@ class EVMService:
         ac_map: dict[datetime, Decimal] = {}
         for entry in cumulative_costs:
             entry_date = datetime.fromisoformat(entry["registration_date"]).replace(
-                hour=0, minute=0, second=0, microsecond=0
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=UTC
             )
-            if entry_date.tzinfo is None and control_date.tzinfo is not None:
-                entry_date = entry_date.replace(tzinfo=control_date.tzinfo)
             ac_map[entry_date] = Decimal(str(entry["cumulative_amount"]))
 
         # Batch fetch all progress entries (EV data) for the cost element
@@ -1672,10 +1670,8 @@ class EVMService:
             ac_map: dict[datetime, Decimal] = {}
             for entry in ac_raw.get(ce_id, []):
                 entry_date = datetime.fromisoformat(entry["registration_date"]).replace(
-                    hour=0, minute=0, second=0, microsecond=0
+                    hour=0, minute=0, second=0, microsecond=0, tzinfo=UTC
                 )
-                if entry_date.tzinfo is None and control_date.tzinfo is not None:
-                    entry_date = entry_date.replace(tzinfo=control_date.tzinfo)
                 ac_map[entry_date] = Decimal(str(entry["cumulative_amount"]))
 
             # Build EV map (same logic as _generate_timeseries_points)

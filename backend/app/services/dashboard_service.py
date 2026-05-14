@@ -5,7 +5,7 @@ with metrics. Caches results for performance.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
@@ -168,7 +168,7 @@ class DashboardService:
             action=action,
             timestamp=project.transaction_time.lower
             if project.transaction_time
-            else datetime.utcnow(),
+            else datetime.now(UTC),
             actor_id=project.created_by,
             actor_name=getattr(project, "created_by_name", None),
             project_id=None,  # Projects don't have a parent project
@@ -210,7 +210,7 @@ class DashboardService:
             action=action,
             timestamp=wbe.transaction_time.lower
             if wbe.transaction_time
-            else datetime.utcnow(),
+            else datetime.now(UTC),
             actor_id=wbe.created_by,
             actor_name=getattr(wbe, "created_by_name", None),
             project_id=wbe.project_id,
@@ -265,7 +265,7 @@ class DashboardService:
             action=action,
             timestamp=cost_element.transaction_time.lower
             if cost_element.transaction_time
-            else datetime.utcnow(),
+            else datetime.now(UTC),
             actor_id=cost_element.created_by,
             actor_name=getattr(cost_element, "created_by_name", None),
             project_id=project_id,
@@ -313,7 +313,7 @@ class DashboardService:
             action=action,
             timestamp=change_order.transaction_time.lower
             if change_order.transaction_time
-            else datetime.utcnow(),
+            else datetime.now(UTC),
             actor_id=change_order.created_by,
             actor_name=getattr(change_order, "created_by_name", None),
             project_id=change_order.project_id,
@@ -348,7 +348,7 @@ class DashboardService:
             project_id=project.project_id,
             project_name=project.name,
             project_code=project.code,
-            last_activity=last_activity or datetime.utcnow(),
+            last_activity=last_activity or datetime.now(UTC),
             metrics=metrics,
             branch=project.branch,
         )

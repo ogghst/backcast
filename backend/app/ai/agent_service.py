@@ -10,7 +10,7 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
 
@@ -543,7 +543,9 @@ class AgentService:
                     context=tool_context,
                     system_prompt=system_prompt,
                 )
-                graph = await supervisor_orchestrator.create_supervisor_graph(agent_config)
+                graph = await supervisor_orchestrator.create_supervisor_graph(
+                    agent_config
+                )
             else:
                 deep_orchestrator = DeepAgentOrchestrator(
                     model=llm,
@@ -1052,7 +1054,7 @@ class AgentService:
                 AgentEvent(
                     event_type=event_type,
                     data=data,
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                 )
             )
 
@@ -1626,7 +1628,7 @@ class AgentService:
                 AgentEvent(
                     event_type="error",
                     data={"message": str(e), "code": 500},
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                 )
             )
         finally:
@@ -1911,7 +1913,7 @@ class AgentService:
 
                 # Update execution tracking row with metrics
                 execution.status = "completed"
-                execution.completed_at = datetime.now()  # type: ignore[assignment]
+                execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
                 execution.total_tokens = metrics.total_tokens
                 execution.tool_calls_count = metrics.tool_calls_count
                 await db.commit()
@@ -1929,7 +1931,7 @@ class AgentService:
                 try:
                     execution.status = "error"
                     execution.error_message = str(e)[:2000]
-                    execution.completed_at = datetime.now()  # type: ignore[assignment]
+                    execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
                     # Persist partial metrics if available
                     if metrics is not None:
                         execution.total_tokens = metrics.total_tokens
@@ -1947,7 +1949,7 @@ class AgentService:
                         if fresh_execution is not None:
                             fresh_execution.status = "error"
                             fresh_execution.error_message = str(e)[:2000]
-                            fresh_execution.completed_at = datetime.now()  # type: ignore[assignment]
+                            fresh_execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
                             if metrics is not None:
                                 fresh_execution.total_tokens = metrics.total_tokens
                                 fresh_execution.tool_calls_count = (
@@ -1978,7 +1980,7 @@ class AgentService:
                             "status": "error",
                             "session_id": str(session_id),
                         },
-                        timestamp=datetime.now(),
+                        timestamp=datetime.now(UTC),
                     )
                 )
 
@@ -1987,7 +1989,7 @@ class AgentService:
                     AgentEvent(
                         event_type="error",
                         data={"message": str(e), "code": 500},
-                        timestamp=datetime.now(),
+                        timestamp=datetime.now(UTC),
                     )
                 )
 
