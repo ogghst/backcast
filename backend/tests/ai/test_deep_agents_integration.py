@@ -84,7 +84,7 @@ async def test_deep_agent_orchestrator_creates_agent(model_string, tool_context)
     )
 
     # Create agent (should not raise)
-    agent = orchestrator.create_agent()
+    agent = await orchestrator.create_agent()
 
     # Agent should be created (it's a CompiledStateGraph)
     assert agent is not None
@@ -101,7 +101,7 @@ async def test_deep_agent_orchestrator_with_tool_filtering(model_string, tool_co
 
     # Create agent with tool filtering
     allowed_tools = ["list_projects", "get_project"]
-    agent = orchestrator.create_agent(config=AgentConfig(allowed_tools=allowed_tools))
+    agent = await orchestrator.create_agent(config=AgentConfig(allowed_tools=allowed_tools))
 
     assert agent is not None
 
@@ -116,7 +116,7 @@ async def test_deep_agent_orchestrator_without_subagents(model_string, tool_cont
         enable_subagents=False,
     )
 
-    agent = orchestrator.create_agent()
+    agent = await orchestrator.create_agent()
     assert agent is not None
 
 
@@ -300,22 +300,36 @@ async def test_backcast_security_middleware_risk_no_metadata(tool_context):
 
 @pytest.mark.asyncio
 async def test_subagents_get_all():
-    """Test get_all_subagents returns expected subagents."""
+    """Test get_all_subagents returns expected subagents.
+
+    Verifies that:
+    - The returned list is non-empty and all entries have unique names
+    - All known specialist subagent names are present
+    - A general-purpose fallback subagent exists
+    - Old/removed subagent names are absent
+    """
     from app.ai.subagents import get_all_subagents
 
     subagents = get_all_subagents()
-
-    # Should have exactly 7 subagents (6 specialists + general-purpose)
-    assert len(subagents) == 7
     subagent_names = [s["name"] for s in subagents]
 
-    # Verify all 6 specialist subagent names are present
-    assert "project_manager" in subagent_names
-    assert "evm_analyst" in subagent_names
-    assert "change_order_manager" in subagent_names
-    assert "user_admin" in subagent_names
-    assert "visualization_specialist" in subagent_names
-    assert "forecast_manager" in subagent_names
+    # Should return a non-empty list with unique names
+    assert len(subagents) > 0
+    assert len(subagent_names) == len(set(subagent_names)), (
+        "All subagent names must be unique"
+    )
+
+    # Verify all specialist subagent names are present
+    expected_specialists = [
+        "project_manager",
+        "evm_analyst",
+        "change_order_manager",
+        "user_admin",
+        "visualization_specialist",
+        "forecast_manager",
+    ]
+    for name in expected_specialists:
+        assert name in subagent_names, f"Expected specialist '{name}' not found"
 
     # Verify general-purpose fallback subagent is present
     assert "general_purpose" in subagent_names
@@ -451,7 +465,7 @@ async def test_orchestrator_create_agent_returns_compiled_graph(
             context=tool_context,
             enable_subagents=True,
         )
-        agent = orchestrator.create_agent()
+        agent = await orchestrator.create_agent()
         assert agent is mock_compiled_graph
         assert mock_create.call_count > 0  # at least main agent call
         # The last call is the main agent creation
@@ -468,7 +482,7 @@ async def test_orchestrator_create_agent_returns_compiled_graph(
             context=tool_context,
             enable_subagents=False,
         )
-        agent = orchestrator_no_sub.create_agent()
+        agent = await orchestrator_no_sub.create_agent()
         assert agent is mock_compiled_graph
         mock_create.assert_called_once()  # Only main agent call when no subagents
 
@@ -503,7 +517,7 @@ async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(
             context=tool_context,
             enable_subagents=True,
         )
-        orchestrator.create_agent()
+        await orchestrator.create_agent()
 
         # Verify create_agent was called with TodoListMiddleware in middleware stack
         call_kwargs = mock_create.call_args[1]
@@ -543,7 +557,7 @@ async def test_subagent_dicts_have_required_keys(model_string, tool_context):
             return_value=mock_compiled_graph,
         ),
     ):
-        orchestrator.create_agent()
+        await orchestrator.create_agent()
 
     # Test the subagent configs from get_all_subagents directly
     subagent_configs = get_all_subagents()

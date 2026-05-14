@@ -45,7 +45,7 @@ When using tools:
 """
 
 
-def filter_tools_for_context(
+async def filter_tools_for_context(
     context: ToolContext,
     config: AgentConfig,
 ) -> list[BaseTool]:
@@ -69,10 +69,10 @@ def filter_tools_for_context(
     all_tools = filter_tools_by_execution_mode(all_tools, context.execution_mode)
 
     if config.assistant_role is not None:
-        all_tools = filter_tools_by_role(all_tools, config.assistant_role)
+        all_tools = await filter_tools_by_role(all_tools, config.assistant_role)
 
     if config.user_role is not None:
-        all_tools = filter_tools_by_role(all_tools, config.user_role)
+        all_tools = await filter_tools_by_role(all_tools, config.user_role)
 
     return all_tools
 

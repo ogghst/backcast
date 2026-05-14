@@ -543,7 +543,7 @@ class AgentService:
                     context=tool_context,
                     system_prompt=system_prompt,
                 )
-                graph = supervisor_orchestrator.create_supervisor_graph(agent_config)
+                graph = await supervisor_orchestrator.create_supervisor_graph(agent_config)
             else:
                 deep_orchestrator = DeepAgentOrchestrator(
                     model=llm,
@@ -552,7 +552,7 @@ class AgentService:
                     enable_subagents=enable_subagents,
                     interrupt_node=None,
                 )
-                graph = deep_orchestrator.create_agent(agent_config)
+                graph = await deep_orchestrator.create_agent(agent_config)
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
             logger.info(
@@ -708,13 +708,13 @@ class AgentService:
         tools_dict = {tool.name: tool for tool in available_tools}
 
         if assistant_config.default_role:
-            filtered = filter_tools_by_role(
+            filtered = await filter_tools_by_role(
                 list(tools_dict.values()), assistant_config.default_role
             )
             tools_dict = {t.name: t for t in filtered}
 
         # Filter by user's actual role
-        filtered = filter_tools_by_role(list(tools_dict.values()), user_role)
+        filtered = await filter_tools_by_role(list(tools_dict.values()), user_role)
         tools_dict = {t.name: t for t in filtered}
 
         graph, _interrupt_node = create_graph(

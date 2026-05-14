@@ -606,8 +606,6 @@ async def chat_stream(
             user_id=user.user_id,
             required_permission="ai-chat",
         )
-        set_unified_rbac_session(None)
-
         if not has_chat_perm:
             logger.warning(
                 f"WebSocket connection rejected: user {user_id} lacks ai-chat permission"
@@ -1007,6 +1005,9 @@ async def chat_stream(
                 # WebSocket may already be closed
                 pass
         finally:
+            # Clear RBAC session context before db session closes
+            set_unified_rbac_session(None)
+
             # Signal ping loop to stop
             stop_ping.set()
 

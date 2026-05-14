@@ -67,7 +67,7 @@ class DeepAgentOrchestrator:
         self.enable_subagents = enable_subagents
         self.interrupt_node = interrupt_node
 
-    def create_agent(self, config: AgentConfig | None = None) -> Any:
+    async def create_agent(self, config: AgentConfig | None = None) -> Any:
         """Create a LangChain agent with Backcast tools and context.
 
         Args:
@@ -87,7 +87,7 @@ class DeepAgentOrchestrator:
             self.context.execution_mode.value,
         )
 
-        all_tools = filter_tools_for_context(self.context, config)
+        all_tools = await filter_tools_for_context(self.context, config)
 
         backcast_middleware = build_backcast_middleware(self.context, all_tools)
 

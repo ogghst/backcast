@@ -205,7 +205,7 @@ class SupervisorOrchestrator:
         self.context = context
         self.system_prompt = system_prompt
 
-    def create_supervisor_graph(self, config: AgentConfig | None = None) -> Any:
+    async def create_supervisor_graph(self, config: AgentConfig | None = None) -> Any:
         """Create the briefing-based supervisor + specialist parent graph.
 
         Args:
@@ -225,7 +225,7 @@ class SupervisorOrchestrator:
         )
 
         # --- 1. Tool filtering ---
-        all_tools = filter_tools_for_context(self.context, config)
+        all_tools = await filter_tools_for_context(self.context, config)
 
         # --- 2. Compile specialists ---
         subagent_configs = (

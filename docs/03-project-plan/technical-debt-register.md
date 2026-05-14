@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-05-11
-**Total Open Items:** 19
-**Total Estimated Effort:** ~20 days
+**Last Updated:** 2026-05-14
+**Total Open Items:** 21
+**Total Estimated Effort:** ~21 days
 
 ---
 
@@ -271,14 +271,42 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
+### [TD-103] Temporal Context Not Propagated to Global AI Chat
+
+- **Source:** 2026-05-14 E2E test `20260514_0007-ai-cost-progress`
+- **Description:** The Time Machine temporal date is not available when using the global `/chat` route. When a user sets the Time Machine to a specific date on the project page and navigates to global chat, the AI agent's `get_temporal_context` returns today's date instead. All tool calls show `as_of=None`. The Time Machine store is project-scoped — `getSelectedTime()` returns `null` when `currentProjectId` is null (global routes).
+- **Impact:** MEDIUM — Users cannot perform temporal AI operations (register costs at specific dates, view historical state) from global chat. Workaround exists: use project-scoped chat tab (when rendering correctly).
+- **Estimated Effort:** 3 hours
+- **Status:** Open
+- **Owner:** Full Stack Developer
+- **Priority:** P2 (Medium)
+- **Blocker:** May become moot if project-scoped chat tab rendering is fixed
+- **Suggested Approach:** Primary fix is ensuring project-scoped `/projects/:id/chat` renders correctly. If that's insufficient, allow global chat to accept a `project_id` query parameter that sets Time Machine context for that session. Affected files: `useTimeMachineStore.ts`, `useStreamingChat.ts`, `ProjectChat.tsx`.
+
+---
+
+### [TD-104] Currency Hardcoded to EUR
+
+- **Source:** 2026-05-14 E2E test `20260514_0007-ai-cost-progress` and `20260513_2113-ai-chat-van-project`
+- **Description:** All monetary amounts in the frontend are displayed in EUR regardless of project or user input. Currency formatting is hardcoded in: `CostHistoryChart.tsx` (`createCurrencyFormatter("EUR")`), `ForecastHistoryView.tsx` (hardcoded `€` symbols), `GanttChartOptions.ts` (`Intl.NumberFormat("en-US", { currency: "EUR" })`), `ProjectList.columns.tsx` (`currency: "EUR"`). When a user enters "$45,000", the system displays "€45.0K".
+- **Impact:** LOW — No multi-currency support. Not a regression — has been this way since initial implementation.
+- **Estimated Effort:** 1 day
+- **Status:** Open
+- **Owner:** Full Stack Developer
+- **Priority:** P3 (Low)
+- **Blocker:** No
+- **Suggested Approach:** Add `currency` field to project settings (default "EUR"). Create shared `useCurrencyFormatter(projectId)` hook. Replace all hardcoded `€` and `"EUR"` references with the dynamic formatter. AI tools should read and pass the project's currency when registering costs.
+
+---
+
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 8 | ~13 days |
-| Medium (P2-P3) | 11 | ~6.5 days |
+| Medium (P2-P3) | 13 | ~8 days |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **19** | **~19.5 days** |
+| **Total** | **21** | **~21 days** |
 
 ---
 

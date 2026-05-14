@@ -66,7 +66,7 @@ def filter_tools_by_execution_mode(
     return filtered_tools
 
 
-def filter_tools_by_role(
+async def filter_tools_by_role(
     tools: list[BaseTool],
     role: str,
 ) -> list[BaseTool]:
@@ -74,6 +74,10 @@ def filter_tools_by_role(
 
     Removes tools whose required permissions are not granted by the role.
     Tools without permissions metadata are always allowed.
+
+    On cache miss, triggers an on-demand refresh of the permissions cache
+    before filtering. Falls back to an empty permission set (deny all
+    permissioned tools) if refresh also fails.
 
     Args:
         tools: List of tools to filter
@@ -89,6 +93,14 @@ def filter_tools_by_role(
 
     # Batch: load all permissions once from cache, use set.issubset
     perms = unified_service._get_cached_permissions(role)
+
+    if perms is None:
+        logger.error(
+            "RBAC permissions cache miss for role '%s', triggering refresh", role
+        )
+        await unified_service.refresh_permissions_cache()
+        perms = unified_service._get_cached_permissions(role)
+
     role_permissions: set[str] = set(perms) if perms else set()
 
     for tool in tools:
