@@ -8,10 +8,10 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_auth_me_returns_admin_permissions(async_client: AsyncClient) -> None:
+async def test_auth_me_returns_admin_permissions(client: AsyncClient) -> None:
     """Test that /auth/me returns populated permissions for admin users."""
     # Login as admin
-    login_response = await async_client.post(
+    login_response = await client.post(
         "/api/v1/auth/login",
         data={"username": "admin@backcast.org", "password": "admin123"},
     )
@@ -20,7 +20,7 @@ async def test_auth_me_returns_admin_permissions(async_client: AsyncClient) -> N
     access_token = token_data["access_token"]
 
     # Get /auth/me endpoint
-    me_response = await async_client.get(
+    me_response = await client.get(
         "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -60,10 +60,10 @@ async def test_auth_me_returns_admin_permissions(async_client: AsyncClient) -> N
 
 
 @pytest.mark.asyncio
-async def test_auth_me_viewer_permissions(async_client: AsyncClient) -> None:
+async def test_auth_me_viewer_permissions(client: AsyncClient) -> None:
     """Test that /auth/me returns correct permissions for viewer users."""
     # Login as viewer (assuming user exists from seeding)
-    login_response = await async_client.post(
+    login_response = await client.post(
         "/api/v1/auth/login",
         data={"username": "viewer@backcast.org", "password": "viewer123"},
     )
@@ -75,7 +75,7 @@ async def test_auth_me_viewer_permissions(async_client: AsyncClient) -> None:
     access_token = token_data["access_token"]
 
     # Get /auth/me endpoint
-    me_response = await async_client.get(
+    me_response = await client.get(
         "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )

@@ -60,7 +60,7 @@ async def test_simple_query_latency_p50(mock_fast_llm):
     Target: <500ms (p50)
     """
     # Arrange
-    graph = create_graph(llm=mock_fast_llm, tools=[])
+    graph, _ = create_graph(llm=mock_fast_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello, what can you help with?")],
@@ -111,7 +111,7 @@ async def test_simple_query_latency_percentiles(mock_fast_llm):
     - p99: <1000ms
     """
     # Arrange
-    graph = create_graph(llm=mock_fast_llm, tools=[])
+    graph, _ = create_graph(llm=mock_fast_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
@@ -186,7 +186,7 @@ async def test_complex_query_latency_p50(mock_slow_llm):
 
     mock_slow_llm.ainvoke = AsyncMock(side_effect=invoke_with_tool)
 
-    graph = create_graph(llm=mock_slow_llm, tools=[mock_search])
+    graph, _ = create_graph(llm=mock_slow_llm, tools=[mock_search])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Search for project data")],
@@ -232,7 +232,7 @@ async def test_concurrent_requests_scaling(mock_fast_llm):
     Target: Average latency should not increase by >50% at 10 concurrent requests
     """
     # Arrange
-    graph = create_graph(llm=mock_fast_llm, tools=[])
+    graph, _ = create_graph(llm=mock_fast_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
@@ -294,7 +294,7 @@ async def test_memory_usage_simple_query(mock_fast_llm):
     import tracemalloc
 
     # Arrange
-    graph = create_graph(llm=mock_fast_llm, tools=[])
+    graph, _ = create_graph(llm=mock_fast_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],

@@ -5,9 +5,10 @@ WebSocket Mocking Strategy:
 - All external dependencies (DB, AgentService, AIConfigService) are mocked
 - Mocks patch the module-level imports used by chat_stream
 
-Key insight: chat_stream calls get_rbac_service() and async_session_maker()
-directly (not via FastAPI Depends), so we patch them at their import paths:
-  - get_rbac_service: imported at module level -> patch app.api.routes.ai_chat.get_rbac_service
+Key insight: chat_stream calls get_unified_rbac_service() and
+async_session_maker() directly (not via FastAPI Depends), so we patch them
+at their source module paths:
+  - get_unified_rbac_service: local import from app.core.rbac_unified
   - async_session_maker: imported inside function -> patch app.db.session.async_session_maker
   - AgentService/AIConfigService: imported at module level -> patch app.api.routes.ai_chat.<name>
 """
@@ -29,7 +30,6 @@ from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.api.routes.ai_chat import chat_stream
 from app.core.config import settings
-from app.core.rbac import RBACServiceABC
 from app.models.domain.ai import (
     AIAssistantConfig,
     AIConversationMessage,
@@ -77,60 +77,22 @@ class WebSocketTestHelpers:
 # =============================================================================
 
 
-class AllowAllRBAC(RBACServiceABC):
-    """RBAC service that grants all permissions."""
+class MockAllowAllRBAC:
+    """Mock UnifiedRBACService that grants all permissions."""
 
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["ai-chat", "project-read", "project-create"]
-
-    async def has_project_access(
-        self,
-        user_id: UUID,
-        user_role: str,
-        project_id: UUID,
-        required_permission: str,
+    async def has_permission(
+        self, user_id: UUID, required_permission: str, **kwargs: Any
     ) -> bool:
         return True
 
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        return []
 
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return "admin"
+class MockDenyAIRBAC:
+    """Mock UnifiedRBACService that denies ai-chat permission."""
 
-
-class DenyAIRBAC(RBACServiceABC):
-    """RBAC service that denies ai-chat permission."""
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
+    async def has_permission(
+        self, user_id: UUID, required_permission: str, **kwargs: Any
+    ) -> bool:
         return required_permission != "ai-chat"
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["project-read", "project-create"]
-
-    async def has_project_access(
-        self,
-        user_id: UUID,
-        user_role: str,
-        project_id: UUID,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        return []
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return "admin"
 
 
 # =============================================================================
@@ -198,12 +160,13 @@ def override_get_user(test_user: User) -> Generator[None, None, None]:
 def override_rbac() -> Generator[None, None, None]:
     """Override RBAC for tests.
 
-    chat_stream calls get_rbac_service() directly (not via Depends),
-    so we patch at the module import path.
+    chat_stream does a local import: ``from app.core.rbac_unified import
+    get_unified_rbac_service``. Patching at the source module ensures the
+    local import resolves to the mock.
     """
     with patch(
-        "app.api.routes.ai_chat.get_rbac_service",
-        return_value=AllowAllRBAC(),
+        "app.core.rbac_unified.get_unified_rbac_service",
+        return_value=MockAllowAllRBAC(),
     ):
         yield
 
@@ -474,7 +437,10 @@ async def test_ws_lc_04_no_permission_rejects_connection(
 
     with (
         patch.object(UserService, "get_by_email", new=mock_get_by_email_no_perm),
-        patch("app.api.routes.ai_chat.get_rbac_service", return_value=DenyAIRBAC()),
+        patch(
+            "app.core.rbac_unified.get_unified_rbac_service",
+            return_value=MockDenyAIRBAC(),
+        ),
         patch("app.db.session.async_session_maker", return_value=mock_session_ctx),
     ):
         await chat_stream(websocket=mock_websocket, token=valid_token)

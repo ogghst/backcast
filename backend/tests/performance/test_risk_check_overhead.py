@@ -215,7 +215,7 @@ def test_check_tool_risk_overhead(tool_context, sample_tools, benchmark):
     # In standard mode, critical tools should require approval
     allowed, error_message = result
     assert not allowed
-    assert "requires approval" in error_message.lower()
+    assert "standard mode blocks critical tools" in error_message.lower()
 
 
 @pytest.mark.performance

@@ -359,7 +359,7 @@ class TestCRUDOperations:
             "app.core.rbac_unified.get_unified_rbac_session",
             return_value=mock_session,
         ):
-            with pytest.raises(ValueError, match="already has a role assignment"):
+            with pytest.raises(ValueError, match="already has role"):
                 await self.service.assign_role(
                     user_id=self.user_id,
                     role_id=self.role_id,
@@ -400,7 +400,9 @@ class TestCRUDOperations:
 
         mock_session = MagicMock()
         mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = existing
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [existing]
+        mock_result.scalars.return_value = mock_scalars
         mock_session.execute = AsyncMock(return_value=mock_result)
         mock_session.get = AsyncMock(return_value=existing)
         mock_session.delete = AsyncMock()
@@ -422,7 +424,9 @@ class TestCRUDOperations:
         """revoke_role returns False when no assignment exists."""
         mock_session = MagicMock()
         mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
         mock_session.execute = AsyncMock(return_value=mock_result)
 
         with patch(
@@ -1092,7 +1096,7 @@ class TestGetProjectRole:
         )
 
         mock_result = MagicMock()
-        mock_result.first.return_value = ("project_admin",)
+        mock_result.all.return_value = [("project_admin",)]
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
 
@@ -1113,7 +1117,7 @@ class TestGetProjectRole:
         )
 
         mock_result = MagicMock()
-        mock_result.first.return_value = None
+        mock_result.all.return_value = []
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
 
@@ -1262,3 +1266,274 @@ class TestGetUserPermissions:
         )
 
         assert result == ["*"]
+
+
+# ---------------------------------------------------------------------------
+# Multi-Role RBAC Tests
+# ---------------------------------------------------------------------------
+
+
+class TestMultiRoleRBAC:
+    """Tests for multi-role support within the same user+scope combination.
+
+    The RBAC system allows multiple distinct role assignments for the same
+    user and scope. Duplicate assignments of the SAME role are rejected.
+    Permission checks union across all assigned roles.
+    """
+
+    def setup_method(self) -> None:
+        self.service = UnifiedRBACService()
+        self.user_id = uuid4()
+        self.role_a_id = uuid4()
+        self.role_b_id = uuid4()
+
+    @pytest.mark.asyncio
+    async def test_assign_multiple_roles_same_scope(self) -> None:
+        """Assigning two different roles to the same user+scope both succeed."""
+        # First assignment (role A)
+        mock_session = MagicMock()
+        mock_result_a = MagicMock()
+        mock_result_a.scalar_one_or_none.return_value = None
+        mock_session.execute = AsyncMock(return_value=mock_result_a)
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session",
+            return_value=mock_session,
+        ):
+            assignment_a = await self.service.assign_role(
+                user_id=self.user_id,
+                role_id=self.role_a_id,
+                scope_type=ScopeType.GLOBAL,
+                scope_id=None,
+            )
+
+        assert assignment_a.role_id == self.role_a_id
+
+        # Second assignment (role B) should also succeed
+        mock_result_b = MagicMock()
+        mock_result_b.scalar_one_or_none.return_value = None
+        mock_session.execute = AsyncMock(return_value=mock_result_b)
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session",
+            return_value=mock_session,
+        ):
+            assignment_b = await self.service.assign_role(
+                user_id=self.user_id,
+                role_id=self.role_b_id,
+                scope_type=ScopeType.GLOBAL,
+                scope_id=None,
+            )
+
+        assert assignment_b.role_id == self.role_b_id
+
+    @pytest.mark.asyncio
+    async def test_assign_duplicate_role_same_scope_rejected(self) -> None:
+        """Assigning the same role twice to the same user+scope raises ValueError."""
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = _make_assignment(
+            self.user_id, self.role_a_id
+        )
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session",
+            return_value=mock_session,
+        ):
+            with pytest.raises(ValueError, match="already has role"):
+                await self.service.assign_role(
+                    user_id=self.user_id,
+                    role_id=self.role_a_id,
+                    scope_type=ScopeType.GLOBAL,
+                    scope_id=None,
+                )
+
+    @pytest.mark.asyncio
+    async def test_revoke_specific_role_keeps_others(self) -> None:
+        """Revoking one role by role_id leaves other role assignments intact."""
+        project_id = uuid4()
+        assignment_a = _make_assignment(
+            self.user_id, self.role_a_id, ScopeType.PROJECT, project_id
+        )
+
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        # revoke_role with role_id filters to only role A
+        mock_result.scalars.return_value.all.return_value = [assignment_a]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.get = AsyncMock(return_value=assignment_a)
+        mock_session.delete = AsyncMock()
+        mock_session.flush = AsyncMock()
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session",
+            return_value=mock_session,
+        ):
+            result = await self.service.revoke_role(
+                self.user_id,
+                ScopeType.PROJECT,
+                project_id,
+                role_id=self.role_a_id,
+            )
+
+        assert result is True
+        mock_session.delete.assert_called_once_with(assignment_a)
+
+    @pytest.mark.asyncio
+    async def test_revoke_all_roles_in_scope(self) -> None:
+        """Revoking without role_id removes all assignments for that scope."""
+        project_id = uuid4()
+        assignment_a = _make_assignment(
+            self.user_id, self.role_a_id, ScopeType.PROJECT, project_id
+        )
+        assignment_b = _make_assignment(
+            self.user_id, self.role_b_id, ScopeType.PROJECT, project_id
+        )
+
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [assignment_a, assignment_b]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.get = AsyncMock(side_effect=[assignment_a, assignment_b])
+        mock_session.delete = AsyncMock()
+        mock_session.flush = AsyncMock()
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session",
+            return_value=mock_session,
+        ):
+            result = await self.service.revoke_role(
+                self.user_id,
+                ScopeType.PROJECT,
+                project_id,
+            )
+
+        assert result is True
+        assert mock_session.delete.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_permission_union_across_roles(self) -> None:
+        """Permission check unions across all roles the user has."""
+        # Role A grants project-read, Role B grants project-write
+        self.service._cache_permissions("role_a", ["project-read"])
+        self.service._cache_permissions("role_b", ["project-write"])
+        # User has both roles in global scope
+        self.service._cache_assignments(
+            self.user_id, ScopeType.GLOBAL, None, ["role_a", "role_b"]
+        )
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session", return_value=MagicMock()
+        ):
+            assert (
+                await self.service.has_permission(
+                    self.user_id, "project-read", ScopeType.GLOBAL, None
+                )
+                is True
+            )
+            assert (
+                await self.service.has_permission(
+                    self.user_id, "project-write", ScopeType.GLOBAL, None
+                )
+                is True
+            )
+            assert (
+                await self.service.has_permission(
+                    self.user_id, "project-delete", ScopeType.GLOBAL, None
+                )
+                is False
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_project_roles_returns_multiple(self) -> None:
+        """get_project_roles returns all role names for a user in a project."""
+        project_id = uuid4()
+        self.service._cache_assignments(
+            self.user_id, ScopeType.GLOBAL, None, ["viewer"]
+        )
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = [
+            ("project_editor",),
+            ("change_order_approver",),
+        ]
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session",
+            return_value=mock_session,
+        ):
+            roles = await self.service.get_project_roles(self.user_id, project_id)
+
+        assert roles == ["project_editor", "change_order_approver"]
+
+    @pytest.mark.asyncio
+    async def test_authority_level_takes_highest(self) -> None:
+        """has_authority_level returns True if any assignment meets the level."""
+        change_order_id = uuid4()
+
+        # Assignment with MEDIUM authority
+        assignment_medium = _make_assignment(
+            self.user_id,
+            self.role_a_id,
+            ScopeType.CHANGE_ORDER,
+            change_order_id,
+            metadata={"authority_level": "MEDIUM"},
+        )
+        # Assignment with HIGH authority
+        assignment_high = _make_assignment(
+            self.user_id,
+            self.role_b_id,
+            ScopeType.CHANGE_ORDER,
+            change_order_id,
+            metadata={"authority_level": "HIGH"},
+        )
+
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [
+            assignment_medium,
+            assignment_high,
+        ]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        self.service._cache_assignments(
+            self.user_id, ScopeType.GLOBAL, None, ["viewer"]
+        )
+
+        with patch(
+            "app.core.rbac_unified.get_unified_rbac_session",
+            return_value=mock_session,
+        ):
+            assert (
+                await self.service.has_authority_level(
+                    self.user_id, "HIGH", change_order_id
+                )
+                is True
+            )
+            assert (
+                await self.service.has_authority_level(
+                    self.user_id, "CRITICAL", change_order_id
+                )
+                is False
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_user_permissions_merges_multiple_roles(self) -> None:
+        """get_user_permissions returns deduplicated union of all role permissions."""
+        self.service._cache_assignments(
+            self.user_id, ScopeType.GLOBAL, None, ["role_a", "role_b"]
+        )
+        self.service._cache_permissions("role_a", ["project-read", "project-write"])
+        self.service._cache_permissions("role_b", ["project-write", "cost-read"])
+
+        result = await self.service.get_user_permissions(
+            self.user_id, ScopeType.GLOBAL, None
+        )
+
+        # Deduplicated and sorted
+        assert result == ["cost-read", "project-read", "project-write"]

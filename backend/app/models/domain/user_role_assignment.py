@@ -12,7 +12,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,8 +40,8 @@ class ScopeType(str, Enum):
 class UserRoleAssignment(SimpleEntityBase):
     """UserRoleAssignment entity - non-versioned with audit timestamps.
 
-    Manages scoped role assignments for users. Each user can have one role
-    per scope (global, project, change_order).
+    Manages scoped role assignments for users. Each user can have multiple
+    roles per scope (global, project, change_order).
 
     Attributes:
         id: UUID primary key.
@@ -56,14 +56,6 @@ class UserRoleAssignment(SimpleEntityBase):
     """
 
     __tablename__ = "user_role_assignments"
-    __table_args__ = (
-        UniqueConstraint(
-            "user_id",
-            "scope_type",
-            "scope_id",
-            name="uq_user_role_assignment_scope",
-        ),
-    )
 
     # Foreign keys
     # No DB FK to users.user_id — it's a business key with duplicates across

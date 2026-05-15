@@ -9,10 +9,10 @@ class TestProjectStatus:
     def test_status_values(self) -> None:
         """Test that ProjectStatus has correct string values."""
         assert ProjectStatus.DRAFT.value == "draft"
-        assert ProjectStatus.ACTIVE.value == "Active"
-        assert ProjectStatus.ON_HOLD.value == "On Hold"
-        assert ProjectStatus.COMPLETED.value == "Completed"
-        assert ProjectStatus.CANCELLED.value == "Cancelled"
+        assert ProjectStatus.ACTIVE.value == "active"
+        assert ProjectStatus.ON_HOLD.value == "on_hold"
+        assert ProjectStatus.COMPLETED.value == "completed"
+        assert ProjectStatus.CANCELLED.value == "cancelled"
 
     def test_color_mapping(self) -> None:
         """Test that ProjectStatus has correct color mappings."""
@@ -25,9 +25,9 @@ class TestProjectStatus:
     def test_enum_is_string_enum(self) -> None:
         """Test that ProjectStatus is a string enum."""
         assert isinstance(ProjectStatus.DRAFT, str)
-        assert ProjectStatus.ACTIVE.value == "Active"
+        assert ProjectStatus.ACTIVE.value == "active"
         # String enums compare equal to their values
-        assert ProjectStatus.ACTIVE == "Active"
+        assert ProjectStatus.ACTIVE == "active"
 
     def test_enum_comparison(self) -> None:
         """Test that ProjectStatus enum values can be compared."""

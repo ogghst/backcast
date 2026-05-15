@@ -56,6 +56,9 @@ export interface ProjectMemberRead extends ProjectMemberBase {
   user_email?: string;
   assigned_by_name?: string;
   project_name?: string;
+  // Multi-role fields (populated when user has multiple assignments)
+  roles?: string[];          // All role names for this user
+  assignment_ids?: string[]; // All assignment IDs (parallel to roles)
 }
 
 /**

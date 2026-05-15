@@ -35,13 +35,17 @@ from app.services.project_budget_settings_service import (
 
 @pytest_asyncio.fixture
 async def sample_project(db_session: AsyncSession) -> Project:
-    """Create a sample project with budget for testing."""
+    """Create a sample project for testing.
+
+    Budget is computed from cost elements, not stored on the project.
+    The sample_cost_element_with_budget fixture creates a cost element
+    with budget_amount=620000 to produce the expected project budget.
+    """
     project = Project(
         project_id=uuid4(),
         code="TEST-PROJ",
         name="Test Project",
         description="Test project for budget validation",
-        budget=Decimal("620000.00"),  # €620K budget
         created_by=uuid4(),
     )
     db_session.add(project)
@@ -100,14 +104,19 @@ async def sample_cost_element_with_budget(
     sample_wbe: WBE,
     sample_cost_element_type: CostElementType,
 ) -> CostElement:
-    """Create a sample cost element with budget for testing."""
+    """Create a sample cost element whose budget_amount drives the project budget.
+
+    Project budget is computed as the sum of all cost element budgets.
+    Setting budget_amount=620000 here means the project's computed budget
+    will be 620000, matching the test assertions.
+    """
     cost_element = CostElement(
         cost_element_id=uuid4(),
         wbe_id=sample_wbe.wbe_id,
         cost_element_type_id=sample_cost_element_type.cost_element_type_id,
         code="TEST-001",
         name="Test Cost Element",
-        budget_amount=Decimal("1000.00"),
+        budget_amount=Decimal("620000.00"),  # Drives project budget to 620K
         description="Test cost element with budget",
         created_by=uuid4(),
     )

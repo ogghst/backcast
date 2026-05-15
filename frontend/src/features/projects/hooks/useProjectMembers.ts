@@ -25,23 +25,23 @@ import type {
 } from "../types/projectMembers";
 
 /**
- * Map a UserRoleAssignmentRead to a ProjectMemberRead.
+ * Map a single UserRoleAssignmentRead to a ProjectMemberRead.
  *
- * The unified API returns role_name but not user_name / user_email.
- * Those are resolved in the component via the useUsers hook, so we
- * leave them undefined here.
+ * Used by mutations that return a single assignment.
  */
 function toProjectMemberRead(a: UserRoleAssignmentRead): ProjectMemberRead {
+  const roleName = a.role_name ?? "project_viewer";
   return {
     id: a.id,
     user_id: a.user_id,
     project_id: a.scope_id ?? "",
-    role: (a.role_name ?? "project_viewer") as ProjectMemberRead["role"],
+    role: roleName as ProjectMemberRead["role"],
+    roles: [roleName],
+    assignment_ids: [a.id],
     assigned_at: a.granted_at,
     assigned_by: a.granted_by,
     created_at: a.created_at,
     updated_at: a.updated_at,
-    // Unified API does not enrich user info in list endpoint
     user_name: a.user_name ?? undefined,
     user_email: undefined,
     assigned_by_name: a.granted_by_name ?? undefined,
@@ -49,7 +49,49 @@ function toProjectMemberRead(a: UserRoleAssignmentRead): ProjectMemberRead {
 }
 
 /**
+ * Aggregate UserRoleAssignmentRead[] by user_id into ProjectMemberRead[].
+ *
+ * With multi-role support a single user may have multiple assignments
+ * in the same project. This groups them so each user appears once with
+ * all their roles.
+ */
+function aggregateToMembers(
+  assignments: UserRoleAssignmentRead[],
+): ProjectMemberRead[] {
+  const userMap = new Map<string, UserRoleAssignmentRead[]>();
+  for (const a of assignments) {
+    const existing = userMap.get(a.user_id) || [];
+    existing.push(a);
+    userMap.set(a.user_id, existing);
+  }
+
+  return Array.from(userMap.entries()).map(([, userAssignments]) => {
+    const first = userAssignments[0];
+    const allRoles = userAssignments.map((a) => a.role_name ?? "project_viewer");
+    const allAssignmentIds = userAssignments.map((a) => a.id);
+
+    return {
+      id: allAssignmentIds[0], // primary assignment ID
+      user_id: first.user_id,
+      project_id: first.scope_id ?? "",
+      role: allRoles[0] as ProjectMemberRead["role"], // primary role (backward compat)
+      roles: allRoles,
+      assignment_ids: allAssignmentIds,
+      assigned_at: first.granted_at,
+      assigned_by: first.granted_by,
+      created_at: first.created_at,
+      updated_at: first.updated_at,
+      user_name: first.user_name ?? undefined,
+      user_email: undefined,
+      assigned_by_name: first.granted_by_name ?? undefined,
+    };
+  });
+}
+
+/**
  * Fetch project members for a given project via the unified role-assignments API.
+ *
+ * Aggregates by user_id so each user appears once with all their roles.
  */
 export const useProjectMembers = (
   projectId: string | undefined,
@@ -60,7 +102,7 @@ export const useProjectMembers = (
   });
 
   const members: ProjectMemberRead[] | undefined = assignments
-    ? assignments.map(toProjectMemberRead)
+    ? aggregateToMembers(assignments)
     : undefined;
 
   return { ...rest, data: members };

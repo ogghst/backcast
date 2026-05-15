@@ -520,7 +520,7 @@ class DataSeeder:
                         continue
 
                     # Store the target status for workflow transition
-                    target_status = item.get("status", "Draft")
+                    target_status = item.get("status", "draft")
 
                     # Store workflow state fields for direct update after creation
                     workflow_fields = {}
@@ -626,10 +626,13 @@ class DataSeeder:
                         await asyncio.sleep(1)
 
                     # If target status is not Draft, attempt to transition through workflow
-                    if target_status and target_status != "Draft":
+                    if target_status and target_status != "draft":
                         try:
                             # For Submitted for Approval status
-                            if "Submitted for Approval" in target_status:
+                            if (
+                                "submitted_for_approval" in target_status
+                                or "Submitted for Approval" in target_status
+                            ):
                                 await co_service.submit_for_approval(
                                     change_order_id=co_id,
                                     actor_id=actor_id,
@@ -639,7 +642,10 @@ class DataSeeder:
                                 logger.info(f"  → Submitted for approval: {co_in.code}")
 
                             # For Under Review status (need to submit first)
-                            elif "Under Review" in target_status:
+                            elif (
+                                "under_review" in target_status
+                                or "Under Review" in target_status
+                            ):
                                 # First submit
                                 await co_service.submit_for_approval(
                                     change_order_id=co_id,
@@ -651,7 +657,7 @@ class DataSeeder:
                                 # Then transition to Under Review by updating status
                                 # Note: This is a direct status update for seeding purposes
                                 under_review_update = ChangeOrderUpdate(
-                                    status="Under Review"
+                                    status="under_review"
                                 )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
@@ -662,7 +668,10 @@ class DataSeeder:
                                 logger.info(f"  → Under Review: {co_in.code}")
 
                             # For Approved status (need to submit → under review → approve)
-                            elif "Approved" in target_status:
+                            elif (
+                                "approved" in target_status
+                                or "Approved" in target_status
+                            ):
                                 # First submit
                                 await co_service.submit_for_approval(
                                     change_order_id=co_id,
@@ -673,7 +682,7 @@ class DataSeeder:
 
                                 # Then transition to Under Review
                                 under_review_update = ChangeOrderUpdate(
-                                    status="Under Review"
+                                    status="under_review"
                                 )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
@@ -693,7 +702,10 @@ class DataSeeder:
                                 logger.info(f"  → Approved: {co_in.code}")
 
                             # For Rejected status (need to submit → under review → reject)
-                            elif "Rejected" in target_status:
+                            elif (
+                                "rejected" in target_status
+                                or "Rejected" in target_status
+                            ):
                                 # First submit
                                 await co_service.submit_for_approval(
                                     change_order_id=co_id,
@@ -704,7 +716,7 @@ class DataSeeder:
 
                                 # Then transition to Under Review
                                 under_review_update = ChangeOrderUpdate(
-                                    status="Under Review"
+                                    status="under_review"
                                 )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,

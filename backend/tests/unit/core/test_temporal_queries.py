@@ -230,9 +230,7 @@ def test_current_join_filter_single_entity():
     from app.models.domain.wbe import WBE
 
     # Single entity should work same as is_current_version
-    stmt = select(WBE).where(
-        current_join_filter((WBE.valid_time, WBE.deleted_at))
-    )
+    stmt = select(WBE).where(current_join_filter((WBE.valid_time, WBE.deleted_at)))
 
     # Compile to SQL
     compiled = stmt.compile()
@@ -247,8 +245,7 @@ def test_is_current_version_raw_sql_with_custom_column_names():
     """Test is_current_version_raw_sql with various custom column names."""
     # Test with non-standard column names
     result = is_current_version_raw_sql(
-        valid_time_col="custom_valid_time",
-        deleted_at_col="custom_deleted_at"
+        valid_time_col="custom_valid_time", deleted_at_col="custom_deleted_at"
     )
 
     assert "upper(custom_valid_time) IS NULL" in result
@@ -273,9 +270,7 @@ def test_is_current_version_raw_sql_generates_valid_sql_structure():
 def test_is_current_version_with_deleted_at_none_explicit():
     """Test is_current_version with explicit deleted_at=None."""
     # Explicitly pass None for deleted_at
-    stmt = select(Department).where(
-        is_current_version(Department.valid_time, None)
-    )
+    stmt = select(Department).where(is_current_version(Department.valid_time, None))
 
     # Compile to SQL
     compiled = stmt.compile()
@@ -314,11 +309,12 @@ def test_is_current_version_on_branch_mixed_branch_names():
 
 def test_multiple_current_version_filters_combination():
     """Test combining multiple is_current_version filters manually."""
+    from sqlalchemy import and_
+
     from app.models.domain.cost_element import CostElement
     from app.models.domain.wbe import WBE
 
     # Manually combine filters (should match current_join_filter behavior)
-    from sqlalchemy import and_
 
     stmt = select(WBE, CostElement).where(
         and_(

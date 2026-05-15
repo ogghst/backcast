@@ -131,6 +131,8 @@ class TestChangeOrderAuditLog:
             ),
             actor_id=actor_id,
         )
+        await db_session.commit()
+        db_session.expire_all()
 
         # Second transition: submitted_for_approval -> under_review
         await service.update_change_order(
@@ -138,13 +140,17 @@ class TestChangeOrderAuditLog:
             ChangeOrderUpdate(status="under_review", comment="Starting review"),
             actor_id=actor_id,
         )
+        await db_session.commit()
+        db_session.expire_all()
 
-        # Third transition: under_review -> Approved
+        # Third transition: under_review -> rejected
+        # (Can't use "approved" because it requires approver validation)
         await service.update_change_order(
             co_id,
-            ChangeOrderUpdate(status="approved", comment="Looks good, approved"),
+            ChangeOrderUpdate(status="rejected", comment="Not approved, rejected"),
             actor_id=actor_id,
         )
+        await db_session.commit()
 
         # Verify audit trail has all three transitions
         stmt = select(ChangeOrderAuditLog).where(
@@ -161,10 +167,10 @@ class TestChangeOrderAuditLog:
         transitions = [(e.old_status, e.new_status) for e in audit_entries]
         assert ("draft", "submitted_for_approval") in transitions
         assert ("submitted_for_approval", "under_review") in transitions
-        assert ("under_review", "approved") in transitions
+        assert ("under_review", "rejected") in transitions
 
         # Verify comments
         comments = [e.comment for e in audit_entries]
         assert "Ready for review" in comments
         assert "Starting review" in comments
-        assert "Looks good, approved" in comments
+        assert "Not approved, rejected" in comments

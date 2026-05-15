@@ -358,7 +358,7 @@ class TestFilterToolsByRoleAsyncCacheRefresh:
         try:
             tool = _make_mock_tool("list_projects", permissions=["project-read"])
             with caplog.at_level(logging.ERROR, logger="app.ai.tools"):
-                result = await filter_tools_by_role([tool], "ai-viewer")
+                await filter_tools_by_role([tool], "ai-viewer")
         finally:
             set_unified_rbac_service(None)  # type: ignore[arg-type]
 

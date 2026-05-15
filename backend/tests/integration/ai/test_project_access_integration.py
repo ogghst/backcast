@@ -43,7 +43,7 @@ async def test_list_projects_returns_only_accessible_for_viewer(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -53,7 +53,7 @@ async def test_list_projects_returns_only_accessible_for_viewer(
         code="PROJ2",
         name="Project 2",
         budget=200000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -63,7 +63,7 @@ async def test_list_projects_returns_only_accessible_for_viewer(
         code="PROJ3",
         name="Project 3",
         budget=300000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -153,7 +153,7 @@ async def test_list_projects_returns_all_for_system_admin(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -163,7 +163,7 @@ async def test_list_projects_returns_all_for_system_admin(
         code="PROJ2",
         name="Project 2",
         budget=200000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -245,7 +245,7 @@ async def test_list_projects_returns_empty_for_non_member(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -318,7 +318,7 @@ async def test_ai_tool_respects_project_permission_hierarchy(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -399,7 +399,7 @@ async def test_ai_chat_filters_projects_by_membership(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -409,7 +409,7 @@ async def test_ai_chat_filters_projects_by_membership(
         code="PROJ2",
         name="Project 2",
         budget=200000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -463,7 +463,7 @@ async def test_permission_error_returned_correctly(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -533,7 +533,7 @@ async def test_admin_bypass_in_ai_context(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -604,7 +604,7 @@ async def test_multiple_roles_respected_in_ai_tools(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -614,7 +614,7 @@ async def test_multiple_roles_respected_in_ai_tools(
         code="PROJ2",
         name="Project 2",
         budget=200000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -624,7 +624,7 @@ async def test_multiple_roles_respected_in_ai_tools(
         code="PROJ3",
         name="Project 3",
         budget=300000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )

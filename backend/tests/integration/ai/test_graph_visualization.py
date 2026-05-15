@@ -36,7 +36,7 @@ async def test_export_graphviz_produces_valid_dot_format():
         to_langchain_tool(get_project, context),
     ]
 
-    graph = create_graph(mock_llm, tools)
+    graph, _ = create_graph(mock_llm, tools)
 
     # Act: Export graph to DOT format
     dot_output = export_graphviz(graph)
@@ -85,7 +85,7 @@ async def test_export_graphviz_includes_node_information():
         to_langchain_tool(list_projects, context),
     ]
 
-    graph = create_graph(mock_llm, tools)
+    graph, _ = create_graph(mock_llm, tools)
 
     # Act
     dot_output = export_graphviz(graph)
@@ -110,7 +110,7 @@ async def test_export_graphviz_handles_empty_gracefully():
     """
     # Arrange: Create graph with no tools
     mock_llm = Mock()
-    graph = create_graph(mock_llm, [])
+    graph, _ = create_graph(mock_llm, [])
 
     # Act
     dot_output = export_graphviz(graph)
@@ -146,7 +146,7 @@ async def test_export_graphviz_is_deterministic():
         to_langchain_tool(list_projects, context),
     ]
 
-    graph = create_graph(mock_llm, tools)
+    graph, _ = create_graph(mock_llm, tools)
 
     # Act: Export twice
     dot_output_1 = export_graphviz(graph)

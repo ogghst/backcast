@@ -57,7 +57,7 @@ class TestStateGraphCompilation:
         tools = [simple_tool]
 
         # Act
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
 
         # Assert
         assert graph is not None
@@ -122,7 +122,7 @@ class TestToolNodeExecution:
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
         # Act
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
 
         result = await graph.ainvoke(
             {
@@ -193,7 +193,7 @@ class TestToolNodeExecution:
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
         # Act
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
 
         result = await graph.ainvoke(
             {
@@ -242,7 +242,7 @@ class TestToolNodeExecution:
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
         # Act
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
 
         result = await graph.ainvoke(
             {

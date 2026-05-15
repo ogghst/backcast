@@ -27,6 +27,10 @@ from app.ai.tools.templates.cost_element_template import (
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, set_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.department import Department
 from app.models.domain.user import User
@@ -36,6 +40,7 @@ from app.models.schemas.cost_element_type import (
 from app.models.schemas.department import DepartmentCreate
 from app.services.cost_element_type_service import CostElementTypeService
 from app.services.department import DepartmentService
+from tests.conftest import MockUnifiedRBACService
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -90,8 +95,11 @@ def override_auth() -> Generator[None, None, None]:
     mock_rbac = MockRBACService()
     set_rbac_service(mock_rbac)
 
+    set_unified_rbac_service(MockUnifiedRBACService())
+
     yield
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
     # Reset RBAC service to prevent test pollution
     set_rbac_service(None)

@@ -20,7 +20,6 @@ class TestProjectServiceCreate:
         project_in = ProjectCreate(
             name="Alpha Project",
             code="ALPHA",
-            budget=Decimal("100000.00"),
             status="draft",
         )
 
@@ -31,7 +30,8 @@ class TestProjectServiceCreate:
         assert created_project is not None
         assert created_project.name == "Alpha Project"
         assert created_project.code == "ALPHA"
-        assert created_project.budget == Decimal("100000.00")
+        # Budget is computed from cost elements; new projects have none, so budget is 0
+        assert created_project.budget == Decimal("0")
 
 
 class TestProjectServiceGetProjects:
@@ -39,7 +39,8 @@ class TestProjectServiceGetProjects:
 
     @pytest.mark.asyncio
     async def test_get_projects_basic_pagination(
-        self, db_session: AsyncSession
+        self,
+        db_session: AsyncSession,
     ) -> None:
         """Test basic pagination without search or filters."""
         service = ProjectService(db_session)
@@ -50,8 +51,7 @@ class TestProjectServiceGetProjects:
                 ProjectCreate(
                     name=f"Project {i}",
                     code=f"PROJ{i}",
-                    budget=Decimal("10000.00"),
-                    status="Active",
+                    status="active",
                 ),
                 actor_id=uuid4(),
             )
@@ -70,19 +70,15 @@ class TestProjectServiceGetProjects:
 
         # Create test projects
         await service.create_project(
-            ProjectCreate(
-                name="Alpha Project", code="ALPHA", budget=Decimal("10000.00")
-            ),
+            ProjectCreate(name="Alpha Project", code="ALPHA"),
             actor_id=uuid4(),
         )
         await service.create_project(
-            ProjectCreate(name="Beta Project", code="BETA", budget=Decimal("20000.00")),
+            ProjectCreate(name="Beta Project", code="BETA"),
             actor_id=uuid4(),
         )
         await service.create_project(
-            ProjectCreate(
-                name="Gamma Project", code="GAMMA", budget=Decimal("30000.00")
-            ),
+            ProjectCreate(name="Gamma Project", code="GAMMA"),
             actor_id=uuid4(),
         )
 
@@ -111,7 +107,8 @@ class TestProjectServiceGetProjects:
 
     @pytest.mark.asyncio
     async def test_get_projects_with_status_filter(
-        self, db_session: AsyncSession
+        self,
+        db_session: AsyncSession,
     ) -> None:
         """Test filtering projects by status."""
         service = ProjectService(db_session)
@@ -121,8 +118,7 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Active Project 1",
                 code="ACT1",
-                budget=Decimal("10000.00"),
-                status="Active",
+                status="active",
             ),
             actor_id=uuid4(),
         )
@@ -130,8 +126,7 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Active Project 2",
                 code="ACT2",
-                budget=Decimal("20000.00"),
-                status="Active",
+                status="active",
             ),
             actor_id=uuid4(),
         )
@@ -139,22 +134,21 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Draft Project",
                 code="DRAFT1",
-                budget=Decimal("30000.00"),
                 status="draft",
             ),
             actor_id=uuid4(),
         )
 
         # Act: Filter by Active status
-        projects, total = await service.get_projects(filters="status:Active")
+        projects, total = await service.get_projects(filters="status:active")
 
         # Assert
         assert len(projects) == 2
         assert total == 2
-        assert all(p.status == "Active" for p in projects)
+        assert all(p.status == "active" for p in projects)
 
         # Act: Filter by Draft status
-        projects, total = await service.get_projects(filters="status:Draft")
+        projects, total = await service.get_projects(filters="status:draft")
 
         # Assert
         assert len(projects) == 1
@@ -163,7 +157,8 @@ class TestProjectServiceGetProjects:
 
     @pytest.mark.asyncio
     async def test_get_projects_with_multiple_status_filter(
-        self, db_session: AsyncSession
+        self,
+        db_session: AsyncSession,
     ) -> None:
         """Test filtering projects by multiple status values (IN clause)."""
         service = ProjectService(db_session)
@@ -173,8 +168,7 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Active Project",
                 code="ACT",
-                budget=Decimal("10000.00"),
-                status="Active",
+                status="active",
             ),
             actor_id=uuid4(),
         )
@@ -182,7 +176,6 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Draft Project",
                 code="DRAFT",
-                budget=Decimal("20000.00"),
                 status="draft",
             ),
             actor_id=uuid4(),
@@ -191,23 +184,23 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Completed Project",
                 code="COMPLETED",
-                budget=Decimal("30000.00"),
-                status="Completed",
+                status="completed",
             ),
             actor_id=uuid4(),
         )
 
         # Act: Filter by Active OR Draft
-        projects, total = await service.get_projects(filters="status:Active,Draft")
+        projects, total = await service.get_projects(filters="status:active,draft")
 
         # Assert
         assert len(projects) == 2
         assert total == 2
-        assert {p.status for p in projects} == {"Active", "draft"}
+        assert {p.status for p in projects} == {"active", "draft"}
 
     @pytest.mark.asyncio
     async def test_get_projects_with_search_and_filter(
-        self, db_session: AsyncSession
+        self,
+        db_session: AsyncSession,
     ) -> None:
         """Test combining search and filters."""
         service = ProjectService(db_session)
@@ -217,8 +210,7 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Alpha Active",
                 code="ALPHA",
-                budget=Decimal("10000.00"),
-                status="Active",
+                status="active",
             ),
             actor_id=uuid4(),
         )
@@ -226,7 +218,6 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Alpha Draft",
                 code="ALPHA2",
-                budget=Decimal("20000.00"),
                 status="draft",
             ),
             actor_id=uuid4(),
@@ -235,15 +226,15 @@ class TestProjectServiceGetProjects:
             ProjectCreate(
                 name="Beta Active",
                 code="BETA",
-                budget=Decimal("30000.00"),
-                status="Active",
+                status="active",
             ),
             actor_id=uuid4(),
         )
 
         # Act: Search for "Alpha" AND filter by "Active"
         projects, total = await service.get_projects(
-            search="Alpha", filters="status:Active"
+            search="Alpha",
+            filters="status:active",
         )
 
         # Assert
@@ -258,27 +249,22 @@ class TestProjectServiceGetProjects:
 
         # Create test projects
         await service.create_project(
-            ProjectCreate(
-                name="Charlie", code="C", budget=Decimal("30000.00"), status="Active"
-            ),
+            ProjectCreate(name="Charlie", code="C", status="active"),
             actor_id=uuid4(),
         )
         await service.create_project(
-            ProjectCreate(
-                name="Alpha", code="A", budget=Decimal("10000.00"), status="Active"
-            ),
+            ProjectCreate(name="Alpha", code="A", status="active"),
             actor_id=uuid4(),
         )
         await service.create_project(
-            ProjectCreate(
-                name="Beta", code="B", budget=Decimal("20000.00"), status="Active"
-            ),
+            ProjectCreate(name="Beta", code="B", status="active"),
             actor_id=uuid4(),
         )
 
         # Act: Sort by name ascending
         projects, total = await service.get_projects(
-            sort_field="name", sort_order="asc"
+            sort_field="name",
+            sort_order="asc",
         )
 
         # Assert
@@ -287,7 +273,8 @@ class TestProjectServiceGetProjects:
 
         # Act: Sort by name descending
         projects, total = await service.get_projects(
-            sort_field="name", sort_order="desc"
+            sort_field="name",
+            sort_order="desc",
         )
 
         # Assert
@@ -295,7 +282,8 @@ class TestProjectServiceGetProjects:
 
         # Act: Sort by code ascending
         projects, total = await service.get_projects(
-            sort_field="code", sort_order="asc"
+            sort_field="code",
+            sort_order="asc",
         )
 
         # Assert
@@ -303,7 +291,8 @@ class TestProjectServiceGetProjects:
 
     @pytest.mark.asyncio
     async def test_get_projects_invalid_filter_field_raises_error(
-        self, db_session: AsyncSession
+        self,
+        db_session: AsyncSession,
     ) -> None:
         """Test that invalid filter field raises ValueError."""
         service = ProjectService(db_session)
@@ -314,7 +303,8 @@ class TestProjectServiceGetProjects:
 
     @pytest.mark.asyncio
     async def test_get_projects_invalid_sort_field_raises_error(
-        self, db_session: AsyncSession
+        self,
+        db_session: AsyncSession,
     ) -> None:
         """Test that invalid sort field raises ValueError."""
         service = ProjectService(db_session)
@@ -325,7 +315,8 @@ class TestProjectServiceGetProjects:
 
     @pytest.mark.asyncio
     async def test_get_projects_pagination_with_filters(
-        self, db_session: AsyncSession
+        self,
+        db_session: AsyncSession,
     ) -> None:
         """Test pagination works correctly with filters."""
         service = ProjectService(db_session)
@@ -336,8 +327,7 @@ class TestProjectServiceGetProjects:
                 ProjectCreate(
                     name=f"Active {i}",
                     code=f"ACT{i}",
-                    budget=Decimal("10000.00"),
-                    status="Active",
+                    status="active",
                 ),
                 actor_id=uuid4(),
             )
@@ -348,7 +338,6 @@ class TestProjectServiceGetProjects:
                 ProjectCreate(
                     name=f"Draft {i}",
                     code=f"DRAFT{i}",
-                    budget=Decimal("10000.00"),
                     status="draft",
                 ),
                 actor_id=uuid4(),
@@ -356,7 +345,9 @@ class TestProjectServiceGetProjects:
 
         # Act: Get first page of Active projects (5 per page)
         projects, total = await service.get_projects(
-            skip=0, limit=5, filters="status:Active"
+            skip=0,
+            limit=5,
+            filters="status:active",
         )
 
         # Assert
@@ -365,7 +356,9 @@ class TestProjectServiceGetProjects:
 
         # Act: Get second page
         projects, total = await service.get_projects(
-            skip=5, limit=5, filters="status:Active"
+            skip=5,
+            limit=5,
+            filters="status:active",
         )
 
         # Assert
@@ -378,14 +371,14 @@ class TestProjectServiceUpdate:
 
     @pytest.mark.asyncio
     async def test_update_project_creates_new_version(
-        self, db_session: AsyncSession
+        self,
+        db_session: AsyncSession,
     ) -> None:
         """Test updating a project creates a new version."""
         service = ProjectService(db_session)
         project_in = ProjectCreate(
             name="Original Name",
             code="PROJ1",
-            budget=Decimal("10000.00"),
             status="draft",
         )
 
@@ -414,8 +407,7 @@ class TestProjectServiceDelete:
         project_in = ProjectCreate(
             name="To Delete",
             code="DEL",
-            budget=Decimal("10000.00"),
-            status="Active",
+            status="active",
         )
 
         # Create

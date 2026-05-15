@@ -465,26 +465,26 @@ class UnifiedRBACService:
             user_id, required_permission, ScopeType.PROJECT, project_id
         )
 
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        """Get the user's role name for a specific project.
+    async def get_project_roles(self, user_id: UUID, project_id: UUID) -> list[str]:
+        """Get all role names for a user in a specific project.
 
-        Admin users return "project_admin" as they have full access.
+        Admin users return ["project_admin"] as they have full access.
 
         Args:
             user_id: The user's root ID.
             project_id: The project UUID.
 
         Returns:
-            Role name string or None if user is not a project member.
+            List of role name strings. Empty if user is not a project member.
         """
         # Admin shortcut
         global_roles = await self.get_user_roles(user_id, ScopeType.GLOBAL, None)
         if "admin" in global_roles:
-            return "project_admin"
+            return ["project_admin"]
 
         session = get_unified_rbac_session()
         if session is None:
-            return None
+            return []
 
         stmt = (
             select(RBACRole.name)
@@ -496,8 +496,23 @@ class UnifiedRBACService:
             )
         )
         result = await session.execute(stmt)
-        row = result.first()
-        return row[0] if row is not None else None
+        return [row[0] for row in result.all()]
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        """Get the user's primary role name for a specific project.
+
+        Backward-compatible wrapper around get_project_roles.
+        Returns the first role or None.
+
+        Args:
+            user_id: The user's root ID.
+            project_id: The project UUID.
+
+        Returns:
+            First role name string or None if user is not a project member.
+        """
+        roles = await self.get_project_roles(user_id, project_id)
+        return roles[0] if roles else None
 
     async def get_user_permissions(
         self,
@@ -575,9 +590,10 @@ class UnifiedRBACService:
             msg = "No database session available"
             raise RuntimeError(msg)
 
-        # Check for existing assignment
+        # Check for existing assignment of THIS specific role
         conditions = [
             UserRoleAssignment.user_id == user_id,
+            UserRoleAssignment.role_id == role_id,
             UserRoleAssignment.scope_type == scope_type,
         ]
         if scope_id is not None:
@@ -588,7 +604,7 @@ class UnifiedRBACService:
         existing = await session.execute(select(UserRoleAssignment).where(*conditions))
         if existing.scalar_one_or_none() is not None:
             msg = (
-                f"User {user_id} already has a role assignment for "
+                f"User {user_id} already has role {role_id} assigned for "
                 f"scope_type={scope_type}, scope_id={scope_id}"
             )
             raise ValueError(msg)
@@ -625,18 +641,23 @@ class UnifiedRBACService:
         user_id: UUID,
         scope_type: str,
         scope_id: UUID | None = None,
+        role_id: UUID | None = None,
     ) -> bool:
         """Revoke a role assignment.
+
+        If role_id is provided, only that specific role is revoked.
+        If role_id is None, all assignments for the user+scope are revoked.
 
         Args:
             user_id: The user's root ID.
             scope_type: Scope type.
             scope_id: Scoped entity ID (None for global).
+            role_id: Optional specific role to revoke. If None, revokes all
+                assignments for the user+scope.
 
         Returns:
-            True if an assignment was found and deleted.
+            True if at least one assignment was found and deleted.
         """
-        # First find the assignment ID
         session = get_unified_rbac_session()
         if session is None:
             msg = "No database session available"
@@ -650,28 +671,34 @@ class UnifiedRBACService:
             conditions.append(UserRoleAssignment.scope_id == scope_id)
         else:
             conditions.append(UserRoleAssignment.scope_id.is_(None))
+        if role_id is not None:
+            conditions.append(UserRoleAssignment.role_id == role_id)
 
         result = await session.execute(select(UserRoleAssignment).where(*conditions))
-        assignment = result.scalar_one_or_none()
+        assignments = result.scalars().all()
 
-        if assignment is None:
+        if not assignments:
             return False
 
-        # Use SimpleService for CRUD
+        # Use SimpleService for CRUD — delete each matching assignment
         service = self._get_assignment_service
-        deleted = await service.delete(assignment.id)
+        deleted_any = False
+        for assignment in assignments:
+            deleted = await service.delete(assignment.id)
+            if deleted:
+                deleted_any = True
 
-        if deleted:
+        if deleted_any:
             # Invalidate cache
             self._invalidate_assignment_cache(user_id, scope_type, scope_id)
             logger.info(
-                "Revoked role from user %s in scope %s/%s",
+                "Revoked role(s) from user %s in scope %s/%s",
                 user_id,
                 scope_type,
                 scope_id,
             )
 
-        return deleted
+        return deleted_any
 
     async def update_assignment(
         self,

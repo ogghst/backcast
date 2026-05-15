@@ -28,7 +28,7 @@ class TestProjectServiceTemporalList:
             name="Temporal Project",
             code="TEMP01",
             budget=Decimal("10000.00"),
-            status="Active",
+            status="active",
             control_date=t1,
         )
 

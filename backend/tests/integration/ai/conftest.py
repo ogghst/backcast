@@ -7,6 +7,10 @@ import pytest
 
 from app.ai.agent_service import AgentService
 from app.core.rbac import RBACServiceABC, set_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 
 
 class MockRBACService(RBACServiceABC):
@@ -160,10 +164,15 @@ def setup_mock_rbac():
     original_service = rbac_module._rbac_service
     set_rbac_service(mock_service)
 
+    from tests.conftest import MockUnifiedRBACService
+
+    set_unified_rbac_service(MockUnifiedRBACService())
+
     yield
 
     # Restore original service
     rbac_module._rbac_service = original_service
+    set_unified_rbac_service(UnifiedRBACService())
 
 
 @pytest.fixture

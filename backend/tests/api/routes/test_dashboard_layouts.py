@@ -19,10 +19,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.db.session import get_db
 from app.main import app
 from app.models.domain.user import User
 from app.services.dashboard_layout_service import DashboardLayoutService
+from tests.conftest import MockUnifiedRBACService
 
 BASE_URL = "/api/v1/dashboard-layouts"
 
@@ -124,6 +129,8 @@ async def auth_client(
     app.dependency_overrides[get_current_active_user] = lambda: owner_user
     app.dependency_overrides[get_current_user] = lambda: owner_user
     app.dependency_overrides[get_rbac_service] = lambda: _MockRBAC()
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     app.dependency_overrides[get_db] = lambda: db_session
 
     async with AsyncClient(
@@ -131,6 +138,7 @@ async def auth_client(
     ) as ac:
         yield ac
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -147,6 +155,8 @@ async def other_client(
     app.dependency_overrides[get_current_active_user] = lambda: other_user
     app.dependency_overrides[get_current_user] = lambda: other_user
     app.dependency_overrides[get_rbac_service] = lambda: _MockRBAC()
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     app.dependency_overrides[get_db] = lambda: db_session
 
     async with AsyncClient(
@@ -154,6 +164,7 @@ async def other_client(
     ) as ac:
         yield ac
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 

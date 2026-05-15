@@ -91,6 +91,11 @@ def mock_rbac_service(monkeypatch):
 
     monkeypatch.setattr(rbac_module, "get_rbac_service", mock_get_rbac_service)
 
+    from app.core.rbac_unified import set_unified_rbac_service
+    from tests.conftest import MockUnifiedRBACService
+
+    set_unified_rbac_service(MockUnifiedRBACService())
+
 
 @pytest.mark.asyncio
 async def test_all_tools_discoverable(db_session):

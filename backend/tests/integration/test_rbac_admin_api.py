@@ -19,6 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.db.session import get_db
 from app.main import app
 from app.models.domain.user import User
@@ -88,11 +92,16 @@ async def admin_client(
     app.dependency_overrides[get_current_active_user] = lambda: MOCK_ADMIN
     app.dependency_overrides[get_rbac_service] = lambda: AllowAllRBAC()
 
+    from tests.conftest import MockUnifiedRBACService
+
+    set_unified_rbac_service(MockUnifiedRBACService())
+
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
 
 
@@ -107,11 +116,16 @@ async def viewer_client(
     app.dependency_overrides[get_current_active_user] = lambda: MOCK_VIEWER
     app.dependency_overrides[get_rbac_service] = lambda: AllowAllRBAC()
 
+    from tests.conftest import MockUnifiedRBACService
+
+    set_unified_rbac_service(MockUnifiedRBACService())
+
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
 
 

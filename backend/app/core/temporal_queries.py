@@ -57,15 +57,17 @@ def is_current_version(
         After:  Index Scan using cost_element_types_valid_time_idx (< 100ms)
     """
     conditions: list[ColumnElement[Any]] = [
-        # Use range overlap operator with unbounded range
-        # This is equivalent to "upper(valid_time) IS NULL" but indexable
+        # Use range overlap operator with unbounded range for GIST index narrowing
+        # Then add upper_inf check to exclude closed ranges (overlap matches too broadly)
+        # Together: index-friendly initial filter + precise upper-bound check
         valid_time_column.op("&&")(
             func.tstzrange(
                 cast(literal("-infinity"), TIMESTAMP(timezone=True)),
                 cast(literal("infinity"), TIMESTAMP(timezone=True)),
                 literal("[]"),
             )
-        )
+        ),
+        func.upper_inf(valid_time_column),
     ]
 
     # Add soft-delete check if column provided

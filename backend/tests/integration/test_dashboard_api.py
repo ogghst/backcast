@@ -11,6 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    set_unified_rbac_service,
+)
 from app.db.session import get_db
 from app.main import app
 from app.models.domain.user import User
@@ -19,6 +22,7 @@ from app.models.schemas.wbe import WBECreate
 from app.services.change_order_service import ChangeOrderService
 from app.services.project import ProjectService
 from app.services.wbe import WBEService
+from tests.conftest import MockUnifiedRBACService
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -95,6 +99,8 @@ async def client(
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_current_active_user] = override_get_current_active_user
     app.dependency_overrides[get_rbac_service] = override_get_rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     app.dependency_overrides[get_db] = lambda: db_session
 
     async with AsyncClient(

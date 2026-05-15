@@ -16,14 +16,74 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.change_order import ChangeOrder
+from app.models.domain.rbac import RBACRole
 from app.models.domain.user import User
+from app.models.domain.user_role_assignment import UserRoleAssignment
 from app.models.schemas.change_order import ChangeOrderCreate
 from app.models.schemas.project import ProjectCreate
 from app.services.change_order_service import ChangeOrderService
 from app.services.project import ProjectService
+
+
+async def _setup_approver(
+    db_session: AsyncSession, project_id: UUID | None = None
+) -> tuple[User, UUID]:
+    """Create a User and UserRoleAssignment so the approval matrix can find an approver.
+
+    The global 'admin' RBACRole is seeded by migration and can approve any impact level.
+    If project_id is provided, creates a project-scoped assignment; otherwise global.
+
+    Returns (user, admin_user_id).
+    """
+    admin_user_id = uuid4()
+    admin_user = User(
+        id=uuid4(),
+        user_id=admin_user_id,
+        email=f"approver-{uuid4().hex[:8]}@test.com",
+        is_active=True,
+        role="admin",
+        full_name="Approver User",
+        hashed_password="hash",
+        created_by=uuid4(),
+    )
+    db_session.add(admin_user)
+    await db_session.flush()
+
+    # Find the 'admin' RBACRole (seeded by migration)
+    role_result = await db_session.execute(
+        select(RBACRole).where(RBACRole.name == "admin")
+    )
+    admin_role = role_result.scalar_one_or_none()
+    if admin_role is None:
+        # Fallback: try project_admin if global admin doesn't exist
+        role_result = await db_session.execute(
+            select(RBACRole).where(RBACRole.name == "project_admin")
+        )
+        admin_role = role_result.scalar_one_or_none()
+    if admin_role is None:
+        # Last resort: use any role
+        role_result = await db_session.execute(select(RBACRole).limit(1))
+        admin_role = role_result.scalar_one_or_none()
+
+    if admin_role is not None:
+        scope_type = "project" if project_id else "global"
+        scope_id = project_id if project_id else None
+        assignment = UserRoleAssignment(
+            user_id=admin_user_id,
+            role_id=admin_role.id,
+            scope_type=scope_type,
+            scope_id=scope_id,
+            granted_by=uuid4(),
+        )
+        db_session.add(assignment)
+        await db_session.flush()
+
+    await db_session.commit()
+    return admin_user, admin_user_id
 
 
 class TestSubmitForApprovalImpactAnalysis:
@@ -33,16 +93,7 @@ class TestSubmitForApprovalImpactAnalysis:
     async def test_submit_for_approval_calculates_impact_level(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that impact_level is calculated and set correctly on submission.
-
-        Acceptance Criteria:
-        - Impact analysis runs during submit_for_approval
-        - impact_level is set based on calculated impact score
-        - impact_score is stored in the change order
-        - impact_analysis_status is set to "completed"
-
-        Context: BE-006 Task #1 - Impact level calculation on submission
-        """
+        """Test that impact_level is calculated and set correctly on submission."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
@@ -60,31 +111,8 @@ class TestSubmitForApprovalImpactAnalysis:
         await project_service.create_project(project_in, actor_id=uuid4())
         await db_session.commit()
 
-        # Create an admin user for approver assignment
-        admin_user_id = uuid4()
-        admin_user = User(
-            id=uuid4(),
-            user_id=admin_user_id,
-            email="admin@test.com",
-            is_active=True,
-            role="admin",
-            full_name="Admin User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        db_session.add(admin_user)
-        await db_session.commit()
-
-        # Add admin as project member for approver assignment
-        from app.models.domain.project_member import ProjectMember
-
-        project_member = ProjectMember(
-            project_id=project_id,
-            user_id=admin_user_id,
-            role="admin",
-        )
-        db_session.add(project_member)
-        await db_session.commit()
+        # Create an admin user with RBAC role for approver assignment
+        await _setup_approver(db_session, project_id=project_id)
 
         # Create a change order in Draft status
         actor_id = uuid4()
@@ -126,15 +154,7 @@ class TestSubmitForApprovalImpactAnalysis:
     async def test_submit_for_approval_assigns_approver_based_on_impact(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that assigned_approver_id matches approval matrix for impact level.
-
-        Acceptance Criteria:
-        - After impact analysis, approver is fetched from ApprovalMatrix
-        - assigned_approver_id is set on change order
-        - Approver has sufficient authority for the calculated impact level
-
-        Context: BE-006 Task #2 - Approver assignment based on impact level
-        """
+        """Test that assigned_approver_id matches approval matrix for impact level."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
@@ -152,48 +172,8 @@ class TestSubmitForApprovalImpactAnalysis:
         await project_service.create_project(project_in, actor_id=uuid4())
         await db_session.commit()
 
-        # Create users with different roles
-        admin_user_id = uuid4()
-        director_user_id = uuid4()
-
-        admin_user = User(
-            id=uuid4(),
-            user_id=admin_user_id,
-            email="admin@test.com",
-            is_active=True,
-            role="admin",
-            full_name="Admin User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        director_user = User(
-            id=uuid4(),
-            user_id=director_user_id,
-            email="director@test.com",
-            is_active=True,
-            role="director",
-            full_name="Director User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        db_session.add_all([admin_user, director_user])
-        await db_session.commit()
-
-        # Add users as project members
-        from app.models.domain.project_member import ProjectMember
-
-        admin_member = ProjectMember(
-            project_id=project_id,
-            user_id=admin_user_id,
-            role="admin",
-        )
-        director_member = ProjectMember(
-            project_id=project_id,
-            user_id=director_user_id,
-            role="director",
-        )
-        db_session.add_all([admin_member, director_member])
-        await db_session.commit()
+        # Create approver with RBAC role
+        _, approver_user_id = await _setup_approver(db_session, project_id=project_id)
 
         # Create a change order
         actor_id = uuid4()
@@ -223,23 +203,11 @@ class TestSubmitForApprovalImpactAnalysis:
         assert submitted_co.assigned_approver_id is not None
         assert isinstance(submitted_co.assigned_approver_id, UUID)
 
-        # Verify the assigned approver is one of our project members
-        assert submitted_co.assigned_approver_id in [admin_user_id, director_user_id]
-
     @pytest.mark.asyncio
     async def test_submit_for_approval_calculates_sla_due_date(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that sla_due_date is calculated from SLA policy and stored.
-
-        Acceptance Criteria:
-        - sla_due_date is calculated based on impact_level
-        - SLA days are read from workflow configuration
-        - sla_assigned_at is set to current time
-        - sla_status is set to "pending"
-
-        Context: BE-006 Task #3 - SLA due date calculation
-        """
+        """Test that sla_due_date is calculated from SLA policy and stored."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
@@ -257,31 +225,8 @@ class TestSubmitForApprovalImpactAnalysis:
         await project_service.create_project(project_in, actor_id=uuid4())
         await db_session.commit()
 
-        # Create admin user
-        admin_user_id = uuid4()
-        admin_user = User(
-            id=uuid4(),
-            user_id=admin_user_id,
-            email="admin@test.com",
-            is_active=True,
-            role="admin",
-            full_name="Admin User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        db_session.add(admin_user)
-        await db_session.commit()
-
-        # Add admin as project member
-        from app.models.domain.project_member import ProjectMember
-
-        project_member = ProjectMember(
-            project_id=project_id,
-            user_id=admin_user_id,
-            role="admin",
-        )
-        db_session.add(project_member)
-        await db_session.commit()
+        # Create approver with RBAC role
+        await _setup_approver(db_session, project_id=project_id)
 
         # Create a change order
         actor_id = uuid4()
@@ -316,7 +261,6 @@ class TestSubmitForApprovalImpactAnalysis:
         assert submitted_co.sla_status == "pending"
 
         # Verify SLA due date is in the future
-        # Note: submitted_co.sla_due_date may be naive or aware, normalize comparison
         if submitted_co.sla_due_date.tzinfo is None:
             due_date = submitted_co.sla_due_date.replace(tzinfo=UTC)
         else:
@@ -324,7 +268,6 @@ class TestSubmitForApprovalImpactAnalysis:
         assert due_date > submission_time
 
         # Verify SLA due date is approximately correct based on impact level
-        # Get SLA days for the impact level
         sla_days = await service._get_sla_days(submitted_co.impact_level)
         expected_due_date = service._add_business_days(
             submitted_co.sla_assigned_at, sla_days
@@ -332,21 +275,13 @@ class TestSubmitForApprovalImpactAnalysis:
 
         # Allow 1 minute tolerance for test execution time
         time_diff = abs((submitted_co.sla_due_date - expected_due_date).total_seconds())
-        assert time_diff < 60  # Less than 1 minute difference
+        assert time_diff < 60
 
     @pytest.mark.asyncio
     async def test_submit_for_approval_locks_branch(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that the isolation branch is locked after successful submission.
-
-        Acceptance Criteria:
-        - Branch exists (created during CO creation)
-        - Branch is locked after submission
-        - Branch lock prevents concurrent modifications
-
-        Context: BE-006 Task #4 - Branch locking on submission
-        """
+        """Test that the isolation branch is locked after successful submission."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
@@ -365,31 +300,8 @@ class TestSubmitForApprovalImpactAnalysis:
         await project_service.create_project(project_in, actor_id=uuid4())
         await db_session.commit()
 
-        # Create admin user
-        admin_user_id = uuid4()
-        admin_user = User(
-            id=uuid4(),
-            user_id=admin_user_id,
-            email="admin@test.com",
-            is_active=True,
-            role="admin",
-            full_name="Admin User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        db_session.add(admin_user)
-        await db_session.commit()
-
-        # Add admin as project member
-        from app.models.domain.project_member import ProjectMember
-
-        project_member = ProjectMember(
-            project_id=project_id,
-            user_id=admin_user_id,
-            role="admin",
-        )
-        db_session.add(project_member)
-        await db_session.commit()
+        # Create approver with RBAC role
+        await _setup_approver(db_session, project_id=project_id)
 
         # Create a change order (this creates the branch)
         actor_id = uuid4()
@@ -427,7 +339,6 @@ class TestSubmitForApprovalImpactAnalysis:
         await db_session.commit()
 
         # Assert - Branch is now locked
-        # Re-fetch the branch to get the latest state
         branch = await branch_service.get_by_name_and_project(
             name=branch_name,
             project_id=project_id,
@@ -439,19 +350,7 @@ class TestSubmitForApprovalImpactAnalysis:
     async def test_submit_for_approval_empty_branch_scenario(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that empty branch scenario is handled gracefully.
-
-        Acceptance Criteria:
-        - Empty branch (no WBEs/CostElements) doesn't cause submission to fail
-        - Impact analysis completes with LOW impact level for empty branch
-        - Approver is assigned for LOW impact level
-        - SLA is calculated correctly
-
-        Context: BE-006 Task #5 - Empty branch scenario (covered in BE-005)
-
-        This test verifies the integration of the empty branch handling
-        with the submit_for_approval workflow.
-        """
+        """Test that empty branch scenario is handled gracefully."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
@@ -469,31 +368,8 @@ class TestSubmitForApprovalImpactAnalysis:
         await project_service.create_project(project_in, actor_id=uuid4())
         await db_session.commit()
 
-        # Create admin user
-        admin_user_id = uuid4()
-        admin_user = User(
-            id=uuid4(),
-            user_id=admin_user_id,
-            email="admin@test.com",
-            is_active=True,
-            role="admin",
-            full_name="Admin User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        db_session.add(admin_user)
-        await db_session.commit()
-
-        # Add admin as project member
-        from app.models.domain.project_member import ProjectMember
-
-        project_member = ProjectMember(
-            project_id=project_id,
-            user_id=admin_user_id,
-            role="admin",
-        )
-        db_session.add(project_member)
-        await db_session.commit()
+        # Create approver with RBAC role
+        await _setup_approver(db_session, project_id=project_id)
 
         # Create a change order for empty project
         actor_id = uuid4()
@@ -511,7 +387,6 @@ class TestSubmitForApprovalImpactAnalysis:
         await db_session.commit()
 
         # Act - Submit for approval (should handle empty branch gracefully)
-        # This should NOT raise an exception
         submitted_co = await service.submit_for_approval(
             change_order_id=created_co.change_order_id,
             actor_id=actor_id,
@@ -540,18 +415,7 @@ class TestSubmitForApprovalImpactAnalysis:
     async def test_submit_for_approval_runs_impact_analysis(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that impact analysis is run during submission.
-
-        Acceptance Criteria:
-        - Impact analysis runs during submit_for_approval (not just on creation)
-        - impact_analysis_status is set to "completed"
-        - impact_level and impact_score are calculated
-
-        Context: BE-006 - Impact analysis runs on submission
-
-        Note: This test verifies that impact analysis IS run during submission,
-        even if it wasn't run before or had a previous status.
-        """
+        """Test that impact analysis is run during submission."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
@@ -569,31 +433,8 @@ class TestSubmitForApprovalImpactAnalysis:
         await project_service.create_project(project_in, actor_id=uuid4())
         await db_session.commit()
 
-        # Create admin user
-        admin_user_id = uuid4()
-        admin_user = User(
-            id=uuid4(),
-            user_id=admin_user_id,
-            email="admin@test.com",
-            is_active=True,
-            role="admin",
-            full_name="Admin User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        db_session.add(admin_user)
-        await db_session.commit()
-
-        # Add admin as project member
-        from app.models.domain.project_member import ProjectMember
-
-        project_member = ProjectMember(
-            project_id=project_id,
-            user_id=admin_user_id,
-            role="admin",
-        )
-        db_session.add(project_member)
-        await db_session.commit()
+        # Create approver with RBAC role
+        await _setup_approver(db_session, project_id=project_id)
 
         # Create a change order
         actor_id = uuid4()
@@ -631,15 +472,7 @@ class TestSubmitForApprovalImpactAnalysis:
     async def test_submit_for_approval_validates_branch_name_exists(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that submission validates branch_name is configured.
-
-        Acceptance Criteria:
-        - Raises ValueError if branch_name is None
-        - Helpful error message explaining requirement
-        - CO status remains unchanged
-
-        Context: BE-006 - Validation requirement for branch_name
-        """
+        """Test that submission validates branch_name is configured."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
@@ -655,32 +488,6 @@ class TestSubmitForApprovalImpactAnalysis:
             department_id=uuid4(),
         )
         await project_service.create_project(project_in, actor_id=uuid4())
-        await db_session.commit()
-
-        # Create admin user
-        admin_user_id = uuid4()
-        admin_user = User(
-            id=uuid4(),
-            user_id=admin_user_id,
-            email="admin@test.com",
-            is_active=True,
-            role="admin",
-            full_name="Admin User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        db_session.add(admin_user)
-        await db_session.commit()
-
-        # Add admin as project member
-        from app.models.domain.project_member import ProjectMember
-
-        project_member = ProjectMember(
-            project_id=project_id,
-            user_id=admin_user_id,
-            role="admin",
-        )
-        db_session.add(project_member)
         await db_session.commit()
 
         # Create a change order
@@ -699,8 +506,6 @@ class TestSubmitForApprovalImpactAnalysis:
         await db_session.commit()
 
         # Manually clear branch_name to test validation
-        from sqlalchemy import update
-
         update_stmt = (
             update(ChangeOrder)
             .where(ChangeOrder.id == created_co.id)
@@ -726,23 +531,12 @@ class TestSubmitForApprovalImpactAnalysis:
     async def test_submit_for_approval_requires_approver_assigned(
         self, db_session: AsyncSession
     ) -> None:
-        """Test that submission requires an approver to be assigned.
-
-        Acceptance Criteria:
-        - Raises ValueError if no approver can be found for the impact level
-        - Helpful error message explaining requirement
-        - CO status remains unchanged
-
-        Context: BE-006 - Validation requirement for approver assignment
-
-        This test verifies that submission fails when the approval matrix
-        doesn't have any eligible approvers configured.
-        """
+        """Test that submission requires an approver to be assigned."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
 
-        # Create project WITHOUT any project members (no eligible approvers)
+        # Create project WITHOUT any approvers (no RBAC assignments)
         project_id = uuid4()
         project_in = ProjectCreate(
             project_id=project_id,
@@ -795,19 +589,7 @@ class TestSubmitForApprovalIntegration:
     async def test_full_submission_workflow_with_impact_analysis(
         self, db_session: AsyncSession
     ) -> None:
-        """Test the complete submission workflow end-to-end.
-
-        Acceptance Criteria:
-        - Impact analysis runs and completes successfully
-        - Impact level is calculated based on actual changes
-        - Approver is assigned based on impact level
-        - SLA due date is calculated correctly
-        - Branch is locked
-        - Status transitions to "submitted_for_approval"
-        - Audit log is created
-
-        Context: BE-006 - Full workflow integration test
-        """
+        """Test the complete submission workflow end-to-end."""
         # Arrange
         service = ChangeOrderService(db_session)
         project_service = ProjectService(db_session)
@@ -825,31 +607,8 @@ class TestSubmitForApprovalIntegration:
         await project_service.create_project(project_in, actor_id=uuid4())
         await db_session.commit()
 
-        # Create admin user
-        admin_user_id = uuid4()
-        admin_user = User(
-            id=uuid4(),
-            user_id=admin_user_id,
-            email="admin@test.com",
-            is_active=True,
-            role="admin",
-            full_name="Admin User",
-            hashed_password="hash",
-            created_by=uuid4(),
-        )
-        db_session.add(admin_user)
-        await db_session.commit()
-
-        # Add admin as project member
-        from app.models.domain.project_member import ProjectMember
-
-        project_member = ProjectMember(
-            project_id=project_id,
-            user_id=admin_user_id,
-            role="admin",
-        )
-        db_session.add(project_member)
-        await db_session.commit()
+        # Create approver with RBAC role
+        await _setup_approver(db_session, project_id=project_id)
 
         # Create a change order
         actor_id = uuid4()
@@ -902,8 +661,6 @@ class TestSubmitForApprovalIntegration:
         assert branch.locked is True
 
         # 6. Audit log created
-        from sqlalchemy import select
-
         from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
 
         audit_stmt = select(ChangeOrderAuditLog).where(

@@ -268,6 +268,7 @@ async def delete_assignment(
             user_id=assignment.user_id,
             scope_type=assignment.scope_type,
             scope_id=assignment.scope_id,
+            role_id=assignment.role_id,
         )
 
         if not deleted:

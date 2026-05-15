@@ -15,9 +15,14 @@ from httpx import AsyncClient
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.api.routes.search import get_global_search_service
 from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.user import User
 from app.models.schemas.search import GlobalSearchResponse, SearchResultItem
+from tests.conftest import MockUnifiedRBACService
 
 # ---------------------------------------------------------------------------
 # Mock user and RBAC for auth override
@@ -79,7 +84,11 @@ def override_auth() -> Generator[None, None, None]:
     app.dependency_overrides[get_current_user] = _mock_get_current_user
     app.dependency_overrides[get_current_active_user] = _mock_get_current_active_user
     app.dependency_overrides[get_rbac_service] = _mock_get_rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -99,7 +108,7 @@ def _make_mock_service_response(query: str = "test") -> GlobalSearchResponse:
                 code="TEST-001",
                 name="Test Project",
                 description=None,
-                status="Active",
+                status="active",
                 relevance_score=1.0,
                 project_id=uuid4(),
             ),

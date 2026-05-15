@@ -130,7 +130,7 @@ class TestWebSocketStreaming:
 
         # Create graph with mock LLM
         mock_llm.bind_tools.return_value = mock_llm_with_tools
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
 
         # Replace astream_events with mock
         graph.astream_events = mock_astream_events
@@ -183,7 +183,7 @@ class TestWebSocketStreaming:
         tools = [simple_tool]
 
         # Create graph
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
 
         # Mock astream_events to raise an error
         async def mock_astream_events_error(
@@ -233,7 +233,7 @@ class TestWebSocketStreaming:
         tools = [simple_tool]
 
         # Create graph
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
 
         # Mock astream_events with multiple tool calls
         async def mock_astream_events_multi(

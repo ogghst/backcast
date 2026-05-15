@@ -1,8 +1,8 @@
 """Unit tests for token usage monitoring and estimation."""
 
 import logging
+from typing import Any
 
-import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from app.ai.token_estimator import (
@@ -12,6 +12,62 @@ from app.ai.token_estimator import (
     log_actual_usage,
     log_context_usage_estimate,
 )
+
+_TARGET_LOGGER = "app.ai.token_estimator"
+
+
+class _LogCapture:
+    """Simple log capture that attaches directly to a named logger.
+
+    Avoids pytest caplog interference from Alembic migration logging setup
+    in session-scoped fixtures that may run before these tests.
+    """
+
+    def __init__(self, logger_name: str, level: int = logging.INFO) -> None:
+        self._logger = logging.getLogger(logger_name)
+        self._level = level
+        self._handler: logging.Handler | None = None
+        self.records: list[logging.LogRecord] = []
+        self._original_level: int = logging.NOTSET
+        self._original_propagate: bool = True
+        self._original_disabled: bool = False
+
+    def __enter__(self) -> "_LogCapture":
+        self._handler = _RecordHandler(self.records)
+        self._handler.setLevel(self._level)
+        self._original_level = self._logger.level
+        self._original_propagate = self._logger.propagate
+        self._original_disabled = self._logger.disabled
+        self._logger.addHandler(self._handler)
+        # Re-enable logger in case Alembic's fileConfig disabled it
+        self._logger.disabled = False
+        self._logger.propagate = True
+        # Ensure logger level allows the desired records through
+        if self._original_level > self._level or self._original_level == logging.NOTSET:
+            self._logger.setLevel(self._level)
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        if self._handler:
+            self._logger.removeHandler(self._handler)
+        self._logger.setLevel(self._original_level)
+        self._logger.propagate = self._original_propagate
+        self._logger.disabled = self._original_disabled
+
+    @property
+    def text(self) -> str:
+        return "\n".join(r.getMessage() for r in self.records)
+
+
+class _RecordHandler(logging.Handler):
+    """Handler that appends LogRecords to a list."""
+
+    def __init__(self, records: list[logging.LogRecord]) -> None:
+        super().__init__()
+        self._records = records
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._records.append(record)
 
 
 class TestEstimateInputTokens:
@@ -81,12 +137,10 @@ class TestGetContextWindowSize:
 class TestLogContextUsageEstimate:
     """Test suite for log_context_usage_estimate function."""
 
-    def test_log_contains_required_fields(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_log_contains_required_fields(self) -> None:
         """Log contains all required fields."""
         messages = [HumanMessage(content="a" * 400)]
-        with caplog.at_level(logging.INFO):
+        with _LogCapture(_TARGET_LOGGER) as capture:
             result = log_context_usage_estimate(
                 messages=messages,
                 model_name="gpt-4o",
@@ -95,20 +149,18 @@ class TestLogContextUsageEstimate:
             )
 
         assert result == 100  # Returns estimated tokens
-        assert "[CONTEXT_USAGE_ESTIMATE]" in caplog.text
-        assert "session_id=sess-123" in caplog.text
-        assert "execution_id=exec-456" in caplog.text
-        assert "model=gpt-4o" in caplog.text
-        assert "estimated_input_tokens=100" in caplog.text
-        assert "context_window_size=128000" in caplog.text
-        assert "usage_percentage=" in caplog.text
+        assert "[CONTEXT_USAGE_ESTIMATE]" in capture.text
+        assert "session_id=sess-123" in capture.text
+        assert "execution_id=exec-456" in capture.text
+        assert "model=gpt-4o" in capture.text
+        assert "estimated_input_tokens=100" in capture.text
+        assert "context_window_size=128000" in capture.text
+        assert "usage_percentage=" in capture.text
 
-    def test_log_format_matches_convention(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_log_format_matches_convention(self) -> None:
         """Log uses pipe-separated key=value format."""
         messages = [HumanMessage(content="test")]
-        with caplog.at_level(logging.INFO):
+        with _LogCapture(_TARGET_LOGGER) as capture:
             log_context_usage_estimate(
                 messages=messages,
                 model_name="gpt-4o",
@@ -116,12 +168,12 @@ class TestLogContextUsageEstimate:
                 execution_id="e1",
             )
 
-        assert " | " in caplog.text
+        assert " | " in capture.text
 
-    def test_log_unknown_model(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_log_unknown_model(self) -> None:
         """Unknown model logs context_window_size=unknown and usage_percentage=N/A."""
         messages = [HumanMessage(content="test")]
-        with caplog.at_level(logging.INFO):
+        with _LogCapture(_TARGET_LOGGER) as capture:
             log_context_usage_estimate(
                 messages=messages,
                 model_name="unknown-model",
@@ -129,8 +181,8 @@ class TestLogContextUsageEstimate:
                 execution_id="e1",
             )
 
-        assert "context_window_size=unknown" in caplog.text
-        assert "usage_percentage=N/A" in caplog.text
+        assert "context_window_size=unknown" in capture.text
+        assert "usage_percentage=N/A" in capture.text
 
 
 class TestAccumulateUsageFromEvent:
@@ -234,9 +286,7 @@ class TestAccumulateUsageFromEvent:
 class TestLogActualUsage:
     """Test suite for log_actual_usage function."""
 
-    def test_log_contains_required_fields(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_log_contains_required_fields(self) -> None:
         """Log contains all required fields."""
         acc = TokenUsageAccumulator()
         event_data: dict[str, object] = {
@@ -251,7 +301,7 @@ class TestLogActualUsage:
         }
         acc.accumulate_from_event(event_data)
 
-        with caplog.at_level(logging.INFO):
+        with _LogCapture(_TARGET_LOGGER) as capture:
             log_actual_usage(
                 accumulator=acc,
                 model_name="gpt-4o",
@@ -259,18 +309,18 @@ class TestLogActualUsage:
                 execution_id="exec-456",
             )
 
-        assert "[CONTEXT_USAGE_ACTUAL]" in caplog.text
-        assert "session_id=sess-123" in caplog.text
-        assert "execution_id=exec-456" in caplog.text
-        assert "model=gpt-4o" in caplog.text
-        assert "prompt_tokens=100" in caplog.text
-        assert "completion_tokens=50" in caplog.text
-        assert "total_tokens=150" in caplog.text
+        assert "[CONTEXT_USAGE_ACTUAL]" in capture.text
+        assert "session_id=sess-123" in capture.text
+        assert "execution_id=exec-456" in capture.text
+        assert "model=gpt-4o" in capture.text
+        assert "prompt_tokens=100" in capture.text
+        assert "completion_tokens=50" in capture.text
+        assert "total_tokens=150" in capture.text
 
-    def test_log_with_zero_usage(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_log_with_zero_usage(self) -> None:
         """Log works with zero usage (no API data captured)."""
         acc = TokenUsageAccumulator()
-        with caplog.at_level(logging.INFO):
+        with _LogCapture(_TARGET_LOGGER) as capture:
             log_actual_usage(
                 accumulator=acc,
                 model_name="gpt-4o",
@@ -278,10 +328,10 @@ class TestLogActualUsage:
                 execution_id="e1",
             )
 
-        assert "[CONTEXT_USAGE_ACTUAL]" in caplog.text
-        assert "prompt_tokens=0" in caplog.text
-        assert "completion_tokens=0" in caplog.text
-        assert "total_tokens=0" in caplog.text
+        assert "[CONTEXT_USAGE_ACTUAL]" in capture.text
+        assert "prompt_tokens=0" in capture.text
+        assert "completion_tokens=0" in capture.text
+        assert "total_tokens=0" in capture.text
 
 
 class TestTokenUsageAccumulator:

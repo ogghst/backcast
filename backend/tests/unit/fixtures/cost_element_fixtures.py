@@ -53,7 +53,7 @@ async def sample_project(db_session: AsyncSession) -> Project:
         name="Test Project",
         code="TEST-PRJ",
         budget=Decimal("1000.00"),
-        status="Active",
+        status="active",
         created_by=uuid4(),
     )
     db_session.add(project)

@@ -32,10 +32,8 @@ export const UserModal = ({
   const isEdit = !!initialValues;
 
   // Tracks user's explicit role selection. `destroyOnHidden` remounts the component,
-  // so this resets to undefined each time the modal opens.
-  const [selectedRoleId, setSelectedRoleId] = useState<string | undefined>(
-    undefined,
-  );
+  // so this resets to [] each time the modal opens.
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
 
   // RBAC roles for the dropdown
   const { data: rbacRoles } = useRBACRoles();
@@ -65,7 +63,8 @@ export const UserModal = ({
       : undefined;
 
   // Effective role: user's selection takes priority, fall back to initial from data
-  const effectiveRoleId = selectedRoleId ?? initialRoleId;
+  // For edit mode with single/no assignment, this resolves to a single role ID
+  const effectiveRoleId = selectedRoleIds.length > 0 ? selectedRoleIds[0] : initialRoleId;
 
   // Reset form when modal opens
   useEffect(() => {
@@ -113,21 +112,25 @@ export const UserModal = ({
           }
         }
         // Note: removing the last assignment is allowed (effectiveRoleId === undefined)
-      } else if (result && effectiveRoleId) {
+      } else if (result && selectedRoleIds.length > 0) {
         // --- Create mode ---
-        // After user creation, create GLOBAL assignment
-        try {
-          await createAssignment.mutateAsync({
-            user_id: result.user_id || result.id,
-            role_id: effectiveRoleId,
-            scope_type: "global",
-            scope_id: null,
-          });
-        } catch {
-          // User is already created — show warning but don't fail the whole operation
-          message.warning(
-            "User created but role assignment failed. You can assign the role later.",
-          );
+        // After user creation, create one GLOBAL assignment per selected role
+        const userId = result.user_id || result.id;
+        for (const roleId of selectedRoleIds) {
+          try {
+            await createAssignment.mutateAsync({
+              user_id: userId,
+              role_id: roleId,
+              scope_type: "global",
+              scope_id: null,
+            });
+          } catch {
+            // User is already created — show warning but don't fail the whole operation
+            message.warning(
+              "User created but some role assignments failed. You can assign roles later.",
+            );
+            break;
+          }
         }
       }
     } catch (error) {
@@ -141,6 +144,7 @@ export const UserModal = ({
     initialValues,
     globalAssignments,
     effectiveRoleId,
+    selectedRoleIds,
     createAssignment,
     updateAssignment,
     message,
@@ -149,7 +153,8 @@ export const UserModal = ({
   const handleRemoveAssignment = useCallback(
     (assignmentId: string) => {
       deleteAssignment.mutate(assignmentId);
-      setSelectedRoleId(undefined);
+      // Reset local selection if the removed assignment's role was selected
+      setSelectedRoleIds([]);
     },
     [deleteAssignment],
   );
@@ -172,7 +177,7 @@ export const UserModal = ({
           <Select
             placeholder="Select a role"
             value={effectiveRoleId}
-            onChange={(value) => setSelectedRoleId(value)}
+            onChange={(value) => setSelectedRoleIds(value ? [value] : [])}
             options={roleOptions}
             allowClear
             aria-label="Global Role"
@@ -242,14 +247,15 @@ export const UserModal = ({
         )}
 
         {isEdit ? renderEditRoleField() : (
-          <Form.Item label="Global Role" required data-testid="global-role-field">
+          <Form.Item label="Global Roles" required data-testid="global-role-field">
             <Select
-              placeholder="Select a role"
-              value={effectiveRoleId}
-              onChange={(value) => setSelectedRoleId(value)}
+              mode="multiple"
+              placeholder="Select one or more roles"
+              value={selectedRoleIds}
+              onChange={setSelectedRoleIds}
               options={roleOptions}
               allowClear
-              aria-label="Global Role"
+              aria-label="Global Roles"
             />
           </Form.Item>
         )}

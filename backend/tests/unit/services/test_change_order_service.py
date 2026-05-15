@@ -317,6 +317,7 @@ class TestChangeOrderServiceGetCurrent:
             branch="main",
         )
         await db_session.commit()
+        db_session.expire_all()
 
         # Assert - get_as_of returns the updated version
         found = await service.get_as_of(co_id, as_of=None, branch="main")

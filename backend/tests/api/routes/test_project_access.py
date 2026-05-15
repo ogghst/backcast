@@ -14,10 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.enums import ProjectRole
 from app.core.rbac import get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.project import Project
 from app.models.domain.project_member import ProjectMember
 from app.models.domain.user import User
+from tests.conftest import MockUnifiedRBACService
 
 # =============================================================================
 # Auth Override Fixtures for Database Users
@@ -39,7 +44,11 @@ def override_as_admin(
     app.dependency_overrides[get_current_user] = lambda: admin_user
     app.dependency_overrides[get_current_active_user] = lambda: admin_user
     app.dependency_overrides[get_rbac_service] = lambda: rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -58,7 +67,11 @@ def override_as_viewer(
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[get_current_active_user] = lambda: test_user
     app.dependency_overrides[get_rbac_service] = lambda: rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -87,7 +100,7 @@ async def test_admin_can_access_all_projects_without_membership(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -97,7 +110,7 @@ async def test_admin_can_access_all_projects_without_membership(
         code="PROJ2",
         name="Project 2",
         budget=200000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -140,7 +153,7 @@ async def test_non_admin_without_membership_sees_no_projects(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -182,7 +195,7 @@ async def test_project_member_can_access_assigned_project(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -192,7 +205,7 @@ async def test_project_member_can_access_assigned_project(
         code="PROJ2",
         name="Project 2",
         budget=200000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -245,7 +258,7 @@ async def test_viewer_permission_read_only_access(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -295,7 +308,7 @@ async def test_editor_permission_write_access(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -345,7 +358,7 @@ async def test_admin_permission_full_access(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -393,7 +406,7 @@ async def test_project_role_checker_admin_bypass(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -433,7 +446,7 @@ async def test_project_role_checker_non_admin_requires_membership(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -471,7 +484,7 @@ async def test_list_project_members_as_project_admin(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -518,7 +531,7 @@ async def test_add_project_member_requires_project_admin(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -573,7 +586,7 @@ async def test_update_project_member_role_requires_project_admin(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -623,7 +636,7 @@ async def test_remove_project_member_requires_project_admin(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -714,7 +727,7 @@ async def test_multiple_project_memberships_respected(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -724,7 +737,7 @@ async def test_multiple_project_memberships_respected(
         code="PROJ2",
         name="Project 2",
         budget=200000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -734,7 +747,7 @@ async def test_multiple_project_memberships_respected(
         code="PROJ3",
         name="Project 3",
         budget=300000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
@@ -795,7 +808,7 @@ async def test_system_admin_role_overrides_project_role(
         code="PROJ1",
         name="Project 1",
         budget=100000.0,
-        status="Active",
+        status="active",
         branch="main",
         created_by=uuid4(),
     )
