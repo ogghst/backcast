@@ -15,6 +15,7 @@ from app.api.dependencies.auth import (
     get_current_active_user,
 )
 from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
+from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.project import Project
 from app.models.domain.user import User
@@ -45,9 +46,8 @@ async def read_projects(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     search: str | None = Query(None, description="Search term (code, name)"),
@@ -80,11 +80,7 @@ async def read_projects(
 
     Requires read permission. Non-admin users only see projects they are members of.
     """
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Calculate skip from page number
     skip = (page - 1) * per_page

@@ -95,7 +95,9 @@ async def list_projects(
 
         branch = context.branch_name or "main"
         branch_mode = (
-            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+            BranchMode.MERGED
+            if context.branch_mode == "merged"
+            else BranchMode.ISOLATED
         )
 
         # Auto-scope to project if project_id is set in context
@@ -210,7 +212,9 @@ async def get_project(
         # Use temporal parameters from context
         branch = context.branch_name or "main"
         branch_mode = (
-            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+            BranchMode.MERGED
+            if context.branch_mode == "merged"
+            else BranchMode.ISOLATED
         )
 
         # Use get_as_of to support temporal queries
@@ -298,7 +302,9 @@ async def global_search(
 
         branch = context.branch_name or "main"
         branch_mode = (
-            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+            BranchMode.MERGED
+            if context.branch_mode == "merged"
+            else BranchMode.ISOLATED
         )
 
         # Auto-scope to session project if available

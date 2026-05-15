@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
@@ -43,9 +44,8 @@ async def read_wbes(
         None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"
     ),
     branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     search: str | None = Query(None, description="Search term (code, name)"),
@@ -85,12 +85,8 @@ async def read_wbes(
 
     Requires read permission.
     """
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
     from app.models.schemas.wbe import WBEPublic
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Default to current time if as_of is not provided
     if as_of is None:
@@ -296,9 +292,8 @@ async def delete_wbe(
 async def read_wbe_breadcrumb(
     wbe_id: UUID,
     branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     as_of: datetime | None = Query(
@@ -308,10 +303,6 @@ async def read_wbe_breadcrumb(
     service: WBEService = Depends(get_wbe_service),
 ) -> dict[str, Any]:
     """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
-    from app.core.versioning.enums import BranchMode
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Default to current time if as_of is not provided
     if as_of is None:

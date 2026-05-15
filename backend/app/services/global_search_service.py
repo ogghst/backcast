@@ -138,10 +138,10 @@ def _apply_branch_mode_filter(
 ) -> Any:
     """Apply branch mode filtering for branchable entities.
 
-    STRICT: only the specified branch.
-    MERGE: DISTINCT ON with branch precedence (current branch over main).
+    ISOLATED: only the specified branch.
+    MERGED: DISTINCT ON with branch precedence (current branch over main).
     """
-    if branch_mode == BranchMode.MERGE and branch != "main":
+    if branch_mode == BranchMode.MERGED and branch != "main":
         stmt = stmt.where(
             cast(Any, entity_class).branch.in_([branch, "main"]),
         )
@@ -306,7 +306,7 @@ class GlobalSearchService:
         project_id: UUID | None = None,
         wbe_id: UUID | None = None,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         as_of: datetime | None = None,
         limit: int = 50,
     ) -> GlobalSearchResponse:
@@ -318,7 +318,7 @@ class GlobalSearchService:
             project_id: Optional project root ID to scope results.
             wbe_id: Optional WBE root ID to scope results (includes descendants).
             branch: Branch name (default "main").
-            branch_mode: STRICT or MERGE for branchable entities.
+            branch_mode: ISOLATED or MERGED for branchable entities.
             as_of: Optional timestamp for time-travel queries.
             limit: Maximum results to return.
 

@@ -40,9 +40,8 @@ async def global_search(
         None, description="Scope results to a specific WBE and descendants"
     ),
     branch: str = Query("main", description="Branch name for branchable entities"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     as_of: datetime | None = Query(
@@ -58,7 +57,6 @@ async def global_search(
     Queries 12 entity types in parallel, applies RBAC project scoping,
     temporal/branch filters, and returns a flat relevance-ranked list.
     """
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     return await service.search(
         q,

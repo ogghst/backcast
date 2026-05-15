@@ -147,7 +147,7 @@ export function useEVMMetrics(
               query: {
                 control_date: controlDate || undefined,
                 branch,
-                branch_mode: tmMode === "merged" ? "merge" : "strict",
+                branch_mode: tmMode,
               },
             })
           : await __request(OpenAPI, {
@@ -160,7 +160,7 @@ export function useEVMMetrics(
               query: {
                 control_date: controlDate || undefined,
                 branch,
-                branch_mode: tmMode === "merged" ? "merge" : "strict",
+                branch_mode: tmMode,
               },
             });
 
@@ -232,7 +232,7 @@ export function useEVMTimeSeries(
             granularity,
             control_date: controlDate || undefined,
             branch,
-            branch_mode: tmMode === "merged" ? "merge" : "strict",
+            branch_mode: tmMode,
           },
         });
       }
@@ -249,7 +249,7 @@ export function useEVMTimeSeries(
           granularity,
           control_date: controlDate || undefined,
           branch,
-          branch_mode: tmMode === "merged" ? "merge" : "strict",
+          branch_mode: tmMode,
         },
       });
     },
@@ -311,7 +311,7 @@ export function useEVMMetricsBatch(
         query: {
           control_date: controlDate || undefined,
           branch,
-          branch_mode: tmMode === "merged" ? "merge" : "strict",
+          branch_mode: tmMode,
         },
         body: {
           entity_ids: entityIds || [],

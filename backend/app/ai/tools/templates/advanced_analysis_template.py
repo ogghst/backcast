@@ -94,9 +94,9 @@ async def assess_project_health(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         # Get WBE-level data for deeper analysis
@@ -439,9 +439,9 @@ async def detect_evm_anomalies(
             granularity=EVMTimeSeriesGranularity.WEEK,
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         if not timeseries.points:
@@ -715,9 +715,9 @@ async def analyze_forecast_trends(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         timeseries = await service.get_evm_timeseries(
@@ -726,9 +726,9 @@ async def analyze_forecast_trends(
             granularity=EVMTimeSeriesGranularity.WEEK,
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         if not timeseries.points:
@@ -1053,9 +1053,9 @@ async def generate_optimization_suggestions(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         # Get WBE data for granular analysis

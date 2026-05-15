@@ -171,16 +171,16 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         """Get user as it was at specific timestamp.
 
         Provides System Time Travel semantics for single-entity queries.
-        Uses STRICT mode by default (only searches in specified branch).
-        Use BranchMode.MERGE to fall back to main branch if not found.
+        Uses ISOLATED mode by default (only searches in specified branch).
+        Use BranchMode.MERGED to fall back to main branch if not found.
 
         Args:
             user_id: The unique identifier of the user
             as_of: Timestamp to query (historical state)
             branch: Branch name to query (default: "main")
             branch_mode: Resolution mode for branches
-                - None/STRICT: Only return from specified branch (default)
-                - MERGE: Fall back to main if not found on branch
+                - None/ISOLATED: Only return from specified branch (default)
+                - MERGED: Fall back to main if not found on branch
 
         Returns:
             User if found at the specified timestamp, None otherwise

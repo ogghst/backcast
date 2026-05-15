@@ -101,7 +101,9 @@ async def test_deep_agent_orchestrator_with_tool_filtering(model_string, tool_co
 
     # Create agent with tool filtering
     allowed_tools = ["list_projects", "get_project"]
-    agent = await orchestrator.create_agent(config=AgentConfig(allowed_tools=allowed_tools))
+    agent = await orchestrator.create_agent(
+        config=AgentConfig(allowed_tools=allowed_tools)
+    )
 
     assert agent is not None
 

@@ -304,9 +304,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         # Check if version exists in target branch
         # We need to manage the query manually to avoid TemporalService issues and handle branching
-        # Use STRICT mode to avoid falling back to parent branches
+        # Use ISOLATED mode to avoid falling back to parent branches
         current = await self.get_by_id(
-            cost_element_id, branch=target_branch, branch_mode=BranchMode.STRICT
+            cost_element_id, branch=target_branch, branch_mode=BranchMode.ISOLATED
         )
 
         if current:
@@ -502,7 +502,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         self,
         cost_element_id: UUID,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> CostElement | None:
         """Get cost element by root ID and branch with WBE name."""
         stmt = (
@@ -522,7 +522,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         if resolved:
             return resolved[0]
 
-        if branch_mode == BranchMode.MERGE and branch != "main":
+        if branch_mode == BranchMode.MERGED and branch != "main":
             stmt_main = (
                 self._get_base_stmt()
                 .where(
@@ -544,7 +544,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         self,
         filters: dict[str, Any] | None = None,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         skip: int = 0,
         limit: int = 100000,
         search: str | None = None,
@@ -558,9 +558,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         Args:
             filters: Legacy dict filters (for backward compatibility)
             branch: Branch name to filter by (default: "main")
-            branch_mode: Branch resolution mode (default: MERGE)
-                - MERGE: Combine current branch with main (current branch takes precedence)
-                - STRICT: Only return entities from current branch
+            branch_mode: Branch resolution mode (default: MERGED)
+                - MERGED: Combine current branch with main (current branch takes precedence)
+                - ISOLATED: Only return entities from current branch
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             search: Search term to match against code and name (case-insensitive)
@@ -592,7 +592,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         # Base query with WBE name and type joins
         stmt = self._get_base_stmt()
 
-        # Apply branch mode filter (STRICT vs MERGE)
+        # Apply branch mode filter （ISOLATED vs MERGE)
         stmt = self._apply_branch_mode_filter(
             stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
         )
@@ -679,12 +679,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         """Alias for get_cost_elements() to maintain backward compatibility.
 
         Note: Returns only items, not total count. Use get_cost_elements() for pagination.
-        Uses STRICT mode (only current branch) for backward compatibility.
+        Uses ISOLATED mode (only current branch) for backward compatibility.
         """
         items, _ = await self.get_cost_elements(
             filters=filters,
             branch=branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
             skip=skip,
             limit=limit,
         )
@@ -703,7 +703,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             entity_ids: List of root entity IDs (cost_element_id)
             as_of: Timestamp to query (None = current versions)
             branch: Branch name (default: main)
-            branch_mode: Resolution mode for branches (STRICT or MERGE)
+            branch_mode: Resolution mode for branches （ISOLATED or MERGE)
 
         Returns:
             Dictionary mapping cost_element_id to CostElement (only found entities)
@@ -712,7 +712,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             return {}
 
         if branch_mode is None:
-            branch_mode = BranchMode.STRICT
+            branch_mode = BranchMode.ISOLATED
 
         stmt = (
             select(CostElement)
@@ -726,8 +726,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         else:
             stmt = stmt.where(func.upper(CostElement.valid_time).is_(None))
 
-        # Branch filtering with MERGE mode support
-        if branch_mode == BranchMode.MERGE and branch != "main":
+        # Branch filtering with MERGED mode support
+        if branch_mode == BranchMode.MERGED and branch != "main":
             import asyncio
 
             branch_stmt = stmt.where(CostElement.branch == branch)
@@ -840,22 +840,22 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         cost_element_id: UUID,
         as_of: datetime,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> CostElement | None:
         """Get cost element as it was at specific timestamp.
 
         Provides System Time Travel semantics for single-entity queries.
         Includes parent_name and cost_element_type_name relations.
-        Uses STRICT mode by default (only searches in specified branch).
-        Use BranchMode.MERGE to fall back to main branch if not found.
+        Uses ISOLATED mode by default (only searches in specified branch).
+        Use BranchMode.MERGED to fall back to main branch if not found.
 
         Args:
             cost_element_id: The unique identifier of the cost element
             as_of: Timestamp to query (historical state)
             branch: Branch name to query (default: "main")
             branch_mode: Resolution mode for branches
-                - None/STRICT: Only return from specified branch (default)
-                - MERGE: Fall back to main if not found on branch
+                - None/ISOLATED: Only return from specified branch (default)
+                - MERGED: Fall back to main if not found on branch
 
         Returns:
             CostElement if found at the specified timestamp, None otherwise
@@ -922,8 +922,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
         # Build query with joins
-        # In MERGE mode, try current branch first, then fall back to main
-        # In STRICT mode, only try current branch
+        # In MERGED mode, try current branch first, then fall back to main
+        # In ISOLATED mode, only try current branch
         stmt = (
             select(
                 CostElement,
@@ -953,8 +953,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         if resolved:
             return resolved[0]
 
-        # If not found and in MERGE mode, try main branch as fallback
-        if branch_mode == BranchMode.MERGE and branch != "main":
+        # If not found and in MERGED mode, try main branch as fallback
+        if branch_mode == BranchMode.MERGED and branch != "main":
             stmt = (
                 select(
                     CostElement,

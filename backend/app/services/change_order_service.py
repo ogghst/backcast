@@ -305,16 +305,16 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             entity_id=change_order_id,
             as_of=control_date,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         if not current:
-            # Try without strict mode to see if it exists on any branch
+            # Try without isolated mode to see if it exists on any branch
             current = await self.get_as_of(
                 entity_id=change_order_id,
                 as_of=control_date,
                 branch=source_branch,
-                branch_mode=BranchMode.MERGE,
+                branch_mode=BranchMode.MERGED,
             )
 
         if not current:
@@ -345,7 +345,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             entity_id=change_order_id,
             as_of=control_date,
             branch=target_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         # Track if we auto-forked to avoid creating duplicate versions
@@ -358,7 +358,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 entity_id=change_order_id,
                 as_of=control_date,
                 branch="main",
-                branch_mode=BranchMode.STRICT,
+                branch_mode=BranchMode.ISOLATED,
             )
 
             if main_version is None:
@@ -928,6 +928,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 )
 
         # 4. Recalculate and update the Project's budget
+        # Refresh current CO entity — attributes expired after merge operations above
+        await self.session.refresh(current)
         # Sum all active cost elements on the target branch for this project
         from app.models.domain.cost_element import CostElement
         from app.models.domain.wbe import WBE
@@ -973,7 +975,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         project_id = current.project_id
 
         co_on_isolation = await self.get_as_of(
-            change_order_id, branch=source_branch, branch_mode=BranchMode.STRICT
+            change_order_id, branch=source_branch, branch_mode=BranchMode.ISOLATED
         )
         if co_on_isolation:
             await self.merge_branch(
@@ -998,6 +1000,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # 6. Update CO status to "Implemented" using Command (RSC compliance)
         from app.core.enums import ChangeOrderStatus as COStatus
 
+        # Refresh current CO — attributes expired after merge/unlock operations
+        await self.session.refresh(current)
         old_status = current.status
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,

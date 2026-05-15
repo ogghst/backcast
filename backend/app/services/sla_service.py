@@ -393,7 +393,7 @@ class SLAService:
             select(ChangeOrder)
             .where(
                 ChangeOrder.branch == "main",
-                ChangeOrder.status.in_(["Submitted for Approval", "Under Review"]),
+                ChangeOrder.status.in_(["submitted_for_approval", "under_review"]),
                 ChangeOrder.sla_assigned_at.isnot(None),
                 ChangeOrder.sla_due_date.isnot(None),
                 typing_cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
@@ -456,12 +456,12 @@ class SLAService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         if change_order.status not in [
-            "Submitted for Approval",
-            "Under Review",
+            "submitted_for_approval",
+            "under_review",
         ]:
             raise ValueError(
                 f"Cannot escalate change order in status '{change_order.status}'. "
-                "Only Submitted for Approval or Under Review can be escalated."
+                "Only submitted_for_approval or under_review can be escalated."
             )
 
         if change_order.sla_status == SLAStatus.ESCALATED:

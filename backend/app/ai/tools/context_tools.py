@@ -120,7 +120,9 @@ async def get_project_context(
 
         branch = context.branch_name or "main"
         branch_mode = (
-            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+            BranchMode.MERGED
+            if context.branch_mode == "merged"
+            else BranchMode.ISOLATED
         )
 
         project = await context.project_service.get_as_of(
@@ -141,9 +143,9 @@ async def get_project_context(
                 "error": "Project not found or access denied",
             }
 
-        # Get user's role in the project
+        # Get user's roles in the project
         user_uuid = UUID(context.user_id)
-        user_role = await unified_service.get_project_role(
+        user_roles = await unified_service.get_project_roles(
             user_id=user_uuid,
             project_id=project_uuid,
         )
@@ -152,7 +154,7 @@ async def get_project_context(
             "project_id": context.project_id,
             "project_name": project.name,
             "project_code": project.code,
-            "user_role": user_role,  # Will be None if not a member
+            "user_roles": user_roles,  # Empty list if not a member
             "scope": "project",
         }
 
@@ -292,7 +294,9 @@ async def get_project_structure(
         # Resolve temporal parameters
         branch = context.branch_name or "main"
         branch_mode = (
-            BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+            BranchMode.MERGED
+            if context.branch_mode == "merged"
+            else BranchMode.ISOLATED
         )
         project_uuid = UUID(context.project_id)
 

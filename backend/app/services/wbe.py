@@ -327,7 +327,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         skip: int = 0,
         limit: int = 100000,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         search: str | None = None,
         filters: str | None = None,
         sort_field: str | None = None,
@@ -343,7 +343,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             branch: Branch name to filter by (default: "main")
-            branch_mode: Branch mode - MERGE (composite with main) or STRICT (isolated)
+            branch_mode: Branch mode - MERGED (composite with main) or ISOLATED (isolated)
             search: Search term to match against code and name (case-insensitive)
             filters: Filter string in format "column:value;column:value1,value2"
                      Example: "level:1,2;code:1.1"
@@ -369,7 +369,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         # Start with base statement and join for parent names
         base_stmt = self._get_base_stmt(as_of=as_of)
 
-        # Apply branch mode filter (handles STRICT vs MERGE logic)
+        # Apply branch mode filter (handles ISOLATED vs MERGED logic)
         stmt = self._apply_branch_mode_filter(
             base_stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
         )
@@ -417,7 +417,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 stmt = stmt.where(and_(*filter_expressions))
 
         # Get total count (before pagination)
-        # For MERGE mode, count the distinct result
+        # For MERGED mode, count the distinct result
         count_from = stmt.subquery()
         count_stmt = select(func.count()).select_from(count_from)
         total_result = await self.session.execute(count_stmt)
@@ -473,7 +473,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         project_id: UUID | None = None,
         parent_wbe_id: UUID | None = None,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.STRICT,
+        branch_mode: BranchMode = BranchMode.ISOLATED,
         as_of: datetime | None = None,
     ) -> list[WBE]:
         """Get WBEs filtered by parent_wbe_id.
@@ -482,7 +482,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             project_id: Optional project filter
             parent_wbe_id: Parent WBE ID. None means root WBEs (parent_wbe_id IS NULL)
             branch: Branch name
-            branch_mode: Branch mode - MERGE (composite with main) or STRICT (isolated)
+            branch_mode: Branch mode - MERGED (composite with main) or ISOLATED (isolated)
             as_of: Optional timestamp for time-travel queries
 
         Returns:
@@ -493,7 +493,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         # Build base statement with parent name join
         stmt = self._get_base_stmt(as_of=as_of)
 
-        # Apply branch mode filter (handles STRICT vs MERGE logic)
+        # Apply branch mode filter (handles ISOLATED vs MERGED logic)
         stmt = self._apply_branch_mode_filter(
             stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
         )
@@ -879,7 +879,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         self,
         wbe_id: UUID,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         as_of: datetime | None = None,
     ) -> dict[str, Any]:
         """Get breadcrumb trail for a WBE including project and all ancestors.
@@ -890,7 +890,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         Args:
             wbe_id: Root WBE ID
             branch: Branch name (default: "main")
-            branch_mode: Branch resolution mode (default: MERGE - fall back to main
+            branch_mode: Branch resolution mode (default: MERGED - fall back to main
                 if not found on branch)
             as_of: Optional timestamp for time-travel queries
 
@@ -916,11 +916,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             raise ValueError(f"WBE with id {wbe_id} not found")
 
         # Get the project
-        # In MERGE mode, we want to find the project on current branch or main
-        # In STRICT mode, we only look on the current branch
+        # In MERGED mode, we want to find the project on current branch or main
+        # In ISOLATED mode, we only look on the current branch
         # We try two approaches:
-        # 1. First try to get project from current branch (or main in MERGE mode)
-        # 2. If not found and in MERGE mode, try main as fallback
+        # 1. First try to get project from current branch (or main in MERGED mode)
+        # 2. If not found and in MERGED mode, try main as fallback
 
         project = None
 
@@ -947,10 +947,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         project_result = await self.session.execute(project_stmt)
         project = project_result.scalar_one_or_none()
 
-        # Strategy 2: If not found on current branch and in MERGE mode, try main
+        # Strategy 2: If not found on current branch and in MERGED mode, try main
         if (
             not project
-            and branch_mode == BranchMode.MERGE
+            and branch_mode == BranchMode.MERGED
             and current_wbe.branch != "main"
         ):
             project_stmt = select(Project).where(
@@ -995,10 +995,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             time_filter = "AND upper(valid_time) IS NULL"
 
         # Build the branch filter based on mode
-        if branch_mode == BranchMode.MERGE and current_wbe.branch != "main":
-            # MERGE mode: look in both current branch and main
+        if branch_mode == BranchMode.MERGED and current_wbe.branch != "main":
+            # MERGED mode: look in both current branch and main
             # Use LATERAL JOIN with branch priority ordering
-            # For MERGE mode, we build a custom SELECT clause that references the LATERAL subquery
+            # For MERGED mode, we build a custom SELECT clause that references the LATERAL subquery
             recursive_sql = f"""
                 -- Recursive case: get parent WBEs using LATERAL
                 SELECT best_parent.id, best_parent.wbe_id, best_parent.code, best_parent.name, best_parent.parent_wbe_id, wa.depth + 1
@@ -1017,8 +1017,8 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 ) best_parent
             """
         else:
-            # STRICT mode or main branch: only look on current branch
-            # Regular JOIN for STRICT mode (no LATERAL needed)
+            # ISOLATED mode or main branch: only look on current branch
+            # Regular JOIN for ISOLATED mode (no LATERAL needed)
             recursive_sql = f"""
                 -- Recursive case: get parent WBEs using regular JOIN
                 SELECT w.id, w.wbe_id, w.code, w.name, w.parent_wbe_id, wa.depth + 1
@@ -1148,16 +1148,16 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get WBE as it was at specific timestamp.
 
         Provides System Time Travel semantics for single-entity queries.
-        Uses STRICT mode by default (only searches in specified branch).
-        Use BranchMode.MERGE to fall back to main branch if not found.
+        Uses ISOLATED mode by default (only searches in specified branch).
+        Use BranchMode.MERGED to fall back to main branch if not found.
 
         Args:
             wbe_id: The unique identifier of the WBE
             as_of: Timestamp to query (historical state)
             branch: Branch name to query (default: "main")
             branch_mode: Resolution mode for branches
-                - None/STRICT: Only return from specified branch (default)
-                - MERGE: Fall back to main if not found on branch
+                - None/ISOLATED: Only return from specified branch (default)
+                - MERGED: Fall back to main if not found on branch
 
         Returns:
             WBE if found at the specified timestamp, None otherwise

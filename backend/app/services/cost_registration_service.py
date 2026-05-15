@@ -84,7 +84,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         project_id: UUID,
         branch: str = "main",
         as_of: datetime | None = None,
-        branch_mode: str = "merge",
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> ProjectBudgetStatus:
         """Get project-level budget status (aggregated across all cost elements).
 
@@ -96,7 +96,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             project_id: The project to get status for
             branch: Branch context for queries (defaults to "main")
             as_of: Optional timestamp for time-travel query on cost registrations
-            branch_mode: "merge" (fallback to main) or "isolated" (current branch only)
+            branch_mode: Branch resolution mode
 
         Returns:
             ProjectBudgetStatus with project_budget, total_spend, remaining, percentage
@@ -199,7 +199,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         wbe_id: UUID,
         branch: str = "main",
         as_of: datetime | None = None,
-        branch_mode: str = "merge",
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> WBEBudgetStatus:
         """Get WBE-level budget status (aggregated across WBE hierarchy).
 
@@ -210,7 +210,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             wbe_id: The WBE to get status for
             branch: Branch context (defaults to "main")
             as_of: Optional timestamp for time-travel query on cost registrations
-            branch_mode: "merge" (fallback to main) or "isolated" (current branch only)
+            branch_mode: Branch resolution mode
 
         Returns:
             WBEBudgetStatus with budget, total_spend, remaining, percentage

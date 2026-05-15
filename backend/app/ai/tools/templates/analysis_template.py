@@ -114,9 +114,9 @@ async def calculate_evm_metrics(
             entity_ids=[UUID(project_id)],
             control_date=as_of,
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         # Convert to AI-friendly format and add temporal metadata
@@ -206,9 +206,9 @@ async def get_evm_performance_summary(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         # Determine performance status
@@ -292,9 +292,9 @@ async def analyze_cost_variance(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         bac = float(evm_data.bac)
@@ -367,9 +367,9 @@ async def analyze_schedule_variance(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         sv = float(evm_data.sv)
@@ -451,9 +451,9 @@ async def generate_project_forecast(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         # Convert to AI-friendly format
@@ -526,9 +526,9 @@ async def compare_forecast_scenarios(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         scenarios = [
@@ -607,9 +607,9 @@ async def get_forecast_accuracy(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         # Simplified assessment
@@ -688,9 +688,9 @@ async def get_project_kpis(
             entity_ids=[UUID(project_id)],
             control_date=context.as_of or datetime.now(UTC),
             branch=context.branch_name or "main",
-            branch_mode=BranchMode.MERGE
+            branch_mode=BranchMode.MERGED
             if (context.branch_mode or "merged") == "merged"
-            else BranchMode.STRICT,
+            else BranchMode.ISOLATED,
         )
 
         # Calculate KPIs

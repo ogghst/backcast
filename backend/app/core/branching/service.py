@@ -416,28 +416,28 @@ class BranchableService[TBranchable: BranchableProtocol]:
         branch_mode: BranchMode,
         as_of: datetime | None = None,
     ) -> Any:
-        """Apply branch mode filtering (STRICT vs MERGE) to a statement.
+        """Apply branch mode filtering （ISOLATED vs MERGE) to a statement.
 
-        For STRICT mode: Filters to only the specified branch.
-        For MERGE mode: Uses DISTINCT ON to merge main branch with specified branch,
+        For ISOLATED mode: Filters to only the specified branch.
+        For MERGED mode: Uses DISTINCT ON to merge main branch with specified branch,
         with branch taking precedence over main for entities that exist in both.
 
         Args:
             stmt: SQLAlchemy statement to filter
             branch: Current branch name
-            branch_mode: STRICT (isolated) or MERGE (composite)
+            branch_mode: ISOLATED (isolated) or MERGED (composite)
             as_of: Optional timestamp for time-travel queries
 
         Returns:
-            Filtered statement with DISTINCT ON applied for MERGE mode
+            Filtered statement with DISTINCT ON applied for MERGED mode
         """
         from typing import Any, cast
 
         # Get root field name (e.g., "wbe_id", "project_id", "cost_element_id")
         root_field = self._get_root_field_name()
 
-        if branch_mode == BranchMode.MERGE and branch != "main":
-            # MERGE MODE: Use DISTINCT ON with branch precedence
+        if branch_mode == BranchMode.MERGED and branch != "main":
+            # MERGED MODE: Use DISTINCT ON with branch precedence
             # Filter to include both current branch AND main
             stmt = stmt.where(cast(Any, self.entity_class).branch.in_([branch, "main"]))
 
@@ -479,7 +479,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
             return stmt
         else:
-            # STRICT MODE: Only query the specified branch (current behavior)
+            # ISOLATED MODE: Only query the specified branch (current behavior)
             return stmt.where(cast(Any, self.entity_class).branch == branch)
 
     async def get_as_of(
@@ -501,7 +501,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
             entity_id: Root entity ID
             as_of: Timestamp to query, or None for current version
             branch: Branch name (default: main)
-            branch_mode: Resolution mode (STRICT=only branch, MERGE=fallback to main)
+            branch_mode: Resolution mode （ISOLATED=only branch, MERGE=fallback to main)
         """
         # Helper to get root field name
         root_field = self._get_root_field_name()
@@ -549,8 +549,8 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 ]
             )
 
-        # STRICT mode or already on main: exact branch match
-        if branch_mode == BranchMode.STRICT or branch == "main":
+        # ISOLATED mode or already on main: exact branch match
+        if branch_mode == BranchMode.ISOLATED or branch == "main":
             stmt = (
                 select(self.entity_class)
                 .where(
@@ -562,7 +562,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
             result = await self.session.execute(stmt)
             return result.scalar_one_or_none()
 
-        # MERGE mode: Check requested branch first, then check if deleted before falling back
+        # MERGED mode: Check requested branch first, then check if deleted before falling back
         # First, try to get from requested branch
         stmt_branch = (
             select(self.entity_class)
@@ -872,7 +872,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 entity_id=root_id,
                 as_of=as_of,
                 branch=branch_a,
-                branch_mode=BranchMode.STRICT,
+                branch_mode=BranchMode.ISOLATED,
             )
         else:
             version_a = await self.get_as_of(entity_id=root_id, branch=branch_a)
@@ -883,7 +883,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 entity_id=root_id,
                 as_of=as_of,
                 branch=branch_b,
-                branch_mode=BranchMode.STRICT,
+                branch_mode=BranchMode.ISOLATED,
             )
         else:
             version_b = await self.get_as_of(entity_id=root_id, branch=branch_b)

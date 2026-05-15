@@ -117,7 +117,7 @@ class ImpactAnalysisService:
         self,
         change_order_id: UUID,
         branch_name: str,
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         timeout_seconds: int = 300,
         include_evm_metrics: bool = True,
         as_of: datetime | None = None,
@@ -128,8 +128,8 @@ class ImpactAnalysisService:
         and change order branch to show the delta impact or merged result.
 
         Branch Mode:
-        - MERGE mode: Shows merged result (main + change delta) - most intuitive for users
-        - STRICT mode: Shows isolated comparison (delta only) - for detailed analysis
+        - MERGED mode: Shows merged result (main + change delta) - most intuitive for users
+        - ISOLATED mode: Shows isolated comparison (delta only) - for detailed analysis
 
         Time Machine (as_of):
         - When as_of is provided, filters all temporal data to include only entities
@@ -146,7 +146,7 @@ class ImpactAnalysisService:
         Args:
             change_order_id: UUID of the change order
             branch_name: Name of the change branch (e.g., "BR-CO-2026-001")
-            branch_mode: MERGE (default) shows merged result, STRICT shows isolated comparison
+            branch_mode: MERGED (default) shows merged result, STRICT shows isolated comparison
             timeout_seconds: Timeout in seconds (default: 300 = 5 minutes)
             include_evm_metrics: Whether to include expensive EVM metrics (CPI, SPI, etc.)
             as_of: Time travel timestamp (None = current, past = historical point)
@@ -239,7 +239,7 @@ class ImpactAnalysisService:
         Args:
             change_order_id: UUID of the change order
             branch_name: Name of the change branch (e.g., "BR-CO-2026-001")
-            branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
+            branch_mode: MERGED mode calculates merged values, ISOLATED mode calculates isolated values
             include_evm_metrics: Whether to include expensive EVM metrics
             as_of: Time travel timestamp (None = current, past = historical point)
 
@@ -462,7 +462,7 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     CostElement.branch
-                    == "main",  # STRICT: Only count costs against main branch CostElements
+                    == "main",  # ISOLATED: Only count costs against main branch CostElements
                     # Zombie protection for WBE
                     or_(
                         cast(Any, WBE).deleted_at.is_(None),
@@ -501,7 +501,7 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     CostElement.branch
-                    == "main",  # STRICT: Only count costs against main branch CostElements
+                    == "main",  # ISOLATED: Only count costs against main branch CostElements
                     func.upper(cast(Any, WBE).valid_time).is_(None),
                     cast(Any, WBE).deleted_at.is_(None),
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
@@ -608,7 +608,7 @@ class ImpactAnalysisService:
         change_actual_costs: Decimal,
         main_revenue_total: Decimal,
         change_revenue_total: Decimal,
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> KPIScorecard:
         """Compare KPIs between main and change branch.
 
@@ -623,7 +623,7 @@ class ImpactAnalysisService:
             change_actual_costs: Actual costs (AC) in change branch
             main_revenue_total: Total revenue in main branch
             change_revenue_total: Total revenue in change branch
-            branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
+            branch_mode: MERGED mode calculates merged values, ISOLATED mode calculates isolated values
 
         Returns:
             KPIScorecard with all comparisons
@@ -640,9 +640,9 @@ class ImpactAnalysisService:
             else:
                 delta_percent = float(delta / main * 100)
 
-            # Calculate merged value when in MERGE mode
+            # Calculate merged value when in MERGED mode
             merged_value = None
-            if branch_mode == BranchMode.MERGE:
+            if branch_mode == BranchMode.MERGED:
                 # If change branch is empty (0), it means "no changes", not "delete everything"
                 # In this case, merged value should equal main value
                 if change == 0 and main > 0:
@@ -671,7 +671,7 @@ class ImpactAnalysisService:
     ) -> EntityChanges:
         """Compare entities between main and merged (main + branch) view.
 
-        Uses MERGE mode semantics per temporal-query-reference.md:
+        Uses MERGED mode semantics per temporal-query-reference.md:
         - Main branch: All entities on "main"
         - Merged view: Branch entities override main entities with same ID,
           main entities without branch override remain as-is
@@ -715,7 +715,7 @@ class ImpactAnalysisService:
         branch_wbes_result = await self._db.execute(branch_wbes_stmt)
         branch_wbes = list(branch_wbes_result.scalars().all())
 
-        # MERGE MODE: Build merged WBE view (branch overrides main)
+        # MERGED MODE: Build merged WBE view (branch overrides main)
         main_wbe_map = {wbe.wbe_id: wbe for wbe in main_wbes}
         branch_wbe_map = {wbe.wbe_id: wbe for wbe in branch_wbes}
 
@@ -766,7 +766,7 @@ class ImpactAnalysisService:
         branch_ce_result = await self._db.execute(branch_ce_stmt)
         branch_cost_elements = list(branch_ce_result.scalars().all())
 
-        # MERGE MODE: Build merged CostElement view (branch overrides main)
+        # MERGED MODE: Build merged CostElement view (branch overrides main)
         main_ce_map = {ce.cost_element_id: ce for ce in main_cost_elements}
         branch_ce_map = {ce.cost_element_id: ce for ce in branch_cost_elements}
 
@@ -815,7 +815,7 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     CostElement.branch
-                    == "main",  # STRICT: Only match main branch CostElements
+                    == "main",  # ISOLATED: Only match main branch CostElements
                     # Zombie protection for WBE
                     or_(
                         cast(Any, WBE).deleted_at.is_(None),
@@ -855,7 +855,7 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     CostElement.branch
-                    == "main",  # STRICT: Only match main branch CostElements
+                    == "main",  # ISOLATED: Only match main branch CostElements
                     func.upper(cast(Any, WBE).valid_time).is_(None),
                     cast(Any, WBE).deleted_at.is_(None),
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
@@ -934,7 +934,7 @@ class ImpactAnalysisService:
         branch_cr_result = await self._db.execute(branch_cr_stmt)
         branch_cost_registrations = list(branch_cr_result.scalars().all())
 
-        # MERGE MODE: Build merged CostRegistration view
+        # MERGED MODE: Build merged CostRegistration view
         # Note: CostRegistration is NOT branchable - it's linked to CostElements
         # We merge by looking at which CostElements are in the merged view
         merged_ce_ids = {ce.cost_element_id for ce in merged_cost_elements}
@@ -949,7 +949,7 @@ class ImpactAnalysisService:
 
         merged_cost_registrations: list[CostRegistration] = []
         # CRITICAL: Only include registrations linked to CostElements in the merged view
-        # This reflects MERGE mode semantics for actual costs
+        # This reflects MERGED mode semantics for actual costs
         for _cr_id, _main_cr in main_cr_map.items():
             if _main_cr.cost_element_id in merged_ce_ids:
                 if _cr_id in branch_cr_map:
@@ -1313,7 +1313,7 @@ class ImpactAnalysisService:
         Context: Generates weekly cumulative values for Budget, Planned Value (PV),
         Earned Value (EV), and Actual Cost (AC) across the project duration.
         Used by the S-Curve Comparison tab in impact analysis to show full EVM
-        visibility with MERGE mode comparison between main and change branch.
+        visibility with MERGED mode comparison between main and change branch.
 
         Time Machine (as_of):
         - When as_of is provided, filters all temporal data (ProgressEntry, CostRegistration,
@@ -1684,7 +1684,7 @@ class ImpactAnalysisService:
             if s[0].start_date is not None and s[0].end_date is not None
         ]
 
-        # Build WBE ID sets for MERGE mode logic
+        # Build WBE ID sets for MERGED mode logic
         main_wbe_ids = {s[2].wbe_id for s in valid_main_schedules}
         change_wbe_ids = {s[2].wbe_id for s in valid_change_schedules}
         only_in_main = main_wbe_ids - change_wbe_ids
@@ -1799,7 +1799,7 @@ class ImpactAnalysisService:
                     pass
 
             # ------------------------------------------------------------
-            # MERGE mode: Add unchanged WBEs from main to change
+            # MERGED mode: Add unchanged WBEs from main to change
             # ------------------------------------------------------------
             for schedule, ce, wbe in valid_main_schedules:
                 if wbe.wbe_id in only_in_main:
@@ -2222,7 +2222,7 @@ class ImpactAnalysisService:
         self,
         project_id: UUID,
         branch_name: str,
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         as_of: datetime | None = None,
     ) -> dict[str, KPIMetric | None]:
         """Fetch and compare schedule baselines between main and change branches.
@@ -2230,7 +2230,7 @@ class ImpactAnalysisService:
         Args:
             project_id: UUID of the project
             branch_name: Name of the change branch
-            branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
+            branch_mode: MERGED mode calculates merged values, ISOLATED mode calculates isolated values
             as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
@@ -2446,9 +2446,9 @@ class ImpactAnalysisService:
             delta = change_ts - main_ts
             # Percent change for dates doesn't make sense, set to None
 
-            # Calculate merged value when in MERGE mode
+            # Calculate merged value when in MERGED mode
             merged_value = None
-            if branch_mode == BranchMode.MERGE:
+            if branch_mode == BranchMode.MERGED:
                 merged_value = main_ts + delta
 
             return KPIMetric(
@@ -2468,9 +2468,9 @@ class ImpactAnalysisService:
                 else None
             )
 
-            # Calculate merged value when in MERGE mode
+            # Calculate merged value when in MERGED mode
             merged_value = None
-            if branch_mode == BranchMode.MERGE:
+            if branch_mode == BranchMode.MERGED:
                 merged_value = Decimal(str(main_dur)) + delta
 
             return KPIMetric(
@@ -2493,7 +2493,7 @@ class ImpactAnalysisService:
         self,
         project_id: UUID,
         branch_name: str,
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         as_of: datetime | None = None,
     ) -> dict[str, KPIMetric | None]:
         """Fetch and compare EVM metrics between main and change branches.
@@ -2501,7 +2501,7 @@ class ImpactAnalysisService:
         Args:
             project_id: UUID of the project
             branch_name: Name of the change branch
-            branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
+            branch_mode: MERGED mode calculates merged values, ISOLATED mode calculates isolated values
             as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
@@ -2516,7 +2516,7 @@ class ImpactAnalysisService:
                 entity_ids=[project_id],
                 control_date=control_date,
                 branch="main",
-                branch_mode=BranchMode.MERGE,
+                branch_mode=BranchMode.MERGED,
             )
 
             # Calculate EVM metrics for change branch
@@ -2525,7 +2525,7 @@ class ImpactAnalysisService:
                 entity_ids=[project_id],
                 control_date=control_date,
                 branch=branch_name,
-                branch_mode=BranchMode.MERGE,
+                branch_mode=BranchMode.MERGED,
             )
 
             # Extract metrics (convert to Decimal to ensure type safety)
@@ -2596,9 +2596,9 @@ class ImpactAnalysisService:
                 delta = change_val - main_val
                 delta_percent = float(delta / main_val * 100) if main_val != 0 else None
 
-                # Calculate merged value when in MERGE mode
+                # Calculate merged value when in MERGED mode
                 merged_value = None
-                if branch_mode == BranchMode.MERGE:
+                if branch_mode == BranchMode.MERGED:
                     # If change branch has no data (equals 0 when main > 0), it means "no changes"
                     # In this case, merged value should equal main value
                     if change_val == 0 and main_val > 0:
@@ -2635,7 +2635,7 @@ class ImpactAnalysisService:
     async def _compare_forecasts(
         self, project_id: UUID, branch_name: str, as_of: datetime | None = None
     ) -> ForecastChanges | None:
-        """Compare forecasts between main and change branches using MERGE mode.
+        """Compare forecasts between main and change branches using MERGED mode.
 
         Builds a merged forecast view where branch forecasts override main forecasts,
         then compares main vs merged to identify changes.
@@ -2740,7 +2740,7 @@ class ImpactAnalysisService:
         )
 
         # ========================================
-        # STEP 3: Build merged forecast view (MERGE MODE)
+        # STEP 3: Build merged forecast view (MERGED MODE)
         # ========================================
         # Key: Branch forecasts override main forecasts; main forecasts are inherited
         merged_forecasts: dict[UUID, Forecast] = {}

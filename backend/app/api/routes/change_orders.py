@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.core.versioning.enums import BranchMode
 
 if TYPE_CHECKING:
     from app.services.approval_matrix_service import ApprovalMatrixService
@@ -122,9 +123,8 @@ async def read_change_orders(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     search: str | None = Query(None, description="Search term (code, title)"),
@@ -152,13 +152,10 @@ async def read_change_orders(
 
     Requires read permission.
     """
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
 
-    # Parse mode string to BranchMode enum
     # Note: branch_mode is parsed but not currently used by get_change_orders service
-    # This is reserved for future implementation of MERGE/STRICT mode filtering
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT  # noqa: F841
+    # This is reserved for future implementation of MERGED/ISOLATED mode filtering
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -290,9 +287,8 @@ async def get_pending_approvals(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     current_user: User = Depends(get_current_active_user),
@@ -309,11 +305,7 @@ async def get_pending_approvals(
 
     Requires read permission.
     """
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -671,9 +663,8 @@ async def get_change_order_impact(
     branch_name: str = Query(
         ..., description="Branch name to compare (e.g., 'BR-CO-2026-001')"
     ),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Comparison mode: merged (main+change) or isolated (change only)",
     ),
     as_of: datetime | None = Query(
@@ -699,10 +690,6 @@ async def get_change_order_impact(
 
     Requires read permission.
     """
-    from app.core.versioning.enums import BranchMode
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     try:
         impact_analysis = await service.analyze_impact(

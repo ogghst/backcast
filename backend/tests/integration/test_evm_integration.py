@@ -25,9 +25,14 @@ from app.api.dependencies.auth import (
     get_current_user,
 )
 from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.user import User
 from app.models.schemas.evm import EntityType
+from tests.conftest import MockUnifiedRBACService
 
 # =============================================================================
 # MOCK AUTHENTICATION
@@ -93,7 +98,11 @@ def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
     app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -582,7 +591,7 @@ class TestCostElementEntityEVM:
             f"/api/v1/evm/cost_element/{cost_element_id}/metrics",
             params={
                 "branch": "main",
-                "branch_mode": "strict",
+                "branch_mode": "isolated",
             },
         )
 
@@ -612,7 +621,7 @@ class TestCostElementEntityEVM:
             f"/api/v1/evm/cost_element/{cost_element_id}/metrics",
             params={
                 "branch": "main",
-                "branch_mode": "merge",
+                "branch_mode": "merged",
             },
         )
 
@@ -1511,7 +1520,7 @@ class TestEVMBranching:
             f"/api/v1/evm/wbe/{wbe_id}/metrics",
             params={
                 "branch": "main",
-                "branch_mode": "strict",
+                "branch_mode": "isolated",
             },
         )
 
@@ -1546,7 +1555,7 @@ class TestEVMBranching:
             f"/api/v1/evm/wbe/{wbe_id}/metrics",
             params={
                 "branch": "main",
-                "branch_mode": "merge",
+                "branch_mode": "merged",
             },
         )
 
@@ -1578,7 +1587,7 @@ class TestEVMBranching:
                 "entity_type": EntityType.WBE,
                 "entity_ids": [str(wbe_id)],
                 "branch": "main",
-                "branch_mode": "merge",
+                "branch_mode": "merged",
             },
         )
 

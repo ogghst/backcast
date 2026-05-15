@@ -245,7 +245,7 @@ class TestSummaryGeneration:
             cost_element_id=uuid4(),
             control_date=datetime.now(),
             branch="main",
-            branch_mode="strict",
+            branch_mode="isolated",
             progress_percentage=48.0,
         )
 
@@ -378,7 +378,7 @@ class TestStructuredOutputAttachment:
             cost_element_id=uuid4(),
             control_date=datetime.now(),
             branch="main",
-            branch_mode="strict",
+            branch_mode="isolated",
         )
 
         # Create a mock message that behaves like what with_structured_output returns
@@ -532,7 +532,7 @@ class TestAsyncPath:
             cost_element_id=uuid4(),
             control_date=datetime.now(),
             branch="main",
-            branch_mode="strict",
+            branch_mode="isolated",
         )
 
         # Create a mock message that behaves like what with_structured_output returns

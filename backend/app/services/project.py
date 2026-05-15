@@ -160,7 +160,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         skip: int = 0,
         limit: int = 100000,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         search: str | None = None,
         filters: str | None = None,
         sort_field: str | None = None,
@@ -173,9 +173,9 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             branch: Branch name to filter by (default: "main")
-            branch_mode: Branch resolution mode (default: MERGE)
-                - MERGE: Combine current branch with main (current branch takes precedence)
-                - STRICT: Only return entities from current branch
+            branch_mode: Branch resolution mode (default: MERGED)
+                - MERGED: Combine current branch with main (current branch takes precedence)
+                - ISOLATED: Only return entities from current branch
             search: Search term to match against code and name (case-insensitive)
             filters: Filter string in format "column:value;column:value1,value2"
                      Example: "status:Active;code:PRJ"
@@ -226,7 +226,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             cast(Any, Project).created_by == creator_subq.c.user_id,
         )
 
-        # Apply branch mode filter (STRICT vs MERGE)
+        # Apply branch mode filter （ISOLATED vs MERGE)
         stmt = self._apply_branch_mode_filter(
             stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
         )
@@ -450,16 +450,16 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         """Get project as it was at specific timestamp.
 
         Provides System Time Travel semantics for single-entity queries.
-        Uses STRICT mode by default (only searches in specified branch).
-        Use BranchMode.MERGE to fall back to main branch if not found.
+        Uses ISOLATED mode by default (only searches in specified branch).
+        Use BranchMode.MERGED to fall back to main branch if not found.
 
         Args:
             project_id: The unique identifier of the project
             as_of: Timestamp to query (historical state)
             branch: Branch name to query (default: "main")
             branch_mode: Resolution mode for branches
-                - None/STRICT: Only return from specified branch (default)
-                - MERGE: Fall back to main if not found on branch
+                - None/ISOLATED: Only return from specified branch (default)
+                - MERGED: Fall back to main if not found on branch
 
         Returns:
             Project if found at the specified timestamp, None otherwise
@@ -653,6 +653,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         user_id: UUID | None = None,
         limit: int = 10,
         branch: str = "main",
+        eager_load_project: bool = False,
     ) -> list[Project]:
         """Get recently updated projects, optionally filtered by user.
 
