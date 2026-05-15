@@ -230,6 +230,7 @@
     },
     "change_order_approver": {
       "permissions": [
+        "user-read",
         "change-order-read",
         "change-order-approve",
         "change-order-submit",

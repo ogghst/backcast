@@ -49,7 +49,7 @@
     "email": "dept.head@backcast.org",
     "password": "backcast",
     "full_name": "Department Head",
-    "role": "dept_head",
+    "role": "manager",
     "department": "ENG",
     "control_date": "2026-01-01T00:00:00"
   },
@@ -58,7 +58,7 @@
     "email": "director@backcast.org",
     "password": "backcast",
     "full_name": "Director",
-    "role": "director",
+    "role": "change_order_approver",
     "department": "EXEC",
     "control_date": "2026-01-01T00:00:00"
   }
