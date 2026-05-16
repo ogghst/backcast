@@ -240,7 +240,14 @@ export const AssignmentModal = ({
             label="Role"
             rules={[{ required: true, message: "Please select a role" }]}
           >
-            <Select placeholder="Select a role" optionFilterProp="label">
+            <Select
+              placeholder="Select a role"
+              showSearch
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
               {(roles ?? []).map((r) => (
                 <Select.Option key={r.id} value={r.id} label={r.name}>
                   {r.name}
