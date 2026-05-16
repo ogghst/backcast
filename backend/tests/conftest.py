@@ -345,7 +345,21 @@ class MockUnifiedRBACService:
         return ["admin"]  # Default admin in tests
 
     async def get_accessible_projects(self, user_id: UUID) -> list[UUID]:
-        return []  # Will be overridden by tests that need specific projects
+        """Return all project IDs from DB to match admin role behavior.
+
+        The mock returns ['admin'] from get_user_roles, so admin users
+        should see all projects. Queries the database when a session is available.
+        """
+        from app.core.rbac_unified import get_unified_rbac_session
+        from app.models.domain.project import Project
+
+        session = get_unified_rbac_session()
+        if session is None:
+            return []
+        from sqlalchemy import select
+
+        result = await session.execute(select(Project.project_id))
+        return [row[0] for row in result.all()]
 
     async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
         return "project_admin"

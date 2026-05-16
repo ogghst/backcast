@@ -62,6 +62,21 @@ class DashboardService:
         self.cost_element_service = CostElementService(session)
         self.change_order_service = ChangeOrderService(session)
 
+    async def _get_accessible_project_ids(self, user_id: UUID) -> set[UUID]:
+        """Get the set of project IDs the user has RBAC access to.
+
+        Args:
+            user_id: User ID to check access for
+
+        Returns:
+            Set of accessible project IDs (all project IDs for global roles)
+        """
+        from app.core.rbac_unified import get_unified_rbac_service
+
+        unified_service = get_unified_rbac_service()
+        accessible = await unified_service.get_accessible_projects(user_id)
+        return set(accessible)
+
     async def get_dashboard_data(
         self,
         user_id: UUID,
@@ -70,24 +85,30 @@ class DashboardService:
         """Get complete dashboard data for a user.
 
         Args:
-            user_id: User ID to get data for (not currently used, for future filtering)
+            user_id: User ID to get data for, used for RBAC filtering
             activity_limit: Maximum number of activities per entity type
 
         Returns:
-            DashboardData with last edited project and recent activity
+            DashboardData with last edited project and recent activity,
+            filtered by the user's RBAC-accessible projects
         """
-        # Note: user_id validation skipped for now since auth is handled at API layer
-        # In the future, this could be used to filter dashboard data by user permissions
-
         try:
+            # Resolve RBAC-accessible project IDs once, then filter all entities
+            accessible_ids = await self._get_accessible_project_ids(user_id)
+
             # Get recent activity for all entities with eager loading to avoid N+1 queries
             recent_projects: list[
                 Project
             ] = await self.project_service.get_recently_updated(
-                user_id=None,  # Get all projects, not just user's
+                user_id=None,
                 limit=activity_limit,
                 branch="main",
             )
+
+            # Filter projects by user's RBAC access
+            recent_projects = [
+                p for p in recent_projects if p.project_id in accessible_ids
+            ]
 
             recent_wbes: list[WBE] = await self.wbe_service.get_recently_updated(
                 user_id=None,
@@ -95,6 +116,11 @@ class DashboardService:
                 branch="main",
                 eager_load_project=True,  # Eager load project to avoid N+1 queries
             )
+
+            # Filter WBEs by user's RBAC access
+            recent_wbes = [
+                w for w in recent_wbes if w.project_id in accessible_ids
+            ]
 
             recent_cost_elements: list[
                 CostElement
@@ -105,6 +131,15 @@ class DashboardService:
                 eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
             )
 
+            # Filter Cost Elements by user's RBAC access (via loaded WBE's project_id)
+            recent_cost_elements = [
+                ce
+                for ce in (recent_cost_elements or [])
+                if hasattr(ce, "wbe")
+                and ce.wbe
+                and ce.wbe.project_id in accessible_ids
+            ]
+
             recent_change_orders: list[
                 ChangeOrder
             ] = await self.change_order_service.get_recently_updated(
@@ -114,16 +149,23 @@ class DashboardService:
                 eager_load_project=True,  # Eager load project to avoid N+1 queries
             )
 
+            # Filter Change Orders by user's RBAC access
+            recent_change_orders = [
+                co
+                for co in (recent_change_orders or [])
+                if co.project_id in accessible_ids
+            ]
+
             # Convert to dashboard activities
             project_activities = [self._project_to_activity(p) for p in recent_projects]
             wbe_activities = [await self._wbe_to_activity(w) for w in recent_wbes]
             cost_element_activities = [
                 await self._cost_element_to_activity(ce)
-                for ce in recent_cost_elements or []
+                for ce in recent_cost_elements
             ]
             change_order_activities = [
                 await self._change_order_to_activity(co)
-                for co in recent_change_orders or []
+                for co in recent_change_orders
             ]
 
             # Get last edited project with metrics

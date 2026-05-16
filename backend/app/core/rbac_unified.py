@@ -479,9 +479,9 @@ class UnifiedRBACService:
         """
         from app.models.domain.project import Project
 
-        # Admins can access all projects
+        # Users with any global role can access all projects
         global_roles = await self.get_user_roles(user_id, ScopeType.GLOBAL, None)
-        if "admin" in global_roles:
+        if global_roles:
             session = get_unified_rbac_session()
             if session is None:
                 return []

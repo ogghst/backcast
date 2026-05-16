@@ -11,9 +11,9 @@
     "name": "AI Test Project 2026",
     "contract_value": 550000.0,
     "description": "Comprehensive test project for AI tools - includes mechanical and electrical systems with realistic cost tracking",
-    "start_date": "2026-06-01T00:00:00",
+    "start_date": "2026-01-01T00:00:00",
     "end_date": "2026-12-31T23:59:59",
-    "control_date": "2026-06-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00"
   },
   "wbes": [
     {
@@ -24,7 +24,7 @@
       "description": "Level 1 WBE for all mechanical systems",
       "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
       "parent_wbe_id": null,
-      "control_date": "2026-06-01T00:00:00"
+      "control_date": "2026-01-01T00:00:00"
     },
     {
       "wbe_id": "10000000-0000-0000-0000-000000000002",
@@ -34,7 +34,7 @@
       "description": "Level 2 WBE for conveyor system",
       "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
       "parent_wbe_id": "10000000-0000-0000-0000-000000000001",
-      "control_date": "2026-06-01T00:00:00"
+      "control_date": "2026-01-01T00:00:00"
     },
     {
       "wbe_id": "10000000-0000-0000-0000-000000000003",
@@ -44,7 +44,7 @@
       "description": "Level 3 WBE for main conveyor installation",
       "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
       "parent_wbe_id": "10000000-0000-0000-0000-000000000002",
-      "control_date": "2026-06-01T00:00:00"
+      "control_date": "2026-01-01T00:00:00"
     },
     {
       "wbe_id": "10000000-0000-0000-0000-000000000004",
@@ -54,7 +54,7 @@
       "description": "Level 3 WBE for secondary conveyor installation",
       "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
       "parent_wbe_id": "10000000-0000-0000-0000-000000000002",
-      "control_date": "2026-06-01T00:00:00"
+      "control_date": "2026-01-01T00:00:00"
     },
     {
       "wbe_id": "10000000-0000-0000-0000-000000000005",
@@ -64,7 +64,7 @@
       "description": "Level 1 WBE for all electrical systems",
       "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
       "parent_wbe_id": null,
-      "control_date": "2026-06-01T00:00:00"
+      "control_date": "2026-01-01T00:00:00"
     },
     {
       "wbe_id": "10000000-0000-0000-0000-000000000006",
@@ -74,7 +74,7 @@
       "description": "Level 2 WBE for power distribution system",
       "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
       "parent_wbe_id": "10000000-0000-0000-0000-000000000005",
-      "control_date": "2026-06-01T00:00:00"
+      "control_date": "2026-01-01T00:00:00"
     },
     {
       "wbe_id": "10000000-0000-0000-0000-000000000007",
@@ -84,7 +84,7 @@
       "description": "Level 3 WBE for main electrical panel installation",
       "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
       "parent_wbe_id": "10000000-0000-0000-0000-000000000006",
-      "control_date": "2026-06-01T00:00:00"
+      "control_date": "2026-01-01T00:00:00"
     }
   ],
   "cost_elements": [
@@ -97,7 +97,7 @@
       "wbe_id": "10000000-0000-0000-0000-000000000003",
       "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
       "branch": "main",
-      "control_date": "2026-06-01T00:00:00",
+      "control_date": "2026-01-01T00:00:00",
       "forecast": {
         "forecast_id": "50000000-0000-0000-0000-000000000001",
         "eac_amount": 110000.0,
@@ -113,7 +113,7 @@
       "wbe_id": "10000000-0000-0000-0000-000000000004",
       "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
       "branch": "main",
-      "control_date": "2026-06-01T00:00:00",
+      "control_date": "2026-01-01T00:00:00",
       "forecast": {
         "forecast_id": "50000000-0000-0000-0000-000000000002",
         "eac_amount": 75000.0,
@@ -129,7 +129,7 @@
       "wbe_id": "10000000-0000-0000-0000-000000000007",
       "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
       "branch": "main",
-      "control_date": "2026-06-01T00:00:00",
+      "control_date": "2026-01-01T00:00:00",
       "forecast": {
         "forecast_id": "50000000-0000-0000-0000-000000000003",
         "eac_amount": 48000.0,
@@ -145,7 +145,7 @@
       "wbe_id": "10000000-0000-0000-0000-000000000003",
       "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
       "branch": "main",
-      "control_date": "2026-06-01T00:00:00",
+      "control_date": "2026-01-01T00:00:00",
       "forecast": {
         "forecast_id": "50000000-0000-0000-0000-000000000004",
         "eac_amount": 45000.0,
