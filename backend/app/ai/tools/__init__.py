@@ -92,16 +92,9 @@ async def filter_tools_by_role(
     filtered: list[BaseTool] = []
 
     # Batch: load all permissions once from cache, use set.issubset
-    perms = unified_service._get_cached_permissions(role)
-
-    if perms is None:
-        logger.error(
-            "RBAC permissions cache miss for role '%s', triggering refresh", role
-        )
-        await unified_service.refresh_permissions_cache()
-        perms = unified_service._get_cached_permissions(role)
-
-    role_permissions: set[str] = set(perms) if perms else set()
+    # Use get_permissions_with_refresh to handle cache misses gracefully
+    perms = await unified_service.get_permissions_with_refresh(role)
+    role_permissions: set[str] = set(perms)
 
     for tool in tools:
         metadata = getattr(tool, "_tool_metadata", None)

@@ -144,6 +144,44 @@ class UnifiedRBACService:
         """Store permissions in cache."""
         self._permissions_cache[role_name] = (permissions, datetime.now(UTC))
 
+    async def get_permissions_with_refresh(self, role_name: str) -> list[str]:
+        """Get permissions for a role, refreshing cache on miss.
+
+        This method handles cache misses by automatically refreshing the
+        permissions cache and retrying. Used by tool filtering to handle
+        hot reload scenarios where the cache might be empty.
+
+        Args:
+            role_name: RBAC role name (e.g., "ai-manager")
+
+        Returns:
+            List of permissions for the role
+
+        Raises:
+            Exception: If database query fails or role doesn't exist
+        """
+        # First try cache
+        perms = self._get_cached_permissions(role_name)
+        if perms is not None:
+            return perms
+
+        # Cache miss - refresh and retry
+        logger.warning(
+            f"RBAC cache miss for role '{role_name}' - refreshing cache..."
+        )
+        await self.refresh_permissions_cache()
+
+        # Retry after refresh
+        perms = self._get_cached_permissions(role_name)
+        if perms is None:
+            # This shouldn't happen after a successful refresh
+            logger.error(
+                f"RBAC permissions still missing for role '{role_name}' after refresh"
+            )
+            return []
+
+        return perms
+
     def _get_cached_assignments(
         self, user_id: UUID, scope_type: str, scope_id: UUID | None
     ) -> list[str] | None:
@@ -925,6 +963,48 @@ def get_unified_rbac_service() -> UnifiedRBACService:
     global _unified_rbac_service
     if _unified_rbac_service is None:
         _unified_rbac_service = UnifiedRBACService()
+
+    # Lazy cache initialization for hot reload compatibility
+    # If cache is empty (hot reload scenario), populate it on first access
+    # This handles the case where --reload doesn't trigger lifespan events
+    if not _unified_rbac_service._permissions_cache:
+        import asyncio
+
+        logger.warning(
+            "RBAC permissions cache is empty - this can happen after hot reload. "
+            "Attempting lazy initialization..."
+        )
+
+        def _lazy_init_cache() -> None:
+            """Synchronous wrapper for async cache refresh."""
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # We're in an async context - schedule the refresh as a task
+                    # This won't help the current request but will fix future ones
+                    asyncio.create_task(_async_refresh_cache())
+                else:
+                    # No running loop - create one and run the refresh
+                    loop.run_until_complete(_async_refresh_cache())
+            except Exception as exc:
+                logger.error(f"Failed to lazy load RBAC cache: {exc}")
+
+        async def _async_refresh_cache() -> None:
+            """Async function to refresh the cache from database."""
+            from app.db.session import get_db
+
+            async for session in get_db():
+                set_unified_rbac_session(session)
+                await _unified_rbac_service.refresh_permissions_cache()
+                set_unified_rbac_session(None)
+                logger.info("RBAC permissions cache lazy initialization completed")
+                break
+
+        try:
+            _lazy_init_cache()
+        except Exception as exc:
+            logger.error(f"Failed to initialize RBAC cache lazily: {exc}")
+
     return _unified_rbac_service
 
 
