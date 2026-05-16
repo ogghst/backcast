@@ -124,7 +124,7 @@ metadata_ = {"authority_level": "HIGH"}  # LOW, MEDIUM, HIGH, CRITICAL
 - Created `user_role_assignments` table
 - Migrated `User.role` → `UserRoleAssignment` (scope_type='global')
 - Migrated `ProjectMember` → `UserRoleAssignment` (scope_type='project')
-- Deprecated `User.role` and `ProjectMember` tables (removed after migration verified)
+- Dropped `project_members` table and `users.role` column (2026-05-16 cleanup iteration)
 
 **Role Definitions:** Stored in `rbac_roles` and `rbac_role_permissions` tables (seeded from `config/rbac.json`)
 
@@ -326,14 +326,32 @@ async def update_project(project_id: UUID): ...
 - `backend/app/api/dependencies/auth.py` - RoleChecker and ProjectRoleChecker delegate to UnifiedRBACService
 - `backend/app/services/change_order_workflow_service.py` - Uses UnifiedRBACService for authority checks
 - `backend/config/rbac.json` - Added `change_order_approver` role
+- `backend/app/api/routes/users.py` - Admin checks via `_is_admin()` helper using UnifiedRBACService
+- `backend/app/api/routes/auth.py` - Login notification resolves role via UnifiedRBACService
+- `backend/app/ai/agent_service.py` - Role resolution via UnifiedRBACService
+- `backend/app/ai/tools/templates/user_management_template.py` - `_resolve_user_role()` helper
+- `backend/app/db/seeder.py` - Reads role from seed JSON, not `user.role` column
+- `backend/app/models/schemas/user.py` - `from_user_async()` resolves role/permissions from UnifiedRBACService
 
 **Migration Files:**
-- `alembic/versions/xxx_unified_rbac_part1.py` - Create user_role_assignments table
-- `alembic/versions/xxx_unified_rbac_part2.py` - Migrate User.role and ProjectMember data
+- `alembic/versions/20260510_add_user_role_assignments_table.py` - Create user_role_assignments table
+- `alembic/versions/20260510b_migrate_existing_roles_to_unified_rbac.py` - Migrate User.role and ProjectMember data
+- `alembic/versions/20260511_add_project_scoped_rbac_roles.py` - Add project-scoped RBAC roles
+- `alembic/versions/20260511b_migrate_project_members_to_unified.py` - Migrate project members to unified
+- `alembic/versions/1eba1b50cdf5_drop_project_members_table.py` - Drop project_members table (2026-05-16)
+- `alembic/versions/fa57821982c7_drop_users_role_column.py` - Drop users.role column (2026-05-16)
 
-**Deleted Files:**
+**Deleted Files (2026-05-16 cleanup):**
+- `backend/app/core/rbac.py` - RBACServiceABC, JsonRBACService (replaced by UnifiedRBACService)
 - `backend/app/core/rbac_database.py` - DatabaseRBACService (replaced by UnifiedRBACService)
+- `backend/app/models/domain/project_member.py` - ProjectMember entity (replaced by UserRoleAssignment)
+- `backend/app/models/schemas/project_member.py` - ProjectMember schemas
+- `backend/app/api/routes/project_members.py` - Project member API routes
+- `backend/app/services/project_member.py` - ProjectMember service
 - `backend/app/services/approval_matrix_service.py` - ApprovalMatrixService (integrated into UnifiedRBACService)
+- `backend/tests/unit/core/test_rbac.py` - Tests for deleted legacy RBAC module
+- `backend/tests/unit/core/test_rbac_project_access.py` - Tests for deleted legacy RBAC module
+- `backend/tests/unit/core/test_rbac_database.py` - Tests for deleted legacy RBAC module
 
 ### Test Coverage
 
@@ -370,3 +388,4 @@ async def update_project(project_id: UUID): ...
 | Date | Change | Author |
 |---|---|---|
 | 2026-05-10 | Initial ADR — Unified RBAC system with scoped role assignments | Backend Team |
+| 2026-05-16 | Cleanup complete — all legacy RBAC artifacts removed, project_members and users.role dropped | Backend Team |

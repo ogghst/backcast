@@ -1,6 +1,6 @@
 # Authentication & Authorization Architecture
 
-**Last Updated:** 2026-05-11
+**Last Updated:** 2026-05-16
 **Owner:** Backend Team
 **ADRs:**
 - [ADR-014: Unified RBAC System](../../decisions/ADR-014-unified-rbac.md) (current implementation)
@@ -490,7 +490,11 @@ INDEX(scope_type, scope_id)
 **Migration History:**
 - `7fc133112eef`: Initial RBAC roles tables
 - `20260510`: User role assignments table for unified RBAC
-- `20260511`: Project-scoped RBAC roles migration
+- `20260510b`: Migrate existing roles to unified RBAC
+- `20260511`: Add project-scoped RBAC roles
+- `20260511b`: Migrate project members to unified
+- `1eba1b50cdf5`: Drop project_members table (2026-05-16)
+- `fa57821982c7`: Drop users.role column (2026-05-16)
 
 ---
 
@@ -513,7 +517,7 @@ backend/app/
 │   └── config.py                      # Settings (SECRET_KEY, JWT expiry)
 ├── models/
 │   └── domain/
-│       ├── user.py                    # User ORM model
+│       ├── user.py                    # User ORM model (no role column)
 │       ├── user_role_assignment.py    # UserRoleAssignment entity
 │       └── rbac.py                    # RBACRole, RBACRolePermission entities
 ├── schemas/
@@ -533,7 +537,9 @@ backend/tests/
 ├── core/
 │   └── test_rbac_unified.py           # Unit tests for UnifiedRBACService
 ├── api/
-│   └── test_role_checker.py           # Integration tests for RoleChecker
+│   ├── test_role_checker.py           # Integration tests for RoleChecker
+│   └── test_dependencies/
+│       └── test_project_role_checker.py  # Integration tests for ProjectRoleChecker
 └── models/
     └── domain/
         └── test_user_role_assignment.py  # Unit tests for UserRoleAssignment entity
@@ -630,6 +636,7 @@ async def __call__(self, current_user, session):
 
 | Date       | Change                                              | Author       |
 | ---------- | --------------------------------------------------- | ------------ |
+| 2026-05-16 | Cleanup — removed legacy RBAC files, dropped project_members table and users.role column | Backend Team |
 | 2026-05-11 | Major update - Unified RBAC system, scoped permissions, UserRoleAssignment entity | Architecture Team |
 | 2026-01-04 | Initial documentation - JSON RBAC, RoleChecker      | Backend Team |
 | 2025-12-29 | Initial authentication documentation                | Backend Team |

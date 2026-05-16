@@ -1,7 +1,7 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-05-16
-**Total Open Items:** 22
+**Total Open Items:** 21
 **Total Estimated Effort:** ~22 days
 
 ---
@@ -305,17 +305,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-106] Import-Sorting Errors in Test Files (167 I001 Ruff Errors)
+### [TD-106] ~~Import-Sorting Errors in Test Files (167 I001 Ruff Errors)~~
 
-- **Source:** 2026-05-16-unified-rbac-cleanup CHECK phase
-- **Description:** 167 import-sorting (I001) Ruff errors in test files under `tests/`. These are a mix of pre-existing issues and artifacts from the bulk mock-replacement edits across ~50 test files during the unified RBAC cleanup. Production code (`app/`) is clean.
-- **Impact:** LOW -- Test code does not pass Ruff. No functional impact.
-- **Estimated Effort:** 30 minutes
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P3 (Low)
-- **Blocker:** No
-- **Suggested Approach:** Run `cd backend && uv run ruff check --fix tests/` to auto-fix all I001 errors. Verify with `uv run ruff check tests/`.
+- **Status:** ✅ Resolved (2026-05-16) — Fixed with `ruff check --fix tests/` in ACT phase.
 
 ---
 
@@ -324,9 +316,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 7 | ~12 days |
-| Medium (P2-P3) | 14 | ~9.5 days |
-| Low (P4+) | 1 | 3 hours |
-| **Total** | **22** | **~22 days** |
+| Medium (P2-P3) | 13 | ~9 days |
+| Low (P4+) | 1 | 1 hour |
+| **Total** | **21** | **~22 days** |
 
 ---
 

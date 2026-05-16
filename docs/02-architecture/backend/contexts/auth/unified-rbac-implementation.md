@@ -1,7 +1,7 @@
 # Unified RBAC Implementation
 
-**Last Updated:** 2026-05-11
-**Status:** Complete (May 2026)
+**Last Updated:** 2026-05-16
+**Status:** Complete (May 2026) — Cleanup phase complete, all legacy artifacts removed
 **Related ADR:** [ADR-014: Unified RBAC System](../../../decisions/ADR-014-unified-rbac.md)
 
 ---
@@ -46,24 +46,18 @@ For detailed implementation planning, analysis, and execution records, see the U
 ### 1. Analysis Phase
 **File:** [../../../../../03-project-plan/iterations/2026-05-10-unified-rbac-refactoring/00-analysis.md](../../../../../03-project-plan/iterations/2026-05-10-unified-rbac-refactoring/00-analysis.md)
 
-**Contents:**
-- PMI-aligned stakeholder analysis
-- Architecture compliance review (EVCS patterns, bounded contexts)
-- Enhanced risk register with quantitative analysis
-- Solution options comparison (Full Unification vs Incremental vs Minimal)
-- Cost estimation and schedule analysis
-- Change control impact assessment
-
 ### 2. Planning Phase
 **File:** [../../../../../03-project-plan/iterations/2026-05-10-unified-rbac-refactoring/01-plan.md](../../../../../03-project-plan/iterations/2026-05-10-unified-rbac-refactoring/01-plan.md)
 
+### 3. Cleanup Phase (2026-05-16)
+**File:** [../../../../../03-project-plan/iterations/2026-05-16-unified-rbac-cleanup/01-plan.md](../../../../../03-project-plan/iterations/2026-05-16-unified-rbac-cleanup/01-plan.md)
+
 **Contents:**
-- Detailed task breakdown (28 tasks across 7 phases)
-- Task dependency graph for parallel execution
-- Test specification (unit, integration, migration, performance, security)
-- Risk assessment and mitigation strategies
-- Rollback plan and success criteria
-- Implementation notes and phase execution order
+- Deleted `app/core/rbac.py`, `app/core/rbac_database.py`, `app/models/domain/project_member.py`, `app/services/approval_matrix_service.py`, and related files
+- Removed `User.role` column from model and database
+- Dropped `project_members` table
+- Updated ~50 test files to use `MockUnifiedRBACService`
+- Updated all production code (users.py, auth.py, agent_service.py, seeder.py, change order service) to resolve roles via `UnifiedRBACService`
 
 ### 3. Key Implementation Files
 
@@ -73,8 +67,10 @@ For detailed implementation planning, analysis, and execution records, see the U
 | `backend/app/models/domain/user_role_assignment.py` | `UserRoleAssignment` entity (non-versioned) |
 | `backend/app/schemas/user_role_assignment.py` | Pydantic CRUD schemas |
 | `backend/app/api/routes/user_role_assignments.py` | Role assignment CRUD API |
-| `alembic/versions/xxx_unified_rbac_part1.py` | Create user_role_assignments table |
-| `alembic/versions/xxx_unified_rbac_part2.py` | Migrate User.role and ProjectMember data |
+| `alembic/versions/20260510_add_user_role_assignments_table.py` | Create user_role_assignments table |
+| `alembic/versions/20260510b_migrate_existing_roles_to_unified_rbac.py` | Migrate User.role and ProjectMember data |
+| `alembic/versions/1eba1b50cdf5_drop_project_members_table.py` | Drop project_members table |
+| `alembic/versions/fa57821982c7_drop_users_role_column.py` | Drop users.role column |
 
 ---
 
@@ -82,12 +78,12 @@ For detailed implementation planning, analysis, and execution records, see the U
 
 ### From Old System
 
-| Old Component | Replacement |
-|---------------|-------------|
-| `User.role` field | `UserRoleAssignment` with `scope_type='global'` |
-| `ProjectMember` entity | `UserRoleAssignment` with `scope_type='project'` |
-| `ApprovalMatrixService` | `UserRoleAssignment` with `scope_type='change_order'` + authority levels |
-| `JsonRBACService` / `DatabaseRBACService` | `UnifiedRBACService` (single source of truth) |
+| Old Component | Replacement | Status |
+|---------------|-------------|--------|
+| `User.role` field | `UserRoleAssignment` with `scope_type='global'` | Dropped (column removed) |
+| `ProjectMember` entity | `UserRoleAssignment` with `scope_type='project'` | Dropped (table removed) |
+| `ApprovalMatrixService` | `UserRoleAssignment` with `scope_type='change_order'` + authority levels | Deleted (service removed) |
+| `JsonRBACService` / `DatabaseRBACService` | `UnifiedRBACService` (single source of truth) | Deleted (files removed) |
 
 ### Migration Strategy
 
@@ -133,7 +129,7 @@ For detailed implementation planning, analysis, and execution records, see the U
 
 ### Relationship to ADR-007
 
-[ADR-007: RBAC Service Design](../../../decisions/ADR-007-rbac-service.md) established the foundation for RBAC in the system. ADR-008 extends this pattern with scoped permissions and unified authorization. The abstract interface pattern from ADR-007 is preserved, but the implementation evolved from JSON-based to database-backed with scoped role assignments.
+[ADR-007: RBAC Service Design](../../../decisions/ADR-007-rbac-service.md) established the foundation for RBAC in the system. ADR-014 extends this pattern with scoped permissions and unified authorization. The abstract interface pattern from ADR-007 is preserved, but the implementation evolved from JSON-based to database-backed with scoped role assignments.
 
 ---
 
@@ -205,4 +201,4 @@ Potential areas for future expansion (not currently in scope):
 
 ---
 
-**Implementation Status:** ✅ Complete (May 2026)
+**Implementation Status:** ✅ Complete (May 2026) — Including cleanup phase that removed all legacy RBAC artifacts
