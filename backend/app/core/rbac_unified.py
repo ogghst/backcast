@@ -12,6 +12,8 @@ Thread-safe via ContextVar session injection pattern.
 
 import contextvars
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -44,6 +46,27 @@ def get_unified_rbac_session() -> AsyncSession | None:
 def set_unified_rbac_session(session: AsyncSession | None) -> None:
     """Set the request-scoped unified RBAC database session."""
     _unified_rbac_session.set(session)
+
+
+@asynccontextmanager
+async def rbac_session(session: AsyncSession) -> AsyncGenerator[None, None]:
+    """Context manager for RBAC session injection.
+
+    Temporarily sets the RBAC session ContextVar, restoring the previous
+    value on exit. Safe to nest — inner contexts don't destroy outer ones.
+
+    Replaces the fragile pattern of:
+        set_unified_rbac_session(session)
+        try:
+            ...
+        finally:
+            set_unified_rbac_session(None)  # destroys caller's session!
+    """
+    token = _unified_rbac_session.set(session)
+    try:
+        yield
+    finally:
+        _unified_rbac_session.reset(token)
 
 
 # ---------------------------------------------------------------------------
@@ -963,48 +986,6 @@ def get_unified_rbac_service() -> UnifiedRBACService:
     global _unified_rbac_service
     if _unified_rbac_service is None:
         _unified_rbac_service = UnifiedRBACService()
-
-    # Lazy cache initialization for hot reload compatibility
-    # If cache is empty (hot reload scenario), populate it on first access
-    # This handles the case where --reload doesn't trigger lifespan events
-    if not _unified_rbac_service._permissions_cache:
-        import asyncio
-
-        logger.warning(
-            "RBAC permissions cache is empty - this can happen after hot reload. "
-            "Attempting lazy initialization..."
-        )
-
-        def _lazy_init_cache() -> None:
-            """Synchronous wrapper for async cache refresh."""
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # We're in an async context - schedule the refresh as a task
-                    # This won't help the current request but will fix future ones
-                    asyncio.create_task(_async_refresh_cache())
-                else:
-                    # No running loop - create one and run the refresh
-                    loop.run_until_complete(_async_refresh_cache())
-            except Exception as exc:
-                logger.error(f"Failed to lazy load RBAC cache: {exc}")
-
-        async def _async_refresh_cache() -> None:
-            """Async function to refresh the cache from database."""
-            from app.db.session import get_db
-
-            async for session in get_db():
-                set_unified_rbac_session(session)
-                await _unified_rbac_service.refresh_permissions_cache()
-                set_unified_rbac_session(None)
-                logger.info("RBAC permissions cache lazy initialization completed")
-                break
-
-        try:
-            _lazy_init_cache()
-        except Exception as exc:
-            logger.error(f"Failed to initialize RBAC cache lazily: {exc}")
-
     return _unified_rbac_service
 
 

@@ -100,13 +100,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
             from app.core.rbac_unified import (
                 get_unified_rbac_service,
-                set_unified_rbac_session,
+                rbac_session,
             )
 
-            set_unified_rbac_session(session)
-            unified_svc = get_unified_rbac_service()
-            await unified_svc.refresh_permissions_cache()
-            set_unified_rbac_session(None)
+            async with rbac_session(session):
+                unified_svc = get_unified_rbac_service()
+                await unified_svc.refresh_permissions_cache()
 
     logger.info("[STARTUP] rbac_init OK %.0fms", (_time.time() - _t0) * 1000)
 
