@@ -1,7 +1,9 @@
 import { useEffect } from "react";
-import { Modal, Form, Input, Select, Slider, Switch, theme } from "antd";
+import { Alert, Checkbox, Modal, Form, Input, Radio, Select, Slider, Space, Switch, theme } from "antd";
+import { LockOutlined } from "@ant-design/icons";
 import type { AIAssistantPublic, AIAssistantCreate, AIAssistantUpdate } from "../types";
 import { AI_ROLE_OPTIONS } from "../types";
+import { ToolSelectorPanel } from "./ToolSelectorPanel";
 
 interface AIAssistantModalProps {
   open: boolean;
@@ -10,6 +12,7 @@ interface AIAssistantModalProps {
   confirmLoading: boolean;
   initialValues?: AIAssistantPublic | null;
   models?: Array<{ id: string; display_name: string; provider_name?: string }>;
+  specialists?: AIAssistantPublic[];
 }
 
 export const AIAssistantModal = ({
@@ -19,10 +22,12 @@ export const AIAssistantModal = ({
   confirmLoading,
   initialValues,
   models = [],
+  specialists = [],
 }: AIAssistantModalProps) => {
   const [form] = Form.useForm();
   const { token } = theme.useToken();
   const isEdit = !!initialValues;
+  const agentType = Form.useWatch("agent_type", form) ?? initialValues?.agent_type ?? "specialist";
 
   useEffect(() => {
     if (open) {
@@ -37,6 +42,13 @@ export const AIAssistantModal = ({
           recursion_limit: initialValues.recursion_limit,
           default_role: initialValues.default_role,
           is_active: initialValues.is_active,
+          agent_type: initialValues.agent_type,
+          allowed_tools: initialValues.allowed_tools || [],
+          structured_output_schema: initialValues.structured_output_schema,
+          delegation_config: {
+            direct_tools: initialValues.delegation_config?.direct_tools || [],
+            allowed_specialists: initialValues.delegation_config?.allowed_specialists || [],
+          },
         });
       } else {
         form.resetFields();
@@ -47,6 +59,13 @@ export const AIAssistantModal = ({
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      // Clean up fields based on agent type
+      if (values.agent_type === "main") {
+        delete values.allowed_tools;
+        delete values.structured_output_schema;
+      } else {
+        delete values.delegation_config;
+      }
       await onOk(values);
     } catch (error) {
       console.error("Form submission error:", error);
@@ -63,8 +82,19 @@ export const AIAssistantModal = ({
       okButtonProps={{ "data-testid": "submit-assistant-btn" }}
       confirmLoading={confirmLoading}
       destroyOnHidden
-      width={700}
+      width={800}
     >
+      {isEdit && initialValues?.is_system && (
+        <Alert
+          message="System Assistant"
+          description="This is a system-defined assistant. It cannot be deleted, only disabled."
+          type="info"
+          showIcon
+          icon={<LockOutlined />}
+          style={{ marginBottom: 16 }}
+          banner
+        />
+      )}
       <Form form={form} layout="vertical" name="ai_assistant_form">
         <Form.Item
           name="name"
@@ -83,6 +113,19 @@ export const AIAssistantModal = ({
           rules={[{ max: 2000, message: "Description must be 2000 characters or less" }]}
         >
           <Input.TextArea rows={2} placeholder="What does this assistant do?" />
+        </Form.Item>
+
+        <Form.Item
+          name="agent_type"
+          label="Agent Type"
+          initialValue="specialist"
+          tooltip="Main agents orchestrate specialist agents. Specialist agents focus on specific tasks."
+          rules={[{ required: true, message: "Please select an agent type" }]}
+        >
+          <Radio.Group disabled={isEdit}>
+            <Radio value="main">Main Agent</Radio>
+            <Radio value="specialist">Specialist Agent</Radio>
+          </Radio.Group>
         </Form.Item>
 
         <Form.Item
@@ -154,6 +197,61 @@ export const AIAssistantModal = ({
             ))}
           </Select>
         </Form.Item>
+
+        {agentType === "specialist" && (
+          <>
+            <Form.Item
+              name="allowed_tools"
+              label="Allowed Tools"
+              tooltip="Tools this specialist can use directly. Leave empty for all tools."
+            >
+              <ToolSelectorPanel />
+            </Form.Item>
+            <Form.Item
+              name="structured_output_schema"
+              label="Structured Output Schema"
+              tooltip="Fully qualified class name of a Pydantic model (e.g. app.models.schemas.evm.EVMMetricsRead)"
+              rules={[{ max: 100, message: "Schema must be 100 characters or less" }]}
+            >
+              <Input placeholder="app.models.schemas.evm.EVMMetricsRead" />
+            </Form.Item>
+          </>
+        )}
+        {agentType === "main" && (
+          <>
+            <Form.Item
+              name={["delegation_config", "direct_tools"]}
+              label="Direct Tools"
+              tooltip="Tools the main agent can use directly without delegating to specialists"
+            >
+              <ToolSelectorPanel />
+            </Form.Item>
+            <Form.Item
+              name={["delegation_config", "allowed_specialists"]}
+              label="Allowed Specialists"
+              tooltip="Specialists this main agent can delegate to. Leave empty for all specialists."
+            >
+              <Checkbox.Group
+                style={{ display: "flex", flexDirection: "column", gap: 8 }}
+              >
+                {specialists
+                  .filter(s => s.is_active)
+                  .map(s => (
+                    <Checkbox key={s.name} value={s.name}>
+                      <Space>
+                        <span>{s.name}</span>
+                        {s.description && (
+                          <span style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }}>
+                            — {s.description}
+                          </span>
+                        )}
+                      </Space>
+                    </Checkbox>
+                  ))}
+              </Checkbox.Group>
+            </Form.Item>
+          </>
+        )}
 
         {isEdit && (
           <Form.Item name="is_active" label="Active" valuePropName="checked">

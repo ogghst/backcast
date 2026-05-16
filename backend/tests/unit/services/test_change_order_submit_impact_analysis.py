@@ -84,6 +84,7 @@ async def _setup_approver(
     await db_session.commit()
     return admin_user, admin_user_id
 
+
 class TestSubmitForApprovalImpactAnalysis:
     """Test impact analysis during submit_for_approval workflow."""
 
@@ -578,6 +579,7 @@ class TestSubmitForApprovalImpactAnalysis:
             or "no approver" in error_msg
             or "approval matrix" in error_msg
         )
+
 
 class TestSubmitForApprovalIntegration:
     """Integration tests for submit_for_approval with impact analysis."""

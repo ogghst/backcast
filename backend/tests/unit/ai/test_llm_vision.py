@@ -28,6 +28,7 @@ class MockAsyncIterator:
         self.index += 1
         return item
 
+
 @pytest.mark.asyncio
 async def test_llm_client_supports_multimodal_messages() -> None:
     """Test that LLM client can handle messages with image_url content.
@@ -111,6 +112,7 @@ async def test_llm_client_supports_multimodal_messages() -> None:
     assert len(chunks) > 0
     assert "chart" in "".join(chunks)
 
+
 @pytest.mark.asyncio
 async def test_llm_client_supports_multiple_images() -> None:
     """Test that LLM client can handle messages with multiple image attachments.
@@ -170,6 +172,7 @@ async def test_llm_client_supports_multiple_images() -> None:
     assert content[0]["type"] == "text"
     assert content[1]["type"] == "image_url"
     assert content[2]["type"] == "image_url"
+
 
 @pytest.mark.asyncio
 async def test_llm_client_backward_compatible_with_string_content() -> None:

@@ -189,9 +189,7 @@ class UnifiedRBACService:
             return perms
 
         # Cache miss - refresh and retry
-        logger.warning(
-            f"RBAC cache miss for role '{role_name}' - refreshing cache..."
-        )
+        logger.warning(f"RBAC cache miss for role '{role_name}' - refreshing cache...")
         await self.refresh_permissions_cache()
 
         # Retry after refresh

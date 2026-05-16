@@ -23,6 +23,7 @@ def admin_user() -> User:
         created_by=uuid4(),
     )
 
+
 @pytest.mark.asyncio
 async def test_change_order_update_consistency_fix(
     db_session: AsyncSession, admin_user: User
@@ -106,6 +107,7 @@ async def test_change_order_update_consistency_fix(
                 f"Found version with zero duration: {row.id}"
             )
 
+
 @pytest.mark.asyncio
 async def test_change_order_active_versions(db_session: AsyncSession, admin_user: User):
     """Ensure we can retrieve the active version correctly after update."""
@@ -149,6 +151,7 @@ async def test_change_order_active_versions(db_session: AsyncSession, admin_user
     results, total = await service.get_change_orders(project_id=project_id)
     assert total == 1
     assert results[0].title == "V2"
+
 
 @pytest.mark.asyncio
 async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user: User):

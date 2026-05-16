@@ -38,6 +38,7 @@ def mock_rbac_service():
     """Mock RBAC service for all integration tests."""
     set_unified_rbac_service(MockUnifiedRBACService())
 
+
 @pytest.mark.asyncio
 async def test_all_tools_discoverable(db_session):
     """Test that all 13 forecast/cost/progress tools are discoverable via create_project_tools."""
@@ -93,6 +94,7 @@ async def test_all_tools_discoverable(db_session):
     }
     assert forecast_cost_progress_tools.issubset(tool_names)
 
+
 @pytest.mark.asyncio
 async def test_tools_have_correct_permissions():
     """Test that all tools have correct permission scopes."""
@@ -144,6 +146,7 @@ async def test_tools_have_correct_permissions():
         assert tool._tool_metadata.permissions == expected, (
             f"{tool_name} has incorrect permissions: {tool._tool_metadata.permissions} != {expected}"
         )
+
 
 @pytest.mark.asyncio
 async def test_tool_execution_via_langgraph(db_session, test_cost_element):
@@ -198,6 +201,7 @@ async def test_tool_execution_via_langgraph(db_session, test_cost_element):
     assert "id" in result
     assert "eac_amount" in result
     assert result["eac_amount"] == 110000.00
+
 
 @pytest.mark.asyncio
 async def test_end_to_end_summary_workflow(db_session, test_cost_element):

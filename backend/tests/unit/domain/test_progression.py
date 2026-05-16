@@ -125,6 +125,7 @@ class TestLinearProgression:
         # Assert
         assert progress == 1.0, "Progress after end should be clamped to 1.0"
 
+
 class TestGaussianProgression:
     """Test suite for Gaussian (S-curve) progression strategy.
 
@@ -262,6 +263,7 @@ class TestGaussianProgression:
         # Assert
         assert progress == 1.0
 
+
 class TestLogarithmicProgression:
     """Test suite for Logarithmic (front-loaded) progression strategy.
 
@@ -354,6 +356,7 @@ class TestLogarithmicProgression:
 
         # Assert
         assert progress == 1.0
+
 
 class TestProgressionStrategy:
     """Test the base progression strategy interface."""

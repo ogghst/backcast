@@ -140,6 +140,7 @@ async def test_agent_formats_multimodal_messages_for_vision(
     assert data_url.startswith("data:image/png;base64,")
     assert base64_content in data_url
 
+
 @pytest.mark.asyncio
 async def test_agent_handles_mixed_attachments(
     db_session: Any,
@@ -226,6 +227,7 @@ async def test_agent_handles_mixed_attachments(
     assert "data.csv" in formatted_content[2]["text"]
     assert csv_content in formatted_content[2]["text"]
 
+
 @pytest.mark.asyncio
 async def test_agent_handles_no_attachments(
     db_session: Any,
@@ -252,6 +254,7 @@ async def test_agent_handles_no_attachments(
     assert len(formatted_content) == 1
     assert formatted_content[0]["type"] == "text"
     assert "capital of France" in formatted_content[0]["text"]
+
 
 @pytest.mark.asyncio
 async def test_agent_handles_empty_attachments_list(

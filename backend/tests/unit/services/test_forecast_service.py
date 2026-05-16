@@ -89,6 +89,7 @@ async def cost_element_setup(db_session: AsyncSession):
         "cost_element": cost_element,
     }
 
+
 class TestForecastServiceCreate:
     """Test ForecastService.create() method - TDD RED-GREEN-REFACTOR."""
 
@@ -229,6 +230,7 @@ class TestForecastServiceCreate:
         assert created_forecast.branch == "BR-123"
         assert created_forecast.eac_amount == Decimal("110000.00")
 
+
 class TestForecastServiceGet:
     """Test ForecastService.get_by_id() method."""
 
@@ -280,6 +282,7 @@ class TestForecastServiceGet:
         assert main_result is not None
         assert main_result.forecast_id == forecast_id
         assert main_result.eac_amount == Decimal("95000.00")
+
 
 class TestForecastCalculations:
     """Test EVM calculation logic for Forecasts."""
@@ -407,6 +410,7 @@ class TestForecastCalculations:
 
         # Assert
         assert etc == Decimal("70000.00")  # Remaining work
+
 
 class TestForecastService1to1Relationship:
     """Test ForecastService 1:1 Cost Element relationship - TDD RED-GREEN-REFACTOR."""

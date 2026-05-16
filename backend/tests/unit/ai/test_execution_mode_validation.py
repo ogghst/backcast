@@ -31,6 +31,7 @@ def test_execution_mode_accepts_valid_values():
         )
         assert request.execution_mode == mode
 
+
 def test_execution_mode_defaults_to_standard():
     """T-2.4: execution_mode field defaults to 'standard'.
 
@@ -45,6 +46,7 @@ def test_execution_mode_defaults_to_standard():
         assistant_config_id="00000000-0000-0000-0000-000000000000",
     )
     assert request.execution_mode == "standard"
+
 
 def test_execution_mode_rejects_invalid_values():
     """T-2.4: execution_mode field rejects invalid values.
@@ -65,6 +67,7 @@ def test_execution_mode_rejects_invalid_values():
     # Verify error mentions execution_mode
     errors = exc_info.value.errors()
     assert any("execution_mode" in str(err.get("loc", [])) for err in errors)
+
 
 def test_execution_mode_case_sensitive():
     """T-2.4: execution_mode field is case-sensitive.

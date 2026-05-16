@@ -18,10 +18,12 @@ def mock_websocket():
     websocket.client_state.DISCONNECTED = "disconnected"
     return websocket
 
+
 @pytest.fixture
 def mock_session():
     """Create a mock database session."""
     return AsyncMock()
+
 
 @pytest.fixture
 def tool_context(mock_session):
@@ -33,6 +35,7 @@ def tool_context(mock_session):
         execution_mode=ExecutionMode.STANDARD,
     )
 
+
 @pytest.fixture
 def interrupt_node(tool_context, mock_websocket):
     """Create an InterruptNode for testing."""
@@ -43,6 +46,7 @@ def interrupt_node(tool_context, mock_websocket):
         websocket=mock_websocket,
         session_id=session_id,
     )
+
 
 @pytest.mark.asyncio
 async def test_send_heartbeat_sends_message(interrupt_node, mock_websocket):
@@ -63,6 +67,7 @@ async def test_send_heartbeat_sends_message(interrupt_node, mock_websocket):
     assert call_args["elapsed_seconds"] == elapsed
     assert call_args["remaining_seconds"] == remaining
 
+
 @pytest.mark.asyncio
 async def test_send_heartbeat_when_websocket_disconnected(
     interrupt_node, mock_websocket
@@ -82,6 +87,7 @@ async def test_send_heartbeat_when_websocket_disconnected(
 
     # WebSocket send should not be called when disconnected
     mock_websocket.send_json.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_polling_with_heartbeat(interrupt_node, mock_websocket):
@@ -112,6 +118,7 @@ async def test_polling_with_heartbeat(interrupt_node, mock_websocket):
     assert last_call["approval_id"] == approval_id
     assert last_call["elapsed_seconds"] == 15.0
     assert last_call["remaining_seconds"] == 15.0
+
 
 def test_polling_heartbeat_message_schema():
     """Test that WSPollingHeartbeatMessage validates correctly."""

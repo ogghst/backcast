@@ -1,11 +1,13 @@
 # AI Integration Context
 
-**Last Updated:** 2026-05-01
+**Last Updated:** 2026-05-16
 **Status:** Active
 
 ## Context Overview
 
 The AI context provides a conversational AI interface built on LangGraph for project budget management. It enables users to interact with project data through natural language, with support for multi-step tool execution, specialist subagent delegation, multimodal input (images and documents), and an approval workflow for critical operations.
+
+Agents are **DB-configurable** — both main agents (user-facing) and specialists (delegated) are stored in `ai_assistant_configs` with an `agent_type` field. Main agents can use some tools directly (via `delegation_config.direct_tools`) and delegate complex operations to specialists.
 
 The system uses a decoupled architecture: agent execution runs as a background task that publishes events to an in-memory event bus, while WebSocket handlers subscribe to the bus and forward events to the client. This separation allows connection drops and reconnections without interrupting the agent.
 
@@ -21,7 +23,7 @@ Client (WebSocket)
 [agent_service.py] -- Orchestrates execution lifecycle
        |
        v
-[graph.py / deep_agent_orchestrator.py] -- LangGraph StateGraph
+[supervisor_orchestrator.py] -- Supervisor with direct tools + specialist handoff
        |
        v
 [AgentEventBus] -- In-memory pub/sub with bounded replay
@@ -35,9 +37,8 @@ Client (WebSocket)
 | Component | Source | Role |
 |-----------|--------|------|
 | Agent Service | [agent_service.py](../../../../../backend/app/ai/agent_service.py) | Orchestrates execution lifecycle, manages event bus, builds conversation history |
-| LangGraph Graph | [graph.py](../../../../../backend/app/ai/graph.py) | StateGraph with nodes for agent reasoning, tool execution, approval interrupts |
-| Deep Agent Orchestrator | [deep_agent_orchestrator.py](../../../../../backend/app/ai/deep_agent_orchestrator.py) | Wraps Deep Agents SDK for planning and subagent delegation |
-| Supervisor Orchestrator | [supervisor_orchestrator.py](../../../../../backend/app/ai/supervisor_orchestrator.py) | Supervisor graph pattern for specialist subagent routing |
+| Supervisor Orchestrator | [supervisor_orchestrator.py](../../../../../backend/app/ai/supervisor_orchestrator.py) | Supervisor graph pattern for specialist routing with direct tool support |
+| Specialist DB Loader | [db_loader.py](../../../../../backend/app/ai/subagents/db_loader.py) | TTL-cached DB loading of specialist configs from `ai_assistant_configs` |
 | Agent Event Bus | [agent_event_bus.py](../../../../../backend/app/ai/execution/agent_event_bus.py) | In-memory pub/sub with bounded replay buffer (default 1000 events) |
 | Agent Event | [agent_event.py](../../../../../backend/app/ai/execution/agent_event.py) | Immutable event dataclass with monotonically increasing sequence numbers |
 | AI Tools | [tools/](../../../../../backend/app/ai/tools/) | `@ai_tool` decorator, LangGraph tool wrappers for CRUD, EVM, cost elements |
@@ -56,7 +57,7 @@ AI entities use `SimpleEntityBase` (non-versioned, no EVCS). See [domain model](
 | `AIProvider` | `ai_providers` | Provider definitions (OpenAI, Azure, Ollama, DeepSeek) |
 | `AIProviderConfig` | `ai_provider_configs` | Key-value config for providers (API keys, base URLs, encrypted) |
 | `AIModel` | `ai_models` | Available models per provider |
-| `AIAssistantConfig` | `ai_assistant_configs` | Assistant configuration (model, system prompt, recursion limit, default role) |
+| `AIAssistantConfig` | `ai_assistant_configs` | Agent configuration: `agent_type` (main/specialist), model, system prompt, `delegation_config` (direct_tools, allowed_specialists), `allowed_tools`, `default_role`, `is_system` |
 | `AIConversationSession` | `ai_conversation_sessions` | Session with context (project, branch), briefing data, active execution ref |
 | `AIConversationMessage` | `ai_conversation_messages` | Messages with role (user/assistant/tool), token usage, metadata |
 | `AIConversationAttachment` | `ai_conversation_attachments` | File attachments with inline content (base64 for images, text for docs) |
@@ -143,16 +144,17 @@ Vision model integration for image and document analysis:
 - **Supported formats**: PNG, JPG, JPEG, GIF, WebP (images); PDF, TXT, CSV, JSON (documents)
 - **Extraction**: File extractors in [file_extractors.py](../../../../../backend/app/ai/file_extractors.py)
 
-## Orchestrator Modes
+## Orchestrator Mode
 
-The system supports two orchestrator patterns, selected via `settings.AI_ORCHESTRATOR`:
+The system uses a single orchestrator pattern:
 
 | Mode | Orchestrator | Pattern |
 |------|-------------|---------|
-| `deep` | `DeepAgentOrchestrator` | Single agent with planning (write_todos) and task delegation |
-| `supervisor` | `SupervisorOrchestrator` | Supervisor graph routing to specialist subagents |
+| `supervisor` | `SupervisorOrchestrator` | Supervisor graph routing to specialist subagents with direct tool support for main agents |
 
-Specialist subagents are defined in [subagents/](../../../../../backend/app/ai/subagents/) and compiled by [subagent_compiler.py](../../../../../backend/app/ai/subagent_compiler.py).
+Specialist agents are loaded from the database (`ai_assistant_configs` where `agent_type='specialist'`) via [db_loader.py](../../../../../backend/app/ai/subagents/db_loader.py) with TTL caching. Hardcoded definitions in [subagents/__init__.py](../../../../../backend/app/ai/subagents/__init__.py) serve as fallback.
+
+Main agents (`agent_type='main'`) can use tools directly via `delegation_config.direct_tools` and delegate complex operations to specialists via handoff tools. Only main agents appear in the chat assistant selector.
 
 ## Briefing System
 

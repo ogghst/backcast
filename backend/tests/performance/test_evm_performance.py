@@ -114,6 +114,7 @@ async def create_test_entities(
 
     return wbe.wbe_id, cost_element_type.cost_element_type_id, actor_id
 
+
 @pytest.mark.asyncio
 @pytest.mark.performance
 async def test_evm_calculation_performance_with_10_elements(db_session):
@@ -222,6 +223,7 @@ async def test_evm_calculation_performance_with_10_elements(db_session):
         assert metrics.ev == Decimal("5000.00")  # 50% of 10000
         assert metrics.cv == Decimal("0.00")  # EV - AC = 5000 - 5000
 
+
 @pytest.mark.asyncio
 @pytest.mark.performance
 async def test_cost_aggregation_performance_with_1000_entries(db_session):
@@ -304,6 +306,7 @@ async def test_cost_aggregation_performance_with_1000_entries(db_session):
 
     # Verify results are valid
     assert len(daily_costs) == 100  # 100 daily entries
+
 
 @pytest.mark.asyncio
 @pytest.mark.performance

@@ -91,6 +91,7 @@ class TestRefreshTokenCreation:
         time_diff = abs((stored_token.expires_at - expected_expiry).total_seconds())
         assert time_diff < 5  # Allow 5 seconds variance
 
+
 class TestRefreshTokenVerification:
     """Test refresh token verification."""
 
@@ -173,6 +174,7 @@ class TestRefreshTokenVerification:
         # Assert
         assert result is None
 
+
 class TestRefreshTokenRevocation:
     """Test refresh token revocation."""
 
@@ -245,6 +247,7 @@ class TestRefreshTokenRevocation:
         token = result.scalar_one()
         assert token.revoked_at is not None
 
+
 class TestAuthenticateMethod:
     """Test the authenticate method that creates both tokens."""
 
@@ -266,6 +269,7 @@ class TestAuthenticateMethod:
         assert token_response.token_type == "bearer"
         assert len(token_response.access_token) > 0
         assert len(token_response.refresh_token) > 0
+
 
 class TestRefreshTokenAPI:
     """Test refresh token API endpoints."""

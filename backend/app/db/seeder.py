@@ -953,6 +953,13 @@ class DataSeeder:
                         max_tokens=assistant_dict.get("max_tokens"),
                         is_active=assistant_dict.get("is_active", True),
                         default_role=assistant_dict.get("default_role"),
+                        agent_type=assistant_dict.get("agent_type", "main"),
+                        allowed_tools=assistant_dict.get("allowed_tools"),
+                        delegation_config=assistant_dict.get("delegation_config"),
+                        structured_output_schema=assistant_dict.get(
+                            "structured_output_schema"
+                        ),
+                        is_system=assistant_dict.get("is_system", False),
                     )
                     session.add(assistant)
                     await session.flush()
@@ -990,6 +997,99 @@ class DataSeeder:
             await ai_tools_seeder.seed_all(session)
         except Exception as e:
             logger.warning(f"AI Tools test data seeding failed (non-critical): {e}")
+
+    async def seed_ai_specialists(self, session: AsyncSession) -> None:
+        """Seed AI specialist configs from ai_specialist_configs.json file.
+
+        Specialists are DB-configurable agents with agent_type='specialist'.
+        Idempotent — checks by name + agent_type before inserting.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.ai import AIAssistantConfig
+
+        logger.info("Starting AI specialist seeding...")
+        specialist_data = self.load_seed_file("ai_specialist_configs.json")
+
+        if not specialist_data:
+            logger.info("No AI specialist seed data found or file is empty")
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for idx, spec_dict in enumerate(specialist_data):
+                try:
+                    # Check if specialist already exists by name + agent_type
+                    stmt = sql_select(AIAssistantConfig).where(
+                        AIAssistantConfig.name == spec_dict["name"],
+                        AIAssistantConfig.agent_type == "specialist",
+                    )
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        logger.debug(
+                            f"AI Specialist {spec_dict['name']} already exists, skipping"
+                        )
+                        skipped_count += 1
+                        continue
+
+                    # Look up model_id — use the first active model if not specified
+                    model_id = spec_dict.get("model_id")
+                    if not model_id:
+                        from app.models.domain.ai import AIModel
+
+                        model_stmt = (
+                            sql_select(AIModel)
+                            .where(AIModel.is_active.is_(True))
+                            .limit(1)
+                        )
+                        model_result = await session.execute(model_stmt)
+                        model = model_result.scalar_one_or_none()
+                        if not model:
+                            logger.error(
+                                "No active AI model found, skipping specialist seeding"
+                            )
+                            return
+                        model_id = str(model.id)
+
+                    specialist = AIAssistantConfig(
+                        name=spec_dict["name"],
+                        description=spec_dict.get("description"),
+                        model_id=str(model_id),
+                        system_prompt=spec_dict.get("system_prompt"),
+                        temperature=spec_dict.get("temperature"),
+                        max_tokens=spec_dict.get("max_tokens"),
+                        is_active=spec_dict.get("is_active", True),
+                        default_role=spec_dict.get("default_role"),
+                        agent_type="specialist",
+                        allowed_tools=spec_dict.get("allowed_tools"),
+                        delegation_config=spec_dict.get("delegation_config"),
+                        structured_output_schema=spec_dict.get(
+                            "structured_output_schema"
+                        ),
+                        is_system=spec_dict.get("is_system", True),
+                    )
+                    session.add(specialist)
+                    await session.flush()
+
+                    created_count += 1
+                    logger.info(f"Created AI Specialist: {specialist.name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed AI specialist at index {idx}: {e}")
+                    skipped_count += 1
+                    continue
+
+        logger.info(
+            f"AI Specialist seeding complete: {created_count} created, "
+            f"{skipped_count} skipped/failed"
+        )
 
     async def seed_rbac_roles(self, session: AsyncSession) -> None:
         """Seed RBAC roles and permissions from config/rbac.json or seed/rbac_roles.json.
@@ -1469,6 +1569,9 @@ class DataSeeder:
 
             # Seed AI Assistants
             await self.seed_ai_assistants(session)
+
+            # Seed AI Specialists
+            await self.seed_ai_specialists(session)
 
             # Seed AI Tools Test Data
             await self.seed_ai_tools_test_data(session)

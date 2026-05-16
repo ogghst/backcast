@@ -218,6 +218,7 @@ class TestControlDateValidator:
             session=db_session,
         )
 
+
 class TestControlDateSequenceViolationError:
     """Tests for ControlDateSequenceViolationError exception."""
 

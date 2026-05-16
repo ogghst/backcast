@@ -25,6 +25,7 @@ def simple_tool(value: str) -> str:
     """
     return f"Echo: {value}"
 
+
 @tool
 def simple_tool_2(number: int) -> str:
     """A second simple test tool that doubles the input.
@@ -36,6 +37,7 @@ def simple_tool_2(number: int) -> str:
         The doubled number as a string
     """
     return f"Doubled: {number * 2}"
+
 
 class TestStateGraphCompilation:
     """Test suite for StateGraph compilation and execution."""
@@ -79,6 +81,7 @@ class TestStateGraphCompilation:
         # Last message should be the AI response
         assert isinstance(result["messages"][-1], AIMessage)
         assert result["messages"][-1].content == "Hello! How can I help you?"
+
 
 class TestToolNodeExecution:
     """Test suite for ToolNode execution from langgraph.prebuilt."""

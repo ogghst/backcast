@@ -100,6 +100,7 @@ async def test_generate_draft_success(
         assert ai_analysis["estimated_budget_impact"] == 25000.0
         assert ai_analysis["estimated_schedule_impact_days"] == 5
 
+
 @pytest.mark.asyncio
 async def test_generate_draft_ai_fallback(
     db_session: AsyncSession,
@@ -141,6 +142,7 @@ async def test_generate_draft_ai_fallback(
         ai_analysis = draft.impact_analysis_results["ai_analysis"]
         assert ai_analysis["confidence_score"] == 0.0
 
+
 @pytest.mark.asyncio
 async def test_generate_draft_project_not_found(
     db_session: AsyncSession,
@@ -157,6 +159,7 @@ async def test_generate_draft_project_not_found(
             reason="Test",
             actor_id=test_user.user_id,
         )
+
 
 @pytest.mark.asyncio
 async def test_generate_draft_branch_creation(

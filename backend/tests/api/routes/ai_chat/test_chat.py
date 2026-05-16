@@ -50,17 +50,22 @@ mock_regular_user = User(
     created_by=uuid4(),
 )
 
+
 def mock_get_current_admin() -> User:
     return mock_admin_user
+
 
 def mock_get_current_regular_user() -> User:
     return mock_regular_user
 
+
 def mock_get_current_active_admin() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_regular_user() -> User:
     return mock_regular_user
+
 
 @pytest.fixture
 def override_admin_auth() -> Generator[None, None, None]:
@@ -69,6 +74,7 @@ def override_admin_auth() -> Generator[None, None, None]:
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_admin
     yield
     app.dependency_overrides = {}
+
 
 @pytest.fixture
 def override_regular_auth() -> Generator[None, None, None]:
@@ -80,6 +86,7 @@ def override_regular_auth() -> Generator[None, None, None]:
     yield
     app.dependency_overrides = {}
 
+
 @pytest.fixture(autouse=True)
 def override_rbac() -> Generator[None, None, None]:
     """Override RBAC for all tests."""
@@ -88,6 +95,7 @@ def override_rbac() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
 
 # === T-CHAT-01: test_list_sessions_requires_auth ===
 @pytest.mark.asyncio
@@ -98,6 +106,7 @@ async def test_list_sessions_requires_auth(client: AsyncClient) -> None:
 
     response = await client.get("/api/v1/ai/chat/sessions")
     assert response.status_code == 401
+
 
 # === T-CHAT-02: test_list_sessions_returns_user_sessions_only ===
 @pytest.mark.asyncio
@@ -151,6 +160,7 @@ async def test_list_sessions_returns_user_sessions_only(
     for session in sessions:
         assert session["user_id"] == str(mock_admin_user.user_id)
 
+
 # === T-CHAT-03: test_get_session_messages_requires_auth ===
 @pytest.mark.asyncio
 async def test_get_session_messages_requires_auth(client: AsyncClient) -> None:
@@ -160,6 +170,7 @@ async def test_get_session_messages_requires_auth(client: AsyncClient) -> None:
     session_id = uuid4()
     response = await client.get(f"/api/v1/ai/chat/sessions/{session_id}/messages")
     assert response.status_code == 401
+
 
 # === T-CHAT-04: test_chat_session_ownership_validation ===
 @pytest.mark.asyncio
@@ -215,6 +226,7 @@ async def test_chat_session_ownership_validation(
     response = await client.get(f"/api/v1/ai/chat/sessions/{admin_session.id}/messages")
     assert response.status_code == 403
 
+
 # === T-CHAT-05: test_delete_session_requires_auth ===
 @pytest.mark.asyncio
 async def test_delete_session_requires_auth(client: AsyncClient) -> None:
@@ -225,6 +237,7 @@ async def test_delete_session_requires_auth(client: AsyncClient) -> None:
     response = await client.delete(f"/api/v1/ai/chat/sessions/{session_id}")
     assert response.status_code == 401
 
+
 # === Additional helper tests ===
 @pytest.mark.asyncio
 async def test_list_sessions_requires_permission(
@@ -234,6 +247,7 @@ async def test_list_sessions_requires_permission(
     response = await client.get("/api/v1/ai/chat/sessions")
     # Should succeed with admin override
     assert response.status_code == 200
+
 
 @pytest.mark.asyncio
 async def test_get_session_messages_validates_ownership(
@@ -297,6 +311,7 @@ async def test_get_session_messages_validates_ownership(
     response = await client.get(f"/api/v1/ai/chat/sessions/{admin_session.id}/messages")
     assert response.status_code == 403
 
+
 @pytest.mark.asyncio
 async def test_delete_session_validates_ownership(
     client: AsyncClient,
@@ -349,6 +364,7 @@ async def test_delete_session_validates_ownership(
 
     response = await client.delete(f"/api/v1/ai/chat/sessions/{admin_session.id}")
     assert response.status_code == 403
+
 
 @pytest.mark.asyncio
 async def test_delete_session_successful(

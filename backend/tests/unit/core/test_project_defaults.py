@@ -21,6 +21,7 @@ class TestConstants:
         """Test that DEFAULT_BUDGET_WARNING_THRESHOLD is set correctly."""
         assert DEFAULT_BUDGET_WARNING_THRESHOLD == Decimal("80.0")
 
+
 class TestProjectCreationDefaults:
     """Test ProjectCreationDefaults dataclass."""
 
@@ -50,6 +51,7 @@ class TestProjectCreationDefaults:
         defaults = ProjectCreationDefaults()
         with pytest.raises(FrozenInstanceError):
             defaults.budget = ProjectBudgetSettingsBase()  # type: ignore
+
 
 class TestGetProjectCreationDefaults:
     """Test get_project_creation_defaults function."""
@@ -93,6 +95,7 @@ class TestGetProjectCreationDefaults:
         )
         assert defaults.budget.warning_threshold_percent == Decimal("95.0")
         assert defaults.budget.allow_project_admin_override is False
+
 
 class TestApplyProjectCreationDefaults:
     """Test apply_project_creation_defaults function."""

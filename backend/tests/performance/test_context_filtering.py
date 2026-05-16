@@ -159,6 +159,7 @@ async def test_context_filtering_performance_with_1000_sessions(
     # Ensure all queries complete in reasonable time
     assert max_time < 200, f"Slowest query too slow: {max_time:.2f}ms (limit: 200ms)"
 
+
 @pytest.mark.asyncio
 async def test_context_filtering_index_efficiency(
     db_session: AsyncSession, test_user: User
@@ -259,6 +260,7 @@ async def test_context_filtering_index_efficiency(
     assert "seq scan" not in plan_str or "parallel seq scan" not in plan_str, (
         "Query should use index scan, not sequential scan for context filtering"
     )
+
 
 @pytest.mark.asyncio
 async def test_context_count_performance(

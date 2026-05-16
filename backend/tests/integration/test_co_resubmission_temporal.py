@@ -31,6 +31,7 @@ def _setup_project():
         "T0": datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
     }
 
+
 @pytest.mark.asyncio
 async def test_resubmission_closes_previous_version_temporal_ranges(
     db_session: AsyncSession,
@@ -150,6 +151,7 @@ async def test_resubmission_closes_previous_version_temporal_ranges(
     )
     assert open_versions[0].status == "submitted_for_approval"
 
+
 @pytest.mark.asyncio
 async def test_resubmission_with_same_control_date_closes_previous(
     db_session: AsyncSession,
@@ -229,6 +231,7 @@ async def test_resubmission_with_same_control_date_closes_previous(
         "The Rejected version was not closed when control_date == current_lower."
     )
 
+
 @pytest.mark.asyncio
 async def test_empty_valid_time_ranges_excluded_from_current_query(
     db_session: AsyncSession,
@@ -307,6 +310,7 @@ async def test_empty_valid_time_ranges_excluded_from_current_query(
         "get_as_of() should not return a version with empty valid_time range"
     )
     assert current.status == "draft"
+
 
 @pytest.mark.asyncio
 async def test_full_lifecycle_draft_submit_reject_resubmit(

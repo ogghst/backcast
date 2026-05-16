@@ -26,11 +26,14 @@ mock_admin_user = User(
     created_by=uuid4(),
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
@@ -42,6 +45,7 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
 
 @pytest.mark.asyncio
 class TestEVMCostComparisonLogic:

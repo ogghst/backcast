@@ -33,12 +33,14 @@ from app.models.domain.user_role_assignment import ScopeType, UserRoleAssignment
 # Seeded role IDs from the database (looked up per test to avoid stale refs).
 # The test DB has these roles: admin, manager, viewer (is_system=True).
 
+
 async def _get_role_id(session: AsyncSession, role_name: str) -> Any:
     """Look up a seeded RBAC role ID by name."""
     result = await session.execute(
         select(RBACRole.id).where(RBACRole.name == role_name)
     )
     return result.scalar_one()
+
 
 async def _create_db_user(
     session: AsyncSession,
@@ -60,6 +62,7 @@ async def _create_db_user(
     await session.refresh(user)
     return user
 
+
 async def _assign_role(
     session: AsyncSession,
     user_id: Any,
@@ -79,9 +82,11 @@ async def _assign_role(
     session.add(assignment)
     await session.flush()
 
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest_asyncio.fixture
 async def admin_user(db_session: AsyncSession) -> User:
@@ -92,6 +97,7 @@ async def admin_user(db_session: AsyncSession) -> User:
     await _assign_role(db_session, user.user_id, "admin")
     return user
 
+
 @pytest_asyncio.fixture
 async def manager_user(db_session: AsyncSession) -> User:
     """Create a real manager user in the database with manager role assignment."""
@@ -100,6 +106,7 @@ async def manager_user(db_session: AsyncSession) -> User:
     )
     await _assign_role(db_session, user.user_id, "manager")
     return user
+
 
 @pytest_asyncio.fixture
 async def viewer_user(db_session: AsyncSession) -> User:
@@ -110,10 +117,12 @@ async def viewer_user(db_session: AsyncSession) -> User:
     await _assign_role(db_session, user.user_id, "viewer")
     return user
 
+
 @pytest_asyncio.fixture
 def rbac_service() -> UnifiedRBACService:
     """Create a fresh UnifiedRBACService for each test (no stale cache)."""
     return UnifiedRBACService()
+
 
 @pytest_asyncio.fixture
 def test_app(
@@ -154,6 +163,7 @@ def test_app(
 
     return app
 
+
 def _make_client(
     test_app: FastAPI,
     db_session: AsyncSession,
@@ -167,9 +177,11 @@ def _make_client(
     set_unified_rbac_session(db_session)
     return AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test")
 
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestRoleChecker:
     """Integration tests for RoleChecker dependency."""

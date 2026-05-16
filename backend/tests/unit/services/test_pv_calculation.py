@@ -164,6 +164,7 @@ class TestPVCalculation:
         # Assert
         assert pv == Decimal("0.00"), "PV should be 0 when BAC is 0"
 
+
 class TestScheduleBaselinePVCalculation:
     """Test PV calculation using ScheduleBaseline model directly (no DB required)."""
 

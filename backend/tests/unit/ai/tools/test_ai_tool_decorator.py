@@ -303,6 +303,7 @@ class TestAIToolDecoratorComposition:
         assert hasattr(test_function, "description")
         assert hasattr(test_function, "args_schema")
 
+
 class TestAIToolDecoratorErrorPaths:
     """Test suite for @ai_tool decorator error handling."""
 
@@ -552,6 +553,7 @@ class TestAIToolDecoratorErrorPaths:
         assert isinstance(result, dict)
         assert "error" in result
         assert "context not provided" in result["error"].lower()
+
 
 class TestToLangChainToolBackwardCompatibility:
     """Test suite for to_langchain_tool() backward compatibility function."""

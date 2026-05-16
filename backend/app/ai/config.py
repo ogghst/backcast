@@ -9,7 +9,6 @@ class OrchestratorMode(StrEnum):
     """Available agent orchestration strategies."""
 
     SUPERVISOR = "supervisor"
-    DEEP = "deep"
 
 
 @dataclass(frozen=True)

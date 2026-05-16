@@ -1,8 +1,7 @@
 """Shared subagent/specialist compilation logic.
 
-Extracts the common tool-filtering and agent-compilation pattern used by both
-DeepAgentOrchestrator and SupervisorOrchestrator so they don't duplicate the
-same ~80-line method.
+Extracts the common tool-filtering and agent-compilation pattern used by
+SupervisorOrchestrator so it doesn't inline the same ~80-line method.
 """
 
 import logging

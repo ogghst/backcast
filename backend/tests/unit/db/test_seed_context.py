@@ -11,12 +11,14 @@ def test_seed_operation_default_is_false() -> None:
     """Test that is_seed_operation() returns False by default."""
     assert is_seed_operation() is False
 
+
 def test_seed_operation_context_manager() -> None:
     """Test that seed_operation() context manager works correctly."""
     assert is_seed_operation() is False
     with seed_operation():
         assert is_seed_operation() is True
     assert is_seed_operation() is False
+
 
 def test_seed_operation_nested() -> None:
     """Test that nested seed_operation() contexts work correctly."""
@@ -27,6 +29,7 @@ def test_seed_operation_nested() -> None:
             assert is_seed_operation() is True
         assert is_seed_operation() is True
     assert is_seed_operation() is False
+
 
 @pytest.mark.asyncio
 async def test_seed_operation_async_isolation() -> None:

@@ -43,6 +43,7 @@ _seeded_engine: AsyncEngine | None = None
 _co_and_project_cache: tuple[ChangeOrder, Project] | None = None
 _seeding_lock = asyncio.Lock()
 
+
 async def _ensure_seeded() -> AsyncEngine:
     """Ensure database is seeded, return engine."""
     global _seeded_engine
@@ -79,6 +80,7 @@ async def _ensure_seeded() -> AsyncEngine:
         _seeded_engine = engine
         return engine
 
+
 async def _get_co_and_project(session: AsyncSession) -> tuple[ChangeOrder, Project]:
     """Get CO-2026-005 and its project, using cache if available."""
     global _co_and_project_cache
@@ -107,6 +109,7 @@ async def _get_co_and_project(session: AsyncSession) -> tuple[ChangeOrder, Proje
     _co_and_project_cache = (co, project)
     return co, project
 
+
 @pytest_asyncio.fixture
 async def seeded_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a session for the seeded database."""
@@ -114,10 +117,12 @@ async def seeded_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSession(engine, expire_on_commit=False) as session:
         yield session
 
+
 @pytest_asyncio.fixture
 async def co_and_project(seeded_session: AsyncSession) -> tuple[ChangeOrder, Project]:
     """Get CO-2026-005 and its project from the seeded database."""
     return await _get_co_and_project(seeded_session)
+
 
 def _get_new_forecasts(forecast_changes: ForecastChanges) -> list[Any]:
     """Get forecasts that are NEW (only on branch, not on main)."""
@@ -126,6 +131,7 @@ def _get_new_forecasts(forecast_changes: ForecastChanges) -> list[Any]:
         for fc in forecast_changes.forecasts
         if fc.main_forecast is None and fc.branch_forecast is not None
     ]
+
 
 class TestCO2026005ForecastImpact:
     """Integration test suite for CO-2026-005 forecast impact analysis."""

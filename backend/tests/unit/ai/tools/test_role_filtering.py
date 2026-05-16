@@ -51,6 +51,7 @@ def _make_mock_tool(
 
     return tool
 
+
 def _make_rbac_service_mock(
     role_permissions: dict[str, set[str]],
 ) -> MagicMock:
@@ -68,6 +69,7 @@ def _make_rbac_service_mock(
     )
     service.refresh_permissions_cache = AsyncMock()
     return service
+
 
 class TestFilterToolsByRole:
     """Tests for filter_tools_by_role() function."""
@@ -195,6 +197,7 @@ class TestFilterToolsByRole:
             set_unified_rbac_service(None)  # type: ignore[arg-type]
 
         assert len(result) == 0
+
 
 class TestFilterToolsByRoleAsyncCacheRefresh:
     """Tests for async cache-miss refresh behavior in filter_tools_by_role().

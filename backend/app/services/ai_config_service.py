@@ -282,12 +282,16 @@ class AIConfigService:
     # === Assistant Config Operations ===
 
     async def list_assistant_configs(
-        self, include_inactive: bool = False
+        self,
+        include_inactive: bool = False,
+        agent_type: str | None = None,
     ) -> list[AIAssistantConfig]:
         """List all assistant configurations."""
         stmt = select(AIAssistantConfig)
         if not include_inactive:
             stmt = stmt.where(AIAssistantConfig.is_active)
+        if agent_type:
+            stmt = stmt.where(AIAssistantConfig.agent_type == agent_type)
         stmt = stmt.order_by(AIAssistantConfig.name)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -317,6 +321,13 @@ class AIConfigService:
             recursion_limit=config_in.recursion_limit,
             default_role=config_in.default_role,
             is_active=config_in.is_active,
+            agent_type=config_in.agent_type,
+            allowed_tools=config_in.allowed_tools,
+            delegation_config=config_in.delegation_config.model_dump()
+            if config_in.delegation_config
+            else None,
+            structured_output_schema=config_in.structured_output_schema,
+            is_system=config_in.is_system,
         )
         self.session.add(config)
         await self.session.flush()

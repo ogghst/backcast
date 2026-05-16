@@ -21,6 +21,7 @@ from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
 
 sample_cost_element_with_budget = _fixtures.sample_cost_element_with_budget  # noqa: F401
 
+
 class TestProgressEntryServiceCreate:
     """Test ProgressEntryService.create() method."""
 
@@ -155,6 +156,7 @@ class TestProgressEntryServiceCreate:
                 progress_percentage=Decimal("101.00"),
             )
 
+
 class TestProgressEntryServiceGetLatest:
     """Test ProgressEntryService.get_latest_progress() method."""
 
@@ -261,6 +263,7 @@ class TestProgressEntryServiceGetLatest:
 
         # Assert
         assert latest is None
+
 
 class TestProgressEntryServiceGetHistory:
     """Test ProgressEntryService.get_progress_history() method."""
@@ -386,6 +389,7 @@ class TestProgressEntryServiceGetHistory:
         )
         assert total == 2
         assert len(history) == 2
+
 
 class TestProgressEntryServiceAggregation:
     """Test ProgressEntryService.get_progress_history() with WBE/project filtering."""

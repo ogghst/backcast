@@ -1,7 +1,9 @@
 """Integration test for role assignment update bug diagnosis."""
-import pytest
+
+from datetime import UTC, datetime
 from uuid import uuid4
-from datetime import datetime, UTC
+
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,9 +11,10 @@ from app.core.rbac_unified import (
     get_unified_rbac_service,
     set_unified_rbac_session,
 )
-from app.models.domain.user_role_assignment import UserRoleAssignment
 from app.models.domain.rbac import RBACRole
 from app.models.domain.user import User
+from app.models.domain.user_role_assignment import UserRoleAssignment
+
 
 @pytest.mark.asyncio
 async def test_role_assignment_update_integration(db_session: AsyncSession):
@@ -74,12 +77,13 @@ async def test_role_assignment_update_integration(db_session: AsyncSession):
     initial_assignment = result.scalar_one()
     initial_role_id = initial_assignment.role_id
 
-    print(f"\n=== BEFORE UPDATE ===")
+    print("\n=== BEFORE UPDATE ===")
     print(f"Assignment ID: {assignment.id}")
     print(f"Initial role_id: {initial_role_id}")
 
     # Wait to ensure timestamp difference
     import asyncio
+
     await asyncio.sleep(0.1)
 
     # Perform the update using the service directly
@@ -99,18 +103,22 @@ async def test_role_assignment_update_integration(db_session: AsyncSession):
     )
     db_assignment = result_after.scalar_one()
 
-    print(f"\n=== AFTER UPDATE ===")
-    print(f"Service returned role_id: {updated_assignment.role_id if updated_assignment else 'None'}")
+    print("\n=== AFTER UPDATE ===")
+    print(
+        f"Service returned role_id: {updated_assignment.role_id if updated_assignment else 'None'}"
+    )
     print(f"Database role_id: {db_assignment.role_id}")
 
     # Assertions
     assert db_assignment is not None, "Assignment should still exist"
-    assert db_assignment.role_id == new_role_id, f"role_id should be updated to {new_role_id}"
+    assert db_assignment.role_id == new_role_id, (
+        f"role_id should be updated to {new_role_id}"
+    )
     # Note: Don't assert updated_at > initial_updated_at because of clock skew between
     # app time (datetime.now(UTC)) and database time (func.now()). The important thing
     # is that the role_id was updated correctly.
 
-    print(f"\n=== TEST PASSED ===")
+    print("\n=== TEST PASSED ===")
 
     # Cleanup
     await db_session.rollback()

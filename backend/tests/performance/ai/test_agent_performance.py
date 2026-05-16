@@ -23,6 +23,7 @@ from app.ai.state import AgentState
 SIMPLE_QUERY_TARGET_P50 = 500  # ms
 COMPLEX_QUERY_TARGET_P50 = 1000  # ms
 
+
 @pytest.fixture
 def mock_fast_llm():
     """Mock LLM that responds quickly (simulating fast API response)."""
@@ -30,6 +31,7 @@ def mock_fast_llm():
     llm.bind_tools = MagicMock(return_value=llm)
     llm.ainvoke = AsyncMock(return_value=AIMessage(content="Quick response"))
     return llm
+
 
 @pytest.fixture
 def mock_slow_llm():
@@ -43,6 +45,7 @@ def mock_slow_llm():
     llm.bind_tools = MagicMock(return_value=llm)
     llm.ainvoke = AsyncMock(side_effect=slow_invoke)
     return llm
+
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -90,6 +93,7 @@ async def test_simple_query_latency_p50(mock_fast_llm):
     print(
         f"\n✓ Simple query latency: {latency_ms:.2f}ms (target: <{SIMPLE_QUERY_TARGET_P50}ms)"
     )
+
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -148,6 +152,7 @@ async def test_simple_query_latency_percentiles(mock_fast_llm):
         f"\n✓ Simple query percentiles (n={iterations}): "
         f"p50={p50:.2f}ms, p95={p95:.2f}ms, p99={p99:.2f}ms"
     )
+
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -214,6 +219,7 @@ async def test_complex_query_latency_p50(mock_slow_llm):
         f"\n✓ Complex query latency: {latency_ms:.2f}ms (target: <{COMPLEX_QUERY_TARGET_P50}ms)"
     )
 
+
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
@@ -274,6 +280,7 @@ async def test_concurrent_requests_scaling(mock_fast_llm):
         f"scaling={scaling_factor:.2f}x"
     )
 
+
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
@@ -318,6 +325,7 @@ async def test_memory_usage_simple_query(mock_fast_llm):
     # Log for reporting
     print(f"\n✓ Memory usage for simple query: {total_kb:.2f}KB")
 
+
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
@@ -341,6 +349,7 @@ async def test_graph_compilation_overhead(mock_fast_llm):
 
     # Log for reporting
     print(f"\n✓ Graph compilation overhead: {compilation_time:.2f}ms (target: <100ms)")
+
 
 # Run benchmarks with pytest:
 # pytest tests/performance/ai/test_agent_performance.py -v -m performance

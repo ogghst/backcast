@@ -32,6 +32,7 @@ class TestEVMServiceBAC:
         # In a real scenario, integration tests would be better
         pass
 
+
 class TestEVMServicePV:
     """Test PV (Planned Value) calculation."""
 
@@ -47,6 +48,7 @@ class TestEVMServicePV:
         # This would be tested in integration tests with real data
         pass
 
+
 class TestEVMServiceAC:
     """Test AC (Actual Cost) calculation."""
 
@@ -59,6 +61,7 @@ class TestEVMServiceAC:
         # AC calculation requires cost registrations
         # This would be tested in integration tests
         pass
+
 
 class TestEVMServiceEV:
     """Test EV (Earned Value) calculation."""
@@ -89,6 +92,7 @@ class TestEVMServiceEV:
         # When no progress entry exists, EV should be 0 with warning
         # This would be tested in integration tests
         pass
+
 
 class TestEVMServiceVariances:
     """Test variance calculations (CV, SV)."""
@@ -146,6 +150,7 @@ class TestEVMServiceVariances:
         # Assert
         assert cv == Decimal("10000")
         assert sv == Decimal("5000")
+
 
 class TestEVMServiceIndices:
     """Test performance indices (CPI, SPI)."""
@@ -240,6 +245,7 @@ class TestEVMServiceIndices:
         assert cpi is None
         assert spi is None
 
+
 class TestEVMServiceTimeTravel:
     """Test time-travel support for EVM calculations."""
 
@@ -259,6 +265,7 @@ class TestEVMServiceTimeTravel:
         # This requires full integration setup
         # Better tested in integration tests
         pass
+
 
 class TestEVMServiceBatchCalculation:
     """Test multi-entity batch EVM calculation."""
@@ -300,6 +307,7 @@ class TestEVMServiceBatchCalculation:
         # For unit testing, we verify the method exists and accepts the parameters
         # Integration tests would verify actual behavior with real data
         pass
+
 
 class TestEVMServiceWBESupport:
     """Test WBE entity type support in EVM calculations."""
@@ -384,6 +392,7 @@ class TestEVMServiceWBESupport:
         assert result.granularity == EVMTimeSeriesGranularity.WEEK
         assert result.points == []
         assert result.total_points == 0
+
 
 class TestEVMServiceAggregation:
     """Test EVM metrics aggregation logic."""
@@ -524,6 +533,7 @@ class TestEVMServiceAggregation:
         assert result.spi is not None
         assert abs(Decimal(str(result.spi)) - Decimal("0.933")) < Decimal("0.001")
 
+
 class TestEVMServiceProjectSupport:
     """Test PROJECT entity type support in EVM calculations.
 
@@ -638,6 +648,7 @@ class TestEVMServiceProjectSupport:
         # Skip for now - integration tests would cover this
         pytest.skip("Requires full integration setup")
 
+
 class TestEVMServiceTimeSeries:
     """Test EVM time-series calculation logic."""
 
@@ -703,6 +714,7 @@ class TestEVMServiceTimeSeries:
         # Check interval is roughly 7 days
         delta = dates[1] - dates[0]
         assert delta.days == 7
+
 
 class TestEVMServiceMergeModeWithNonExistentBranch:
     """Test EVM metrics calculation in MERGE mode with non-existent branch.

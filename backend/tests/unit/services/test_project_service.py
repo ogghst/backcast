@@ -33,6 +33,7 @@ class TestProjectServiceCreate:
         # Budget is computed from cost elements; new projects have none, so budget is 0
         assert created_project.budget == Decimal("0")
 
+
 class TestProjectServiceGetProjects:
     """Test ProjectService.get_projects() method with search and filters."""
 
@@ -364,6 +365,7 @@ class TestProjectServiceGetProjects:
         assert len(projects) == 5
         assert total == 10
 
+
 class TestProjectServiceUpdate:
     """Test ProjectService.update_project() method."""
 
@@ -393,6 +395,7 @@ class TestProjectServiceUpdate:
         assert v2.id != v1.id  # New version ID
         assert v2.project_id == project_id  # Same root ID
         assert v2.name == "Updated Name"
+
 
 class TestProjectServiceDelete:
     """Test ProjectService.delete_project() method."""

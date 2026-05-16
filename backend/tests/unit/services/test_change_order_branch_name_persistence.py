@@ -31,6 +31,7 @@ def admin_user() -> User:
         created_by=uuid4(),
     )
 
+
 @pytest.mark.asyncio
 async def test_branch_name_persisted_on_co_creation(
     db_session: AsyncSession, admin_user: User
@@ -87,6 +88,7 @@ async def test_branch_name_persisted_on_co_creation(
     assert row[0] == expected_branch_name, (
         f"Persisted branch_name should be {expected_branch_name}, got {row[0]}"
     )
+
 
 @pytest.mark.asyncio
 async def test_branch_name_persisted_after_update(

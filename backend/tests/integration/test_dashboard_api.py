@@ -32,11 +32,14 @@ mock_admin_user = User(
     hashed_password="hash",
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest_asyncio.fixture
 async def client(
@@ -63,6 +66,7 @@ async def client(
 
     app.dependency_overrides.clear()
 
+
 @pytest.mark.asyncio
 async def test_get_dashboard_recent_activity_empty(
     client: AsyncClient,
@@ -80,6 +84,7 @@ async def test_get_dashboard_recent_activity_empty(
     assert data["recent_activity"]["wbes"] == []
     assert data["recent_activity"]["cost_elements"] == []
     assert data["recent_activity"]["change_orders"] == []
+
 
 @pytest.mark.asyncio
 async def test_get_dashboard_recent_activity_with_project(
@@ -123,6 +128,7 @@ async def test_get_dashboard_recent_activity_with_project(
     assert project_activity["entity_type"] == "project"
     assert project_activity["action"] in ["created", "updated"]
 
+
 @pytest.mark.asyncio
 async def test_get_dashboard_recent_activity_with_wbe(
     client: AsyncClient,
@@ -164,6 +170,7 @@ async def test_get_dashboard_recent_activity_with_wbe(
     assert wbe_activity["entity_type"] == "wbe"
     assert wbe_activity["project_id"] == str(project.project_id)
     assert wbe_activity["project_name"] == "Test Project"
+
 
 @pytest.mark.asyncio
 async def test_get_dashboard_recent_activity_with_change_order(
@@ -212,6 +219,7 @@ async def test_get_dashboard_recent_activity_with_change_order(
     assert co_activity["project_id"] == str(project.project_id)
     assert co_activity["project_name"] == "Test Project"
 
+
 @pytest.mark.asyncio
 async def test_get_dashboard_recent_activity_limit(
     client: AsyncClient,
@@ -239,6 +247,7 @@ async def test_get_dashboard_recent_activity_limit(
 
     data = response.json()
     assert len(data["recent_activity"]["projects"]) == 3
+
 
 @pytest.mark.asyncio
 async def test_get_dashboard_project_metrics(

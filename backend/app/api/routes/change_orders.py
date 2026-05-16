@@ -1083,9 +1083,7 @@ async def get_change_order_approval_info(
                     approver_roles = await approver_rbac.get_user_roles(
                         approver.user_id, "global", None
                     )
-                    approver_role = (
-                        approver_roles[0] if approver_roles else "unknown"
-                    )
+                    approver_role = approver_roles[0] if approver_roles else "unknown"
                 finally:
                     set_unified_rbac_session(None)
 

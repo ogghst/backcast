@@ -67,6 +67,7 @@ async def setup_hierarchy(db_session: AsyncSession):
         "wbe": wbe,
     }
 
+
 class TestCostElementServiceCreate:
     """Test CostElementService.create() method."""
 
@@ -146,6 +147,7 @@ class TestCostElementServiceCreate:
         db_record = (await db_session.execute(stmt)).scalar_one()
         assert db_record.created_by == actor_id
 
+
 class TestCostElementServiceUpdate:
     """Test CostElementService.update() method."""
 
@@ -197,6 +199,7 @@ class TestCostElementServiceUpdate:
         assert old_version.name == "Original Name"
         assert old_version.budget_amount == Decimal("10000.00")
 
+
 class TestCostElementServiceDelete:
     """Test CostElementService.soft_delete() method."""
 
@@ -238,6 +241,7 @@ class TestCostElementServiceDelete:
         assert deleted is not None
         assert deleted.is_deleted is True
         assert deleted.deleted_by == actor_id_delete
+
 
 class TestCostElementServiceList:
     """Test CostElementService.list() method."""
@@ -338,6 +342,7 @@ class TestCostElementServiceList:
         # I'll update the test first, then fix the service list method.
         pass
 
+
 class TestCostElementServiceBranching:
     """Test Cost Element branching capabilities."""
 
@@ -432,6 +437,7 @@ class TestCostElementServiceBranching:
         assert main_element.cost_element_id in main_ids
         assert main_element.cost_element_id not in branch_ids
         assert branch_element.cost_element_id in branch_ids
+
 
 class TestCostElementServiceAutoCreation:
     """Test auto-creation of related entities when creating cost elements."""

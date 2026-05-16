@@ -55,12 +55,11 @@ async def _resolve_user_role(session: Any, user_id: UUID) -> str:
 
     try:
         set_unified_rbac_session(session)
-        roles = await get_unified_rbac_service().get_user_roles(
-            user_id, "global", None
-        )
+        roles = await get_unified_rbac_service().get_user_roles(user_id, "global", None)
         return roles[0] if roles else "viewer"
     finally:
         set_unified_rbac_session(None)
+
 
 # =============================================================================
 # USER CRUD TOOLS

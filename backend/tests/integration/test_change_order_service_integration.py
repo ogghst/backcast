@@ -65,6 +65,7 @@ async def test_create_change_order_creates_branch_in_transaction(db_session):
     assert branch.type == "change_order"
     assert branch.locked is False  # Draft status = unlocked
 
+
 @pytest.mark.asyncio
 async def test_status_change_draft_to_submitted_locks_branch(db_session):
     """Test that changing status from Draft to submitted_for_approval locks the branch."""
@@ -114,6 +115,7 @@ async def test_status_change_draft_to_submitted_locks_branch(db_session):
         project_id=project.project_id,
     )
     assert branch.locked is True
+
 
 @pytest.mark.asyncio
 async def test_status_change_under_review_to_rejected_unlocks_branch(db_session):
@@ -180,6 +182,7 @@ async def test_status_change_under_review_to_rejected_unlocks_branch(db_session)
         project_id=project.project_id,
     )
     assert branch.locked is False
+
 
 @pytest.mark.asyncio
 async def test_invalid_status_transition_raises_error(db_session):

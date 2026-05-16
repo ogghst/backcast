@@ -33,11 +33,14 @@ mock_admin_user = User(
     created_by=uuid4(),
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
@@ -49,6 +52,7 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
 
 @pytest_asyncio.fixture
 async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
@@ -112,6 +116,7 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
         "project_id": project_id,
         "wbe_id": wbe_id,
     }
+
 
 class TestScheduleBaselineCreate:
     """Test schedule baseline CREATE endpoint with temporal context."""
@@ -260,6 +265,7 @@ class TestScheduleBaselineCreate:
         data = response.json()
         assert "already exists" in data["detail"].lower()
 
+
 class TestScheduleBaselineUpdate:
     """Test schedule baseline UPDATE endpoint with temporal context."""
 
@@ -336,6 +342,7 @@ class TestScheduleBaselineUpdate:
         # Assert - Updated successfully
         assert update_response.status_code == 200
 
+
 class TestScheduleBaselineDelete:
     """Test schedule baseline DELETE endpoint continues using query parameters."""
 
@@ -379,6 +386,7 @@ class TestScheduleBaselineDelete:
             f"/api/v1/schedule-baselines/{baseline_id}?branch=main"
         )
         assert get_response.status_code == 404
+
 
 class TestScheduleBaselineDirectEndpoints:
     """Test direct schedule baseline endpoints at /api/v1/schedule-baselines."""

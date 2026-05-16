@@ -17,6 +17,7 @@ class ProgressionType(str, Enum):
     GAUSSIAN = "GAUSSIAN"
     LOGARITHMIC = "LOGARITHMIC"
 
+
 class TestScheduleBaselineModel:
     """Test ScheduleBaseline model behavior and Mixin composition."""
 

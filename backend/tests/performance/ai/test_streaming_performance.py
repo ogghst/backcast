@@ -23,6 +23,7 @@ from app.ai.state import AgentState
 FIRST_TOKEN_TARGET_P50 = 100  # ms
 TOKEN_THROUGHPUT_TARGET = 50  # tokens/second
 
+
 @pytest.fixture
 def mock_streaming_llm():
     """Mock LLM that streams tokens quickly."""
@@ -48,6 +49,7 @@ def mock_streaming_llm():
     llm.astream_events = AsyncMock(side_effect=stream_tokens)
     llm.ainvoke = AsyncMock(side_effect=mock_ainvoke)
     return llm
+
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -103,6 +105,7 @@ async def test_first_token_latency_p50(mock_streaming_llm):
     print(
         f"\n✓ First token latency: {latency_ms:.2f}ms (target: <{FIRST_TOKEN_TARGET_P50}ms)"
     )
+
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -168,6 +171,7 @@ async def test_first_token_latency_percentiles(mock_streaming_llm):
         f"p50={p50:.2f}ms, p95={p95:.2f}ms, p99={p99:.2f}ms"
     )
 
+
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
@@ -218,6 +222,7 @@ async def test_token_throughput(mock_streaming_llm):
         f"\n✓ Token throughput: {throughput:.2f} tokens/sec "
         f"({token_count} tokens in {elapsed_seconds:.2f}s, target: >{TOKEN_THROUGHPUT_TARGET} tokens/sec)"
     )
+
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -291,6 +296,7 @@ async def test_concurrent_streams(mock_streaming_llm):
         f"scaling={scaling_factor:.2f}x"
     )
 
+
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
@@ -347,6 +353,7 @@ async def test_websocket_message_overhead(mock_streaming_llm):
 
     # Log for reporting
     print(f"\n✓ WebSocket message overhead: {avg_overhead:.2f}ms (target: <10ms)")
+
 
 # Run benchmarks with pytest:
 # pytest tests/performance/ai/test_streaming_performance.py -v -m performance

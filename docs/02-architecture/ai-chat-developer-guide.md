@@ -69,10 +69,10 @@ Browser (React)                          Backend (FastAPI)
 
 | Path | When Used | Description |
 |------|-----------|-------------|
-| **LangChain Agent** (primary) | Default path | Multi-agent orchestration via `langchain.agents.create_agent()` with `task` delegation to 6 subagents |
-| **StateGraph fallback** | Subagents disabled or no valid subagent tools | Direct LangGraph `StateGraph` with agent node, tool node, and conditional edges. Max 5 tool iterations. |
+| **Supervisor Orchestrator** (primary) | Default path | Supervisor agent with direct tools + handoff-based delegation to DB-configured specialists |
+| **StateGraph fallback** | No specialists compiled or all filtered out | Direct LangGraph `StateGraph` with agent node, tool node, and conditional edges. Max 5 tool iterations. |
 
-The primary path lives in `deep_agent_orchestrator.py` (`DeepAgentOrchestrator.create_agent()`), which wraps `langchain.agents.create_agent()` with Backcast config. The fallback path lives in `graph.py` (`create_graph()`).
+The primary path lives in `supervisor_orchestrator.py` (`SupervisorOrchestrator.create_supervisor_graph()`), which builds a parent `StateGraph` with a supervisor node, specialist function nodes, and handoff tools. Main agents can use configured `direct_tools` directly. The fallback path lives in `graph.py` (`create_graph()`).
 
 ### Core Components
 
@@ -88,10 +88,11 @@ agent_service.py (orchestration)
     |         +---> CompiledGraphCache (LRU graph cache, max 20)
     |         +---> set_request_context() / clear_request_context() (ContextVar bridge)
     |
-    +---> DeepAgentOrchestrator.create_agent()
+    +---> SupervisorOrchestrator.create_supervisor_graph()
     |         |
-    |         +---> tools/__init__.py  (create_project_tools - All tools (69, 8 template packages))
-    |         +---> subagents/__init__.py  (6 subagent configs)
+    |         +---> subagents/db_loader.py  (DB specialist loading with TTL cache)
+    |         +---> tools/__init__.py  (create_project_tools - All tools (74, 10 template packages))
+    |         +---> subagents/__init__.py  (hardcoded fallback configs)
     |         +---> middleware/
     |         |      +---> temporal_context.py   (inject as_of, branch)
     |         |      +---> backcast_security.py  (RBAC + approval)
@@ -332,36 +333,36 @@ Authorization: Bearer <JWT>
 
 ### Agent Creation Flow
 
-File: `agent_service.py` (_create_deep_agent_graph) and `deep_agent_orchestrator.py` (create_agent)
+File: `agent_service.py` (_create_supervisor_graph) and `supervisor_orchestrator.py` (create_supervisor_graph)
 
-### Orchestration Patterns
+### Orchestration Pattern
 
-The system supports two orchestration patterns for multi-agent delegation:
+The system uses a single orchestration pattern:
 
 | Pattern | Orchestrator | Delegation Mechanism | Context Sharing |
 |---------|-------------|---------------------|-----------------|
-| **DeepAgent** (primary) | `DeepAgentOrchestrator` | Task-based — main agent delegates via `task` tool to isolated subagent graphs | Isolated — each subagent gets its own message history |
-| **Supervisor** (alternative) | `SupervisorOrchestrator` | Handoff-based — supervisor transfers control via `Command(goto=...)` handoff tools | Shared — all agents see full message history via parent `StateGraph` |
+| **Supervisor** | `SupervisorOrchestrator` | Handoff-based — supervisor transfers control via `Command(goto=...)` handoff tools + optional direct tools | Shared state — briefing document accumulates specialist findings |
 
-**DeepAgentOrchestrator** (primary path, `deep_agent_orchestrator.py`): The main agent has NO direct Backcast tools — it delegates everything through the `task` tool to 6 subagents. Each subagent runs as an isolated compiled graph with its own filtered tools.
+**SupervisorOrchestrator** (`supervisor_orchestrator.py`): Builds a parent `StateGraph(BackcastSupervisorState)` where the supervisor routes to specialist agents via handoff tools (`handoff_to_{agent_name}`). Each specialist is a function node that runs in isolation with the compiled briefing document. The supervisor can also use configured **direct tools** from the main agent's `delegation_config.direct_tools` (e.g., `get_temporal_context`, `set_temporal_context`, `global_search`).
 
-**SupervisorOrchestrator** (alternative path, `supervisor_orchestrator.py`): Builds a parent `StateGraph(BackcastSupervisorState)` where the supervisor routes to specialist agents via handoff tools (`handoff_to_{agent_name}`). Each specialist is a compiled `create_agent()` graph embedded as a subgraph node. The supervisor also retains the `task` tool for parallel batch operations where context isolation is acceptable. Key difference: specialists share the full conversation history through the parent graph's shared state, enabling multi-turn context preservation across handoffs.
+Specialists are loaded from the database (`ai_assistant_configs` where `agent_type='specialist'`) via `subagents/db_loader.py` with a 5-minute TTL cache. Hardcoded configs in `subagents/__init__.py` serve as fallback.
 
 ```
-1. create_project_tools(context)     → 76 LangChain BaseTool instances (8 template packages)
+1. create_project_tools(context)     → 74 LangChain BaseTool instances (10 template packages)
 2. Filter by assistant RBAC role     → ai-viewer/ai-manager/ai-admin (via default_role)
 3. Filter by user RBAC role          → User's role permissions
 4. Filter by execution_mode          → Risk-level filtering (safe/standard/expert)
-5. If subagents enabled:
-   - Main agent gets NO Backcast tools (only task tool for delegation)
-   - Subagents get filtered tool lists
-6. Build middleware stack:
+5. Load specialists from DB (with hardcoded fallback)
+6. If delegation_config.allowed_specialists set, filter to only those specialists
+7. Main agent gets: get_briefing + handoff tools + direct_tools from delegation_config
+8. Specialists get: their filtered tool lists from allowed_tools
+9. Build middleware stack:
    - TemporalContextMiddleware(context)
    - BackcastSecurityMiddleware(context, tools=all_tools, interrupt_node)
-7. Create SubAgent objects (6 subagents)
-8. Build system prompt with delegation instructions
-9. langchain_create_agent(model, tools, system_prompt, middleware)
-10. Register InterruptNode for approval handling
+10. Compile specialist graphs via subagent_compiler
+11. Build supervisor system prompt (conditional: with/without direct tools)
+12. langchain_create_agent(model, tools, system_prompt, middleware)
+13. Register InterruptNode for approval handling
 ```
 
 ### Graph Caching
@@ -408,18 +409,32 @@ This means middleware baked into a cached graph at compile time still gets fresh
 | `LLMClientCache hit` | Reusing cached LLM client |
 | `LLMClientCache miss` | Creating new LLM client |
 
-### Subagents
+### Specialists (DB-Configurable)
 
-6 specialized subagents defined in `subagents/__init__.py`:
+8 specialized agents stored in `ai_assistant_configs` with `agent_type='specialist'`, loaded via `subagents/db_loader.py`:
 
-| Subagent | Purpose | Key Tools |
+| Specialist | Purpose | Key Tools |
 |----------|---------|-----------|
-| `project_manager` | Projects, WBEs, cost elements & cost registrations | `list_projects`, `get_project`, `create_project`, `update_project`, `list_wbes`, `get_wbe`, `create_wbe`, `list_cost_elements`, `get_cost_element`, `create_cost_element`, `update_cost_element`, `delete_cost_element`, `list_cost_element_types`, `get_cost_element_type`, `create_cost_element_type`, `update_cost_element_type`, `delete_cost_element_type`, `get_cost_element_summary`, `get_cost_registration`, `create_cost_registration`, `update_cost_registration`, `delete_cost_registration`, `list_cost_registrations`, `get_budget_status` |
-| `evm_analyst` | EVM metrics & performance | `calculate_evm_metrics`, `get_evm_performance_summary`, `analyze_cost_variance`, `analyze_schedule_variance`, `get_project_kpis`, `assess_project_health`, `detect_evm_anomalies`, `generate_optimization_suggestions` |
-| `change_order_manager` | Change order workflows | `list_change_orders`, `get_change_order`, `create_change_order`, `generate_change_order_draft`, `submit_change_order_for_approval`, `approve_change_order`, `reject_change_order`, `analyze_change_order_impact` |
-| `user_admin` | User & department management | `list_users`, `get_user`, `create_user`, `update_user`, `delete_users`, `list_departments`, `get_department`, `create_department`, `update_department`, `delete_department` |
+| `project_manager` | Projects, WBEs, cost elements & cost registrations | 36 tools for full project CRUD |
+| `evm_analyst` | EVM metrics & performance | `calculate_evm_metrics`, `get_evm_performance_summary`, `analyze_cost_variance`, etc. |
+| `change_order_manager` | Change order workflows | `list_change_orders`, `create_change_order`, `analyze_change_order_impact`, etc. |
+| `user_admin` | User & department management | `list_users`, `create_user`, `list_departments`, etc. |
 | `visualization_specialist` | Diagram generation | `generate_mermaid_diagram` |
-| `forecast_manager` | Forecasts, cost tracking & schedule baselines | `get_forecast`, `create_forecast`, `update_forecast`, `compare_forecast_to_budget`, `get_budget_status`, `generate_project_forecast`, `compare_forecast_scenarios`, `get_forecast_accuracy`, `create_cost_registration`, `list_cost_registrations`, `get_cost_trends`, `get_cumulative_costs`, `get_latest_progress`, `create_progress_entry`, `get_progress_history`, `analyze_forecast_trends`, `get_schedule_baseline`, `update_schedule_baseline`, `delete_schedule_baseline` |
+| `forecast_manager` | Forecasts, cost tracking & schedule baselines | `get_forecast`, `create_forecast`, `compare_forecast_scenarios`, etc. |
+| `mcp_specialist` | MCP server tools | All tools |
+| `general_purpose` | Fallback for cross-cutting requests | All tools |
+
+### Main Agents (DB-Configurable)
+
+3 main agents stored in `ai_assistant_configs` with `agent_type='main'`. Only main agents appear in the chat assistant selector:
+
+| Main Agent | Default Role | Direct Tools |
+|-----------|-------------|-------------|
+| `Friendly Project Analyzer` | `ai-viewer` | `get_temporal_context`, `set_temporal_context`, `global_search` |
+| `Senior Project Manager` | `ai-manager` | `get_temporal_context`, `set_temporal_context`, `global_search` |
+| `System Manager` | `ai-admin` | `get_temporal_context`, `set_temporal_context`, `global_search` |
+
+Direct tools are configured via `delegation_config.direct_tools` on each main agent and are fully admin-configurable. When direct tools are present, the supervisor can execute lightweight operations (e.g., changing the as-of date) without delegation overhead.
 
 #### Structured Output for Subagents
 
@@ -466,13 +481,13 @@ EVM_ANALYST_SUBAGENT: dict[str, Any] = {
 ### Tool Filtering Pipeline
 
 ```
-All tools (76, 8 template packages)
+All tools (74, 10 template packages)
     │
     ▼ filter_tools_by_role(assistant_role)
     │
-    ├─ ai-viewer:  45/76 tools (read-only)
-    ├─ ai-manager: 61/76 tools (full project CRUD)
-    └─ ai-admin:   13/76 tools (system admin)
+    ├─ ai-viewer:  45/74 tools (read-only)
+    ├─ ai-manager: 61/74 tools (full project CRUD)
+    └─ ai-admin:   13/74 tools (system admin)
     │
     ▼ filter_tools_by_role(user_role)
     │
@@ -494,9 +509,9 @@ Three AI-specific roles control tool access:
 
 | Role | Tool Count | Permissions | Use Case |
 |------|------------|-------------|----------|
-| `ai-viewer` | 45/76 | project:read, forecast:read, evm:read | Read-only assistants for data exploration |
-| `ai-manager` | 61/76 | project:write, change_order:write, forecast:write | Day-to-day project management assistants |
-| `ai-admin` | 13/76 | user:write, department:write, cost_element_type:write | System administration assistants |
+| `ai-viewer` | 45/74 | project:read, forecast:read, evm:read | Read-only assistants for data exploration |
+| `ai-manager` | 61/74 | project:write, change_order:write, forecast:write | Day-to-day project management assistants |
+| `ai-admin` | 13/74 | user:write, department:write, cost_element_type:write | System administration assistants |
 
 The assistant's `default_role` field determines which role is used for filtering. This role is applied AFTER execution mode filtering and BEFORE subagent compilation, so subagents also inherit the role restriction.
 
@@ -1351,10 +1366,12 @@ WHERE session_id = '<session_uuid>'
 ORDER BY created_at DESC
 LIMIT 5;
 
--- Active assistant configs
-SELECT id, name, model_id, is_active, default_role
+-- Active assistant configs (with agent type)
+SELECT id, name, model_id, is_active, default_role, agent_type,
+       delegation_config->'direct_tools' as direct_tools
 FROM ai_assistant_configs
-WHERE is_active = true;
+WHERE is_active = true
+ORDER BY agent_type, name;
 
 -- List agent executions for a session
 SELECT id, session_id, status, started_at, completed_at,
@@ -1397,12 +1414,11 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 |------|---------|
 | `backend/app/api/routes/ai_chat.py` | WebSocket endpoint (`/stream`), REST endpoints (`/invoke`, `/executions/*`), auth, message dispatch, subscribe handling |
 | `backend/app/ai/agent_service.py` | Main orchestration: `chat_stream()`, `chat()`, `_run_agent_graph()`, `start_execution()`, approval registration, history building |
-| `backend/app/ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator.create_agent()` — wraps `langchain.agents.create_agent()` with Backcast config |
-| `backend/app/ai/supervisor_orchestrator.py` | `SupervisorOrchestrator` — handoff-based delegation via parent StateGraph with shared message history |
+| `backend/app/ai/supervisor_orchestrator.py` | `SupervisorOrchestrator` — handoff-based delegation via parent StateGraph with direct tool support and DB specialist loading |
 | `backend/app/ai/supervisor_state.py` | `BackcastSupervisorState` — shared state schema for supervisor graph (messages, active_agent, tool_call_count) |
 | `backend/app/ai/handoff_tools.py` | `create_handoff_tool()` / `create_all_handoff_tools()` — handoff tools using `Command(goto=...)` for specialist routing |
 | `backend/app/ai/graph_cache.py` | Caching infrastructure: `LLMClientCache`, `CompiledGraphCache`, `GraphCacheKey`, `BackcastRuntimeContext`, shared checkpointer, ContextVar helpers |
-| `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no subagents) |
+| `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no specialists) |
 | `backend/app/ai/state.py` | `AgentState` TypedDict (messages, tool_call_count, next) |
 
 ### Execution Architecture
@@ -1415,13 +1431,14 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 | `backend/app/alembic/versions/6c93c299c703_add_ai_agent_executions_table.py` | Migration creating `ai_agent_executions` table for execution tracking |
 | `backend/app/main.py` | Startup handler `_cleanup_orphaned_executions()` — marks orphaned executions as errored on server restart |
 
-### Subagents
+### Specialists
 
 | File | Purpose |
 |------|---------|
-| `backend/app/ai/subagents/__init__.py` | 6 subagent configs: name, description, system_prompt, `structured_output_schema` |
-| `backend/app/ai/deep_agent_orchestrator.py` | `_build_subagent_dicts()` — applies `.with_structured_output()` wrapper when schema defined |
-| `backend/app/ai/tools/subagent_task.py` | `build_task_tool()`, `_return_command_with_state_update()`, `_summarize_structured_output()` — task tool for subagent delegation with structured output handling |
+| `backend/app/ai/subagents/__init__.py` | Hardcoded specialist configs (fallback when DB is empty) |
+| `backend/app/ai/subagents/db_loader.py` | `load_specialists_from_db()`, `assistant_config_to_specialist_dict()`: TTL-cached DB specialist loading |
+| `backend/app/ai/subagent_compiler.py` | `compile_subagents()`: shared compilation logic for specialist graphs |
+| `backend/app/ai/tools/subagent_task.py` | `build_task_tool()`, `_return_command_with_state_update()`, `_summarize_structured_output()` — structured output handling |
 
 ### Tools
 

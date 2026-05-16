@@ -54,6 +54,7 @@ async def _create_test_user(
         await session.flush()
     return user
 
+
 @pytest.mark.asyncio
 async def test_auth_me_returns_admin_permissions(
     client: AsyncClient, db_session: AsyncSession
@@ -65,9 +66,7 @@ async def test_auth_me_returns_admin_permissions(
     await rbac_service.refresh_permissions_cache()
 
     # Create a test admin user directly in the database
-    await _create_test_user(
-        db_session, "admin@backcast.org", "admin", "admin123"
-    )
+    await _create_test_user(db_session, "admin@backcast.org", "admin", "admin123")
     await db_session.commit()
 
     # Login as admin
@@ -116,6 +115,7 @@ async def test_auth_me_returns_admin_permissions(
     for perm in expected_permissions:
         assert perm in user_data["permissions"], f"Admin should have {perm} permission"
 
+
 @pytest.mark.asyncio
 async def test_auth_me_viewer_permissions(
     client: AsyncClient, db_session: AsyncSession
@@ -127,9 +127,7 @@ async def test_auth_me_viewer_permissions(
     await rbac_service.refresh_permissions_cache()
 
     # Create a test viewer user directly in the database
-    await _create_test_user(
-        db_session, "viewer@backcast.org", "viewer", "viewer123"
-    )
+    await _create_test_user(db_session, "viewer@backcast.org", "viewer", "viewer123")
     await db_session.commit()
 
     # Login as viewer

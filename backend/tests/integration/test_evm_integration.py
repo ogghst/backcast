@@ -46,11 +46,14 @@ mock_admin_user = User(
     created_by=uuid4(),
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
@@ -63,9 +66,11 @@ def override_auth() -> Any:
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
+
 # =============================================================================
 # TEST FIXTURES
 # =============================================================================
+
 
 @pytest_asyncio.fixture
 async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
@@ -188,6 +193,7 @@ async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
         "total_costs": 180000,  # 30k + 60k + 90k
     }
 
+
 @pytest_asyncio.fixture
 async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
     """Setup complete EVM data for Project testing.
@@ -299,9 +305,11 @@ async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
         "total_costs": 200000,  # 4 CEs × 50k
     }
 
+
 # =============================================================================
 # COST ELEMENT ENTITY TYPE TESTS (Currently Supported)
 # =============================================================================
+
 
 @pytest_asyncio.fixture
 async def setup_cost_element_evm_data(client: AsyncClient) -> dict[str, Any]:
@@ -432,6 +440,7 @@ async def setup_cost_element_evm_data(client: AsyncClient) -> dict[str, Any]:
         "total_costs": 100000,  # 40000 + 60000
         "latest_progress": 50.0,
     }
+
 
 class TestCostElementEntityEVM:
     """Test EVM metrics for Cost Element entity type (currently supported)."""
@@ -927,9 +936,11 @@ class TestCostElementEntityEVM:
         # EV should be calculated (BAC × 50%)
         assert float(data["ev"]) == 50000
 
+
 # =============================================================================
 # WBE ENTITY TYPE TESTS
 # =============================================================================
+
 
 class TestWBEEntityEVM:
     """Test EVM metrics for WBE entity type.
@@ -1041,6 +1052,7 @@ class TestWBEEntityEVM:
         assert data.get("warning") is not None
         assert "No cost elements found" in data["warning"]
 
+
 class TestProjectEntityEVM:
     """Test EVM metrics for Project entity type.
 
@@ -1089,6 +1101,7 @@ class TestProjectEntityEVM:
         # EV = sum of all child EVs (4 CEs × 150k × 60% = 360k)
         expected_ev = 360000
         assert float(data["ev"]) == expected_ev
+
 
 class TestEVMMultiEntityAggregation:
     """Test multi-entity EVM aggregation via batch endpoint."""
@@ -1312,9 +1325,11 @@ class TestEVMMultiEntityAggregation:
         expected_bac = 300000
         assert float(data["bac"]) == expected_bac
 
+
 # =============================================================================
 # TIME-TRAVEL TESTS
 # =============================================================================
+
 
 class TestEVMTimeTravel:
     """Test time-travel functionality with different control dates.
@@ -1424,9 +1439,11 @@ class TestEVMTimeTravel:
         assert isinstance(data["points"], list)
         assert data["granularity"] == "month"
 
+
 # =============================================================================
 # BRANCHING TESTS
 # =============================================================================
+
 
 class TestEVMBranching:
     """Test branching functionality with ISOLATED vs MERGE modes.
@@ -1534,9 +1551,11 @@ class TestEVMBranching:
 
         assert data["branch"] == "main"
 
+
 # =============================================================================
 # TIME-SERIES TESTS
 # =============================================================================
+
 
 class TestEVMTimeSeries:
     """Test time-series data retrieval with different granularities.
@@ -1688,9 +1707,11 @@ class TestEVMTimeSeries:
         assert "total_points" in data
         assert data["granularity"] == "week"
 
+
 # =============================================================================
 # ERROR HANDLING TESTS
 # =============================================================================
+
 
 class TestEVMErrorHandling:
     """Test error handling for EVM endpoints."""
@@ -1812,9 +1833,11 @@ class TestEVMErrorHandling:
         assert float(data["bac"]) == 0
         assert data.get("warning") is not None
 
+
 # =============================================================================
 # EDGE CASES TESTS
 # =============================================================================
+
 
 class TestEVMEdgeCases:
     """Test edge cases and boundary conditions.

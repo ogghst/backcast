@@ -37,11 +37,14 @@ mock_admin_user = User(
     created_by=uuid4(),
 )
 
+
 def _mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def _mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
@@ -55,9 +58,11 @@ def override_auth() -> Generator[None, None, None]:
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
+
 # ---------------------------------------------------------------------------
 # Helper to build a mock service that returns a fixed response
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_service_response(query: str = "test") -> GlobalSearchResponse:
     """Build a standard mock search response."""
@@ -79,9 +84,11 @@ def _make_mock_service_response(query: str = "test") -> GlobalSearchResponse:
         query=query,
     )
 
+
 # ---------------------------------------------------------------------------
 # Route tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_search_endpoint_returns_200(
@@ -108,6 +115,7 @@ async def test_search_endpoint_returns_200(
     assert data["results"][0]["entity_type"] == "project"
     assert data["results"][0]["relevance_score"] == 1.0
 
+
 @pytest.mark.asyncio
 async def test_search_endpoint_requires_auth(
     client: AsyncClient,
@@ -121,6 +129,7 @@ async def test_search_endpoint_requires_auth(
 
     assert response.status_code == 401
 
+
 @pytest.mark.asyncio
 async def test_search_endpoint_requires_query_param(
     client: AsyncClient,
@@ -129,6 +138,7 @@ async def test_search_endpoint_requires_query_param(
     response = await client.get("/api/v1/search")
 
     assert response.status_code == 422
+
 
 @pytest.mark.asyncio
 async def test_search_endpoint_rejects_empty_query(
@@ -139,6 +149,7 @@ async def test_search_endpoint_rejects_empty_query(
 
     assert response.status_code == 422
 
+
 @pytest.mark.asyncio
 async def test_search_endpoint_rejects_query_too_long(
     client: AsyncClient,
@@ -147,6 +158,7 @@ async def test_search_endpoint_rejects_query_too_long(
     response = await client.get("/api/v1/search", params={"q": "a" * 201})
 
     assert response.status_code == 422
+
 
 @pytest.mark.asyncio
 async def test_search_endpoint_validates_limit_bounds(
@@ -161,6 +173,7 @@ async def test_search_endpoint_validates_limit_bounds(
     resp_over = await client.get("/api/v1/search", params={"q": "test", "limit": 201})
     assert resp_over.status_code == 422
 
+
 @pytest.mark.asyncio
 async def test_search_endpoint_validates_mode_pattern(
     client: AsyncClient,
@@ -169,7 +182,13 @@ async def test_search_endpoint_validates_mode_pattern(
     response = await client.get(
         "/api/v1/search", params={"q": "test", "mode": "invalid"}
     )
-    assert response.status_code in [200, 401, 403, 404]  # Invalid mode treated as default
+    assert response.status_code in [
+        200,
+        401,
+        403,
+        404,
+    ]  # Invalid mode treated as default
+
 
 @pytest.mark.asyncio
 async def test_search_endpoint_accepts_valid_params(
@@ -196,6 +215,7 @@ async def test_search_endpoint_accepts_valid_params(
         app.dependency_overrides.pop(get_global_search_service, None)
 
     assert response.status_code == 200
+
 
 @pytest.mark.asyncio
 async def test_search_endpoint_passes_service_kwargs(
@@ -238,6 +258,7 @@ async def test_search_endpoint_passes_service_kwargs(
     assert call_kwargs[1]["branch"] == "feature-branch"
     assert call_kwargs[1]["limit"] == 25
 
+
 @pytest.mark.asyncio
 async def test_search_endpoint_invalid_project_id_format(
     client: AsyncClient,
@@ -250,6 +271,7 @@ async def test_search_endpoint_invalid_project_id_format(
 
     assert response.status_code == 422
 
+
 @pytest.mark.asyncio
 async def test_search_endpoint_invalid_as_of_format(
     client: AsyncClient,
@@ -261,6 +283,7 @@ async def test_search_endpoint_invalid_as_of_format(
     )
 
     assert response.status_code == 422
+
 
 @pytest.mark.asyncio
 async def test_search_endpoint_default_params(

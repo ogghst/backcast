@@ -76,6 +76,11 @@ export interface AIModelCreate {
 /**
  * AI Assistant Types
  */
+export interface DelegationConfig {
+  direct_tools?: string[] | null;
+  allowed_specialists?: string[] | null;
+}
+
 export interface AIAssistantPublic {
   id: string;
   name: string;
@@ -87,6 +92,11 @@ export interface AIAssistantPublic {
   recursion_limit: number | null;
   default_role: string | null;
   is_active: boolean;
+  agent_type: "main" | "specialist";
+  allowed_tools: string[] | null;
+  delegation_config: DelegationConfig | null;
+  structured_output_schema: string | null;
+  is_system: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -101,6 +111,11 @@ export interface AIAssistantCreate {
   recursion_limit?: number | null;
   default_role?: string | null;
   is_active?: boolean;
+  agent_type?: "main" | "specialist";
+  allowed_tools?: string[] | null;
+  delegation_config?: DelegationConfig | null;
+  structured_output_schema?: string | null;
+  is_system?: boolean;
 }
 
 export interface AIAssistantUpdate {
@@ -113,6 +128,11 @@ export interface AIAssistantUpdate {
   recursion_limit?: number | null;
   default_role?: string | null;
   is_active?: boolean;
+  agent_type?: "main" | "specialist";
+  allowed_tools?: string[] | null;
+  delegation_config?: DelegationConfig | null;
+  structured_output_schema?: string | null;
+  is_system?: boolean;
 }
 
 /**

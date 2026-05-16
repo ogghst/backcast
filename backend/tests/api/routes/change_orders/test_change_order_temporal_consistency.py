@@ -37,11 +37,14 @@ mock_admin_user = User(
     hashed_password="hash",
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth():
@@ -58,6 +61,7 @@ def override_auth():
     set_unified_rbac_service(UnifiedRBACService())
     app_main.app.dependency_overrides = {}
 
+
 @pytest_asyncio.fixture
 async def test_project(client: AsyncClient) -> dict[str, Any]:
     """Create a test project."""
@@ -68,6 +72,7 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     response = await client.post("/api/v1/projects", json=project_data)
     assert response.status_code == 201
     return response.json()
+
 
 async def print_version_details(
     version: ChangeOrder, label: str, indent: str = "  "
@@ -118,6 +123,7 @@ async def print_version_details(
             )
     else:
         print(f"{indent}  ✓ transaction_time is open-ended (current version)")
+
 
 @pytest.mark.asyncio
 async def test_change_order_update_temporal_consistency(

@@ -36,6 +36,7 @@ class TestEVMTimeSeriesBasic:
         assert hasattr(service, "get_evm_timeseries")
         assert callable(service.get_evm_timeseries)
 
+
 class TestEVMTimeSeriesDateRangeHelper:
     """Test date range generation helper method."""
 
@@ -133,6 +134,7 @@ class TestEVMTimeSeriesDateRangeHelper:
         assert dates[1] == datetime(2024, 1, 1)
         assert dates[2] == datetime(2024, 2, 1)
 
+
 class TestEVMTimeSeriesEntityTypes:
     """Test time-series for different entity types."""
 
@@ -193,6 +195,7 @@ class TestEVMTimeSeriesEntityTypes:
         except (AttributeError, TypeError):
             # Expected - no DB connection
             pass
+
 
 class TestEVMTimeSeriesResponseStructure:
     """Test time-series response structure."""
@@ -278,6 +281,7 @@ class TestEVMTimeSeriesResponseStructure:
             total_points=0,
         )
         assert response.total_points == 0
+
 
 class TestEVMTimeSeriesPointStructure:
     """Test time-series point structure."""
@@ -372,6 +376,7 @@ class TestEVMTimeSeriesPointStructure:
         )
         assert point.actual == Decimal("95")
 
+
 class TestEVMTimeSeriesGranularitySupport:
     """Test that all granularity options are supported."""
 
@@ -430,6 +435,7 @@ class TestEVMTimeSeriesGranularitySupport:
                 branch="main",
             )
 
+
 class TestEVMTimeSeriesWBEAggregation:
     """Test WBE time-series aggregation methods."""
 
@@ -444,6 +450,7 @@ class TestEVMTimeSeriesWBEAggregation:
         assert hasattr(service, "_get_wbe_evm_timeseries")
         assert callable(service._get_wbe_evm_timeseries)
 
+
 class TestEVMTimeSeriesProjectAggregation:
     """Test Project time-series aggregation methods."""
 
@@ -457,6 +464,7 @@ class TestEVMTimeSeriesProjectAggregation:
         service = EVMService(None)  # type: ignore[arg-type]
         assert hasattr(service, "_get_project_evm_timeseries")
         assert callable(service._get_project_evm_timeseries)
+
 
 class TestEVMTimeSeriesDataGeneration:
     """Test time-series data generation methods."""

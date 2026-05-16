@@ -95,6 +95,7 @@ async def test_td57_deleted_after_as_of_should_fallback(db_session):
         "Entity deleted BEFORE as_of should NOT fall back to main"
     )
 
+
 @pytest.mark.asyncio
 async def test_td57_deleted_before_as_of_no_fallback(db_session):
     """Verify that entities deleted BEFORE as_of timestamp do NOT fall back to main.

@@ -74,6 +74,7 @@ class TestStateGraphCompilation:
         # Verify graph was created successfully
         assert graph is not None
 
+
 class TestConditionalEdges:
     """Test suite for conditional edge routing logic."""
 
@@ -166,6 +167,7 @@ class TestConditionalEdges:
 
         result = should_continue(state)
         assert result == "agent"
+
 
 class TestAgentNodeBindTools:
     """Test suite for agent_node bind_tools() invocation."""

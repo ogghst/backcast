@@ -25,6 +25,7 @@ def simple_tool(value: str) -> str:
     """
     return f"Echo: {value}"
 
+
 class TestStatePersistence:
     """Test suite for MemorySaver checkpointer state persistence."""
 

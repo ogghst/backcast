@@ -29,11 +29,14 @@ mock_admin_user = User(
     created_by=uuid4(),
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
@@ -45,6 +48,7 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
 
 @pytest_asyncio.fixture
 async def setup_evm_data(client: AsyncClient) -> dict[str, Any]:
@@ -158,6 +162,7 @@ async def setup_evm_data(client: AsyncClient) -> dict[str, Any]:
         "progress": 50.0,
         "total_costs": 60000,
     }
+
 
 class TestEVMMetricsAPI:
     """Test EVM metrics API endpoint."""

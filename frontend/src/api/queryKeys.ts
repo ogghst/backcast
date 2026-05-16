@@ -212,8 +212,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     assistants: {
       all: ["ai", "assistants"] as const,
       lists: () => ["ai", "assistants", "list"] as const,
-      list: (includeInactive?: boolean) =>
-        ["ai", "assistants", "list", includeInactive] as const,
+      list: (includeInactive?: boolean, agentType?: string) =>
+        ["ai", "assistants", "list", includeInactive, agentType] as const,
       detail: (id: string) => ["ai", "assistants", "detail", id] as const,
     },
     chat: {

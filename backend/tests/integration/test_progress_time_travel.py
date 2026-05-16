@@ -32,11 +32,14 @@ mock_admin_user = User(
     created_by=uuid4(),
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth():
@@ -48,6 +51,7 @@ def override_auth():
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
 
 @pytest_asyncio.fixture
 async def setup_cost_element(client: AsyncClient):
@@ -104,6 +108,7 @@ async def setup_cost_element(client: AsyncClient):
     cost_element_id = ce_res.json()["cost_element_id"]
 
     return {"cost_element_id": cost_element_id}
+
 
 class TestProgressTimeTravel:
     """Test progress entry time-travel queries."""
@@ -265,14 +270,18 @@ class TestProgressTimeTravel:
         await service.update(
             progress_entry_id,
             user_id,
-            **ProgressEntryUpdate(progress_percentage=Decimal("50.00")).model_dump(exclude_unset=True),
+            **ProgressEntryUpdate(progress_percentage=Decimal("50.00")).model_dump(
+                exclude_unset=True
+            ),
         )
 
         # Update to 75%
         await service.update(
             progress_entry_id,
             user_id,
-            **ProgressEntryUpdate(progress_percentage=Decimal("75.00")).model_dump(exclude_unset=True),
+            **ProgressEntryUpdate(progress_percentage=Decimal("75.00")).model_dump(
+                exclude_unset=True
+            ),
         )
 
         # Act - get history
@@ -324,7 +333,9 @@ class TestProgressTimeTravel:
             progress.progress_entry_id,
             user_id,
             control_date=day_5,
-            **ProgressEntryUpdate(progress_percentage=Decimal("50.00")).model_dump(exclude_unset=True),
+            **ProgressEntryUpdate(progress_percentage=Decimal("50.00")).model_dump(
+                exclude_unset=True
+            ),
         )
 
         # Act - query as of Day 3 using get_progress_entry_as_of

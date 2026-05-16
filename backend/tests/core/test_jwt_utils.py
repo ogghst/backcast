@@ -109,6 +109,7 @@ class TestValidateJWTToken:
         assert result.error_detail == "Invalid token"
         assert result.close_code == 1008
 
+
 class TestJWTResult:
     """Tests for JWTResult dataclass."""
 

@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { App, Button, Space, Tag, theme } from "antd";
+import { App, Button, Segmented, Space, Tag, theme, Tooltip } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  LockOutlined,
 } from "@ant-design/icons";
 import type { ColumnType } from "antd/es/table";
 import { useAIAssistants, useUpdateAIAssistant, useDeleteAIAssistant, useCreateAIAssistant, useAllAIModels } from "../api";
@@ -28,6 +29,7 @@ export const AIAssistantList = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAssistant, setSelectedAssistant] = useState<AIAssistantPublic | null>(null);
+  const [filterType, setFilterType] = useState<"all" | "main" | "specialist">("all");
 
   const { mutateAsync: updateAssistant } = useUpdateAIAssistant({
     onSuccess: () => {
@@ -75,12 +77,35 @@ export const AIAssistantList = () => {
     model_id: model.model_id,
   })) || [];
 
+  const filteredAssistants = filterType === "all"
+    ? (assistants || [])
+    : (assistants || []).filter(a => a.agent_type === filterType);
+
+  const specialists = (assistants || []).filter(a => a.agent_type === "specialist");
+
   const columns: ColumnType<AIAssistantPublic>[] = [
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
       sorter: true,
+      render: (name: string, record: AIAssistantPublic) => (
+        <Space>
+          {name}
+          {record.is_system && <LockOutlined style={{ color: token.colorTextSecondary, fontSize: 12 }} />}
+        </Space>
+      ),
+    },
+    {
+      title: "Type",
+      dataIndex: "agent_type",
+      key: "agent_type",
+      width: 120,
+      render: (agentType: "main" | "specialist") => (
+        <Tag color={agentType === "main" ? "blue" : "purple"}>
+          {agentType === "main" ? "Main" : "Specialist"}
+        </Tag>
+      ),
     },
     {
       title: "Model",
@@ -119,13 +144,16 @@ export const AIAssistantList = () => {
             />
           </Can>
           <Can permission="ai-config-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.id)}
-              aria-label="delete"
-              title="Delete Assistant"
-            />
+            <Tooltip title={record.is_system ? "System assistants cannot be deleted" : "Delete"}>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleDelete(record.id)}
+                disabled={record.is_system}
+                aria-label="delete"
+                title="Delete Assistant"
+              />
+            </Tooltip>
           </Can>
         </Space>
       ),
@@ -138,29 +166,25 @@ export const AIAssistantList = () => {
         tableParams={tableParams}
         onChange={handleTableChange}
         loading={isLoading}
-        dataSource={assistants || []}
+        dataSource={filteredAssistants}
         columns={columns}
         rowKey="id"
         toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: typography.sizes.xl, fontWeight: typography.weights.bold }}>
               AI Assistants
             </div>
+            <Segmented
+              options={[
+                { label: "All", value: "all" },
+                { label: "Main", value: "main" },
+                { label: "Specialist", value: "specialist" },
+              ]}
+              value={filterType}
+              onChange={(val) => setFilterType(val as "all" | "main" | "specialist")}
+            />
             <Can permission="ai-config-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedAssistant(null);
-                  setModalOpen(true);
-                }}
-              >
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => { setSelectedAssistant(null); setModalOpen(true); }}>
                 Add Assistant
               </Button>
             </Can>
@@ -184,6 +208,7 @@ export const AIAssistantList = () => {
         confirmLoading={isLoading}
         initialValues={selectedAssistant}
         models={availableModels}
+        specialists={specialists}
       />
     </div>
   );

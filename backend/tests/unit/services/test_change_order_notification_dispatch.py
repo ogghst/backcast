@@ -139,6 +139,7 @@ class TestNotificationDispatchHelper:
             call_args = mock_notif_service.create_notification.call_args
             assert call_args[1]["resource_id"] is None
 
+
 class TestNotificationEventTypes:
     """Tests for correct event types during workflow transitions."""
 

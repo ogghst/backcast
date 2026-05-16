@@ -64,6 +64,7 @@ async def test_create_session_with_project_context(db_session: AsyncSession) -> 
     assert session.project_id == project_id
     assert session.branch_id == branch_id
 
+
 @pytest.mark.asyncio
 async def test_create_session_without_context(db_session: AsyncSession) -> None:
     """Test creating a session without project/branch context."""
@@ -114,6 +115,7 @@ async def test_create_session_without_context(db_session: AsyncSession) -> None:
     assert session.title == "Test Session without Context"
     assert session.project_id is None
     assert session.branch_id is None
+
 
 @pytest.mark.asyncio
 async def test_session_schema_serialization_with_context(

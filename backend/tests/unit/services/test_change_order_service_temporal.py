@@ -67,6 +67,7 @@ async def test_create_change_order_temporal_branch_creation(db_session):
     # This confirms that CreateVersionCommand was used for Branch creation
     assert branch.valid_time.lower == control_date
 
+
 @pytest.mark.asyncio
 async def test_change_order_workflow_locking_temporal(db_session):
     """Test that workflow transitions trigger versioned branch locking."""

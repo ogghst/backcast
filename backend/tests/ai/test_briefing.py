@@ -49,6 +49,7 @@ class TestBriefingSection:
         assert section.open_questions == ["What is the target CPI?"]
         assert section.delegation_notes == "Project PRJ-001 needs further analysis"
 
+
 class TestTaskAssignment:
     """Tests for TaskAssignment model."""
 
@@ -65,6 +66,7 @@ class TestTaskAssignment:
             rationale="Need project context for EVM analysis",
         )
         assert ta.rationale == "Need project context for EVM analysis"
+
 
 class TestBriefingDocument:
     """Tests for BriefingDocument data model and markdown rendering."""
@@ -154,6 +156,7 @@ class TestBriefingDocument:
         assert "- What baseline?" in md
         assert "**Delegation Notes:** See project PRJ-001" in md
 
+
 class TestInitializeBriefing:
     """Tests for initialize_briefing compiler function."""
 
@@ -168,6 +171,7 @@ class TestInitializeBriefing:
         md = doc.to_markdown()
         assert "# Briefing Document" in md
         assert "What's the status?" in md
+
 
 class TestCompileSpecialistOutput:
     """Tests for compile_specialist_output compiler function."""
@@ -230,6 +234,7 @@ class TestCompileSpecialistOutput:
         assert section["open_questions"] == ["Which baseline?"]
         assert section["delegation_notes"] == "Project PRJ-001"
 
+
 class TestParseStructuredFindings:
     """Tests for parse_structured_findings deterministic parser."""
 
@@ -281,6 +286,7 @@ class TestParseStructuredFindings:
         result = parse_structured_findings(raw)
         assert result["key_findings"] is None
         assert result["open_questions"] == ["Q1"]
+
 
 class TestGetBriefingTool:
     """Tests for _create_get_briefing_tool fallback behavior."""

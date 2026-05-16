@@ -24,6 +24,7 @@ from app.services.global_search_service import (
 # Unit tests for pure helper functions
 # ---------------------------------------------------------------------------
 
+
 class TestScore:
     """Tests for the _score helper function."""
 
@@ -50,6 +51,7 @@ class TestScore:
 
     def test_none_value(self) -> None:
         assert _score(None, "hello") is None
+
 
 class TestBestScore:
     """Tests for the _best_score helper function."""
@@ -93,14 +95,17 @@ class TestBestScore:
         score = _best_score(row, "hello", ["code", "name"], [], [])
         assert score == 1.0
 
+
 # ---------------------------------------------------------------------------
 # Fixtures for service tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_session() -> AsyncMock:
     """Create a mocked AsyncSession."""
     return AsyncMock()
+
 
 def _make_search_item(
     entity_type: str = "project",
@@ -125,9 +130,11 @@ def _make_search_item(
         project_id=project_id,
     )
 
+
 # ---------------------------------------------------------------------------
 # Service-level tests (mocked internal methods)
 # ---------------------------------------------------------------------------
+
 
 class TestGlobalSearchService:
     """Tests for GlobalSearchService.search method.

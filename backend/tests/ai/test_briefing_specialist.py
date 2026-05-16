@@ -28,6 +28,7 @@ def _make_tool_context() -> ToolContext:
         execution_mode=ExecutionMode.STANDARD,
     )
 
+
 def _make_initial_state(**overrides: object) -> dict[str, object]:
     """Build a minimal BackcastSupervisorState-like dict for testing."""
     data = initialize_briefing("What's the status?")
@@ -44,10 +45,12 @@ def _make_initial_state(**overrides: object) -> dict[str, object]:
     state.update(overrides)
     return state
 
+
 def _get_update(result: Command[Any]) -> dict[str, Any]:
     """Extract and validate the Command update dict."""
     assert result.update is not None
     return result.update
+
 
 class TestCreateBriefingSpecialistNode:
     """Tests for the specialist node factory function."""

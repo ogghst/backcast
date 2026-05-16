@@ -31,9 +31,7 @@ async def _is_admin(user_id: UUID, session: AsyncSession) -> bool:
 
     try:
         set_unified_rbac_session(session)
-        roles = await get_unified_rbac_service().get_user_roles(
-            user_id, "global", None
-        )
+        roles = await get_unified_rbac_service().get_user_roles(user_id, "global", None)
         return "admin" in roles
     finally:
         set_unified_rbac_session(None)
@@ -154,7 +152,10 @@ async def read_user(
     Requires read permission.
     """
     # Additional authorization: non-admins can only read themselves
-    if not await _is_admin(current_user.user_id, session) and current_user.user_id != user_id:
+    if (
+        not await _is_admin(current_user.user_id, session)
+        and current_user.user_id != user_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this user",
@@ -188,7 +189,10 @@ async def update_user(
     Requires update permission.
     """
     # Additional authorization: non-admins can only update themselves
-    if not await _is_admin(current_user.user_id, session) and current_user.user_id != user_id:
+    if (
+        not await _is_admin(current_user.user_id, session)
+        and current_user.user_id != user_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this user",
@@ -248,7 +252,10 @@ async def get_user_history(
     Requires read permission.
     """
     # Additional authorization: non-admins can only view their own history
-    if not await _is_admin(current_user.user_id, session) and current_user.user_id != user_id:
+    if (
+        not await _is_admin(current_user.user_id, session)
+        and current_user.user_id != user_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this user's history",

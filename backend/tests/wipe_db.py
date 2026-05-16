@@ -30,6 +30,7 @@ async def create_db_if_not_exists(original_url: str, test_url: str) -> None:
     finally:
         await engine.dispose()
 
+
 async def wipe() -> None:
     db_url = os.environ.get("WIPE_DATABASE_URL")
     orig_url = os.environ.get("ORIGINAL_DATABASE_URL")
@@ -100,6 +101,7 @@ async def wipe() -> None:
 
     await engine.dispose()
     print("Wipe complete.")
+
 
 if __name__ == "__main__":
     asyncio.run(wipe())

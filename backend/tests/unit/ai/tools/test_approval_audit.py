@@ -18,6 +18,7 @@ from app.ai.tools.types import ExecutionMode, RiskLevel
 
 _TARGET_LOGGER = "app.ai.tools.approval_audit"
 
+
 class _LogCapture:
     """Simple log capture that attaches directly to a named logger.
 
@@ -59,6 +60,7 @@ class _LogCapture:
     def text(self) -> str:
         return "\n".join(r.getMessage() for r in self.records)
 
+
 class _RecordHandler(logging.Handler):
     """Handler that appends LogRecords to a list."""
 
@@ -69,20 +71,24 @@ class _RecordHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         self._records.append(record)
 
+
 @pytest.fixture
 def session_id():
     """Test session ID."""
     return uuid4()
+
 
 @pytest.fixture
 def user_id():
     """Test user ID."""
     return uuid4()
 
+
 @pytest.fixture
 def audit_logger(session_id, user_id):
     """Create audit logger for testing."""
     return ApprovalAuditLogger(session_id, user_id)
+
 
 # T-017: test_tool_execution_logged
 def test_tool_execution_logged(audit_logger):
@@ -132,6 +138,7 @@ def test_tool_execution_logged(audit_logger):
     assert "timestamp" in log_data
     assert "session_id" in log_data
     assert "user_id" in log_data
+
 
 # T-018: test_approval_logged
 def test_approval_logged(audit_logger):
@@ -183,6 +190,7 @@ def test_approval_logged(audit_logger):
     assert log_data["response_time_seconds"] == response_time
     assert "timestamp" in log_data
 
+
 def test_approval_request_logged(audit_logger):
     """Test that approval request is logged."""
     # Arrange
@@ -218,6 +226,7 @@ def test_approval_request_logged(audit_logger):
     assert log_data["tool_name"] == tool_name
     assert log_data["tool_args"] == tool_args
 
+
 def test_approval_timeout_logged(audit_logger):
     """Test that approval timeout is logged."""
     # Arrange
@@ -247,6 +256,7 @@ def test_approval_timeout_logged(audit_logger):
     assert log_data["event"] == "approval_timeout"
     assert log_data["approval_id"] == approval_id
     assert log_data["tool_name"] == tool_name
+
 
 def test_tool_result_logged(audit_logger):
     """Test that tool result is logged."""
@@ -280,6 +290,7 @@ def test_tool_result_logged(audit_logger):
     assert log_data["tool_name"] == tool_name
     assert log_data["success"] == success
     assert log_data["execution_time_seconds"] == execution_time
+
 
 def test_error_logged(audit_logger):
     """Test that errors are logged."""

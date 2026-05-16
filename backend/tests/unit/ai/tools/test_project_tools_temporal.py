@@ -19,6 +19,7 @@ from app.core.rbac_unified import set_unified_rbac_service, set_unified_rbac_ses
 
 TEMPORAL_LOGGER = "app.ai.tools.temporal_logging"
 
+
 @pytest.fixture(autouse=True)
 def _ensure_temporal_logger_enabled():
     """Ensure the temporal_logging logger is enabled during tests.
@@ -35,6 +36,7 @@ def _ensure_temporal_logger_enabled():
     yield
     logger.setLevel(original_level)
     logger.disabled = original_disabled
+
 
 @pytest.fixture
 def mock_tool_context():
@@ -55,6 +57,7 @@ def mock_tool_context():
     context.project_service.get_as_of = AsyncMock(return_value=None)
     return context
 
+
 @pytest.fixture
 def mock_tool_context_with_temporal_params():
     """Create a mock ToolContext with non-default temporal parameters."""
@@ -74,6 +77,7 @@ def mock_tool_context_with_temporal_params():
     context.project_service = AsyncMock()
     return context
 
+
 def _make_log_handler() -> tuple[logging.StreamHandler, list[str]]:
     """Create a log handler that captures log messages into a list."""
     records: list[str] = []
@@ -85,6 +89,7 @@ def _make_log_handler() -> tuple[logging.StreamHandler, list[str]]:
     handler = ListHandler()
     handler.setLevel(logging.INFO)
     return handler, records
+
 
 def _setup_unified_rbac_mock(
     accessible_projects: list[str] | None = None,
@@ -109,10 +114,12 @@ def _setup_unified_rbac_mock(
     set_unified_rbac_session(AsyncMock())
     return mock_service
 
+
 def _cleanup_unified_rbac() -> None:
     """Reset unified RBAC service and session after test."""
     set_unified_rbac_service(None)  # type: ignore[arg-type]
     set_unified_rbac_session(None)
+
 
 @pytest.mark.asyncio
 async def test_list_projects_logs_temporal_context(mock_tool_context):
@@ -146,6 +153,7 @@ async def test_list_projects_logs_temporal_context(mock_tool_context):
     finally:
         logger.removeHandler(handler)
         _cleanup_unified_rbac()
+
 
 @pytest.mark.asyncio
 async def test_list_projects_logs_temporal_context_with_params(
@@ -195,6 +203,7 @@ async def test_list_projects_logs_temporal_context_with_params(
         logger.removeHandler(handler)
         _cleanup_unified_rbac()
 
+
 @pytest.mark.asyncio
 async def test_list_projects_adds_temporal_metadata_to_result(mock_tool_context):
     """Test that list_projects adds temporal metadata to results."""
@@ -235,6 +244,7 @@ async def test_list_projects_adds_temporal_metadata_to_result(mock_tool_context)
     assert result["_temporal_context"]["as_of"] is None
     assert result["_temporal_context"]["branch_name"] == "main"
     assert result["_temporal_context"]["branch_mode"] == "merged"
+
 
 @pytest.mark.asyncio
 async def test_list_projects_preserves_existing_result_fields(mock_tool_context):
@@ -278,6 +288,7 @@ async def test_list_projects_preserves_existing_result_fields(mock_tool_context)
     assert "limit" in result
     assert "_temporal_context" in result
 
+
 @pytest.mark.asyncio
 async def test_get_project_logs_temporal_context(mock_tool_context):
     """Test that get_project logs temporal context at tool start."""
@@ -320,6 +331,7 @@ async def test_get_project_logs_temporal_context(mock_tool_context):
         logger.removeHandler(handler)
         _cleanup_unified_rbac()
 
+
 @pytest.mark.asyncio
 async def test_get_project_adds_temporal_metadata_to_result(mock_tool_context):
     """Test that get_project adds temporal metadata to results."""
@@ -351,6 +363,7 @@ async def test_get_project_adds_temporal_metadata_to_result(mock_tool_context):
     assert result["_temporal_context"]["as_of"] is None
     assert result["_temporal_context"]["branch_name"] == "main"
     assert result["_temporal_context"]["branch_mode"] == "merged"
+
 
 @pytest.mark.asyncio
 async def test_get_project_preserves_existing_result_fields(mock_tool_context):
@@ -387,6 +400,7 @@ async def test_get_project_preserves_existing_result_fields(mock_tool_context):
     assert "budget" in result
     assert "branch" in result
     assert "_temporal_context" in result
+
 
 @pytest.mark.asyncio
 async def test_get_project_handles_not_found(mock_tool_context):

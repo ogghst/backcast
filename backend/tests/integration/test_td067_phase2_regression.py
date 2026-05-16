@@ -36,6 +36,7 @@ async def _close_previous_version(
     )
     await session.flush()
 
+
 @pytest.mark.asyncio
 async def test_wbe_project_link_stability(db_session: AsyncSession):
     """
@@ -115,6 +116,7 @@ async def test_wbe_project_link_stability(db_session: AsyncSession):
     assert current_project is not None
     assert current_project.project_id == project_id
 
+
 @pytest.mark.asyncio
 async def test_cost_element_wbe_link_stability(db_session: AsyncSession):
     """
@@ -192,6 +194,7 @@ async def test_cost_element_wbe_link_stability(db_session: AsyncSession):
     assert fetched_ce.wbe is not None
     assert fetched_ce.wbe.wbe_id == wbe_id
 
+
 @pytest.mark.asyncio
 async def test_department_manager_link_stability(db_session: AsyncSession):
     """
@@ -239,6 +242,7 @@ async def test_department_manager_link_stability(db_session: AsyncSession):
     assert fetched_dept.manager is not None
     assert fetched_dept.manager.user_id == user_id
 
+
 @pytest.mark.asyncio
 async def test_cost_element_type_department_link_stability(db_session: AsyncSession):
     """
@@ -278,6 +282,7 @@ async def test_cost_element_type_department_link_stability(db_session: AsyncSess
     )
     fetched_cet = result.scalar_one()
     assert fetched_cet.department_id == dept_id
+
 
 @pytest.mark.asyncio
 async def test_cost_registration_cost_element_link_stability(db_session: AsyncSession):

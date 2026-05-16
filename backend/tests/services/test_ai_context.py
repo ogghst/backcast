@@ -477,6 +477,7 @@ class TestAIConversationContext:
         assert len(sessions_page2) == 2
         assert has_more is False
 
+
 @pytest.mark.asyncio
 class TestAIAgentSystemPromptContext:
     """Test suite for AI agent system prompt context injection."""

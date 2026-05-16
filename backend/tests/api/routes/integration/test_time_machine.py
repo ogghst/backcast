@@ -30,11 +30,14 @@ mock_admin_user = User(
     hashed_password="hash",
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
@@ -48,6 +51,7 @@ def override_auth() -> Generator[None, None, None]:
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
+
 @pytest_asyncio.fixture
 async def test_project(client: AsyncClient) -> dict[str, Any]:
     """Create a test project for time-travel tests."""
@@ -58,10 +62,12 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     response = await client.post("/api/v1/projects", json=project_data)
     return cast(dict[str, Any], response.json())
 
+
 def format_as_of(dt: datetime) -> str:
     """Format datetime for as_of query parameter."""
     # Use ISO format without microseconds for cleaner URLs
     return dt.replace(microsecond=0).isoformat()
+
 
 @pytest.mark.asyncio
 async def test_wbe_time_travel_basic(
@@ -112,6 +118,7 @@ async def test_wbe_time_travel_basic(
     assert response_current.status_code == 200
     current_wbe = response_current.json()
     assert current_wbe["name"] == "Time Travel WBE A"
+
 
 @pytest.mark.asyncio
 async def test_wbe_time_travel_update(
@@ -168,6 +175,7 @@ async def test_wbe_time_travel_update(
     wbe_current = response_current.json()
     assert wbe_current["name"] == "Version 2"
 
+
 @pytest.mark.asyncio
 async def test_wbe_time_travel_delete(
     client: AsyncClient,
@@ -222,6 +230,7 @@ async def test_wbe_time_travel_delete(
     # Query at current (after deletion) - should return 404
     response_current = await client.get(f"/api/v1/wbes/{wbe_id}")
     assert response_current.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_project_time_travel(
@@ -279,6 +288,7 @@ async def test_project_time_travel(
     assert response_current.status_code == 200
     project_current = response_current.json()
     assert project_current["name"] == "Updated Time Travel Project"
+
 
 @pytest.mark.asyncio
 async def test_multiple_wbes_time_travel(

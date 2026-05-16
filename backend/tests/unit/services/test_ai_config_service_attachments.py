@@ -52,6 +52,7 @@ async def test_add_message_with_attachments(db_session, ai_assistant_config_fact
     assert attachment_list[0].content == "Hello, this is a text file."
     assert attachment_list[0].size == 1024
 
+
 @pytest.mark.asyncio
 async def test_add_message_with_multiple_attachments(
     db_session, ai_assistant_config_factory
@@ -99,6 +100,7 @@ async def test_add_message_with_multiple_attachments(
     assert len(attachment_list) == 2
     filenames = {a.filename for a in attachment_list}
     assert filenames == {"document1.pdf", "image.png"}
+
 
 @pytest.mark.asyncio
 async def test_add_message_without_attachments(db_session, ai_assistant_config_factory):

@@ -27,11 +27,14 @@ mock_admin_user = User(
     hashed_password="hash",
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
@@ -44,6 +47,7 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
 
 @pytest.mark.asyncio
 async def test_create_project_with_control_date_header(client, db_session):
@@ -76,6 +80,7 @@ async def test_create_project_with_control_date_header(client, db_session):
     # Transaction time should be NOW (after control_date since we're backdating)
     assert project.transaction_time.lower > control_date
 
+
 @pytest.mark.asyncio
 async def test_update_project_with_control_date_header(client, db_session):
     """Update via API with control_date in request body should respect control date."""
@@ -106,6 +111,7 @@ async def test_update_project_with_control_date_header(client, db_session):
     new_version = result.scalar_one()
 
     assert new_version.valid_time.lower == control_date
+
 
 @pytest.mark.asyncio
 async def test_delete_project_with_control_date_header(client, db_session):

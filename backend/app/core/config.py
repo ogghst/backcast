@@ -46,9 +46,6 @@ class Settings(BaseSettings):
     AI_TOKEN_BUFFER_INTERVAL_MS: int = 2000  # 2 seconds default
     AI_TOKEN_BUFFER_MAX_SIZE: int = 10000  # Max tokens before forced flush
 
-    # AI Agent Orchestration
-    AI_ORCHESTRATOR: str = "supervisor"  # OrchestratorMode value
-
     # AI Approval Settings (used by BackcastSecurityMiddleware polling loop)
     AI_APPROVAL_TIMEOUT_SECONDS: float = 60.0
     AI_APPROVAL_POLL_INTERVAL_MS: float = 200.0

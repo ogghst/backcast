@@ -18,13 +18,16 @@ from app.models.domain.wbe import WBE
 
 # Use WBE as the test subject since it's a Branchable entity
 
+
 @pytest_asyncio.fixture
 async def sample_wbe_root_id() -> UUID:
     return uuid4()
 
+
 @pytest_asyncio.fixture
 async def actor_id() -> UUID:
     return uuid4()
+
 
 @pytest_asyncio.fixture
 async def created_wbe(
@@ -46,6 +49,7 @@ async def created_wbe(
     # WBE model has default="main"
     wbe = await cmd.execute(db_session)
     return wbe
+
 
 @pytest.mark.asyncio
 async def test_update_command_detects_overlap(
@@ -186,6 +190,7 @@ async def test_update_command_detects_overlap(
 
     assert str(root_id) in str(excinfo.value)
 
+
 @pytest.mark.asyncio
 async def test_update_command_future_overlap_prevention(
     db_session: AsyncSession, created_wbe: WBE, actor_id: UUID
@@ -231,9 +236,11 @@ async def test_update_command_future_overlap_prevention(
     with pytest.raises(OverlappingVersionError):
         await overlap_cmd.execute(db_session)
 
+
 # ==============================================================================
 # NEW TESTS FOR TD-058 COMPLETION
 # ==============================================================================
+
 
 @pytest.mark.asyncio
 async def test_create_version_command_direct_overlap(
@@ -289,6 +296,7 @@ async def test_create_version_command_direct_overlap(
     # Verify error details
     assert str(sample_wbe_root_id) in str(excinfo.value)
     assert "overlap" in str(excinfo.value).lower()
+
 
 @pytest.mark.asyncio
 async def test_consecutive_non_overlapping_versions(
@@ -350,6 +358,7 @@ async def test_consecutive_non_overlapping_versions(
     # The fact that no exception was raised means all versions were created
     assert v3 is not None
 
+
 @pytest.mark.asyncio
 async def test_branch_isolation_allows_same_root_id(
     db_session: AsyncSession, sample_wbe_root_id: UUID, actor_id: UUID
@@ -404,6 +413,7 @@ async def test_branch_isolation_allows_same_root_id(
     assert v2.branch == "feature"
     assert v1.name == "V1 Main"
     assert v2.name == "V2 Feature"
+
 
 @pytest.mark.asyncio
 async def test_deleted_entity_recreation(
@@ -469,6 +479,7 @@ async def test_deleted_entity_recreation(
     assert v2.name == "V2"
     assert v2.deleted_at is None  # Not deleted
     assert v2.wbe_id == sample_wbe_root_id
+
 
 @pytest.mark.asyncio
 async def test_merge_command_overlap_prevention(
@@ -546,6 +557,7 @@ async def test_merge_command_overlap_prevention(
     # Assert: Merge succeeded
     assert merged is not None
     assert merged.wbe_id == sample_wbe_root_id
+
 
 @pytest.mark.asyncio
 async def test_revert_command_overlap_prevention(

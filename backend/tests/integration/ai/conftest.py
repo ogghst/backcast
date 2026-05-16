@@ -21,10 +21,12 @@ def setup_mock_rbac():
 
     set_unified_rbac_service(UnifiedRBACService())
 
+
 @pytest.fixture
 def mock_agent_service():
     """Create a mock AgentService for testing."""
     return MagicMock(spec=AgentService)
+
 
 @pytest.fixture
 def mock_project_service():

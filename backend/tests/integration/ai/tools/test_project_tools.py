@@ -12,6 +12,7 @@ from app.ai.tools.types import ToolContext
 # instead of creating a task-scoped session from the production engine.
 _GET_TOOL_SESSION_PATCH = "app.db.session.get_tool_session"
 
+
 def _make_context(db_session, user_role: str = "viewer") -> ToolContext:
     """Create a ToolContext with the test db_session.
 
@@ -24,6 +25,7 @@ def _make_context(db_session, user_role: str = "viewer") -> ToolContext:
         user_id=str(uuid4()),
         user_role=user_role,
     )
+
 
 @pytest.mark.asyncio
 async def test_list_projects_migrated_basic(db_session):
@@ -42,6 +44,7 @@ async def test_list_projects_migrated_basic(db_session):
     assert isinstance(result["projects"], list)
     assert isinstance(result["total"], int)
 
+
 @pytest.mark.asyncio
 async def test_list_projects_migrated_with_parameters(db_session):
     """Test migrated list_projects with search parameters."""
@@ -55,6 +58,7 @@ async def test_list_projects_migrated_with_parameters(db_session):
     assert "projects" in result
     assert result["skip"] == 0
     assert result["limit"] == 10
+
 
 @pytest.mark.asyncio
 async def test_list_projects_permission_check(db_session):
@@ -72,6 +76,7 @@ async def test_list_projects_permission_check(db_session):
     # Guest users get an empty project list (no accessible projects)
     assert "projects" in result
     assert result["total"] == 0
+
 
 @pytest.mark.asyncio
 async def test_get_project_migrated_success(db_session, test_project):
@@ -92,6 +97,7 @@ async def test_get_project_migrated_success(db_session, test_project):
         assert "name" in result
         assert result["id"] == str(test_project.project_id)
 
+
 @pytest.mark.asyncio
 async def test_get_project_not_found(db_session):
     """Test get_project returns error for non-existent project."""
@@ -105,6 +111,7 @@ async def test_get_project_not_found(db_session):
     assert "error" in result
     assert "not found" in result["error"]
 
+
 @pytest.mark.asyncio
 async def test_get_project_invalid_uuid(db_session):
     """Test get_project returns error for invalid UUID."""
@@ -117,6 +124,7 @@ async def test_get_project_invalid_uuid(db_session):
 
     assert "error" in result
     assert "Invalid project ID" in result["error"]
+
 
 @pytest.mark.asyncio
 async def test_get_project_permission_check(db_session, test_project):
@@ -139,6 +147,7 @@ async def test_get_project_permission_check(db_session, test_project):
     # The tool returns project data (mock RBAC allows access) or not found
     assert "error" not in result or "not found" in result["error"]
 
+
 @pytest.mark.asyncio
 async def test_list_projects_with_status_filter(db_session):
     """Test list_projects with status filter."""
@@ -152,6 +161,7 @@ async def test_list_projects_with_status_filter(db_session):
     assert "projects" in result
     assert result["skip"] == 0
     assert result["limit"] == 10
+
 
 @pytest.mark.asyncio
 async def test_get_project_with_branch(db_session, test_project):

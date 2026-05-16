@@ -34,6 +34,7 @@ BASE_URL = "/api/v1/dashboard-layouts"
 # Fixtures: authenticated clients for owner and other user
 # ---------------------------------------------------------------------------
 
+
 @pytest_asyncio.fixture
 async def owner_user(db_session: AsyncSession) -> User:
     """Create the owner user in the database.
@@ -55,6 +56,7 @@ async def owner_user(db_session: AsyncSession) -> User:
     await db_session.refresh(user)
     return user
 
+
 @pytest_asyncio.fixture
 async def other_user(db_session: AsyncSession) -> User:
     """Create a second user for authorization tests.
@@ -75,6 +77,7 @@ async def other_user(db_session: AsyncSession) -> User:
     await db_session.flush()
     await db_session.refresh(user)
     return user
+
 
 @pytest_asyncio.fixture
 async def auth_client(
@@ -100,6 +103,7 @@ async def auth_client(
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
+
 @pytest_asyncio.fixture
 async def other_client(
     db_session: AsyncSession,
@@ -124,9 +128,11 @@ async def other_client(
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
+
 # ---------------------------------------------------------------------------
 # Helper: create layout via service for test setup
 # ---------------------------------------------------------------------------
+
 
 async def _create_layout(
     db_session: AsyncSession,
@@ -172,9 +178,11 @@ async def _create_layout(
         "widgets": layout.widgets,
     }
 
+
 # ===========================================================================
 # 1. GET /api/v1/dashboard-layouts -- list layouts for user
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_list_layouts_empty(auth_client: AsyncClient) -> None:
@@ -182,6 +190,7 @@ async def test_list_layouts_empty(auth_client: AsyncClient) -> None:
     response = await auth_client.get(BASE_URL)
     assert response.status_code == 200
     assert response.json() == []
+
 
 @pytest.mark.asyncio
 async def test_list_layouts_returns_only_user_layouts(
@@ -199,6 +208,7 @@ async def test_list_layouts_returns_only_user_layouts(
     data = response.json()
     assert len(data) == 1
     assert data[0]["name"] == "Owner Layout"
+
 
 @pytest.mark.asyncio
 async def test_list_layouts_excludes_templates(
@@ -225,6 +235,7 @@ async def test_list_layouts_excludes_templates(
     data = response.json()
     assert len(data) == 1
     assert data[0]["name"] == "My Layout"
+
 
 @pytest.mark.asyncio
 async def test_list_layouts_filter_by_project(
@@ -263,9 +274,11 @@ async def test_list_layouts_filter_by_project(
     names = {item["name"] for item in data}
     assert names == {"Global Layout", "Project Layout"}
 
+
 # ===========================================================================
 # 2. GET /api/v1/dashboard-layouts/templates -- list templates
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_list_templates_empty(auth_client: AsyncClient) -> None:
@@ -273,6 +286,7 @@ async def test_list_templates_empty(auth_client: AsyncClient) -> None:
     response = await auth_client.get(f"{BASE_URL}/templates")
     assert response.status_code == 200
     assert response.json() == []
+
 
 @pytest.mark.asyncio
 async def test_list_templates_returns_only_templates(
@@ -300,6 +314,7 @@ async def test_list_templates_returns_only_templates(
     assert len(data) == 1
     assert data[0]["name"] == "My Template"
     assert data[0]["is_template"] is True
+
 
 @pytest.mark.asyncio
 async def test_list_templates_returns_all_users_templates(
@@ -329,9 +344,11 @@ async def test_list_templates_returns_all_users_templates(
     names = {item["name"] for item in data}
     assert names == {"Owner Template", "Other Template"}
 
+
 # ===========================================================================
 # 3. GET /api/v1/dashboard-layouts/{layout_id} -- get single layout
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_get_layout_owner(
@@ -348,6 +365,7 @@ async def test_get_layout_owner(
     assert response.status_code == 200
     assert response.json()["name"] == "My Layout"
 
+
 @pytest.mark.asyncio
 async def test_get_layout_not_found(auth_client: AsyncClient) -> None:
     """GET with a non-existent ID returns 404."""
@@ -355,6 +373,7 @@ async def test_get_layout_not_found(auth_client: AsyncClient) -> None:
     response = await auth_client.get(f"{BASE_URL}/{fake_id}")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
+
 
 @pytest.mark.asyncio
 async def test_get_layout_other_user_non_template_returns_404(
@@ -370,6 +389,7 @@ async def test_get_layout_other_user_non_template_returns_404(
 
     response = await auth_client.get(f"{BASE_URL}/{created['id']}")
     assert response.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_get_layout_template_from_other_user_allowed(
@@ -389,9 +409,11 @@ async def test_get_layout_template_from_other_user_allowed(
     assert response.status_code == 200
     assert response.json()["name"] == "Shared Template"
 
+
 # ===========================================================================
 # 4. POST /api/v1/dashboard-layouts -- create layout
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_create_layout(
@@ -422,6 +444,7 @@ async def test_create_layout(
     assert "created_at" in data
     assert "updated_at" in data
 
+
 @pytest.mark.asyncio
 async def test_create_layout_minimal(
     auth_client: AsyncClient,
@@ -438,6 +461,7 @@ async def test_create_layout_minimal(
     assert data["is_default"] is False
     assert data["project_id"] is None
 
+
 @pytest.mark.asyncio
 async def test_create_layout_with_project(
     auth_client: AsyncClient,
@@ -453,6 +477,7 @@ async def test_create_layout_with_project(
     response = await auth_client.post(BASE_URL, json=payload)
     assert response.status_code == 201
     assert response.json()["project_id"] == str(project_id)
+
 
 @pytest.mark.asyncio
 async def test_create_default_layout_clears_previous_default(
@@ -489,9 +514,11 @@ async def test_create_default_layout_clears_previous_default(
     assert len(defaults) == 1
     assert defaults[0].name == "Second Default"
 
+
 # ===========================================================================
 # 5. PUT /api/v1/dashboard-layouts/{layout_id} -- update layout
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_update_layout(
@@ -511,6 +538,7 @@ async def test_update_layout(
     assert data["name"] == "Updated"
     assert data["description"] == "Changed desc"
 
+
 @pytest.mark.asyncio
 async def test_update_layout_widgets(
     auth_client: AsyncClient,
@@ -528,6 +556,7 @@ async def test_update_layout_widgets(
     assert response.status_code == 200
     assert response.json()["widgets"] == new_widgets
 
+
 @pytest.mark.asyncio
 async def test_update_layout_not_found(auth_client: AsyncClient) -> None:
     """Updating a non-existent layout returns 404."""
@@ -537,6 +566,7 @@ async def test_update_layout_not_found(auth_client: AsyncClient) -> None:
         json={"name": "Nope"},
     )
     assert response.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_update_layout_other_user_forbidden(
@@ -554,6 +584,7 @@ async def test_update_layout_other_user_forbidden(
         json={"name": "Hacked"},
     )
     assert response.status_code == 403
+
 
 @pytest.mark.asyncio
 async def test_update_layout_set_default_clears_previous(
@@ -593,6 +624,7 @@ async def test_update_layout_set_default_clears_previous(
     assert len(defaults) == 1
     assert defaults[0].name == "New Default"
 
+
 @pytest.mark.asyncio
 async def test_update_template_layout_returns_403(
     auth_client: AsyncClient,
@@ -614,9 +646,11 @@ async def test_update_template_layout_returns_403(
     assert response.status_code == 403
     assert "template" in response.json()["detail"].lower()
 
+
 # ===========================================================================
 # 5b. PUT /api/v1/dashboard-layouts/templates/{layout_id} -- admin template update
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_admin_update_template(
@@ -640,6 +674,7 @@ async def test_admin_update_template(
     assert response.status_code == 200
     assert response.json()["name"] == "Updated by Admin"
 
+
 @pytest.mark.asyncio
 async def test_admin_update_template_not_found(auth_client: AsyncClient) -> None:
     """Admin template update returns 404 for nonexistent ID."""
@@ -649,6 +684,7 @@ async def test_admin_update_template_not_found(auth_client: AsyncClient) -> None
         json={"name": "Nope"},
     )
     assert response.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_admin_update_template_non_template_returns_404(
@@ -670,9 +706,11 @@ async def test_admin_update_template_non_template_returns_404(
     )
     assert response.status_code == 404
 
+
 # ===========================================================================
 # 6. DELETE /api/v1/dashboard-layouts/{layout_id} -- delete layout
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_delete_layout(
@@ -693,12 +731,14 @@ async def test_delete_layout(
     result = await svc.get(UUID(created["id"]))
     assert result is None
 
+
 @pytest.mark.asyncio
 async def test_delete_layout_not_found(auth_client: AsyncClient) -> None:
     """Deleting a non-existent layout returns 404."""
     fake_id = uuid4()
     response = await auth_client.delete(f"{BASE_URL}/{fake_id}")
     assert response.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_delete_layout_other_user_forbidden(
@@ -713,6 +753,7 @@ async def test_delete_layout_other_user_forbidden(
 
     response = await auth_client.delete(f"{BASE_URL}/{created['id']}")
     assert response.status_code == 403
+
 
 @pytest.mark.asyncio
 async def test_delete_layout_twice_returns_404(
@@ -730,6 +771,7 @@ async def test_delete_layout_twice_returns_404(
 
     response2 = await auth_client.delete(f"{BASE_URL}/{created['id']}")
     assert response2.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_delete_default_auto_promotes(
@@ -765,9 +807,11 @@ async def test_delete_default_auto_promotes(
     assert layouts[0].name == "Promote Me"
     assert layouts[0].is_default is True
 
+
 # ===========================================================================
 # 7. POST /api/v1/dashboard-layouts/{layout_id}/clone -- clone template
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_clone_template(
@@ -796,6 +840,7 @@ async def test_clone_template(
     assert data["user_id"] == str(owner_user.user_id)
     assert data["widgets"] == [{"typeId": "header", "config": {}}]
 
+
 @pytest.mark.asyncio
 async def test_clone_template_with_project(
     auth_client: AsyncClient,
@@ -819,6 +864,7 @@ async def test_clone_template_with_project(
     assert response.status_code == 201
     assert response.json()["project_id"] == str(project_id)
 
+
 @pytest.mark.asyncio
 async def test_clone_non_template_returns_400(
     auth_client: AsyncClient,
@@ -838,6 +884,7 @@ async def test_clone_non_template_returns_400(
         json={},
     )
     assert response.status_code == 400
+
 
 @pytest.mark.asyncio
 async def test_clone_nonexistent_returns_400(auth_client: AsyncClient) -> None:

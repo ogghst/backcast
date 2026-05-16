@@ -22,6 +22,7 @@ def db_session():
     """Mock database session."""
     return AsyncMock()
 
+
 @pytest.fixture
 def tool_context(db_session):
     """Create tool context for testing."""
@@ -32,6 +33,7 @@ def tool_context(db_session):
         execution_mode=ExecutionMode.STANDARD,
     )
 
+
 @pytest.fixture
 def mock_websocket():
     """Mock WebSocket connection."""
@@ -39,6 +41,7 @@ def mock_websocket():
     websocket.send_json = AsyncMock()
     websocket.client_state = MagicMock()
     return websocket
+
 
 @pytest.fixture
 def low_risk_tool():
@@ -60,6 +63,7 @@ def low_risk_tool():
     )
     return tool
 
+
 @pytest.fixture
 def high_risk_tool():
     """Create a high-risk tool for testing."""
@@ -80,6 +84,7 @@ def high_risk_tool():
     )
     return tool
 
+
 @pytest.fixture
 def critical_tool():
     """Create a critical-risk tool for testing."""
@@ -99,6 +104,7 @@ def critical_tool():
         risk_level=RiskLevel.CRITICAL,
     )
     return tool
+
 
 @pytest.mark.asyncio
 async def test_low_risk_tool_no_approval_in_standard_mode(
@@ -144,6 +150,7 @@ async def test_low_risk_tool_no_approval_in_standard_mode(
     # Result should be a ToolMessage
     assert isinstance(result, ToolMessage)
 
+
 @pytest.mark.asyncio
 async def test_high_risk_tool_requires_approval_in_standard_mode(
     tool_context, mock_websocket, high_risk_tool
@@ -186,6 +193,7 @@ async def test_high_risk_tool_requires_approval_in_standard_mode(
     assert isinstance(result, ToolMessage)
     assert "approval" in result.content.lower() or "waiting" in result.content.lower()
 
+
 @pytest.mark.asyncio
 async def test_critical_tool_requires_approval_in_standard_mode(
     tool_context, mock_websocket, critical_tool
@@ -227,6 +235,7 @@ async def test_critical_tool_requires_approval_in_standard_mode(
     # Result should be a ToolMessage with approval pending message
     assert isinstance(result, ToolMessage)
     assert "approval" in result.content.lower() or "waiting" in result.content.lower()
+
 
 @pytest.mark.asyncio
 async def test_all_risk_tools_no_approval_in_expert_mode(
@@ -285,6 +294,7 @@ async def test_all_risk_tools_no_approval_in_expert_mode(
         # Reset for next iteration
         execute.reset_mock()
         mock_websocket.send_json.reset_mock()
+
 
 @pytest.mark.asyncio
 async def test_risk_level_enum_ordering():

@@ -9,6 +9,7 @@ from app.models.domain.project import Project
 
 UTC = UTC
 
+
 @pytest.mark.asyncio
 async def test_create_version_command_with_control_date(db_session):
     """CreateVersionCommand should set valid_time to control_date."""
@@ -59,6 +60,7 @@ async def test_create_version_command_with_control_date(db_session):
     # so transaction_time (now) < valid_time (future)
     assert project.transaction_time.lower < control_date
 
+
 @pytest.mark.asyncio
 async def test_update_version_command_with_control_date(db_session):
     """UpdateVersionCommand should close old version at control_date and start new at control_date."""
@@ -108,6 +110,7 @@ async def test_update_version_command_with_control_date(db_session):
 
     assert old_version.valid_time.upper is not None
     assert control_date - delta <= old_version.valid_time.upper <= control_date + delta
+
 
 @pytest.mark.asyncio
 async def test_soft_delete_command_with_control_date(db_session):

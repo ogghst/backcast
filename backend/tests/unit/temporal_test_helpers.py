@@ -100,6 +100,7 @@ async def assert_created_at_time[TVersionable: VersionableProtocol](
 
     return entity
 
+
 async def assert_not_exists_before_time[TVersionable: VersionableProtocol](
     entity_id: UUID,
     before_time: datetime,
@@ -146,6 +147,7 @@ async def assert_not_exists_before_time[TVersionable: VersionableProtocol](
         f"Entity {entity_id} should NOT exist at {before_time} on branch '{branch}' "
         f"with mode {branch_mode.value}, but found: {entity}"
     )
+
 
 async def assert_temporal_consistency[TVersionable: VersionableProtocol](
     entity_id: UUID,
@@ -221,6 +223,7 @@ async def assert_temporal_consistency[TVersionable: VersionableProtocol](
                     f"Entity {entity_id} field '{field}' at {as_of_time}: "
                     f"expected {expected_value}, got {actual_value}"
                 )
+
 
 async def assert_branch_isolation[TVersionable: VersionableProtocol](
     entity_id: UUID,
@@ -298,6 +301,7 @@ async def assert_branch_isolation[TVersionable: VersionableProtocol](
             f"at {as_of_time}"
         )
 
+
 async def assert_merge_mode_fallback[TVersionable: VersionableProtocol](
     entity_id: UUID,
     service: TemporalService[TVersionable],
@@ -374,6 +378,7 @@ async def assert_merge_mode_fallback[TVersionable: VersionableProtocol](
 
     return entity_merge
 
+
 async def assert_zombie_check[TVersionable: VersionableProtocol](
     entity_id: UUID,
     service: TemporalService[TVersionable],
@@ -429,6 +434,7 @@ async def assert_zombie_check[TVersionable: VersionableProtocol](
         service=service,
         branch=branch,
     )
+
 
 async def assert_deleted_not_visible[TVersionable: VersionableProtocol](
     entity_id: UUID,
@@ -489,6 +495,7 @@ async def assert_deleted_not_visible[TVersionable: VersionableProtocol](
         f"Entity {entity_id} should NOT be visible after deletion at {after_deletion} "
         f"(zombie check failed)"
     )
+
 
 async def assert_branch_merge_preserves_source[TVersionable: VersionableProtocol](
     entity_id: UUID,
@@ -566,6 +573,7 @@ async def assert_branch_merge_preserves_source[TVersionable: VersionableProtocol
             f"expected {expected_value}, got {source_value}"
         )
 
+
 async def assert_temporal_range_validity[TVersionable: VersionableProtocol](
     entity_id: UUID,
     service: TemporalService[TVersionable],
@@ -605,6 +613,7 @@ async def assert_temporal_range_validity[TVersionable: VersionableProtocol](
                     f"Version {version.id} of entity {entity_id} has empty "
                     f"valid_time range: [{valid_time.lower}, {valid_time.upper}]"
                 )
+
 
 async def assert_entity_unchanged_on_branch[TVersionable: VersionableProtocol](
     entity_id: UUID,

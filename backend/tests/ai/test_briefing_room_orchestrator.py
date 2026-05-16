@@ -32,6 +32,7 @@ def _make_tool_context() -> ToolContext:
         execution_mode=ExecutionMode.STANDARD,
     )
 
+
 def _make_briefing_data(
     original_request: str = "Test request",
     sections: list[BriefingSection] | None = None,
@@ -43,9 +44,11 @@ def _make_briefing_data(
     )
     return doc.model_dump()
 
+
 # ---------------------------------------------------------------------------
 # _briefing_update
 # ---------------------------------------------------------------------------
+
 
 class TestBriefingUpdate:
     """Tests for the _briefing_update helper."""
@@ -82,9 +85,11 @@ class TestBriefingUpdate:
         assert isinstance(msg, SystemMessage)
         assert "No findings yet." in msg.content
 
+
 # ---------------------------------------------------------------------------
 # _create_get_briefing_tool
 # ---------------------------------------------------------------------------
+
 
 class TestCreateGetBriefingTool:
     """Tests for the _create_get_briefing_tool factory."""
@@ -107,9 +112,11 @@ class TestCreateGetBriefingTool:
         result = tool.invoke({"state": {"briefing_data": {"garbage": True}}})
         assert result == "No briefing available yet."
 
+
 # ---------------------------------------------------------------------------
 # _make_supervisor_router
 # ---------------------------------------------------------------------------
+
 
 class TestSupervisorRouter:
     """Tests for _make_supervisor_router static method."""
@@ -268,6 +275,7 @@ class TestSupervisorRouter:
         }
         assert router(state) == "evm_analyst"
 
+
 class TestSupervisorRouterCompletionLogic:
     """Tests for completion detection and specialist tracking logic."""
 
@@ -338,9 +346,11 @@ class TestSupervisorRouterCompletionLogic:
         state["supervisor_iterations"] = 4
         assert router(state) == END
 
+
 # ---------------------------------------------------------------------------
 # SupervisorOrchestrator.__init__
 # ---------------------------------------------------------------------------
+
 
 class TestSupervisorOrchestratorInit:
     """Tests for SupervisorOrchestrator construction."""
@@ -364,9 +374,11 @@ class TestSupervisorOrchestratorInit:
         )
         assert orch.system_prompt == "Custom prompt"
 
+
 # ---------------------------------------------------------------------------
 # create_supervisor_graph
 # ---------------------------------------------------------------------------
+
 
 def _patch_build_middleware() -> MagicMock:
     """Return a mock for _build_middleware that returns a generic list.
@@ -379,6 +391,7 @@ def _patch_build_middleware() -> MagicMock:
         "_build_middleware",
         return_value=[MagicMock(name="summ"), MagicMock(name="base_mw")],
     )
+
 
 class TestSupervisorGraphCreation:
     """Tests for create_supervisor_graph and fallback behavior."""
@@ -523,7 +536,7 @@ class TestSupervisorGraphCreation:
         mock_filter_tools: MagicMock,
         mock_create_agent: MagicMock,
     ) -> None:
-        """When a get_temporal_context tool exists, it is added to supervisor tools."""
+        """When get_temporal_context is in direct_tools, it is added to supervisor."""
         temporal_tool = MagicMock()
         temporal_tool.name = "get_temporal_context"
 
@@ -541,10 +554,18 @@ class TestSupervisorGraphCreation:
         mock_handoff_tools.return_value = []
         mock_create_agent.return_value = AsyncMock()
 
+        # Create a mock main assistant config with get_temporal_context as direct tool
+        main_config = MagicMock()
+        main_config.delegation_config = {
+            "direct_tools": ["get_temporal_context"],
+            "allowed_specialists": None,
+        }
+
         context = _make_tool_context()
         orchestrator = SupervisorOrchestrator(
             model="openai:gpt-4o",
             context=context,
+            main_assistant_config=main_config,
         )
         config = AgentConfig(
             subagents=[
@@ -660,9 +681,11 @@ class TestSupervisorGraphCreation:
         assert result is not None
         mock_handoff_tools.assert_called_once()
 
+
 # ---------------------------------------------------------------------------
 # initialize_briefing_node (inner function in create_supervisor_graph)
 # ---------------------------------------------------------------------------
+
 
 class TestInitializeBriefingNode:
     """Tests for the initialize_briefing_node closure inside create_supervisor_graph.
@@ -936,9 +959,11 @@ class TestInitializeBriefingNode:
 
         mock_init_briefing.assert_called_once()
 
+
 # ---------------------------------------------------------------------------
 # _create_specialist_wrapper
 # ---------------------------------------------------------------------------
+
 
 class TestSpecialistWrapper:
     """Tests for _create_specialist_wrapper and the returned specialist_node."""
@@ -1269,9 +1294,11 @@ class TestSpecialistWrapper:
         assert "evm_analyst" not in result.update.get("completed_specialists", set())
         assert mock_graph.ainvoke.call_count == 4  # 3 retries + 1 initial
 
+
 # ---------------------------------------------------------------------------
 # _build_middleware
 # ---------------------------------------------------------------------------
+
 
 class TestBuildMiddleware:
     """Tests for _build_middleware method."""
@@ -1308,9 +1335,11 @@ class TestBuildMiddleware:
         assert result[0] is mock_summ
         assert result[1] is mock_base_mw
 
+
 # ---------------------------------------------------------------------------
 # _build_fallback_graph
 # ---------------------------------------------------------------------------
+
 
 class TestBuildFallbackGraph:
     """Tests for _build_fallback_graph method."""

@@ -38,17 +38,20 @@ def mock_websocket():
     type(websocket).__len__ = lambda self_: 1  # type: ignore[type-abstract]
     return websocket
 
+
 @pytest.fixture
 def mock_llm():
     """Create a mock LLM."""
     llm = MagicMock(spec=ChatOpenAI)
     return llm
 
+
 @pytest.fixture
 def mock_session():
     """Create a mock database session."""
     session = AsyncMock(spec=AsyncSession)
     return session
+
 
 @pytest.fixture
 def tool_context(mock_session):
@@ -59,6 +62,7 @@ def tool_context(mock_session):
         user_role="admin",
         execution_mode=ExecutionMode.STANDARD,
     )
+
 
 @pytest.mark.asyncio
 async def test_agent_service_registers_interrupt_node(
@@ -80,6 +84,7 @@ async def test_agent_service_registers_interrupt_node(
     assert isinstance(interrupt_node, InterruptNode)
     retrieved = agent_service.get_interrupt_node(session_id)
     assert retrieved is interrupt_node
+
 
 @pytest.mark.asyncio
 async def test_agent_service_approval_response_routing(
@@ -111,6 +116,7 @@ async def test_agent_service_approval_response_routing(
     assert success is True
     assert interrupt_node.pending_approvals[approval_id]["approved"] is True
 
+
 @pytest.mark.asyncio
 async def test_agent_service_approval_response_nonexistent_session(
     mock_session, mock_websocket, mock_llm, tool_context
@@ -126,6 +132,7 @@ async def test_agent_service_approval_response_nonexistent_session(
 
     # Assert
     assert success is False
+
 
 @pytest.mark.asyncio
 async def test_interrupt_node_sends_approval_request(
@@ -154,6 +161,7 @@ async def test_interrupt_node_sends_approval_request(
     assert message.approval_id == approval_id
     assert message.tool_name == "test_tool"
     assert message.tool_args == {"arg1": "value1"}
+
 
 @pytest.mark.asyncio
 async def test_interrupt_node_checks_approval_status(
@@ -196,6 +204,7 @@ async def test_interrupt_node_checks_approval_status(
     approved, error = interrupt_node._check_approval(approval_id_2)
     assert approved is False
     assert error == "Tool execution was rejected by user"
+
 
 @pytest.mark.asyncio
 async def test_full_approval_flow(mock_session, mock_websocket, mock_llm, tool_context):

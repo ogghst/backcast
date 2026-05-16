@@ -21,6 +21,7 @@ async def test_get_settings_for_project_when_none_exist(
     settings = await service.get_settings_for_project(project_id)
     assert settings is None
 
+
 @pytest.mark.asyncio
 async def test_upsert_settings_creates_new_settings(
     db_session: AsyncSession, test_user: User
@@ -42,6 +43,7 @@ async def test_upsert_settings_creates_new_settings(
     assert settings.warning_threshold_percent == Decimal("75.0")
     assert settings.allow_project_admin_override is False
     assert settings.created_by == test_user.user_id
+
 
 @pytest.mark.asyncio
 async def test_upsert_settings_updates_existing(
@@ -76,6 +78,7 @@ async def test_upsert_settings_updates_existing(
     # Same root ID
     assert updated.project_budget_settings_id == initial.project_budget_settings_id
 
+
 @pytest.mark.asyncio
 async def test_upsert_settings_uses_defaults(
     db_session: AsyncSession, test_user: User
@@ -94,6 +97,7 @@ async def test_upsert_settings_uses_defaults(
     assert settings.warning_threshold_percent == Decimal("80.0")
     assert settings.allow_project_admin_override is True
 
+
 @pytest.mark.asyncio
 async def test_get_warning_threshold_uses_default(
     db_session: AsyncSession, test_user: User
@@ -104,6 +108,7 @@ async def test_get_warning_threshold_uses_default(
 
     threshold = await service.get_warning_threshold(project_id)
     assert threshold == Decimal("80.0")
+
 
 @pytest.mark.asyncio
 async def test_get_warning_threshold_returns_custom_value(
@@ -123,6 +128,7 @@ async def test_get_warning_threshold_returns_custom_value(
     threshold = await service.get_warning_threshold(project_id)
     assert threshold == Decimal("85.0")
 
+
 @pytest.mark.asyncio
 async def test_can_admin_override_uses_default(
     db_session: AsyncSession, test_user: User
@@ -133,6 +139,7 @@ async def test_can_admin_override_uses_default(
 
     can_override = await service.can_admin_override(project_id)
     assert can_override is True
+
 
 @pytest.mark.asyncio
 async def test_can_admin_override_returns_custom_value(
@@ -151,6 +158,7 @@ async def test_can_admin_override_returns_custom_value(
 
     can_override = await service.can_admin_override(project_id)
     assert can_override is False
+
 
 @pytest.mark.asyncio
 async def test_settings_are_project_isolated(

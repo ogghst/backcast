@@ -81,6 +81,7 @@ class TestCostElementTypeServiceCreate:
         db_record = (await db_session.execute(stmt)).scalar_one()
         assert db_record.created_by == actor_id
 
+
 class TestCostElementTypeServiceUpdate:
     """Test CostElementTypeService.update() method."""
 
@@ -119,6 +120,7 @@ class TestCostElementTypeServiceUpdate:
         stmt = select(CostElementType).where(CostElementType.id == v1_id)
         old_version = (await db_session.execute(stmt)).scalar_one()
         assert old_version.name == "Software Development"
+
 
 class TestCostElementTypeServiceDelete:
     """Test CostElementTypeService.soft_delete() method."""

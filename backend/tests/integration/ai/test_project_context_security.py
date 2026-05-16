@@ -38,10 +38,9 @@ class ConfigurableMockUnifiedRBACService(MockUnifiedRBACService):
     async def get_accessible_projects(self, user_id: UUID) -> list[UUID]:
         return self._accessible_projects
 
-    async def get_project_roles(
-        self, user_id: UUID, project_id: UUID
-    ) -> list[str]:
+    async def get_project_roles(self, user_id: UUID, project_id: UUID) -> list[str]:
         return self._project_roles.get(project_id, [])
+
 
 @pytest.mark.integration
 class TestProjectContextSecurity:

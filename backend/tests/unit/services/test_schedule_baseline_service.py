@@ -77,6 +77,7 @@ async def test_schedule_baseline_get_for_cost_element_returns_baseline(
     assert result.name == "Test Baseline"
     assert result.branch == "main"
 
+
 @pytest.mark.asyncio
 async def test_schedule_baseline_get_for_cost_element_returns_none_when_missing(
     db_session: AsyncSession,
@@ -111,6 +112,7 @@ async def test_schedule_baseline_get_for_cost_element_returns_none_when_missing(
 
     # Assert: Should return None
     assert result is None, "Should return None when no baseline exists"
+
 
 @pytest.mark.asyncio
 async def test_schedule_baseline_get_for_cost_element_filters_by_branch(
@@ -204,6 +206,7 @@ async def test_schedule_baseline_get_for_cost_element_filters_by_branch(
     assert result_feature.name == "Feature Branch Baseline"
     assert result_feature.branch == "feature-branch"
 
+
 @pytest.mark.asyncio
 async def test_schedule_baseline_ensure_exists_creates_baseline_when_missing(
     db_session: AsyncSession,
@@ -250,6 +253,7 @@ async def test_schedule_baseline_ensure_exists_creates_baseline_when_missing(
     # Verify cost element was updated
     await db_session.refresh(cost_element)
     assert cost_element.schedule_baseline_id == baseline.schedule_baseline_id
+
 
 @pytest.mark.asyncio
 async def test_schedule_baseline_ensure_exists_returns_existing_baseline(
@@ -321,6 +325,7 @@ async def test_schedule_baseline_ensure_exists_returns_existing_baseline(
     count = count_result.scalar_one()
     assert count == 1, "Should not create duplicate baseline"
 
+
 @pytest.mark.asyncio
 async def test_schedule_baseline_create_duplicate_raises_baseline_already_exists_error(
     db_session: AsyncSession,
@@ -379,6 +384,7 @@ async def test_schedule_baseline_create_duplicate_raises_baseline_already_exists
     assert exc_info.value.cost_element_id == cost_element_id
     assert exc_info.value.branch == "main"
     assert "already exists" in str(exc_info.value).lower()
+
 
 @pytest.mark.asyncio
 async def test_cost_element_create_auto_creates_default_schedule_baseline(
@@ -458,6 +464,7 @@ async def test_cost_element_create_auto_creates_default_schedule_baseline(
     duration = (baseline.end_date - baseline.start_date).days
     assert duration == 90, f"Expected 90-day duration, got {duration} days"
 
+
 @pytest.mark.asyncio
 async def test_cost_element_create_baseline_failure_rolls_back_cost_element(
     db_session: AsyncSession,
@@ -474,6 +481,7 @@ async def test_cost_element_create_baseline_failure_rolls_back_cost_element(
     # For now, we'll skip this as it's covered by integration tests
     # TODO: Implement with proper mocking
     pass
+
 
 @pytest.mark.asyncio
 async def test_cost_element_soft_delete_cascades_to_schedule_baseline(

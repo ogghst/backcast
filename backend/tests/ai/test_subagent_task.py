@@ -37,6 +37,7 @@ class _DummyStreamWriter:
     def write(self, data: Any) -> None:
         pass
 
+
 def _make_runtime(
     state: dict[str, Any] | None = None,
     tool_call_id: str | None = "call-123",
@@ -51,6 +52,7 @@ def _make_runtime(
         store=None,
     )
 
+
 def _make_mock_runnable(return_messages: list[Any] | None = None) -> MagicMock:
     """Create a mock runnable that simulates a compiled subagent graph."""
     runnable = MagicMock()
@@ -61,6 +63,7 @@ def _make_mock_runnable(return_messages: list[Any] | None = None) -> MagicMock:
         return_value=return_messages or {"messages": [AIMessage(content="result")]}
     )
     return runnable
+
 
 def _make_subagents() -> list[dict[str, Any]]:
     """Create a list of CompiledSubAgent-like dicts for testing."""
@@ -78,6 +81,7 @@ def _make_subagents() -> list[dict[str, Any]]:
             ),
         },
     ]
+
 
 class TestBuildTaskToolReturnsStructuredTool:
     """T-003: build_task_tool returns StructuredTool with correct name and args."""
@@ -121,6 +125,7 @@ class TestBuildTaskToolReturnsStructuredTool:
         assert isinstance(tool, StructuredTool)
         assert tool.name == "task"
 
+
 class TestBuildTaskToolInvalidSubagent:
     """T-004: Invalid subagent_type returns error string."""
 
@@ -152,6 +157,7 @@ class TestBuildTaskToolInvalidSubagent:
 
         assert "test_agent" in result
         assert "other_agent" in result
+
 
 class TestBuildTaskToolValidInvocation:
     """T-005: Valid invocation returns Command with ToolMessage."""
@@ -253,6 +259,7 @@ class TestBuildTaskToolValidInvocation:
         assert isinstance(call_args["messages"][0], HumanMessage)
         assert call_args["messages"][0].content == "Analyze the EVM data"
 
+
 class TestBuildTaskToolAsyncInvocation:
     """T-006: Async atask function calls subagent.ainvoke() and returns Command."""
 
@@ -308,6 +315,7 @@ class TestBuildTaskToolAsyncInvocation:
 
         assert isinstance(result, str)
         assert "does not exist" in result
+
 
 class TestBuildTaskToolExcludesStateKeys:
     """T-007: State passed to subagent excludes messages, todos, structured_response keys."""
@@ -405,6 +413,7 @@ class TestBuildTaskToolExcludesStateKeys:
         # Non-excluded keys should be in the update
         assert update["custom_key"] == "custom_value"
 
+
 class TestBuildTaskToolErrorPaths:
     """Tests for uncovered error paths to achieve 100% coverage (IMP-003)."""
 
@@ -444,6 +453,7 @@ class TestBuildTaskToolErrorPaths:
                 }
             )
 
+
 class TestExcludedStateKeys:
     """Verify _EXCLUDED_STATE_KEYS matches the SDK's set."""
 
@@ -457,6 +467,7 @@ class TestExcludedStateKeys:
             "memory_contents",
         }
         assert _EXCLUDED_STATE_KEYS == expected
+
 
 class TestTaskToolDescription:
     """Verify tool description templates and system prompt."""
@@ -488,6 +499,7 @@ class TestTaskToolDescription:
         tool = build_task_tool(subagents, task_description=custom_desc)
 
         assert tool.description == "Static description with no placeholder"
+
 
 class TestToolMessageContentStripping:
     """Verify trailing whitespace is stripped from subagent results."""

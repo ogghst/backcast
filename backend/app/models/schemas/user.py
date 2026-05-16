@@ -148,9 +148,7 @@ class UserPublic(BaseModel):
             unified_service = get_unified_rbac_service()
 
             # Resolve role from UserRoleAssignment
-            roles = await unified_service.get_user_roles(
-                user.user_id, "global", None
-            )
+            roles = await unified_service.get_user_roles(user.user_id, "global", None)
             display_role = roles[0] if roles else "viewer"
 
             # Try cache first for permissions

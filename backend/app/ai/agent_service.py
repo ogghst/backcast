@@ -100,8 +100,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.briefing import BriefingDocument
-from app.ai.config import AgentConfig, OrchestratorMode
-from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
+from app.ai.config import AgentConfig
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.agent_metrics import AgentExecutionMetrics
@@ -270,9 +269,7 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
     from app.core.rbac_unified import get_unified_rbac_service, rbac_session
 
     async with rbac_session(session):
-        roles = await get_unified_rbac_service().get_user_roles(
-            user_id, "global", None
-        )
+        roles = await get_unified_rbac_service().get_user_roles(user_id, "global", None)
         role = roles[0] if roles else "viewer"
 
     _user_role_cache[user_id] = (time.time() + _USER_ROLE_TTL, role)
@@ -540,24 +537,13 @@ class AgentService:
                 user_role=user_role,
             )
 
-            if settings.AI_ORCHESTRATOR == OrchestratorMode.SUPERVISOR:
-                supervisor_orchestrator = SupervisorOrchestrator(
-                    model=llm,
-                    context=tool_context,
-                    system_prompt=system_prompt,
-                )
-                graph = await supervisor_orchestrator.create_supervisor_graph(
-                    agent_config
-                )
-            else:
-                deep_orchestrator = DeepAgentOrchestrator(
-                    model=llm,
-                    context=tool_context,
-                    system_prompt=system_prompt,
-                    enable_subagents=enable_subagents,
-                    interrupt_node=None,
-                )
-                graph = await deep_orchestrator.create_agent(agent_config)
+            supervisor_orchestrator = SupervisorOrchestrator(
+                model=llm,
+                context=tool_context,
+                system_prompt=system_prompt,
+                main_assistant_config=assistant_config,
+            )
+            graph = await supervisor_orchestrator.create_supervisor_graph(agent_config)
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
             logger.info(

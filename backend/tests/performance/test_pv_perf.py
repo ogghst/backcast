@@ -184,6 +184,7 @@ class TestPVCalculationPerformance:
         # Total time for 1000 calculations should be < 30ms
         assert elapsed_ms < 30, f"Mixed progression batch too slow: {elapsed_ms:.2f}ms"
 
+
 class TestPVCalculationPerformanceTarget:
     """Verify the < 50ms target for single entity PV calculation.
 

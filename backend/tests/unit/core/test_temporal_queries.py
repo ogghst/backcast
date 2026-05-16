@@ -34,6 +34,7 @@ def test_is_current_version_generates_indexable_query():
     assert "upper(valid_time) IS NULL" not in sql_str
     assert "UPPER(valid_time)" not in sql_str
 
+
 def test_is_current_version_without_deleted_at():
     """Test is_current_version with only valid_time column."""
     # Build query without deleted_at
@@ -51,12 +52,14 @@ def test_is_current_version_without_deleted_at():
     where_clause = sql_str.split(" WHERE ")[1] if " WHERE " in sql_str else ""
     assert "deleted_at IS NULL" not in where_clause
 
+
 def test_is_current_version_returns_correct_type():
     """Test that is_current_version returns the correct SQLAlchemy type."""
     result = is_current_version(CostElementType.valid_time, CostElementType.deleted_at)
 
     # Should be a ColumnElement (AND expression)
     assert isinstance(result, ColumnElement)
+
 
 def test_is_current_version_on_branch_generates_correct_sql():
     """Test that is_current_version_on_branch generates correct SQL with branch filter."""
@@ -85,6 +88,7 @@ def test_is_current_version_on_branch_generates_correct_sql():
     # Verify deleted_at filter is present
     assert "deleted_at IS NULL" in sql_str
 
+
 def test_is_current_version_on_branch_without_deleted_at():
     """Test is_current_version_on_branch with only valid_time column."""
     # Build query without deleted_at
@@ -107,6 +111,7 @@ def test_is_current_version_on_branch_without_deleted_at():
     where_clause = sql_str.split(" WHERE ")[1] if " WHERE " in sql_str else ""
     assert "deleted_at IS NULL" not in where_clause
 
+
 def test_current_join_filter_generates_correct_sql():
     """Test that current_join_filter generates correct SQL for multiple entities."""
     from app.models.domain.cost_element import CostElement
@@ -128,6 +133,7 @@ def test_current_join_filter_generates_correct_sql():
     assert sql_str.count("&&") >= 2  # Should have at least 2 overlap operators
     assert "deleted_at IS NULL" in sql_str
 
+
 def test_is_current_version_raw_sql_generates_correct_sql():
     """Test that is_current_version_raw_sql generates correct SQL string."""
     # Test with both valid_time and deleted_at
@@ -146,6 +152,7 @@ def test_is_current_version_raw_sql_generates_correct_sql():
     assert "upper(my_valid_time) IS NULL" in result
     assert "my_deleted_at IS NULL" in result
 
+
 def test_is_current_version_on_branch_returns_correct_type():
     """Test that is_current_version_on_branch returns the correct SQLAlchemy type."""
     result = is_current_version_on_branch(
@@ -157,6 +164,7 @@ def test_is_current_version_on_branch_returns_correct_type():
 
     # Should be a ColumnElement (AND expression)
     assert isinstance(result, ColumnElement)
+
 
 def test_current_join_filter_returns_correct_type():
     """Test that current_join_filter returns the correct SQLAlchemy type."""
@@ -170,6 +178,7 @@ def test_current_join_filter_returns_correct_type():
 
     # Should be a ColumnElement (AND expression)
     assert isinstance(result, ColumnElement)
+
 
 def test_is_current_version_on_branch_with_department():
     """Test is_current_version_on_branch with entities that don't have branch field.
@@ -191,6 +200,7 @@ def test_is_current_version_on_branch_with_department():
     assert "&&" in sql_str
     assert "tstzrange" in sql_str
     assert "deleted_at IS NULL" in sql_str
+
 
 def test_current_join_filter_with_mixed_deleted_at():
     """Test current_join_filter when some entities have deleted_at and some don't."""
@@ -214,6 +224,7 @@ def test_current_join_filter_with_mixed_deleted_at():
     # Should have deleted_at check only for WBE
     assert "deleted_at IS NULL" in sql_str
 
+
 def test_current_join_filter_single_entity():
     """Test current_join_filter with a single entity (edge case)."""
     from app.models.domain.wbe import WBE
@@ -229,6 +240,7 @@ def test_current_join_filter_single_entity():
     assert "&&" in sql_str
     assert "deleted_at IS NULL" in sql_str
 
+
 def test_is_current_version_raw_sql_with_custom_column_names():
     """Test is_current_version_raw_sql with various custom column names."""
     # Test with non-standard column names
@@ -239,6 +251,7 @@ def test_is_current_version_raw_sql_with_custom_column_names():
     assert "upper(custom_valid_time) IS NULL" in result
     assert "custom_deleted_at IS NULL" in result
     assert " AND " in result
+
 
 def test_is_current_version_raw_sql_generates_valid_sql_structure():
     """Test that is_current_version_raw_sql generates structurally valid SQL."""
@@ -252,6 +265,7 @@ def test_is_current_version_raw_sql_generates_valid_sql_structure():
 
     # Verify it can be used in a SQL context
     assert "(" in result and ")" in result  # Has parentheses for IS NULL check
+
 
 def test_is_current_version_with_deleted_at_none_explicit():
     """Test is_current_version with explicit deleted_at=None."""
@@ -269,6 +283,7 @@ def test_is_current_version_with_deleted_at_none_explicit():
     # Verify no deleted_at filter in WHERE clause
     where_clause = sql_str.split(" WHERE ")[1] if " WHERE " in sql_str else ""
     assert "deleted_at IS NULL" not in where_clause
+
 
 def test_is_current_version_on_branch_mixed_branch_names():
     """Test is_current_version_on_branch with different branch names."""
@@ -290,6 +305,7 @@ def test_is_current_version_on_branch_mixed_branch_names():
     assert "branch" in sql_str.lower()
     # The branch name should be parameterized, check for pattern
     assert ":branch" in sql_str or "feature" in sql_str.lower()
+
 
 def test_multiple_current_version_filters_combination():
     """Test combining multiple is_current_version filters manually."""
@@ -314,6 +330,7 @@ def test_multiple_current_version_filters_combination():
     # Should have overlap operators for both entities
     assert sql_str.count("&&") >= 2
     assert "deleted_at IS NULL" in sql_str
+
 
 def test_is_current_version_on_branch_no_deleted_at_returns_correct_type():
     """Test that is_current_version_on_branch without deleted_at returns correct type."""

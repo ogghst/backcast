@@ -32,6 +32,7 @@ class TestScopeType:
         with pytest.raises(ValueError):
             ScopeType("invalid")
 
+
 class TestUserRoleAssignmentEntity:
     """Tests for UserRoleAssignment model."""
 

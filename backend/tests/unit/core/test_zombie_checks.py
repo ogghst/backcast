@@ -30,6 +30,7 @@ UTC = UTC
 # Project Zombie Check (TemporalService)
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_project_zombie_check_deleted_not_visible(db_session):
     """Verify deleted Projects are NOT visible after deletion.
@@ -71,9 +72,11 @@ async def test_project_zombie_check_deleted_not_visible(db_session):
     )
     assert result_after is None, "Deleted entity should NOT be visible after deletion"
 
+
 # ============================================================================
 # WBE Zombie Check (BranchableService)
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_wbe_zombie_check_deleted_not_visible(db_session):
@@ -124,9 +127,11 @@ async def test_wbe_zombie_check_deleted_not_visible(db_session):
     )
     assert result_after is None
 
+
 # ============================================================================
 # Branch Mode Zombie Check
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
@@ -189,6 +194,7 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
     )
     assert result_main is not None, "Entity on main branch should still be visible"
 
+
 # ============================================================================
 # Note: Progress Entry and Cost Registration Zombie Check Tests
 # ============================================================================
@@ -211,6 +217,7 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
 # ============================================================================
 # Branch Zombie Check (TemporalService)
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_branch_zombie_check_deleted_not_visible(db_session):
@@ -266,9 +273,11 @@ async def test_branch_zombie_check_deleted_not_visible(db_session):
     )
     assert result_after is None, "Deleted branch should NOT be visible after deletion"
 
+
 # ============================================================================
 # CostElement Zombie Check (BranchableService)
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_cost_element_zombie_check_deleted_not_visible(db_session):
@@ -352,9 +361,11 @@ async def test_cost_element_zombie_check_deleted_not_visible(db_session):
         "Deleted CostElement should NOT be visible after deletion"
     )
 
+
 # ============================================================================
 # CostElementType Zombie Check (TemporalService)
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_cost_element_type_zombie_check_deleted_not_visible(db_session):
@@ -426,9 +437,11 @@ async def test_cost_element_type_zombie_check_deleted_not_visible(db_session):
         "Deleted CostElementType should NOT be visible after deletion"
     )
 
+
 # ============================================================================
 # Department Zombie Check (TemporalService)
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_department_zombie_check_deleted_not_visible(db_session):
@@ -487,6 +500,7 @@ async def test_department_zombie_check_deleted_not_visible(db_session):
     assert result_after is None, (
         "Deleted department should NOT be visible after deletion"
     )
+
 
 # ============================================================================
 # Note: Progress Entry and Cost Registration Zombie Check Tests

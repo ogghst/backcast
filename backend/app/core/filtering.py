@@ -142,7 +142,9 @@ class FilterParser:
                 # In strict mode, we capture this.
                 # The `pass` in the original instruction was likely a misunderstanding;
                 # we want to catch these errors and then raise our specific FilterValueTypeError.
-                type_name = getattr(col_type, "__name__", "unknown") if col_type else "unknown"
+                type_name = (
+                    getattr(col_type, "__name__", "unknown") if col_type else "unknown"
+                )
                 raise FilterValueTypeError(
                     field=field_name, value=str(values), expected_type=type_name
                 ) from e

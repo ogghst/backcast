@@ -28,6 +28,7 @@ def print_debug_header(title: str) -> None:
     print(f"  {title}")
     print("=" * 80)
 
+
 def print_temporal_bounds(
     version_id: UUID,
     valid_lower: datetime | None,
@@ -76,6 +77,7 @@ def print_temporal_bounds(
         if tx_upper is None:
             print(f"{indent}  ✓ transaction_time is open-ended (current version)")
 
+
 async def get_wbe_versions_from_db(
     session: AsyncSession, wbe_id: UUID
 ) -> list[dict[str, Any]]:
@@ -122,6 +124,7 @@ async def get_wbe_versions_from_db(
         }
         for row in rows
     ]
+
 
 @pytest.mark.asyncio
 async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
@@ -411,6 +414,7 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
     print("  • Temporal continuity maintained")
     print("  • No empty or inverted ranges")
     print("=" * 80 + "\n")
+
 
 @pytest.mark.asyncio
 async def test_wbe_update_without_control_date_uses_current_time(

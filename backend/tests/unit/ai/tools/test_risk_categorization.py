@@ -39,6 +39,7 @@ class TestRiskLevelEnum:
         with pytest.raises(ValueError, match="is not a valid RiskLevel"):
             RiskLevel("medium")  # type: ignore[call-arg]
 
+
 class TestToolMetadataRiskLevel:
     """Test ToolMetadata risk_level field (T-001)."""
 
@@ -89,6 +90,7 @@ class TestToolMetadataRiskLevel:
 
         assert "risk_level" in result
         assert result["risk_level"] == "low"  # Serialized as string
+
 
 class TestAIToolDecoratorRiskLevel:
     """Test @ai_tool decorator risk_level parameter (T-003)."""
@@ -165,6 +167,7 @@ class TestAIToolDecoratorRiskLevel:
         metadata = test_tool._tool_metadata  # type: ignore[attr-defined]
 
         assert metadata.risk_level == RiskLevel.HIGH
+
 
 class TestExecutionModeEnum:
     """Test ExecutionMode enum for Phase 2."""

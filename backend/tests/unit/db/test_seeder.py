@@ -19,12 +19,14 @@ def _make_mock_role(name: str, role_id: UUID | None = None) -> MagicMock:
     mock_role.id = role_id or uuid4()
     return mock_role
 
+
 def _make_mock_user(user_id: UUID, role: str) -> MagicMock:
     """Create a mock User with given user_id and role."""
     mock_user = MagicMock()
     mock_user.user_id = user_id
     mock_user.role = role
     return mock_user
+
 
 def _make_scalar_result(items: list[MagicMock]) -> MagicMock:
     """Create a mock SQLAlchemy scalar result supporting both patterns.
@@ -38,11 +40,13 @@ def _make_scalar_result(items: list[MagicMock]) -> MagicMock:
     result.scalar_one_or_none.return_value = items[0] if items else None
     return result
 
+
 def _make_all_result(rows: list[tuple]) -> MagicMock:
     """Create a mock SQLAlchemy result for .all() returning rows."""
     result = MagicMock()
     result.all.return_value = rows
     return result
+
 
 class TestDataSeederInit:
     """Tests for DataSeeder initialization."""
@@ -59,6 +63,7 @@ class TestDataSeederInit:
         custom_dir.mkdir()
         seeder = DataSeeder(seed_dir=custom_dir)
         assert seeder.seed_dir == custom_dir
+
 
 class TestLoadSeedFile:
     """Tests for load_seed_file method."""
@@ -100,6 +105,7 @@ class TestLoadSeedFile:
         result = seeder.load_seed_file("object.json")
 
         assert result == []
+
 
 @pytest.mark.asyncio
 class TestSeedUsersWithRootId:
@@ -183,6 +189,7 @@ class TestSeedUsersWithRootId:
             # user_id should be None, allowing service to generate
             assert call_args[0][0].user_id is None
 
+
 @pytest.mark.asyncio
 class TestSeedDepartmentsWithRootId:
     """Tests for seed_departments method with root ID verification."""
@@ -226,6 +233,7 @@ class TestSeedDepartmentsWithRootId:
             call_args = mock_service.create_department.call_args
             assert call_args[0][0].code == test_code
             assert call_args[0][0].department_id == expected_dept_id
+
 
 @pytest.mark.asyncio
 class TestSeedWBEsWithRootId:
@@ -276,6 +284,7 @@ class TestSeedWBEsWithRootId:
                 "d54fbbe6-f3df-51db-9c3e-9408700442be"
             )
             assert call_args[0][0].parent_wbe_id is None
+
 
 @pytest.mark.asyncio
 class TestSeedCostElementsWithRootId:
@@ -328,6 +337,7 @@ class TestSeedCostElementsWithRootId:
             assert call_args[0][0].cost_element_type_id == UUID(
                 "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
             )
+
 
 @pytest.mark.asyncio
 class TestSeedUsers:
@@ -407,6 +417,7 @@ class TestSeedUsers:
             # No users should be attempted
             mock_service.get_by_email.assert_not_called()
 
+
 @pytest.mark.asyncio
 class TestSeedDepartments:
     """Tests for seed_departments method (backward compatibility)."""
@@ -439,6 +450,7 @@ class TestSeedDepartments:
 
             # Verify department was NOT created
             mock_service.create_department.assert_not_called()
+
 
 @pytest.mark.asyncio
 class TestSeedAll:
@@ -491,6 +503,7 @@ class TestSeedAll:
 
                 # Verify rollback was called
                 mock_rollback.assert_called_once()
+
 
 @pytest.mark.asyncio
 class TestSeedUserRoleAssignments:
@@ -702,6 +715,7 @@ class TestSeedUserRoleAssignments:
 
         # Should skip since assignment exists
         session.add.assert_not_called()
+
 
 @pytest.mark.asyncio
 class TestSeedAllUserRoleAssignments:

@@ -14,6 +14,7 @@ BACKEND_DIR = Path(__file__).parent.parent.parent.parent
 SEED_RBAC_FILE = BACKEND_DIR / "seed" / "rbac_roles.json"
 CONFIG_RBAC_FILE = BACKEND_DIR / "config" / "rbac.json"
 
+
 class TestRBACConfigSync:
     """Ensure seed/rbac_roles.json and config/rbac.json stay synchronized."""
 

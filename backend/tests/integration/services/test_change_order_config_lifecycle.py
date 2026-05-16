@@ -61,6 +61,7 @@ def _make_impact_levels() -> list[dict[str, Any]]:
         },
     ]
 
+
 def _make_approval_rules() -> list[dict[str, Any]]:
     """Create default approval rule config data."""
     return [
@@ -91,6 +92,7 @@ def _make_approval_rules() -> list[dict[str, Any]]:
         },
     ]
 
+
 def _make_sla_rules() -> list[dict[str, Any]]:
     """Create default SLA rule config data."""
     return [
@@ -100,13 +102,16 @@ def _make_sla_rules() -> list[dict[str, Any]]:
         {"impact_level_name": "CRITICAL", "business_days": 15},
     ]
 
+
 def _make_impact_weights() -> dict[str, Any]:
     """Create default impact weights."""
     return {"budget": 0.4, "schedule": 0.3, "revenue": 0.2, "evm": 0.1}
 
+
 def _make_score_boundaries() -> dict[str, Any]:
     """Create default score boundaries."""
     return {"LOW": 10, "MEDIUM": 30, "HIGH": 50, "CRITICAL": 999}
+
 
 class TestGlobalConfigLifecycle:
     """Integration tests for global config read and update cycle."""
@@ -165,6 +170,7 @@ class TestGlobalConfigLifecycle:
         # Unchanged levels
         assert sla_map["MEDIUM"] == 5
         assert sla_map["HIGH"] == 10
+
 
 class TestProjectOverrideLifecycle:
     """Integration tests for per-project override create, use, delete, fallback."""
@@ -269,6 +275,7 @@ class TestProjectOverrideLifecycle:
         sla_days = await service.get_sla_days(project_id)
         assert sla_days["HIGH"] == 42
 
+
 class TestConfigUpdateReflectedInWorkflow:
     """Integration tests verifying config changes propagate to workflow services."""
 
@@ -350,6 +357,7 @@ class TestConfigUpdateReflectedInWorkflow:
         # Should use global MEDIUM=5 business days, NOT project override of 1
         # 5 business days from Monday May 4 = Monday May 11
         assert deadline.date().isoformat() == "2026-05-11"
+
 
 class TestConfigSnapshot:
     """Integration tests for config snapshot generation."""
@@ -441,6 +449,7 @@ class TestConfigSnapshot:
         # Verify new keys are present in the snapshot
         assert "holiday_country_code" in snapshot
         assert "custom_fields" in snapshot
+
 
 class TestHelperMethodsWithOverride:
     """Integration tests for config helper methods with project overrides."""

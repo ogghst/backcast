@@ -15,6 +15,7 @@ from app.ai.token_estimator import (
 
 _TARGET_LOGGER = "app.ai.token_estimator"
 
+
 class _LogCapture:
     """Simple log capture that attaches directly to a named logger.
 
@@ -57,6 +58,7 @@ class _LogCapture:
     def text(self) -> str:
         return "\n".join(r.getMessage() for r in self.records)
 
+
 class _RecordHandler(logging.Handler):
     """Handler that appends LogRecords to a list."""
 
@@ -66,6 +68,7 @@ class _RecordHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         self._records.append(record)
+
 
 class TestEstimateInputTokens:
     """Test suite for estimate_input_tokens function."""
@@ -106,6 +109,7 @@ class TestEstimateInputTokens:
         result = estimate_input_tokens([msg])
         assert result == 0
 
+
 class TestGetContextWindowSize:
     """Test suite for get_context_window_size function."""
 
@@ -128,6 +132,7 @@ class TestGetContextWindowSize:
         """Lookup is case-sensitive."""
         assert get_context_window_size("GPT-4o") is None
         assert get_context_window_size("gpt-4O") is None
+
 
 class TestLogContextUsageEstimate:
     """Test suite for log_context_usage_estimate function."""
@@ -178,6 +183,7 @@ class TestLogContextUsageEstimate:
 
         assert "context_window_size=unknown" in capture.text
         assert "usage_percentage=N/A" in capture.text
+
 
 class TestAccumulateUsageFromEvent:
     """Test suite for TokenUsageAccumulator.accumulate_from_event."""
@@ -276,6 +282,7 @@ class TestAccumulateUsageFromEvent:
         assert acc.prompt_tokens == 10
         assert acc.completion_tokens == 5
 
+
 class TestLogActualUsage:
     """Test suite for log_actual_usage function."""
 
@@ -325,6 +332,7 @@ class TestLogActualUsage:
         assert "prompt_tokens=0" in capture.text
         assert "completion_tokens=0" in capture.text
         assert "total_tokens=0" in capture.text
+
 
 class TestTokenUsageAccumulator:
     """Test suite for TokenUsageAccumulator dataclass."""

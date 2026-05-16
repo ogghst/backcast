@@ -26,6 +26,7 @@ from app.models.domain.user_role_assignment import UserRoleAssignment
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_assignment(
     user_id: UUID,
     role_id: UUID,
@@ -48,9 +49,11 @@ def _make_assignment(
     a.updated_at = datetime.now(UTC)
     return a
 
+
 # ---------------------------------------------------------------------------
 # Permission Cache Tests
 # ---------------------------------------------------------------------------
+
 
 class TestPermissionCache:
     """Tests for permission caching behavior."""
@@ -88,9 +91,11 @@ class TestPermissionCache:
     def test_check_permission_from_roles_returns_false_on_cache_miss(self) -> None:
         assert self.service._check_permission_from_roles(["unknown"], "read") is False
 
+
 # ---------------------------------------------------------------------------
 # Assignment Cache Tests
 # ---------------------------------------------------------------------------
+
 
 class TestAssignmentCache:
     """Tests for role assignment caching behavior."""
@@ -159,9 +164,11 @@ class TestAssignmentCache:
             is None
         )
 
+
 # ---------------------------------------------------------------------------
 # Permission Check Tests
 # ---------------------------------------------------------------------------
+
 
 class TestPermissionChecks:
     """Tests for has_permission with scope resolution."""
@@ -249,9 +256,11 @@ class TestPermissionChecks:
             )
         assert result is False
 
+
 # ---------------------------------------------------------------------------
 # Authority Level Tests
 # ---------------------------------------------------------------------------
+
 
 class TestAuthorityLevel:
     """Tests for has_authority_level method."""
@@ -296,9 +305,11 @@ class TestAuthorityLevel:
             result = await self.service.has_authority_level(self.user_id, "HIGH", None)
         assert result is False
 
+
 # ---------------------------------------------------------------------------
 # CRUD Tests
 # ---------------------------------------------------------------------------
+
 
 class TestCRUDOperations:
     """Tests for assign_role, revoke_role, get_user_roles."""
@@ -437,9 +448,11 @@ class TestCRUDOperations:
                     self.user_id, self.role_id, ScopeType.GLOBAL
                 )
 
+
 # ---------------------------------------------------------------------------
 # Singleton Tests
 # ---------------------------------------------------------------------------
+
 
 class TestSingleton:
     """Tests for service singleton management."""
@@ -456,9 +469,11 @@ class TestSingleton:
         # Reset
         set_unified_rbac_service(UnifiedRBACService())
 
+
 # ---------------------------------------------------------------------------
 # Refresh Permissions Cache Tests
 # ---------------------------------------------------------------------------
+
 
 class TestRefreshPermissionsCache:
     """Tests for refresh_permissions_cache method."""
@@ -523,9 +538,11 @@ class TestRefreshPermissionsCache:
         # Cache should remain empty
         assert self.service._permissions_cache == {}
 
+
 # ---------------------------------------------------------------------------
 # get_user_roles DB Path Tests
 # ---------------------------------------------------------------------------
+
 
 class TestGetUserRolesDBPath:
     """Tests for get_user_roles database query path (cache miss)."""
@@ -589,9 +606,11 @@ class TestGetUserRolesDBPath:
 
         assert roles == ["project-editor"]
 
+
 # ---------------------------------------------------------------------------
 # get_assignments_by_scope Tests
 # ---------------------------------------------------------------------------
+
 
 class TestGetAssignmentsByScope:
     """Tests for get_assignments_by_scope method."""
@@ -676,9 +695,11 @@ class TestGetAssignmentsByScope:
         assert result[0] is a1
         assert result[1] is a2
 
+
 # ---------------------------------------------------------------------------
 # get_all_user_assignments Tests
 # ---------------------------------------------------------------------------
+
 
 class TestGetAllUserAssignments:
     """Tests for get_all_user_assignments method."""
@@ -718,9 +739,11 @@ class TestGetAllUserAssignments:
 
         assert result == []
 
+
 # ---------------------------------------------------------------------------
 # update_assignment Tests
 # ---------------------------------------------------------------------------
+
 
 class TestUpdateAssignment:
     """Tests for update_assignment method."""
@@ -874,9 +897,11 @@ class TestUpdateAssignment:
             is None
         )
 
+
 # ---------------------------------------------------------------------------
 # get_accessible_projects Tests
 # ---------------------------------------------------------------------------
+
 
 class TestGetAccessibleProjects:
     """Tests for get_accessible_projects method."""
@@ -978,9 +1003,11 @@ class TestGetAccessibleProjects:
 
         assert result == []
 
+
 # ---------------------------------------------------------------------------
 # has_project_access Tests
 # ---------------------------------------------------------------------------
+
 
 class TestHasProjectAccess:
     """Tests for has_project_access convenience wrapper."""
@@ -1039,9 +1066,11 @@ class TestHasProjectAccess:
 
         assert result is False
 
+
 # ---------------------------------------------------------------------------
 # get_project_role Tests
 # ---------------------------------------------------------------------------
+
 
 class TestGetProjectRole:
     """Tests for get_project_role method."""
@@ -1115,9 +1144,11 @@ class TestGetProjectRole:
 
         assert result is None
 
+
 # ---------------------------------------------------------------------------
 # get_user_permissions Tests
 # ---------------------------------------------------------------------------
+
 
 class TestGetUserPermissions:
     """Tests for get_user_permissions method."""
@@ -1236,9 +1267,11 @@ class TestGetUserPermissions:
 
         assert result == ["*"]
 
+
 # ---------------------------------------------------------------------------
 # Multi-Role RBAC Tests
 # ---------------------------------------------------------------------------
+
 
 class TestMultiRoleRBAC:
     """Tests for multi-role support within the same user+scope combination.

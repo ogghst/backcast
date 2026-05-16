@@ -54,6 +54,7 @@ MOCK_VIEWER = User(
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest_asyncio.fixture
 async def admin_client(
     db_session: AsyncSession,
@@ -73,6 +74,7 @@ async def admin_client(
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
+
 
 @pytest_asyncio.fixture
 async def viewer_client(
@@ -96,6 +98,7 @@ async def viewer_client(
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
 
+
 @pytest_asyncio.fixture
 async def custom_role(admin_client: AsyncClient) -> dict[str, Any]:
     """Create a custom role via the API and return its JSON data."""
@@ -108,9 +111,11 @@ async def custom_role(admin_client: AsyncClient) -> dict[str, Any]:
     assert response.status_code == 201
     return response.json()
 
+
 # ---------------------------------------------------------------------------
 # List roles
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_list_roles_returns_all(
@@ -128,9 +133,11 @@ async def test_list_roles_returns_all(
     assert "viewer" in names
     assert "manager" in names
 
+
 # ---------------------------------------------------------------------------
 # Create role
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_create_role_success(
@@ -152,6 +159,7 @@ async def test_create_role_success(
     perm_names = {p["permission"] for p in data["permissions"]}
     assert perm_names == {"project-read", "schedule-baseline-read"}
 
+
 @pytest.mark.asyncio
 async def test_create_role_duplicate_name_400(
     admin_client: AsyncClient,
@@ -167,9 +175,11 @@ async def test_create_role_duplicate_name_400(
     assert response.status_code == 400
     assert "already exists" in response.json()["detail"].lower()
 
+
 # ---------------------------------------------------------------------------
 # Update role
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_update_role_success(
@@ -193,6 +203,7 @@ async def test_update_role_success(
     assert data["description"] == "Senior engineering role"
     assert len(data["permissions"]) == 3
 
+
 @pytest.mark.asyncio
 async def test_update_role_not_found(
     admin_client: AsyncClient,
@@ -206,9 +217,11 @@ async def test_update_role_not_found(
 
     assert response.status_code == 404
 
+
 # ---------------------------------------------------------------------------
 # Delete role
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_delete_role_success(
@@ -224,6 +237,7 @@ async def test_delete_role_success(
     # Verify role is gone
     response = await admin_client.get(f"/api/v1/admin/rbac/roles/{role_id}")
     assert response.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_delete_system_role_400(
@@ -241,6 +255,7 @@ async def test_delete_system_role_400(
     assert response.status_code == 400
     assert "system" in response.json()["detail"].lower()
 
+
 @pytest.mark.asyncio
 async def test_delete_role_not_found(
     admin_client: AsyncClient,
@@ -251,9 +266,11 @@ async def test_delete_role_not_found(
 
     assert response.status_code == 404
 
+
 # ---------------------------------------------------------------------------
 # List permissions
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_list_permissions(
@@ -271,9 +288,11 @@ async def test_list_permissions(
     # No duplicates
     assert len(perms) == len(set(perms))
 
+
 # ---------------------------------------------------------------------------
 # Provider status
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_provider_status_database(
@@ -288,9 +307,11 @@ async def test_provider_status_database(
     assert "editable" in data
     assert isinstance(data["editable"], bool)
 
+
 # ---------------------------------------------------------------------------
 # Authorization guard
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_non_admin_forbidden(

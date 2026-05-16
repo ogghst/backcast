@@ -215,6 +215,7 @@ class TestTemporalContextPerformance:
         assert result["branch_name"] == "feature-branch"
         assert result["branch_mode"] == "isolated"
 
+
 class TestTemporalContextPerformanceAssertions:
     """Performance assertions for temporal context processing."""
 

@@ -22,6 +22,7 @@ from app.models.schemas.evm import (
 # Note: EVMMetricsResponse uses float types for JSON serialization
 # EVMTimeSeriesPoint uses Decimal types for precision in time-series data
 
+
 class TestEntityType:
     """Test EntityType enum validation."""
 
@@ -48,6 +49,7 @@ class TestEntityType:
         # Assert
         assert issubclass(EntityType, str)
         assert isinstance(EntityType.COST_ELEMENT, str)
+
 
 class TestEVMMetricsResponse:
     """Test EVMMetricsResponse schema validation."""
@@ -239,6 +241,7 @@ class TestEVMMetricsResponse:
         # Assert
         assert metrics.entity_type == EntityType.PROJECT
 
+
 class TestEVMTimeSeriesPoint:
     """Test EVMTimeSeriesPoint schema validation."""
 
@@ -290,6 +293,7 @@ class TestEVMTimeSeriesPoint:
         errors = exc_info.value.errors()
         assert len(errors) > 0
 
+
 class TestEVMTimeSeriesGranularity:
     """Test EVMTimeSeriesGranularity enum validation."""
 
@@ -316,6 +320,7 @@ class TestEVMTimeSeriesGranularity:
         # Assert
         assert issubclass(EVMTimeSeriesGranularity, str)
         assert isinstance(EVMTimeSeriesGranularity.WEEK, str)
+
 
 class TestEVMTimeSeriesResponse:
     """Test EVMTimeSeriesResponse schema validation."""

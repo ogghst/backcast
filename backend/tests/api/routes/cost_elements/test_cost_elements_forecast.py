@@ -32,11 +32,14 @@ mock_admin_user = User(
     created_by=uuid4(),
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
@@ -48,6 +51,7 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
 
 @pytest_asyncio.fixture
 async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
@@ -95,6 +99,7 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
         "project_id": proj_id,
         "wbe_id": wbe_id,
     }
+
 
 @pytest.mark.asyncio
 class TestCostElementForecastAPI:
@@ -362,6 +367,7 @@ class TestCostElementForecastAPI:
         )
         assert main_again.status_code == 200
         assert main_again.json()["eac_amount"] == "100000.00"
+
 
 @pytest.mark.asyncio
 class TestForecastZombieCheck:

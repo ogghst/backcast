@@ -21,29 +21,35 @@ class MockAPIError(Exception):
 
     pass
 
+
 class MockConnectionError(Exception):
     """Mock connection error for testing."""
 
     pass
+
 
 class MockRateLimitError(Exception):
     """Mock rate limit error for testing."""
 
     pass
 
+
 class MockTimeoutError(Exception):
     """Mock timeout error for testing."""
 
     pass
+
 
 class MockServiceUnavailableError(Exception):
     """Mock 503 Service Unavailable error."""
 
     pass
 
+
 # =============================================================================
 # PHASE 4: EDGE CASES & VERIFICATION - TASK 1: LLM CLIENT ERROR HANDLING
 # =============================================================================
+
 
 class TestLLMClientEdgeCases:
     """Test LLM client edge cases and error handling."""
@@ -295,6 +301,7 @@ class TestLLMClientEdgeCases:
         ):
             await verify_streaming_capability(mock_client)
 
+
 @pytest.mark.asyncio
 async def test_create_client_openai(db_session: AsyncMock) -> None:
     """Test creating an OpenAI client."""
@@ -322,6 +329,7 @@ async def test_create_client_openai(db_session: AsyncMock) -> None:
         assert hasattr(client, "chat")
         assert hasattr(client.chat, "completions")
 
+
 @pytest.mark.asyncio
 async def test_create_client_ollama(db_session: AsyncMock) -> None:
     """Test creating an Ollama client."""
@@ -348,6 +356,7 @@ async def test_create_client_ollama(db_session: AsyncMock) -> None:
         assert client is not None
         assert hasattr(client, "chat")
 
+
 @pytest.mark.asyncio
 async def test_create_client_ollama_missing_base_url(db_session: AsyncMock) -> None:
     """Test that creating an Ollama client without base_url raises ValueError."""
@@ -371,6 +380,7 @@ async def test_create_client_ollama_missing_base_url(db_session: AsyncMock) -> N
         with pytest.raises(ValueError, match="Ollama provider requires base_url"):
             await LLMClientFactory.create_client(provider, config_service)
 
+
 @pytest.mark.asyncio
 async def test_verify_streaming_capability_success() -> None:
     """Test successful streaming capability verification."""
@@ -392,6 +402,7 @@ async def test_verify_streaming_capability_success() -> None:
     assert result is True
     mock_client.chat.completions.create.assert_called_once()
 
+
 @pytest.mark.asyncio
 async def test_verify_streaming_capability_api_error() -> None:
     """Test streaming capability verification with API error."""
@@ -406,6 +417,7 @@ async def test_verify_streaming_capability_api_error() -> None:
         LLMStreamingError, match="Unexpected error during streaming verification"
     ):
         await verify_streaming_capability(mock_client)
+
 
 @pytest.mark.asyncio
 async def test_verify_streaming_capability_connection_error() -> None:
@@ -422,6 +434,7 @@ async def test_verify_streaming_capability_connection_error() -> None:
     ):
         await verify_streaming_capability(mock_client)
 
+
 @pytest.mark.asyncio
 async def test_verify_streaming_capability_rate_limit_error() -> None:
     """Test streaming capability verification with rate limit error."""
@@ -436,6 +449,7 @@ async def test_verify_streaming_capability_rate_limit_error() -> None:
         LLMStreamingError, match="Unexpected error during streaming verification"
     ):
         await verify_streaming_capability(mock_client)
+
 
 @pytest.mark.asyncio
 async def test_stream_with_error_handling_success() -> None:
@@ -468,6 +482,7 @@ async def test_stream_with_error_handling_success() -> None:
     # Verify we got all chunks
     assert len(chunks) == 3
 
+
 @pytest.mark.asyncio
 async def test_stream_with_error_handling_connection_error() -> None:
     """Test streaming with connection error."""
@@ -485,6 +500,7 @@ async def test_stream_with_error_handling_connection_error() -> None:
             messages=[{"role": "user", "content": "test"}],
         ):
             pass
+
 
 @pytest.mark.asyncio
 async def test_stream_with_error_handling_rate_limit_error() -> None:
@@ -504,6 +520,7 @@ async def test_stream_with_error_handling_rate_limit_error() -> None:
         ):
             pass
 
+
 @pytest.mark.asyncio
 async def test_stream_with_error_handling_api_error() -> None:
     """Test streaming with API error."""
@@ -521,6 +538,7 @@ async def test_stream_with_error_handling_api_error() -> None:
             messages=[{"role": "user", "content": "test"}],
         ):
             pass
+
 
 @pytest.mark.asyncio
 async def test_stream_with_error_handling_chunk_iteration_error() -> None:
@@ -544,6 +562,7 @@ async def test_stream_with_error_handling_chunk_iteration_error() -> None:
             messages=[{"role": "user", "content": "test"}],
         ):
             pass
+
 
 @pytest.mark.asyncio
 async def test_stream_with_error_handling_passes_kwargs() -> None:

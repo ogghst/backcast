@@ -19,15 +19,18 @@ from app.services.rbac_admin_service import RBACAdminService
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_session() -> AsyncMock:
     """Create a mock AsyncSession for unit tests."""
     return AsyncMock(spec=AsyncSession)
 
+
 @pytest.fixture
 def service(mock_session: AsyncMock) -> RBACAdminService:
     """Create an RBACAdminService with a mocked session."""
     return RBACAdminService(mock_session)
+
 
 def _make_role(
     name: str = "test-role",
@@ -50,9 +53,11 @@ def _make_role(
             role.permissions.append(perm_obj)
     return role
 
+
 # ---------------------------------------------------------------------------
 # List roles
 # ---------------------------------------------------------------------------
+
 
 class TestListRoles:
     """Tests for list_roles method."""
@@ -86,9 +91,11 @@ class TestListRoles:
         assert role_a.permissions == role_a.permissions
         assert role_b.permissions == role_b.permissions
 
+
 # ---------------------------------------------------------------------------
 # Create role
 # ---------------------------------------------------------------------------
+
 
 class TestCreateRole:
     """Tests for create_role method."""
@@ -147,9 +154,11 @@ class TestCreateRole:
                 permissions=["project-read"],
             )
 
+
 # ---------------------------------------------------------------------------
 # Update role
 # ---------------------------------------------------------------------------
+
 
 class TestUpdateRole:
     """Tests for update_role method."""
@@ -265,9 +274,11 @@ class TestUpdateRole:
 
         assert result is None
 
+
 # ---------------------------------------------------------------------------
 # Delete role
 # ---------------------------------------------------------------------------
+
 
 class TestDeleteRole:
     """Tests for delete_role method."""
@@ -332,9 +343,11 @@ class TestDeleteRole:
 
         assert deleted is False
 
+
 # ---------------------------------------------------------------------------
 # Get all permissions
 # ---------------------------------------------------------------------------
+
 
 class TestGetAllPermissions:
     """Tests for get_all_permissions method."""
@@ -364,9 +377,11 @@ class TestGetAllPermissions:
 
         assert perms == ["cost-element-read", "project-read", "project-write"]
 
+
 # ---------------------------------------------------------------------------
 # Cache invalidation
 # ---------------------------------------------------------------------------
+
 
 class TestCacheRefresh:
     """Tests for _refresh_cache being called after write operations."""
