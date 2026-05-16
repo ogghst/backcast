@@ -97,7 +97,6 @@ class TestToolContext:
         # This is an AsyncSession from the scoped factory, not the original mock
         assert service.session is not None
 
-
 class TestToolMetadata:
     """Test ToolMetadata functionality."""
 

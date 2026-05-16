@@ -25,7 +25,7 @@ from sqlalchemy.pool import NullPool
 
 from alembic import command
 from app.core.config import settings
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_service
 from app.db.session import get_db
 from app.main import app
 from app.models.domain.cost_element import CostElement
@@ -290,61 +290,6 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 # =============================================================================
 
 
-class MockRBACService(RBACServiceABC):
-    """Mock RBAC service that allows everything for testing."""
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        # Return all possible permissions for testing
-        return [
-            "user-read",
-            "user-create",
-            "user-update",
-            "user-delete",
-            "project-read",
-            "project-create",
-            "project-update",
-            "project-delete",
-            "wbe-read",
-            "wbe-create",
-            "wbe-update",
-            "wbe-delete",
-            "cost-element-read",
-            "cost-element-create",
-            "cost-element-update",
-            "cost-element-delete",
-            "department-read",
-            "department-create",
-            "department-update",
-            "department-delete",
-            "cost-element-type-read",
-            "cost-element-type-create",
-            "cost-element-type-update",
-            "cost-element-type-delete",
-        ]
-
-    # Project-level RBAC methods (mocked - allow all)
-    async def has_project_access(
-        self,
-        user_id: UUID,
-        user_role: str,
-        project_id: UUID,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        return []
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return None
-
-
 class MockUnifiedRBACService:
     """Mock UnifiedRBACService for testing.
 
@@ -424,7 +369,7 @@ def _create_mock_user(
     user_id: UUID | None = None,
     email: str = "test@example.com",
     is_active: bool = True,
-    role: str = "viewer",
+    role: str = "viewer",  # noqa: ARG001 - kept for backward compat with callers
     full_name: str = "Test User",
     hashed_password: str = "hash",
 ) -> User:
@@ -434,7 +379,7 @@ def _create_mock_user(
         user_id: Optional UUID for the user. Defaults to random UUID.
         email: User email address.
         is_active: Whether the user is active.
-        role: User role (admin, project_manager, viewer).
+        role: Kept for backward compatibility with callers; no longer stored on User.
         full_name: User's full name.
         hashed_password: Hashed password.
 
@@ -446,7 +391,6 @@ def _create_mock_user(
         user_id=user_id or uuid4(),
         email=email,
         is_active=is_active,
-        role=role,
         full_name=full_name,
         hashed_password=hashed_password,
         created_by=uuid4(),
@@ -495,82 +439,6 @@ def mock_viewer_user() -> User:
     )
 
 
-@pytest.fixture
-def mock_rbac_service() -> MockRBACService:
-    """Mock RBAC service that grants all permissions.
-
-    Returns:
-        MockRBACService instance.
-    """
-    return MockRBACService()
-
-
-@pytest.fixture
-def mock_rbac_service_no_ai() -> MockRBACService:
-    """Mock RBAC service that denies AI chat permissions.
-
-    Returns:
-        MockRBACService instance without ai-chat permission.
-    """
-
-    class NoAIRBACService(RBACServiceABC):
-        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-            return True
-
-        def has_permission(self, user_role: str, required_permission: str) -> bool:
-            # Deny ai-chat permission specifically
-            if required_permission == "ai-chat":
-                return False
-            return True
-
-        def get_user_permissions(self, user_role: str) -> list[str]:
-            # Return all permissions except ai-chat
-            return [
-                "user-read",
-                "user-create",
-                "user-update",
-                "user-delete",
-                "project-read",
-                "project-create",
-                "project-update",
-                "project-delete",
-                "wbe-read",
-                "wbe-create",
-                "wbe-update",
-                "wbe-delete",
-                "cost-element-read",
-                "cost-element-create",
-                "cost-element-update",
-                "cost-element-delete",
-                "department-read",
-                "department-create",
-                "department-update",
-                "department-delete",
-                "cost-element-type-read",
-                "cost-element-type-create",
-                "cost-element-type-update",
-                "cost-element-type-delete",
-            ]
-
-        # Project-level RBAC methods (mocked - allow all)
-        async def has_project_access(
-            self,
-            user_id: UUID,
-            user_role: str,
-            project_id: UUID,
-            required_permission: str,
-        ) -> bool:
-            return True
-
-        async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-            return []
-
-        async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-            return None
-
-    return NoAIRBACService()
-
-
 # =============================================================================
 # Auth Override Fixture
 # =============================================================================
@@ -579,7 +447,6 @@ def mock_rbac_service_no_ai() -> MockRBACService:
 @pytest.fixture
 def override_auth(
     mock_admin_user: User,
-    mock_rbac_service: MockRBACService,
 ) -> Generator[None, None, None]:
     """Override authentication and RBAC dependencies for API tests.
 
@@ -597,14 +464,9 @@ def override_auth(
             ...
     """
     from app.api.dependencies.auth import get_current_active_user, get_current_user
-    from app.core.rbac_unified import (
-        get_unified_rbac_service,
-        set_unified_rbac_service,
-    )
 
     app.dependency_overrides[get_current_user] = lambda: mock_admin_user
     app.dependency_overrides[get_current_active_user] = lambda: mock_admin_user
-    app.dependency_overrides[get_rbac_service] = lambda: mock_rbac_service
 
     unified_mock = MockUnifiedRBACService()
     original_unified = get_unified_rbac_service()
@@ -669,7 +531,6 @@ async def admin_user(db_session: AsyncSession) -> User:
         user_id=uuid4(),
         email="admin@test.com",
         full_name="Admin User",
-        role="admin",
         is_active=True,
         hashed_password="hash",
         created_by=uuid4(),
@@ -697,7 +558,6 @@ async def test_user(db_session: AsyncSession) -> User:
         user_id=uuid4(),
         email="user@test.com",
         full_name="Test User",
-        role="viewer",
         is_active=True,
         hashed_password=hashed,
         created_by=uuid4(),
@@ -1303,7 +1163,6 @@ async def user_factory(db_session: AsyncSession) -> User:
         user_id=uuid4(),
         email=f"user-{uuid4().hex[:8]}@test.com",
         full_name="Test User",
-        role="viewer",
         is_active=True,
         hashed_password=hashed,
         created_by=uuid4(),

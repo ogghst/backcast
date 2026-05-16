@@ -9,7 +9,6 @@ from app.core.filtering import FilterParser
 # Create a test model
 Base = declarative_base()
 
-
 class TestModel(Base):
     """Test model for filter parser tests."""
 
@@ -20,7 +19,6 @@ class TestModel(Base):
     branch = Column(String)
     level = Column(Integer)
     name = Column(String)
-
 
 class TestFilterParserParseFilters:
     """Tests for FilterParser.parse_filters()."""
@@ -87,7 +85,6 @@ class TestFilterParserParseFilters:
         """Test parsing values with special characters."""
         result = FilterParser.parse_filters("name:Project-Alpha;status:in-progress")
         assert result == {"name": ["Project-Alpha"], "status": ["in-progress"]}
-
 
 class TestFilterParserBuildSQLAlchemyFilters:
     """Tests for FilterParser.build_sqlalchemy_filters()."""
@@ -168,7 +165,6 @@ class TestFilterParserBuildSQLAlchemyFilters:
         # Should not raise error
         expressions = FilterParser.build_sqlalchemy_filters(TestModel, filters)
         assert len(expressions) == 4
-
 
 class TestFilterParserIntegration:
     """Integration tests for parse + build workflow."""

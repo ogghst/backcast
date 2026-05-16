@@ -50,7 +50,6 @@ async def test_get_as_of(db_session):
     assert result_t1 is not None
     assert result_t1.name == branch_name
 
-
 @pytest.mark.asyncio
 async def test_lock_update_in_place(db_session):
     # Arrange

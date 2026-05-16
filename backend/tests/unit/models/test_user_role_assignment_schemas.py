@@ -77,7 +77,6 @@ class TestUserRoleAssignmentCreate:
         )
         assert schema.expires_at == expires
 
-
 class TestUserRoleAssignmentUpdate:
     """Tests for UserRoleAssignmentUpdate schema."""
 
@@ -95,7 +94,6 @@ class TestUserRoleAssignmentUpdate:
         schema = UserRoleAssignmentUpdate()
         assert schema.role_id is None
         assert schema.metadata_ is None
-
 
 class TestUserRoleAssignmentResponse:
     """Tests for UserRoleAssignmentResponse schema."""

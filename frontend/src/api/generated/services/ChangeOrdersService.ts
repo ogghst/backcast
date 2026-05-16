@@ -3,6 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { ApprovalInfoPublic } from '../models/ApprovalInfoPublic';
+import type { BranchMode } from '../models/BranchMode';
 import type { ChangeOrderApproval } from '../models/ChangeOrderApproval';
 import type { ChangeOrderCreate } from '../models/ChangeOrderCreate';
 import type { ChangeOrderPublic } from '../models/ChangeOrderPublic';
@@ -66,7 +67,7 @@ export class ChangeOrdersService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch name
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param search Search term (code, title)
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
@@ -80,7 +81,7 @@ export class ChangeOrdersService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -95,7 +96,7 @@ export class ChangeOrdersService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'search': search,
                 'filters': filters,
                 'sort_field': sortField,
@@ -160,6 +161,45 @@ export class ChangeOrdersService {
             query: {
                 'project_id': projectId,
                 'year': year,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Pending Approvals
+     * Get change orders pending approval for the current user.
+     *
+     * Filters change orders by:
+     * - assigned_approver_id = current_user.user_id
+     * - status in ("Submitted for Approval", "Under Review")
+     * - branch name (default: "main")
+     *
+     * Returns paginated list of change orders awaiting the user's approval.
+     *
+     * Requires read permission.
+     * @param page Page number (1-indexed)
+     * @param perPage Items per page
+     * @param branch Branch name
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getPendingApprovals(
+        page: number = 1,
+        perPage: number = 20,
+        branch: string = 'main',
+        branchMode: BranchMode = 'merged',
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/change-orders/pending-approvals',
+            query: {
+                'page': page,
+                'per_page': perPage,
+                'branch': branch,
+                'branch_mode': branchMode,
             },
             errors: {
                 422: `Validation Error`,
@@ -430,7 +470,7 @@ export class ChangeOrdersService {
      * Requires read permission.
      * @param changeOrderId
      * @param branchName Branch name to compare (e.g., 'BR-CO-2026-001')
-     * @param mode Comparison mode: merged (main+change) or isolated (change only)
+     * @param branchMode Comparison mode: merged (main+change) or isolated (change only)
      * @param asOf Time travel: get impact analysis as of this timestamp (ISO 8601)
      * @returns ImpactAnalysisResponse Successful Response
      * @throws ApiError
@@ -438,7 +478,7 @@ export class ChangeOrdersService {
     public static getChangeOrderImpact(
         changeOrderId: string,
         branchName: string,
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<ImpactAnalysisResponse> {
         return __request(OpenAPI, {
@@ -449,7 +489,7 @@ export class ChangeOrdersService {
             },
             query: {
                 'branch_name': branchName,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'as_of': asOf,
             },
             errors: {
@@ -509,17 +549,17 @@ export class ChangeOrdersService {
      *
      * Requires approve permission.
      * @param changeOrderId
-     * @param requestBody
      * @param branch Branch name
      * @param controlDate Control date for the operation (defaults to now)
+     * @param requestBody
      * @returns ChangeOrderPublic Successful Response
      * @throws ApiError
      */
     public static approveChangeOrder(
         changeOrderId: string,
-        requestBody: ChangeOrderApproval,
         branch: string = 'main',
         controlDate?: (string | null),
+        requestBody?: (ChangeOrderApproval | null),
     ): CancelablePromise<ChangeOrderPublic> {
         return __request(OpenAPI, {
             method: 'PUT',
@@ -548,17 +588,17 @@ export class ChangeOrdersService {
      *
      * Requires approve permission.
      * @param changeOrderId
-     * @param requestBody
      * @param branch Branch name
      * @param controlDate Control date for the operation (defaults to now)
+     * @param requestBody
      * @returns ChangeOrderPublic Successful Response
      * @throws ApiError
      */
     public static rejectChangeOrder(
         changeOrderId: string,
-        requestBody: ChangeOrderApproval,
         branch: string = 'main',
         controlDate?: (string | null),
+        requestBody?: (ChangeOrderApproval | null),
     ): CancelablePromise<ChangeOrderPublic> {
         return __request(OpenAPI, {
             method: 'PUT',
@@ -727,45 +767,6 @@ export class ChangeOrdersService {
             query: {
                 'branch': branch,
                 'as_of': asOf,
-            },
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Get Pending Approvals
-     * Get change orders pending approval for the current user.
-     *
-     * Filters change orders by:
-     * - assigned_approver_id = current_user.user_id
-     * - status in ("Submitted for Approval", "Under Review")
-     * - branch name (default: "main")
-     *
-     * Returns paginated list of change orders awaiting the user's approval.
-     *
-     * Requires read permission.
-     * @param page Page number (1-indexed)
-     * @param perPage Items per page
-     * @param branch Branch name
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
-     * @returns any Successful Response
-     * @throws ApiError
-     */
-    public static getPendingApprovals(
-        page: number = 1,
-        perPage: number = 20,
-        branch: string = 'main',
-        mode: string = 'merged',
-    ): CancelablePromise<any> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/change-orders/pending-approvals',
-            query: {
-                'page': page,
-                'per_page': perPage,
-                'branch': branch,
-                'mode': mode,
             },
             errors: {
                 422: `Validation Error`,

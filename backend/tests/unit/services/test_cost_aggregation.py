@@ -28,7 +28,6 @@ class TestCostAggregationDaily:
         # Better tested in integration tests
         pass
 
-
 class TestCostAggregationWeekly:
     """Test weekly cost aggregation.
 
@@ -48,7 +47,6 @@ class TestCostAggregationWeekly:
         # Better tested in integration tests
         pass
 
-
 class TestCostAggregationMonthly:
     """Test monthly cost aggregation.
 
@@ -67,7 +65,6 @@ class TestCostAggregationMonthly:
         # This requires cost registrations to exist
         # Better tested in integration tests
         pass
-
 
 class TestCostAggregationTimeTravel:
     """Test cost aggregation time-travel support.
@@ -90,7 +87,6 @@ class TestCostAggregationTimeTravel:
         # Better tested in integration tests
         pass
 
-
 class TestCumulativeCosts:
     """Test cumulative cost calculation."""
 
@@ -106,7 +102,6 @@ class TestCumulativeCosts:
         # This requires cost registrations to exist
         # Better tested in integration tests
         pass
-
 
 class TestCostAggregationBoundaries:
     """Test cost aggregation period boundaries."""
@@ -140,7 +135,6 @@ class TestCostAggregationBoundaries:
         # Better tested in integration tests
         pass
 
-
 class TestCostAggregationEmptyResults:
     """Test cost aggregation with no matching data."""
 
@@ -166,7 +160,6 @@ class TestCostAggregationEmptyResults:
 
         # Assert
         assert result == []
-
 
 class TestCostAggregationPerformance:
     """Test cost aggregation performance.

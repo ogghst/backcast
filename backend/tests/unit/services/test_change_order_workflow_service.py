@@ -20,7 +20,6 @@ async def test_get_available_transitions_draft():
     # Assert
     assert transitions == [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
 
-
 @pytest.mark.asyncio
 async def test_get_available_transitions_under_review():
     """Test getting available transitions from under_review (branching)."""
@@ -38,7 +37,6 @@ async def test_get_available_transitions_under_review():
         ChangeOrderStatus.REJECTED.value,
     }
 
-
 @pytest.mark.asyncio
 async def test_get_next_status_linear():
     """Test getting next status when workflow is linear."""
@@ -51,7 +49,6 @@ async def test_get_next_status_linear():
     # Assert
     assert next_status == ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value
 
-
 @pytest.mark.asyncio
 async def test_get_next_status_branching():
     """Test getting next status when workflow has multiple options."""
@@ -63,7 +60,6 @@ async def test_get_next_status_branching():
 
     # Assert
     assert next_status is None  # Multiple options available
-
 
 @pytest.mark.asyncio
 async def test_should_lock_on_transition_draft_to_submitted():
@@ -80,7 +76,6 @@ async def test_should_lock_on_transition_draft_to_submitted():
     # Assert
     assert should_lock is True
 
-
 @pytest.mark.asyncio
 async def test_should_lock_on_transition_submitted_to_under_review():
     """Test that submitted_for_approval → under_review does NOT lock branch."""
@@ -95,7 +90,6 @@ async def test_should_lock_on_transition_submitted_to_under_review():
 
     # Assert
     assert should_lock is False
-
 
 @pytest.mark.asyncio
 async def test_should_unlock_on_transition_under_review_to_rejected():
@@ -112,7 +106,6 @@ async def test_should_unlock_on_transition_under_review_to_rejected():
     # Assert
     assert should_unlock is True
 
-
 @pytest.mark.asyncio
 async def test_can_edit_on_status_draft():
     """Test that Draft status allows editing."""
@@ -124,7 +117,6 @@ async def test_can_edit_on_status_draft():
 
     # Assert
     assert can_edit is True
-
 
 @pytest.mark.asyncio
 async def test_can_edit_on_status_submitted():
@@ -140,7 +132,6 @@ async def test_can_edit_on_status_submitted():
     # Assert
     assert can_edit is False
 
-
 @pytest.mark.asyncio
 async def test_can_edit_on_status_rejected():
     """Test that Rejected status allows editing (for resubmission)."""
@@ -152,7 +143,6 @@ async def test_can_edit_on_status_rejected():
 
     # Assert
     assert can_edit is True
-
 
 @pytest.mark.asyncio
 async def test_is_valid_transition_draft_to_submitted():
@@ -169,7 +159,6 @@ async def test_is_valid_transition_draft_to_submitted():
     # Assert
     assert is_valid is True
 
-
 @pytest.mark.asyncio
 async def test_is_valid_transition_draft_to_approved():
     """Test that Draft → Approved is INVALID (skips steps)."""
@@ -184,7 +173,6 @@ async def test_is_valid_transition_draft_to_approved():
 
     # Assert
     assert is_valid is False
-
 
 @pytest.mark.asyncio
 async def test_is_valid_transition_rejected_to_submitted():
@@ -201,7 +189,6 @@ async def test_is_valid_transition_rejected_to_submitted():
     # Assert
     assert is_valid is True
 
-
 @pytest.mark.asyncio
 async def test_get_available_transitions_implemented():
     """Test that Implemented is a terminal state with no transitions."""
@@ -216,7 +203,6 @@ async def test_get_available_transitions_implemented():
     # Assert
     assert transitions == []
 
-
 # ============================================================================
 # Approval Workflow Tests
 # ============================================================================
@@ -224,7 +210,6 @@ async def test_get_available_transitions_implemented():
 # reject_change_order) are tested via integration tests rather than unit tests
 # due to runtime imports to avoid circular dependencies with ChangeOrderService.
 # See tests/integration/test_change_order_approval_workflow.py for comprehensive tests.
-
 
 # ============================================================================
 # Phase B: Config-driven Workflow Transitions Tests
@@ -246,7 +231,6 @@ CUSTOM_CONFIG = {
     "editable_statuses": [ChangeOrderStatus.DRAFT.value],
 }
 
-
 @pytest.mark.asyncio
 async def test_no_config_service_uses_hardcoded_defaults():
     """Service with no config_service uses class-level hardcoded defaults."""
@@ -263,7 +247,6 @@ async def test_no_config_service_uses_hardcoded_defaults():
         ChangeOrderStatus.DRAFT.value,
         ChangeOrderStatus.APPROVED.value,
     )
-
 
 @pytest.mark.asyncio
 async def test_config_overrides_transitions():
@@ -283,7 +266,6 @@ async def test_config_overrides_transitions():
         ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
     )
 
-
 @pytest.mark.asyncio
 async def test_config_null_transitions_falls_back():
     """Config returns None for transitions -> falls back to defaults."""
@@ -294,7 +276,6 @@ async def test_config_null_transitions_falls_back():
 
     transitions = await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
     assert transitions == [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
-
 
 @pytest.mark.asyncio
 async def test_config_exception_falls_back():
@@ -311,7 +292,6 @@ async def test_config_exception_falls_back():
     transitions = await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
     assert transitions == [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
 
-
 @pytest.mark.asyncio
 async def test_config_unexpected_error_propagates():
     """Non-ConfigurationError exceptions propagate instead of silent fallback."""
@@ -322,7 +302,6 @@ async def test_config_unexpected_error_propagates():
 
     with pytest.raises(RuntimeError, match="DB error"):
         await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
-
 
 @pytest.mark.asyncio
 async def test_custom_lock_transitions():
@@ -340,7 +319,6 @@ async def test_custom_lock_transitions():
         ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
     )
 
-
 @pytest.mark.asyncio
 async def test_custom_unlock_transitions():
     """Unlock transitions from config override hardcoded."""
@@ -357,7 +335,6 @@ async def test_custom_unlock_transitions():
         ChangeOrderStatus.REJECTED.value,
     )
 
-
 @pytest.mark.asyncio
 async def test_custom_editable_statuses():
     """Editable statuses from config override hardcoded."""
@@ -368,7 +345,6 @@ async def test_custom_editable_statuses():
 
     assert await service.can_edit_on_status(ChangeOrderStatus.DRAFT.value)
     assert not await service.can_edit_on_status(ChangeOrderStatus.REJECTED.value)
-
 
 @pytest.mark.asyncio
 async def test_transitions_cached_within_instance():

@@ -45,7 +45,6 @@ class TestToolExecutionMetrics:
         assert result["error_message"] == "Test error"
         assert "timestamp" in result
 
-
 class TestMonitoringContext:
     """Test suite for MonitoringContext."""
 
@@ -146,7 +145,6 @@ class TestMonitoringContext:
         assert summary["tools_by_name"]["tool_b"]["count"] == 1
         assert summary["tools_by_name"]["tool_b"]["errors"] == 1
 
-
 class TestMonitorToolExecution:
     """Test suite for monitor_tool_execution context manager."""
 
@@ -210,7 +208,6 @@ class TestMonitorToolExecution:
 
         assert context.total_tools_called == 3
         assert len(context.executions) == 3
-
 
 class TestLoggingFunctions:
     """Test suite for logging functions."""

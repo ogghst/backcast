@@ -25,7 +25,6 @@ from app.ai.state import AgentState
 SIMPLE_TOOL_TARGET_P50 = 100  # ms
 COMPLEX_TOOL_TARGET_P50 = 500  # ms
 
-
 @pytest.fixture
 def mock_fast_llm_with_tool_call():
     """Mock LLM that makes a tool call quickly."""
@@ -41,7 +40,6 @@ def mock_fast_llm_with_tool_call():
     llm.bind_tools = MagicMock(return_value=llm)
     llm.ainvoke = AsyncMock(side_effect=invoke)
     return llm
-
 
 @pytest.fixture
 def mock_slow_llm_with_tool_call():
@@ -61,7 +59,6 @@ def mock_slow_llm_with_tool_call():
     llm.ainvoke = AsyncMock(side_effect=invoke)
     return llm
 
-
 @pytest.fixture
 def simple_tool():
     """Create a simple tool for testing."""
@@ -73,7 +70,6 @@ def simple_tool():
         return f"Processed: {input}"
 
     return simple_tool
-
 
 @pytest.fixture
 def complex_tool():
@@ -88,7 +84,6 @@ def complex_tool():
         return result
 
     return complex_tool
-
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -140,7 +135,6 @@ async def test_simple_tool_execution_p50(mock_fast_llm_with_tool_call, simple_to
         f"\n✓ Simple tool execution latency: {latency_ms:.2f}ms "
         f"(target: <{SIMPLE_TOOL_TARGET_P50}ms)"
     )
-
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -200,7 +194,6 @@ async def test_simple_tool_execution_percentiles(
         f"p50={p50:.2f}ms, p95={p95:.2f}ms, p99={p99:.2f}ms"
     )
 
-
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
@@ -249,7 +242,6 @@ async def test_complex_tool_execution_p50(mock_slow_llm_with_tool_call, complex_
         f"\n✓ Complex tool execution latency: {latency_ms:.2f}ms "
         f"(target: <{COMPLEX_TOOL_TARGET_P50}ms)"
     )
-
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -343,7 +335,6 @@ async def test_tool_chaining_performance(simple_tool):
     # Log for reporting
     print(f"\n✓ Tool chaining (3 tools): {latency_ms:.2f}ms (target: <300ms)")
 
-
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
@@ -402,7 +393,6 @@ async def test_concurrent_tool_execution(simple_tool):
         f"(1 tool: {compile_time_1:.2f}ms, 10 tools: {compile_time_10:.2f}ms)"
     )
 
-
 @pytest.mark.asyncio
 @pytest.mark.performance
 @pytest.mark.benchmark
@@ -444,7 +434,6 @@ async def test_tool_registry_overhead():
         f"\n✓ Tool registry lookup: {avg_lookup_time_ms:.2f}ms "
         f"({len(tools)} tools, target: <1ms)"
     )
-
 
 @pytest.mark.asyncio
 @pytest.mark.performance
@@ -496,7 +485,6 @@ async def test_tool_context_injection_overhead():
         f"\n✓ ToolContext injection overhead: {avg_injection_time_ms:.2f}ms "
         f"(target: <5ms)"
     )
-
 
 # Run benchmarks with pytest:
 # pytest tests/performance/ai/test_tool_performance.py -v -m performance

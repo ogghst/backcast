@@ -39,7 +39,6 @@ async def test_session_manager_commit_handles_no_transaction_gracefully(
     new_session = tool_scoped_session_factory()
     assert new_session is not tool_session
 
-
 @pytest.mark.asyncio
 async def test_session_manager_rollback_handles_no_transaction_gracefully(
     db_session: AsyncSession,
@@ -57,7 +56,6 @@ async def test_session_manager_rollback_handles_no_transaction_gracefully(
     # Session should be removed (next call gets a new session)
     new_session = tool_scoped_session_factory()
     assert new_session is not tool_session
-
 
 @pytest.mark.asyncio
 async def test_session_manager_multiple_commits_dont_leak_connections(

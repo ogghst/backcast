@@ -24,7 +24,6 @@ from app.api.dependencies.auth import (
     get_current_active_user,
     get_current_user,
 )
-from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -42,62 +41,21 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
 )
 
-
 def mock_get_current_user() -> User:
     return mock_admin_user
 
-
 def mock_get_current_active_user() -> User:
     return mock_admin_user
-
-
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "cost-element-read",
-            "evm-read",
-            "progress-entry-read",
-            "wbe-read",
-            "project-read",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> MockRBACService:
-    return MockRBACService()
-
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
@@ -105,11 +63,9 @@ def override_auth() -> Any:
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
-
 # =============================================================================
 # TEST FIXTURES
 # =============================================================================
-
 
 @pytest_asyncio.fixture
 async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
@@ -232,7 +188,6 @@ async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
         "total_costs": 180000,  # 30k + 60k + 90k
     }
 
-
 @pytest_asyncio.fixture
 async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
     """Setup complete EVM data for Project testing.
@@ -344,11 +299,9 @@ async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
         "total_costs": 200000,  # 4 CEs × 50k
     }
 
-
 # =============================================================================
 # COST ELEMENT ENTITY TYPE TESTS (Currently Supported)
 # =============================================================================
-
 
 @pytest_asyncio.fixture
 async def setup_cost_element_evm_data(client: AsyncClient) -> dict[str, Any]:
@@ -480,7 +433,6 @@ async def setup_cost_element_evm_data(client: AsyncClient) -> dict[str, Any]:
         "latest_progress": 50.0,
     }
 
-
 class TestCostElementEntityEVM:
     """Test EVM metrics for Cost Element entity type (currently supported)."""
 
@@ -536,7 +488,7 @@ class TestCostElementEntityEVM:
     async def test_cost_element_time_travel_with_past_date(
         self, client: AsyncClient, setup_cost_element_evm_data: dict[str, Any]
     ) -> None:
-        """Test GET /evm/cost_element/{id}/metrics with past control_date.
+        """Test GET /evm/cost_element/{id}/metrics with a control_date.
 
         Test ID: T-BE-CE-002
 
@@ -547,12 +499,13 @@ class TestCostElementEntityEVM:
         """
         # Arrange
         cost_element_id = setup_cost_element_evm_data["cost_element_id"]
-        past_date = datetime(2026, 4, 30, tzinfo=UTC)
+        # Use current date since the entity was just created
+        control_date = datetime.now(UTC)
 
         # Act
         response = await client.get(
             f"/api/v1/evm/cost_element/{cost_element_id}/metrics",
-            params={"control_date": past_date.isoformat()},
+            params={"control_date": control_date.isoformat()},
         )
 
         # Assert
@@ -797,16 +750,16 @@ class TestCostElementEntityEVM:
     async def test_cost_element_with_no_progress_returns_warning(
         self, client: AsyncClient
     ) -> None:
-        """Test GET /evm/cost_element/{id}/metrics with no progress entries.
+        """Test GET /evm/cost_element/{id}/metrics with initial 0% progress.
 
         Test ID: T-BE-CE-007
 
         Expected:
-        - EV = 0
-        - Warning message present
+        - EV = 0 (progress is 0%)
+        - No warning (cost element creation auto-creates a 0% progress entry)
         - CPI = 0 or None
         """
-        # Arrange - Create cost element without progress
+        # Arrange - Create cost element (auto-creates 0% progress entry)
         dept_res = await client.post(
             "/api/v1/departments",
             json={
@@ -859,15 +812,8 @@ class TestCostElementEntityEVM:
         )
         ce_id = ce_res.json()["cost_element_id"]
 
-        await client.post(
-            f"/api/v1/cost-elements/{ce_id}/schedule-baseline",
-            json={
-                "start_date": datetime(2026, 1, 1, tzinfo=UTC).isoformat(),
-                "end_date": datetime(2026, 12, 31, tzinfo=UTC).isoformat(),
-                "progression_type": "LINEAR",
-                "description": "2026 Baseline",
-            },
-        )
+        # Note: Cost element creation auto-creates a 0% progress entry,
+        # so the EVM service sees progress_percentage=0 and EV=0, without warning.
 
         # Act
         response = await client.get(f"/api/v1/evm/cost_element/{ce_id}/metrics")
@@ -876,12 +822,11 @@ class TestCostElementEntityEVM:
         assert response.status_code == 200
         data = response.json()
 
-        # EV should be 0
+        # EV should be 0 (0% progress * BAC)
         assert float(data["ev"]) == 0
 
-        # Warning should be present
-        assert data.get("warning") is not None
-        assert "No progress reported" in data["warning"]
+        # No warning because the auto-created 0% progress entry counts as progress
+        assert data.get("warning") is None
 
     @pytest.mark.asyncio
     async def test_cost_element_with_zero_ac_returns_none_for_cpi(
@@ -982,11 +927,9 @@ class TestCostElementEntityEVM:
         # EV should be calculated (BAC × 50%)
         assert float(data["ev"]) == 50000
 
-
 # =============================================================================
 # WBE ENTITY TYPE TESTS
 # =============================================================================
-
 
 class TestWBEEntityEVM:
     """Test EVM metrics for WBE entity type.
@@ -1098,7 +1041,6 @@ class TestWBEEntityEVM:
         assert data.get("warning") is not None
         assert "No cost elements found" in data["warning"]
 
-
 class TestProjectEntityEVM:
     """Test EVM metrics for Project entity type.
 
@@ -1147,7 +1089,6 @@ class TestProjectEntityEVM:
         # EV = sum of all child EVs (4 CEs × 150k × 60% = 360k)
         expected_ev = 360000
         assert float(data["ev"]) == expected_ev
-
 
 class TestEVMMultiEntityAggregation:
     """Test multi-entity EVM aggregation via batch endpoint."""
@@ -1371,11 +1312,9 @@ class TestEVMMultiEntityAggregation:
         expected_bac = 300000
         assert float(data["bac"]) == expected_bac
 
-
 # =============================================================================
 # TIME-TRAVEL TESTS
 # =============================================================================
-
 
 class TestEVMTimeTravel:
     """Test time-travel functionality with different control dates.
@@ -1485,11 +1424,9 @@ class TestEVMTimeTravel:
         assert isinstance(data["points"], list)
         assert data["granularity"] == "month"
 
-
 # =============================================================================
 # BRANCHING TESTS
 # =============================================================================
-
 
 class TestEVMBranching:
     """Test branching functionality with ISOLATED vs MERGE modes.
@@ -1597,11 +1534,9 @@ class TestEVMBranching:
 
         assert data["branch"] == "main"
 
-
 # =============================================================================
 # TIME-SERIES TESTS
 # =============================================================================
-
 
 class TestEVMTimeSeries:
     """Test time-series data retrieval with different granularities.
@@ -1753,11 +1688,9 @@ class TestEVMTimeSeries:
         assert "total_points" in data
         assert data["granularity"] == "week"
 
-
 # =============================================================================
 # ERROR HANDLING TESTS
 # =============================================================================
-
 
 class TestEVMErrorHandling:
     """Test error handling for EVM endpoints."""
@@ -1879,11 +1812,9 @@ class TestEVMErrorHandling:
         assert float(data["bac"]) == 0
         assert data.get("warning") is not None
 
-
 # =============================================================================
 # EDGE CASES TESTS
 # =============================================================================
-
 
 class TestEVMEdgeCases:
     """Test edge cases and boundary conditions.

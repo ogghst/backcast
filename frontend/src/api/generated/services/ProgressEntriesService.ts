@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchMode } from '../models/BranchMode';
 import type { ProgressEntryCreate } from '../models/ProgressEntryCreate';
 import type { ProgressEntryRead } from '../models/ProgressEntryRead';
 import type { CancelablePromise } from '../core/CancelablePromise';
@@ -22,7 +23,7 @@ export class ProgressEntriesService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query (for context)
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param costElementId Filter by Cost Element ID
      * @param wbeId Filter by WBE ID (aggregates across all cost elements)
      * @param projectId Filter by Project ID (aggregates across all WBEs and cost elements)
@@ -34,7 +35,7 @@ export class ProgressEntriesService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         costElementId?: (string | null),
         wbeId?: (string | null),
         projectId?: (string | null),
@@ -47,7 +48,7 @@ export class ProgressEntriesService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'cost_element_id': costElementId,
                 'wbe_id': wbeId,
                 'project_id': projectId,

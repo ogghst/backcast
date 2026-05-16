@@ -25,7 +25,6 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
         name="Project Alpha",
         code="PROJ-001",
         description="Initial Plan",
-        budget=1000.0,
     )
     assert v1.project_id == root_id
     assert v1.branch == "main"
@@ -52,11 +51,9 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
         actor_id=actor_id,
         branch="feature/scope-increase",
         name="Project Alpha Plus",
-        budget=5000.0,
     )
     assert v3.branch == "feature/scope-increase"
     assert v3.name == "Project Alpha Plus"
-    assert v3.budget == 5000.0
     assert v3.id != v2_id
     v3_id = v3.id
 
@@ -70,7 +67,6 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
     )
     assert merged.branch == "main"
     assert merged.name == "Project Alpha Plus"
-    assert merged.budget == 5000.0
     assert merged.parent_id == v1_id  # Linked to previous main tip
     assert merged.merge_from_branch == "feature/scope-increase"
     merged_id = merged.id
@@ -81,7 +77,6 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
     )
     assert reverted.branch == "main"
     assert reverted.name == "Project Alpha"  # Restored content
-    assert reverted.budget == 1000.0
     assert reverted.parent_id == merged_id  # History verified
 
     # 6. Verify Current State

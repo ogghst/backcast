@@ -173,7 +173,6 @@ class TestToolContextTemporalParams:
         assert result["as_of"] == "2025-06-15T12:00:00"
         assert result["current_date"] == "Sunday, June 15, 2025 at 12:00 PM"
 
-
 class TestSetTemporalContext:
     """Test set_temporal_context tool functionality."""
 

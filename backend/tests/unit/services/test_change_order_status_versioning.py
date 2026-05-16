@@ -25,7 +25,6 @@ def mock_session() -> AsyncMock:
     session.add = MagicMock()
     return session
 
-
 @pytest.fixture
 def mock_change_order() -> ChangeOrder:
     """Create a mock change order entity."""
@@ -37,7 +36,6 @@ def mock_change_order() -> ChangeOrder:
     co.valid_time = MagicMock()
     co.valid_time.lower = datetime.now(UTC) - timedelta(days=1)
     return co
-
 
 class TestUpdateChangeOrderStatusCommand:
     """Tests for UpdateChangeOrderStatusCommand with control_date."""

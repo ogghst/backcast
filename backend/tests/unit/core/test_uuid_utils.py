@@ -49,7 +49,6 @@ class TestGetEntityNamespace:
         assert project_ns != user_ns
         assert wbe_ns != user_ns
 
-
 class TestGenerateEntityUuid:
     """Tests for generate_entity_uuid function."""
 
@@ -81,7 +80,6 @@ class TestGenerateEntityUuid:
         """Should raise ValueError for unknown entity types."""
         with pytest.raises(ValueError, match="Unknown entity type"):
             generate_entity_uuid("unknown", "test-id")
-
 
 class TestConvenienceFunctions:
     """Tests for entity-specific UUID generation functions."""
@@ -123,7 +121,6 @@ class TestConvenienceFunctions:
         uuid2 = generate_user_uuid("admin@backcast.org")
         assert uuid1 == uuid2
 
-
 class TestKnownVectors:
     """Tests against known UUID vectors to ensure consistency."""
 
@@ -145,7 +142,6 @@ class TestKnownVectors:
         result = generate_user_uuid("admin@backcast.org")
         # Documented value for reference
         assert str(result) == "e03556f3-4385-5d68-a685-af307fc8af5c"
-
 
 class TestNamespaceIsolation:
     """Tests to ensure UUIDs don't collide across namespaces."""

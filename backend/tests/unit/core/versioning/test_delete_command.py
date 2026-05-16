@@ -18,7 +18,6 @@ class MockEntity(VersionableProtocol):
     def clone(self, **kwargs):
         return MockEntity(**kwargs)
 
-
 @pytest.mark.asyncio
 async def test_soft_delete_command_success():
     # Arrange
@@ -41,7 +40,6 @@ async def test_soft_delete_command_success():
     assert result.deleted_at == control_date
     assert result.deleted_by == actor_id
     session.flush.assert_called_once()
-
 
 @pytest.mark.asyncio
 async def test_soft_delete_command_no_active_version():

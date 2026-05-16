@@ -19,7 +19,6 @@ async def test_baseline_already_exists_error_is_defined():
     assert BaselineAlreadyExistsError is not None
     assert issubclass(BaselineAlreadyExistsError, Exception)
 
-
 @pytest.mark.asyncio
 async def test_baseline_already_exists_error_can_be_instantiated():
     """Test that BaselineAlreadyExistsError can be instantiated with parameters."""
@@ -29,7 +28,6 @@ async def test_baseline_already_exists_error_can_be_instantiated():
     assert error is not None
     assert isinstance(error, Exception)
     assert hasattr(error, "cost_element_id")
-
 
 @pytest.mark.asyncio
 async def test_baseline_already_exists_error_message_format():
@@ -42,7 +40,6 @@ async def test_baseline_already_exists_error_message_format():
     assert "already exists" in error_message.lower()
     assert str(cost_element_id) in error_message
 
-
 @pytest.mark.asyncio
 async def test_baseline_already_exists_error_with_branch():
     """Test that BaselineAlreadyExistsError includes branch information."""
@@ -53,7 +50,6 @@ async def test_baseline_already_exists_error_with_branch():
     error_message = str(error)
     assert branch in error_message
     assert str(cost_element_id) in error_message
-
 
 @pytest.mark.asyncio
 async def test_schedule_baseline_service_raises_baseline_already_exists_error(
@@ -105,7 +101,6 @@ async def test_schedule_baseline_service_raises_baseline_already_exists_error(
         raise BaselineAlreadyExistsError(cost_element_id=cost_element_id, branch="main")
 
     assert exc_info.value.cost_element_id == cost_element_id
-
 
 @pytest.mark.asyncio
 async def test_baseline_already_exists_error_attributes():

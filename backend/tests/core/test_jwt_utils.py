@@ -19,7 +19,6 @@ class TestValidateJWTToken:
         user = User(
             email="test@example.com",
             full_name="Test User",
-            role="viewer",
             is_active=True,
         )
         db_session.add(user)
@@ -109,7 +108,6 @@ class TestValidateJWTToken:
         assert result.subject is None
         assert result.error_detail == "Invalid token"
         assert result.close_code == 1008
-
 
 class TestJWTResult:
     """Tests for JWTResult dataclass."""

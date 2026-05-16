@@ -30,7 +30,6 @@ async def sample_department(db_session: AsyncSession) -> Department:
     await db_session.flush()
     return department
 
-
 @pytest_asyncio.fixture
 async def sample_cost_element_type(sample_department: Department) -> CostElementType:
     """Create a sample cost element type for testing."""
@@ -43,7 +42,6 @@ async def sample_cost_element_type(sample_department: Department) -> CostElement
         created_by=uuid4(),
     )
     return cost_element_type
-
 
 @pytest_asyncio.fixture
 async def sample_project(db_session: AsyncSession) -> Project:
@@ -60,7 +58,6 @@ async def sample_project(db_session: AsyncSession) -> Project:
     await db_session.flush()
     return project
 
-
 @pytest_asyncio.fixture
 async def sample_wbe(db_session: AsyncSession, sample_project: Project) -> WBE:
     """Create a sample WBE for testing."""
@@ -75,7 +72,6 @@ async def sample_wbe(db_session: AsyncSession, sample_project: Project) -> WBE:
     db_session.add(wbe)
     await db_session.flush()
     return wbe
-
 
 @pytest_asyncio.fixture
 async def sample_cost_element_with_budget(

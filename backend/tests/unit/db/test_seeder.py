@@ -19,14 +19,12 @@ def _make_mock_role(name: str, role_id: UUID | None = None) -> MagicMock:
     mock_role.id = role_id or uuid4()
     return mock_role
 
-
 def _make_mock_user(user_id: UUID, role: str) -> MagicMock:
     """Create a mock User with given user_id and role."""
     mock_user = MagicMock()
     mock_user.user_id = user_id
     mock_user.role = role
     return mock_user
-
 
 def _make_scalar_result(items: list[MagicMock]) -> MagicMock:
     """Create a mock SQLAlchemy scalar result supporting both patterns.
@@ -40,13 +38,11 @@ def _make_scalar_result(items: list[MagicMock]) -> MagicMock:
     result.scalar_one_or_none.return_value = items[0] if items else None
     return result
 
-
 def _make_all_result(rows: list[tuple]) -> MagicMock:
     """Create a mock SQLAlchemy result for .all() returning rows."""
     result = MagicMock()
     result.all.return_value = rows
     return result
-
 
 class TestDataSeederInit:
     """Tests for DataSeeder initialization."""
@@ -63,7 +59,6 @@ class TestDataSeederInit:
         custom_dir.mkdir()
         seeder = DataSeeder(seed_dir=custom_dir)
         assert seeder.seed_dir == custom_dir
-
 
 class TestLoadSeedFile:
     """Tests for load_seed_file method."""
@@ -105,7 +100,6 @@ class TestLoadSeedFile:
         result = seeder.load_seed_file("object.json")
 
         assert result == []
-
 
 @pytest.mark.asyncio
 class TestSeedUsersWithRootId:
@@ -189,7 +183,6 @@ class TestSeedUsersWithRootId:
             # user_id should be None, allowing service to generate
             assert call_args[0][0].user_id is None
 
-
 @pytest.mark.asyncio
 class TestSeedDepartmentsWithRootId:
     """Tests for seed_departments method with root ID verification."""
@@ -233,7 +226,6 @@ class TestSeedDepartmentsWithRootId:
             call_args = mock_service.create_department.call_args
             assert call_args[0][0].code == test_code
             assert call_args[0][0].department_id == expected_dept_id
-
 
 @pytest.mark.asyncio
 class TestSeedWBEsWithRootId:
@@ -284,7 +276,6 @@ class TestSeedWBEsWithRootId:
                 "d54fbbe6-f3df-51db-9c3e-9408700442be"
             )
             assert call_args[0][0].parent_wbe_id is None
-
 
 @pytest.mark.asyncio
 class TestSeedCostElementsWithRootId:
@@ -337,7 +328,6 @@ class TestSeedCostElementsWithRootId:
             assert call_args[0][0].cost_element_type_id == UUID(
                 "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
             )
-
 
 @pytest.mark.asyncio
 class TestSeedUsers:
@@ -417,7 +407,6 @@ class TestSeedUsers:
             # No users should be attempted
             mock_service.get_by_email.assert_not_called()
 
-
 @pytest.mark.asyncio
 class TestSeedDepartments:
     """Tests for seed_departments method (backward compatibility)."""
@@ -450,7 +439,6 @@ class TestSeedDepartments:
 
             # Verify department was NOT created
             mock_service.create_department.assert_not_called()
-
 
 @pytest.mark.asyncio
 class TestSeedAll:
@@ -504,13 +492,12 @@ class TestSeedAll:
                 # Verify rollback was called
                 mock_rollback.assert_called_once()
 
-
 @pytest.mark.asyncio
 class TestSeedUserRoleAssignments:
     """Tests for seed_user_role_assignments method.
 
     Validates the new method creates GLOBAL UserRoleAssignment records
-    for each seeded user, matching their User.role value.
+    for each seeded user, matching role from seed data.
     """
 
     async def test_happy_path_creates_assignments(self) -> None:
@@ -533,6 +520,13 @@ class TestSeedUserRoleAssignments:
         ]
         roles = [admin_role, viewer_role, manager_role]
 
+        # Seed data matching the users
+        seed_data = [
+            {"user_id": str(admin_id), "email": "admin@test.com", "role": "admin"},
+            {"user_id": str(viewer_id), "email": "viewer@test.com", "role": "viewer"},
+            {"user_id": str(pm_id), "email": "pm@test.com", "role": "manager"},
+        ]
+
         # Mock: no existing assignments
         empty_result = _make_scalar_result([])
 
@@ -542,7 +536,7 @@ class TestSeedUserRoleAssignments:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                # First call: select users with roles
+                # First call: select users
                 return _make_scalar_result(users)
             elif call_count == 2:
                 # Second call: select rbac_roles
@@ -555,7 +549,8 @@ class TestSeedUserRoleAssignments:
         session.add = MagicMock()
         session.flush = AsyncMock()
 
-        await seeder.seed_user_role_assignments(session)
+        with patch.object(seeder, "load_seed_file", return_value=seed_data):
+            await seeder.seed_user_role_assignments(session)
 
         # Verify 3 assignments were added
         assert session.add.call_count == 3
@@ -570,6 +565,10 @@ class TestSeedUserRoleAssignments:
         admin_role = _make_mock_role("admin")
         users = [_make_mock_user(admin_id, "admin")]
         roles = [admin_role]
+
+        seed_data = [
+            {"user_id": str(admin_id), "email": "admin@test.com", "role": "admin"},
+        ]
 
         # Mock existing assignment for admin user
         existing_assignment = MagicMock()
@@ -593,7 +592,8 @@ class TestSeedUserRoleAssignments:
         session.add = MagicMock()
         session.flush = AsyncMock()
 
-        await seeder.seed_user_role_assignments(session)
+        with patch.object(seeder, "load_seed_file", return_value=seed_data):
+            await seeder.seed_user_role_assignments(session)
 
         # Verify no new assignments added
         session.add.assert_not_called()
@@ -613,6 +613,16 @@ class TestSeedUserRoleAssignments:
         ]
         roles = [admin_role]
 
+        # Seed data: admin has known role, unknown has nonexistent_role
+        seed_data = [
+            {"user_id": str(admin_id), "email": "admin@test.com", "role": "admin"},
+            {
+                "user_id": str(unknown_id),
+                "email": "unknown@test.com",
+                "role": "nonexistent_role",
+            },
+        ]
+
         call_count = 0
 
         def mock_execute(stmt: object) -> MagicMock:
@@ -629,7 +639,8 @@ class TestSeedUserRoleAssignments:
         session.add = MagicMock()
         session.flush = AsyncMock()
 
-        await seeder.seed_user_role_assignments(session)
+        with patch.object(seeder, "load_seed_file", return_value=seed_data):
+            await seeder.seed_user_role_assignments(session)
 
         # Only admin user's assignment should be created
         assert session.add.call_count == 1
@@ -662,6 +673,10 @@ class TestSeedUserRoleAssignments:
         users = [_make_mock_user(admin_id, "admin")]
         roles = [admin_role]
 
+        seed_data = [
+            {"user_id": str(admin_id), "email": "admin@test.com", "role": "admin"},
+        ]
+
         # Simulate: assignment already exists from migration
         existing = MagicMock()
         existing.user_id = admin_id
@@ -682,11 +697,11 @@ class TestSeedUserRoleAssignments:
         session.add = MagicMock()
         session.flush = AsyncMock()
 
-        await seeder.seed_user_role_assignments(session)
+        with patch.object(seeder, "load_seed_file", return_value=seed_data):
+            await seeder.seed_user_role_assignments(session)
 
         # Should skip since assignment exists
         session.add.assert_not_called()
-
 
 @pytest.mark.asyncio
 class TestSeedAllUserRoleAssignments:

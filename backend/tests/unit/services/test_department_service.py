@@ -32,7 +32,6 @@ class TestDepartmentServiceCreate:
         assert fetched is not None
         assert fetched.name == "Engineering"
 
-
 class TestDepartmentServiceUpdate:
     """Test DepartmentService.update_department() method."""
 
@@ -100,7 +99,6 @@ class TestDepartmentServiceUpdate:
         old_v = (await db_session.execute(stmt)).scalar_one()
         assert old_v.code == "ALPHA"
         assert old_v.description == "Initial description"
-
 
 class TestDepartmentServiceDelete:
     """Test DepartmentService.delete_department() method."""

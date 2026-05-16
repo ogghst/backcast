@@ -69,7 +69,6 @@ def _make_impact_levels() -> list[dict]:
         },
     ]
 
-
 def _make_approval_rules() -> list[dict]:
     """Create default approval rule config data."""
     return [
@@ -100,7 +99,6 @@ def _make_approval_rules() -> list[dict]:
         },
     ]
 
-
 def _make_sla_rules() -> list[dict]:
     """Create default SLA rule config data."""
     return [
@@ -110,16 +108,13 @@ def _make_sla_rules() -> list[dict]:
         {"impact_level_name": "CRITICAL", "business_days": 15},
     ]
 
-
 def _make_impact_weights() -> dict:
     """Create default impact weights."""
     return {"budget": 0.4, "schedule": 0.3, "revenue": 0.2, "evm": 0.1}
 
-
 def _make_score_boundaries() -> dict:
     """Create default score boundaries."""
     return {"LOW": 10, "MEDIUM": 30, "HIGH": 50, "CRITICAL": 999}
-
 
 class TestGetGlobalConfig:
     """Test get_global_config retrieval."""
@@ -162,7 +157,6 @@ class TestGetGlobalConfig:
         # Verify weights and boundaries
         assert config.impact_weights["budget"] == 0.4
         assert config.score_boundaries["LOW"] == 10
-
 
 class TestUpdateGlobalConfig:
     """Test update_config with optimistic locking."""
@@ -246,7 +240,6 @@ class TestUpdateGlobalConfig:
                 score_boundaries=_make_score_boundaries(),
             )
 
-
 class TestMissingConfig:
     """Test behavior when config is missing."""
 
@@ -265,7 +258,6 @@ class TestMissingConfig:
         # Now get_active_config should raise
         with pytest.raises(ConfigurationError, match="No global"):
             await service.get_active_config()
-
 
 class TestGenerateSnapshot:
     """Test snapshot generation."""
@@ -301,7 +293,6 @@ class TestGenerateSnapshot:
         # Verify weights and boundaries
         assert snapshot["impact_weights"]["budget"] == 0.4
         assert snapshot["score_boundaries"]["LOW"] == 10
-
 
 class TestProjectOverride:
     """Test per-project override CRUD."""
@@ -445,7 +436,6 @@ class TestProjectOverride:
                 score_boundaries=_make_score_boundaries(),
             )
 
-
 class TestAuditLog:
     """Test audit log creation on config changes."""
 
@@ -513,7 +503,6 @@ class TestAuditLog:
         create_entry = entries[0]
         assert create_entry.old_values is None  # No old values on create
         assert create_entry.new_values is not None  # New values populated
-
 
 class TestHelperMethods:
     """Test convenience methods that read from config."""

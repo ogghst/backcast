@@ -129,7 +129,6 @@ class TestImpactAnalysisServiceCompareKPIs:
         assert result.revenue_delta.delta == Decimal("15000.00")  # 165k - 150k
         assert result.revenue_delta.delta_percent == 10.0  # 15k / 150k * 100
 
-
 class TestImpactAnalysisServiceCompareEntities:
     """Test ImpactAnalysisService._compare_entities() method."""
 
@@ -196,7 +195,6 @@ class TestImpactAnalysisServiceCompareEntities:
         # Assert
         assert expected_delta == Decimal("-50000.00")
 
-
 class TestImpactAnalysisServiceBuildWaterfall:
     """Test ImpactAnalysisService._build_waterfall() method."""
 
@@ -231,7 +229,6 @@ class TestImpactAnalysisServiceBuildWaterfall:
         assert result[2].value == Decimal("25000.00")
         assert result[2].is_delta is False
 
-
 class TestImpactAnalysisServiceGenerateTimeSeries:
     """Test ImpactAnalysisService._generate_time_series() method."""
 
@@ -257,7 +254,6 @@ class TestImpactAnalysisServiceGenerateTimeSeries:
         assert isinstance(result, list)
         # Empty project returns zero budget
         assert len(result) >= 1  # At least one time point
-
 
 class TestImpactAnalysisServiceRevenueImpact:
     """Test revenue impact calculation in change order analysis.
@@ -465,7 +461,6 @@ class TestImpactAnalysisServiceRevenueImpact:
             "0.00"
         )  # WBE budget comes from CostElements now
 
-
 class TestImpactAnalysisServiceScheduleBaselineComparison:
     """Test schedule baseline comparison between branches.
 
@@ -650,7 +645,6 @@ class TestImpactAnalysisServiceScheduleBaselineComparison:
         assert result["duration_delta_days"] < 0
         assert result["progression_changed"] is True
 
-
 class TestImpactAnalysisServiceEVMComparison:
     """Test EVM performance index comparison between branches.
 
@@ -787,7 +781,6 @@ class TestImpactAnalysisServiceEVMComparison:
         assert result["tcpi_delta"] == Decimal("-0.15")  # Decreased (easier)
         assert result["eac_delta"] == Decimal("-15000.00")  # Saved cost
 
-
 class TestImpactAnalysisServiceVACProjections:
     """Test VAC (Variance at Completion) projections between branches.
 
@@ -889,7 +882,6 @@ class TestImpactAnalysisServiceVACProjections:
         assert result["vac_delta"] == Decimal("15000.00")  # Improved by 15k
         assert result["main_vac"] == Decimal("-10000.00")
         assert result["change_vac"] == Decimal("5000.00")
-
 
 class TestImpactAnalysisServiceEdgeCases:
     """Test edge cases and error handling."""

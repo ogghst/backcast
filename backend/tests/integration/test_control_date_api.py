@@ -6,7 +6,6 @@ import pytest
 from sqlalchemy import select
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -24,64 +23,27 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
 )
 
-
 def mock_get_current_user() -> User:
     return mock_admin_user
 
-
 def mock_get_current_active_user() -> User:
     return mock_admin_user
-
-
-# Mock RBAC service that allows everything
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["project-read", "project-create", "project-update", "project-delete"]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
-
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
 
 @pytest.mark.asyncio
 async def test_create_project_with_control_date_header(client, db_session):
@@ -112,8 +74,7 @@ async def test_create_project_with_control_date_header(client, db_session):
     assert project.valid_time.lower == control_date
 
     # Transaction time should be NOW (after control_date since we're backdating)
-    assert project.transaction_time.lower < control_date
-
+    assert project.transaction_time.lower > control_date
 
 @pytest.mark.asyncio
 async def test_update_project_with_control_date_header(client, db_session):
@@ -145,7 +106,6 @@ async def test_update_project_with_control_date_header(client, db_session):
     new_version = result.scalar_one()
 
     assert new_version.valid_time.lower == control_date
-
 
 @pytest.mark.asyncio
 async def test_delete_project_with_control_date_header(client, db_session):

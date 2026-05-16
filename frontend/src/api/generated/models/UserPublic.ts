@@ -4,6 +4,9 @@
 /* eslint-disable */
 /**
  * User public data with RBAC permissions for frontend.
+ *
+ * Must be constructed via from_user() or from_user_async().
+ * Role is resolved from UserRoleAssignment, not the User model.
  */
 export type UserPublic = {
     id: string;

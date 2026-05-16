@@ -119,7 +119,6 @@ async def test_assignment_persistence_across_versions(
         "Assignment should still point to the User Business ID after user update"
     )
 
-
 @pytest.mark.asyncio
 async def test_assignment_to_non_existent_user(
     db_session: AsyncSession,

@@ -8,7 +8,7 @@ Workflow States (from FR-8.3):
 Draft -> Submitted for Approval -> Under Review -> Approved/Rejected -> Implemented
 
 Context: This service orchestrates the approval workflow by integrating with
-FinancialImpactService, ApprovalMatrixService, and SLAService to manage the
+FinancialImpactService, UnifiedRBACService, and SLAService to manage the
 complete approval lifecycle from submission to approval/rejection.
 """
 
@@ -29,7 +29,6 @@ from app.core.rbac_unified import (
 from app.models.domain.change_order import ChangeOrder, SLAStatus
 from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
 from app.models.domain.user import User
-from app.services.approval_matrix_service import ApprovalMatrixService
 from app.services.financial_impact_service import FinancialImpactService
 from app.services.sla_service import SLAService
 
@@ -237,7 +236,7 @@ class ChangeOrderWorkflowService:
 
         This method orchestrates the submission workflow by:
         1. Calculating financial impact level using FinancialImpactService
-        2. Assigning appropriate approver using ApprovalMatrixService
+        2. Assigning appropriate approver using UnifiedRBACService
         3. Setting SLA deadline using SLAService
         4. Transitioning status from "Draft" to "Submitted for Approval" (using enum values)
         5. Creating audit log entry
@@ -284,10 +283,16 @@ class ChangeOrderWorkflowService:
         impact_level = await financial_service.calculate_impact_level(change_order_id)
 
         # Assign approver based on impact level (excluding CO creator for SoD)
-        approval_service = ApprovalMatrixService(db_session)
-        approver_id = await approval_service.get_approver_for_impact(
-            current_co.project_id, impact_level, exclude_user_id=current_co.created_by
-        )
+        set_unified_rbac_session(db_session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            approver_id = await unified_rbac.get_approver_for_impact(
+                current_co.project_id,
+                impact_level,
+                exclude_user_id=current_co.created_by,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if approver_id is None:
             raise ValueError(
@@ -439,10 +444,15 @@ class ChangeOrderWorkflowService:
             set_unified_rbac_session(None)
 
         if not can_approve:
-            # Fallback to ApprovalMatrixService for detailed error message
-            approval_service = ApprovalMatrixService(db_session)
+            # Get required authority for detailed error message
+            from app.services.change_order_config_service import (
+                ChangeOrderConfigService,
+            )
+
+            config_service = ChangeOrderConfigService(db_session)
+            impact_authority = await config_service.get_impact_authority_mapping()
             required_authority = (
-                await approval_service.get_authority_for_impact(current_co.impact_level)
+                impact_authority.get(current_co.impact_level, "UNKNOWN")
                 if current_co.impact_level
                 else "UNKNOWN"
             )
@@ -581,9 +591,15 @@ class ChangeOrderWorkflowService:
             set_unified_rbac_session(None)
 
         if not can_approve:
-            approval_service = ApprovalMatrixService(db_session)
+            # Get required authority for detailed error message
+            from app.services.change_order_config_service import (
+                ChangeOrderConfigService,
+            )
+
+            config_service = ChangeOrderConfigService(db_session)
+            impact_authority = await config_service.get_impact_authority_mapping()
             required_authority = (
-                await approval_service.get_authority_for_impact(current_co.impact_level)
+                impact_authority.get(current_co.impact_level, "UNKNOWN")
                 if current_co.impact_level
                 else "UNKNOWN"
             )

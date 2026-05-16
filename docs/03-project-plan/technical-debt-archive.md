@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
-**Last Updated:** 2026-04-23
-**Total Archived Items:** 35
+**Last Updated:** 2026-05-16
+**Total Archived Items:** 36
 
 ---
 
@@ -379,7 +379,8 @@ This file contains all completed, closed, or resolved technical debt items. For 
 
 ### 2026
 - **Q1-Q2:** 10 items closed (TD-064, TD-065, TD-072, TD-073, TD-082, TD-057, TD-062, TD-068, TD-059, TD-067)
-- **Total Archived:** 10 items
+- **Q2:** 1 item closed (TD-098 — deprecated RBAC files deleted in unified-rbac-cleanup iteration)
+- **Total Archived:** 11 items
 
 ### 2025
 - **Q4:** 15 items closed
@@ -393,5 +394,5 @@ This file contains all completed, closed, or resolved technical debt items. For 
 |--------|-------|
 | Complete | 9 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **10** |
-| **Total (All Time)** | **35** |
+| **Total (2026)** | **11** |
+| **Total (All Time)** | **36** |

@@ -93,7 +93,6 @@ class TestEVMMetricsWBEAggregation:
         """
         pytest.skip("Requires full integration setup - will implement in GREEN phase")
 
-
 class TestEVMMetricsProjectAggregation:
     """Test Project EVM metrics aggregation from child WBEs.
 
@@ -129,7 +128,6 @@ class TestEVMMetricsProjectAggregation:
         - Expected: Returns zero metrics with warning
         """
         pytest.skip("Requires full integration setup - will implement in GREEN phase")
-
 
 class TestEVMMetricsWBEEdgeCases:
     """Test WBE EVM edge cases."""
@@ -181,7 +179,6 @@ class TestEVMMetricsWBEEdgeCases:
         """
         pytest.skip("Requires full integration setup - will implement in GREEN phase")
 
-
 class TestEVMTimeSeriesWBE:
     """Test WBE time-series EVM metrics."""
 
@@ -216,7 +213,6 @@ class TestEVMTimeSeriesWBE:
         # Assert
         assert result.points == []
         assert result.total_points == 0
-
 
 class TestEVMTimeSeriesProject:
     """Test Project time-series EVM metrics."""

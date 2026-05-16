@@ -66,7 +66,6 @@ class TestCrudTemplateMigration:
             assert hasattr(tool, "_is_ai_tool"), f"{tool.name} should have _is_ai_tool"
             assert tool._is_ai_tool is True, f"{tool.name}._is_ai_tool should be True"
 
-
 class TestAnalysisTemplateMigration:
     """Test analysis_template.py follows new @ai_tool pattern."""
 
@@ -117,7 +116,6 @@ class TestAnalysisTemplateMigration:
             assert hasattr(tool, "_is_ai_tool"), f"{tool.name} should have _is_ai_tool"
             assert tool._is_ai_tool is True, f"{tool.name}._is_ai_tool should be True"
 
-
 class TestChangeOrderTemplateMigration:
     """Test change_order_template.py follows new @ai_tool pattern."""
 
@@ -167,7 +165,6 @@ class TestChangeOrderTemplateMigration:
             )
             assert hasattr(tool, "_is_ai_tool"), f"{tool.name} should have _is_ai_tool"
             assert tool._is_ai_tool is True, f"{tool.name}._is_ai_tool should be True"
-
 
 class TestTemplateDocstrings:
     """Test that template tools have proper Google-style docstrings."""
@@ -239,7 +236,6 @@ class TestTemplateDocstrings:
                 assert len(metadata.permissions) > 0, (
                     f"{tool.name} should have at least one permission"
                 )
-
 
 class TestTemplateImports:
     """Test that template files have correct imports."""

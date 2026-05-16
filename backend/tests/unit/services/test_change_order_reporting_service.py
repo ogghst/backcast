@@ -29,7 +29,6 @@ class TestChangeOrderReportingService:
         """Create change order service instance."""
         return ChangeOrderService(db_session)
 
-
 class TestGetSummaryKpis(TestChangeOrderReportingService):
     """Test _get_summary_kpis method."""
 
@@ -146,7 +145,6 @@ class TestGetSummaryKpis(TestChangeOrderReportingService):
         assert result["total_cost_exposure"] == Decimal("0")
         assert result["pending_value"] == Decimal("0")
 
-
 class TestGetStatusDistribution(TestChangeOrderReportingService):
     """Test _get_status_distribution method."""
 
@@ -197,7 +195,6 @@ class TestGetStatusDistribution(TestChangeOrderReportingService):
 
         assert result == []
 
-
 class TestGetImpactDistribution(TestChangeOrderReportingService):
     """Test _get_impact_distribution method."""
 
@@ -214,7 +211,6 @@ class TestGetImpactDistribution(TestChangeOrderReportingService):
         )
 
         assert result == []
-
 
 class TestGetCostTrend(TestChangeOrderReportingService):
     """Test _get_cost_trend method."""
@@ -265,7 +261,6 @@ class TestGetCostTrend(TestChangeOrderReportingService):
         # Last point should have cumulative count of 1
         assert result[-1].count == 1
 
-
 class TestGetAgingItems(TestChangeOrderReportingService):
     """Test _get_aging_items method."""
 
@@ -284,7 +279,6 @@ class TestGetAgingItems(TestChangeOrderReportingService):
 
         assert result == []
 
-
 class TestGetApprovalWorkload(TestChangeOrderReportingService):
     """Test _get_approval_workload method."""
 
@@ -302,7 +296,6 @@ class TestGetApprovalWorkload(TestChangeOrderReportingService):
 
         assert result == []
 
-
 class TestGetAvgApprovalTime(TestChangeOrderReportingService):
     """Test _get_avg_approval_time method."""
 
@@ -319,7 +312,6 @@ class TestGetAvgApprovalTime(TestChangeOrderReportingService):
         )
 
         assert result is None
-
 
 class TestGetChangeOrderStats(TestChangeOrderReportingService):
     """Test get_change_order_stats (main entry point)."""

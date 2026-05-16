@@ -131,7 +131,6 @@ class TestClassifyImpactLevel:
         # Assert
         assert impact == ImpactLevel.CRITICAL
 
-
 class TestCalculateImpactLevel:
     """Test calculate_impact_level method with database integration."""
 
@@ -796,7 +795,6 @@ class TestCalculateImpactLevel:
 
         # Assert - should use absolute delta (25000), so MEDIUM
         assert impact == ImpactLevel.MEDIUM
-
 
 class TestGetFinancialImpactDetails:
     """Test get_financial_impact_details method."""

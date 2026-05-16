@@ -259,7 +259,7 @@ _USER_ROLE_TTL = 300  # 5 minutes
 
 
 async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
-    """Get user role with TTL caching."""
+    """Get user role with TTL caching via unified RBAC."""
     cached = _user_role_cache.get(user_id)
     if cached is not None:
         expires_at, role = cached
@@ -267,11 +267,20 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
             return role
         del _user_role_cache[user_id]
 
-    from app.services.user import UserService
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_session,
+    )
 
-    user_service = UserService(session)
-    user = await user_service.get_user(user_id)
-    role = user.role if user else "guest"
+    try:
+        set_unified_rbac_session(session)
+        roles = await get_unified_rbac_service().get_user_roles(
+            user_id, "global", None
+        )
+        role = roles[0] if roles else "viewer"
+    finally:
+        set_unified_rbac_session(None)
+
     _user_role_cache[user_id] = (time.time() + _USER_ROLE_TTL, role)
     return role
 

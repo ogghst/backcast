@@ -158,8 +158,8 @@ class TestPromptInjectionResistance:
             result = await project_tools.list_projects.coroutine(context=context)
 
         # Assert: Verify tool used isolated mode from context
-        assert captured_mode == BranchMode.STRICT, (
-            f"Tool should use branch_mode=BranchMode.STRICT (isolated) from context, "
+        assert captured_mode == BranchMode.ISOLATED, (
+            f"Tool should use branch_mode=BranchMode.ISOLATED (isolated) from context, "
             f"not from prompt injection. Got: {captured_mode}"
         )
 
@@ -315,8 +315,8 @@ class TestPromptInjectionResistance:
         assert captured_params["branch"] == locked_branch, (
             f"branch should remain {locked_branch}, got {captured_params['branch']}"
         )
-        assert captured_params["mode"] == BranchMode.MERGE, (
-            f"branch_mode should remain BranchMode.MERGE (merged), got {captured_params['mode']}"
+        assert captured_params["mode"] == BranchMode.MERGED, (
+            f"branch_mode should remain BranchMode.MERGED (merged), got {captured_params['mode']}"
         )
 
         # Verify temporal metadata in result

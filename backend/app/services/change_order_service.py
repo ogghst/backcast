@@ -1311,7 +1311,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found, invalid status, or insufficient authority
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
         from app.services.user import UserService
 
         # Default control_date to now if not provided
@@ -1348,19 +1351,45 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         if not approver:
             raise ValueError(f"Approver with ID {approver_id} not found")
 
-        # Validate approver authority
-        approval_service = ApprovalMatrixService(self.session)
-        can_approve = await approval_service.can_approve(approver, co)
+        # Validate approver authority via unified RBAC
+        set_unified_rbac_session(self.session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            can_approve = await unified_rbac.has_permission(
+                user_id=approver_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if not can_approve:
             # Get required authority for better error context
-            required_authority = await approval_service.get_authority_for_impact(
-                co.impact_level or "LOW"
+            from app.services.change_order_config_service import (
+                ChangeOrderConfigService,
             )
-            user_authority = await approval_service.get_user_authority_level(approver)
+
+            config_service = ChangeOrderConfigService(self.session)
+            impact_authority = await config_service.get_impact_authority_mapping()
+            required_authority = impact_authority.get(
+                co.impact_level or "LOW", "UNKNOWN"
+            )
+
+            set_unified_rbac_session(self.session)
+            try:
+                user_authority = await unified_rbac.get_user_authority_level(
+                    approver_id
+                )
+                approver_roles = await unified_rbac.get_user_roles(
+                    approver_id, "global", None
+                )
+                approver_role_str = approver_roles[0] if approver_roles else "unknown"
+            finally:
+                set_unified_rbac_session(None)
 
             raise ValueError(
-                f"User {approver_id} (role: {approver.role}, authority: {user_authority}) does not have sufficient authority "
+                f"User {approver_id} (role: {approver_role_str}, authority: {user_authority}) does not have sufficient authority "
                 f"to approve change order {co.code} with impact level {co.impact_level}. "
                 f"Required authority: {required_authority}. "
                 f"Project: {co.project_id}. "
@@ -1448,7 +1477,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found, invalid status, or insufficient authority
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
         from app.services.user import UserService
 
         # Default control_date to now if not provided
@@ -1485,19 +1517,47 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         if not rejecter:
             raise ValueError(f"Rejecter with ID {rejecter_id} not found")
 
-        # Validate rejecter authority (same as approver authority)
-        approval_service = ApprovalMatrixService(self.session)
-        can_reject = await approval_service.can_approve(rejecter, co)
+        # Validate rejecter authority via unified RBAC
+        set_unified_rbac_session(self.session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            can_reject = await unified_rbac.has_permission(
+                user_id=rejecter_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if not can_reject:
             # Get required authority for better error context
-            required_authority = await approval_service.get_authority_for_impact(
-                co.impact_level or "LOW"
+            from app.services.change_order_config_service import (
+                ChangeOrderConfigService,
             )
-            user_authority = await approval_service.get_user_authority_level(rejecter)
+
+            config_service = ChangeOrderConfigService(self.session)
+            impact_authority = await config_service.get_impact_authority_mapping()
+            required_authority = impact_authority.get(
+                co.impact_level or "LOW", "UNKNOWN"
+            )
+
+            set_unified_rbac_session(self.session)
+            try:
+                user_authority = await unified_rbac.get_user_authority_level(
+                    rejecter_id
+                )
+                rejecter_roles = await unified_rbac.get_user_roles(
+                    rejecter_id, "global", None
+                )
+                rejecter_role_str = (
+                    rejecter_roles[0] if rejecter_roles else "unknown"
+                )
+            finally:
+                set_unified_rbac_session(None)
 
             raise ValueError(
-                f"User {rejecter_id} (role: {rejecter.role}, authority: {user_authority}) does not have sufficient authority "
+                f"User {rejecter_id} (role: {rejecter_role_str}, authority: {user_authority}) does not have sufficient authority "
                 f"to reject change order {co.code} with impact level {co.impact_level}. "
                 f"Required authority: {required_authority}. "
                 f"Project: {co.project_id}. "
@@ -2019,10 +2079,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
     async def _assign_approver_for_impact(
         self, project_id: UUID, impact_level: str
     ) -> UUID | None:
-        """Assign an approver based on impact level using ApprovalMatrix.
+        """Assign an approver based on impact level using UnifiedRBACService.
 
         Context: Phase 6 Task #3 - Approver assignment on CO creation.
-        Queries the ApprovalMatrixService to find an eligible approver for the
+        Queries the UnifiedRBACService to find an eligible approver for the
         given impact level within the project's department.
 
         Args:
@@ -2036,13 +2096,20 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             - Logs assignment success/failure
             - Returns None gracefully if no approver configured
         """
-        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
 
         try:
-            approval_service = ApprovalMatrixService(self.session)
-            approver_id = await approval_service.get_approver_for_impact(
-                project_id, impact_level
-            )
+            set_unified_rbac_session(self.session)
+            try:
+                unified_rbac = get_unified_rbac_service()
+                approver_id = await unified_rbac.get_approver_for_impact(
+                    project_id, impact_level
+                )
+            finally:
+                set_unified_rbac_session(None)
 
             if approver_id:
                 logger.info(
@@ -2362,11 +2429,28 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             user_service = UserService(self.session)
             approver = await user_service.get_user(co.assigned_approver_id)
             if approver:
+                from app.core.rbac_unified import (
+                    get_unified_rbac_service,
+                    set_unified_rbac_session,
+                )
+
+                set_unified_rbac_session(self.session)
+                try:
+                    approver_rbac = get_unified_rbac_service()
+                    approver_roles = await approver_rbac.get_user_roles(
+                        approver.user_id, "global", None
+                    )
+                    approver_role = (
+                        approver_roles[0] if approver_roles else "unknown"
+                    )
+                finally:
+                    set_unified_rbac_session(None)
+
                 assigned_approver = {
                     "user_id": approver.user_id,
                     "full_name": approver.full_name,
                     "email": approver.email,
-                    "role": approver.role,
+                    "role": approver_role,
                 }
 
         # Convert domain model to schema

@@ -24,20 +24,20 @@ RangeToList = Annotated[
 ]
 
 
-# Shared properties
+# Shared properties (no role — role is managed via UserRoleAssignment)
 class UserBase(BaseModel):
     """Base generic User schema."""
 
     email: EmailStr
     full_name: str
     department: str | None = None
-    role: str = "viewer"
 
 
 # Properties to receive via API on creation
 class UserRegister(UserBase):
     """Schema for user registration."""
 
+    role: str = "viewer"
     user_id: UUID | None = Field(
         None,
         description="Root User ID (internal use only for seeding)",
@@ -81,7 +81,11 @@ class UserRead(UserBase):
 
 # Public user schema with RBAC permissions
 class UserPublic(BaseModel):
-    """User public data with RBAC permissions for frontend."""
+    """User public data with RBAC permissions for frontend.
+
+    Must be constructed via from_user() or from_user_async().
+    Role is resolved from UserRoleAssignment, not the User model.
+    """
 
     id: UUID
     user_id: UUID  # For compatibility with versioning
@@ -94,35 +98,28 @@ class UserPublic(BaseModel):
         description="List of permission strings (e.g., 'user-read', 'department-delete')",
     )
 
-    model_config = ConfigDict(from_attributes=True)
-
     @classmethod
     def from_user(cls, user: "User") -> "UserPublic":
-        """Create UserPublic from User domain object with RBAC permissions.
+        """Create UserPublic from User domain object with fallback role.
 
-        DEPRECATED: Use from_user_async() for proper permission loading.
-        This synchronous version may return empty permissions if cache is not populated.
+        DEPRECATED: Use from_user_async() for proper role and permission loading.
+        This synchronous version cannot look up roles from UserRoleAssignment and
+        will return "viewer" as a fallback role with empty permissions.
 
         Args:
             user: User domain object
 
         Returns:
-            UserPublic instance with permissions populated from cache (may be empty)
+            UserPublic instance with fallback role and empty permissions
         """
-        from app.core.rbac_unified import get_unified_rbac_service
-
-        unified_service = get_unified_rbac_service()
-        perms = unified_service._get_cached_permissions(user.role)
-        permissions = perms if perms is not None else []
-
         return cls(
             id=user.id,
             user_id=user.user_id,
             email=user.email,
             full_name=user.full_name,
-            role=user.role,
+            role="viewer",
             is_active=user.is_active,
-            permissions=permissions,
+            permissions=[],
         )
 
     @classmethod
@@ -131,8 +128,8 @@ class UserPublic(BaseModel):
     ) -> "UserPublic":
         """Create UserPublic from User domain object with RBAC permissions.
 
-        This async version properly loads permissions from the database if cache is empty.
-        Use this for accurate permission checks.
+        Resolves the user's global role from UserRoleAssignment and loads
+        permissions for that role via the unified RBAC service.
 
         Args:
             user: User domain object
@@ -150,8 +147,14 @@ class UserPublic(BaseModel):
             set_unified_rbac_session(session)
             unified_service = get_unified_rbac_service()
 
-            # Try cache first
-            perms = unified_service._get_cached_permissions(user.role)
+            # Resolve role from UserRoleAssignment
+            roles = await unified_service.get_user_roles(
+                user.user_id, "global", None
+            )
+            display_role = roles[0] if roles else "viewer"
+
+            # Try cache first for permissions
+            perms = unified_service._get_cached_permissions(display_role)
 
             # If cache miss, load from database
             if perms is None:
@@ -159,18 +162,16 @@ class UserPublic(BaseModel):
 
                 from app.models.domain.rbac import RBACRole, RBACRolePermission
 
-                # Load role and permissions from database
                 stmt = (
                     select(RBACRolePermission.permission)
                     .join(RBACRole, RBACRolePermission.role_id == RBACRole.id)
-                    .where(RBACRole.name == user.role)
+                    .where(RBACRole.name == display_role)
                 )
                 result = await session.execute(stmt)
                 perms = [row[0] for row in result.all()]
 
-                # Cache the result
                 if perms:
-                    unified_service._cache_permissions(user.role, perms)
+                    unified_service._cache_permissions(display_role, perms)
 
             permissions = perms if perms is not None else []
 
@@ -182,7 +183,7 @@ class UserPublic(BaseModel):
             user_id=user.user_id,
             email=user.email,
             full_name=user.full_name,
-            role=user.role,
+            role=display_role,
             is_active=user.is_active,
             permissions=permissions,
         )

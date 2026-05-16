@@ -51,7 +51,6 @@ async def test_lock_branch_sets_locked_true(db_session):
     )
     assert db_branch.locked is True
 
-
 @pytest.mark.asyncio
 async def test_unlock_branch_sets_locked_false(db_session):
     """Test that unlocking a branch sets locked field to False."""
@@ -85,7 +84,6 @@ async def test_unlock_branch_sets_locked_false(db_session):
 
     # Assert: Branch is unlocked
     assert unlocked_branch.locked is False
-
 
 @pytest.mark.asyncio
 async def test_get_branch_by_name_and_project(db_session):
@@ -123,7 +121,6 @@ async def test_get_branch_by_name_and_project(db_session):
     assert retrieved_branch.name == "main"
     assert retrieved_branch.project_id == project.project_id
     assert retrieved_branch.type == "main"
-
 
 @pytest.mark.asyncio
 async def test_get_branch_excludes_soft_deleted(db_session):

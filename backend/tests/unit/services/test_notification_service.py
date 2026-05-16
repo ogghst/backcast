@@ -52,7 +52,6 @@ class TestCreateNotification:
         # The returned object is the same one added to the session
         assert notification is added_obj
 
-
 class TestGetUserNotifications:
     """Tests for get_user_notifications method."""
 
@@ -124,7 +123,6 @@ class TestGetUserNotifications:
             stmt_text = str(call[0][0])
             assert "read_at IS NULL" in stmt_text
 
-
 class TestMarkAsRead:
     """Tests for mark_as_read method."""
 
@@ -191,7 +189,6 @@ class TestMarkAsRead:
         assert result is False
         session.flush.assert_not_called()
 
-
 class TestMarkAllAsRead:
     """Tests for mark_all_as_read method."""
 
@@ -221,7 +218,6 @@ class TestMarkAllAsRead:
             assert n.read_at is not None
             assert isinstance(n.read_at, datetime)
         session.flush.assert_called_once()
-
 
 class TestGetUnreadCount:
     """Tests for get_unread_count method."""

@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchMode } from '../models/BranchMode';
 import type { WBEBreadcrumb } from '../models/WBEBreadcrumb';
 import type { WBECreate } from '../models/WBECreate';
 import type { WBERead } from '../models/WBERead';
@@ -36,7 +37,7 @@ export class WbEsService {
      * @param projectId Filter by project ID
      * @param parentWbeId Filter by parent WBE ID (use 'null' string for root WBEs)
      * @param branch Branch name
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param search Search term (code, name)
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
@@ -51,7 +52,7 @@ export class WbEsService {
         projectId?: (string | null),
         parentWbeId?: (string | null),
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -67,7 +68,7 @@ export class WbEsService {
                 'project_id': projectId,
                 'parent_wbe_id': parentWbeId,
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'search': search,
                 'filters': filters,
                 'sort_field': sortField,
@@ -83,15 +84,20 @@ export class WbEsService {
      * Create Wbe
      * Create a new WBE. Requires create permission.
      * @param requestBody
+     * @param branch Branch name
      * @returns WBERead Successful Response
      * @throws ApiError
      */
     public static createWbe(
         requestBody: WBECreate,
+        branch: string = 'main',
     ): CancelablePromise<WBERead> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/wbes',
+            query: {
+                'branch': branch,
+            },
             body: requestBody,
             mediaType: 'application/json',
             errors: {
@@ -187,7 +193,7 @@ export class WbEsService {
      * Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission.
      * @param wbeId
      * @param branch Branch name
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: get breadcrumb as of this timestamp (ISO 8601)
      * @returns WBEBreadcrumb Successful Response
      * @throws ApiError
@@ -195,7 +201,7 @@ export class WbEsService {
     public static getWbeBreadcrumb(
         wbeId: string,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<WBEBreadcrumb> {
         return __request(OpenAPI, {
@@ -206,7 +212,7 @@ export class WbEsService {
             },
             query: {
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'as_of': asOf,
             },
             errors: {

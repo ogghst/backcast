@@ -43,7 +43,6 @@ async def test_create_provider(db_session: AsyncSession) -> None:
     assert provider.created_at is not None
     assert provider.updated_at is not None
 
-
 @pytest.mark.asyncio
 async def test_update_provider(db_session: AsyncSession) -> None:
     """Test updating a provider can be serialized by Pydantic."""
@@ -81,7 +80,6 @@ async def test_update_provider(db_session: AsyncSession) -> None:
     assert isinstance(provider_public.created_at, datetime)
     assert isinstance(provider_public.updated_at, datetime)
 
-
 @pytest.mark.asyncio
 async def test_update_provider_not_found(db_session: AsyncSession) -> None:
     """Test updating a non-existent provider raises ValueError."""
@@ -89,7 +87,6 @@ async def test_update_provider_not_found(db_session: AsyncSession) -> None:
 
     with pytest.raises(ValueError, match="Provider .* not found"):
         await service.update_provider(uuid4(), AIProviderUpdate(name="Test"))
-
 
 @pytest.mark.asyncio
 async def test_list_providers(db_session: AsyncSession) -> None:
@@ -115,7 +112,6 @@ async def test_list_providers(db_session: AsyncSession) -> None:
     all_providers = await service.list_providers(include_inactive=True)
     assert len(all_providers) == 3
 
-
 @pytest.mark.asyncio
 async def test_get_provider(db_session: AsyncSession) -> None:
     """Test getting a specific provider."""
@@ -134,7 +130,6 @@ async def test_get_provider(db_session: AsyncSession) -> None:
     assert provider is not None
     assert provider.id == created.id
     assert provider.name == "Test Provider"
-
 
 @pytest.mark.asyncio
 async def test_delete_provider(db_session: AsyncSession) -> None:
@@ -157,9 +152,7 @@ async def test_delete_provider(db_session: AsyncSession) -> None:
     result = await service.get_provider(provider_id)
     assert result is None
 
-
 # === Model Tests ===
-
 
 @pytest.mark.asyncio
 async def test_create_model(db_session: AsyncSession) -> None:
@@ -191,7 +184,6 @@ async def test_create_model(db_session: AsyncSession) -> None:
     assert model.model_id == "gpt-4"
     assert model.display_name == "GPT-4"
     assert model.is_active is True
-
 
 @pytest.mark.asyncio
 async def test_update_model_partial_is_active_only(db_session: AsyncSession) -> None:
@@ -230,7 +222,6 @@ async def test_update_model_partial_is_active_only(db_session: AsyncSession) -> 
     model_public = AIModelPublic.model_validate(updated_model)
     assert model_public.is_active is False
 
-
 @pytest.mark.asyncio
 async def test_update_model_multiple_fields(db_session: AsyncSession) -> None:
     """Test updating multiple fields of a model."""
@@ -266,7 +257,6 @@ async def test_update_model_multiple_fields(db_session: AsyncSession) -> None:
     assert updated_model.display_name == "GPT-4 Turbo"
     assert updated_model.is_active is True  # Unchanged
 
-
 @pytest.mark.asyncio
 async def test_update_model_not_found(db_session: AsyncSession) -> None:
     """Test updating a non-existent model raises ValueError."""
@@ -274,7 +264,6 @@ async def test_update_model_not_found(db_session: AsyncSession) -> None:
 
     with pytest.raises(ValueError, match="Model .* not found"):
         await service.update_model(uuid4(), AIModelUpdate(is_active=False))
-
 
 # === T-CONFIG-01: list_providers filters inactive ===
 @pytest.mark.asyncio
@@ -309,7 +298,6 @@ async def test_list_providers_filters_inactive(db_session: AsyncSession) -> None
     all_providers = await service.list_providers(include_inactive=True)
     assert len(all_providers) == 2
 
-
 # === T-CONFIG-02: create_provider with encryption ===
 @pytest.mark.asyncio
 async def test_create_provider_with_encryption(db_session: AsyncSession) -> None:
@@ -343,7 +331,6 @@ async def test_create_provider_with_encryption(db_session: AsyncSession) -> None
     decrypted_configs = await service.get_decrypted_config(provider.id)
     assert "api_key" in decrypted_configs
     assert decrypted_configs["api_key"] == "sk-test-secret-key"
-
 
 # === T-CONFIG-03: update_provider modifies fields ===
 @pytest.mark.asyncio
@@ -381,7 +368,6 @@ async def test_update_provider_modifies_fields(db_session: AsyncSession) -> None
     assert fetched is not None
     assert fetched.name == "Updated Name"
 
-
 # === T-CONFIG-04: delete_provider hard delete ===
 @pytest.mark.asyncio
 async def test_delete_provider_hard_delete(db_session: AsyncSession) -> None:
@@ -407,7 +393,6 @@ async def test_delete_provider_hard_delete(db_session: AsyncSession) -> None:
     # Verify it's not in any list
     all_providers = await service.list_providers(include_inactive=True)
     assert not any(p.id == provider.id for p in all_providers)
-
 
 # === T-CONFIG-05: list_assistants filters by active ===
 @pytest.mark.asyncio
@@ -458,7 +443,6 @@ async def test_list_assistants_filters_by_active(db_session: AsyncSession) -> No
     assert len(assistants) == 1
     assert assistants[0].name == "Active Assistant"
 
-
 # === T-CONFIG-06: create_assistant stores permissions ===
 @pytest.mark.asyncio
 async def test_create_assistant_stores_permissions(db_session: AsyncSession) -> None:
@@ -497,7 +481,6 @@ async def test_create_assistant_stores_permissions(db_session: AsyncSession) -> 
     assert assistant is not None
     assert assistant.name == "Test Assistant"
 
-
 # === T-CRYPTO-01: decrypt with wrong secret raises error ===
 @pytest.mark.asyncio
 async def test_decrypt_with_wrong_secret_raises_error(db_session: AsyncSession) -> None:
@@ -514,7 +497,6 @@ async def test_decrypt_with_wrong_secret_raises_error(db_session: AsyncSession) 
     # Verify we can decrypt it back
     decrypted = service._decrypt_value(encrypted)
     assert decrypted == original_value
-
 
 # === T-CRYPTO-02: encrypt_decrypt_roundtrip ===
 @pytest.mark.asyncio
@@ -546,9 +528,7 @@ async def test_encrypt_decrypt_roundtrip(db_session: AsyncSession) -> None:
         # Verify roundtrip
         assert decrypted == original
 
-
 # === Conversation Session Pagination Tests ===
-
 
 @pytest.mark.asyncio
 async def test_list_sessions_paginated_first_page(db_session: AsyncSession) -> None:
@@ -567,7 +547,6 @@ async def test_list_sessions_paginated_first_page(db_session: AsyncSession) -> N
         email="test@example.com",
         hashed_password="hash",
         full_name="Test User",
-        role="user",
         is_active=True,
         created_by=uuid4(),
     )
@@ -626,7 +605,6 @@ async def test_list_sessions_paginated_first_page(db_session: AsyncSession) -> N
     # Verify all sessions are for the correct user
     assert all(s.user_id == user.user_id for s in sessions)
 
-
 @pytest.mark.asyncio
 async def test_list_sessions_paginated_second_page(db_session: AsyncSession) -> None:
     """Test pagination returns correct second page."""
@@ -644,7 +622,6 @@ async def test_list_sessions_paginated_second_page(db_session: AsyncSession) -> 
         email="test@example.com",
         hashed_password="hash",
         full_name="Test User",
-        role="user",
         is_active=True,
         created_by=uuid4(),
     )
@@ -703,7 +680,6 @@ async def test_list_sessions_paginated_second_page(db_session: AsyncSession) -> 
     # Verify all sessions are for the correct user
     assert all(s.user_id == user.user_id for s in sessions)
 
-
 @pytest.mark.asyncio
 async def test_list_sessions_paginated_last_page(db_session: AsyncSession) -> None:
     """Test pagination has_more is False on last page."""
@@ -721,7 +697,6 @@ async def test_list_sessions_paginated_last_page(db_session: AsyncSession) -> No
         email="test@example.com",
         hashed_password="hash",
         full_name="Test User",
-        role="user",
         is_active=True,
         created_by=uuid4(),
     )
@@ -776,7 +751,6 @@ async def test_list_sessions_paginated_last_page(db_session: AsyncSession) -> No
     assert len(sessions) == 5
     assert has_more is False
 
-
 @pytest.mark.asyncio
 async def test_count_sessions(db_session: AsyncSession) -> None:
     """Test counting sessions for a user."""
@@ -794,7 +768,6 @@ async def test_count_sessions(db_session: AsyncSession) -> None:
         email="test@example.com",
         hashed_password="hash",
         full_name="Test User",
-        role="user",
         is_active=True,
         created_by=uuid4(),
     )

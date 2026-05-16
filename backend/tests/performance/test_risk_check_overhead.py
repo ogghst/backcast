@@ -17,14 +17,12 @@ from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 
 # Test fixtures
 
-
 @pytest.fixture
 def mock_session():
     """Create a mock database session."""
     from unittest.mock import MagicMock
 
     return MagicMock()
-
 
 @pytest.fixture
 def tool_context(mock_session):
@@ -35,7 +33,6 @@ def tool_context(mock_session):
         user_role="admin",
         execution_mode=ExecutionMode.STANDARD,
     )
-
 
 @pytest.fixture
 def sample_tools():
@@ -103,9 +100,7 @@ def sample_tools():
 
     return tools
 
-
 # Benchmark tests
-
 
 @pytest.mark.performance
 def test_risk_check_node_initialization_overhead(tool_context, sample_tools, benchmark):
@@ -124,7 +119,6 @@ def test_risk_check_node_initialization_overhead(tool_context, sample_tools, ben
     assert result is not None
     assert hasattr(result, "context")
     assert result.context.execution_mode == ExecutionMode.STANDARD
-
 
 @pytest.mark.performance
 def test_safe_mode_filtering_overhead(tool_context, sample_tools, benchmark):
@@ -151,7 +145,6 @@ def test_safe_mode_filtering_overhead(tool_context, sample_tools, benchmark):
     # Verify node was created for safe mode
     assert result is True
 
-
 @pytest.mark.performance
 def test_standard_mode_filtering_overhead(tool_context, sample_tools, benchmark):
     """Benchmark tool filtering in STANDARD mode.
@@ -169,7 +162,6 @@ def test_standard_mode_filtering_overhead(tool_context, sample_tools, benchmark)
 
     # Verify node was created for standard mode
     assert result is True
-
 
 @pytest.mark.performance
 def test_expert_mode_filtering_overhead(tool_context, sample_tools, benchmark):
@@ -196,7 +188,6 @@ def test_expert_mode_filtering_overhead(tool_context, sample_tools, benchmark):
     # Verify node was created for expert mode
     assert result is True
 
-
 @pytest.mark.performance
 def test_check_tool_risk_overhead(tool_context, sample_tools, benchmark):
     """Benchmark individual tool risk check overhead.
@@ -216,7 +207,6 @@ def test_check_tool_risk_overhead(tool_context, sample_tools, benchmark):
     allowed, error_message = result
     assert not allowed
     assert "standard mode blocks critical tools" in error_message.lower()
-
 
 @pytest.mark.performance
 def test_large_toolset_filtering_overhead(tool_context, benchmark):
@@ -267,7 +257,6 @@ def test_large_toolset_filtering_overhead(tool_context, benchmark):
     # Verify node was created successfully
     assert result is True
 
-
 @pytest.mark.performance
 def test_risk_check_memory_overhead(tool_context, sample_tools):
     """Test memory overhead of risk checking.
@@ -297,9 +286,7 @@ def test_risk_check_memory_overhead(tool_context, sample_tools):
     # Memory overhead should be reasonable (< 3x baseline to account for nodes themselves)
     assert final_objects < baseline_objects * 3
 
-
 # Integration-style performance test
-
 
 @pytest.mark.performance
 @pytest.mark.slow
@@ -352,9 +339,7 @@ def test_end_to_end_risk_check_latency(tool_context, sample_tools):
     assert p95 < 15, f"p95 latency {p95}ms exceeds 15ms threshold"
     assert p99 < 25, f"p99 latency {p99}ms exceeds 25ms threshold"
 
-
 # Regression test
-
 
 @pytest.mark.performance
 def test_risk_check_overhead_not_degraded(tool_context, sample_tools):

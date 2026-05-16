@@ -30,7 +30,7 @@ class User(EntityBase, VersionableMixin):  # Removed VersionableProtocol from ba
     Structure:
     - id: UUID (PK, version identifier)
     - user_id: UUID (root entity identifier - groups all versions)
-    - Versioned fields: email, hashed_password, full_name, role, department, is_active
+    - Versioned fields: email, hashed_password, full_name, department, is_active
     - Temporal: valid_time, transaction_time, deleted_at (from VersionableMixin)
     """
 
@@ -50,7 +50,6 @@ class User(EntityBase, VersionableMixin):  # Removed VersionableProtocol from ba
 
     # Profile (versioned)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[str] = mapped_column(String(50), nullable=False, default="viewer")
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

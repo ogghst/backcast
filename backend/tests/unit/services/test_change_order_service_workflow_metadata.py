@@ -77,7 +77,6 @@ async def test_to_public_includes_available_transitions(db_session: AsyncSession
         ChangeOrderStatus.DRAFT.value
     )
 
-
 @pytest.mark.asyncio
 async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
     """Verify that _to_public() sets can_edit_status False for non-editable statuses.
@@ -121,7 +120,6 @@ async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
     # Assert
     assert result.can_edit_status is False, "Submitted status should not be editable"
     assert result.available_transitions == [ChangeOrderStatus.UNDER_REVIEW.value]
-
 
 @pytest.mark.asyncio
 async def test_to_public_branch_locked_true_when_branch_locked(
@@ -184,7 +182,6 @@ async def test_to_public_branch_locked_true_when_branch_locked(
         project_id=project_id,
     )
 
-
 @pytest.mark.asyncio
 async def test_to_public_branch_locked_false_when_branch_unlocked(
     db_session: AsyncSession,
@@ -239,7 +236,6 @@ async def test_to_public_branch_locked_false_when_branch_unlocked(
     # Assert
     assert result.branch_locked is False, "Branch should be reported as unlocked"
 
-
 @pytest.mark.asyncio
 async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSession):
     """Verify that Rejected status allows resubmission to submitted_for_approval.
@@ -290,7 +286,6 @@ async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSe
     assert result.can_edit_status is True, (
         "Rejected status should allow editing for resubmission"
     )
-
 
 @pytest.mark.asyncio
 async def test_to_public_approved_status_allows_implemented_only(

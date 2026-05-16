@@ -280,7 +280,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1_before,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_before is None, "CO should not exist before T1"
 
@@ -289,7 +289,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1_after,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_after is not None, "CO should exist after T1"
         assert co_after.code == "CO-2026-001"
@@ -299,7 +299,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T1_after,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe1_co_strict is None, "WBE1 should not exist on CO branch yet"
 
@@ -308,7 +308,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T1_after,
             branch=source_branch,
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
         assert wbe1_co_merge is not None, "MERGE mode should fall back to main"
         assert wbe1_co_merge.name == "Assembly Station 1"
@@ -376,7 +376,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T2,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe1_main.name == "Assembly Station 1", "Main branch should be unchanged"
 
@@ -384,7 +384,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T2,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_main.budget_amount == Decimal("100000.00"), (
             "Main branch budget should be unchanged"
@@ -395,7 +395,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T2,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe1_co.name == "Assembly Station 1 - EXPANDED"
 
@@ -403,7 +403,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T2,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_co.budget_amount == Decimal("150000.00")
 
@@ -453,7 +453,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe1_main_merged.name == "Assembly Station 1 - EXPANDED"
 
@@ -462,7 +462,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_main_merged.budget_amount == Decimal("150000.00")
 
@@ -471,7 +471,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe2_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe2_main_merged.name == "Assembly Station 2"
 
@@ -481,7 +481,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T1_after,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_at_t1.budget_amount == Decimal("100000.00")
 
@@ -490,7 +490,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_at_t3.budget_amount == Decimal("150000.00")
 
@@ -499,7 +499,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T3,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_co_preserved is not None
         assert ce1_co_preserved.budget_amount == Decimal("150000.00")
@@ -564,7 +564,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1_before,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_before is None
 
@@ -573,7 +573,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_at is not None
         assert co_at.code == "CO-001"
@@ -583,7 +583,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1_after,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_after is not None
         assert co_after.code == "CO-001"
@@ -654,7 +654,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_strict is None
 
@@ -663,7 +663,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
         assert wbe_merge is not None
         assert wbe_merge.name == "Original WBE"
@@ -685,7 +685,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_strict_after is not None
         assert wbe_strict_after.name == "Modified WBE"
@@ -859,7 +859,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce_id,
             as_of=T1,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce_merged.budget_amount == Decimal("75000.00")
 
@@ -970,7 +970,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T0,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_t0.name == "Original WBE"
 
@@ -979,7 +979,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T1,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_t1.name == "Original WBE"
 
@@ -988,7 +988,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_t3.name == "Modified WBE"
 

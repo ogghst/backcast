@@ -11,7 +11,6 @@ from httpx import AsyncClient
 
 from app.ai.tools.registry import get_registry
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, set_rbac_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -26,42 +25,16 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
 )
 
-
 def mock_get_current_user() -> User:
     return mock_admin_user
 
-
 def mock_get_current_active_user() -> User:
     return mock_admin_user
-
-
-class MockRBACService(RBACServiceABC):
-    """Mock RBAC service for API tests."""
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True  # Admin has all roles
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True  # Admin has all permissions
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["*"]
-
-    def has_project_access(self, user_id: str, project_id: str) -> bool:
-        return True  # Admin has access to all projects
-
-    def get_user_projects(self, user_id: str) -> list[str]:
-        return []  # No specific projects for admin
-
-    def get_project_role(self, user_id: str, project_id: str) -> str | None:
-        return "admin"  # Admin has admin role on all projects
-
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
@@ -69,19 +42,12 @@ def override_auth() -> Generator[None, None, None]:
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
-    # Set up mock RBAC service
-    mock_rbac = MockRBACService()
-    set_rbac_service(mock_rbac)
-
     set_unified_rbac_service(MockUnifiedRBACService())
 
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-    # Reset RBAC service to prevent test pollution
-    set_rbac_service(None)
-
 
 def test_all_template_modules_are_discovered() -> None:
     """Test that all 7 template modules are discovered and registered."""
@@ -174,7 +140,6 @@ def test_all_template_modules_are_discovered() -> None:
 
     # Total expected: ~54 tools (some duplicates removed)
     assert len(tool_names) >= 43, f"Expected at least 43 tools, got {len(tool_names)}"
-
 
 @pytest.mark.asyncio
 async def test_tools_endpoint_returns_all_templates(client: AsyncClient) -> None:

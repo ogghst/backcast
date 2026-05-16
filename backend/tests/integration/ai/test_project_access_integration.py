@@ -4,20 +4,30 @@ Tests that AI chat and tools respect project-level permissions,
 including admin bypass, member filtering, and permission errors.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools.project_tools import list_projects
-from app.core.enums import ProjectRole
-from app.core.rbac import RBACServiceABC
+from app.ai.tools.types import ToolContext
+from app.core.rbac_unified import set_unified_rbac_service
 from app.models.domain.project import Project
-from app.models.domain.project_member import ProjectMember
+from app.models.domain.rbac import RBACRole
 from app.models.domain.user import User
-from app.services.project import ProjectService
+from app.models.domain.user_role_assignment import ScopeType, UserRoleAssignment
+from tests.conftest import MockUnifiedRBACService
+
+
+async def _get_role_id(session: AsyncSession, role_name: str) -> str:
+    """Look up a seeded RBAC role ID by name."""
+    result = await session.execute(
+        select(RBACRole.id).where(RBACRole.name == role_name)
+    )
+    return result.scalar_one()
 
 
 @pytest.mark.asyncio
@@ -71,62 +81,42 @@ async def test_list_projects_returns_only_accessible_for_viewer(
     await db_session.flush()
 
     # Add user as member of project1 only
-    member = ProjectMember(
+    role_id = await _get_role_id(db_session, "viewer")
+    assignment = UserRoleAssignment(
+        id=uuid4(),
         user_id=test_user.user_id,
-        project_id=project1.project_id,
-        role=ProjectRole.PROJECT_VIEWER,
-        assigned_by=test_user.user_id,
+        role_id=role_id,
+        scope_type=ScopeType.PROJECT,
+        scope_id=project1.project_id,
+        granted_by=test_user.user_id,
     )
-    db_session.add(member)
+    db_session.add(assignment)
     await db_session.commit()
 
-    # Create mock RBAC service that respects project membership
-    class MockRBACService(RBACServiceABC):
-        def __init__(self):
-            self.session = db_session
+    # Create a unified RBAC mock that only grants access to project1
+    mock_unified = MagicMock()
+    mock_unified.get_accessible_projects = AsyncMock(return_value=[project1.project_id])
+    set_unified_rbac_service(mock_unified)
 
-        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-            return True
-
-        def has_permission(self, user_role: str, required_permission: str) -> bool:
-            return True
-
-        def get_user_permissions(self, user_role: str) -> list[str]:
-            return ["all"]
-
-        async def has_project_access(
-            self,
-            user_id,
-            user_role,
-            project_id,
-            required_permission,
-        ) -> bool:
-            # Only allow access to project1
-            return project_id == project1.project_id
-
-        async def get_user_projects(self, user_id, user_role) -> list:
-            # Only return project1
-            return [project1.project_id]
-
-        async def get_project_role(self, user_id, project_id) -> str | None:
-            if project_id == project1.project_id:
-                return "viewer"
-            return None
-
-    mock_rbac = MockRBACService()
-
-    # Act - Call list_projects with mock RBAC
-    projects = await list_projects(
-        context=MagicMock(
-            user_id=test_user.user_id,
-            user_role="viewer",
-            rbac_service=mock_rbac,
-        ),
+    context = ToolContext(
+        session=db_session,
+        user_id=str(test_user.user_id),
+        user_role="viewer",
     )
 
-    # Assert - Should only return project1
+    try:
+        # Patch get_tool_session to return the test's db_session
+        with patch("app.db.session.get_tool_session", return_value=db_session):
+            result = await list_projects.ainvoke({"context": context})
+    finally:
+        # Restore the conftest mock
+        set_unified_rbac_service(MockUnifiedRBACService())
+
+    # Assert - Should only contain project1 in the projects list
+    assert "projects" in result
+    projects = result["projects"]
     assert len(projects) == 1
-    assert projects[0]["project_id"] == str(project1.project_id)
+    assert projects[0]["id"] == str(project1.project_id)
     assert projects[0]["code"] == "PROJ1"
 
 
@@ -170,52 +160,28 @@ async def test_list_projects_returns_all_for_system_admin(
     db_session.add_all([project1, project2])
     await db_session.commit()
 
-    # Create mock RBAC service for admin
-    class MockAdminRBACService(RBACServiceABC):
-        def __init__(self):
-            self.session = db_session
-            self._service = ProjectService(db_session)
+    # Create a unified RBAC mock that grants access to all projects
+    mock_unified = MagicMock()
+    mock_unified.get_accessible_projects = AsyncMock(
+        return_value=[project1.project_id, project2.project_id]
+    )
+    set_unified_rbac_service(mock_unified)
 
-        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-            return True
-
-        def has_permission(self, user_role: str, required_permission: str) -> bool:
-            return True
-
-        def get_user_permissions(self, user_role: str) -> list[str]:
-            return ["all"]
-
-        async def has_project_access(
-            self,
-            user_id,
-            user_role,
-            project_id,
-            required_permission,
-        ) -> bool:
-            # Admin bypass - always return True
-            return True
-
-        async def get_user_projects(self, user_id, user_role) -> list:
-            # Admin gets all projects
-            projects = await self._service.list_projects()
-            return [p.project_id for p in projects]
-
-        async def get_project_role(self, user_id, project_id) -> str | None:
-            # Admin doesn't need a project role
-            return "admin"
-
-    mock_rbac = MockAdminRBACService()
-
-    # Act - Call list_projects as admin
-    projects = await list_projects(
-        context=MagicMock(
-            user_id=admin_user.user_id,
-            user_role="admin",
-            rbac_service=mock_rbac,
-        ),
+    context = ToolContext(
+        session=db_session,
+        user_id=str(admin_user.user_id),
+        user_role="admin",
     )
 
+    try:
+        with patch("app.db.session.get_tool_session", return_value=db_session):
+            result = await list_projects.ainvoke({"context": context})
+    finally:
+        set_unified_rbac_service(MockUnifiedRBACService())
+
     # Assert - Should return all projects
+    assert "projects" in result
+    projects = result["projects"]
     assert len(projects) == 2
     project_codes = {p["code"] for p in projects}
     assert "PROJ1" in project_codes
@@ -252,48 +218,26 @@ async def test_list_projects_returns_empty_for_non_member(
     db_session.add(project1)
     await db_session.commit()
 
-    # Create mock RBAC service that denies all access
-    class MockDenyRBACService(RBACServiceABC):
-        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-            return True
+    # Create a unified RBAC mock that returns no accessible projects
+    mock_unified = MagicMock()
+    mock_unified.get_accessible_projects = AsyncMock(return_value=[])
+    set_unified_rbac_service(mock_unified)
 
-        def has_permission(self, user_role: str, required_permission: str) -> bool:
-            return True
-
-        def get_user_permissions(self, user_role: str) -> list[str]:
-            return ["all"]
-
-        async def has_project_access(
-            self,
-            user_id,
-            user_role,
-            project_id,
-            required_permission,
-        ) -> bool:
-            # Deny all access
-            return False
-
-        async def get_user_projects(self, user_id, user_role) -> list:
-            # No memberships
-            return []
-
-        async def get_project_role(self, user_id, project_id) -> str | None:
-            # Not a member
-            return None
-
-    mock_rbac = MockDenyRBACService()
-
-    # Act - Call list_projects
-    projects = await list_projects(
-        context=MagicMock(
-            user_id=test_user.user_id,
-            user_role="viewer",
-            rbac_service=mock_rbac,
-        ),
+    context = ToolContext(
+        session=db_session,
+        user_id=str(test_user.user_id),
+        user_role="viewer",
     )
 
-    # Assert - Should return empty list
-    assert len(projects) == 0
+    try:
+        with patch("app.db.session.get_tool_session", return_value=db_session):
+            result = await list_projects.ainvoke({"context": context})
+    finally:
+        set_unified_rbac_service(MockUnifiedRBACService())
+
+    # Assert - Should return empty projects list
+    assert "projects" in result
+    assert len(result["projects"]) == 0
 
 
 @pytest.mark.asyncio
@@ -325,37 +269,30 @@ async def test_ai_tool_respects_project_permission_hierarchy(
     db_session.add(project)
     await db_session.flush()
 
-    member = ProjectMember(
+    role_id = await _get_role_id(db_session, "manager")
+    assignment = UserRoleAssignment(
+        id=uuid4(),
         user_id=test_user.user_id,
-        project_id=project.project_id,
-        role=ProjectRole.PROJECT_EDITOR,
-        assigned_by=test_user.user_id,
+        role_id=role_id,
+        scope_type=ScopeType.PROJECT,
+        scope_id=project.project_id,
+        granted_by=test_user.user_id,
     )
-    db_session.add(member)
+    db_session.add(assignment)
     await db_session.commit()
 
     # Create mock RBAC service with editor permissions
-    class MockEditorRBACService(RBACServiceABC):
-        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-            return True
-
-        def has_permission(self, user_role: str, required_permission: str) -> bool:
-            return True
-
-        def get_user_permissions(self, user_role: str) -> list[str]:
-            return ["all"]
-
+    class MockEditorRBACService(MockUnifiedRBACService):
         async def has_project_access(
             self,
             user_id,
-            user_role,
             project_id,
             required_permission,
         ) -> bool:
             # Editor has read/write but not admin
             return required_permission in ["project-read", "project-write"]
 
-        async def get_user_projects(self, user_id, user_role) -> list:
+        async def get_accessible_projects(self, user_id) -> list:
             return [project.project_id]
 
         async def get_project_role(self, user_id, project_id) -> str | None:
@@ -367,7 +304,6 @@ async def test_ai_tool_respects_project_permission_hierarchy(
     # This simulates the behavior of project-admin protected tools
     has_access = await mock_rbac.has_project_access(
         user_id=test_user.user_id,
-        user_role="viewer",
         project_id=project.project_id,
         required_permission="project-admin",
     )
@@ -417,13 +353,16 @@ async def test_ai_chat_filters_projects_by_membership(
     await db_session.flush()
 
     # Add user to project1 only
-    member = ProjectMember(
+    role_id = await _get_role_id(db_session, "viewer")
+    assignment = UserRoleAssignment(
+        id=uuid4(),
         user_id=test_user.user_id,
-        project_id=project1.project_id,
-        role=ProjectRole.PROJECT_VIEWER,
-        assigned_by=test_user.user_id,
+        role_id=role_id,
+        scope_type=ScopeType.PROJECT,
+        scope_id=project1.project_id,
+        granted_by=test_user.user_id,
     )
-    db_session.add(member)
+    db_session.add(assignment)
     await db_session.commit()
 
     # Act - Send chat message requesting project list
@@ -471,26 +410,16 @@ async def test_permission_error_returned_correctly(
     await db_session.commit()
 
     # Create mock RBAC service that denies access
-    class MockDenyRBACService(RBACServiceABC):
-        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-            return True
-
-        def has_permission(self, user_role: str, required_permission: str) -> bool:
-            return True
-
-        def get_user_permissions(self, user_role: str) -> list[str]:
-            return ["all"]
-
+    class MockDenyRBACService(MockUnifiedRBACService):
         async def has_project_access(
             self,
             user_id,
-            user_role,
             project_id,
             required_permission,
         ) -> bool:
             return False
 
-        async def get_user_projects(self, user_id, user_role) -> list:
+        async def get_accessible_projects(self, user_id) -> list:
             return []
 
         async def get_project_role(self, user_id, project_id) -> str | None:
@@ -501,7 +430,6 @@ async def test_permission_error_returned_correctly(
     # Act & Assert - Verify permission check
     has_access = await mock_rbac.has_project_access(
         user_id=test_user.user_id,
-        user_role="viewer",
         project_id=project.project_id,
         required_permission="project-read",
     )
@@ -541,27 +469,17 @@ async def test_admin_bypass_in_ai_context(
     await db_session.commit()
 
     # Create mock RBAC service for admin
-    class MockAdminRBACService(RBACServiceABC):
-        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-            return user_role == "admin"
-
-        def has_permission(self, user_role: str, required_permission: str) -> bool:
-            return True
-
-        def get_user_permissions(self, user_role: str) -> list[str]:
-            return ["all"]
-
+    class MockAdminRBACService(MockUnifiedRBACService):
         async def has_project_access(
             self,
             user_id,
-            user_role,
             project_id,
             required_permission,
         ) -> bool:
             # Admin bypass
-            return user_role == "admin"
+            return True
 
-        async def get_user_projects(self, user_id, user_role) -> list:
+        async def get_accessible_projects(self, user_id) -> list:
             # Admin gets all projects
             return [project1.project_id]
 
@@ -573,7 +491,6 @@ async def test_admin_bypass_in_ai_context(
     # Act & Assert - Admin should have access
     has_access = await mock_rbac.has_project_access(
         user_id=admin_user.user_id,
-        user_role="admin",
         project_id=project1.project_id,
         required_permission="project-admin",
     )
@@ -632,49 +549,50 @@ async def test_multiple_roles_respected_in_ai_tools(
     await db_session.flush()
 
     # Add user with different roles to each project
-    member1 = ProjectMember(
+    viewer_role_id = await _get_role_id(db_session, "viewer")
+    editor_role_id = await _get_role_id(db_session, "manager")
+    admin_role_id = await _get_role_id(db_session, "admin")
+
+    assignment1 = UserRoleAssignment(
+        id=uuid4(),
         user_id=test_user.user_id,
-        project_id=project1.project_id,
-        role=ProjectRole.PROJECT_VIEWER,
-        assigned_by=test_user.user_id,
+        role_id=viewer_role_id,
+        scope_type=ScopeType.PROJECT,
+        scope_id=project1.project_id,
+        granted_by=test_user.user_id,
     )
-    member2 = ProjectMember(
+    assignment2 = UserRoleAssignment(
+        id=uuid4(),
         user_id=test_user.user_id,
-        project_id=project2.project_id,
-        role=ProjectRole.PROJECT_EDITOR,
-        assigned_by=test_user.user_id,
+        role_id=editor_role_id,
+        scope_type=ScopeType.PROJECT,
+        scope_id=project2.project_id,
+        granted_by=test_user.user_id,
     )
-    member3 = ProjectMember(
+    assignment3 = UserRoleAssignment(
+        id=uuid4(),
         user_id=test_user.user_id,
-        project_id=project3.project_id,
-        role=ProjectRole.PROJECT_ADMIN,
-        assigned_by=test_user.user_id,
+        role_id=admin_role_id,
+        scope_type=ScopeType.PROJECT,
+        scope_id=project3.project_id,
+        granted_by=test_user.user_id,
     )
-    db_session.add_all([member1, member2, member3])
+    db_session.add_all([assignment1, assignment2, assignment3])
     await db_session.commit()
 
     # Create mock RBAC service
-    class MockMultiRoleRBACService(RBACServiceABC):
+    class MockMultiRoleRBACService(MockUnifiedRBACService):
         def __init__(self):
+            super().__init__()
             self.roles = {
                 str(project1.project_id): "viewer",
                 str(project2.project_id): "editor",
                 str(project3.project_id): "admin",
             }
 
-        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-            return True
-
-        def has_permission(self, user_role: str, required_permission: str) -> bool:
-            return True
-
-        def get_user_permissions(self, user_role: str) -> list[str]:
-            return ["all"]
-
         async def has_project_access(
             self,
             user_id,
-            user_role,
             project_id,
             required_permission,
         ) -> bool:
@@ -687,7 +605,7 @@ async def test_multiple_roles_respected_in_ai_tools(
                 return True  # All permissions
             return False
 
-        async def get_user_projects(self, user_id, user_role) -> list:
+        async def get_accessible_projects(self, user_id) -> list:
             return [UUID(pid) for pid in self.roles.keys()]
 
         async def get_project_role(self, user_id, project_id) -> str | None:
@@ -698,27 +616,27 @@ async def test_multiple_roles_respected_in_ai_tools(
     # Act & Assert - Verify permissions for each role
     # Viewer can only read
     assert await mock_rbac.has_project_access(
-        test_user.user_id, "viewer", project1.project_id, "project-read"
+        test_user.user_id, project1.project_id, "project-read"
     )
     assert not await mock_rbac.has_project_access(
-        test_user.user_id, "viewer", project1.project_id, "project-write"
+        test_user.user_id, project1.project_id, "project-write"
     )
 
     # Editor can read and write
     assert await mock_rbac.has_project_access(
-        test_user.user_id, "viewer", project2.project_id, "project-read"
+        test_user.user_id, project2.project_id, "project-read"
     )
     assert await mock_rbac.has_project_access(
-        test_user.user_id, "viewer", project2.project_id, "project-write"
+        test_user.user_id, project2.project_id, "project-write"
     )
     assert not await mock_rbac.has_project_access(
-        test_user.user_id, "viewer", project2.project_id, "project-delete"
+        test_user.user_id, project2.project_id, "project-delete"
     )
 
     # Admin can do everything
     assert await mock_rbac.has_project_access(
-        test_user.user_id, "viewer", project3.project_id, "project-delete"
+        test_user.user_id, project3.project_id, "project-delete"
     )
     assert await mock_rbac.has_project_access(
-        test_user.user_id, "viewer", project3.project_id, "project-admin"
+        test_user.user_id, project3.project_id, "project-admin"
     )

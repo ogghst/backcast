@@ -44,7 +44,6 @@ async def test_branch_creation_with_composite_key(db_session):
     assert branch.valid_time is not None
     assert branch.deleted_at is None
 
-
 @pytest.mark.asyncio
 async def test_branch_default_values(db_session):
     """Test that Branch fields have appropriate defaults."""
@@ -70,7 +69,6 @@ async def test_branch_default_values(db_session):
     assert branch.locked is False
     assert branch.deleted_at is None
     assert branch.branch_metadata is None
-
 
 @pytest.mark.asyncio
 async def test_branch_locked_can_be_toggled(db_session):
@@ -110,7 +108,6 @@ async def test_branch_locked_can_be_toggled(db_session):
 
     # Assert: Branch is now unlocked
     assert branch.locked is False
-
 
 @pytest.mark.asyncio
 async def test_branch_soft_delete(db_session):

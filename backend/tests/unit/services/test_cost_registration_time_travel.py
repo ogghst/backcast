@@ -26,7 +26,6 @@ from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
 # Type alias for fixture
 sample_cost_element_with_budget = _fixtures.sample_cost_element_with_budget  # noqa: F401
 
-
 class TestTimeTravelQueries:
     """Test time-travel query functionality for cost analysis."""
 

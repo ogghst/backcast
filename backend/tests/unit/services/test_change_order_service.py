@@ -96,7 +96,6 @@ class TestChangeOrderServiceCreate:
         assert rows[0].branch == "main"
         assert rows[0].valid_time.lower == control_date
 
-
 class TestChangeOrderServiceUpdate:
     """Test ChangeOrderService.update_change_order() method."""
 
@@ -142,7 +141,6 @@ class TestChangeOrderServiceUpdate:
         assert v2.description == "Updated description"
         assert v2.justification == "Original justification"  # Unchanged
 
-
 class TestChangeOrderServiceDelete:
     """Test ChangeOrderService.delete_change_order() method."""
 
@@ -180,7 +178,6 @@ class TestChangeOrderServiceDelete:
         # Assert: Deleted COs should not appear in list
         cos, total = await service.get_change_orders(project_id=project_id)
         assert not any(co.change_order_id == root_id for co in cos)
-
 
 class TestChangeOrderServiceGetCurrent:
     """Test ChangeOrderService.get_current() method with temporal queries."""
@@ -325,7 +322,6 @@ class TestChangeOrderServiceGetCurrent:
         assert found.title == "Updated Title"
         assert found.id != initial_id  # Different version ID
 
-
 class TestChangeOrderServiceImpactAnalysis:
     """Test impact analysis on change order submission (updated workflow)."""
 
@@ -410,7 +406,6 @@ class TestChangeOrderServiceImpactAnalysis:
         assert created_co.status == ChangeOrderStatus.DRAFT.value
         # Impact analysis should NOT have run yet
         assert created_co.impact_analysis_status is None
-
 
 class TestChangeOrderServiceImpactScore:
     """Test impact score calculation and impact level assignment (Task #2)."""
@@ -797,7 +792,6 @@ class TestChangeOrderServiceImpactScore:
             # Verify level is one of the valid values
             assert created_co.impact_level in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
-
 class TestChangeOrderServiceApproverAssignment:
     """Test approver assignment based on impact level (Task #3)."""
 
@@ -1157,7 +1151,6 @@ class TestChangeOrderServiceApproverAssignment:
         assert score < 10, f"Expected LOW impact score < 10, got {score}"
         assert level == "LOW", f"Expected LOW impact level, got {level}"
 
-
 class TestChangeOrderServiceGetNextCode:
     """Test ChangeOrderService.get_next_code() method."""
 
@@ -1337,7 +1330,6 @@ class TestChangeOrderServiceGetNextCode:
         # Assert
         expected = "CO-2027-001"
         assert next_code == expected, f"Expected {expected}, got {next_code}"
-
 
 class TestChangeOrderServiceConfigIntegration:
     """Test that ChangeOrderService uses config service for score boundaries and SLA.

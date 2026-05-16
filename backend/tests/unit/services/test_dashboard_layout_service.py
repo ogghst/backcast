@@ -16,27 +16,22 @@ from app.services.dashboard_layout_service import DashboardLayoutService
 # Fixture
 # ---------------------------------------------------------------------------
 
-
 @pytest_asyncio.fixture
 async def service(db_session: AsyncSession) -> DashboardLayoutService:
     """Provide a DashboardLayoutService bound to the test session."""
     return DashboardLayoutService(db_session)
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
 
 def _widget_payload() -> list[dict[str, object]]:
     """Return a minimal widget configuration for testing."""
     return [{"typeId": "budget-status", "config": {"entityType": "project"}}]
 
-
 # ---------------------------------------------------------------------------
 # get
 # ---------------------------------------------------------------------------
-
 
 class TestGet:
     """Tests for DashboardLayoutService.get."""
@@ -63,11 +58,9 @@ class TestGet:
         result = await service.get(uuid4())
         assert result is None
 
-
 # ---------------------------------------------------------------------------
 # get_for_user_project
 # ---------------------------------------------------------------------------
-
 
 class TestGetForUserProject:
     """Tests for DashboardLayoutService.get_for_user_project."""
@@ -149,11 +142,9 @@ class TestGetForUserProject:
         assert result[1].name == "Bravo"
         assert result[2].name == "Charlie"
 
-
 # ---------------------------------------------------------------------------
 # get_default_for_user_project
 # ---------------------------------------------------------------------------
-
 
 class TestGetDefaultForUserProject:
     """Tests for DashboardLayoutService.get_default_for_user_project."""
@@ -235,11 +226,9 @@ class TestGetDefaultForUserProject:
         assert result is not None
         assert result.name == "Default A"
 
-
 # ---------------------------------------------------------------------------
 # get_templates
 # ---------------------------------------------------------------------------
-
 
 class TestGetTemplates:
     """Tests for DashboardLayoutService.get_templates."""
@@ -279,11 +268,9 @@ class TestGetTemplates:
         assert result[0].name == "Alpha Template"
         assert result[1].name == "Zebra Template"
 
-
 # ---------------------------------------------------------------------------
 # create
 # ---------------------------------------------------------------------------
-
 
 class TestCreate:
     """Tests for DashboardLayoutService.create."""
@@ -399,11 +386,9 @@ class TestCreate:
         await service.session.refresh(project_default)
         assert project_default.is_default is True
 
-
 # ---------------------------------------------------------------------------
 # update
 # ---------------------------------------------------------------------------
-
 
 class TestUpdate:
     """Tests for DashboardLayoutService.update."""
@@ -491,11 +476,9 @@ class TestUpdate:
         await service.session.refresh(old_default)
         assert old_default.is_default is False
 
-
 # ---------------------------------------------------------------------------
 # update_template
 # ---------------------------------------------------------------------------
-
 
 class TestUpdateTemplate:
     """Tests for DashboardLayoutService.update_template (admin-only)."""
@@ -546,11 +529,9 @@ class TestUpdateTemplate:
         with pytest.raises(ValueError, match="not a template"):
             await service.update_template(layout.id, name="X")
 
-
 # ---------------------------------------------------------------------------
 # delete
 # ---------------------------------------------------------------------------
-
 
 class TestDelete:
     """Tests for DashboardLayoutService.delete."""
@@ -641,11 +622,9 @@ class TestDelete:
         await service.session.refresh(default_layout)
         assert default_layout.is_default is True
 
-
 # ---------------------------------------------------------------------------
 # clone_template
 # ---------------------------------------------------------------------------
-
 
 class TestCloneTemplate:
     """Tests for DashboardLayoutService.clone_template."""
@@ -708,11 +687,9 @@ class TestCloneTemplate:
         with pytest.raises(ValueError, match="Not a template layout"):
             await service.clone_template(uuid4(), uuid4())
 
-
 # ---------------------------------------------------------------------------
 # seed_templates
 # ---------------------------------------------------------------------------
-
 
 class TestSeedTemplates:
     """Tests for DashboardLayoutService.seed_templates."""

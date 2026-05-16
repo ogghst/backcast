@@ -24,7 +24,6 @@ from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
 
 sample_cost_element_with_budget = _fixtures.sample_cost_element_with_budget  # noqa: F401
 
-
 class TestCostRegistrationServiceCreate:
     """Test CostRegistrationService.create() method."""
 
@@ -141,7 +140,6 @@ class TestCostRegistrationServiceCreate:
             abs((created_registration.registration_date - now_utc).total_seconds()) < 1
         )
 
-
 class TestCostRegistrationServiceUpdate:
     """Test CostRegistrationService.update() method."""
 
@@ -200,7 +198,6 @@ class TestCostRegistrationServiceUpdate:
         assert old_version.amount == Decimal("100.00")
         assert old_version.quantity == Decimal("10.0")
 
-
 class TestCostRegistrationServiceDelete:
     """Test CostRegistrationService.soft_delete() method."""
 
@@ -247,7 +244,6 @@ class TestCostRegistrationServiceDelete:
         assert deleted is not None
         assert deleted.is_deleted is True
         assert deleted.deleted_by == actor_id_delete
-
 
 class TestCostRegistrationServiceGetById:
     """Test CostRegistrationService.get_by_id() method."""

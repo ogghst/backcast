@@ -38,11 +38,9 @@ from app.models.schemas.progress_entry import ProgressEntryCreate
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # FIXTURES
 # =============================================================================
-
 
 @pytest_asyncio.fixture
 async def tool_context(db_session: AsyncSession) -> ToolContext:
@@ -72,12 +70,10 @@ async def tool_context(db_session: AsyncSession) -> ToolContext:
         )
         yield ctx
 
-
 @pytest_asyncio.fixture
 async def test_user_id() -> UUID:
     """Provide a test user ID for entity creation."""
     return uuid4()
-
 
 @pytest_asyncio.fixture
 async def test_forecast(
@@ -115,11 +111,9 @@ async def test_forecast(
     # Return both forecast and cost_element_id for test convenience
     return forecast, test_cost_element.cost_element_id
 
-
 # =============================================================================
 # FORECAST TOOLS TESTS
 # =============================================================================
-
 
 class TestGetForecast:
     """Tests for get_forecast tool."""
@@ -180,7 +174,6 @@ class TestGetForecast:
         assert "error" in result
         assert "invalid" in result["error"].lower()
 
-
 class TestCreateForecast:
     """Tests for create_forecast tool."""
 
@@ -227,7 +220,6 @@ class TestCreateForecast:
         assert result["eac_amount"] == eac_amount
         assert result["basis_of_estimate"] == basis_of_estimate
         assert "message" in result
-
 
 class TestUpdateForecast:
     """Tests for update_forecast tool."""
@@ -283,7 +275,6 @@ class TestUpdateForecast:
             "invalid" in result["error"].lower()
             or "not found" in result["error"].lower()
         )
-
 
 class TestCompareForecastToBudget:
     """Tests for compare_forecast_to_budget tool."""
@@ -347,11 +338,9 @@ class TestCompareForecastToBudget:
         assert "error" in result
         assert "not found" in result["error"].lower()
 
-
 # =============================================================================
 # COST REGISTRATION TOOLS TESTS
 # =============================================================================
-
 
 class TestGetBudgetStatus:
     """Tests for get_budget_status tool."""
@@ -378,11 +367,9 @@ class TestGetBudgetStatus:
         assert result["budget"] == 10000.00
         assert result["used"] >= 0
 
-
 # =============================================================================
 # PROGRESS ENTRY TOOLS TESTS
 # =============================================================================
-
 
 class TestGetLatestProgress:
     """Tests for get_latest_progress tool."""
@@ -424,11 +411,9 @@ class TestGetLatestProgress:
         assert "notes" in result
         assert result["progress_percentage"] == 25.50
 
-
 # =============================================================================
 # SUMMARY TOOL TESTS
 # =============================================================================
-
 
 class TestGetCostElementSummary:
     """Tests for get_cost_element_summary tool."""
@@ -473,11 +458,9 @@ class TestGetCostElementSummary:
         assert "budget_status" in result
         assert "progress" in result
 
-
 # =============================================================================
 # TEMPORAL LOGGING TESTS
 # =============================================================================
-
 
 class TestTemporalLogging:
     """Tests for temporal context logging."""
@@ -524,11 +507,9 @@ class TestTemporalLogging:
         assert "branch_name" in result["_temporal_context"]
         assert "branch_mode" in result["_temporal_context"]
 
-
 # =============================================================================
 # ERROR HANDLING TESTS
 # =============================================================================
-
 
 class TestErrorHandling:
     """Tests for error handling across all tools."""

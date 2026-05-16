@@ -10,7 +10,6 @@ class MockRange:
         self.lower = lower
         self.upper = upper
 
-
 def test_convert_range_to_list_valid():
     """Test converting a valid range with bounds."""
     start = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -21,7 +20,6 @@ def test_convert_range_to_list_valid():
 
     assert result == [start, end]
 
-
 def test_convert_range_to_list_open_ended():
     """Test converting a range with null upper bound."""
     start = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -31,11 +29,9 @@ def test_convert_range_to_list_open_ended():
 
     assert result == [start, None]
 
-
 def test_convert_range_to_list_none():
     """Test converting None input."""
     assert convert_range_to_list(None) is None
-
 
 def test_user_history_serialization():
     """Test UserHistory Pydantic model serialization."""

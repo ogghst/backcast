@@ -186,7 +186,7 @@
           "authentication"
         ],
         "summary": "Logout",
-        "description": "Logout user by revoking their refresh token.\n\nThe access token will still be valid until it expires, but the\nrefresh token cannot be used to get new access tokens.",
+        "description": "Logout user by revoking their refresh token.\n\nThe access token will still be valid until it expires, but the\nrefresh token cannot be used to get new access tokens.\n\nThis endpoint is idempotent: it returns 200 OK even if the token\nwas not found or already revoked.",
         "operationId": "logout",
         "requestBody": {
           "content": {
@@ -1030,15 +1030,13 @@
             "description": "Branch name"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -1554,15 +1552,13 @@
             "description": "Branch to query"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged or isolated",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged or isolated"
           },
@@ -1593,235 +1589,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GanttDataResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/projects/{project_id}/members": {
-      "get": {
-        "tags": [
-          "Project Members"
-        ],
-        "summary": "List Project Members",
-        "description": "List all members of a project.\n\nRequires project-read permission for the project.",
-        "operationId": "get_project_members",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProjectMemberRead"
-                  },
-                  "title": "Response Get Project Members"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Project Members"
-        ],
-        "summary": "Add Project Member",
-        "description": "Add a member to a project.\n\nRequires project-admin permission for the project.",
-        "operationId": "add_project_member",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectMemberCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectMemberRead"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/projects/{project_id}/members/{user_id}": {
-      "delete": {
-        "tags": [
-          "Project Members"
-        ],
-        "summary": "Remove Project Member",
-        "description": "Remove a member from a project.\n\nRequires project-admin permission for the project.",
-        "operationId": "remove_project_member",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "User Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Project Members"
-        ],
-        "summary": "Update Project Member Role",
-        "description": "Update a project member's role.\n\nRequires project-admin permission for the project.",
-        "operationId": "update_project_member_role",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "User Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectMemberUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectMemberRead"
                 }
               }
             }
@@ -2035,15 +1802,13 @@
             "description": "Branch name"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -2165,6 +1930,20 @@
         "security": [
           {
             "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
           }
         ],
         "requestBody": {
@@ -2434,15 +2213,13 @@
             "description": "Branch name"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -2989,15 +2766,13 @@
             "description": "Branch to query"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -3230,15 +3005,13 @@
             "description": "Branch to query"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -3851,7 +3624,7 @@
             "schema": {
               "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: ISOLATED (only this branch) or MERGE (fall back to parent branches)",
-              "default": "merge"
+              "default": "merged"
             },
             "description": "Branch mode: ISOLATED (only this branch) or MERGE (fall back to parent branches)"
           }
@@ -3953,7 +3726,7 @@
             "schema": {
               "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode",
-              "default": "merge"
+              "default": "merged"
             },
             "description": "Branch mode"
           }
@@ -4017,15 +3790,13 @@
             "description": "Branch to query"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -4239,15 +4010,13 @@
             "description": "Branch to query (for context)"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -4620,13 +4389,11 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merge|isolated)$",
-              "description": "Branch mode: merge (fallback to main) or isolated (current branch only)",
-              "default": "merge",
-              "title": "Branch Mode"
+              "$ref": "#/components/schemas/BranchMode",
+              "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
+              "default": "merged"
             },
-            "description": "Branch mode: merge (fallback to main) or isolated (current branch only)"
+            "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)"
           }
         ],
         "responses": {
@@ -4715,13 +4482,11 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merge|isolated)$",
-              "description": "Branch mode: merge (fallback to main) or isolated (current branch only)",
-              "default": "merge",
-              "title": "Branch Mode"
+              "$ref": "#/components/schemas/BranchMode",
+              "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
+              "default": "merged"
             },
-            "description": "Branch mode: merge (fallback to main) or isolated (current branch only)"
+            "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)"
           }
         ],
         "responses": {
@@ -5462,15 +5227,13 @@
             "description": "Branch name"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -5688,6 +5451,92 @@
                   },
                   "title": "Response Get Next Change Order Code"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/change-orders/pending-approvals": {
+      "get": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Get Pending Approvals",
+        "description": "Get change orders pending approval for the current user.\n\nFilters change orders by:\n- assigned_approver_id = current_user.user_id\n- status in (\"Submitted for Approval\", \"Under Review\")\n- branch name (default: \"main\")\n\nReturns paginated list of change orders awaiting the user's approval.\n\nRequires read permission.",
+        "operationId": "get_pending_approvals",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          },
+          {
+            "name": "branch_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/BranchMode",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -6246,15 +6095,13 @@
             "description": "Branch name to compare (e.g., 'BR-CO-2026-001')"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Comparison mode: merged (main+change) or isolated (change only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Comparison mode: merged (main+change) or isolated (change only)"
           },
@@ -6457,11 +6304,18 @@
           }
         ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChangeOrderApproval"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ChangeOrderApproval"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Approval"
               }
             }
           }
@@ -6547,11 +6401,18 @@
           }
         ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChangeOrderApproval"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ChangeOrderApproval"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Approval"
               }
             }
           }
@@ -6832,94 +6693,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/ApprovalInfoPublic"
                 }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/change-orders/pending-approvals": {
-      "get": {
-        "tags": [
-          "Change Orders"
-        ],
-        "summary": "Get Pending Approvals",
-        "description": "Get change orders pending approval for the current user.\n\nFilters change orders by:\n- assigned_approver_id = current_user.user_id\n- status in (\"Submitted for Approval\", \"Under Review\")\n- branch name (default: \"main\")\n\nReturns paginated list of change orders awaiting the user's approval.\n\nRequires read permission.",
-        "operationId": "get_pending_approvals",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Page number (1-indexed)",
-              "default": 1,
-              "title": "Page"
-            },
-            "description": "Page number (1-indexed)"
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Items per page",
-              "default": 20,
-              "title": "Per Page"
-            },
-            "description": "Items per page"
-          },
-          {
-            "name": "branch",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Branch name",
-              "default": "main",
-              "title": "Branch"
-            },
-            "description": "Branch name"
-          },
-          {
-            "name": "mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
-              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
-            },
-            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
               }
             }
           },
@@ -7394,7 +7167,7 @@
           "Schedule Baselines"
         ],
         "summary": "Read Schedule Baselines",
-        "description": "Retrieve schedule baselines with pagination.\n\nSupports time-travel queries and branch mode filtering.\nIn MERGE mode, combines results from current branch and main branch.",
+        "description": "Retrieve schedule baselines with pagination.\n\nSupports time-travel queries and branch mode filtering.\nIn MERGED mode, combines results from current branch and main branch.",
         "operationId": "get_schedule_baselines",
         "security": [
           {
@@ -7441,15 +7214,13 @@
             "description": "Branch to query"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -7967,15 +7738,13 @@
             "description": "Branch to query (for context)"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -8393,15 +8162,13 @@
             "description": "Branch to query (for context)"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -9030,7 +8797,7 @@
           "EVM"
         ],
         "summary": "Get Evm Metrics",
-        "description": "Get EVM metrics for any entity type.\n\nReturns comprehensive EVM analysis including:\n- BAC: Budget at Completion (total planned budget)\n- PV: Planned Value (budgeted cost of work scheduled)\n- AC: Actual Cost (cost incurred to date)\n- EV: Earned Value (budgeted cost of work performed)\n- CV: Cost Variance (EV - AC, negative = over budget)\n- SV: Schedule Variance (EV - PV, negative = behind schedule)\n- CPI: Cost Performance Index (EV / AC, < 1.0 = over budget)\n- SPI: Schedule Performance Index (EV / PV, < 1.0 = behind schedule)\n- EAC: Estimate at Completion (from forecast)\n- VAC: Variance at Completion (BAC - EAC)\n- ETC: Estimate to Complete (EAC - AC)\n\nTime-Travel & Branching:\n- All metrics respect time-travel: entities are fetched as they were at control_date\n- Branch mode (STRICT/MERGE) controls parent branch fallback behavior\n- Cost registrations and progress entries are global facts (not branchable)\n\nSupports entity types:\n- cost_element: Individual cost element metrics\n- wbe: Work Breakdown Element (aggregated from child cost elements)\n- project: Project-level metrics (aggregated from all child elements)\n\nWarning: Returns EV = 0 with warning message if no progress has been reported.",
+        "description": "Get EVM metrics for any entity type.\n\nReturns comprehensive EVM analysis including:\n- BAC: Budget at Completion (total planned budget)\n- PV: Planned Value (budgeted cost of work scheduled)\n- AC: Actual Cost (cost incurred to date)\n- EV: Earned Value (budgeted cost of work performed)\n- CV: Cost Variance (EV - AC, negative = over budget)\n- SV: Schedule Variance (EV - PV, negative = behind schedule)\n- CPI: Cost Performance Index (EV / AC, < 1.0 = over budget)\n- SPI: Schedule Performance Index (EV / PV, < 1.0 = behind schedule)\n- EAC: Estimate at Completion (from forecast)\n- VAC: Variance at Completion (BAC - EAC)\n- ETC: Estimate to Complete (EAC - AC)\n\nTime-Travel & Branching:\n- All metrics respect time-travel: entities are fetched as they were at control_date\n- Branch mode \uff08ISOLATED/MERGE) controls parent branch fallback behavior\n- Cost registrations and progress entries are global facts (not branchable)\n\nSupports entity types:\n- cost_element: Individual cost element metrics\n- wbe: Work Breakdown Element (aggregated from child cost elements)\n- project: Project-level metrics (aggregated from all child elements)\n\nWarning: Returns EV = 0 with warning message if no progress has been reported.",
         "operationId": "get_generic_evm_metrics",
         "security": [
           {
@@ -9093,10 +8860,10 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/BranchMode",
-              "description": "Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)",
-              "default": "merge"
+              "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
+              "default": "merged"
             },
-            "description": "Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)"
+            "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)"
           }
         ],
         "responses": {
@@ -9203,10 +8970,10 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/BranchMode",
-              "description": "Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)",
-              "default": "merge"
+              "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
+              "default": "merged"
             },
-            "description": "Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)"
+            "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)"
           }
         ],
         "responses": {
@@ -9239,7 +9006,7 @@
           "EVM"
         ],
         "summary": "Get Evm Batch",
-        "description": "Get aggregated EVM metrics for multiple entities.\n\nCalculates EVM metrics for each entity individually, then aggregates them:\n- Sums amount fields (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC)\n- Calculates BAC-weighted average for indices (CPI, SPI)\n\nRequest body:\n    entity_type: Type of entities (cost_element, wbe, project)\n    entity_ids: List of entity IDs to calculate metrics for\n    control_date: Optional control date for time-travel (defaults to now)\n    branch: Branch name (defaults to \"main\")\n    branch_mode: Branch isolation mode (defaults to \"merge\")\n\nSupports entity types:\n- cost_element: Aggregate multiple cost elements\n- wbe: Aggregate multiple WBEs (not yet implemented)\n- project: Aggregate multiple projects (not yet implemented)\n\nReturns:\n    EVMMetricsResponse with aggregated metrics",
+        "description": "Get aggregated EVM metrics for multiple entities.\n\nCalculates EVM metrics for each entity individually, then aggregates them:\n- Sums amount fields (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC)\n- Calculates BAC-weighted average for indices (CPI, SPI)\n\nRequest body:\n    entity_type: Type of entities (cost_element, wbe, project)\n    entity_ids: List of entity IDs to calculate metrics for\n    control_date: Optional control date for time-travel (defaults to now)\n    branch: Branch name (defaults to \"main\")\n    branch_mode: Branch isolation mode (defaults to \"merged\")\n\nSupports entity types:\n- cost_element: Aggregate multiple cost elements\n- wbe: Aggregate multiple WBEs (not yet implemented)\n- project: Aggregate multiple projects (not yet implemented)\n\nReturns:\n    EVMMetricsResponse with aggregated metrics",
         "operationId": "get_evm_batch_metrics",
         "requestBody": {
           "content": {
@@ -11631,15 +11398,13 @@
             "description": "Branch name for branchable entities"
           },
           {
-            "name": "mode",
+            "name": "branch_mode",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^(merged|isolated)$",
+              "$ref": "#/components/schemas/BranchMode",
               "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged",
-              "title": "Mode"
+              "default": "merged"
             },
             "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
@@ -12088,7 +11853,7 @@
           "Change Order Config"
         ],
         "summary": "Get Project Config",
-        "description": "Get the project-specific workflow configuration override.\n\nReturns the per-project config if it exists, or 404 if the project\nuses global defaults.",
+        "description": "Get the workflow configuration for a specific project.\n\nReturns the per-project override if it exists, otherwise returns\nthe global default configuration. This ensures the frontend always\nhas a valid configuration to work with.",
         "operationId": "get_project_workflow_config",
         "security": [
           {
@@ -12398,6 +12163,307 @@
             "OAuth2PasswordBearer": []
           }
         ]
+      }
+    },
+    "/api/v1/role-assignments/": {
+      "post": {
+        "tags": [
+          "Role Assignments"
+        ],
+        "summary": "Create Assignment",
+        "description": "Create a new role assignment.",
+        "operationId": "create_role_assignment",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserRoleAssignmentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRoleAssignmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Role Assignments"
+        ],
+        "summary": "List Assignments",
+        "description": "List role assignments with optional filters.",
+        "operationId": "list_role_assignments",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Userid"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Roleid"
+            }
+          },
+          {
+            "name": "scopeType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scopetype"
+            }
+          },
+          {
+            "name": "scopeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scopeid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserRoleAssignmentRead"
+                  },
+                  "title": "Response List Role Assignments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/role-assignments/{assignment_id}": {
+      "get": {
+        "tags": [
+          "Role Assignments"
+        ],
+        "summary": "Get Assignment",
+        "description": "Get a single role assignment by ID.",
+        "operationId": "get_role_assignment",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRoleAssignmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Role Assignments"
+        ],
+        "summary": "Update Assignment",
+        "description": "Update an existing role assignment.",
+        "operationId": "update_role_assignment",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserRoleAssignmentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRoleAssignmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Role Assignments"
+        ],
+        "summary": "Delete Assignment",
+        "description": "Delete a role assignment by ID.",
+        "operationId": "delete_role_assignment",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -13807,7 +13873,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "description": "Document file (PDF, DOCX, XLSX, PPTX, TXT, CSV, JSON, MD, max 10MB)"
           }
@@ -13822,7 +13888,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "description": "Image file (PNG, JPG, JPEG, max 5MB)"
           }
@@ -13836,11 +13902,11 @@
       "BranchMode": {
         "type": "string",
         "enum": [
-          "strict",
-          "merge"
+          "isolated",
+          "merged"
         ],
         "title": "BranchMode",
-        "description": "Branch resolution mode for time-travel queries.\n\nControls how entity lookups handle branch isolation:\n- STRICT: Only return entities from the specified branch\n- MERGE: Fall back to main branch if entity not found on specified branch"
+        "description": "Branch resolution mode for time-travel queries.\n\nControls how entity lookups handle branch isolation:\n- ISOLATED: Only return entities from the specified branch\n- MERGED: Fall back to main branch if entity not found on specified branch"
       },
       "BranchPublic": {
         "properties": {
@@ -14030,7 +14096,7 @@
           "status": {
             "$ref": "#/components/schemas/ChangeOrderStatus",
             "description": "Workflow state",
-            "default": "Draft"
+            "default": "draft"
           },
           "impact_level": {
             "anyOf": [
@@ -14227,7 +14293,7 @@
           "status": {
             "$ref": "#/components/schemas/ChangeOrderStatus",
             "description": "Workflow state",
-            "default": "Draft"
+            "default": "draft"
           },
           "impact_level": {
             "anyOf": [
@@ -14617,15 +14683,15 @@
       "ChangeOrderStatus": {
         "type": "string",
         "enum": [
-          "Draft",
-          "Submitted for Approval",
-          "Under Review",
-          "Approved",
-          "Implemented",
-          "Rejected"
+          "draft",
+          "submitted_for_approval",
+          "under_review",
+          "approved",
+          "implemented",
+          "rejected"
         ],
         "title": "ChangeOrderStatus",
-        "description": "Change Order workflow statuses.\n\nEach status has an associated Ant Design color name for UI rendering."
+        "description": "Change Order workflow statuses.\n\nEach status has an associated Ant Design color name for UI rendering.\nAll status values are lowercase with underscores for consistency."
       },
       "ChangeOrderStatusStats": {
         "properties": {
@@ -14811,6 +14877,57 @@
             ],
             "title": "Custom Field Values",
             "description": "Custom field values matching config.custom_fields definitions"
+          },
+          "assigned_approver_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Approver Id",
+            "description": "Assigned approver (None to clear)"
+          },
+          "sla_assigned_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Assigned At",
+            "description": "SLA assigned timestamp (None to clear)"
+          },
+          "sla_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Due Date",
+            "description": "SLA due date (None to clear)"
+          },
+          "sla_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Status",
+            "description": "SLA status (None to clear)"
           }
         },
         "type": "object",
@@ -18753,7 +18870,7 @@
           "status": {
             "$ref": "#/components/schemas/ProjectStatus",
             "description": "Project status",
-            "default": "Draft"
+            "default": "draft"
           },
           "start_date": {
             "anyOf": [
@@ -18835,177 +18952,6 @@
         "title": "ProjectCreate",
         "description": "Schema for creating a new project."
       },
-      "ProjectMemberCreate": {
-        "properties": {
-          "role": {
-            "$ref": "#/components/schemas/ProjectRole",
-            "description": "Project role for the user"
-          },
-          "user_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "User Id",
-            "description": "UUID of the user to assign"
-          },
-          "project_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Project Id",
-            "description": "UUID of the project"
-          },
-          "assigned_by": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned By",
-            "description": "UUID of the user assigning the role"
-          }
-        },
-        "type": "object",
-        "required": [
-          "role",
-          "user_id",
-          "project_id"
-        ],
-        "title": "ProjectMemberCreate",
-        "description": "Schema for creating a new project member assignment."
-      },
-      "ProjectMemberRead": {
-        "properties": {
-          "role": {
-            "$ref": "#/components/schemas/ProjectRole"
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "user_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "User Id"
-          },
-          "project_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Project Id"
-          },
-          "assigned_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Assigned At"
-          },
-          "assigned_by": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned By"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          },
-          "user_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Name",
-            "description": "Full name of the assigned user"
-          },
-          "user_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Email",
-            "description": "Email of the assigned user"
-          },
-          "assigned_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned By Name",
-            "description": "Full name of the user who assigned the role"
-          },
-          "project_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Project Name",
-            "description": "Name of the project"
-          }
-        },
-        "type": "object",
-        "required": [
-          "role",
-          "id",
-          "user_id",
-          "project_id",
-          "assigned_at",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "ProjectMemberRead",
-        "description": "Schema for reading project member data."
-      },
-      "ProjectMemberUpdate": {
-        "properties": {
-          "role": {
-            "$ref": "#/components/schemas/ProjectRole",
-            "description": "New project role for the user"
-          },
-          "assigned_by": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Assigned By",
-            "description": "UUID of the user updating the role"
-          }
-        },
-        "type": "object",
-        "required": [
-          "role",
-          "assigned_by"
-        ],
-        "title": "ProjectMemberUpdate",
-        "description": "Schema for updating a project member's role."
-      },
       "ProjectMetrics": {
         "properties": {
           "total_budget": {
@@ -19082,7 +19028,7 @@
           "status": {
             "$ref": "#/components/schemas/ProjectStatus",
             "description": "Project status",
-            "default": "Draft"
+            "default": "draft"
           },
           "start_date": {
             "anyOf": [
@@ -19265,17 +19211,6 @@
         "title": "ProjectRead",
         "description": "Schema for reading project data."
       },
-      "ProjectRole": {
-        "type": "string",
-        "enum": [
-          "project_admin",
-          "project_manager",
-          "project_editor",
-          "project_viewer"
-        ],
-        "title": "ProjectRole",
-        "description": "Project-level roles for RBAC.\n\nEach role has specific permissions for project operations."
-      },
       "ProjectSpotlight": {
         "properties": {
           "project_id": {
@@ -19325,14 +19260,14 @@
       "ProjectStatus": {
         "type": "string",
         "enum": [
-          "Draft",
-          "Active",
-          "On Hold",
-          "Completed",
-          "Cancelled"
+          "draft",
+          "active",
+          "on_hold",
+          "completed",
+          "cancelled"
         ],
         "title": "ProjectStatus",
-        "description": "Project workflow statuses.\n\nEach status has an associated Ant Design color name for UI rendering."
+        "description": "Project workflow statuses.\n\nEach status has an associated Ant Design color name for UI rendering.\nAll status values are lowercase for consistency."
       },
       "ProjectUpdate": {
         "properties": {
@@ -20344,6 +20279,16 @@
         "title": "ScheduleBaselineUpdate",
         "description": "Properties that can be updated on a Schedule Baseline."
       },
+      "ScopeType": {
+        "type": "string",
+        "enum": [
+          "global",
+          "project",
+          "change_order"
+        ],
+        "title": "ScopeType",
+        "description": "Scope types for role assignments.\n\n- GLOBAL: System-wide role (replaces User.role)\n- PROJECT: Project-scoped role (replaces ProjectMember)\n- CHANGE_ORDER: Change order scoped role (replaces ApprovalMatrixService)"
+      },
       "ScoreBoundariesSchema-Input": {
         "properties": {
           "LOW": {
@@ -20751,11 +20696,6 @@
             ],
             "title": "Department"
           },
-          "role": {
-            "type": "string",
-            "title": "Role",
-            "default": "viewer"
-          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -20983,7 +20923,7 @@
           "is_active"
         ],
         "title": "UserPublic",
-        "description": "User public data with RBAC permissions for frontend."
+        "description": "User public data with RBAC permissions for frontend.\n\nMust be constructed via from_user() or from_user_async().\nRole is resolved from UserRoleAssignment, not the User model."
       },
       "UserRegister": {
         "properties": {
@@ -21053,6 +20993,364 @@
         ],
         "title": "UserRegister",
         "description": "Schema for user registration."
+      },
+      "UserRoleAssignmentCreate": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id",
+            "description": "UUID of the user to assign"
+          },
+          "role_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Role Id",
+            "description": "UUID of the RBAC role"
+          },
+          "scope_type": {
+            "$ref": "#/components/schemas/ScopeType",
+            "description": "Scope type"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id",
+            "description": "UUID of the scoped entity (NULL for global scope)"
+          },
+          "metadata_": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata",
+            "description": "Additional metadata (e.g., authority_level)"
+          },
+          "granted_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted By",
+            "description": "UUID of the user granting the role"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At",
+            "description": "Optional expiration timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "role_id",
+          "scope_type"
+        ],
+        "title": "UserRoleAssignmentCreate",
+        "description": "Schema for creating a new role assignment."
+      },
+      "UserRoleAssignmentRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "role_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Role Id"
+          },
+          "scope_type": {
+            "type": "string",
+            "title": "Scope Type"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "granted_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted By"
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Granted At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Name",
+            "description": "Name of the assigned role"
+          },
+          "user_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Name",
+            "description": "Full name of the assigned user"
+          },
+          "granted_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted By Name",
+            "description": "Full name of the user who granted the role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "role_id",
+          "scope_type",
+          "granted_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "UserRoleAssignmentRead",
+        "description": "Schema for reading role assignment data."
+      },
+      "UserRoleAssignmentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "role_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Role Id"
+          },
+          "scope_type": {
+            "type": "string",
+            "title": "Scope Type"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "granted_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted By"
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Granted At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "role_id",
+          "scope_type",
+          "granted_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "UserRoleAssignmentResponse",
+        "description": "Schema for role assignment API responses."
+      },
+      "UserRoleAssignmentUpdate": {
+        "properties": {
+          "role_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Id",
+            "description": "New RBAC role UUID"
+          },
+          "metadata_": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata",
+            "description": "Updated metadata"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At",
+            "description": "Updated expiration timestamp"
+          }
+        },
+        "type": "object",
+        "title": "UserRoleAssignmentUpdate",
+        "description": "Schema for updating a role assignment."
       },
       "UserUpdate": {
         "properties": {
@@ -21152,6 +21450,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

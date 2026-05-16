@@ -105,7 +105,6 @@ async def test_build_conversation_history_loads_attachments(
     # With attachments, content is a list of blocks (text + image_url)
     assert isinstance(user_message.content, list)
 
-
 @pytest.mark.asyncio
 async def test_format_multimodal_message_with_image(db_session: Any) -> None:
     """Test that messages with image attachments use base64 data URLs.
@@ -155,7 +154,6 @@ async def test_format_multimodal_message_with_image(db_session: Any) -> None:
         formatted_content[1]["image_url"]["url"]
         == f"data:image/png;base64,{base64_content}"
     )
-
 
 @pytest.mark.asyncio
 async def test_format_multimodal_message_with_multiple_images(db_session: Any) -> None:
@@ -210,7 +208,6 @@ async def test_format_multimodal_message_with_multiple_images(db_session: Any) -
         formatted_content[2]["image_url"]["url"] == "data:image/jpeg;base64,base64data2"
     )
 
-
 @pytest.mark.asyncio
 async def test_format_multimodal_message_inlines_document_content(
     db_session: Any,
@@ -254,7 +251,6 @@ async def test_format_multimodal_message_inlines_document_content(
     assert formatted_content[1]["type"] == "text"
     assert "data.csv" in formatted_content[1]["text"]
     assert csv_content in formatted_content[1]["text"]
-
 
 @pytest.mark.asyncio
 async def test_add_message_with_attachment_ids(db_session: Any) -> None:
@@ -352,7 +348,6 @@ async def test_add_message_with_attachment_ids(db_session: Any) -> None:
     contents = {a.filename: a.content for a in attachments}
     assert contents["chart.png"] == "base64chartdata"
     assert contents["data.csv"] == "name,value\nfoo,1"
-
 
 @pytest.mark.asyncio
 async def test_format_multimodal_with_null_content_degrades_gracefully(

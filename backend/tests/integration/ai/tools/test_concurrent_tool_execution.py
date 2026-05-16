@@ -167,7 +167,6 @@ async def test_concurrent_create_wbe_tools(db_session: AsyncSession) -> None:
     # the "Session is already flushing" error that would occur with
     # a shared session. Each tool got its own task-local session.
 
-
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_tool_session_isolation(db_session: AsyncSession) -> None:
@@ -224,7 +223,6 @@ async def test_tool_session_isolation(db_session: AsyncSession) -> None:
         "Each concurrent execution should get a unique session"
     )
 
-
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_session_cleanup_after_tool_execution(db_session: AsyncSession) -> None:
@@ -258,7 +256,6 @@ async def test_session_cleanup_after_tool_execution(db_session: AsyncSession) ->
 
     # Clean up
     await ToolSessionManager.commit()
-
 
 @pytest.mark.integration
 @pytest.mark.asyncio

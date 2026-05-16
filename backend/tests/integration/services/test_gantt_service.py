@@ -115,7 +115,6 @@ async def test_gantt_data_includes_wbes_without_cost_elements(
     result = await service.get_gantt_data(
         project_id=project.project_id,
         branch="main",
-        mode="merged",
     )
 
     # Assert all WBEs are present

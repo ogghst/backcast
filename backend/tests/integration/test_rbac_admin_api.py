@@ -10,7 +10,8 @@ Tests cover:
 
 from collections.abc import AsyncGenerator
 from typing import Any
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -18,7 +19,6 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -26,6 +26,7 @@ from app.core.rbac_unified import (
 from app.db.session import get_db
 from app.main import app
 from app.models.domain.user import User
+from tests.conftest import MockUnifiedRBACService
 
 # ---------------------------------------------------------------------------
 # Mock users
@@ -36,7 +37,6 @@ MOCK_ADMIN = User(
     user_id=uuid4(),
     email="admin@test.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
 )
@@ -46,40 +46,13 @@ MOCK_VIEWER = User(
     user_id=uuid4(),
     email="viewer@test.com",
     is_active=True,
-    role="viewer",
     full_name="Viewer User",
     hashed_password="hash",
 )
 
-
-class AllowAllRBAC(RBACServiceABC):
-    """RBAC service that grants all permissions for testing."""
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return user_role in required_roles
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["admin"]
-
-    async def has_project_access(
-        self, user_id: UUID, user_role: str, project_id: UUID, required_permission: str
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        return []
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return None
-
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
 
 @pytest_asyncio.fixture
 async def admin_client(
@@ -90,9 +63,6 @@ async def admin_client(
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: MOCK_ADMIN
     app.dependency_overrides[get_current_active_user] = lambda: MOCK_ADMIN
-    app.dependency_overrides[get_rbac_service] = lambda: AllowAllRBAC()
-
-    from tests.conftest import MockUnifiedRBACService
 
     set_unified_rbac_service(MockUnifiedRBACService())
 
@@ -103,7 +73,6 @@ async def admin_client(
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
-
 
 @pytest_asyncio.fixture
 async def viewer_client(
@@ -114,11 +83,10 @@ async def viewer_client(
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: MOCK_VIEWER
     app.dependency_overrides[get_current_active_user] = lambda: MOCK_VIEWER
-    app.dependency_overrides[get_rbac_service] = lambda: AllowAllRBAC()
 
-    from tests.conftest import MockUnifiedRBACService
-
-    set_unified_rbac_service(MockUnifiedRBACService())
+    mock_rbac = MockUnifiedRBACService()
+    mock_rbac.get_user_roles = AsyncMock(return_value=["viewer"])  # type: ignore[method-assign]
+    set_unified_rbac_service(mock_rbac)
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -127,7 +95,6 @@ async def viewer_client(
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
-
 
 @pytest_asyncio.fixture
 async def custom_role(admin_client: AsyncClient) -> dict[str, Any]:
@@ -141,11 +108,9 @@ async def custom_role(admin_client: AsyncClient) -> dict[str, Any]:
     assert response.status_code == 201
     return response.json()
 
-
 # ---------------------------------------------------------------------------
 # List roles
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_list_roles_returns_all(
@@ -163,11 +128,9 @@ async def test_list_roles_returns_all(
     assert "viewer" in names
     assert "manager" in names
 
-
 # ---------------------------------------------------------------------------
 # Create role
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_create_role_success(
@@ -189,7 +152,6 @@ async def test_create_role_success(
     perm_names = {p["permission"] for p in data["permissions"]}
     assert perm_names == {"project-read", "schedule-baseline-read"}
 
-
 @pytest.mark.asyncio
 async def test_create_role_duplicate_name_400(
     admin_client: AsyncClient,
@@ -205,11 +167,9 @@ async def test_create_role_duplicate_name_400(
     assert response.status_code == 400
     assert "already exists" in response.json()["detail"].lower()
 
-
 # ---------------------------------------------------------------------------
 # Update role
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_update_role_success(
@@ -233,7 +193,6 @@ async def test_update_role_success(
     assert data["description"] == "Senior engineering role"
     assert len(data["permissions"]) == 3
 
-
 @pytest.mark.asyncio
 async def test_update_role_not_found(
     admin_client: AsyncClient,
@@ -247,11 +206,9 @@ async def test_update_role_not_found(
 
     assert response.status_code == 404
 
-
 # ---------------------------------------------------------------------------
 # Delete role
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_delete_role_success(
@@ -267,7 +224,6 @@ async def test_delete_role_success(
     # Verify role is gone
     response = await admin_client.get(f"/api/v1/admin/rbac/roles/{role_id}")
     assert response.status_code == 404
-
 
 @pytest.mark.asyncio
 async def test_delete_system_role_400(
@@ -285,7 +241,6 @@ async def test_delete_system_role_400(
     assert response.status_code == 400
     assert "system" in response.json()["detail"].lower()
 
-
 @pytest.mark.asyncio
 async def test_delete_role_not_found(
     admin_client: AsyncClient,
@@ -296,11 +251,9 @@ async def test_delete_role_not_found(
 
     assert response.status_code == 404
 
-
 # ---------------------------------------------------------------------------
 # List permissions
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_list_permissions(
@@ -318,11 +271,9 @@ async def test_list_permissions(
     # No duplicates
     assert len(perms) == len(set(perms))
 
-
 # ---------------------------------------------------------------------------
 # Provider status
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_provider_status_database(
@@ -337,11 +288,9 @@ async def test_provider_status_database(
     assert "editable" in data
     assert isinstance(data["editable"], bool)
 
-
 # ---------------------------------------------------------------------------
 # Authorization guard
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_non_admin_forbidden(

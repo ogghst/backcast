@@ -28,7 +28,6 @@ async def test_update_version_command_no_active_version(db_session: AsyncSession
     with pytest.raises(ValueError, match="No active version found"):
         await cmd.execute(db_session)
 
-
 @pytest.mark.asyncio
 async def test_create_branch_command_no_active_version(db_session: AsyncSession):
     """Test CreateBranchCommand raises ValueError when source branch has no active version."""
@@ -41,7 +40,6 @@ async def test_create_branch_command_no_active_version(db_session: AsyncSession)
     with pytest.raises(ValueError, match="No active version on branch"):
         await cmd.execute(db_session)
 
-
 @pytest.mark.asyncio
 async def test_update_command_no_active_version(db_session: AsyncSession):
     """Test UpdateCommand (Branch) raises ValueError when branch has no active version."""
@@ -53,7 +51,6 @@ async def test_update_command_no_active_version(db_session: AsyncSession):
     )
     with pytest.raises(ValueError, match="No active version on branch"):
         await cmd.execute(db_session)
-
 
 @pytest.mark.asyncio
 async def test_merge_branch_command_missing_source(db_session: AsyncSession):
@@ -70,7 +67,6 @@ async def test_merge_branch_command_missing_source(db_session: AsyncSession):
     )
     with pytest.raises(ValueError, match="Source branch .* not found"):
         await cmd.execute(db_session)
-
 
 @pytest.mark.asyncio
 async def test_merge_branch_command_missing_target(db_session: AsyncSession):
@@ -104,7 +100,6 @@ async def test_merge_branch_command_missing_target(db_session: AsyncSession):
     assert result.branch == "main"
     assert result.project_id == root_id
 
-
 @pytest.mark.asyncio
 async def test_revert_command_no_active_version(db_session: AsyncSession):
     """Test RevertCommand raises ValueError when current branch is empty."""
@@ -114,7 +109,6 @@ async def test_revert_command_no_active_version(db_session: AsyncSession):
     cmd = RevertCommand(Project, root_id, actor_id, branch="main")
     with pytest.raises(ValueError, match="No active version on"):
         await cmd.execute(db_session)
-
 
 @pytest.mark.asyncio
 async def test_revert_command_no_target_version(db_session: AsyncSession):
@@ -136,7 +130,6 @@ async def test_revert_command_no_target_version(db_session: AsyncSession):
     cmd = RevertCommand(Project, root_id, actor_id, branch="main")
     with pytest.raises(ValueError, match="Cannot revert: No target version specified"):
         await cmd.execute(db_session)
-
 
 @pytest.mark.asyncio
 async def test_temporal_service_base_methods(db_session: AsyncSession):
@@ -171,7 +164,6 @@ async def test_temporal_service_base_methods(db_session: AsyncSession):
     as_of_res = await service.get_as_of(root_id, datetime.now(UTC))
     assert as_of_res is not None
     assert as_of_res.id == p1.id
-
 
 @pytest.mark.asyncio
 async def test_temporal_service_not_implemented_methods(db_session: AsyncSession):

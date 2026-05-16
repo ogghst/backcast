@@ -35,7 +35,6 @@ async def test_cost_elements_has_schedule_baseline_id_column(db_session: AsyncSe
     assert column[1] in ("uuid", "UUID")
     assert column[2] == "YES", "Column should be nullable for migration"
 
-
 @pytest.mark.asyncio
 async def test_schedule_baselines_missing_cost_element_id_fk(db_session: AsyncSession):
     """Test that cost_element_id FK is removed from schedule_baselines table."""
@@ -68,7 +67,6 @@ async def test_schedule_baselines_missing_cost_element_id_fk(db_session: AsyncSe
     cost_element_fks = [fk for fk in fk_constraints if "cost_element" in fk[0].lower()]
     assert len(cost_element_fks) == 0, "Should not have cost_element_id FK constraint"
 
-
 @pytest.mark.asyncio
 async def test_unique_constraint_on_schedule_baseline_id(db_session: AsyncSession):
     """Test that unique index was removed from cost_elements.schedule_baseline_id.
@@ -96,7 +94,6 @@ async def test_unique_constraint_on_schedule_baseline_id(db_session: AsyncSessio
     assert index is None, (
         "Unique index should NOT exist on schedule_baseline_id (removed for versioning support)"
     )
-
 
 @pytest.mark.asyncio
 async def test_foreign_key_constraint_on_schedule_baseline_id(db_session: AsyncSession):
@@ -139,7 +136,6 @@ async def test_foreign_key_constraint_on_schedule_baseline_id(db_session: AsyncS
 
     assert perf_index is not None, "Performance index should exist"
 
-
 @pytest.mark.asyncio
 async def test_index_exists_on_schedule_baseline_id(db_session: AsyncSession):
     """Test that index exists on cost_elements.schedule_baseline_id."""
@@ -160,7 +156,6 @@ async def test_index_exists_on_schedule_baseline_id(db_session: AsyncSession):
     assert len(schedule_baseline_indexes) > 0, (
         "Should have index on schedule_baseline_id"
     )
-
 
 @pytest.mark.asyncio
 async def test_migration_preserves_existing_data(db_session: AsyncSession):
@@ -195,7 +190,6 @@ async def test_migration_preserves_existing_data(db_session: AsyncSession):
             assert baseline_id is not None, (
                 f"Cost element {code} has schedule_baseline_id but baseline not found"
             )
-
 
 @pytest.mark.asyncio
 async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
@@ -321,7 +315,6 @@ async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
     assert len(rows) == 2, (
         "Database should allow multiple cost elements to reference the same baseline"
     )
-
 
 @pytest.mark.asyncio
 async def test_cost_element_can_have_null_schedule_baseline_id(

@@ -73,7 +73,6 @@ class TestLogTemporalContext:
         # Should not raise any errors
         log_temporal_context("create_change_order", context)
 
-
 @pytest.mark.asyncio
 class TestAddTemporalMetadata:
     """Test add_temporal_metadata helper function."""

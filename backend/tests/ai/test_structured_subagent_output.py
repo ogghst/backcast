@@ -70,7 +70,6 @@ class _DummyStreamWriter:
     def write(self, data: Any) -> None:
         pass
 
-
 def _make_runtime(
     state: dict[str, Any] | None = None,
     tool_call_id: str | None = "call-123",
@@ -84,7 +83,6 @@ def _make_runtime(
         tool_call_id=tool_call_id,
         store=None,
     )
-
 
 class TestSubagentConfigSchemaField:
     """T-101: Subagent configs have structured_output_schema field."""
@@ -116,7 +114,6 @@ class TestSubagentConfigSchemaField:
         """All subagents have structured_output_schema field defined."""
         for agent in get_all_subagents():
             assert "structured_output_schema" in agent
-
 
 class TestOrchestratorStructuredOutput:
     """T-102: Orchestrator applies with_structured_output() when schema defined."""
@@ -198,7 +195,6 @@ class TestOrchestratorStructuredOutput:
         assert result[0]["runnable"] == mock_runnable
         assert result[0]["structured_output_schema"] is None
 
-
 class TestStructuredOutputExtraction:
     """T-103: Task tool extracts Pydantic model from subagent result."""
 
@@ -224,7 +220,6 @@ class TestStructuredOutputExtraction:
         # Verify tool was created
         assert isinstance(tool, StructuredTool)
         assert tool.name == "task"
-
 
 class TestSummaryGeneration:
     """T-104: Task tool generates human-readable summary for each schema type."""
@@ -356,7 +351,6 @@ class TestSummaryGeneration:
         assert "550,000.00" in summary
         assert "Budget variance: 50,000.00" in summary
 
-
 class TestStructuredOutputAttachment:
     """T-105: Structured output attached to ToolMessage.additional_kwargs."""
 
@@ -429,7 +423,6 @@ class TestStructuredOutputAttachment:
         assert "EVM Metrics" in tool_msg.content
         assert "CPI: 0.87" in tool_msg.content
 
-
 class TestBackwardCompatibility:
     """T-106: Backward compatibility with text-only responses."""
 
@@ -469,7 +462,6 @@ class TestBackwardCompatibility:
 
         # Should NOT have additional_kwargs (or empty dict)
         assert not tool_msg.additional_kwargs or tool_msg.additional_kwargs == {}
-
 
 class TestErrorHandling:
     """T-107: Invalid structured output falls back to text content."""
@@ -512,7 +504,6 @@ class TestErrorHandling:
         assert tool_msg.additional_kwargs is None or "structured_output" not in (
             tool_msg.additional_kwargs or {}
         )
-
 
 class TestAsyncPath:
     """Tests for async atask function with structured output."""
@@ -569,7 +560,6 @@ class TestAsyncPath:
         assert tool_msg.additional_kwargs is not None
         assert "structured_output" in tool_msg.additional_kwargs
         assert "EVM Metrics" in tool_msg.content
-
 
 class TestMakeJsonSerializable:
     """Tests for _make_json_serializable method."""

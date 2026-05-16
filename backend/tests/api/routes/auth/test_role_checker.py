@@ -1,250 +1,307 @@
 """Integration tests for RoleChecker dependency.
 
-Tests the RoleChecker FastAPI dependency with mock routes and users.
+Tests the RoleChecker FastAPI dependency using real database users and the
+unified RBAC system (UnifiedRBACService). Each test creates User records
+and UserRoleAssignment records linked to the seeded RBAC roles.
 """
 
 from typing import Annotated, Any
-from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker
-from app.core.rbac import RBACServiceABC, set_rbac_service
+from app.api.dependencies.auth import RoleChecker, get_current_user
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+    set_unified_rbac_session,
+)
+from app.db.session import get_db
+from app.models.domain.rbac import RBACRole
 from app.models.domain.user import User
+from app.models.domain.user_role_assignment import ScopeType, UserRoleAssignment
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# Seeded role IDs from the database (looked up per test to avoid stale refs).
+# The test DB has these roles: admin, manager, viewer (is_system=True).
+
+async def _get_role_id(session: AsyncSession, role_name: str) -> Any:
+    """Look up a seeded RBAC role ID by name."""
+    result = await session.execute(
+        select(RBACRole.id).where(RBACRole.name == role_name)
+    )
+    return result.scalar_one()
+
+async def _create_db_user(
+    session: AsyncSession,
+    email: str,
+    role: str = "viewer",
+) -> User:
+    """Insert a User row and return it."""
+    user = User(
+        id=uuid4(),
+        user_id=uuid4(),
+        email=email,
+        full_name=f"{role.title()} User",
+        is_active=True,
+        hashed_password="hash",
+        created_by=uuid4(),
+    )
+    session.add(user)
+    await session.flush()
+    await session.refresh(user)
+    return user
+
+async def _assign_role(
+    session: AsyncSession,
+    user_id: Any,
+    role_name: str,
+    scope_type: str = ScopeType.GLOBAL,
+    scope_id: Any | None = None,
+) -> None:
+    """Create a UserRoleAssignment row linking a user to a seeded role."""
+    role_id = await _get_role_id(session, role_name)
+    assignment = UserRoleAssignment(
+        id=uuid4(),
+        user_id=user_id,
+        role_id=role_id,
+        scope_type=scope_type,
+        scope_id=scope_id,
+    )
+    session.add(assignment)
+    await session.flush()
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest_asyncio.fixture
+async def admin_user(db_session: AsyncSession) -> User:
+    """Create a real admin user in the database with admin role assignment."""
+    user = await _create_db_user(
+        db_session, "test-role-checker-admin@example.com", "admin"
+    )
+    await _assign_role(db_session, user.user_id, "admin")
+    return user
+
+@pytest_asyncio.fixture
+async def manager_user(db_session: AsyncSession) -> User:
+    """Create a real manager user in the database with manager role assignment."""
+    user = await _create_db_user(
+        db_session, "test-role-checker-manager@example.com", "manager"
+    )
+    await _assign_role(db_session, user.user_id, "manager")
+    return user
+
+@pytest_asyncio.fixture
+async def viewer_user(db_session: AsyncSession) -> User:
+    """Create a real viewer user in the database with viewer role assignment."""
+    user = await _create_db_user(
+        db_session, "test-role-checker-viewer@example.com", "viewer"
+    )
+    await _assign_role(db_session, user.user_id, "viewer")
+    return user
+
+@pytest_asyncio.fixture
+def rbac_service() -> UnifiedRBACService:
+    """Create a fresh UnifiedRBACService for each test (no stale cache)."""
+    return UnifiedRBACService()
+
+@pytest_asyncio.fixture
+def test_app(
+    db_session: AsyncSession,
+    rbac_service: UnifiedRBACService,
+) -> FastAPI:
+    """Create a test FastAPI app with protected routes and real RBAC wiring."""
+    app = FastAPI()
+
+    # Wire up DB and auth overrides
+    app.dependency_overrides[get_db] = lambda: db_session
+
+    # -- Protected routes --
+
+    @app.get("/admin-only")
+    async def admin_only_route(
+        user: Annotated[User, Depends(RoleChecker(["admin"]))],
+    ) -> dict[str, Any]:
+        return {"message": "Admin access granted"}
+
+    @app.get("/admin-or-manager")
+    async def admin_or_manager_route(
+        user: Annotated[User, Depends(RoleChecker(["admin", "manager"]))],
+    ) -> dict[str, Any]:
+        return {"message": "Admin or manager access granted"}
+
+    @app.get("/delete-permission")
+    async def delete_permission_route(
+        user: Annotated[User, Depends(RoleChecker(required_permission="user-delete"))],
+    ) -> dict[str, Any]:
+        return {"message": "Delete permission granted"}
+
+    @app.get("/admin-or-delete")
+    async def admin_or_delete_route(
+        user: Annotated[User, Depends(RoleChecker(["admin"], "user-delete"))],
+    ) -> dict[str, Any]:
+        return {"message": "Admin or delete permission granted"}
+
+    return app
+
+def _make_client(
+    test_app: FastAPI,
+    db_session: AsyncSession,
+    rbac_service: UnifiedRBACService,
+    user: User,
+) -> AsyncClient:
+    """Build an AsyncClient that authenticates as the given user."""
+    test_app.dependency_overrides[get_current_user] = lambda: user
+    # Install the unified RBAC service globally and seed its permission cache
+    set_unified_rbac_service(rbac_service)
+    set_unified_rbac_session(db_session)
+    return AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test")
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 class TestRoleChecker:
     """Integration tests for RoleChecker dependency."""
 
-    @pytest.fixture
-    def mock_rbac_service(self) -> RBACServiceABC:
-        """Create a mock RBAC service for testing."""
-        mock_service = MagicMock(spec=RBACServiceABC)
-
-        # Configure mock behavior
-        def has_role_side_effect(user_role: str, required_roles: list[str]) -> bool:
-            return user_role in required_roles
-
-        def has_permission_side_effect(
-            user_role: str, required_permission: str
-        ) -> bool:
-            role_permissions = {
-                "admin": [
-                    "user-read",
-                    "user-create",
-                    "user-update",
-                    "user-delete",
-                    "department-read",
-                    "department-create",
-                    "department-update",
-                    "department-delete",
-                ],
-                "manager": [
-                    "user-read",
-                    "user-update",
-                    "department-read",
-                    "department-create",
-                    "department-update",
-                ],
-                "viewer": ["user-read", "department-read"],
-            }
-            return required_permission in role_permissions.get(user_role, [])
-
-        mock_service.has_role.side_effect = has_role_side_effect
-        mock_service.has_permission.side_effect = has_permission_side_effect
-
-        return mock_service
-
-    @pytest.fixture
-    def test_app(self, mock_rbac_service: RBACServiceABC) -> FastAPI:
-        """Create a test FastAPI app with protected routes."""
-        # Set the mock RBAC service globally
-        set_rbac_service(mock_rbac_service)
-
-        app = FastAPI()
-
-        # Mock current user dependency
-        def get_mock_user(role: str = "viewer") -> User:
-            user = MagicMock(spec=User)
-            user.role = role
-            user.email = "test@example.com"
-            user.is_active = True
-            return user
-
-        # Route 1: Role-only protection (admin only)
-        @app.get("/admin-only")
-        async def admin_only_route(
-            user: Annotated[User, Depends(RoleChecker(["admin"]))],
-        ) -> dict[str, Any]:
-            return {"message": "Admin access granted"}
-
-        # Route 2: Role-only protection (admin or manager)
-        @app.get("/admin-or-manager")
-        async def admin_or_manager_route(
-            user: Annotated[User, Depends(RoleChecker(["admin", "manager"]))],
-        ) -> dict[str, Any]:
-            return {"message": "Admin or manager access granted"}
-
-        # Route 3: Permission-only protection (user-delete permission)
-        @app.get("/delete-permission")
-        async def delete_permission_route(
-            user: Annotated[
-                User, Depends(RoleChecker(required_permission="user-delete"))
-            ],
-        ) -> dict[str, Any]:
-            return {"message": "Delete permission granted"}
-
-        # Route 4: Combined protection (admin role OR user-delete permission)
-        @app.get("/admin-or-delete")
-        async def admin_or_delete_route(
-            user: Annotated[User, Depends(RoleChecker(["admin"], "user-delete"))],
-        ) -> dict[str, Any]:
-            return {"message": "Admin or delete permission granted"}
-
-        # Helper endpoint to set current user role
-        current_user_role = {"role": "viewer"}
-
-        @app.get("/set-role/{role}")
-        async def set_role(role: str) -> dict[str, Any]:
-            current_user_role["role"] = role
-            return {"role": role}
-
-        # Override the get_current_user dependency
-        async def override_get_current_user() -> User:
-            return get_mock_user(current_user_role["role"])
-
-        # Import and override after the routes are defined
-        from app.api.dependencies.auth import get_current_user
-
-        app.dependency_overrides[get_current_user] = override_get_current_user
-
-        return app
-
-    # 🔴 RED: Integration Test 1 - Admin accesses admin-only route
     @pytest.mark.asyncio
-    async def test_admin_accesses_admin_only_route(self, test_app: FastAPI) -> None:
+    async def test_admin_accesses_admin_only_route(
+        self,
+        test_app: FastAPI,
+        db_session: AsyncSession,
+        rbac_service: UnifiedRBACService,
+        admin_user: User,
+    ) -> None:
         """Test that admin user can access admin-only route."""
-        # Arrange
-        async with AsyncClient(
-            transport=ASGITransport(app=test_app), base_url="http://test"
-        ) as client:
-            # Set user role to admin
-            await client.get("/set-role/admin")
+        await rbac_service.refresh_permissions_cache()
 
-            # Act
+        async with _make_client(
+            test_app, db_session, rbac_service, admin_user
+        ) as client:
             response = await client.get("/admin-only")
 
-            # Assert
-            assert response.status_code == 200
-            assert response.json() == {"message": "Admin access granted"}
+        assert response.status_code == 200
+        assert response.json() == {"message": "Admin access granted"}
 
-    # 🔴 RED: Integration Test 2 - Viewer tries admin route → 403
     @pytest.mark.asyncio
-    async def test_viewer_denied_admin_only_route(self, test_app: FastAPI) -> None:
+    async def test_viewer_denied_admin_only_route(
+        self,
+        test_app: FastAPI,
+        db_session: AsyncSession,
+        rbac_service: UnifiedRBACService,
+        viewer_user: User,
+    ) -> None:
         """Test that viewer user is denied access to admin-only route."""
-        # Arrange
-        async with AsyncClient(
-            transport=ASGITransport(app=test_app), base_url="http://test"
-        ) as client:
-            # Set user role to viewer
-            await client.get("/set-role/viewer")
+        await rbac_service.refresh_permissions_cache()
 
-            # Act
+        async with _make_client(
+            test_app, db_session, rbac_service, viewer_user
+        ) as client:
             response = await client.get("/admin-only")
 
-            # Assert
-            assert response.status_code == 403
-            assert "Insufficient permissions" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "Insufficient permissions" in response.json()["detail"]
 
-    # 🔴 RED: Integration Test 3 - Manager accesses admin-or-manager route
     @pytest.mark.asyncio
     async def test_manager_accesses_admin_or_manager_route(
-        self, test_app: FastAPI
+        self,
+        test_app: FastAPI,
+        db_session: AsyncSession,
+        rbac_service: UnifiedRBACService,
+        manager_user: User,
     ) -> None:
         """Test that manager user can access admin-or-manager route."""
-        # Arrange
-        async with AsyncClient(
-            transport=ASGITransport(app=test_app), base_url="http://test"
-        ) as client:
-            # Set user role to manager
-            await client.get("/set-role/manager")
+        await rbac_service.refresh_permissions_cache()
 
-            # Act
+        async with _make_client(
+            test_app, db_session, rbac_service, manager_user
+        ) as client:
             response = await client.get("/admin-or-manager")
 
-            # Assert
-            assert response.status_code == 200
-            assert response.json() == {"message": "Admin or manager access granted"}
+        assert response.status_code == 200
+        assert response.json() == {"message": "Admin or manager access granted"}
 
-    # 🔴 RED: Integration Test 4 - Permission-only check (admin has delete)
     @pytest.mark.asyncio
-    async def test_admin_has_delete_permission(self, test_app: FastAPI) -> None:
+    async def test_admin_has_delete_permission(
+        self,
+        test_app: FastAPI,
+        db_session: AsyncSession,
+        rbac_service: UnifiedRBACService,
+        admin_user: User,
+    ) -> None:
         """Test that admin user with delete permission can access route."""
-        # Arrange
-        async with AsyncClient(
-            transport=ASGITransport(app=test_app), base_url="http://test"
-        ) as client:
-            # Set user role to admin
-            await client.get("/set-role/admin")
+        await rbac_service.refresh_permissions_cache()
 
-            # Act
+        async with _make_client(
+            test_app, db_session, rbac_service, admin_user
+        ) as client:
             response = await client.get("/delete-permission")
 
-            # Assert
-            assert response.status_code == 200
-            assert response.json() == {"message": "Delete permission granted"}
+        assert response.status_code == 200
+        assert response.json() == {"message": "Delete permission granted"}
 
-    # 🔴 RED: Integration Test 5 - Permission-only check (viewer lacks delete)
     @pytest.mark.asyncio
-    async def test_viewer_lacks_delete_permission(self, test_app: FastAPI) -> None:
+    async def test_viewer_lacks_delete_permission(
+        self,
+        test_app: FastAPI,
+        db_session: AsyncSession,
+        rbac_service: UnifiedRBACService,
+        viewer_user: User,
+    ) -> None:
         """Test that viewer user without delete permission is denied."""
-        # Arrange
-        async with AsyncClient(
-            transport=ASGITransport(app=test_app), base_url="http://test"
-        ) as client:
-            # Set user role to viewer
-            await client.get("/set-role/viewer")
+        await rbac_service.refresh_permissions_cache()
 
-            # Act
+        async with _make_client(
+            test_app, db_session, rbac_service, viewer_user
+        ) as client:
             response = await client.get("/delete-permission")
 
-            # Assert
-            assert response.status_code == 403
-            assert "Insufficient permissions" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "Insufficient permissions" in response.json()["detail"]
 
-    # 🔴 RED: Integration Test 6 - Combined check (admin role granted)
     @pytest.mark.asyncio
-    async def test_combined_check_admin_role(self, test_app: FastAPI) -> None:
+    async def test_combined_check_admin_role(
+        self,
+        test_app: FastAPI,
+        db_session: AsyncSession,
+        rbac_service: UnifiedRBACService,
+        admin_user: User,
+    ) -> None:
         """Test combined check: admin role grants access."""
-        # Arrange
-        async with AsyncClient(
-            transport=ASGITransport(app=test_app), base_url="http://test"
-        ) as client:
-            # Set user role to admin
-            await client.get("/set-role/admin")
+        await rbac_service.refresh_permissions_cache()
 
-            # Act
+        async with _make_client(
+            test_app, db_session, rbac_service, admin_user
+        ) as client:
             response = await client.get("/admin-or-delete")
 
-            # Assert
-            assert response.status_code == 200
+        assert response.status_code == 200
 
-    # 🔴 RED: Integration Test 7 - Combined check (neither role nor permission)
     @pytest.mark.asyncio
-    async def test_combined_check_denied(self, test_app: FastAPI) -> None:
+    async def test_combined_check_denied(
+        self,
+        test_app: FastAPI,
+        db_session: AsyncSession,
+        rbac_service: UnifiedRBACService,
+        viewer_user: User,
+    ) -> None:
         """Test combined check: neither role nor permission denies access."""
-        # Arrange
-        async with AsyncClient(
-            transport=ASGITransport(app=test_app), base_url="http://test"
-        ) as client:
-            # Set user role to viewer (no admin role, no delete permission)
-            await client.get("/set-role/viewer")
+        await rbac_service.refresh_permissions_cache()
 
-            # Act
+        async with _make_client(
+            test_app, db_session, rbac_service, viewer_user
+        ) as client:
             response = await client.get("/admin-or-delete")
 
-            # Assert
-            assert response.status_code == 403
-            assert "Insufficient permissions" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "Insufficient permissions" in response.json()["detail"]

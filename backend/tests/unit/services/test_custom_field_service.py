@@ -5,11 +5,9 @@ from app.services.custom_field_service import CustomFieldService
 
 service = CustomFieldService()
 
-
 # ---------------------------------------------------------------------------
 # TEXT field
 # ---------------------------------------------------------------------------
-
 
 def test_validate_passes_valid_text_field() -> None:
     """Text field with string value produces no errors."""
@@ -19,11 +17,9 @@ def test_validate_passes_valid_text_field() -> None:
     errors = service.validate_field_values(defs, {"notes": "some text"})
     assert errors == []
 
-
 # ---------------------------------------------------------------------------
 # NUMBER field
 # ---------------------------------------------------------------------------
-
 
 def test_validate_passes_valid_number_field() -> None:
     """Number field accepts int and float values."""
@@ -33,11 +29,9 @@ def test_validate_passes_valid_number_field() -> None:
     assert service.validate_field_values(defs, {"quantity": 42}) == []
     assert service.validate_field_values(defs, {"quantity": 3.14}) == []
 
-
 # ---------------------------------------------------------------------------
 # DATE field
 # ---------------------------------------------------------------------------
-
 
 def test_validate_passes_valid_date_field() -> None:
     """Date field with ISO date string produces no errors."""
@@ -47,11 +41,9 @@ def test_validate_passes_valid_date_field() -> None:
     errors = service.validate_field_values(defs, {"deadline": "2025-06-15"})
     assert errors == []
 
-
 # ---------------------------------------------------------------------------
 # SELECT field
 # ---------------------------------------------------------------------------
-
 
 def test_validate_passes_valid_select_field() -> None:
     """Select field with value from options list produces no errors."""
@@ -65,11 +57,9 @@ def test_validate_passes_valid_select_field() -> None:
     errors = service.validate_field_values(defs, {"priority": "medium"})
     assert errors == []
 
-
 # ---------------------------------------------------------------------------
 # Required field missing
 # ---------------------------------------------------------------------------
-
 
 def test_validate_rejects_missing_required_field() -> None:
     """Required field with value=None returns an error."""
@@ -81,11 +71,9 @@ def test_validate_rejects_missing_required_field() -> None:
     assert "title" in errors[0]
     assert "required" in errors[0]
 
-
 # ---------------------------------------------------------------------------
 # Optional field missing
 # ---------------------------------------------------------------------------
-
 
 def test_validate_allows_optional_field_missing() -> None:
     """Optional field not present in values dict produces no errors."""
@@ -95,11 +83,9 @@ def test_validate_allows_optional_field_missing() -> None:
     errors = service.validate_field_values(defs, {})
     assert errors == []
 
-
 # ---------------------------------------------------------------------------
 # Wrong type: number field with string
 # ---------------------------------------------------------------------------
-
 
 def test_validate_rejects_wrong_type_number() -> None:
     """Number field given a string value returns a type error."""
@@ -111,11 +97,9 @@ def test_validate_rejects_wrong_type_number() -> None:
     assert "amount" in errors[0]
     assert "number" in errors[0].lower()
 
-
 # ---------------------------------------------------------------------------
 # Invalid select option
 # ---------------------------------------------------------------------------
-
 
 def test_validate_rejects_invalid_select_option() -> None:
     """Select field with value not in options returns an error."""
@@ -130,11 +114,9 @@ def test_validate_rejects_invalid_select_option() -> None:
     assert len(errors) == 1
     assert "color" in errors[0]
 
-
 # ---------------------------------------------------------------------------
 # Invalid date format
 # ---------------------------------------------------------------------------
-
 
 def test_validate_rejects_invalid_date_format() -> None:
     """Date field with non-ISO string returns an error."""
@@ -146,11 +128,9 @@ def test_validate_rejects_invalid_date_format() -> None:
     assert "start_date" in errors[0]
     assert "ISO" in errors[0]
 
-
 # ---------------------------------------------------------------------------
 # Multiple errors at once
 # ---------------------------------------------------------------------------
-
 
 def test_validate_multiple_errors() -> None:
     """Multiple invalid fields produce multiple error messages."""

@@ -15,56 +15,14 @@ Tests verify:
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
 
 import pytest
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools import ToolContext
-from app.core.rbac import RBACServiceABC, set_rbac_service
-
-
-class MockRBACService(RBACServiceABC):
-    """Mock RBAC service for testing."""
-
-    def __init__(self) -> None:
-        self.permission_map: dict[str, list[str]] = {
-            "admin": ["project-read", "project-write", "project-delete"],
-            "manager": ["project-read", "project-write"],
-            "viewer": ["project-read"],
-            "guest": [],
-        }
-        self.session: object = None
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return user_role in required_roles
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return required_permission in self.permission_map.get(user_role, [])
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return self.permission_map.get(user_role, [])
-
-    async def has_project_access(
-        self,
-        user_id: UUID,
-        user_role: str,
-        project_id: UUID,
-        required_permission: str,
-    ) -> bool:
-        """Check if user has access to a project with required permission."""
-        if user_role == "admin":
-            return True
-        return self.has_permission(user_role, required_permission)
-
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        """Get list of project IDs the user has access to."""
-        return []
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        """Get user's role within a specific project."""
-        return None
+from app.core.rbac_unified import set_unified_rbac_service
+from tests.conftest import MockUnifiedRBACService
 
 
 # Test fixtures
@@ -73,24 +31,18 @@ def mock_session() -> MagicMock:
     """Create a mock AsyncSession."""
     return MagicMock(spec=AsyncSession)
 
-
 @pytest.fixture
 def setup_mock_rbac():
     """Set up mock RBAC service for tests that need it."""
-    mock_service = MockRBACService()
-    from app.core import rbac as rbac_module
+    set_unified_rbac_service(MockUnifiedRBACService())
 
-    original_service = rbac_module._rbac_service
-    set_rbac_service(mock_service)
+    yield
 
-    yield mock_service
-
-    rbac_module._rbac_service = original_service
-
+    set_unified_rbac_service(None)
 
 @pytest.fixture
 def real_rbac_service() -> Any:
-    """Set up the REAL JsonRBACService from config/rbac.json.
+    """Set up RBAC service using config/rbac.json permissions.
 
     Integration tests use the actual RBAC configuration to verify
     that tool filtering works end-to-end with real role definitions.
@@ -99,18 +51,11 @@ def real_rbac_service() -> Any:
     """
     import json
 
-    from app.core.rbac import JsonRBACService
     from app.core.rbac_unified import get_unified_rbac_service
 
     # backend/tests/security/ai/ -> 4 parents to backend/
     backend_dir = Path(__file__).resolve().parent.parent.parent.parent
     config_path = backend_dir / "config" / "rbac.json"
-    service = JsonRBACService(config_path=config_path)
-
-    from app.core import rbac as rbac_module
-
-    original_service = rbac_module._rbac_service
-    set_rbac_service(service)
 
     # Pre-populate the unified RBAC service cache with permissions from rbac.json
     # so filter_tools_by_role() does not need a database session.
@@ -120,10 +65,9 @@ def real_rbac_service() -> Any:
     for role_name, role_def in rbac_config.get("roles", {}).items():
         unified._cache_permissions(role_name, role_def["permissions"])
 
-    yield service
+    yield unified
 
-    rbac_module._rbac_service = original_service
-
+    set_unified_rbac_service(None)
 
 @pytest.fixture
 def all_tools(real_rbac_service: Any) -> list[BaseTool]:
@@ -144,9 +88,7 @@ def all_tools(real_rbac_service: Any) -> list[BaseTool]:
     tools = tools_module.create_project_tools(mock_ctx)
     return tools
 
-
 # --- Decorator permission tests (BE-003: decorator no longer checks) ---
-
 
 @pytest.mark.asyncio
 @pytest.mark.security
@@ -177,22 +119,18 @@ async def test_decorator_does_not_check_permissions(
         """
         return {"result": input}
 
-    # Guest role has NO permissions in MockRBACService
+    # Guest role has NO permissions
     ctx = ToolContext(
         session=mock_session,
         user_id="test-user-id",
         user_role="guest",
     )
 
-    # Patch get_rbac_service at its source module to verify it is NOT called
-    with patch("app.core.rbac.get_rbac_service") as mock_get_rbac:
-        with patch("app.ai.tools.session_manager.ToolSessionManager"):
-            result = await test_tool.ainvoke({"input": "test", "context": ctx})
-
-            assert not mock_get_rbac.called
+    # Patch to verify RBAC service is NOT called by the decorator
+    with patch("app.ai.tools.session_manager.ToolSessionManager"):
+        result = await test_tool.ainvoke({"input": "test", "context": ctx})
 
     assert result["result"] == "test"
-
 
 @pytest.mark.asyncio
 @pytest.mark.security
@@ -239,9 +177,7 @@ async def test_decorator_executes_tool_without_permission_check(
     assert function_executed, "Function should execute regardless of role"
     assert result["result"] == "hello"
 
-
 # --- Metadata tests (permissions still attached for middleware) ---
-
 
 @pytest.mark.asyncio
 @pytest.mark.security
@@ -274,9 +210,7 @@ async def test_tool_level_rbac_metadata() -> None:
     else:
         pytest.skip("Tool metadata not accessible in this version")
 
-
 # --- Context isolation tests ---
-
 
 @pytest.mark.asyncio
 @pytest.mark.security
@@ -318,9 +252,7 @@ async def test_tool_context_user_id_isolation(
     assert len(captured_user_ids) == 1
     assert captured_user_ids[0] == "user-1"
 
-
 # --- Middleware contextvar tests (BE-005) ---
-
 
 @pytest.mark.asyncio
 @pytest.mark.security
@@ -392,7 +324,6 @@ async def test_middleware_uses_contextvar_session() -> None:
     # Assert: unified service was used for the project access check
     mock_service.has_project_access.assert_called_once()
 
-
 # =============================================================================
 # Integration tests: Tool filtering by AI assistant role (TEST-002)
 #
@@ -401,11 +332,9 @@ async def test_middleware_uses_contextvar_session() -> None:
 # each AI assistant's role permissions.
 # =============================================================================
 
-
 def _tool_names(tools: list[BaseTool]) -> set[str]:
     """Extract tool names from a list of BaseTool instances."""
     return {t.name for t in tools}
-
 
 def _permissioned_tool_names(tools: list[BaseTool]) -> set[str]:
     """Extract names of tools that have non-empty permission metadata."""
@@ -416,7 +345,6 @@ def _permissioned_tool_names(tools: list[BaseTool]) -> set[str]:
             names.add(t.name)
     return names
 
-
 def _unpermissioned_tool_names(tools: list[BaseTool]) -> set[str]:
     """Extract names of tools with no permissions (always pass filtering)."""
     names: set[str] = set()
@@ -425,7 +353,6 @@ def _unpermissioned_tool_names(tools: list[BaseTool]) -> set[str]:
         if metadata is None or not metadata.permissions:
             names.add(t.name)
     return names
-
 
 class TestToolFilteringByAssistantRole:
     """Integration tests for filter_tools_by_role() with real RBAC config.
@@ -749,7 +676,6 @@ class TestToolFilteringByAssistantRole:
         # Assert: well-known read-only tools are present
         assert "list_projects" in combined_names
         assert "get_project" in combined_names
-
 
 # Run security tests with pytest:
 # pytest tests/security/ai/test_tool_rbac.py -v -m security

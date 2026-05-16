@@ -700,6 +700,160 @@ class UnifiedRBACService:
 
         return deleted_any
 
+    async def get_user_authority_level(self, user_id: UUID) -> str:
+        """Get the user's approval authority level based on their roles.
+
+        Reads role-to-authority mapping from ChangeOrderConfigService.
+        Checks global roles and returns the highest authority found.
+
+        Args:
+            user_id: The user's root ID.
+
+        Returns:
+            Authority level string: LOW, MEDIUM, HIGH, or CRITICAL.
+        """
+        from app.services.change_order_config_service import ChangeOrderConfigService
+
+        session = get_unified_rbac_session()
+        if session is None:
+            return "LOW"
+
+        config_service = ChangeOrderConfigService(session)
+        role_authority = await config_service.get_role_authority_mapping()
+        hierarchy = await config_service.get_authority_hierarchy()
+
+        # Collect roles from global scope
+        global_roles = await self.get_user_roles(user_id, ScopeType.GLOBAL, None)
+
+        # Find highest authority across all roles
+        max_level = 0
+        best_authority = "LOW"
+        for role_name in global_roles:
+            authority = role_authority.get(role_name, "LOW")
+            level = hierarchy.get(authority, 0)
+            if level > max_level:
+                max_level = level
+                best_authority = authority
+
+        return best_authority
+
+    async def get_approver_for_impact(
+        self,
+        project_id: UUID,
+        impact_level: str,
+        exclude_user_id: UUID | None = None,
+    ) -> UUID | None:
+        """Find an eligible approver for a given impact level.
+
+        Strategy:
+        1. Prefer project-scoped role assignments with eligible roles
+        2. Fallback to global role assignments
+
+        Mirrors ApprovalMatrixService.get_approver_for_impact logic.
+
+        Args:
+            project_id: Project ID to scope the approver search.
+            impact_level: Financial impact level (LOW/MEDIUM/HIGH/CRITICAL).
+            exclude_user_id: Optional user ID to exclude (for separation of duties).
+
+        Returns:
+            user_id of eligible approver, or None if none found.
+        """
+        from typing import cast as typing_cast
+
+        from sqlalchemy import cast as sql_cast
+        from sqlalchemy import func
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+        from app.models.domain.rbac import RBACRole
+        from app.models.domain.user import User
+
+        session = get_unified_rbac_session()
+        if session is None:
+            return None
+
+        from app.services.change_order_config_service import ChangeOrderConfigService
+
+        config_service = ChangeOrderConfigService(session)
+
+        impact_authority = await config_service.get_impact_authority_mapping()
+        if impact_level not in impact_authority:
+            return None
+        required_authority = impact_authority[impact_level]
+
+        role_authority = await config_service.get_role_authority_mapping()
+        hierarchy = await config_service.get_authority_hierarchy()
+
+        eligible_roles = [
+            role
+            for role, authority in role_authority.items()
+            if hierarchy.get(authority, 0) >= hierarchy.get(required_authority, 0)
+        ]
+
+        if not eligible_roles:
+            return None
+
+        as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
+
+        # Strategy 1: Project-scoped assignments
+        project_conditions: list[Any] = [
+            UserRoleAssignment.scope_type == ScopeType.PROJECT,
+            UserRoleAssignment.scope_id == project_id,
+            RBACRole.name.in_(eligible_roles),
+            User.is_active == True,  # noqa: E712
+            typing_cast(Any, User).valid_time.op("@>")(as_of_tstz),
+            func.lower(typing_cast(Any, User).valid_time) <= as_of_tstz,
+            typing_cast(Any, User).deleted_at.is_(None),
+        ]
+        if exclude_user_id is not None:
+            project_conditions.append(User.user_id != exclude_user_id)
+
+        project_stmt = (
+            select(User)
+            .join(UserRoleAssignment, UserRoleAssignment.user_id == User.user_id)
+            .join(RBACRole, RBACRole.id == UserRoleAssignment.role_id)
+            .where(*project_conditions)
+            .order_by(RBACRole.name.desc())
+            .limit(1)
+        )
+
+        result = await session.execute(project_stmt)
+        approver = result.scalar_one_or_none()
+        if approver:
+            return approver.user_id
+
+        # Strategy 2: Global fallback
+        logger.warning(
+            "No eligible project member found for project %s with %s impact. "
+            "Falling back to global user search.",
+            project_id,
+            impact_level,
+        )
+
+        fallback_conditions: list[Any] = [
+            UserRoleAssignment.scope_type == ScopeType.GLOBAL,
+            RBACRole.name.in_(eligible_roles),
+            User.is_active == True,  # noqa: E712
+            typing_cast(Any, User).valid_time.op("@>")(as_of_tstz),
+            func.lower(typing_cast(Any, User).valid_time) <= as_of_tstz,
+            typing_cast(Any, User).deleted_at.is_(None),
+        ]
+        if exclude_user_id is not None:
+            fallback_conditions.append(User.user_id != exclude_user_id)
+
+        fallback_stmt = (
+            select(User)
+            .join(UserRoleAssignment, UserRoleAssignment.user_id == User.user_id)
+            .join(RBACRole, RBACRole.id == UserRoleAssignment.role_id)
+            .where(*fallback_conditions)
+            .order_by(RBACRole.name.desc())
+            .limit(1)
+        )
+
+        result = await session.execute(fallback_stmt)
+        approver = result.scalar_one_or_none()
+        return approver.user_id if approver else None
+
     async def update_assignment(
         self,
         assignment_id: UUID,

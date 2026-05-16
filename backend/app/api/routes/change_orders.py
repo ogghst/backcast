@@ -3,7 +3,7 @@
 import logging
 from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,9 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.core.versioning.enums import BranchMode
-
-if TYPE_CHECKING:
-    from app.services.approval_matrix_service import ApprovalMatrixService
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.change_order import (
@@ -46,15 +43,6 @@ def get_impact_analysis_service(
     session: AsyncSession = Depends(get_db),
 ) -> ImpactAnalysisService:
     return ImpactAnalysisService(session)
-
-
-def get_approval_matrix_service(
-    session: AsyncSession = Depends(get_db),
-) -> "ApprovalMatrixService":
-    """Get ApprovalMatrixService instance."""
-    from app.services.approval_matrix_service import ApprovalMatrixService
-
-    return ApprovalMatrixService(session)
 
 
 def get_reporting_service(
@@ -1047,7 +1035,10 @@ async def get_change_order_approval_info(
 
     Requires read permission.
     """
-    from app.services.approval_matrix_service import ApprovalMatrixService
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_session,
+    )
     from app.services.impact_analysis_service import ImpactAnalysisService
 
     try:
@@ -1061,9 +1052,6 @@ async def get_change_order_approval_info(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Change Order {change_order_id} not found",
             )
-
-        # Get approval matrix service
-        approval_service = ApprovalMatrixService(service.session)
 
         # Calculate financial impact
         financial_impact = None
@@ -1088,18 +1076,41 @@ async def get_change_order_approval_info(
             user_service = UserService(service.session)
             approver = await user_service.get_user(co.assigned_approver_id)
             if approver:
+                # Resolve role from unified RBAC
+                set_unified_rbac_session(service.session)
+                try:
+                    approver_rbac = get_unified_rbac_service()
+                    approver_roles = await approver_rbac.get_user_roles(
+                        approver.user_id, "global", None
+                    )
+                    approver_role = (
+                        approver_roles[0] if approver_roles else "unknown"
+                    )
+                finally:
+                    set_unified_rbac_session(None)
+
                 assigned_approver = {
                     "user_id": approver.user_id,
                     "full_name": approver.full_name,
                     "email": approver.email,
-                    "role": approver.role,
+                    "role": approver_role,
                 }
 
-        # Get current user's authority level
-        user_authority = await approval_service.get_user_authority_level(current_user)
-
-        # Check if current user can approve
-        can_approve = await approval_service.can_approve(current_user, co)
+        # Get current user's authority level and approval permission via unified RBAC
+        set_unified_rbac_session(service.session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            user_authority = await unified_rbac.get_user_authority_level(
+                current_user.user_id
+            )
+            can_approve = await unified_rbac.has_permission(
+                user_id=current_user.user_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         # Calculate business days remaining until SLA deadline
         sla_business_days_remaining = None

@@ -56,7 +56,6 @@ async def test_get_project_config_without_override_returns_global(
         assert data["config_id"] == str(global_config.config_id)
         assert data["project_id"] is None  # Global config has None project_id
 
-
 @pytest.mark.asyncio
 async def test_get_project_config_with_override_returns_project_config(
     client: AsyncClient,
@@ -121,7 +120,6 @@ async def test_get_project_config_with_override_returns_project_config(
         assert any(
             level["threshold_amount"] == 5000.0 for level in data["impact_levels"]
         )
-
 
 @pytest.mark.asyncio
 async def test_get_global_config(

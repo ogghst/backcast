@@ -30,7 +30,6 @@ async def test_progress_entries_table_exists(db_session):
     exists = result.scalar_one()
     assert exists is True, "progress_entries table was not created by migration!"
 
-
 @pytest.mark.asyncio
 @pytest.mark.migration
 async def test_progress_entries_columns_correct(db_session):
@@ -79,7 +78,6 @@ async def test_progress_entries_columns_correct(db_session):
             f"Column '{col_name}' has wrong nullable: {actual['nullable']} != {expected['nullable']}"
         )
 
-
 @pytest.mark.asyncio
 @pytest.mark.migration
 async def test_progress_entries_indexes_exist(db_session):
@@ -113,7 +111,6 @@ async def test_progress_entries_indexes_exist(db_session):
     assert not missing_indexes, (
         f"Missing indexes on progress_entries table: {missing_indexes}"
     )
-
 
 @pytest.mark.asyncio
 @pytest.mark.migration
@@ -152,7 +149,6 @@ async def test_progress_entries_gist_indexes_use_btree_gist(db_session):
         in gist_indexes["ix_progress_entries_transaction_time"]
     )
 
-
 @pytest.mark.asyncio
 @pytest.mark.migration
 async def test_progress_entries_foreign_key_constraints(db_session):
@@ -187,7 +183,6 @@ async def test_progress_entries_foreign_key_constraints(db_session):
         f"but found {len(fk_constraints)}: {list(fk_constraints.keys())}"
     )
 
-
 @pytest.mark.asyncio
 @pytest.mark.migration
 async def test_progress_entries_check_constraint_percentage_range(db_session):
@@ -216,7 +211,6 @@ async def test_progress_entries_check_constraint_percentage_range(db_session):
     assert "progress_percentage <=" in constraint[1], (
         "Check constraint should enforce maximum value"
     )
-
 
 @pytest.mark.asyncio
 @pytest.mark.migration
@@ -249,7 +243,6 @@ async def test_progress_entries_exclusion_constraint_overlap(db_session):
     assert "valid_time WITH &&" in constraint[1], (
         "Exclusion constraint should check valid_time overlap"
     )
-
 
 @pytest.mark.asyncio
 @pytest.mark.migration

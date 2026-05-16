@@ -16,7 +16,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -34,70 +33,28 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
 )
 
-
 def mock_get_current_user() -> User:
     return mock_admin_user
 
-
 def mock_get_current_active_user() -> User:
     return mock_admin_user
-
-
-# Mock RBAC service that allows everything
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "change-order-read",
-            "change-order-create",
-            "change-order-update",
-            "change-order-delete",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
-
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
 
 @pytest.mark.asyncio
 async def test_archive_implemented_change_order_success(
@@ -160,7 +117,6 @@ async def test_archive_implemented_change_order_success(
     active_branch = result.scalar_one_or_none()
     assert active_branch is None, "Branch should be soft-deleted after archive"
 
-
 @pytest.mark.asyncio
 async def test_archive_rejected_change_order_success(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -212,7 +168,6 @@ async def test_archive_rejected_change_order_success(
     assert data["change_order_id"] == str(co_id)
     assert data["status"] == "rejected"
 
-
 @pytest.mark.asyncio
 async def test_archive_active_change_order_fails(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -253,7 +208,6 @@ async def test_archive_active_change_order_fails(
     data = response.json()
     assert "detail" in data
     assert "Cannot archive active" in data["detail"]
-
 
 @pytest.mark.asyncio
 async def test_archive_nonexistent_change_order_fails(

@@ -15,7 +15,6 @@ from app.api.dependencies.auth import (
     get_current_active_user,
     get_current_user,
 )
-from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -29,68 +28,27 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
 )
 
-
 def mock_get_current_user() -> User:
     return mock_admin_user
 
-
 def mock_get_current_active_user() -> User:
     return mock_admin_user
-
-
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "schedule-baseline-read",
-            "schedule-baseline-create",
-            "schedule-baseline-update",
-            "schedule-baseline-delete",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> MockRBACService:
-    return MockRBACService()
-
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
 
 @pytest_asyncio.fixture
 async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
@@ -154,7 +112,6 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
         "project_id": project_id,
         "wbe_id": wbe_id,
     }
-
 
 class TestScheduleBaselineCreate:
     """Test schedule baseline CREATE endpoint with temporal context."""
@@ -303,7 +260,6 @@ class TestScheduleBaselineCreate:
         data = response.json()
         assert "already exists" in data["detail"].lower()
 
-
 class TestScheduleBaselineUpdate:
     """Test schedule baseline UPDATE endpoint with temporal context."""
 
@@ -380,7 +336,6 @@ class TestScheduleBaselineUpdate:
         # Assert - Updated successfully
         assert update_response.status_code == 200
 
-
 class TestScheduleBaselineDelete:
     """Test schedule baseline DELETE endpoint continues using query parameters."""
 
@@ -424,7 +379,6 @@ class TestScheduleBaselineDelete:
             f"/api/v1/schedule-baselines/{baseline_id}?branch=main"
         )
         assert get_response.status_code == 404
-
 
 class TestScheduleBaselineDirectEndpoints:
     """Test direct schedule baseline endpoints at /api/v1/schedule-baselines."""

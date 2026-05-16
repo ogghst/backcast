@@ -1171,9 +1171,10 @@ class DataSeeder:
     async def seed_user_role_assignments(self, session: AsyncSession) -> None:
         """Seed global UserRoleAssignment records for each user.
 
-        Creates one GLOBAL-scoped UserRoleAssignment for each user, matching
-        their User.role value to the corresponding RBACRole. Uses direct
-        SQLAlchemy queries consistent with seed_rbac_roles() pattern.
+        Creates one GLOBAL-scoped UserRoleAssignment for each user by reading
+        the role from the seed data (users.json) and mapping it to the
+        corresponding RBACRole. Uses direct SQLAlchemy queries consistent
+        with seed_rbac_roles() pattern.
 
         Idempotent - skips users that already have a global assignment.
 
@@ -1191,7 +1192,16 @@ class DataSeeder:
 
         logger.info("Starting user role assignment seeding...")
 
-        # Load all users with their role values
+        # Load seed data to get role mappings by user_id
+        user_seed_data = self.load_seed_file("users.json")
+        seed_role_map: dict[str, str] = {}  # user_id string -> role name
+        for item in user_seed_data:
+            uid = item.get("user_id")
+            role_name = item.get("role")
+            if uid and role_name:
+                seed_role_map[uid] = role_name
+
+        # Load all users
         stmt_users = select(User)
         result_users = await session.execute(stmt_users)
         users = result_users.scalars().all()
@@ -1213,10 +1223,13 @@ class DataSeeder:
 
         with seed_operation():
             for user in users:
-                user_role_name = user.role
+                user_id_str = str(user.user_id)
+                user_role_name = seed_role_map.get(user_id_str)
+
                 if not user_role_name:
                     logger.warning(
-                        f"User {user.email} has no role, skipping assignment"
+                        f"User {user.email} has no role in seed data, "
+                        f"skipping assignment"
                     )
                     skipped_count += 1
                     continue

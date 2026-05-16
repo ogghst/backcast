@@ -22,11 +22,9 @@ from langchain_openai import ChatOpenAI
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
 
-
 def has_deepseek_credentials() -> bool:
     """Check if DeepSeek credentials are available."""
     return bool(DEEPSEEK_API_KEY and DEEPSEEK_API_KEY.startswith("sk-"))
-
 
 @pytest.mark.skipif(
     not has_deepseek_credentials(),
@@ -216,7 +214,6 @@ class TestDeepSeekNativeSupport:
                 for i, item in enumerate(choice.message.content[:3]):
                     print(f"[TEST]   Item {i}: {type(item)} = {item}")
 
-
 def test_synthetic_reasoning_message():
     """Test with a synthetic AIMessage to verify content_blocks parsing logic.
 
@@ -269,7 +266,6 @@ def test_synthetic_reasoning_message():
     print(f"[TEST] OpenAI-style: {len(blocks3)} blocks")
     for b in blocks3:
         print(f"[TEST]   {b}")
-
 
 if __name__ == "__main__":
     """Run tests directly for quick verification."""

@@ -96,6 +96,9 @@ export class AuthenticationService {
      *
      * The access token will still be valid until it expires, but the
      * refresh token cannot be used to get new access tokens.
+     *
+     * This endpoint is idempotent: it returns 200 OK even if the token
+     * was not found or already revoked.
      * @param requestBody
      * @returns any Successful Response
      * @throws ApiError

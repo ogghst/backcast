@@ -26,36 +26,30 @@ async def test_user_id():
     """Provide a test user ID for entity creation."""
     return uuid4()
 
-
 @pytest_asyncio.fixture
 async def wbe_service(db_session: AsyncSession) -> WBEService:
     """Provide WBEService instance."""
     return WBEService(db_session)
-
 
 @pytest_asyncio.fixture
 async def cost_element_service(db_session: AsyncSession) -> CostElementService:
     """Provide CostElementService instance."""
     return CostElementService(db_session)
 
-
 @pytest_asyncio.fixture
 async def cost_element_type_service(db_session: AsyncSession) -> CostElementTypeService:
     """Provide CostElementTypeService instance."""
     return CostElementTypeService(db_session)
-
 
 @pytest_asyncio.fixture
 async def department_service(db_session: AsyncSession) -> DepartmentService:
     """Provide DepartmentService instance."""
     return DepartmentService(db_session)
 
-
 @pytest_asyncio.fixture
 async def project_service(db_session: AsyncSession) -> ProjectService:
     """Provide ProjectService instance."""
     return ProjectService(db_session)
-
 
 @pytest_asyncio.fixture
 async def project_with_hierarchy(
@@ -217,7 +211,6 @@ async def project_with_hierarchy(
         "cost_element_type": cost_element_type,
     }
 
-
 @pytest.mark.asyncio
 async def test_simple_hierarchy_budget(wbe_service: WBEService, project_with_hierarchy):
     """Test budget calculation with direct and child cost elements.
@@ -236,7 +229,6 @@ async def test_simple_hierarchy_budget(wbe_service: WBEService, project_with_hie
         f"WBE 1.1 budget should include direct (20,000) + child (5,000) = 25,000, "
         f"got {budget}"
     )
-
 
 @pytest.mark.asyncio
 async def test_deep_hierarchy_budget(wbe_service: WBEService, project_with_hierarchy):
@@ -257,7 +249,6 @@ async def test_deep_hierarchy_budget(wbe_service: WBEService, project_with_hiera
         f"WBE 1 budget should include all hierarchy levels: "
         f"10,000 + 20,000 + 5,000 = 35,000, got {budget}"
     )
-
 
 @pytest.mark.asyncio
 async def test_branch_isolation(
@@ -316,7 +307,6 @@ async def test_branch_isolation(
         f"expected 50,000, got {change_budget}"
     )
 
-
 @pytest.mark.asyncio
 async def test_soft_deleted_descendants_excluded(
     wbe_service: WBEService,
@@ -342,7 +332,6 @@ async def test_soft_deleted_descendants_excluded(
         f"expected 10,000, got {budget}"
     )
 
-
 @pytest.mark.asyncio
 async def test_empty_hierarchy_budget(
     wbe_service: WBEService, project_with_hierarchy, test_user_id
@@ -364,7 +353,6 @@ async def test_empty_hierarchy_budget(
     budget = await wbe_service._compute_wbe_budget(new_wbe.wbe_id, branch="main")
 
     assert budget == Decimal("0"), f"Empty WBE should have 0 budget, got {budget}"
-
 
 @pytest.mark.asyncio
 async def test_wbe_with_only_descendants(
@@ -420,7 +408,6 @@ async def test_wbe_with_only_descendants(
         f"expected 30,000, got {budget}"
     )
 
-
 @pytest.mark.asyncio
 async def test_get_as_of_includes_hierarchical_budget(
     wbe_service: WBEService, project_with_hierarchy
@@ -435,7 +422,6 @@ async def test_get_as_of_includes_hierarchical_budget(
         f"get_as_of should populate budget_allocation with hierarchical budget, "
         f"expected 35,000, got {wbe.budget_allocation}"
     )
-
 
 @pytest.mark.asyncio
 async def test_populate_computed_budgets_hierarchical(

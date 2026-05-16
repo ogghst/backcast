@@ -25,7 +25,6 @@ def simple_tool(value: str) -> str:
     """
     return f"Echo: {value}"
 
-
 class TestWebSocketStreaming:
     """Test suite for WebSocket streaming with astream_events()."""
 

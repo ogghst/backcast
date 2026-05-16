@@ -31,5 +31,21 @@ export type ChangeOrderUpdate = {
      * Custom field values matching config.custom_fields definitions
      */
     custom_field_values?: (Record<string, any> | null);
+    /**
+     * Assigned approver (None to clear)
+     */
+    assigned_approver_id?: (string | null);
+    /**
+     * SLA assigned timestamp (None to clear)
+     */
+    sla_assigned_at?: (string | null);
+    /**
+     * SLA due date (None to clear)
+     */
+    sla_due_date?: (string | null);
+    /**
+     * SLA status (None to clear)
+     */
+    sla_status?: (string | null);
 };
 

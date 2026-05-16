@@ -8,7 +8,7 @@ Tests T-007 to T-009, T-015 to T-016:
 - T-016: Approval response message format
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -29,7 +29,6 @@ def db_session():
     """Mock database session."""
     return AsyncMock()
 
-
 @pytest.fixture
 def tool_context(db_session):
     """Create tool context for testing."""
@@ -40,14 +39,12 @@ def tool_context(db_session):
         execution_mode=ExecutionMode.STANDARD,
     )
 
-
 @pytest.fixture
 def mock_websocket():
     """Mock WebSocket connection."""
     websocket = AsyncMock()
     websocket.send_json = AsyncMock()
     return websocket
-
 
 @pytest.fixture
 def critical_tool(tool_context):
@@ -69,7 +66,6 @@ def critical_tool(tool_context):
     )
     return tool
 
-
 @pytest.fixture
 def high_risk_tool(tool_context):
     """Create a high-risk tool for testing."""
@@ -89,7 +85,6 @@ def high_risk_tool(tool_context):
         risk_level=RiskLevel.HIGH,
     )
     return tool
-
 
 # T-007: test_critical_tool_triggers_interrupt
 @pytest.mark.asyncio
@@ -171,10 +166,9 @@ async def test_critical_tool_triggers_interrupt(
     expires_at = sent_message["expires_at"]
     if isinstance(expires_at, str):
         expires_at = datetime.fromisoformat(expires_at)
-    expected_expiry = datetime.now() + timedelta(minutes=5)
+    expected_expiry = datetime.now(UTC) + timedelta(minutes=5)
     time_diff = abs((expires_at - expected_expiry).total_seconds())
     assert time_diff < 5  # Within 5 seconds tolerance
-
 
 # T-008: test_user_approval_resumes_execution
 @pytest.mark.asyncio
@@ -207,7 +201,7 @@ async def test_user_approval_resumes_execution(
     interrupt_node.pending_approvals[approval_id] = {
         "approved": True,
         "tool_name": "delete_all_data",
-        "expires_at": datetime.now() + timedelta(minutes=5),
+        "expires_at": datetime.now(UTC) + timedelta(minutes=5),
     }
 
     # Act - Mock _send_approval_request to return our pre-registered approval_id
@@ -249,7 +243,6 @@ async def test_user_approval_resumes_execution(
     # Restore original method
     interrupt_node._send_approval_request = original_send
 
-
 # T-009: test_user_rejection_skips_tool
 @pytest.mark.asyncio
 async def test_user_rejection_skips_tool(tool_context, critical_tool, mock_websocket):
@@ -278,7 +271,7 @@ async def test_user_rejection_skips_tool(tool_context, critical_tool, mock_webso
     interrupt_node.pending_approvals[approval_id] = {
         "approved": False,
         "tool_name": "delete_all_data",
-        "expires_at": datetime.now() + timedelta(minutes=5),
+        "expires_at": datetime.now(UTC) + timedelta(minutes=5),
     }
 
     # Act - Mock _send_approval_request to return our pre-registered approval_id
@@ -316,7 +309,6 @@ async def test_user_rejection_skips_tool(tool_context, critical_tool, mock_webso
 
     # Restore original method
     interrupt_node._send_approval_request = original_send
-
 
 # T-015: test_approval_request_message_format
 @pytest.mark.asyncio
@@ -373,8 +365,7 @@ async def test_approval_request_message_format(
     expires_at = sent_message["expires_at"]
     if isinstance(expires_at, str):
         expires_at = datetime.fromisoformat(expires_at)
-    assert expires_at > datetime.now() + timedelta(minutes=4)
-
+    assert expires_at > datetime.now(UTC) + timedelta(minutes=4)
 
 # T-016: test_approval_response_message_format
 def test_approval_response_message_format():
@@ -395,7 +386,7 @@ def test_approval_response_message_format():
         approval_id=approval_id,
         approved=True,
         user_id=user_id,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(UTC),
     )
     assert approved_response.approved is True
 
@@ -405,7 +396,7 @@ def test_approval_response_message_format():
         approval_id=approval_id,
         approved=False,
         user_id=user_id,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(UTC),
     )
     assert rejected_response.approved is False
 
@@ -416,12 +407,10 @@ def test_approval_response_message_format():
             approval_id=approval_id,
             # Missing 'approved'
             user_id=user_id,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
         )
 
-
 # Additional tests for edge cases
-
 
 @pytest.mark.asyncio
 async def test_graph_resume_after_approval(tool_context, critical_tool, mock_websocket):
@@ -488,7 +477,6 @@ async def test_graph_resume_after_approval(tool_context, critical_tool, mock_web
     assert interrupt_node.get_interrupt_state(approval_id) is None
     assert approval_id not in interrupt_node.pending_approvals
 
-
 @pytest.mark.asyncio
 async def test_graph_resume_rejection_skips_execution(
     tool_context, critical_tool, mock_websocket
@@ -538,7 +526,6 @@ async def test_graph_resume_rejection_skips_execution(
     # Assert - execute should not have been called
     execute.assert_not_called()
 
-
 @pytest.mark.asyncio
 async def test_high_risk_tool_triggers_interrupt(
     tool_context, high_risk_tool, mock_websocket
@@ -582,7 +569,6 @@ async def test_high_risk_tool_triggers_interrupt(
     sent_message = mock_websocket.send_json.call_args[0][0]
     assert sent_message["risk_level"] == "high"
 
-
 @pytest.mark.asyncio
 async def test_approval_timeout(tool_context, critical_tool, mock_websocket):
     """Test that expired approvals are rejected."""
@@ -601,7 +587,7 @@ async def test_approval_timeout(tool_context, critical_tool, mock_websocket):
     interrupt_node.pending_approvals[approval_id] = {
         "approved": True,
         "tool_name": "delete_all_data",
-        "expires_at": datetime.now() - timedelta(minutes=1),  # Expired
+        "expires_at": datetime.now(UTC) - timedelta(minutes=1),  # Expired
     }
 
     # Act - Mock _send_approval_request to return our expired approval_id

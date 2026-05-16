@@ -30,19 +30,16 @@ needs_api_key = pytest.mark.skipif(
     reason="Requires OPENAI_API_KEY environment variable",
 )
 
-
 @pytest.fixture
 def model_string():
     """Create a model string for Deep Agents SDK."""
     return "openai:gpt-4o"
-
 
 @pytest.fixture
 def mock_session():
     """Create a mock database session."""
     session = AsyncMock()
     return session
-
 
 @pytest.fixture
 def tool_context(mock_session):
@@ -56,7 +53,6 @@ def tool_context(mock_session):
         branch_name="main",
         branch_mode="merged",
     )
-
 
 @pytest.mark.asyncio
 async def test_deep_agent_orchestrator_creation(model_string, tool_context):
@@ -73,7 +69,6 @@ async def test_deep_agent_orchestrator_creation(model_string, tool_context):
     assert orchestrator.system_prompt == "Test prompt"
     assert orchestrator.enable_subagents is True
 
-
 @needs_api_key
 @pytest.mark.asyncio
 async def test_deep_agent_orchestrator_creates_agent(model_string, tool_context):
@@ -88,7 +83,6 @@ async def test_deep_agent_orchestrator_creates_agent(model_string, tool_context)
 
     # Agent should be created (it's a CompiledStateGraph)
     assert agent is not None
-
 
 @needs_api_key
 @pytest.mark.asyncio
@@ -107,7 +101,6 @@ async def test_deep_agent_orchestrator_with_tool_filtering(model_string, tool_co
 
     assert agent is not None
 
-
 @needs_api_key
 @pytest.mark.asyncio
 async def test_deep_agent_orchestrator_without_subagents(model_string, tool_context):
@@ -121,14 +114,12 @@ async def test_deep_agent_orchestrator_without_subagents(model_string, tool_cont
     agent = await orchestrator.create_agent()
     assert agent is not None
 
-
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_init(tool_context):
     """Test BackcastSecurityMiddleware initialization."""
     middleware = BackcastSecurityMiddleware(context=tool_context)
     assert middleware.context == tool_context
     assert middleware._security_tools == []
-
 
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_with_tools(tool_context):
@@ -143,7 +134,6 @@ async def test_backcast_security_middleware_with_tools(tool_context):
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[mock_tool])
     assert middleware._security_tools == [mock_tool]
 
-
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_set_tools(tool_context):
     """Test BackcastSecurityMiddleware.set_tools method."""
@@ -154,7 +144,6 @@ async def test_backcast_security_middleware_set_tools(tool_context):
 
     middleware.set_tools([mock_tool])
     assert middleware._security_tools == [mock_tool]
-
 
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_check_risk_low_safe_mode(tool_context):
@@ -171,7 +160,6 @@ async def test_backcast_security_middleware_check_risk_low_safe_mode(tool_contex
     assert allowed is True
     assert error is None
 
-
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_check_risk_high_safe_mode(tool_context):
     """Test that high-risk tools are blocked in safe mode."""
@@ -187,7 +175,6 @@ async def test_backcast_security_middleware_check_risk_high_safe_mode(tool_conte
     assert allowed is False
     assert error is not None
     assert "risk level" in error.lower()
-
 
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_check_risk_critical_standard_mode(
@@ -207,7 +194,6 @@ async def test_backcast_security_middleware_check_risk_critical_standard_mode(
     assert error is not None
     assert "critical" in error.lower()
 
-
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_check_risk_critical_expert_mode(
     tool_context,
@@ -225,13 +211,11 @@ async def test_backcast_security_middleware_check_risk_critical_expert_mode(
     assert allowed is True
     assert error is None
 
-
 @pytest.mark.asyncio
 async def test_temporal_context_middleware_init(tool_context):
     """Test TemporalContextMiddleware initialization."""
     middleware = TemporalContextMiddleware(context=tool_context)
     assert middleware.context == tool_context
-
 
 @pytest.mark.asyncio
 async def test_temporal_context_middleware_inject_temporal_context(tool_context):
@@ -253,7 +237,6 @@ async def test_temporal_context_middleware_inject_temporal_context(tool_context)
     assert result["branch_mode"] == "isolated"
     assert result["project_id"] == "project-123"
 
-
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_external_tool_allowed(tool_context):
     """Test BackcastSecurityMiddleware allows external tools not in Backcast tools list."""
@@ -269,7 +252,6 @@ async def test_backcast_security_middleware_external_tool_allowed(tool_context):
     assert allowed is True
     assert risk_error is None
 
-
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_no_metadata(tool_context):
     """Test BackcastSecurityMiddleware when tool has no metadata."""
@@ -284,7 +266,6 @@ async def test_backcast_security_middleware_no_metadata(tool_context):
     )
     assert error is None  # No metadata means no permission requirements
 
-
 @pytest.mark.asyncio
 async def test_backcast_security_middleware_risk_no_metadata(tool_context):
     """Test BackcastSecurityMiddleware._check_risk_level when tool has no metadata."""
@@ -298,7 +279,6 @@ async def test_backcast_security_middleware_risk_no_metadata(tool_context):
     middleware.context.execution_mode = ExecutionMode.SAFE
     allowed, error = middleware._check_risk_level("no_metadata_tool", tool_context)
     assert allowed is False  # HIGH not allowed in SAFE mode
-
 
 @pytest.mark.asyncio
 async def test_subagents_get_all():
@@ -341,7 +321,6 @@ async def test_subagents_get_all():
     assert "forecast_analyst" not in subagent_names
     assert "advanced_analyst" not in subagent_names
 
-
 @pytest.mark.asyncio
 async def test_subagents_get_by_name():
     """Test get_subagent_by_name returns correct subagent."""
@@ -352,7 +331,6 @@ async def test_subagents_get_by_name():
     assert evm_agent["name"] == "evm_analyst"
     assert "calculate_evm_metrics" in evm_agent.get("allowed_tools", [])
 
-
 @pytest.mark.asyncio
 async def test_subagents_get_by_name_not_found():
     """Test get_subagent_by_name returns None for non-existent subagent."""
@@ -360,7 +338,6 @@ async def test_subagents_get_by_name_not_found():
 
     result = get_subagent_by_name("nonexistent_agent")
     assert result is None
-
 
 @pytest.mark.asyncio
 async def test_deep_agent_sdk_tools_always_allowed(tool_context):
@@ -385,7 +362,6 @@ async def test_deep_agent_sdk_tools_always_allowed(tool_context):
         )
         assert risk_error is None
 
-
 @pytest.mark.asyncio
 async def test_write_todos_tool_allowed(tool_context):
     """Test that write_todos tool is always allowed for planning."""
@@ -396,7 +372,6 @@ async def test_write_todos_tool_allowed(tool_context):
     # write_todos should be allowed even with no tools in middleware
     error = await middleware._check_tool_permission("write_todos", {}, tool_context)
     assert error is None, "write_todos tool should be allowed"
-
 
 @pytest.mark.asyncio
 async def test_task_tool_allowed(tool_context):
@@ -409,11 +384,9 @@ async def test_task_tool_allowed(tool_context):
     error = await middleware._check_tool_permission("task", {}, tool_context)
     assert error is None, "task tool should be allowed"
 
-
 # ---------------------------------------------------------------------------
 # Migration tests (deepagents -> langchain.agents)
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_no_deepagents_imports_in_app_code():
@@ -432,7 +405,6 @@ async def test_no_deepagents_imports_in_app_code():
     assert result.returncode != 0, (
         f"Found deepagents imports in app code:\n{result.stdout}"
     )
-
 
 @pytest.mark.asyncio
 async def test_orchestrator_create_agent_returns_compiled_graph(
@@ -488,7 +460,6 @@ async def test_orchestrator_create_agent_returns_compiled_graph(
         assert agent is mock_compiled_graph
         mock_create.assert_called_once()  # Only main agent call when no subagents
 
-
 @pytest.mark.asyncio
 async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(
     model_string, tool_context
@@ -528,7 +499,6 @@ async def test_write_todos_tool_present_in_main_agent_when_subagents_enabled(
         assert "TodoListMiddleware" in middleware_names, (
             "TodoListMiddleware should be present in main agent middleware stack"
         )
-
 
 @pytest.mark.asyncio
 async def test_subagent_dicts_have_required_keys(model_string, tool_context):
@@ -577,7 +547,6 @@ async def test_subagent_dicts_have_required_keys(model_string, tool_context):
         assert "allowed_tools" in config, (
             f"Subagent {config.get('name')} missing 'allowed_tools'"
         )
-
 
 @pytest.mark.asyncio
 async def test_subagent_token_streaming_through_parent_astream_events(
@@ -662,6 +631,5 @@ async def test_subagent_token_streaming_through_parent_astream_events(
     assert callable(mock_runnable.astream_events), (
         "Subagent must support astream_events for token streaming"
     )
-
 
 # Run tests with: uv run pytest tests/ai/test_deep_agents_integration.py -v

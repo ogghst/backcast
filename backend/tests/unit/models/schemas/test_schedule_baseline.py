@@ -127,7 +127,6 @@ class TestScheduleBaselineCreate:
         assert baseline.schedule_baseline_id == schedule_baseline_id
         assert baseline.branch == "main"  # Always defaults to main
 
-
 class TestScheduleBaselineUpdate:
     """Test ScheduleBaselineUpdate schema validation."""
 

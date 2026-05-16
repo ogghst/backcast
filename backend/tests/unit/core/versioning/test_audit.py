@@ -14,7 +14,6 @@ from app.models.mixins import VersionableMixin
 # Mock Entity
 # -----------------------------------------------------------------------------
 
-
 class MockAuditEntity(EntityBase, VersionableMixin):
     __tablename__ = "mock_audit_entities"
 
@@ -23,11 +22,9 @@ class MockAuditEntity(EntityBase, VersionableMixin):
     )
     description: Mapped[str] = mapped_column(nullable=False)
 
-
 # -----------------------------------------------------------------------------
 # Test Suite
 # -----------------------------------------------------------------------------
-
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def create_mock_table(db_engine):
@@ -36,7 +33,6 @@ async def create_mock_table(db_engine):
     yield
     async with db_engine.begin() as conn:
         await conn.run_sync(MockAuditEntity.__table__.drop)
-
 
 @pytest.mark.asyncio
 async def test_audit_create_persistence(db_session):
@@ -68,7 +64,6 @@ async def test_audit_create_persistence(db_session):
     assert entity.created_by == actor_id
     assert entity.deleted_by is None
 
-
 @pytest.mark.asyncio
 async def test_audit_update_persistence(db_session):
     """Verify actor_id is persisted to created_by on update (new version)."""
@@ -94,7 +89,6 @@ async def test_audit_update_persistence(db_session):
 
     assert v2.created_by == actor_2
     assert v2.id != v1_id  # New version
-
 
 @pytest.mark.asyncio
 async def test_audit_soft_delete_persistence(db_session):

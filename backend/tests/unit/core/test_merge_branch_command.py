@@ -30,12 +30,10 @@ def admin_user() -> User:
         user_id=uuid4(),
         email="admin@example.com",
         is_active=True,
-        role="admin",
         full_name="Admin User",
         hashed_password="hash",
         created_by=uuid4(),
     )
-
 
 @pytest.mark.asyncio
 async def test_merge_branch_with_explicit_control_date(
@@ -100,7 +98,6 @@ async def test_merge_branch_with_explicit_control_date(
         f"but got {merged.valid_time.lower}"
     )
     assert merged.name == "Modified on Branch"
-
 
 @pytest.mark.asyncio
 async def test_merge_branch_with_control_date_none(
@@ -168,7 +165,6 @@ async def test_merge_branch_with_control_date_none(
     )
     assert merged.name == "Modified on Branch"
 
-
 @pytest.mark.asyncio
 async def test_merge_branch_control_date_in_past(
     db_session: AsyncSession,
@@ -232,7 +228,6 @@ async def test_merge_branch_control_date_in_past(
         f"but got {merged.valid_time.lower}"
     )
     assert merged.name == "Modified on Branch"
-
 
 @pytest.mark.asyncio
 async def test_merge_branch_control_date_utc_aware(

@@ -42,7 +42,6 @@ class TestProjectStatus:
             assert isinstance(status.color, str)
             assert len(status.color) > 0
 
-
 class TestChangeOrderStatus:
     """Test ChangeOrderStatus enum functionality."""
 

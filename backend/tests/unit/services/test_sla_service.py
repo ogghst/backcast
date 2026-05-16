@@ -101,7 +101,6 @@ class TestSLADeadlineFromConfig:
         with pytest.raises(ValueError, match="Invalid impact_level"):
             await sla_service.calculate_sla_deadline("NONEXISTENT", start)
 
-
 class TestGetSLADaysFromConfig:
     """Test that _get_sla_days returns correct days per impact level."""
 
@@ -151,7 +150,6 @@ class TestGetSLADaysFromConfig:
 
         # Should be identical
         assert sla_days == config_days
-
 
 class TestSLADaysReflectConfigUpdate:
     """Test that SLA days change when config is updated."""
@@ -270,7 +268,6 @@ class TestSLADaysReflectConfigUpdate:
         updated_days = await sla_service._get_sla_days()
         assert updated_days["LOW"] == 20
 
-
 class TestMissingConfigBehavior:
     """Test SLA behavior when config is missing."""
 
@@ -293,11 +290,9 @@ class TestMissingConfigBehavior:
         with pytest.raises(ConfigurationError, match="No global"):
             await sla_service._get_sla_days()
 
-
 # ============================================================================
 # Phase B: SLA Escalation Tests
 # ============================================================================
-
 
 class TestCheckEscalationEligible:
     """Test check_escalation_eligible method."""
@@ -380,7 +375,6 @@ class TestCheckEscalationEligible:
 
         assert await sla_service.check_escalation_eligible(co) is False
 
-
 class TestCalculateSLAStatusWithEscalation:
     """Test calculate_sla_status with escalation parameters."""
 
@@ -456,7 +450,6 @@ class TestCalculateSLAStatusWithEscalation:
         )
         assert result == SLAStatus.OVERDUE
 
-
 class TestEscalateChangeOrder:
     """Test escalate_change_order method."""
 
@@ -510,11 +503,9 @@ class TestEscalateChangeOrder:
         with pytest.raises(ValueError, match="not found"):
             await sla_service.escalate_change_order(str(uuid4()), uuid4())
 
-
 # ============================================================================
 # Phase C: Holiday Awareness Tests
 # ============================================================================
-
 
 class TestHolidayAwareness:
     """Test _is_business_day and _add_business_days with holiday awareness."""
@@ -566,7 +557,6 @@ class TestHolidayAwareness:
             datetime(2025, 12, 22, 9, 0, tzinfo=UTC), 3, "IT"
         )
         assert result.date() == date(2025, 12, 29)
-
 
 class TestCalculateBusinessDaysRemainingHolidayAwareness:
     """Test calculate_business_days_remaining with holiday awareness."""

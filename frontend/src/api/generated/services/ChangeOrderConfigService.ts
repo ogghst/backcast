@@ -48,10 +48,11 @@ export class ChangeOrderConfigService {
     }
     /**
      * Get Project Config
-     * Get the project-specific workflow configuration override.
+     * Get the workflow configuration for a specific project.
      *
-     * Returns the per-project config if it exists, or 404 if the project
-     * uses global defaults.
+     * Returns the per-project override if it exists, otherwise returns
+     * the global default configuration. This ensures the frontend always
+     * has a valid configuration to work with.
      * @param projectId
      * @returns WorkflowConfigResponse Successful Response
      * @throws ApiError

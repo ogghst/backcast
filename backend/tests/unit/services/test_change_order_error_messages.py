@@ -29,12 +29,10 @@ def admin_user() -> User:
         user_id=uuid4(),
         email="admin@example.com",
         is_active=True,
-        role="admin",
         full_name="Admin User",
         hashed_password="hash",
         created_by=uuid4(),
     )
-
 
 @pytest.fixture()
 def regular_user() -> User:
@@ -43,12 +41,10 @@ def regular_user() -> User:
         user_id=uuid4(),
         email="user@example.com",
         is_active=True,
-        role="viewer",
         full_name="Regular User",
         hashed_password="hash",
         created_by=uuid4(),
     )
-
 
 @pytest.fixture()
 def project(admin_user: User) -> Project:
@@ -59,7 +55,6 @@ def project(admin_user: User) -> Project:
         created_by=admin_user.user_id,
         project_id=uuid4(),
     )
-
 
 @pytest.mark.asyncio
 async def test_submit_for_approval_no_branch_includes_context(
@@ -110,7 +105,6 @@ async def test_submit_for_approval_no_branch_includes_context(
     assert str(project.project_id) in error_message
     assert "submit_for_approval" in error_message or "submit" in error_message.lower()
     assert "branch" in error_message.lower()
-
 
 @pytest.mark.asyncio
 async def test_submit_for_approval_no_impact_level_includes_context(
@@ -165,7 +159,6 @@ async def test_submit_for_approval_no_impact_level_includes_context(
     assert str(project.project_id) in error_message
     assert "submit_for_approval" in error_message or "submit" in error_message.lower()
     assert "impact level" in error_message.lower()
-
 
 @pytest.mark.asyncio
 async def test_recover_change_order_not_stuck_includes_context(
@@ -245,7 +238,6 @@ async def test_recover_change_order_not_stuck_includes_context(
     assert "recover_change_order" in error_message or "recover" in error_message.lower()
     assert "not stuck" in error_message.lower() or "approver" in error_message.lower()
 
-
 @pytest.mark.asyncio
 async def test_recover_change_order_approver_not_found_includes_context(
     db_session: AsyncSession, admin_user: User, project: Project
@@ -306,7 +298,6 @@ async def test_recover_change_order_approver_not_found_includes_context(
     assert "recover_change_order" in error_message or "recover" in error_message.lower()
     assert "not found" in error_message.lower()
 
-
 @pytest.mark.asyncio
 async def test_approve_change_order_invalid_status_includes_context(
     db_session: AsyncSession, admin_user: User, project: Project
@@ -342,7 +333,6 @@ async def test_approve_change_order_invalid_status_includes_context(
     assert "status" in error_message.lower()
     # Note: Current implementation doesn't include CO code/ID in status transition errors
     # This test documents the current behavior
-
 
 @pytest.mark.asyncio
 async def test_approve_change_order_wrong_approver_includes_context(
@@ -419,7 +409,6 @@ async def test_approve_change_order_wrong_approver_includes_context(
         or "status" in error_message.lower()
     )
 
-
 @pytest.mark.asyncio
 async def test_reject_change_order_invalid_status_includes_context(
     db_session: AsyncSession, admin_user: User, project: Project
@@ -455,7 +444,6 @@ async def test_reject_change_order_invalid_status_includes_context(
     assert "status" in error_message.lower()
     # Note: Current implementation doesn't include CO code/ID in status transition errors
     # This test documents the current behavior
-
 
 @pytest.mark.asyncio
 async def test_submit_for_approval_invalid_status_includes_context(
@@ -509,7 +497,6 @@ async def test_submit_for_approval_invalid_status_includes_context(
     assert str(admin_user.user_id) in error_message or "user" in error_message.lower()
     assert str(project.project_id) in error_message
     assert "submit_for_approval" in error_message or "submit" in error_message.lower()
-
 
 @pytest.mark.asyncio
 async def test_recover_change_order_invalid_impact_level_includes_context(

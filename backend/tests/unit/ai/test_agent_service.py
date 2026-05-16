@@ -29,7 +29,6 @@ class TestAgentServiceInitialization:
         service = AgentService(db_session)
         assert service.session == db_session
 
-
 @pytest.mark.asyncio
 class TestExtractClientConfig:
     """Test _extract_client_config helper function."""
@@ -158,7 +157,6 @@ class TestExtractClientConfig:
 
         assert result["base_url"] == "https://custom.example.com"
 
-
 @pytest.mark.asyncio
 class TestGetLLMClientConfig:
     """Test _get_llm_client_config method."""
@@ -247,7 +245,6 @@ class TestGetLLMClientConfig:
             with pytest.raises(ValueError, match="Provider .* not found"):
                 await service._get_llm_client_config(model_id)
 
-
 @pytest.mark.asyncio
 class TestCreateLangChainLLM:
     """Test _create_langchain_llm method."""
@@ -290,7 +287,6 @@ class TestCreateLangChainLLM:
         assert llm.temperature == 0.7
         assert llm.max_tokens == 4000
 
-
 @pytest.mark.asyncio
 class TestGetSession:
     """Test session retrieval via config_service."""
@@ -323,7 +319,6 @@ class TestGetSession:
 
         result = await service.config_service.get_session(session_id)
         assert result is None
-
 
 @pytest.mark.asyncio
 class TestBuildConversationHistory:
@@ -380,7 +375,6 @@ class TestBuildConversationHistory:
 
         assert len(history) == 0
 
-
 @pytest.mark.asyncio
 class TestGetSessionMessages:
     """Test message listing via config_service."""
@@ -412,7 +406,6 @@ class TestGetSessionMessages:
         assert len(messages) == 2
         assert messages[0].content == "First"
         assert messages[1].content == "Second"
-
 
 @pytest.mark.asyncio
 class TestChatMethod:
@@ -486,7 +479,6 @@ class TestChatMethod:
                 session_id=session_id,
                 user_id=user_id,
             )
-
 
 @pytest.mark.asyncio
 class TestChatStreamMethod:
@@ -571,7 +563,6 @@ class TestChatStreamMethod:
         }
         json_str = json.dumps(tool_result)
         assert json_str is not None
-
 
 # Keep existing tests
 @pytest.mark.asyncio
@@ -677,7 +668,6 @@ class TestToolResultSerialization:
 
         # Verify the content is extracted
         assert result_content == "Extracted content"
-
 
 @pytest.mark.asyncio
 class TestDisconnectDetection:

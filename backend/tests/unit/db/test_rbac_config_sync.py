@@ -14,7 +14,6 @@ BACKEND_DIR = Path(__file__).parent.parent.parent.parent
 SEED_RBAC_FILE = BACKEND_DIR / "seed" / "rbac_roles.json"
 CONFIG_RBAC_FILE = BACKEND_DIR / "config" / "rbac.json"
 
-
 class TestRBACConfigSync:
     """Ensure seed/rbac_roles.json and config/rbac.json stay synchronized."""
 
@@ -88,13 +87,13 @@ class TestRBACConfigSync:
         )
 
         permissions = roles["change_order_approver"].get("permissions", [])
-        assert len(permissions) == 7, (
-            f"change_order_approver should have 7 permissions, got {len(permissions)}: "
+        assert len(permissions) == 8, (
+            f"change_order_approver should have 8 permissions, got {len(permissions)}: "
             f"{sorted(permissions)}"
         )
 
     def test_change_order_approver_exists_in_config(self) -> None:
-        """T-002b: config/rbac.json contains change_order_approver with 7 permissions."""
+        """T-002b: config/rbac.json contains change_order_approver with 8 permissions."""
         with CONFIG_RBAC_FILE.open() as f:
             data = json.load(f)
 
@@ -104,8 +103,8 @@ class TestRBACConfigSync:
         )
 
         permissions = roles["change_order_approver"].get("permissions", [])
-        assert len(permissions) == 7, (
-            f"change_order_approver should have 7 permissions, got {len(permissions)}: "
+        assert len(permissions) == 8, (
+            f"change_order_approver should have 8 permissions, got {len(permissions)}: "
             f"{sorted(permissions)}"
         )
 

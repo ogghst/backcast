@@ -61,7 +61,6 @@ async def test_export_graphviz_produces_valid_dot_format():
     first_line = lines[0].strip()
     assert first_line.startswith("digraph"), "First line should declare digraph"
 
-
 @pytest.mark.asyncio
 async def test_export_graphviz_includes_node_information():
     """Test that export_graphviz() includes node information.
@@ -99,7 +98,6 @@ async def test_export_graphviz_includes_node_information():
         "DOT output should reference graph nodes"
     )
 
-
 @pytest.mark.asyncio
 async def test_export_graphviz_handles_empty_gracefully():
     """Test that export_graphviz() handles edge cases gracefully.
@@ -122,7 +120,6 @@ async def test_export_graphviz_handles_empty_gracefully():
     assert "digraph" in dot_output.lower() or "graph" in dot_output.lower(), (
         "Should contain graph declaration"
     )
-
 
 @pytest.mark.asyncio
 async def test_export_graphviz_is_deterministic():

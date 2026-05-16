@@ -53,7 +53,6 @@ async def _setup_assistant_config(
 
     return assistant_config
 
-
 async def _create_session_with_user_message(
     db_session: AsyncSession,
     assistant_config: AIAssistantConfig,
@@ -74,7 +73,6 @@ async def _create_session_with_user_message(
     )
     return session
 
-
 def _make_token_stream_events() -> list[dict]:
     """Create mock streaming events with two token chunks."""
     chunk1 = MagicMock()
@@ -91,13 +89,11 @@ def _make_token_stream_events() -> list[dict]:
         {"event": "on_end", "data": {"output": {"messages": []}}},
     ]
 
-
 def _make_end_event() -> list[dict]:
     """Create a single on_end event for simple stream completion."""
     return [
         {"event": "on_end", "data": {"output": {"messages": []}}},
     ]
-
 
 async def _run_with_mocks(
     service: AgentService,
@@ -162,7 +158,6 @@ async def _run_with_mocks(
             event_bus=event_bus,
         )
 
-
 @pytest.mark.asyncio
 async def test_run_agent_graph_publishes_token_events(
     db_session: AsyncSession,
@@ -192,7 +187,6 @@ async def test_run_agent_graph_publishes_token_events(
 
     token_events = [e for e in event_bus.replay() if e.event_type == "token_batch"]
     assert len(token_events) >= 1
-
 
 @pytest.mark.asyncio
 async def test_run_agent_graph_publishes_complete_event(
@@ -224,7 +218,6 @@ async def test_run_agent_graph_publishes_complete_event(
     complete_events = [e for e in event_bus.replay() if e.event_type == "complete"]
     assert len(complete_events) == 1
     assert "session_id" in complete_events[0].data
-
 
 @pytest.mark.asyncio
 async def test_run_agent_graph_publishes_error_on_exception(
@@ -299,7 +292,6 @@ async def test_run_agent_graph_publishes_error_on_exception(
     error_events = [e for e in event_bus.replay() if e.event_type == "error"]
     assert len(error_events) >= 1
 
-
 @pytest.mark.asyncio
 async def test_run_agent_graph_uses_existing_session(
     db_session: AsyncSession,
@@ -334,7 +326,6 @@ async def test_run_agent_graph_uses_existing_session(
     assert len(complete_events) == 1
     assert str(complete_events[0].data.get("session_id")) == str(original_session_id)
 
-
 @pytest.mark.asyncio
 async def test_run_agent_graph_publishes_thinking_event(
     db_session: AsyncSession,
@@ -364,7 +355,6 @@ async def test_run_agent_graph_publishes_thinking_event(
 
     thinking_events = [e for e in event_bus.replay() if e.event_type == "thinking"]
     assert len(thinking_events) >= 1
-
 
 def _make_tool_call_events() -> list[dict]:
     """Create mock streaming events with tool calls and token usage."""
@@ -398,7 +388,6 @@ def _make_tool_call_events() -> list[dict]:
         {"event": "on_end", "data": {"output": {"messages": []}}},
     ]
 
-
 @pytest.mark.asyncio
 async def test_run_agent_graph_returns_metrics(
     db_session: AsyncSession,
@@ -429,7 +418,6 @@ async def test_run_agent_graph_returns_metrics(
     assert isinstance(metrics, AgentExecutionMetrics)
     assert metrics.total_tokens == 300  # 2 LLM calls x (100 + 50)
     assert metrics.tool_calls_count == 1
-
 
 @pytest.mark.asyncio
 async def test_run_agent_graph_returns_zero_metrics_when_no_tools(

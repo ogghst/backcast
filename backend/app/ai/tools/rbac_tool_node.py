@@ -70,8 +70,8 @@ class RBACToolNode(ToolNode):
 
         Note:
             Reads _tool_metadata.permissions from the tool instance.
-            Uses RBACServiceABC.has_project_access for project-level checks when available.
-            Falls back to RBACServiceABC.has_permission for global permissions.
+            Uses UnifiedRBACService.has_permission for both project-level
+            and global permission checks.
         """
         # Find the tool by name
         tool = None

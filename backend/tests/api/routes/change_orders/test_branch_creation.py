@@ -8,7 +8,6 @@ from app.api.dependencies.auth import (
     get_current_active_user,
     get_current_user,
 )
-from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -21,68 +20,27 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
 )
 
-
 def mock_get_current_user() -> User:
     return mock_admin_user
 
-
 def mock_get_current_active_user() -> User:
     return mock_admin_user
-
-
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "project-create",
-            "project-read",
-            "wbe-create",
-            "wbe-read",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> MockRBACService:
-    return MockRBACService()
-
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
 
 @pytest.mark.asyncio
 async def test_create_project_on_branch(client: AsyncClient) -> None:
@@ -108,7 +66,6 @@ async def test_create_project_on_branch(client: AsyncClient) -> None:
     get_main = await client.get(f"/api/v1/projects/{project_id}?branch=main")
     assert get_main.status_code == 404
 
-
 @pytest.mark.asyncio
 async def test_create_wbe_on_branch(client: AsyncClient) -> None:
     """Test creating a WBE strictly on a specific branch and verifying isolation."""
@@ -127,9 +84,10 @@ async def test_create_wbe_on_branch(client: AsyncClient) -> None:
         "project_id": proj_id,
         "code": "1.1",
         "name": "Feature WBE",
-        "branch": "feature-1",
     }
-    wbe_res = await client.post("/api/v1/wbes", json=wbe_data)
+    wbe_res = await client.post(
+        "/api/v1/wbes", json=wbe_data, params={"branch": "feature-1"}
+    )
     assert wbe_res.status_code == 201
     data = wbe_res.json()
     assert data["branch"] == "feature-1"

@@ -24,7 +24,6 @@ from app.services.global_search_service import (
 # Unit tests for pure helper functions
 # ---------------------------------------------------------------------------
 
-
 class TestScore:
     """Tests for the _score helper function."""
 
@@ -51,7 +50,6 @@ class TestScore:
 
     def test_none_value(self) -> None:
         assert _score(None, "hello") is None
-
 
 class TestBestScore:
     """Tests for the _best_score helper function."""
@@ -95,17 +93,14 @@ class TestBestScore:
         score = _best_score(row, "hello", ["code", "name"], [], [])
         assert score == 1.0
 
-
 # ---------------------------------------------------------------------------
 # Fixtures for service tests
 # ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def mock_session() -> AsyncMock:
     """Create a mocked AsyncSession."""
     return AsyncMock()
-
 
 def _make_search_item(
     entity_type: str = "project",
@@ -130,11 +125,9 @@ def _make_search_item(
         project_id=project_id,
     )
 
-
 # ---------------------------------------------------------------------------
 # Service-level tests (mocked internal methods)
 # ---------------------------------------------------------------------------
-
 
 class TestGlobalSearchService:
     """Tests for GlobalSearchService.search method.
@@ -411,7 +404,7 @@ class TestGlobalSearchService:
             mock_session,
             query="test",
             branch="change-order-1",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         assert isinstance(result, GlobalSearchResponse)
@@ -492,6 +485,6 @@ class TestGlobalSearchService:
         assert item.entity_type == "project"
         assert item.code == "TEST-P1"
         assert item.name == "Test Project Alpha"
-        assert item.status == "Active"
+        assert item.status == "active"
         assert item.relevance_score == 1.0
         assert item.project_id == proj_id

@@ -18,7 +18,6 @@ async def test_safe_db_execute_success(db_session: AsyncSession):
     result = await safe_db_execute(db_session, mock_query(), "Test query")
     assert result.scalar_one() == 1
 
-
 @pytest.mark.asyncio
 async def test_safe_db_execute_with_error(db_session: AsyncSession):
     """Test safe_db_execute handles errors and rolls back."""
@@ -34,7 +33,6 @@ async def test_safe_db_execute_with_error(db_session: AsyncSession):
     result = await db_session.execute(text("SELECT 1"))
     assert result.scalar_one() == 1
 
-
 def test_is_transaction_aborted_with_transaction_error():
     """Test is_transaction_aborted detects transaction errors."""
 
@@ -46,7 +44,6 @@ def test_is_transaction_aborted_with_transaction_error():
         "InFailedSQLTransactionError: current transaction is aborted"
     )
     assert is_transaction_aborted(error) is True
-
 
 def test_is_transaction_aborted_with_other_error():
     """Test is_transaction_aborted returns False for other errors."""

@@ -35,16 +35,13 @@ class MockEntity(VersionableProtocol):
     def is_deleted(self) -> bool:
         return self.deleted_at is not None
 
-
 @pytest.fixture
 def mock_session() -> AsyncMock:
     return AsyncMock(spec=AsyncSession)
 
-
 @pytest.fixture
 def service(mock_session: AsyncMock) -> TemporalService[MockEntity]:
     return TemporalService(MockEntity, mock_session)
-
 
 @pytest.mark.asyncio
 async def test_create_delegates_to_command(
@@ -74,7 +71,6 @@ async def test_create_delegates_to_command(
     assert mock_session.flush.call_count == 2
     mock_session.refresh.assert_called_once()
 
-
 @pytest.mark.asyncio
 async def test_update_delegates_to_command(
     service: TemporalService[MockEntity], mock_session: AsyncMock
@@ -83,7 +79,6 @@ async def test_update_delegates_to_command(
     # For unit testing the service wrapper, we mainly want to ensure it calls the right things
     # But since the commands handle the logic, we might need integration tests more than unit tests here
     pass
-
 
 # NOTE: The fix for "Multiple rows were found" error (transaction_time tiebreaker)
 # is verified through integration testing with actual database queries.

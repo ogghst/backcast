@@ -16,7 +16,6 @@ from app.ai.tools.types import ToolContext
 # We need to access the function directly, not the decorated tool
 _get_temporal_context_func = None
 
-
 def _get_undecorated_function():
     """Get the underlying function from the decorated tool.
 
@@ -34,9 +33,7 @@ def _get_undecorated_function():
 
     return get_temporal_context_impl
 
-
 get_temporal_context = _get_undecorated_function()
-
 
 @pytest.mark.asyncio
 class TestGetTemporalContext:

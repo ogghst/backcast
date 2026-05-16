@@ -34,7 +34,6 @@ from tests.unit.fixtures.cost_element_fixtures import (
 # Type alias for the fixture
 sample_cost_element_with_budget = sample_cost_element_with_budget_fixture
 
-
 async def _resolve_project_id(db: AsyncSession, wbe_id: UUID) -> UUID:
     """Resolve the real project_id from wbe_id via the WBE table.
 
@@ -45,7 +44,6 @@ async def _resolve_project_id(db: AsyncSession, wbe_id: UUID) -> UUID:
     stmt = select(WBE.project_id).where(WBE.wbe_id == wbe_id).limit(1)
     result = await db.execute(stmt)
     return result.scalar_one()
-
 
 class TestBudgetValidation:
     """Test budget validation when creating cost registrations."""
@@ -300,7 +298,6 @@ class TestBudgetValidation:
         # Assert - Only active registration counted
         assert total == Decimal("150.00")
 
-
 class TestServerSideBudgetWarnings:
     """Test server-side budget warning functionality."""
 
@@ -491,7 +488,6 @@ class TestServerSideBudgetWarnings:
         assert warning.threshold_percent == Decimal("80.0")
         assert "95" in warning.message
         assert "80" in warning.message
-
 
 class TestBudgetEnforcement:
     """Test budget enforcement when enforce_budget is enabled."""

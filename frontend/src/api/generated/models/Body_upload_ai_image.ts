@@ -6,6 +6,6 @@ export type Body_upload_ai_image = {
     /**
      * Image file (PNG, JPG, JPEG, max 5MB)
      */
-    file: Blob;
+    file: string;
 };
 

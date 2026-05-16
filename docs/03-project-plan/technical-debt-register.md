@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-05-14
-**Total Open Items:** 21
-**Total Estimated Effort:** ~21 days
+**Last Updated:** 2026-05-16
+**Total Open Items:** 22
+**Total Estimated Effort:** ~22 days
 
 ---
 
@@ -68,17 +68,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-098] Delete Deprecated RBAC Files After Validation
+### [TD-098] ~~Delete Deprecated RBAC Files After Validation~~
 
-- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-027), updated 2026-05-11 unified RBAC cutover
-- **Description:** The unified RBAC cutover is complete. All active app code now uses `UnifiedRBACService` exclusively. Legacy RBAC files (`rbac.py`, `rbac_database.py`) have deprecation notices but still exist. `RoleChecker`/`ProjectRoleChecker` no longer have fallback logic. The `RBAC_PROVIDER` config defaults to `"database"`. These legacy files can be fully removed after production validation.
-- **Impact:** LOW -- Legacy files are dead code with deprecation notices. No user-facing impact.
-- **Estimated Effort:** 2 hours
-- **Status:** Deferred (waiting for production validation)
-- **Owner:** Backend Developer
-- **Priority:** P3 (Low)
-- **Blocker:** Requires 1-2 weeks production validation with zero issues
-- **Suggested Approach:** After production validation: (1) Delete `app/core/rbac.py`, `app/core/rbac_database.py`, (2) Delete `app/api/routes/project_members.py`, `app/services/project_member.py`, (3) Remove `RBAC_PROVIDER` config setting, (4) Remove `project_members` model/schema files, (5) Run full test suite to verify no regressions.
+- **Status:** ✅ Resolved (2026-05-16) — Completed by unified-rbac-cleanup iteration. See archive.
 
 ---
 
@@ -299,14 +291,42 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
+### [TD-105] Pre-existing MyPy Type-Var Errors in change_order_service.py
+
+- **Source:** 2026-05-16-unified-rbac-cleanup CHECK phase
+- **Description:** Two pre-existing `type-var` MyPy errors in `app/services/change_order_service.py` at lines 2320 and 2363. Unrelated to the unified RBAC cleanup — existed before this iteration. Production code for the iteration passes MyPy clean; these are in unrelated change order service methods.
+- **Impact:** LOW -- MyPy strict mode does not pass cleanly. Two type inference issues in change order service.
+- **Estimated Effort:** 1 hour
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P3 (Low)
+- **Blocker:** No
+- **Suggested Approach:** Inspect lines 2320 and 2363 in `change_order_service.py`, add explicit type annotations to resolve the `type-var` errors. Run `uv run mypy app/` to verify.
+
+---
+
+### [TD-106] Import-Sorting Errors in Test Files (167 I001 Ruff Errors)
+
+- **Source:** 2026-05-16-unified-rbac-cleanup CHECK phase
+- **Description:** 167 import-sorting (I001) Ruff errors in test files under `tests/`. These are a mix of pre-existing issues and artifacts from the bulk mock-replacement edits across ~50 test files during the unified RBAC cleanup. Production code (`app/`) is clean.
+- **Impact:** LOW -- Test code does not pass Ruff. No functional impact.
+- **Estimated Effort:** 30 minutes
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P3 (Low)
+- **Blocker:** No
+- **Suggested Approach:** Run `cd backend && uv run ruff check --fix tests/` to auto-fix all I001 errors. Verify with `uv run ruff check tests/`.
+
+---
+
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 8 | ~13 days |
-| Medium (P2-P3) | 13 | ~8 days |
-| Low (P4+) | 0 | 0 hours |
-| **Total** | **21** | **~21 days** |
+| High (P0-P1) | 7 | ~12 days |
+| Medium (P2-P3) | 14 | ~9.5 days |
+| Low (P4+) | 1 | 3 hours |
+| **Total** | **22** | **~22 days** |
 
 ---
 

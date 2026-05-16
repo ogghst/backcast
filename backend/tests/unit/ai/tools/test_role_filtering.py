@@ -7,7 +7,6 @@ BE-007: Filter tools by assistant RBAC role in agent creation.
 BE-001: Async cache-miss refresh tests (RED phase).
 """
 
-import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -52,7 +51,6 @@ def _make_mock_tool(
 
     return tool
 
-
 def _make_rbac_service_mock(
     role_permissions: dict[str, set[str]],
 ) -> MagicMock:
@@ -70,7 +68,6 @@ def _make_rbac_service_mock(
     )
     service.refresh_permissions_cache = AsyncMock()
     return service
-
 
 class TestFilterToolsByRole:
     """Tests for filter_tools_by_role() function."""
@@ -198,7 +195,6 @@ class TestFilterToolsByRole:
             set_unified_rbac_service(None)  # type: ignore[arg-type]
 
         assert len(result) == 0
-
 
 class TestFilterToolsByRoleAsyncCacheRefresh:
     """Tests for async cache-miss refresh behavior in filter_tools_by_role().
@@ -339,12 +335,13 @@ class TestFilterToolsByRoleAsyncCacheRefresh:
     @pytest.mark.asyncio
     async def test_filter_tools_by_role_cache_miss_logs_error(
         self,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """T-005: Cache miss triggers an ERROR-level log message.
 
         Criterion: TC-6
         """
+        from unittest.mock import patch
+
         mock_service = MagicMock()
         mock_service._get_cached_permissions = MagicMock(
             side_effect=[
@@ -357,24 +354,23 @@ class TestFilterToolsByRoleAsyncCacheRefresh:
         set_unified_rbac_service(mock_service)
         try:
             tool = _make_mock_tool("list_projects", permissions=["project-read"])
-            with caplog.at_level(logging.ERROR, logger="app.ai.tools"):
+            # Patch the module-level logger to verify the error call directly
+            import app.ai.tools as tools_mod
+
+            with patch.object(tools_mod.logger, "error") as mock_error:
                 await filter_tools_by_role([tool], "ai-viewer")
+
+            # Assert that logger.error was called with a message containing "cache" and "miss"
+            mock_error.assert_called_once()
+            call_args = str(mock_error.call_args)
+            assert "cache" in call_args.lower(), (
+                f"Expected error log to contain 'cache', got: {call_args}"
+            )
+            assert "miss" in call_args.lower() or "expired" in call_args.lower(), (
+                f"Expected error log to contain 'miss' or 'expired', got: {call_args}"
+            )
         finally:
             set_unified_rbac_service(None)  # type: ignore[arg-type]
-
-        # Assert ERROR-level log containing "cache" and ("miss" or "expired")
-        error_records = [
-            r
-            for r in caplog.records
-            if r.levelname == "ERROR" and "cache" in r.message.lower()
-        ]
-        assert len(error_records) >= 1, (
-            "Expected at least one ERROR-level log message containing 'cache'"
-        )
-        log_msg = error_records[0].message.lower()
-        assert "miss" in log_msg or "expired" in log_msg, (
-            f"Expected log message to contain 'miss' or 'expired', got: {error_records[0].message}"
-        )
 
     @pytest.mark.asyncio
     async def test_filter_tools_by_role_cache_miss_refresh_with_session(self) -> None:

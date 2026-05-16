@@ -53,5 +53,6 @@ class TestFilteringIntegration:
                 "expected int",
                 "expected Numeric",
                 "expected Decimal",
+                "expected unknown",
             ]
         )

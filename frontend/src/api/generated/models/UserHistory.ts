@@ -9,7 +9,6 @@ export type UserHistory = {
     email: string;
     full_name: string;
     department?: (string | null);
-    role?: string;
     id: string;
     user_id: string;
     is_active: boolean;

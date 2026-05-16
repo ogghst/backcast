@@ -19,7 +19,6 @@ from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
 
 sample_cost_element_with_budget = _fixtures.sample_cost_element_with_budget  # noqa: F401
 
-
 @pytest.mark.asyncio
 async def test_get_progress_history_with_as_of(
     db_session: AsyncSession, sample_cost_element_with_budget

@@ -21,7 +21,6 @@ def mock_session():
     """Create a mock database session."""
     return AsyncMock()
 
-
 @pytest.fixture
 def mock_provider():
     """Create a mock AI provider."""
@@ -31,7 +30,6 @@ def mock_provider():
     provider.base_url = "https://api.openai.com/v1"
     return provider
 
-
 @pytest.fixture
 def mock_model():
     """Create a mock AI model."""
@@ -40,12 +38,10 @@ def mock_model():
     model.name = "gpt-4"
     return model
 
-
 @pytest.fixture
 def parser(mock_session):
     """Create a ChangeOrderRequirementParser instance."""
     return ChangeOrderRequirementParser(mock_session)
-
 
 @pytest.mark.asyncio
 async def test_parse_requirements_success(parser, mock_provider, mock_model):
@@ -117,7 +113,6 @@ async def test_parse_requirements_success(parser, mock_provider, mock_model):
         assert result["recommendation"] == "Approve with conditions"
         assert result["confidence_score"] == 0.85
 
-
 @pytest.mark.asyncio
 async def test_parse_requirements_invalid_json(parser, mock_provider, mock_model):
     """Test requirement parsing with invalid JSON response."""
@@ -163,7 +158,6 @@ async def test_parse_requirements_invalid_json(parser, mock_provider, mock_model
                 reason="Test",
             )
 
-
 @pytest.mark.asyncio
 async def test_validate_risk_level(parser):
     """Test risk level validation and normalization."""
@@ -175,7 +169,6 @@ async def test_validate_risk_level(parser):
     # Test invalid risk level defaults to Medium
     assert parser._validate_risk_level("Critical") == "Medium"
     assert parser._validate_risk_level("") == "Medium"
-
 
 @pytest.mark.asyncio
 async def test_parse_requirements_no_provider(parser):
@@ -192,7 +185,6 @@ async def test_parse_requirements_no_provider(parser):
                 description="Test",
                 reason="Test",
             )
-
 
 @pytest.mark.asyncio
 async def test_parse_requirements_no_model(parser, mock_provider):
@@ -221,7 +213,6 @@ async def test_parse_requirements_no_model(parser, mock_provider):
                 description="Test",
                 reason="Test",
             )
-
 
 @pytest.mark.asyncio
 async def test_analyze_with_impact_only(parser, mock_provider, mock_model):

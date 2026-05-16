@@ -94,7 +94,6 @@ async def test_attachment_model_has_message_foreign_key(db_session: Any) -> None
 
     await db_session.commit()
 
-
 @pytest.mark.asyncio
 async def test_attachment_content_stored_correctly(db_session: Any) -> None:
     """Test that attachment content (extracted text or base64) is stored correctly.
@@ -171,7 +170,6 @@ async def test_attachment_content_stored_correctly(db_session: Any) -> None:
     assert attachment_obj.created_at is not None
 
     await db_session.commit()
-
 
 @pytest.mark.asyncio
 async def test_attachment_can_be_queried_by_message_id(db_session: Any) -> None:
@@ -255,7 +253,6 @@ async def test_attachment_can_be_queried_by_message_id(db_session: Any) -> None:
     assert filenames == {"image1.png", "image2.jpg"}
 
     await db_session.commit()
-
 
 @pytest.mark.asyncio
 async def test_attachment_content_can_be_null(db_session: Any) -> None:

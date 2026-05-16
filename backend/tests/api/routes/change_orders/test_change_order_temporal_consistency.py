@@ -19,7 +19,6 @@ from sqlalchemy import select as sql_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -34,49 +33,15 @@ mock_admin_user = User(
     user_id=UUID("00000000-0000-0000-0000-000000000001"),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
 )
 
-
 def mock_get_current_user() -> User:
     return mock_admin_user
 
-
 def mock_get_current_active_user() -> User:
     return mock_admin_user
-
-
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["change-order-read", "change-order-create", "change-order-update"]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
-
 
 @pytest.fixture(autouse=True)
 def override_auth():
@@ -86,14 +51,12 @@ def override_auth():
     app_main.app.dependency_overrides[get_current_active_user] = (
         mock_get_current_active_user
     )
-    app_main.app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app_main.app.dependency_overrides = {}
-
 
 @pytest_asyncio.fixture
 async def test_project(client: AsyncClient) -> dict[str, Any]:
@@ -105,7 +68,6 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     response = await client.post("/api/v1/projects", json=project_data)
     assert response.status_code == 201
     return response.json()
-
 
 async def print_version_details(
     version: ChangeOrder, label: str, indent: str = "  "
@@ -156,7 +118,6 @@ async def print_version_details(
             )
     else:
         print(f"{indent}  ✓ transaction_time is open-ended (current version)")
-
 
 @pytest.mark.asyncio
 async def test_change_order_update_temporal_consistency(

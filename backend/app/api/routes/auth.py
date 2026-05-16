@@ -94,12 +94,28 @@ async def login(
     # Notify admins of login
     from app.core.notifications import notifier
     from app.core.notifications._types import NotificationEvent, NotificationPayload
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_session,
+    )
+
+    # Resolve role from unified RBAC for the notification
+    user_role = "viewer"
+    try:
+        set_unified_rbac_session(session)
+        roles = await get_unified_rbac_service().get_user_roles(
+            user.user_id, "global", None
+        )
+        if roles:
+            user_role = roles[0]
+    finally:
+        set_unified_rbac_session(None)
 
     notifier.send_fire_and_forget(
         NotificationPayload(
             event=NotificationEvent.USER_LOGIN,
             message=f"User logged in: {user.email}",
-            details={"name": user.full_name, "role": user.role},
+            details={"name": user.full_name, "role": user_role},
         )
     )
 

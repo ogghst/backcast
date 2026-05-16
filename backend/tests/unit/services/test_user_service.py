@@ -46,7 +46,6 @@ class TestUserServiceGetUser:
             email="test@example.com",
             hashed_password="hashed_pw",
             full_name="Test User",
-            role="viewer",
             is_active=True,
             created_by=actor_id,
         )
@@ -62,7 +61,6 @@ class TestUserServiceGetUser:
         assert result.id == user.id
         assert result.email == "test@example.com"
         assert result.full_name == "Test User"
-
 
 class TestUserServiceCreate:
     """Test UserService.create_user() method."""
@@ -91,7 +89,6 @@ class TestUserServiceCreate:
         fetched = await service.get_user(created_user.user_id)
         assert fetched is not None
         assert fetched.email == "newuser@example.com"
-
 
 class TestUserServiceUpdate:
     """Test UserService.update_user() method."""
@@ -127,7 +124,6 @@ class TestUserServiceUpdate:
         fetched = await service.get_user(v2.user_id)
         assert fetched is not None
         assert fetched.full_name == "Updated Name"
-
 
 class TestUserServiceDelete:
     """Test UserService.delete_user() method."""
@@ -179,7 +175,6 @@ class TestUserServiceDelete:
         ):
             await service.delete_user(non_existent_id, actor_id=uuid4())
 
-
 class TestServiceGetById:
     """Test UserService.get_by_id() method - PK lookup."""
 
@@ -213,7 +208,6 @@ class TestServiceGetById:
             email="test@example.com",
             hashed_password="hashed_pw",
             full_name="Test User",
-            role="viewer",
             is_active=True,
             created_by=actor_id,
         )
@@ -245,7 +239,6 @@ class TestServiceGetById:
             email="distinction@example.com",
             hashed_password="hashed_pw",
             full_name="Distinction Test",
-            role="viewer",
             is_active=True,
             created_by=actor_id,
         )
@@ -266,7 +259,6 @@ class TestServiceGetById:
 
         # Both return the same user
         assert result_by_pk.id == result_by_root.id
-
 
 class TestUserServicePreferences:
     """Test UserService preference methods."""
@@ -291,7 +283,6 @@ class TestUserServicePreferences:
 
         # Assert
         assert prefs == {}
-
 
 class TestUserIdentifiers:
     """Test UserService user_id vs id (PK) resolution methods.

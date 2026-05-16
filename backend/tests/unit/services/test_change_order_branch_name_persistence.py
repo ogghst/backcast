@@ -26,12 +26,10 @@ def admin_user() -> User:
         user_id=uuid4(),
         email="admin@example.com",
         is_active=True,
-        role="admin",
         full_name="Admin User",
         hashed_password="hash",
         created_by=uuid4(),
     )
-
 
 @pytest.mark.asyncio
 async def test_branch_name_persisted_on_co_creation(
@@ -89,7 +87,6 @@ async def test_branch_name_persisted_on_co_creation(
     assert row[0] == expected_branch_name, (
         f"Persisted branch_name should be {expected_branch_name}, got {row[0]}"
     )
-
 
 @pytest.mark.asyncio
 async def test_branch_name_persisted_after_update(

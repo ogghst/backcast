@@ -51,7 +51,6 @@ class TestProjectUpdateValidation:
         update = ProjectUpdate(name="Valid Project Name")
         assert update.name == "Valid Project Name"
 
-
 class TestCRUDTemplateExisting:
     """Keep existing basic tests for template structure."""
 

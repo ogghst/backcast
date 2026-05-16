@@ -33,7 +33,6 @@ async def create_test_department(db_session: AsyncSession):
     )
     return result.scalar_one()
 
-
 async def create_test_cost_element_type(
     db_session: AsyncSession,
     department_id,
@@ -59,7 +58,6 @@ async def create_test_cost_element_type(
     )
     return result.scalar_one()
 
-
 async def create_test_project(db_session: AsyncSession, admin_user, project_id: uuid4):
     """Create a test project with proper temporal fields."""
     stmt = text("""
@@ -81,7 +79,6 @@ async def create_test_project(db_session: AsyncSession, admin_user, project_id: 
         },
     )
     return result.scalar_one()
-
 
 async def create_test_wbe(
     db_session: AsyncSession, admin_user, wbe_id: uuid4, project_id: uuid4
@@ -107,7 +104,6 @@ async def create_test_wbe(
         },
     )
     return result.scalar_one()
-
 
 async def create_test_cost_element(
     db_session: AsyncSession,
@@ -138,7 +134,6 @@ async def create_test_cost_element(
         },
     )
     return result.scalar_one()
-
 
 @pytest.mark.asyncio
 async def test_create_quality_event(db_session: AsyncSession, admin_user):
@@ -185,7 +180,6 @@ async def test_create_quality_event(db_session: AsyncSession, admin_user):
     assert event.root_cause == "Insufficient weld penetration"
     assert event.created_by == admin_user.id
 
-
 @pytest.mark.asyncio
 async def test_update_quality_event(db_session: AsyncSession, admin_user):
     """Test updating a quality event creates a new version."""
@@ -231,14 +225,13 @@ async def test_update_quality_event(db_session: AsyncSession, admin_user):
 
     updated = await service.update_quality_event(
         quality_event_id=quality_event_id,
-        registration_in=update_data,
+        event_in=update_data,
         actor_id=admin_user.id,
     )
 
     assert updated.description == "Updated: Additional rework needed"
     assert updated.cost_impact == Decimal("250.00")
     assert updated.severity == "high"
-
 
 @pytest.mark.asyncio
 async def test_soft_delete_quality_event(db_session: AsyncSession, admin_user):
@@ -284,7 +277,6 @@ async def test_soft_delete_quality_event(db_session: AsyncSession, admin_user):
     retrieved = await service.get_by_id(quality_event_id)
     assert retrieved is None
 
-
 @pytest.mark.asyncio
 async def test_get_quality_events(db_session: AsyncSession, admin_user):
     """Test retrieving quality events with pagination."""
@@ -328,7 +320,6 @@ async def test_get_quality_events(db_session: AsyncSession, admin_user):
     assert total == 3
     assert len(events) == 3
 
-
 @pytest.mark.asyncio
 async def test_get_total_for_cost_element(db_session: AsyncSession, admin_user):
     """Test getting total cost impact for a cost element."""
@@ -366,7 +357,6 @@ async def test_get_total_for_cost_element(db_session: AsyncSession, admin_user):
     total = await service.get_total_for_cost_element(cost_element_id)
     expected_total = sum(costs)
     assert total == expected_total
-
 
 @pytest.mark.asyncio
 async def test_get_quality_events_by_period(db_session: AsyncSession, admin_user):
@@ -416,7 +406,6 @@ async def test_get_quality_events_by_period(db_session: AsyncSession, admin_user
         "period_start" in item and "total_cost_impact" in item for item in result
     )
 
-
 @pytest.mark.asyncio
 async def test_time_travel_query(db_session: AsyncSession, admin_user):
     """Test querying quality events as of a specific timestamp."""
@@ -460,7 +449,7 @@ async def test_time_travel_query(db_session: AsyncSession, admin_user):
 
     await service.update_quality_event(
         quality_event_id=quality_event_id,
-        registration_in=update_data,
+        event_in=update_data,
         actor_id=admin_user.id,
     )
 
