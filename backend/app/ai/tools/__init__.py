@@ -142,6 +142,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     from app.ai.tools.templates import (
         advanced_analysis_template,
         analysis_template,
+        batch_tools_template,
         change_order_template,
         cost_element_template,
         crud_template,
@@ -274,6 +275,19 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         forecast_cost_progress_template.get_cost_element_summary,
     ]
     tools.extend(forecast_cost_progress_tools)
+
+    # Add batch tools for bulk operations
+    batch_tools = [
+        batch_tools_template.create_cost_elements,
+        batch_tools_template.create_wbes,
+        batch_tools_template.create_cost_registrations,
+        batch_tools_template.create_progress_entries,
+        batch_tools_template.update_cost_elements,
+        batch_tools_template.delete_cost_elements,
+        batch_tools_template.get_budget_status_batch,
+        batch_tools_template.update_wbes,
+    ]
+    tools.extend(batch_tools)
 
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [tool for tool in tools if isinstance(tool, BaseTool)]
