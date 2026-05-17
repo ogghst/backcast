@@ -198,8 +198,10 @@ class TestAgentNodeBindTools:
         result = await node_fn(state, config)
 
         # Assert
-        # Verify bind_tools was called with the exact tools list
-        mock_llm.bind_tools.assert_called_once_with(mock_tools)
+        # Verify bind_tools was called with the tools list and parallel_tool_calls=False
+        mock_llm.bind_tools.assert_called_once_with(
+            mock_tools, parallel_tool_calls=False
+        )
 
         # Verify the bound LLM was invoked with messages
         mock_llm_with_tools.ainvoke.assert_called_once_with(state["messages"])

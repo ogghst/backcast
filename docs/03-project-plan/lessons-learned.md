@@ -1,6 +1,6 @@
 # Lessons Learned
 
-**Last Updated:** 2026-05-10
+**Last Updated:** 2026-05-17
 
 This document captures key learnings from project iterations to improve future development practices.
 
@@ -286,6 +286,66 @@ def test_same_permissions_per_role():
 
 ---
 
+## Architecture & Design (continued)
+
+### Sequential Tool Execution as Default
+
+**Iteration:** Sequential Tool Execution (2026-05-17)
+
+**Problem:** LangGraph's default `ToolNode` executes multiple tool calls via `asyncio.gather`, which causes DB pool exhaustion (31 leaked connections observed) and race conditions (TOCTOU in revenue allocation validation) when tools share an async database session.
+
+**Learning:** When tool functions share mutable state (database sessions, file handles, external connections), parallel execution is unsafe. Sequential execution must be enforced at the dispatch layer, not just via model hints.
+
+**Solution:**
+
+Two-layer defense-in-depth:
+1. **Model hint:** `parallel_tool_calls=False` in `bind_tools` -- tells the LLM to emit one tool call at a time
+2. **Dispatch enforcement:** `SequentialToolNode` overrides `_afunc` to use a for-loop instead of `asyncio.gather`
+
+```python
+# SequentialToolNode._afunc replaces asyncio.gather with for-loop
+outputs = []
+for call, tool_runtime in zip(tool_calls, tool_runtimes, strict=False):
+    result = await self._arun_one(call, input_type, tool_runtime)
+    outputs.append(result)
+```
+
+For third-party factories that hardcode `ToolNode` instantiation (e.g., `langchain_create_agent`), a global monkey-patch with idempotent guard ensures all instances use sequential execution.
+
+**Best Practice:** Default to sequential execution for any tool system that shares mutable state. Use defense-in-depth: a model hint as the first layer, dispatch enforcement as the second. Log a WARNING when the enforcement layer catches a multi-call batch (canary for model hint failure).
+
+---
+
+### Testing Code with Module-Level Side Effects
+
+**Iteration:** Sequential Tool Execution (2026-05-17)
+
+**Problem:** A test using `caplog` to assert WARNING logs passed in isolation but failed when `agent_service.py` was imported first. The module-level import triggered `patch_tool_node_for_sequential_execution()` which emitted an INFO log, contaminating the `caplog` assertion count.
+
+**Learning:** `caplog` captures ALL log records at the configured level from ALL loggers during the test. When the code under test has module-level side effects (logging, monkey-patching, global state), `caplog` assertions become fragile across test boundaries.
+
+**Solution:**
+
+Prefer `unittest.mock.patch` over `caplog` when testing code with module-level side effects:
+
+```python
+# Instead of caplog (captures everything):
+# with caplog.at_level(logging.WARNING):
+#     ...
+# assert "expected message" in caplog.text
+
+# Use mock.patch (isolated to specific logger):
+with unittest.mock.patch("app.ai.tools.sequential_tool_node.logger") as mock_logger:
+    # ... exercise code ...
+    mock_logger.warning.assert_called_once_with(
+        "SequentialToolNode: executing %d tool calls sequentially ...", ...
+    )
+```
+
+**Best Practice:** When module-level side effects exist (common with monkey-patches, global state, or import-time initialization), use `unittest.mock.patch` on the specific logger to isolate test assertions. Reserve `caplog` for testing pure functions without import-time side effects.
+
+---
+
 ## Process & Workflow
 
 ### PDCA Documentation
@@ -347,15 +407,15 @@ def test_same_permissions_per_role():
 | Backend Development   | 4       | 3          |
 | Frontend Development  | 2       | 2          |
 | Testing               | 4       | 2          |
-| Architecture & Design | 3       | 4          |
+| Architecture & Design | 5       | 5          |
 | Process & Workflow    | 3       | 4          |
 
-**Total Lessons Captured:** 16
-**Most Common Category:** Backend Development & Testing (tied)
+**Total Lessons Captured:** 18
+**Most Common Category:** Architecture & Design
 
 ---
 
 ## Next Review
 
-**Date:** 2026-05-17
+**Date:** 2026-06-01
 **Focus:** Review new lessons from upcoming iterations

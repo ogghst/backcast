@@ -49,10 +49,10 @@ class ToolSessionManager:
             SQLAlchemyError: If the commit operation fails
         """
         session = tool_scoped_session_factory()
-        # Always commit to handle both explicit and implicit transactions
-        # If no transaction is active, commit() is a no-op (safe)
-        await session.commit()
-        await tool_scoped_session_factory.remove()
+        try:
+            await session.commit()
+        finally:
+            await tool_scoped_session_factory.remove()
 
     @staticmethod
     async def rollback() -> None:
@@ -72,7 +72,7 @@ class ToolSessionManager:
             This is safe to call even if no transaction is active.
         """
         session = tool_scoped_session_factory()
-        # Always rollback to handle both explicit and implicit transactions
-        # If no transaction is active, rollback() is a no-op (safe)
-        await session.rollback()
-        await tool_scoped_session_factory.remove()
+        try:
+            await session.rollback()
+        finally:
+            await tool_scoped_session_factory.remove()

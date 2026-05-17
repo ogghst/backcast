@@ -9,13 +9,13 @@ from typing import Any
 
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
-from langgraph.prebuilt import ToolNode
 
+from app.ai.tools.sequential_tool_node import SequentialToolNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
 
 
-class RBACToolNode(ToolNode):
+class RBACToolNode(SequentialToolNode):
     """ToolNode subclass with RBAC permission checking and risk checking.
 
     Wraps LangGraph's ToolNode to add permission and risk checks before tool execution.

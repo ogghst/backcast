@@ -128,6 +128,7 @@ from app.ai.token_estimator import (
 )
 from app.ai.tools import ToolContext, create_project_tools, filter_tools_by_role
 from app.ai.tools.interrupt_node import InterruptNode
+from app.ai.tools.sequential_tool_node import patch_tool_node_for_sequential_execution
 from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
 from app.api.websocket_utils import is_websocket_connected
@@ -155,6 +156,10 @@ _tracer_provider = initialize_telemetry(
     service_name="backcast-ai",
     enable_console=os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true",
 )
+
+# Defense-in-depth: ensure all ToolNode instances (including specialist
+# subgraphs created via langchain_create_agent) execute tools sequentially
+patch_tool_node_for_sequential_execution()
 
 # NOTE: DeepSeek reasoning_content handling is now provided natively by
 # langchain-deepseek package (ChatDeepSeek class). No monkey-patches needed.
@@ -1025,6 +1030,7 @@ class AgentService:
             {
                 "on_chain_start",
                 "on_chain_end",
+                "on_chat_model_start",
                 "on_chat_model_stream",
                 "on_chat_model_end",
                 "on_tool_start",
@@ -1033,6 +1039,11 @@ class AgentService:
                 "on_end",
             }
         )
+
+        # Per-call timing: track individual LLM and tool call durations
+        _llm_call_start: float | None = None
+        _llm_call_count = 0
+        _tool_call_start: float | None = None
 
         # Per-invocation token accumulator for batched publishing
         _token_accumulator: dict[str, list[str]] = {}
@@ -1143,6 +1154,10 @@ class AgentService:
 
             for _retry_attempt in range(max_retries + 1):
                 try:
+                    from app.db.session import log_pool_status
+
+                    log_pool_status(f"graph.astream_events start | session={session_id}")
+
                     async for event in graph.astream_events(
                         {
                             "messages": history,
@@ -1253,8 +1268,24 @@ class AgentService:
                                     log_label="CHAIN_END_NON_SPECIALIST",
                                 )
 
+                        if event_type == "on_chat_model_start":
+                            _llm_call_count += 1
+                            _llm_call_start = time.time()
+                            inv_data = data.get("invocation_info", {})
+                            if not inv_data:
+                                inv_data = event.get("metadata", {})
+                            fn_name = ""
+                            if isinstance(inv_data, dict):
+                                fn_name = inv_data.get("fn_name", "")
+                            logger.info(
+                                "[LLM_CALL_START] #%d | model=%s | fn=%s",
+                                _llm_call_count,
+                                model_name or "unknown",
+                                fn_name,
+                            )
+
                         # Handle token streaming
-                        if event_type == "on_chat_model_stream":
+                        elif event_type == "on_chat_model_stream":
                             chunk = data.get("chunk")
                             # Token streaming: accumulate per-invocation, flush in batches.
                             if isinstance(chunk, AIMessageChunk):
@@ -1304,8 +1335,16 @@ class AgentService:
                                             content
                                         )
 
-                        # Handle chat model end -- capture actual token usage
+                        # Handle chat model end -- capture actual token usage + timing
                         elif event_type == "on_chat_model_end":
+                            if _llm_call_start is not None:
+                                llm_duration_ms = (time.time() - _llm_call_start) * 1000
+                                logger.info(
+                                    "[LLM_CALL_END] #%d | duration_ms=%.0f",
+                                    _llm_call_count,
+                                    llm_duration_ms,
+                                )
+                                _llm_call_start = None
                             token_accumulator.accumulate_from_event(data)
 
                         # Handle tool start
@@ -1319,6 +1358,14 @@ class AgentService:
                             tool_input = data.get("input", {})
                             tool_calls_count += 1
                             current_step += 1
+                            _tool_call_start = time.time()
+                            logger.info(
+                                "[TOOL_START] #%d tool=%s | step=%d/%s",
+                                tool_calls_count,
+                                tool_name,
+                                current_step,
+                                estimated_total_steps or "?",
+                            )
 
                             if tool_name == "task":
                                 current_subagent_name = (
@@ -1407,6 +1454,14 @@ class AgentService:
                             # After a task (subagent delegation) completes, generate a
                             # new main invocation_id to start a fresh response segment.
                             tool_name = event.get("name", "")
+                            if _tool_call_start is not None:
+                                tool_duration_ms = (time.time() - _tool_call_start) * 1000
+                                logger.info(
+                                    "[TOOL_END] tool=%s | duration_ms=%.0f",
+                                    tool_name,
+                                    tool_duration_ms,
+                                )
+                                _tool_call_start = None
 
                             # Subagent result handling
                             if (
@@ -1794,6 +1849,24 @@ class AgentService:
             tool_calls_count=tool_calls_count,
         )
 
+    @staticmethod
+    async def _clear_active_execution(
+        db: AsyncSession, session_id: UUID
+    ) -> None:
+        """Clear active_execution_id on the conversation session (best-effort)."""
+        try:
+            result = await db.execute(
+                select(AIConversationSession).where(
+                    AIConversationSession.id == str(session_id)
+                )
+            )
+            row = result.scalar_one_or_none()
+            if row is not None:
+                row.active_execution_id = None
+                await db.commit()
+        except Exception:
+            pass
+
     async def start_execution(
         self,
         message: str,
@@ -1856,6 +1929,10 @@ class AgentService:
 
         # Create independent DB session for this execution
         async with async_session_maker() as db:
+            from app.db.session import log_pool_status
+
+            log_pool_status(f"start_execution entry | execution_id={execution_id}")
+
             # Pre-fetch the session row so it is accessible in except/finally blocks
             session_stmt = select(AIConversationSession).where(
                 AIConversationSession.id == str(session_id)
@@ -1881,6 +1958,15 @@ class AgentService:
                     db_session.active_execution_id = str(execution.id)
                     await db.commit()
 
+                # Capture context before releasing the connection
+                session_context = db_session.context if db_session else None
+
+                # Release the DB connection back to the pool before entering
+                # the graph. The session stays usable — it will re-checkout a
+                # connection on the next query. This prevents holding a
+                # connection for the entire graph execution (minutes).
+                await db.close()
+
                 # Create agent service with this DB session
                 exec_service = AgentService(db)
 
@@ -1897,67 +1983,53 @@ class AgentService:
                     branch_name=branch_name,
                     branch_mode=branch_mode,
                     execution_mode=execution_mode,
-                    context=db_session.context if db_session else None,
+                    context=session_context,
                 )
 
-                # Update execution tracking row with metrics
+                # Re-query since db.close() detached the object
+                exec_stmt = select(AIAgentExecution).where(
+                    AIAgentExecution.id == str(execution.id)
+                )
+                exec_result = await db.execute(exec_stmt)
+                execution = exec_result.scalar_one()
                 execution.status = "completed"
                 execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
                 execution.total_tokens = metrics.total_tokens
                 execution.tool_calls_count = metrics.tool_calls_count
                 await db.commit()
 
-                # Clear active_execution_id on session
-                if db_session is not None:
-                    db_session.active_execution_id = None
-                    await db.commit()
+                await self._clear_active_execution(db, session_id)
 
             except Exception as e:
                 logger.error(
                     f"Error in start_execution {execution_id}: {e}", exc_info=True
                 )
-                # Update execution tracking row with error and partial metrics
+                # Update execution tracking row with error and partial metrics.
+                # Always re-query since db.close() may have detached the object.
                 try:
-                    execution.status = "error"
-                    execution.error_message = str(e)[:2000]
-                    execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
-                    # Persist partial metrics if available
-                    if metrics is not None:
-                        execution.total_tokens = metrics.total_tokens
-                        execution.tool_calls_count = metrics.tool_calls_count
-                    await db.commit()
+                    stmt = select(AIAgentExecution).where(
+                        AIAgentExecution.id == str(execution.id)
+                    )
+                    result = await db.execute(stmt)
+                    fresh_execution = result.scalar_one_or_none()
+                    if fresh_execution is not None:
+                        fresh_execution.status = "error"
+                        fresh_execution.error_message = str(e)[:2000]
+                        fresh_execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
+                        if metrics is not None:
+                            fresh_execution.total_tokens = metrics.total_tokens
+                            fresh_execution.tool_calls_count = (
+                                metrics.tool_calls_count
+                            )
+                        await db.commit()
                 except Exception:
                     await db.rollback()
-                    # Retry with a fresh query in case the session was invalidated
-                    try:
-                        stmt = select(AIAgentExecution).where(
-                            AIAgentExecution.id == str(execution.id)
-                        )
-                        result = await db.execute(stmt)
-                        fresh_execution = result.scalar_one_or_none()
-                        if fresh_execution is not None:
-                            fresh_execution.status = "error"
-                            fresh_execution.error_message = str(e)[:2000]
-                            fresh_execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
-                            if metrics is not None:
-                                fresh_execution.total_tokens = metrics.total_tokens
-                                fresh_execution.tool_calls_count = (
-                                    metrics.tool_calls_count
-                                )
-                            await db.commit()
-                    except Exception:
-                        logger.error(
-                            "Failed to update execution row on error path",
-                            exc_info=True,
-                        )
+                    logger.error(
+                        "Failed to update execution row on error path",
+                        exc_info=True,
+                    )
 
-                # Clear active_execution_id on session (best-effort)
-                if db_session is not None:
-                    try:
-                        db_session.active_execution_id = None
-                        await db.commit()
-                    except Exception:
-                        pass
+                await self._clear_active_execution(db, session_id)
 
                 # Publish execution status so frontend clears activeExecutionIdRef
                 event_bus.publish(
