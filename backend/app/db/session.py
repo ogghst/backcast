@@ -86,7 +86,14 @@ def get_pool_status() -> dict[str, int]:
 
     pool = engine.pool
     if not isinstance(pool, QueuePool):
-        return {"pool_size": 0, "checked_in": 0, "checked_out": 0, "overflow": 0, "max_capacity": 0, "utilization_pct": 0}
+        return {
+            "pool_size": 0,
+            "checked_in": 0,
+            "checked_out": 0,
+            "overflow": 0,
+            "max_capacity": 0,
+            "utilization_pct": 0,
+        }
     size = pool.size()
     checked_in = pool.checkedin()
     checked_out = pool.checkedout()
@@ -128,8 +135,11 @@ def log_pool_status(context: str = "") -> None:
 
 # --- Connection pool event listeners for diagnostics ---
 
+
 @event.listens_for(engine.sync_engine, "checkout")
-def _on_checkout(dbapi_conn: object, connection_record: object, connection_proxy: object) -> None:
+def _on_checkout(
+    dbapi_conn: object, connection_record: object, connection_proxy: object
+) -> None:
     logger.debug("[DB_CONN_CHECKOUT] conn_id=%d", id(connection_proxy))
 
 
@@ -143,7 +153,12 @@ _query_start_times: dict[int, float] = {}
 
 @event.listens_for(engine.sync_engine, "before_cursor_execute")
 def _before_cursor_execute(
-    conn: object, cursor: object, statement: str, parameters: object, context: object, executemany: bool
+    conn: object,
+    cursor: object,
+    statement: str,
+    parameters: object,
+    context: object,
+    executemany: bool,
 ) -> None:
     if len(_query_start_times) > 500:
         _query_start_times.clear()
@@ -152,7 +167,12 @@ def _before_cursor_execute(
 
 @event.listens_for(engine.sync_engine, "after_cursor_execute")
 def _after_cursor_execute(
-    conn: object, cursor: object, statement: str, parameters: object, context: object, executemany: bool
+    conn: object,
+    cursor: object,
+    statement: str,
+    parameters: object,
+    context: object,
+    executemany: bool,
 ) -> None:
     cursor_id = id(cursor)
     start = _query_start_times.pop(cursor_id, None)

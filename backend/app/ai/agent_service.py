@@ -1156,7 +1156,9 @@ class AgentService:
                 try:
                     from app.db.session import log_pool_status
 
-                    log_pool_status(f"graph.astream_events start | session={session_id}")
+                    log_pool_status(
+                        f"graph.astream_events start | session={session_id}"
+                    )
 
                     async for event in graph.astream_events(
                         {
@@ -1455,7 +1457,9 @@ class AgentService:
                             # new main invocation_id to start a fresh response segment.
                             tool_name = event.get("name", "")
                             if _tool_call_start is not None:
-                                tool_duration_ms = (time.time() - _tool_call_start) * 1000
+                                tool_duration_ms = (
+                                    time.time() - _tool_call_start
+                                ) * 1000
                                 logger.info(
                                     "[TOOL_END] tool=%s | duration_ms=%.0f",
                                     tool_name,
@@ -1850,9 +1854,7 @@ class AgentService:
         )
 
     @staticmethod
-    async def _clear_active_execution(
-        db: AsyncSession, session_id: UUID
-    ) -> None:
+    async def _clear_active_execution(db: AsyncSession, session_id: UUID) -> None:
         """Clear active_execution_id on the conversation session (best-effort)."""
         try:
             result = await db.execute(
@@ -2018,9 +2020,7 @@ class AgentService:
                         fresh_execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
                         if metrics is not None:
                             fresh_execution.total_tokens = metrics.total_tokens
-                            fresh_execution.tool_calls_count = (
-                                metrics.tool_calls_count
-                            )
+                            fresh_execution.tool_calls_count = metrics.tool_calls_count
                         await db.commit()
                 except Exception:
                     await db.rollback()

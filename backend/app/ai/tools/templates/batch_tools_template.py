@@ -446,6 +446,133 @@ async def get_budget_status_batch(
         return add_temporal_metadata({"error": str(e)}, context)
 
 
+@ai_tool(
+    name="get_cost_element_summaries",
+    description="Get comprehensive summaries for multiple cost elements in a single call. "
+    "Each summary includes forecast data, budget status, and latest progress. "
+    "Aggregates data from ForecastService, CostRegistrationService, and ProgressEntryService. "
+    "Maximum 50 items per batch.",
+    permissions=["forecast-read", "cost-registration-read", "progress-entry-read"],
+    category="summary",
+    risk_level=RiskLevel.LOW,
+)
+async def get_cost_element_summaries(
+    cost_element_ids: list[str],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch get comprehensive summaries for cost elements.
+
+    Args:
+        cost_element_ids: List of cost element UUIDs
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with summaries list and total count
+    """
+    log_temporal_context("get_cost_element_summaries", context)
+
+    try:
+        from uuid import UUID
+
+        from app.services.cost_registration_service import CostRegistrationService
+        from app.services.forecast_service import ForecastService
+        from app.services.progress_entry_service import ProgressEntryService
+
+        if len(cost_element_ids) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not cost_element_ids:
+            return add_temporal_metadata(
+                {"error": "No cost element IDs provided"}, context
+            )
+
+        forecast_service = ForecastService(context.session)
+        cost_service = CostRegistrationService(context.session)
+        progress_service = ProgressEntryService(context.session)
+        branch = context.branch_name or "main"
+
+        summaries: list[dict[str, Any]] = []
+
+        for ce_id in cost_element_ids:
+            try:
+                ce_uuid = UUID(ce_id)
+            except ValueError:
+                summaries.append({"cost_element_id": ce_id, "error": "Invalid UUID"})
+                continue
+
+            summary: dict[str, Any] = {"cost_element_id": ce_id}
+
+            # Get forecast data
+            try:
+                forecast = await forecast_service.get_for_cost_element(
+                    cost_element_id=ce_uuid,
+                    branch=branch,
+                )
+                if forecast:
+                    summary["forecast"] = {
+                        "id": str(forecast.forecast_id),
+                        "eac_amount": float(forecast.eac_amount)
+                        if forecast.eac_amount
+                        else None,
+                        "basis_of_estimate": forecast.basis_of_estimate,
+                        "branch": forecast.branch,
+                    }
+                else:
+                    summary["forecast"] = None
+            except Exception:
+                summary["forecast"] = None
+
+            # Get budget status
+            try:
+                budget_status = await cost_service.get_budget_status(
+                    cost_element_id=ce_uuid,
+                    as_of=context.as_of,
+                    branch=branch,
+                )
+                summary["budget_status"] = {
+                    "budget": float(budget_status.budget),
+                    "used": float(budget_status.used),
+                    "remaining": float(budget_status.remaining),
+                    "percentage": float(budget_status.percentage),
+                }
+            except Exception:
+                summary["budget_status"] = None
+
+            # Get latest progress
+            try:
+                progress = await progress_service.get_latest_progress(
+                    cost_element_id=ce_uuid,
+                    as_of=context.as_of,
+                )
+                if progress:
+                    summary["progress"] = {
+                        "progress_entry_id": str(progress.progress_entry_id),
+                        "progress_percentage": float(progress.progress_percentage)
+                        if progress.progress_percentage
+                        else None,
+                        "notes": progress.notes,
+                    }
+                else:
+                    summary["progress"] = None
+            except Exception:
+                summary["progress"] = None
+
+            summaries.append(summary)
+
+        result = {
+            "summaries": summaries,
+            "total": len(summaries),
+            "message": f"Retrieved summaries for {len(summaries)} cost elements",
+        }
+        return add_temporal_metadata(result, context)
+    except Exception as e:
+        logger.error(f"Error in get_cost_element_summaries: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
 # =============================================================================
 # BATCH WBE TOOLS
 # =============================================================================

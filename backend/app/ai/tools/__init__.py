@@ -285,6 +285,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         batch_tools_template.update_cost_elements,
         batch_tools_template.delete_cost_elements,
         batch_tools_template.get_budget_status_batch,
+        batch_tools_template.get_cost_element_summaries,
         batch_tools_template.update_wbes,
     ]
     tools.extend(batch_tools)

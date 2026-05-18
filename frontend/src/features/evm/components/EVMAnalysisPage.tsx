@@ -75,6 +75,7 @@ export const EVMAnalysisPage: React.FC<EVMAnalysisPageProps> = ({
       {evmMetrics && (
         <EVMSummaryView
           metrics={evmMetrics}
+          timeSeries={timeSeries}
           onAdvanced={() => setIsEVMModalOpen(true)}
         />
       )}

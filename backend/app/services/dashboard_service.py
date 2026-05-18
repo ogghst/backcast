@@ -118,9 +118,7 @@ class DashboardService:
             )
 
             # Filter WBEs by user's RBAC access
-            recent_wbes = [
-                w for w in recent_wbes if w.project_id in accessible_ids
-            ]
+            recent_wbes = [w for w in recent_wbes if w.project_id in accessible_ids]
 
             recent_cost_elements: list[
                 CostElement
@@ -135,9 +133,7 @@ class DashboardService:
             recent_cost_elements = [
                 ce
                 for ce in (recent_cost_elements or [])
-                if hasattr(ce, "wbe")
-                and ce.wbe
-                and ce.wbe.project_id in accessible_ids
+                if hasattr(ce, "wbe") and ce.wbe and ce.wbe.project_id in accessible_ids
             ]
 
             recent_change_orders: list[
@@ -160,12 +156,10 @@ class DashboardService:
             project_activities = [self._project_to_activity(p) for p in recent_projects]
             wbe_activities = [await self._wbe_to_activity(w) for w in recent_wbes]
             cost_element_activities = [
-                await self._cost_element_to_activity(ce)
-                for ce in recent_cost_elements
+                await self._cost_element_to_activity(ce) for ce in recent_cost_elements
             ]
             change_order_activities = [
-                await self._change_order_to_activity(co)
-                for co in recent_change_orders
+                await self._change_order_to_activity(co) for co in recent_change_orders
             ]
 
             # Get last edited project with metrics

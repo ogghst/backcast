@@ -9,9 +9,10 @@ from sqlalchemy import select
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+from app.services.approval_matrix_service import ApprovalMatrixService
+
 from app.db.session import async_session_maker
 from app.models.domain.user import User
-from app.services.approval_matrix_service import ApprovalMatrixService
 from app.services.change_order_service import ChangeOrderService
 
 # Configure logging

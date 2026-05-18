@@ -2316,7 +2316,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             if existing_result.scalar_one_or_none() is None:
                 # Fork this WBE
                 wbe_fork_cmd = CreateBranchCommand(
-                    entity_class=WBE,
+                    entity_class=cast(Any, WBE),
                     root_id=wbe.wbe_id,
                     actor_id=actor_id,
                     new_branch=isolation_branch,
@@ -2359,7 +2359,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             existing_ce_result = await self.session.execute(existing_ce_stmt)
             if existing_ce_result.scalar_one_or_none() is None:
                 ce_fork_cmd = CreateBranchCommand(
-                    entity_class=CostElement,
+                    entity_class=cast(Any, CostElement),
                     root_id=ce.cost_element_id,
                     actor_id=actor_id,
                     new_branch=isolation_branch,

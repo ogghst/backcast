@@ -5,7 +5,6 @@ in parallel, logs warnings on multiple calls, preserves output format, and
 that the monkey-patch function correctly patches ToolNode._afunc.
 """
 
-import logging
 from typing import Any
 from unittest.mock import MagicMock
 
