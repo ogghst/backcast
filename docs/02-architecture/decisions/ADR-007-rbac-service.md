@@ -1,8 +1,18 @@
 # ADR-007: RBAC Service Design
 
-**Status:** Accepted  
-**Date:** 2026-01-04  
+**Status:** Accepted
+**Date:** 2026-01-04
 **Decision Makers:** Antigravity AI (proposed), User (approved)
+
+> **⚠️ SUPERSEDED:** This ADR describes the original JSON-based RBAC system implemented in January 2026.
+> The system was superseded by the **Unified RBAC system** in May 2026.
+> See [ADR-014: Unified RBAC System](./ADR-014-unified-rbac.md) for the current implementation.
+>
+> **Key Changes:**
+> - `JsonRBACService` → `UnifiedRBACService` (database-backed with scoped permissions)
+> - Single role per user → Scoped role assignments (global/project/change_order)
+> - `RoleChecker`/`ProjectRoleChecker` now delegate to `UnifiedRBACService`
+> - New `UserRoleAssignment` entity replaces `User.role` and `ProjectMember`
 
 ---
 
@@ -301,3 +311,4 @@ async def delete_important(): ...
 |---|---|---|
 | 2026-01-04 | Initial ADR — RBAC service design with JSON config, RoleChecker dependency | Antigravity AI |
 | 2026-04-23 | Added AI assistant RBAC roles, contextvar session injection, role-based tool filtering | Backend Team |
+| 2026-05-11 | Document superseded by ADR-008 (Unified RBAC) - added superseded notice | Architecture Team |

@@ -16,12 +16,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.branch import Branch
 from app.models.domain.user import User
 from app.services.branch_service import BranchService
 from app.services.change_order_service import ChangeOrderService
+from tests.conftest import MockUnifiedRBACService
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -29,7 +33,6 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
@@ -44,49 +47,16 @@ def mock_get_current_active_user() -> User:
     return mock_admin_user
 
 
-# Mock RBAC service that allows everything
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "change-order-read",
-            "change-order-create",
-            "change-order-update",
-            "change-order-delete",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -119,7 +89,7 @@ async def test_archive_implemented_change_order_success(
         title="Implemented Change Order",
         description="Test CO for archive endpoint",
         project_id=project_id,
-        status="Implemented",
+        status="implemented",
         branch_name=branch_name,  # Required for archive to find the branch
     )
 
@@ -139,7 +109,7 @@ async def test_archive_implemented_change_order_success(
     assert response.status_code == 200
     data = response.json()
     assert data["change_order_id"] == str(co_id)
-    assert data["status"] == "Implemented"
+    assert data["status"] == "implemented"
 
     # Assert - Branch is soft-deleted (not found by standard query)
     stmt = select(Branch).where(
@@ -181,7 +151,7 @@ async def test_archive_rejected_change_order_success(
         title="Rejected Change Order",
         description="Test CO for archive endpoint",
         project_id=project_id,
-        status="Rejected",
+        status="rejected",
         branch_name=branch_name,  # Required for archive to find the branch
     )
 
@@ -201,7 +171,7 @@ async def test_archive_rejected_change_order_success(
     assert response.status_code == 200
     data = response.json()
     assert data["change_order_id"] == str(co_id)
-    assert data["status"] == "Rejected"
+    assert data["status"] == "rejected"
 
 
 @pytest.mark.asyncio
@@ -231,7 +201,7 @@ async def test_archive_active_change_order_fails(
         title="Draft Change Order",
         description="Test CO for archive endpoint",
         project_id=project_id,
-        status="Draft",
+        status="draft",
     )
 
     # Act - Call archive endpoint

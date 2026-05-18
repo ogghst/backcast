@@ -154,7 +154,7 @@ class ChangeOrderReportingService:
               AND branch = :branch
               AND upper(valid_time) IS NULL
               AND deleted_at IS NULL
-              AND status IN ('Draft', 'Submitted for Approval', 'Under Review')
+              AND status IN ('draft', 'submitted_for_approval', 'under_review')
         """)
 
         pending_result = await self.session.execute(
@@ -178,7 +178,7 @@ class ChangeOrderReportingService:
               AND branch = :branch
               AND upper(valid_time) IS NULL
               AND deleted_at IS NULL
-              AND status = 'Approved'
+              AND status = 'approved'
         """)
 
         approved_result = await self.session.execute(
@@ -346,7 +346,7 @@ class ChangeOrderReportingService:
             LEFT JOIN users u ON co.assigned_approver_id = u.user_id
             WHERE co.project_id = :project_id
               AND co.branch = :branch
-              AND co.status IN ('Submitted for Approval', 'Under Review')
+              AND co.status IN ('submitted_for_approval', 'under_review')
               AND upper(co.valid_time) IS NULL
               AND co.deleted_at IS NULL
               AND co.assigned_approver_id IS NOT NULL
@@ -408,7 +408,7 @@ class ChangeOrderReportingService:
             ) latest ON co.change_order_id = latest.change_order_id
             WHERE co.project_id = :project_id
               AND co.branch = :branch
-              AND co.status IN ('Submitted for Approval', 'Under Review')
+              AND co.status IN ('submitted_for_approval', 'under_review')
               AND upper(co.valid_time) IS NULL
               AND co.deleted_at IS NULL
               AND latest.changed_at < :cutoff_date
@@ -459,8 +459,8 @@ class ChangeOrderReportingService:
                 ON submission.change_order_id = approval.change_order_id
             JOIN change_orders co
                 ON co.change_order_id = submission.change_order_id
-            WHERE submission.new_status = 'Submitted for Approval'
-              AND approval.new_status = 'Approved'
+            WHERE submission.new_status = 'submitted_for_approval'
+              AND approval.new_status = 'approved'
               AND co.project_id = :project_id
               AND co.branch = :branch
         """)

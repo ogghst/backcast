@@ -5,8 +5,6 @@ Satisfies BranchableProtocol via structural subtyping.
 """
 
 from decimal import Decimal
-
-# TYPE_CHECKING import to avoid circular dependency
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -15,9 +13,15 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base.base import EntityBase
+
+# Import Project to ensure SQLAlchemy can resolve the relationship
+# This is needed because the relationship uses a string reference
+# that must be resolved at mapper initialization time
+from app.models.domain.project import Project  # noqa: F401 (import for side effect)
 from app.models.mixins import BranchableMixin, VersionableMixin
 
 if TYPE_CHECKING:
+    # Re-import for type checkers to avoid circular import in IDEs
     from app.models.domain.project import Project
 
 

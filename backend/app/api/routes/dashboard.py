@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.core.rbac_unified import rbac_session
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.dashboard import DashboardData
@@ -57,7 +58,8 @@ async def get_dashboard_recent_activity(
 
     Requires authentication.
     """
-    return await service.get_dashboard_data(
-        user_id=current_user.user_id,
-        activity_limit=activity_limit,
-    )
+    async with rbac_session(service.session):
+        return await service.get_dashboard_data(
+            user_id=current_user.user_id,
+            activity_limit=activity_limit,
+        )

@@ -149,7 +149,6 @@ class TestGlobalSearchService:
         query: str = "test",
         *,
         user_id: UUID | None = None,
-        user_role: str = "admin",
         accessible_projects: list[UUID] | None = None,
         entity_results: dict[str, list[SearchResultItem]] | None = None,
         **kwargs: object,
@@ -160,7 +159,6 @@ class TestGlobalSearchService:
             mock_session: Mocked AsyncSession.
             query: Search query string.
             user_id: User ID (defaults to random UUID).
-            user_role: User role.
             accessible_projects: Project IDs to return from RBAC mock.
             entity_results: Dict mapping entity_type label to list of
                 SearchResultItem. Used to mock _search_entity per entity.
@@ -191,7 +189,6 @@ class TestGlobalSearchService:
         return await service.search(
             query,
             user_id=uid,
-            user_role=user_role,
             **kwargs,  # type: ignore[arg-type]
         )
 
@@ -309,7 +306,6 @@ class TestGlobalSearchService:
         result = await self._run_search(
             mock_session,
             query="test",
-            user_role="viewer",
             accessible_projects=[user_project],
         )
 
@@ -326,7 +322,6 @@ class TestGlobalSearchService:
         result = await self._run_search(
             mock_session,
             query="test",
-            user_role="admin",
             accessible_projects=[proj_a, proj_b],
             entity_results={
                 "project": [
@@ -416,7 +411,7 @@ class TestGlobalSearchService:
             mock_session,
             query="test",
             branch="change-order-1",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         assert isinstance(result, GlobalSearchResponse)
@@ -429,7 +424,6 @@ class TestGlobalSearchService:
         result = await self._run_search(
             mock_session,
             query="test",
-            user_role="viewer",
             accessible_projects=[],
         )
 
@@ -485,7 +479,7 @@ class TestGlobalSearchService:
                         entity_type="project",
                         code="TEST-P1",
                         name="Test Project Alpha",
-                        status="Active",
+                        status="active",
                         relevance_score=1.0,
                         project_id=proj_id,
                     ),
@@ -498,6 +492,6 @@ class TestGlobalSearchService:
         assert item.entity_type == "project"
         assert item.code == "TEST-P1"
         assert item.name == "Test Project Alpha"
-        assert item.status == "Active"
+        assert item.status == "active"
         assert item.relevance_score == 1.0
         assert item.project_id == proj_id

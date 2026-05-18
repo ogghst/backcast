@@ -5,7 +5,6 @@ from app.services.custom_field_service import CustomFieldService
 
 service = CustomFieldService()
 
-
 # ---------------------------------------------------------------------------
 # TEXT field
 # ---------------------------------------------------------------------------

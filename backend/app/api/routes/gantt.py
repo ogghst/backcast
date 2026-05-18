@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import ProjectRoleChecker, get_current_active_user
+from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.gantt import GanttDataResponse
@@ -31,9 +32,8 @@ def get_gantt_service(
 async def get_gantt_data(
     project_id: UUID,
     branch: str = Query("main", description="Branch to query"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged or isolated",
     ),
     as_of: datetime | None = Query(
@@ -51,6 +51,6 @@ async def get_gantt_data(
     return await service.get_gantt_data(
         project_id=project_id,
         branch=branch,
-        mode=mode,
+        branch_mode=branch_mode,
         as_of=as_of,
     )

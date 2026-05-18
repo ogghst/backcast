@@ -115,6 +115,7 @@ class FilterParser:
             column = getattr(model, field_name)
 
             # Attempt to cast values based on column type
+            col_type = None
             try:
                 col_type = column.type.python_type
 
@@ -141,8 +142,11 @@ class FilterParser:
                 # In strict mode, we capture this.
                 # The `pass` in the original instruction was likely a misunderstanding;
                 # we want to catch these errors and then raise our specific FilterValueTypeError.
+                type_name = (
+                    getattr(col_type, "__name__", "unknown") if col_type else "unknown"
+                )
                 raise FilterValueTypeError(
-                    field=field_name, value=str(values), expected_type=col_type.__name__
+                    field=field_name, value=str(values), expected_type=type_name
                 ) from e
             except NotImplementedError:
                 # Some types like JSON/Array might not support python_type

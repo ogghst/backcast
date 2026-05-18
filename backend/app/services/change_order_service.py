@@ -5,7 +5,7 @@ creation on CO creation and workflow-driven branch locking.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
+from app.core.temporal_queries import is_current_version_on_branch
 from app.core.versioning.commands import (
     CreateChangeOrderAuditLogCommand,
     CreateVersionCommand,
@@ -151,9 +152,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                     ChangeOrder.project_id == project_id,
                     ChangeOrder.title == title,
                     ChangeOrder.branch == "main",
-                    ChangeOrder.status == COStatus.DRAFT,
-                    func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                    cast(Any, ChangeOrder).deleted_at.is_(None),
+                    ChangeOrder.status == COStatus.DRAFT.value,
+                    is_current_version_on_branch(
+                        cast(Any, ChangeOrder).valid_time,
+                        ChangeOrder.branch,
+                        "main",
+                        cast(Any, ChangeOrder).deleted_at,
+                    ),
                 )
                 .limit(1)
             )
@@ -207,11 +212,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         )
 
         # Create the corresponding branch in the SAME transaction
-        initial_status = co_data.get("status", "Draft")
+        from app.core.enums import ChangeOrderStatus as COStatus
+
+        initial_status = co_data.get("status", COStatus.DRAFT.value)
 
         # Check if the initial status should lock the branch
         # (e.g., if CO is created directly with "Submitted for Approval" status)
-        should_lock = initial_status != "Draft"
+        should_lock = initial_status != COStatus.DRAFT.value
 
         # Create the corresponding branch entity using CreateVersionCommand
         # This ensures proper valid_time setting based on control_date
@@ -298,16 +305,16 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             entity_id=change_order_id,
             as_of=control_date,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         if not current:
-            # Try without strict mode to see if it exists on any branch
+            # Try without isolated mode to see if it exists on any branch
             current = await self.get_as_of(
                 entity_id=change_order_id,
                 as_of=control_date,
                 branch=source_branch,
-                branch_mode=BranchMode.MERGE,
+                branch_mode=BranchMode.MERGED,
             )
 
         if not current:
@@ -338,7 +345,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             entity_id=change_order_id,
             as_of=control_date,
             branch=target_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         # Track if we auto-forked to avoid creating duplicate versions
@@ -351,7 +358,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 entity_id=change_order_id,
                 as_of=control_date,
                 branch="main",
-                branch_mode=BranchMode.STRICT,
+                branch_mode=BranchMode.ISOLATED,
             )
 
             if main_version is None:
@@ -469,9 +476,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Dispatch notifications based on status transitions
         if old_status != new_status and updated_co:
+            from app.core.enums import ChangeOrderStatus as COStatus
+
             # Transition to "Submitted for Approval" - notify assigned approver
             if (
-                new_status == "Submitted for Approval"
+                new_status == COStatus.SUBMITTED_FOR_APPROVAL.value
                 and updated_co.assigned_approver_id
             ):
                 await self._send_notification(
@@ -483,7 +492,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                     resource_id=change_order_id,
                 )
             # Transition to "Approved" - notify submitter/creator
-            elif new_status == "Approved":
+            elif new_status == COStatus.APPROVED.value:
                 await self._send_notification(
                     user_id=updated_co.created_by,
                     event_type="co_approved",
@@ -493,7 +502,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                     resource_id=change_order_id,
                 )
             # Transition to "Rejected" - notify submitter/creator
-            elif new_status == "Rejected":
+            elif new_status == COStatus.REJECTED.value:
                 await self._send_notification(
                     user_id=updated_co.created_by,
                     event_type="co_rejected",
@@ -532,12 +541,17 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status
+        from app.core.enums import ChangeOrderStatus as COStatus
+
         # Validate status
-        if co.status not in ["Implemented", "Rejected"]:  # pragma: no cover
+        if co.status not in [
+            COStatus.IMPLEMENTED.value,
+            COStatus.REJECTED.value,
+        ]:  # pragma: no cover
             raise ValueError(
                 f"Cannot archive active Change Order. "
                 f"Current status: {co.status}. "
-                f"Must be 'Implemented' or 'Rejected'."
+                f"Must be '{COStatus.IMPLEMENTED.value}' or '{COStatus.REJECTED.value}'."
             )
 
         # Get branch name
@@ -589,10 +603,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         if not co:
             raise ValueError(f"Change Order {change_order_id} not found")
 
-        if co.status not in ("Draft", "Rejected"):
+        from app.core.enums import ChangeOrderStatus as COStatus
+
+        if co.status not in (COStatus.DRAFT.value, COStatus.REJECTED.value):
             raise ValueError(
                 f"Cannot delete Change Order in '{co.status}' status. "
-                f"Only Draft or Rejected COs can be deleted."
+                f"Only {COStatus.DRAFT.value} or {COStatus.REJECTED.value} COs can be deleted."
             )
 
         return await self.soft_delete(
@@ -648,9 +664,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         else:
             # Get current active versions (exclude empty ranges)
             stmt = stmt.where(
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                is_current_version_on_branch(
+                    cast(Any, ChangeOrder).valid_time,
+                    ChangeOrder.branch,
+                    branch,
+                    cast(Any, ChangeOrder).deleted_at,
+                ),
                 func.not_(func.isempty(ChangeOrder.valid_time)),  # Exclude empty ranges
-                cast(Any, ChangeOrder).deleted_at.is_(None),
             )
 
         # Apply search (across code and title)
@@ -732,7 +752,14 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 ]
             )
         else:
-            conditions.append(func.upper(cast(Any, ChangeOrder).valid_time).is_(None))
+            conditions.append(
+                is_current_version_on_branch(
+                    cast(Any, ChangeOrder).valid_time,
+                    ChangeOrder.branch,
+                    branch,
+                    cast(Any, ChangeOrder).deleted_at,
+                )
+            )
 
         stmt = (
             select(ChangeOrder)
@@ -759,8 +786,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         Returns:
             Next available code string
         """
-        from datetime import UTC
-
         if year is None:
             year = datetime.now(UTC).year
 
@@ -773,8 +798,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         stmt = select(ChangeOrder.code).where(
             ChangeOrder.code.like(f"{prefix}%"),
             ChangeOrder.branch == "main",
-            func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-            cast(Any, ChangeOrder).deleted_at.is_(None),
+            is_current_version_on_branch(
+                cast(Any, ChangeOrder).valid_time,
+                ChangeOrder.branch,
+                "main",
+                cast(Any, ChangeOrder).deleted_at,
+            ),
         )
 
         result = await self.session.execute(stmt)
@@ -899,6 +928,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 )
 
         # 4. Recalculate and update the Project's budget
+        # Refresh current CO entity — attributes expired after merge operations above
+        await self.session.refresh(current)
         # Sum all active cost elements on the target branch for this project
         from app.models.domain.cost_element import CostElement
         from app.models.domain.wbe import WBE
@@ -910,7 +941,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             .where(
                 WBE.project_id == current.project_id,
                 CostElement.branch == target_branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                is_current_version_on_branch(
+                    cast(Any, CostElement).valid_time,
+                    CostElement.branch,
+                    target_branch,
+                    cast(Any, CostElement).deleted_at,
+                ),
                 cast(Any, CostElement).deleted_at.is_(None),
             )
         )
@@ -939,7 +975,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         project_id = current.project_id
 
         co_on_isolation = await self.get_as_of(
-            change_order_id, branch=source_branch, branch_mode=BranchMode.STRICT
+            change_order_id, branch=source_branch, branch_mode=BranchMode.ISOLATED
         )
         if co_on_isolation:
             await self.merge_branch(
@@ -962,10 +998,14 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             )
 
         # 6. Update CO status to "Implemented" using Command (RSC compliance)
+        from app.core.enums import ChangeOrderStatus as COStatus
+
+        # Refresh current CO — attributes expired after merge/unlock operations
+        await self.session.refresh(current)
         old_status = current.status
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
-            new_status="Implemented",
+            new_status=COStatus.IMPLEMENTED.value,
             actor_id=actor_id,
             branch=target_branch,
             control_date=control_date,
@@ -983,7 +1023,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status="Implemented",
+            new_status=COStatus.IMPLEMENTED.value,
             actor_id=actor_id,
             comment="Change order implemented via merge",
             control_date=control_date,
@@ -1042,8 +1082,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found or invalid status transition
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from datetime import UTC
-
         # Default control_date to now if not provided
         if control_date is None:
             control_date = datetime.now(UTC)
@@ -1061,13 +1099,15 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status transition
+        from app.core.enums import ChangeOrderStatus as COStatus
+
         if not await self.workflow.is_valid_transition(
-            co.status, "Submitted for Approval"
+            co.status, COStatus.SUBMITTED_FOR_APPROVAL.value
         ):
             available = await self.workflow.get_available_transitions(co.status)
             raise ValueError(
                 f"Cannot submit change order {co.code} (status: {co.status}) for approval by user {actor_id}. "
-                f"Current status must be 'Draft' or 'Rejected'. "
+                f"Current status must be '{COStatus.DRAFT.value}' or '{COStatus.REJECTED.value}'. "
                 f"Available transitions: {available}. "
                 f"Project: {co.project_id}. "
                 f"Action: submit_for_approval"
@@ -1133,7 +1173,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Calculate SLA deadline from configurable workflow config
         sla_days = await self._get_sla_days(impact_level)
-        sla_due_date = self._add_business_days(datetime.now(), sla_days)
+        sla_due_date = self._add_business_days(datetime.now(UTC), sla_days)
 
         # Snapshot workflow config at submission time (Decision 7 & 13)
         from app.services.change_order_config_service import (
@@ -1149,10 +1189,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         old_status = co.status
 
         # Update change order with SLA tracking using versioned command
-        sla_assigned_at = datetime.now()
+        sla_assigned_at = datetime.now(UTC)
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
-            new_status="Submitted for Approval",
+            new_status=COStatus.SUBMITTED_FOR_APPROVAL.value,
             actor_id=actor_id,
             branch=branch,
             control_date=control_date,
@@ -1169,7 +1209,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status="Submitted for Approval",
+            new_status=COStatus.SUBMITTED_FOR_APPROVAL.value,
             actor_id=actor_id,
             comment=comment or f"Submitted for approval with {impact_level} impact",
             control_date=control_date,
@@ -1271,9 +1311,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found, invalid status, or insufficient authority
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from datetime import UTC
-
-        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
         from app.services.user import UserService
 
         # Default control_date to now if not provided
@@ -1293,7 +1334,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status transition
-        if not await self.workflow.is_valid_transition(co.status, "Approved"):
+        from app.core.enums import ChangeOrderStatus as COStatus
+
+        if not await self.workflow.is_valid_transition(
+            co.status, COStatus.APPROVED.value
+        ):
             available = await self.workflow.get_available_transitions(co.status)
             raise ValueError(
                 f"Cannot approve CO with status '{co.status}'. "
@@ -1306,17 +1351,45 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         if not approver:
             raise ValueError(f"Approver with ID {approver_id} not found")
 
-        # Validate approver authority
-        approval_service = ApprovalMatrixService(self.session)
-        can_approve = await approval_service.can_approve(approver, co)
+        # Validate approver authority via unified RBAC
+        set_unified_rbac_session(self.session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            can_approve = await unified_rbac.has_permission(
+                user_id=approver_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if not can_approve:
             # Get required authority for better error context
-            required_authority = await approval_service.get_authority_for_impact(co.impact_level or "LOW")
-            user_authority = await approval_service.get_user_authority_level(approver)
+            from app.services.change_order_config_service import (
+                ChangeOrderConfigService,
+            )
+
+            config_service = ChangeOrderConfigService(self.session)
+            impact_authority = await config_service.get_impact_authority_mapping()
+            required_authority = impact_authority.get(
+                co.impact_level or "LOW", "UNKNOWN"
+            )
+
+            set_unified_rbac_session(self.session)
+            try:
+                user_authority = await unified_rbac.get_user_authority_level(
+                    approver_id
+                )
+                approver_roles = await unified_rbac.get_user_roles(
+                    approver_id, "global", None
+                )
+                approver_role_str = approver_roles[0] if approver_roles else "unknown"
+            finally:
+                set_unified_rbac_session(None)
 
             raise ValueError(
-                f"User {approver_id} (role: {approver.role}, authority: {user_authority}) does not have sufficient authority "
+                f"User {approver_id} (role: {approver_role_str}, authority: {user_authority}) does not have sufficient authority "
                 f"to approve change order {co.code} with impact level {co.impact_level}. "
                 f"Required authority: {required_authority}. "
                 f"Project: {co.project_id}. "
@@ -1336,7 +1409,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Update status to Approved using versioned command
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
-            new_status="Approved",
+            new_status=COStatus.APPROVED.value,
             actor_id=actor_id,
             branch=branch,
             control_date=control_date,
@@ -1347,7 +1420,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status="Approved",
+            new_status=COStatus.APPROVED.value,
             actor_id=actor_id,
             comment=comments or "Change order approved",
             control_date=control_date,
@@ -1404,9 +1477,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found, invalid status, or insufficient authority
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from datetime import UTC
-
-        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
         from app.services.user import UserService
 
         # Default control_date to now if not provided
@@ -1426,7 +1500,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status transition
-        if not await self.workflow.is_valid_transition(co.status, "Rejected"):
+        from app.core.enums import ChangeOrderStatus as COStatus
+
+        if not await self.workflow.is_valid_transition(
+            co.status, COStatus.REJECTED.value
+        ):
             available = await self.workflow.get_available_transitions(co.status)
             raise ValueError(
                 f"Cannot reject CO with status '{co.status}'. "
@@ -1439,17 +1517,45 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         if not rejecter:
             raise ValueError(f"Rejecter with ID {rejecter_id} not found")
 
-        # Validate rejecter authority (same as approver authority)
-        approval_service = ApprovalMatrixService(self.session)
-        can_reject = await approval_service.can_approve(rejecter, co)
+        # Validate rejecter authority via unified RBAC
+        set_unified_rbac_session(self.session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            can_reject = await unified_rbac.has_permission(
+                user_id=rejecter_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if not can_reject:
             # Get required authority for better error context
-            required_authority = await approval_service.get_authority_for_impact(co.impact_level or "LOW")
-            user_authority = await approval_service.get_user_authority_level(rejecter)
+            from app.services.change_order_config_service import (
+                ChangeOrderConfigService,
+            )
+
+            config_service = ChangeOrderConfigService(self.session)
+            impact_authority = await config_service.get_impact_authority_mapping()
+            required_authority = impact_authority.get(
+                co.impact_level or "LOW", "UNKNOWN"
+            )
+
+            set_unified_rbac_session(self.session)
+            try:
+                user_authority = await unified_rbac.get_user_authority_level(
+                    rejecter_id
+                )
+                rejecter_roles = await unified_rbac.get_user_roles(
+                    rejecter_id, "global", None
+                )
+                rejecter_role_str = rejecter_roles[0] if rejecter_roles else "unknown"
+            finally:
+                set_unified_rbac_session(None)
 
             raise ValueError(
-                f"User {rejecter_id} (role: {rejecter.role}, authority: {user_authority}) does not have sufficient authority "
+                f"User {rejecter_id} (role: {rejecter_role_str}, authority: {user_authority}) does not have sufficient authority "
                 f"to reject change order {co.code} with impact level {co.impact_level}. "
                 f"Required authority: {required_authority}. "
                 f"Project: {co.project_id}. "
@@ -1462,7 +1568,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Update status to Rejected using versioned command
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
-            new_status="Rejected",
+            new_status=COStatus.REJECTED.value,
             actor_id=actor_id,
             branch=branch,
             control_date=control_date,
@@ -1485,7 +1591,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status="Rejected",
+            new_status=COStatus.REJECTED.value,
             actor_id=actor_id,
             comment=comments or "Change order rejected",
             control_date=control_date,
@@ -1555,8 +1661,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ValueError: If change order not found, invalid state, or invalid data
             ControlDateSequenceViolationError: If control_date violates sequence
         """
-        from datetime import UTC
-
         from app.services.user import UserService
 
         # Default control_date to now if not provided
@@ -1629,11 +1733,16 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         old_analysis_status = co.impact_analysis_status
 
         # Determine new status for recovery
+        from app.core.enums import ChangeOrderStatus as COStatus
+
         new_status = co.status
-        if co.status == "Draft":
-            new_status = "Under Review"
-        elif co.status in ("Submitted for Approval", "Under Review"):
-            new_status = "Under Review"
+        if co.status == COStatus.DRAFT.value:
+            new_status = COStatus.UNDER_REVIEW.value
+        elif co.status in (
+            COStatus.SUBMITTED_FOR_APPROVAL.value,
+            COStatus.UNDER_REVIEW.value,
+        ):
+            new_status = COStatus.UNDER_REVIEW.value
 
         # Update change order with recovery values using versioned command
         new_analysis_status = "skipped" if skip_impact_analysis else "completed"
@@ -1711,11 +1820,20 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         from sqlalchemy import func
 
         # Build query for pending approvals
+        from app.core.enums import ChangeOrderStatus as COStatus
+
         stmt = select(ChangeOrder).where(
             ChangeOrder.assigned_approver_id == user_id,
-            ChangeOrder.status.in_(["Submitted for Approval", "Under Review"]),
+            ChangeOrder.status.in_(
+                [COStatus.SUBMITTED_FOR_APPROVAL.value, COStatus.UNDER_REVIEW.value]
+            ),
             ChangeOrder.branch == branch,
-            func.upper(cast(Any, ChangeOrder).valid_time).is_(None),  # Current versions
+            is_current_version_on_branch(
+                cast(Any, ChangeOrder).valid_time,
+                ChangeOrder.branch,
+                branch,
+                cast(Any, ChangeOrder).deleted_at,
+            ),  # Current versions
             cast(Any, ChangeOrder).deleted_at.is_(None),
         )
 
@@ -1959,10 +2077,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
     async def _assign_approver_for_impact(
         self, project_id: UUID, impact_level: str
     ) -> UUID | None:
-        """Assign an approver based on impact level using ApprovalMatrix.
+        """Assign an approver based on impact level using UnifiedRBACService.
 
         Context: Phase 6 Task #3 - Approver assignment on CO creation.
-        Queries the ApprovalMatrixService to find an eligible approver for the
+        Queries the UnifiedRBACService to find an eligible approver for the
         given impact level within the project's department.
 
         Args:
@@ -1976,13 +2094,20 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             - Logs assignment success/failure
             - Returns None gracefully if no approver configured
         """
-        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
 
         try:
-            approval_service = ApprovalMatrixService(self.session)
-            approver_id = await approval_service.get_approver_for_impact(
-                project_id, impact_level
-            )
+            set_unified_rbac_session(self.session)
+            try:
+                unified_rbac = get_unified_rbac_service()
+                approver_id = await unified_rbac.get_approver_for_impact(
+                    project_id, impact_level
+                )
+            finally:
+                set_unified_rbac_session(None)
 
             if approver_id:
                 logger.info(
@@ -2116,12 +2241,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         """
         from datetime import timedelta
 
-        # Normalize timezones to prevent "can't subtract offset-naive and offset-aware datetimes" error
-        # If one is aware and the other is naive, assume the naive one is in the same timezone
-        if from_date.tzinfo is not None and to_date.tzinfo is None:
-            to_date = to_date.replace(tzinfo=from_date.tzinfo)
-        elif from_date.tzinfo is None and to_date.tzinfo is not None:
-            from_date = from_date.replace(tzinfo=to_date.tzinfo)
+        if from_date.tzinfo is None:
+            from_date = from_date.replace(tzinfo=UTC)
+        if to_date.tzinfo is None:
+            to_date = to_date.replace(tzinfo=UTC)
 
         if from_date >= to_date:
             return 0
@@ -2165,8 +2288,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         wbe_stmt = sql_select(WBE).where(
             WBE.project_id == project_id,
             WBE.branch == "main",
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
+            is_current_version_on_branch(
+                cast(Any, WBE).valid_time,
+                WBE.branch,
+                "main",
+                cast(Any, WBE).deleted_at,
+            ),
         )
         wbe_result = await self.session.execute(wbe_stmt)
         wbes = wbe_result.scalars().all()
@@ -2177,14 +2304,19 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             existing_stmt = sql_select(WBE).where(
                 WBE.wbe_id == wbe.wbe_id,
                 WBE.branch == isolation_branch,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
+                is_current_version_on_branch(
+                    cast(Any, WBE).valid_time,
+                    WBE.branch,
+                    isolation_branch,
+                    cast(Any, WBE).deleted_at,
+                ),
                 cast(Any, WBE).deleted_at.is_(None),
             )
             existing_result = await self.session.execute(existing_stmt)
             if existing_result.scalar_one_or_none() is None:
                 # Fork this WBE
                 wbe_fork_cmd = CreateBranchCommand(
-                    entity_class=WBE,
+                    entity_class=cast(Any, WBE),
                     root_id=wbe.wbe_id,
                     actor_id=actor_id,
                     new_branch=isolation_branch,
@@ -2200,8 +2332,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             .where(
                 WBE.project_id == project_id,
                 CostElement.branch == "main",
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, CostElement).valid_time,
+                    CostElement.branch,
+                    "main",
+                    cast(Any, CostElement).deleted_at,
+                ),
             )
         )
         ce_result = await self.session.execute(ce_stmt)
@@ -2213,13 +2349,17 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             existing_ce_stmt = sql_select(CostElement).where(
                 CostElement.cost_element_id == ce.cost_element_id,
                 CostElement.branch == isolation_branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, CostElement).valid_time,
+                    CostElement.branch,
+                    isolation_branch,
+                    cast(Any, CostElement).deleted_at,
+                ),
             )
             existing_ce_result = await self.session.execute(existing_ce_stmt)
             if existing_ce_result.scalar_one_or_none() is None:
                 ce_fork_cmd = CreateBranchCommand(
-                    entity_class=CostElement,
+                    entity_class=cast(Any, CostElement),
                     root_id=ce.cost_element_id,
                     actor_id=actor_id,
                     new_branch=isolation_branch,
@@ -2287,11 +2427,26 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             user_service = UserService(self.session)
             approver = await user_service.get_user(co.assigned_approver_id)
             if approver:
+                from app.core.rbac_unified import (
+                    get_unified_rbac_service,
+                    set_unified_rbac_session,
+                )
+
+                set_unified_rbac_session(self.session)
+                try:
+                    approver_rbac = get_unified_rbac_service()
+                    approver_roles = await approver_rbac.get_user_roles(
+                        approver.user_id, "global", None
+                    )
+                    approver_role = approver_roles[0] if approver_roles else "unknown"
+                finally:
+                    set_unified_rbac_session(None)
+
                 assigned_approver = {
                     "user_id": approver.user_id,
                     "full_name": approver.full_name,
                     "email": approver.email,
-                    "role": approver.role,
+                    "role": approver_role,
                 }
 
         # Convert domain model to schema
@@ -2411,7 +2566,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             .where(
                 Project.project_id == project_id,
                 Project.branch == "main",
-                func.upper(cast(Any, Project).valid_time).is_(None),
+                is_current_version_on_branch(
+                    cast(Any, Project).valid_time,
+                    Project.branch,
+                    branch,
+                    cast(Any, Project).deleted_at,
+                ),
                 cast(Any, Project).deleted_at.is_(None),
             )
             .limit(1)
@@ -2447,8 +2607,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             }
 
         # Generate change order code
-        from datetime import UTC
-
         year = datetime.now(UTC).year
         code = await self.get_next_code(project_id, year)
 

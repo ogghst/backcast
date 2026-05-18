@@ -38,7 +38,6 @@ from app.models.schemas.progress_entry import ProgressEntryCreate
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # FIXTURES
 # =============================================================================

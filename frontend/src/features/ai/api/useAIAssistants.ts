@@ -25,8 +25,10 @@ import type {
 const API_BASE = "/api/v1/ai/config";
 
 const assistantApi = {
-  list: async (includeInactive?: boolean): Promise<AIAssistantPublic[]> => {
-    const params = includeInactive ? { include_inactive: "true" } : {};
+  list: async (includeInactive?: boolean, agentType?: string): Promise<AIAssistantPublic[]> => {
+    const params: Record<string, string> = {};
+    if (includeInactive) params.include_inactive = "true";
+    if (agentType) params.agent_type = agentType;
     const response = await axios.get<AIAssistantPublic[]>(`${API_BASE}/assistants`, { params });
     return response.data;
   },
@@ -57,12 +59,13 @@ const assistantApi = {
  */
 export const useAIAssistants = (
   includeInactive?: boolean,
-  options?: Omit<UseQueryOptions<AIAssistantPublic[], Error>, "queryKey" | "queryFn">
+  options?: Omit<UseQueryOptions<AIAssistantPublic[], Error>, "queryKey" | "queryFn"> & { agentType?: string }
 ) => {
+  const { agentType, ...queryOptions } = options || {};
   return useTanstackQuery<AIAssistantPublic[], Error>({
-    queryKey: queryKeys.ai.assistants.list(includeInactive),
-    queryFn: () => assistantApi.list(includeInactive),
-    ...options,
+    queryKey: queryKeys.ai.assistants.list(includeInactive, agentType),
+    queryFn: () => assistantApi.list(includeInactive, agentType),
+    ...queryOptions,
   });
 };
 

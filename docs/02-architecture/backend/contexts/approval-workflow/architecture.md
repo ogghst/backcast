@@ -1,11 +1,14 @@
-# Approval Matrix & SLA Services
+# Approval & SLA Services
 
-**Last Updated:** 2026-04-11
+**Last Updated:** 2026-05-16
 **Owner:** Backend Team
+**Related ADRs:** [ADR-014: Unified RBAC System](../../decisions/ADR-014-unified-rbac.md)
 
 ## Responsibility
 
 Manages the approval workflow for Change Orders by enforcing approval authority based on financial impact levels and tracking Service Level Agreement (SLA) deadlines for approvals. Provides the governance layer for change management workflow.
+
+> **Note:** The `ApprovalMatrixService` was deleted in the 2026-05-16 unified RBAC cleanup. Approval authority validation is now handled directly by `UnifiedRBACService.has_authority_level()` and `UnifiedRBACService.has_permission()`.
 
 ---
 
@@ -15,13 +18,13 @@ Manages the approval workflow for Change Orders by enforcing approval authority 
 
 ```mermaid
 graph TB
-    A[ChangeOrderWorkflowService] --> B[ApprovalMatrixService]
+    A[ChangeOrderWorkflowService] --> B[UnifiedRBACService]
     A --> C[SLAService]
     A --> D[FinancialImpactService]
-    B --> E[(User Tables)]
-    B --> F[(ChangeOrder Tables)]
-    C --> F
-    G[ChangeOrder Routes] --> A
+    B --> E[(user_role_assignments)]
+    B --> F[(rbac_roles)]
+    C --> G[(ChangeOrder Tables)]
+    H[ChangeOrder Routes] --> A
 ```
 
 ### Layers
@@ -32,13 +35,11 @@ graph TB
 - `approve_change_order()` - Validates authority and approves
 - `reject_change_order()` - Rejects change orders
 
-**Approval Matrix Service** (`app/services/approval_matrix_service.py`)
+**UnifiedRBACService** (`app/core/rbac_unified.py`) — Approval Authority
 
-- `get_user_authority_level(user)` - Get user's approval authority level
-- `get_authority_for_impact(impact_level)` - Get required authority for impact level
-- `can_approve(user, change_order)` - Validate approval authority
-- `get_approver_for_impact(project_id, impact_level)` - Find eligible approver
-- `get_approval_info(change_order_id, current_user)` - Complete approval information
+- `has_authority_level(user_id, required_authority, scope_id)` - Validate approval authority
+- `has_permission(user_id, permission, scope_type, scope_id)` - Check change-order-scoped permissions
+- `get_user_roles(user_id, scope_type, scope_id)` - Get user's roles for approval eligibility
 
 **SLA Service** (`app/services/sla_service.py`)
 
@@ -64,9 +65,11 @@ Change Orders are classified by financial impact to determine approval requireme
 
 ---
 
-## Approval Matrix
+## Approval Authority
 
 ### Role to Authority Mapping
+
+Authority levels are stored as metadata on `UserRoleAssignment` records with `scope_type='change_order'`:
 
 | User Role | Approval Authority | Can Approve |
 |-----------|-------------------|-------------|
@@ -74,7 +77,7 @@ Change Orders are classified by financial impact to determine approval requireme
 | manager | HIGH | LOW, MEDIUM, HIGH |
 | viewer | LOW | LOW only |
 
-**Note:** Only active users (`is_active=True`) can approve. Inactive users are blocked regardless of role.
+**Note:** Only active users (`is_active=True`) can approve. Inactive users are blocked regardless of role. Authority is resolved via `UnifiedRBACService.has_authority_level()` which checks the `authority_level` in the `UserRoleAssignment.metadata_` JSONB field.
 
 ### Authority Hierarchy
 
@@ -96,7 +99,7 @@ When a change order is submitted for approval:
 
 1. **Impact Calculation:** `FinancialImpactService` calculates financial impact
 2. **Impact Level:** Impact level is determined (LOW/MEDIUM/HIGH/CRITICAL)
-3. **Approver Selection:** `ApprovalMatrixService.get_approver_for_impact()` selects eligible approver
+3. **Approver Selection:** `ChangeOrderWorkflowService` queries users with sufficient authority via `UnifiedRBACService.has_authority_level()`
    - Queries active users with sufficient authority
    - Prefers higher authority roles (ordered by role desc)
    - Returns first eligible user (can be enhanced for project-specific assignment)
@@ -157,17 +160,17 @@ sequenceDiagram
     participant User
     participant WorkflowService
     participant FinancialService
-    participant ApprovalService
+    participant UnifiedRBAC
     participant SLAService
     participant DB as Database
 
     User->>WorkflowService: submit_for_approval()
     WorkflowService->>FinancialService: calculate_impact_level()
     FinancialService-->>WorkflowService: "MEDIUM"
-    WorkflowService->>ApprovalService: get_approver_for_impact("MEDIUM")
-    ApprovalService->>DB: Query active users with sufficient authority
-    DB-->>ApprovalService: user_id
-    ApprovalService-->>WorkflowService: approver_id
+    WorkflowService->>UnifiedRBAC: has_authority_level(users, "MEDIUM")
+    UnifiedRBAC->>DB: Query user_role_assignments with authority_level
+    DB-->>UnifiedRBAC: eligible users
+    UnifiedRBAC-->>WorkflowService: approver_id
     WorkflowService->>SLAService: calculate_sla_deadline("MEDIUM", now)
     SLAService-->>WorkflowService: deadline
     WorkflowService->>DB: Update ChangeOrder (status, approver, SLA fields)
@@ -180,7 +183,7 @@ sequenceDiagram
 sequenceDiagram
     participant Approver
     participant WorkflowService
-    participant ApprovalService
+    participant UnifiedRBAC
     participant DB as Database
 
     Approver->>WorkflowService: approve_change_order()
@@ -188,8 +191,8 @@ sequenceDiagram
     DB-->>WorkflowService: ChangeOrder
     WorkflowService->>DB: Get Approver User
     DB-->>WorkflowService: User
-    WorkflowService->>ApprovalService: can_approve(user, change_order)
-    ApprovalService-->>WorkflowService: true/false
+    WorkflowService->>UnifiedRBAC: has_authority_level(user_id, required_authority)
+    UnifiedRBAC-->>WorkflowService: true/false
     alt Has Authority
         WorkflowService->>DB: Update status to "Approved"
         DB-->>Approver: Approved
@@ -245,75 +248,48 @@ class SLAStatus:
 
 ## Service Method Details
 
-### ApprovalMatrixService Methods
+### UnifiedRBACService — Approval Authority Methods
 
-#### `get_user_authority_level(user: User) -> str`
+> **Note:** The former `ApprovalMatrixService` methods have been replaced by `UnifiedRBACService` methods that work with the `UserRoleAssignment` entity and `metadata_` JSONB for authority levels.
 
-Maps user role to approval authority level.
+#### `has_authority_level(user_id: UUID, required_authority: str, scope_id: UUID | None) -> bool`
 
-**Example:**
-```python
-authority = service.get_user_authority_level(admin_user)
-# Returns: "CRITICAL"
-```
-
-#### `get_authority_for_impact(impact_level: str) -> str`
-
-Returns required authority for a given impact level.
+Checks if user has sufficient authority level for approval.
 
 **Example:**
 ```python
-authority = service.get_authority_for_impact("HIGH")
-# Returns: "HIGH"
+has_auth = await unified_service.has_authority_level(
+    user_id=admin_user.user_id,
+    required_authority="HIGH",
+    scope_id=change_order_id,
+)
+# Returns: True
 ```
 
-#### `can_approve(user: User, change_order: ChangeOrder) -> bool`
+#### `has_permission(user_id: UUID, permission: str, scope_type: ScopeType, scope_id: UUID | None) -> bool`
 
-Validates if user has authority to approve a change order.
-
-**Checks:**
-1. User is active (`is_active=True`)
-2. Change order has `impact_level` set
-3. User's authority level >= required authority level
+Checks if user has a specific permission (e.g., `change-order-approve`).
 
 **Example:**
 ```python
-can = await service.can_approve(manager, change_order)
-# Returns: True if manager has HIGH authority and CO is MEDIUM impact
+has_perm = await unified_service.has_permission(
+    user_id=user_id,
+    required_permission="change-order-approve",
+    scope_type=ScopeType.CHANGE_ORDER,
+    scope_id=change_order_id,
+)
 ```
 
-#### `get_approver_for_impact(project_id: UUID, impact_level: str) -> UUID | None`
+#### `get_user_roles(user_id: UUID, scope_type: ScopeType, scope_id: UUID | None) -> list[str]`
 
-Finds an eligible approver for a given impact level.
-
-**Selection Logic:**
-1. Calculate required authority for impact level
-2. Find all user roles with sufficient authority
-3. Query active users with those roles
-4. Return first user (prefers higher authority roles)
-
-**Future Enhancement:** Project-specific approver assignment.
+Get user's roles for a scope, useful for determining approval eligibility.
 
 **Example:**
 ```python
-approver_id = await service.get_approver_for_impact(project_id, "HIGH")
-# Returns: UUID of manager or admin user
-```
-
-#### `get_approval_info(change_order_id: UUID, current_user: User) -> dict`
-
-Provides complete approval information for UI display.
-
-**Returns:**
-```python
-{
-    "change_order_id": UUID,
-    "impact_level": str | None,
-    "required_authority": str | None,
-    "assigned_approver_id": UUID | None,
-    "can_approve": bool,
-    "user_authority": str,
-}
+roles = await unified_service.get_user_roles(
+    user_id, ScopeType.CHANGE_ORDER, change_order_id
+)
+# Returns: ["change_order_approver"]
 ```
 
 ### SLAService Methods
@@ -493,10 +469,11 @@ async def update_sla_statuses_job(db_session: AsyncSession) -> None:
 
 ### Services
 
-- **Approval Matrix:** [`backend/app/services/approval_matrix_service.py`](file:///home/nicola/dev/backcast/backend/app/services/approval_matrix_service.py)
+- **Unified RBAC:** [`backend/app/core/rbac_unified.py`](file:///home/nicola/dev/backcast/backend/app/core/rbac_unified.py) — Authority level checks, permission resolution
 - **SLA:** [`backend/app/services/sla_service.py`](file:///home/nicola/dev/backcast/backend/app/services/sla_service.py)
 - **Workflow:** [`backend/app/services/change_order_workflow_service.py`](file:///home/nicola/dev/backcast/backend/app/services/change_order_workflow_service.py)
 - **Financial Impact:** [`backend/app/services/financial_impact_service.py`](file:///home/nicola/dev/backcast/backend/app/services/financial_impact_service.py)
+- ~~**Approval Matrix:**~~ `backend/app/services/approval_matrix_service.py` (deleted — functionality moved to UnifiedRBACService)
 
 ### Models
 
@@ -510,28 +487,30 @@ async def update_sla_statuses_job(db_session: AsyncSession) -> None:
 
 ### Tests
 
-- **Approval Matrix:** [`backend/tests/unit/services/test_approval_matrix_service.py`](file:///home/nicola/dev/backcast/backend/tests/unit/services/test_approval_matrix_service.py)
+- **Unified RBAC:** [`backend/tests/core/test_rbac_unified.py`](file:///home/nicola/dev/backcast/backend/tests/core/test_rbac_unified.py)
 - **Approval Workflow:** [`backend/tests/integration/ai/test_approval_workflow.py`](file:///home/nicola/dev/backcast/backend/tests/integration/ai/test_approval_workflow.py)
 - **Agent Integration:** [`backend/tests/integration/ai/test_agent_service_approval_integration.py`](file:///home/nicola/dev/backcast/backend/tests/integration/ai/test_agent_service_approval_integration.py)
+- ~~**Approval Matrix:**~~ `backend/tests/unit/services/test_approval_matrix_service.py` (deleted with service)
 
 ---
 
 ## Related Documentation
 
-- **Change Order Context:** `docs/02-architecture/backend/contexts/change-management/` (if exists)
+- **Unified RBAC:** `docs/02-architecture/backend/contexts/auth/unified-rbac-implementation.md` - UnifiedRBACService details
+- **Auth Architecture:** `docs/02-architecture/backend/contexts/auth/architecture.md` - Authentication & Authorization
+- **ADR-014:** `docs/02-architecture/decisions/ADR-014-unified-rbac.md` - Unified RBAC system
 - **EVCS Core:** `docs/02-architecture/backend/contexts/evcs-core/architecture.md` - Bitemporal versioning patterns
-- **User Management:** `docs/02-architecture/backend/contexts/user-management/architecture.md` - User model and roles
 - **ADR-005:** `docs/02-architecture/decisions/ADR-005-foreign-keys-temporal-entities.md` - FK constraint design
 
 ---
 
 ## Summary
 
-The **Approval Matrix & SLA Services** provide the governance layer for Change Order approvals by:
+The **Approval & SLA Services** provide the governance layer for Change Order approvals by:
 
-1. **Enforcing Authority Rules:** Validating that only users with sufficient authority can approve changes based on financial impact
+1. **Enforcing Authority Rules:** Validating that only users with sufficient authority can approve changes based on financial impact, using `UnifiedRBACService` for authority resolution
 2. **Automating Approver Assignment:** Selecting eligible approvers based on impact level
 3. **Tracking SLA Compliance:** Calculating deadlines and monitoring approval timing
 4. **Integrating with Workflow:** Orchestrating submission and approval workflows
 
-The services follow the **Service Layer Pattern** and integrate with EVCS (Entity Versioning Control System) for complete audit trails. The design is intentionally simple to allow future migration to a full workflow engine (e.g., Camunda, Temporal) while maintaining the same interface.
+The services follow the **Service Layer Pattern** and integrate with EVCS (Entity Versioning Control System) for complete audit trails. Approval authority is resolved through the unified RBAC system's `UserRoleAssignment` entity with authority levels stored in the `metadata_` JSONB field.

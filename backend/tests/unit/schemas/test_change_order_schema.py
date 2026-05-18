@@ -11,20 +11,20 @@ class TestChangeOrderUpdateSchema:
 
     def test_change_order_update_accepts_comment(self):
         """Test ChangeOrderUpdate accepts optional comment field."""
-        data = {"status": "Submitted for Approval", "comment": "Ready for review"}
+        data = {"status": "submitted_for_approval", "comment": "Ready for review"}
 
         update = ChangeOrderUpdate(**data)
 
-        assert update.status == "Submitted for Approval"
+        assert update.status == "submitted_for_approval"
         assert update.comment == "Ready for review"
 
     def test_change_order_update_comment_is_optional(self):
         """Test ChangeOrderUpdate works without comment field."""
-        data = {"status": "Submitted for Approval"}
+        data = {"status": "submitted_for_approval"}
 
         update = ChangeOrderUpdate(**data)
 
-        assert update.status == "Submitted for Approval"
+        assert update.status == "submitted_for_approval"
         assert update.comment is None
 
     def test_change_order_update_comment_can_be_long_text(self):
@@ -33,7 +33,7 @@ class TestChangeOrderUpdateSchema:
             "This is a detailed explanation of the changes made. " * 10
         )  # ~700 chars
 
-        data = {"status": "Approved", "comment": long_comment}
+        data = {"status": "approved", "comment": long_comment}
 
         update = ChangeOrderUpdate(**data)
 
@@ -42,7 +42,7 @@ class TestChangeOrderUpdateSchema:
 
     def test_change_order_update_with_empty_comment(self):
         """Test ChangeOrderUpdate accepts empty string comment."""
-        data = {"status": "Rejected", "comment": ""}
+        data = {"status": "rejected", "comment": ""}
 
         update = ChangeOrderUpdate(**data)
 
@@ -60,12 +60,12 @@ class TestChangeOrderUpdateSchema:
         """Test ChangeOrderUpdate combines comment with other fields."""
         data = {
             "title": "Updated Title",
-            "status": "Submitted for Approval",
+            "status": "submitted_for_approval",
             "comment": "Updated title for clarity",
         }
 
         update = ChangeOrderUpdate(**data)
 
         assert update.title == "Updated Title"
-        assert update.status == "Submitted for Approval"
+        assert update.status == "submitted_for_approval"
         assert update.comment == "Updated title for clarity"

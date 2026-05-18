@@ -1,6 +1,7 @@
 import React from "react";
 import { Card, theme, Typography, Space } from "antd";
 import { MetricMetadata } from "../types";
+import { formatValue } from "../utils/formatters";
 
 const { Text } = Typography;
 
@@ -50,46 +51,6 @@ export interface MetricCardProps {
   /** Whether to show the description */
   showDescription?: boolean;
 }
-
-/**
- * Format a numeric value based on the format type.
- *
- * @param value - The numeric value to format (can be null)
- * @param format - The format type (currency, percentage, or number)
- * @returns Formatted string representation of the value
- */
-const formatValue = (
-  value: number | null,
-  format: "currency" | "percentage" | "number",
-): string => {
-  if (value === null || value === undefined) return "N/A";
-
-  switch (format) {
-    case "currency":
-      return new Intl.NumberFormat("en-IE", {
-        style: "currency",
-        currency: "EUR",
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(value);
-
-    case "percentage":
-      return new Intl.NumberFormat("en-IE", {
-        style: "percent",
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(value);
-
-    case "number":
-      return new Intl.NumberFormat("en-IE", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(value);
-
-    default:
-      return String(value);
-  }
-};
 
 /**
  * MetricCard Component

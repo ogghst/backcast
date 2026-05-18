@@ -59,7 +59,7 @@ class TestChangeOrderBranchArchive:
             code=co_code,
             title="To Be Archived",
             description="Testing Archive",
-            status="Draft",
+            status="draft",
         )
 
         created_co = await co_service.create_change_order(
@@ -76,13 +76,13 @@ class TestChangeOrderBranchArchive:
         # Service update is safer to ensure consistency.
 
         # Actually, let's use the proper service method but bypass workflow checks if possible?
-        # Workflow enforces transitions. "Draft" -> "Implemented" is invalid.
+        # Workflow enforces transitions. "draft" -> "implemented" is invalid.
         # So we update DB directly for setup speed, OR use proper transitions.
-        # Let's use direct DB update to set "Implemented" to test the *Archive* logic specifically.
+        # Let's use direct DB update to set "implemented" to test the *Archive* logic specifically.
 
         co = await co_service.get_as_of(co_id, as_of=None, branch="main")
         assert co is not None
-        co.status = "Implemented"
+        co.status = "implemented"
         db_session.add(co)
         await db_session.commit()
         await db_session.refresh(co)
@@ -117,7 +117,7 @@ class TestChangeOrderBranchArchive:
         # 2. Change Order should still exist (not archived itself)
         co_after = await co_service.get_as_of(co_id, as_of=None, branch="main")
         assert co_after is not None
-        assert co_after.status == "Implemented"
+        assert co_after.status == "implemented"
 
         # 3. Time travel: Branch should be visible in the past
         branch_past = await branch_service.get_by_name_as_of(
@@ -147,7 +147,7 @@ class TestChangeOrderBranchArchive:
             code=co_code,
             title="Active CO",
             description="Should not archive",
-            status="Draft",
+            status="draft",
         )
 
         created_co = await co_service.create_change_order(

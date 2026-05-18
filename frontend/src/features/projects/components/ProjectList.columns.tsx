@@ -86,10 +86,10 @@ export const getColumnSearchProps = (
 export const useStatusFilters = () =>
   useMemo(
     () => [
-      { text: "Draft", value: "Draft" },
-      { text: "Active", value: "Active" },
-      { text: "Completed", value: "Completed" },
-      { text: "On Hold", value: "On Hold" },
+      { text: "draft", value: "draft" },
+      { text: "active", value: "active" },
+      { text: "completed", value: "completed" },
+      { text: "on_hold", value: "on_hold" },
     ],
     [],
   );

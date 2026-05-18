@@ -54,7 +54,7 @@ class TestWBEServiceBranchMode:
         # Act: Query with isolated mode (STRICT)
         wbes, total = await service.get_wbes(
             branch="BR-123",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         # Assert: Should return only the 2 WBEs from BR-123 branch
@@ -106,7 +106,7 @@ class TestWBEServiceBranchMode:
         # Act: Query with merged mode
         wbes, total = await service.get_wbes(
             branch="BR-123",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
 
         # Assert: Should return all 7 WBEs (2 from BR-123 + 5 from main)
@@ -162,7 +162,7 @@ class TestWBEServiceBranchMode:
         # Act: Query with merged mode
         wbes, total = await service.get_wbes(
             branch="BR-123",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
 
         # Assert: Should return 1 WBE (the BR-123 version takes precedence)
@@ -222,7 +222,7 @@ class TestWBEServiceBranchMode:
         # Act: Query with merged mode
         wbes, total = await service.get_wbes(
             branch="BR-123",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
 
         # Assert: Should return 0 WBEs (deleted on branch, should not fall back)

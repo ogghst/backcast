@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.user import User
@@ -39,9 +40,8 @@ async def read_schedule_baselines(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch to query"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     as_of: datetime | None = Query(
@@ -54,18 +54,14 @@ async def read_schedule_baselines(
     """Retrieve schedule baselines with pagination.
 
     Supports time-travel queries and branch mode filtering.
-    In MERGE mode, combines results from current branch and main branch.
+    In MERGED mode, combines results from current branch and main branch.
     """
     from typing import cast
 
     from sqlalchemy import func, select
     from sqlalchemy.dialects.postgresql import TIMESTAMP
 
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Default to current time if as_of is not provided
     if as_of is None:
@@ -79,9 +75,9 @@ async def read_schedule_baselines(
     stmt = select(ScheduleBaseline)
 
     # Build query with branch and mode support
-    # In MERGE mode, query both current branch and main
-    # In STRICT mode, only query current branch
-    if branch_mode == BranchMode.MERGE and branch != "main":
+    # In MERGED mode, query both current branch and main
+    # In ISOLATED mode, only query current branch
+    if branch_mode == BranchMode.MERGED and branch != "main":
         # Query both branches
         stmt = stmt.where(ScheduleBaseline.branch.in_([branch, "main"]))
     else:

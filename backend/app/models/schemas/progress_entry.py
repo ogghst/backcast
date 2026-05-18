@@ -40,6 +40,23 @@ class ProgressEntryCreate(ProgressEntryBase):
     )
 
 
+class ProgressEntryUpdate(BaseModel):
+    """Properties for updating a Progress Entry."""
+
+    progress_percentage: ProgressPercentageDecimal | None = Field(
+        None,
+        description="Work completion percentage (0.00 to 100.00)",
+    )
+    notes: str | None = Field(
+        None,
+        description="Optional notes about progress (e.g., justification for decrease)",
+    )
+    control_date: datetime | None = Field(
+        None,
+        description="Control date for the progress entry update",
+    )
+
+
 class ProgressEntryRead(ProgressEntryBase, TemporalComputedMixin):
     """Properties returned to client."""
 

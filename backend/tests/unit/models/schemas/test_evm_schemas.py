@@ -83,7 +83,7 @@ class TestEVMMetricsResponse:
             etc=67000.0,
             control_date=control_date,
             branch="main",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
 
         # Assert
@@ -131,7 +131,7 @@ class TestEVMMetricsResponse:
             etc=67000.0,
             control_date=control_date,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         # Assert - Individual fields exist
@@ -169,7 +169,7 @@ class TestEVMMetricsResponse:
                 # Missing pv, ev, ac, cv, sv, cpi, spi, eac, vac, etc
                 control_date=control_date,
                 branch="main",
-                branch_mode=BranchMode.MERGE,
+                branch_mode=BranchMode.MERGED,
             )
 
         errors = exc_info.value.errors()
@@ -202,7 +202,7 @@ class TestEVMMetricsResponse:
             etc=28000.0,
             control_date=control_date,
             branch="feature-branch",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
 
         # Assert
@@ -235,7 +235,7 @@ class TestEVMMetricsResponse:
             etc=560000.0,
             control_date=control_date,
             branch="main",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
 
         # Assert

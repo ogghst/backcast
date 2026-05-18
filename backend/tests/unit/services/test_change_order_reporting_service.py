@@ -180,7 +180,7 @@ class TestGetStatusDistribution(TestChangeOrderReportingService):
 
         # All 3 should be in Draft status
         assert len(result) == 1
-        assert result[0].status == "Draft"
+        assert result[0].status == "draft"
         assert result[0].count == 3
 
     @pytest.mark.asyncio

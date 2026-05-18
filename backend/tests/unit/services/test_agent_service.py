@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_service import AgentService
 from app.ai.execution.agent_event_bus import AgentEventBus
+from app.ai.execution.agent_metrics import AgentExecutionMetrics
 from app.models.domain.ai import AIAssistantConfig, AIConversationSession
 from app.models.schemas.ai import (
     AIModelCreate,
@@ -105,7 +106,7 @@ async def _run_with_mocks(
     user_id: object,
     event_bus: AgentEventBus,
     events: list[dict],
-) -> None:
+) -> AgentExecutionMetrics:
     """Run _run_agent_graph with standard mocks and the given events."""
     mock_llm = MagicMock()
     mock_graph = MagicMock()
@@ -153,7 +154,7 @@ async def _run_with_mocks(
             "app.ai.agent_service.clear_request_context",
         ),
     ):
-        await service._run_agent_graph(
+        return await service._run_agent_graph(
             message="Hello",
             assistant_config=assistant_config,
             session_id=session_id,
@@ -363,3 +364,100 @@ async def test_run_agent_graph_publishes_thinking_event(
 
     thinking_events = [e for e in event_bus.replay() if e.event_type == "thinking"]
     assert len(thinking_events) >= 1
+
+
+def _make_tool_call_events() -> list[dict]:
+    """Create mock streaming events with tool calls and token usage."""
+    chunk = MagicMock()
+    chunk.text = "Hello"
+    chunk.content = "Hello"
+    chunk.additional_kwargs = {}
+
+    # Simulate on_chat_model_end with token usage (LangChain format)
+    ai_output = MagicMock()
+    ai_output.usage_metadata = {
+        "input_tokens": 100,
+        "output_tokens": 50,
+    }
+
+    return [
+        {"event": "on_chat_model_stream", "data": {"chunk": chunk}},
+        {"event": "on_chat_model_end", "data": {"output": ai_output}},
+        {
+            "event": "on_tool_start",
+            "name": "list_projects",
+            "data": {"input": {}},
+        },
+        {
+            "event": "on_tool_end",
+            "name": "list_projects",
+            "data": {"output": '{"results": []}'},
+        },
+        {"event": "on_chat_model_stream", "data": {"chunk": chunk}},
+        {"event": "on_chat_model_end", "data": {"output": ai_output}},
+        {"event": "on_end", "data": {"output": {"messages": []}}},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_graph_returns_metrics(
+    db_session: AsyncSession,
+) -> None:
+    """Test that _run_agent_graph returns AgentExecutionMetrics with counts."""
+    service = AgentService(db_session)
+    assistant_config = await _setup_assistant_config(db_session)
+
+    user_id = uuid4()
+    conversation_session = await _create_session_with_user_message(
+        db_session,
+        assistant_config,
+        str(user_id),
+    )
+
+    event_bus = AgentEventBus(execution_id=str(uuid4()))
+    events = _make_tool_call_events()
+
+    metrics = await _run_with_mocks(
+        service,
+        assistant_config,
+        conversation_session.id,
+        user_id,
+        event_bus,
+        events,
+    )
+
+    assert isinstance(metrics, AgentExecutionMetrics)
+    assert metrics.total_tokens == 300  # 2 LLM calls x (100 + 50)
+    assert metrics.tool_calls_count == 1
+
+
+@pytest.mark.asyncio
+async def test_run_agent_graph_returns_zero_metrics_when_no_tools(
+    db_session: AsyncSession,
+) -> None:
+    """Test that _run_agent_graph returns zero metrics when no tool calls."""
+    service = AgentService(db_session)
+    assistant_config = await _setup_assistant_config(db_session)
+
+    user_id = uuid4()
+    conversation_session = await _create_session_with_user_message(
+        db_session,
+        assistant_config,
+        str(user_id),
+    )
+
+    event_bus = AgentEventBus(execution_id=str(uuid4()))
+    events = _make_end_event()
+
+    metrics = await _run_with_mocks(
+        service,
+        assistant_config,
+        conversation_session.id,
+        user_id,
+        event_bus,
+        events,
+    )
+
+    assert isinstance(metrics, AgentExecutionMetrics)
+    assert metrics.total_tokens == 0
+    assert metrics.tool_calls_count == 0

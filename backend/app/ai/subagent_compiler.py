@@ -1,11 +1,11 @@
 """Shared subagent/specialist compilation logic.
 
-Extracts the common tool-filtering and agent-compilation pattern used by both
-DeepAgentOrchestrator and SupervisorOrchestrator so they don't duplicate the
-same ~80-line method.
+Extracts the common tool-filtering and agent-compilation pattern used by
+SupervisorOrchestrator so it doesn't inline the same ~80-line method.
 """
 
 import logging
+import types
 from typing import Any
 
 from langchain.agents import create_agent as langchain_create_agent
@@ -14,12 +14,14 @@ from langchain_core.tools import BaseTool
 
 from app.ai.config import AgentConfig
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
+from app.ai.middleware.sequential_tool_calls import SequentialToolCallsMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.tools import (
     create_project_tools,
     filter_tools_by_execution_mode,
     filter_tools_by_role,
 )
+from app.ai.tools.sequential_tool_node import SequentialToolNode
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -44,7 +46,7 @@ When using tools:
 """
 
 
-def filter_tools_for_context(
+async def filter_tools_for_context(
     context: ToolContext,
     config: AgentConfig,
 ) -> list[BaseTool]:
@@ -68,10 +70,10 @@ def filter_tools_for_context(
     all_tools = filter_tools_by_execution_mode(all_tools, context.execution_mode)
 
     if config.assistant_role is not None:
-        all_tools = filter_tools_by_role(all_tools, config.assistant_role)
+        all_tools = await filter_tools_by_role(all_tools, config.assistant_role)
 
     if config.user_role is not None:
-        all_tools = filter_tools_by_role(all_tools, config.user_role)
+        all_tools = await filter_tools_by_role(all_tools, config.user_role)
 
     return all_tools
 
@@ -86,6 +88,7 @@ def build_backcast_middleware(
         List with TemporalContextMiddleware and BackcastSecurityMiddleware.
     """
     return [
+        SequentialToolCallsMiddleware(),
         TemporalContextMiddleware(context),
         BackcastSecurityMiddleware(
             context,
@@ -166,6 +169,34 @@ def compile_subagents(
             response_format=schema,
             name=name,
         )
+
+        # Belt-and-suspenders: replace the tools node's afunc at the instance
+        # level so the sequential version is used even if the class-level
+        # monkey-patch is bypassed by LangGraph's internal dispatch.
+        tools_spec = runnable.builder.nodes.get("tools")
+        if tools_spec is not None and hasattr(tools_spec, "runnable"):
+            tool_node_instance = tools_spec.runnable
+            if hasattr(tool_node_instance, "afunc"):
+                tool_node_instance.afunc = types.MethodType(
+                    SequentialToolNode._afunc, tool_node_instance
+                )
+                logger.info(
+                    "Replaced tools node afunc for specialist '%s': %s → sequential",
+                    name,
+                    type(tool_node_instance).__name__,
+                )
+            else:
+                logger.warning(
+                    "Tools node for specialist '%s' has no afunc attribute (type=%s)",
+                    name,
+                    type(tool_node_instance).__name__,
+                )
+        else:
+            logger.warning(
+                "No 'tools' node found in specialist '%s' graph (nodes=%s)",
+                name,
+                list(runnable.builder.nodes.keys()),
+            )
 
         results.append(
             {

@@ -8,16 +8,16 @@ Used in Phase 3: Approval Workflow
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import WebSocket
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
-from langgraph.prebuilt import ToolNode
 
 from app.ai.execution.agent_event_bus import AgentEventBus
+from app.ai.tools.sequential_tool_node import SequentialToolNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.api.websocket_utils import is_websocket_connected
 from app.models.schemas.ai import WSApprovalRequestMessage, WSPollingHeartbeatMessage
@@ -49,7 +49,7 @@ class _ToolCallRequest:
         return _ToolCallRequest(tool_call=tool_call)
 
 
-class InterruptNode(ToolNode):
+class InterruptNode(SequentialToolNode):
     """ToolNode subclass with interrupt-based approval for critical tools.
 
     Wraps LangGraph's ToolNode to add human-in-the-loop approval for critical
@@ -184,7 +184,7 @@ class InterruptNode(ToolNode):
         from app.ai.agent_service import logger
 
         approval_id = str(uuid4())
-        expires_at = datetime.now() + timedelta(minutes=5)
+        expires_at = datetime.now(UTC) + timedelta(minutes=5)
 
         logger.info(
             f"SENDING_APPROVAL_REQUEST: approval_id={approval_id}, tool='{tool_name}', risk_level={risk_level.value}"
@@ -208,7 +208,7 @@ class InterruptNode(ToolNode):
                 AgentEvent(
                     event_type="approval_request",
                     data=approval_request.model_dump(mode="json"),
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                 )
             )
             logger.info(
@@ -279,7 +279,7 @@ class InterruptNode(ToolNode):
                 AgentEvent(
                     event_type="polling_heartbeat",
                     data=heartbeat.model_dump(mode="json"),
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                 )
             )
             logger.debug(
@@ -325,7 +325,7 @@ class InterruptNode(ToolNode):
 
         # Check expiration
         expires_at = approval.get("expires_at")
-        if expires_at and datetime.now() > expires_at:
+        if expires_at and datetime.now(UTC) > expires_at:
             # Remove expired approval
             del self.pending_approvals[approval_id]
             return False, "Approval request has expired (5-minute timeout)"

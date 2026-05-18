@@ -16,7 +16,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.cost_element import CostElement
 from app.models.domain.user import User
@@ -24,6 +27,7 @@ from app.models.domain.wbe import WBE
 from app.services.change_order_service import ChangeOrderService
 from app.services.cost_element_service import CostElementService
 from app.services.wbe import WBEService
+from tests.conftest import MockUnifiedRBACService
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -31,7 +35,6 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
@@ -46,49 +49,16 @@ def mock_get_current_active_user() -> User:
     return mock_admin_user
 
 
-# Mock RBAC service that allows everything
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "change-order-read",
-            "change-order-create",
-            "change-order-update",
-            "change-order-delete",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -100,7 +70,7 @@ async def test_merge_endpoint_returns_200(
 
     ARRANGE: Create a project, change order with branch, WBEs and CostElements on both branches
     ACT: Call POST /api/v1/change-orders/{id}/merge
-    ASSERT: Response is 200, all entities merged to main, CO status is "Implemented"
+    ASSERT: Response is 200, all entities merged to main, CO status is "implemented"
     """
     # Arrange - Setup services and IDs
     actor_id = mock_admin_user.user_id
@@ -133,7 +103,7 @@ async def test_merge_endpoint_returns_200(
         title="Test Change Order",
         description="Test CO for merge endpoint",
         project_id=project_id,
-        status="Approved",
+        status="approved",
     )
 
     # Arrange - Create WBE on main branch first
@@ -171,7 +141,7 @@ async def test_merge_endpoint_returns_200(
         title="Test Change Order",
         description="Test CO for merge endpoint",
         project_id=project_id,
-        status="Approved",
+        status="approved",
     )
 
     # Arrange - Create modified WBE on source branch
@@ -205,7 +175,7 @@ async def test_merge_endpoint_returns_200(
     # Assert - Response is 200
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "Implemented"
+    assert data["status"] == "implemented"
 
     # Assert - WBE merged to main (has source branch version)
     result = await db_session.execute(

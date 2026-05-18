@@ -1,17 +1,44 @@
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
 from app.models.domain.wbe import WBE
 
 
+async def _close_previous_version(
+    session: AsyncSession,
+    table_name: str,
+    root_id_col: str,
+    root_id: uuid.UUID,
+) -> None:
+    """Close the valid_time of the previous current version.
+
+    Sets upper bound of valid_time to NOW so a new version can be inserted
+    with the same (root_id, branch) without violating the unique constraint.
+    """
+    now = datetime.now(UTC)
+    await session.execute(
+        text(
+            f"UPDATE {table_name} SET valid_time = tstzrange("
+            f"  lower(valid_time), :now, '[)'"
+            f") WHERE {root_id_col} = :root_id"
+            f"  AND upper(valid_time) IS NULL"
+            f"  AND deleted_at IS NULL"
+        ),
+        {"root_id": root_id, "now": now},
+    )
+    await session.flush()
+
+
 @pytest.mark.asyncio
-async def test_wbe_project_link_stability(db_session):
+async def test_wbe_project_link_stability(db_session: AsyncSession):
     """
     T-001: Verify that WBE remains linked to Project root ID even after Project is updated.
     This demonstrates bitemporal link stability using root IDs.
@@ -43,7 +70,9 @@ async def test_wbe_project_link_stability(db_session):
     db_session.add(wbe)
     await db_session.commit()
 
-    # 3. Update Project (creates V2) - in our system this usually means creating a new row with same project_id
+    # 3. Update Project (creates V2) - close V1's valid_time first
+    await _close_previous_version(db_session, "projects", "project_id", project_id)
+
     project_v2 = Project(
         project_id=project_id,
         code="PRJ-REG-001",
@@ -74,10 +103,6 @@ async def test_wbe_project_link_stability(db_session):
     assert any(p.name == "Regression Project V2 (Updated)" for p in projects)
 
     # 6. Verify Relationship Navigation (primaryjoin)
-    # Note: Due to multiple project versions, the relationship may not load directly
-    # The important verification is that project_id link is stable (done in step 4)
-    # and that we can query projects by that ID (done in step 5)
-    # For relationship navigation, we query the current version explicitly
     current_proj_result = await db_session.execute(
         select(Project)
         .where(
@@ -93,7 +118,7 @@ async def test_wbe_project_link_stability(db_session):
 
 
 @pytest.mark.asyncio
-async def test_cost_element_wbe_link_stability(db_session):
+async def test_cost_element_wbe_link_stability(db_session: AsyncSession):
     """
     T-002: Verify that CostElement remains linked to WBE root ID even after WBE is updated.
     """
@@ -138,7 +163,9 @@ async def test_cost_element_wbe_link_stability(db_session):
     db_session.add(ce)
     await db_session.commit()
 
-    # 3. Update WBE (creates V2)
+    # 3. Update WBE (creates V2) - close V1's valid_time first
+    await _close_previous_version(db_session, "wbes", "wbe_id", wbe_id)
+
     wbe_v2 = WBE(
         wbe_id=wbe_id,
         project_id=project_id,
@@ -164,13 +191,12 @@ async def test_cost_element_wbe_link_stability(db_session):
     assert fetched_ce.wbe_id == wbe_id
 
     # 5. Verify Relationship Navigation
-    # Already loaded via selectinload
     assert fetched_ce.wbe is not None
     assert fetched_ce.wbe.wbe_id == wbe_id
 
 
 @pytest.mark.asyncio
-async def test_department_manager_link_stability(db_session):
+async def test_department_manager_link_stability(db_session: AsyncSession):
     """
     T-003: Verify that Department remains linked to User root ID.
     """
@@ -218,7 +244,7 @@ async def test_department_manager_link_stability(db_session):
 
 
 @pytest.mark.asyncio
-async def test_cost_element_type_department_link_stability(db_session):
+async def test_cost_element_type_department_link_stability(db_session: AsyncSession):
     """
     T-004: Verify that CostElementType remains linked to Department root ID.
     """
@@ -259,11 +285,10 @@ async def test_cost_element_type_department_link_stability(db_session):
 
 
 @pytest.mark.asyncio
-async def test_cost_registration_cost_element_link_stability(db_session):
+async def test_cost_registration_cost_element_link_stability(db_session: AsyncSession):
     """
     T-005: Verify that CostRegistration remains linked to CostElement root ID.
     """
-    from app.models.domain.cost_element import CostElement
     from app.models.domain.cost_registration import CostRegistration
 
     actor_id = uuid4()

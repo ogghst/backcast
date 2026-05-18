@@ -71,7 +71,7 @@ async def test_td57_deleted_after_as_of_should_fallback(db_session):
         entity_id=wbe_id,
         as_of=before_deletion,
         branch="BR-123",
-        branch_mode=BranchMode.MERGE,
+        branch_mode=BranchMode.MERGED,
     )
 
     # This should return the main branch version because at T=before_deletion,
@@ -86,7 +86,7 @@ async def test_td57_deleted_after_as_of_should_fallback(db_session):
         entity_id=wbe_id,
         as_of=after_deletion,
         branch="BR-123",
-        branch_mode=BranchMode.MERGE,
+        branch_mode=BranchMode.MERGED,
     )
 
     # This should return None because at T=after_deletion,
@@ -144,7 +144,7 @@ async def test_td57_deleted_before_as_of_no_fallback(db_session):
         entity_id=wbe_id,
         as_of=as_of,
         branch="BR-123",
-        branch_mode=BranchMode.MERGE,
+        branch_mode=BranchMode.MERGED,
     )
 
     # Should NOT fall back to main because entity was deleted on BR-123

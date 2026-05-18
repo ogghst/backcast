@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.core.enums import ChangeOrderStatus
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 
 
@@ -14,23 +15,28 @@ async def test_get_available_transitions_draft():
     service = ChangeOrderWorkflowService()
 
     # Act
-    transitions = await service.get_available_transitions("Draft")
+    transitions = await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
 
     # Assert
-    assert transitions == ["Submitted for Approval"]
+    assert transitions == [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
 
 
 @pytest.mark.asyncio
 async def test_get_available_transitions_under_review():
-    """Test getting available transitions from Under Review (branching)."""
+    """Test getting available transitions from under_review (branching)."""
     # Arrange
     service = ChangeOrderWorkflowService()
 
     # Act
-    transitions = await service.get_available_transitions("Under Review")
+    transitions = await service.get_available_transitions(
+        ChangeOrderStatus.UNDER_REVIEW.value
+    )
 
     # Assert
-    assert set(transitions) == {"Approved", "Rejected"}
+    assert set(transitions) == {
+        ChangeOrderStatus.APPROVED.value,
+        ChangeOrderStatus.REJECTED.value,
+    }
 
 
 @pytest.mark.asyncio
@@ -40,10 +46,10 @@ async def test_get_next_status_linear():
     service = ChangeOrderWorkflowService()
 
     # Act
-    next_status = await service.get_next_status("Draft")
+    next_status = await service.get_next_status(ChangeOrderStatus.DRAFT.value)
 
     # Assert
-    assert next_status == "Submitted for Approval"
+    assert next_status == ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value
 
 
 @pytest.mark.asyncio
@@ -53,7 +59,7 @@ async def test_get_next_status_branching():
     service = ChangeOrderWorkflowService()
 
     # Act
-    next_status = await service.get_next_status("Under Review")
+    next_status = await service.get_next_status(ChangeOrderStatus.UNDER_REVIEW.value)
 
     # Assert
     assert next_status is None  # Multiple options available
@@ -61,13 +67,14 @@ async def test_get_next_status_branching():
 
 @pytest.mark.asyncio
 async def test_should_lock_on_transition_draft_to_submitted():
-    """Test that Draft → Submitted for Approval locks branch."""
+    """Test that Draft → submitted_for_approval locks branch."""
     # Arrange
     service = ChangeOrderWorkflowService()
 
     # Act
     should_lock = await service.should_lock_on_transition(
-        "Draft", "Submitted for Approval"
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
     )
 
     # Assert
@@ -76,13 +83,14 @@ async def test_should_lock_on_transition_draft_to_submitted():
 
 @pytest.mark.asyncio
 async def test_should_lock_on_transition_submitted_to_under_review():
-    """Test that Submitted for Approval → Under Review does NOT lock branch."""
+    """Test that submitted_for_approval → under_review does NOT lock branch."""
     # Arrange
     service = ChangeOrderWorkflowService()
 
     # Act
     should_lock = await service.should_lock_on_transition(
-        "Submitted for Approval", "Under Review"
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+        ChangeOrderStatus.UNDER_REVIEW.value,
     )
 
     # Assert
@@ -91,13 +99,14 @@ async def test_should_lock_on_transition_submitted_to_under_review():
 
 @pytest.mark.asyncio
 async def test_should_unlock_on_transition_under_review_to_rejected():
-    """Test that Under Review → Rejected unlocks branch."""
+    """Test that under_review → Rejected unlocks branch."""
     # Arrange
     service = ChangeOrderWorkflowService()
 
     # Act
     should_unlock = await service.should_unlock_on_transition(
-        "Under Review", "Rejected"
+        ChangeOrderStatus.UNDER_REVIEW.value,
+        ChangeOrderStatus.REJECTED.value,
     )
 
     # Assert
@@ -111,7 +120,7 @@ async def test_can_edit_on_status_draft():
     service = ChangeOrderWorkflowService()
 
     # Act
-    can_edit = await service.can_edit_on_status("Draft")
+    can_edit = await service.can_edit_on_status(ChangeOrderStatus.DRAFT.value)
 
     # Assert
     assert can_edit is True
@@ -119,12 +128,14 @@ async def test_can_edit_on_status_draft():
 
 @pytest.mark.asyncio
 async def test_can_edit_on_status_submitted():
-    """Test that Submitted for Approval does NOT allow editing."""
+    """Test that submitted_for_approval does NOT allow editing."""
     # Arrange
     service = ChangeOrderWorkflowService()
 
     # Act
-    can_edit = await service.can_edit_on_status("Submitted for Approval")
+    can_edit = await service.can_edit_on_status(
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value
+    )
 
     # Assert
     assert can_edit is False
@@ -137,7 +148,7 @@ async def test_can_edit_on_status_rejected():
     service = ChangeOrderWorkflowService()
 
     # Act
-    can_edit = await service.can_edit_on_status("Rejected")
+    can_edit = await service.can_edit_on_status(ChangeOrderStatus.REJECTED.value)
 
     # Assert
     assert can_edit is True
@@ -145,12 +156,15 @@ async def test_can_edit_on_status_rejected():
 
 @pytest.mark.asyncio
 async def test_is_valid_transition_draft_to_submitted():
-    """Test that Draft → Submitted for Approval is valid."""
+    """Test that Draft → submitted_for_approval is valid."""
     # Arrange
     service = ChangeOrderWorkflowService()
 
     # Act
-    is_valid = await service.is_valid_transition("Draft", "Submitted for Approval")
+    is_valid = await service.is_valid_transition(
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+    )
 
     # Assert
     assert is_valid is True
@@ -163,7 +177,10 @@ async def test_is_valid_transition_draft_to_approved():
     service = ChangeOrderWorkflowService()
 
     # Act
-    is_valid = await service.is_valid_transition("Draft", "Approved")
+    is_valid = await service.is_valid_transition(
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.APPROVED.value,
+    )
 
     # Assert
     assert is_valid is False
@@ -171,12 +188,15 @@ async def test_is_valid_transition_draft_to_approved():
 
 @pytest.mark.asyncio
 async def test_is_valid_transition_rejected_to_submitted():
-    """Test that Rejected → Submitted for Approval is valid (resubmission)."""
+    """Test that Rejected → submitted_for_approval is valid (resubmission)."""
     # Arrange
     service = ChangeOrderWorkflowService()
 
     # Act
-    is_valid = await service.is_valid_transition("Rejected", "Submitted for Approval")
+    is_valid = await service.is_valid_transition(
+        ChangeOrderStatus.REJECTED.value,
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+    )
 
     # Assert
     assert is_valid is True
@@ -189,7 +209,9 @@ async def test_get_available_transitions_implemented():
     service = ChangeOrderWorkflowService()
 
     # Act
-    transitions = await service.get_available_transitions("Implemented")
+    transitions = await service.get_available_transitions(
+        ChangeOrderStatus.IMPLEMENTED.value
+    )
 
     # Assert
     assert transitions == []
@@ -203,22 +225,24 @@ async def test_get_available_transitions_implemented():
 # due to runtime imports to avoid circular dependencies with ChangeOrderService.
 # See tests/integration/test_change_order_approval_workflow.py for comprehensive tests.
 
-
 # ============================================================================
 # Phase B: Config-driven Workflow Transitions Tests
 # ============================================================================
 
 CUSTOM_CONFIG = {
     "transitions": {
-        "Draft": ["CustomStep"],
-        "CustomStep": ["Approved", "Rejected"],
-        "Approved": ["Implemented"],
-        "Rejected": ["Draft"],
-        "Implemented": [],
+        ChangeOrderStatus.DRAFT.value: ["custom_step"],
+        "custom_step": [
+            ChangeOrderStatus.APPROVED.value,
+            ChangeOrderStatus.REJECTED.value,
+        ],
+        ChangeOrderStatus.APPROVED.value: [ChangeOrderStatus.IMPLEMENTED.value],
+        ChangeOrderStatus.REJECTED.value: [ChangeOrderStatus.DRAFT.value],
+        ChangeOrderStatus.IMPLEMENTED.value: [],
     },
-    "lock_transitions": [["Draft", "CustomStep"]],
-    "unlock_transitions": [["CustomStep", "Rejected"]],
-    "editable_statuses": ["Draft"],
+    "lock_transitions": [[ChangeOrderStatus.DRAFT.value, "custom_step"]],
+    "unlock_transitions": [["custom_step", ChangeOrderStatus.REJECTED.value]],
+    "editable_statuses": [ChangeOrderStatus.DRAFT.value],
 }
 
 
@@ -227,11 +251,17 @@ async def test_no_config_service_uses_hardcoded_defaults():
     """Service with no config_service uses class-level hardcoded defaults."""
     service = ChangeOrderWorkflowService()
 
-    transitions = await service.get_available_transitions("Draft")
-    assert transitions == ["Submitted for Approval"]
+    transitions = await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
+    assert transitions == [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
 
-    assert await service.is_valid_transition("Draft", "Submitted for Approval")
-    assert not await service.is_valid_transition("Draft", "Approved")
+    assert await service.is_valid_transition(
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+    )
+    assert not await service.is_valid_transition(
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.APPROVED.value,
+    )
 
 
 @pytest.mark.asyncio
@@ -242,10 +272,15 @@ async def test_config_overrides_transitions():
 
     service = ChangeOrderWorkflowService(config_service=config_service)
 
-    transitions = await service.get_available_transitions("Draft")
-    assert transitions == ["CustomStep"]
-    assert await service.is_valid_transition("Draft", "CustomStep")
-    assert not await service.is_valid_transition("Draft", "Submitted for Approval")
+    transitions = await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
+    assert transitions == ["custom_step"]
+    assert await service.is_valid_transition(
+        ChangeOrderStatus.DRAFT.value, "custom_step"
+    )
+    assert not await service.is_valid_transition(
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+    )
 
 
 @pytest.mark.asyncio
@@ -256,8 +291,8 @@ async def test_config_null_transitions_falls_back():
 
     service = ChangeOrderWorkflowService(config_service=config_service)
 
-    transitions = await service.get_available_transitions("Draft")
-    assert transitions == ["Submitted for Approval"]
+    transitions = await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
+    assert transitions == [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
 
 
 @pytest.mark.asyncio
@@ -272,8 +307,8 @@ async def test_config_exception_falls_back():
 
     service = ChangeOrderWorkflowService(config_service=config_service)
 
-    transitions = await service.get_available_transitions("Draft")
-    assert transitions == ["Submitted for Approval"]
+    transitions = await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
+    assert transitions == [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value]
 
 
 @pytest.mark.asyncio
@@ -285,7 +320,7 @@ async def test_config_unexpected_error_propagates():
     service = ChangeOrderWorkflowService(config_service=config_service)
 
     with pytest.raises(RuntimeError, match="DB error"):
-        await service.get_available_transitions("Draft")
+        await service.get_available_transitions(ChangeOrderStatus.DRAFT.value)
 
 
 @pytest.mark.asyncio
@@ -296,9 +331,12 @@ async def test_custom_lock_transitions():
 
     service = ChangeOrderWorkflowService(config_service=config_service)
 
-    assert await service.should_lock_on_transition("Draft", "CustomStep")
+    assert await service.should_lock_on_transition(
+        ChangeOrderStatus.DRAFT.value, "custom_step"
+    )
     assert not await service.should_lock_on_transition(
-        "Draft", "Submitted for Approval"
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
     )
 
 
@@ -310,8 +348,13 @@ async def test_custom_unlock_transitions():
 
     service = ChangeOrderWorkflowService(config_service=config_service)
 
-    assert await service.should_unlock_on_transition("CustomStep", "Rejected")
-    assert not await service.should_unlock_on_transition("Under Review", "Rejected")
+    assert await service.should_unlock_on_transition(
+        "custom_step", ChangeOrderStatus.REJECTED.value
+    )
+    assert not await service.should_unlock_on_transition(
+        ChangeOrderStatus.UNDER_REVIEW.value,
+        ChangeOrderStatus.REJECTED.value,
+    )
 
 
 @pytest.mark.asyncio
@@ -322,8 +365,8 @@ async def test_custom_editable_statuses():
 
     service = ChangeOrderWorkflowService(config_service=config_service)
 
-    assert await service.can_edit_on_status("Draft")
-    assert not await service.can_edit_on_status("Rejected")
+    assert await service.can_edit_on_status(ChangeOrderStatus.DRAFT.value)
+    assert not await service.can_edit_on_status(ChangeOrderStatus.REJECTED.value)
 
 
 @pytest.mark.asyncio
@@ -334,7 +377,7 @@ async def test_transitions_cached_within_instance():
 
     service = ChangeOrderWorkflowService(config_service=config_service)
 
-    await service.get_available_transitions("Draft")
-    await service.get_available_transitions("Draft")
+    await service.get_available_transitions("draft")
+    await service.get_available_transitions("draft")
 
     config_service.get_workflow_transitions.assert_called_once()

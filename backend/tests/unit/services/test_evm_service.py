@@ -427,7 +427,7 @@ class TestEVMServiceAggregation:
             etc=Decimal("60"),
             control_date=datetime(2024, 1, 15),
             branch="main",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
             progress_percentage=Decimal("45"),
             warning=None,
         )
@@ -448,7 +448,7 @@ class TestEVMServiceAggregation:
             etc=Decimal("100"),
             control_date=datetime(2024, 1, 15),
             branch="main",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
             progress_percentage=Decimal("47.5"),
             warning=None,
         )
@@ -496,7 +496,7 @@ class TestEVMServiceAggregation:
             etc=Decimal("60"),
             control_date=datetime(2024, 1, 15),
             branch="main",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
             progress_percentage=Decimal("45"),
             warning=None,
         )
@@ -517,7 +517,7 @@ class TestEVMServiceAggregation:
             etc=Decimal("100"),
             control_date=datetime(2024, 1, 15),
             branch="main",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
             progress_percentage=Decimal("47.5"),
             warning=None,
         )

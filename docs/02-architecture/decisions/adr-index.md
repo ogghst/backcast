@@ -1,6 +1,6 @@
 # ADR Index
 
-**Last Updated:** 2026-01-23
+**Last Updated:** 2026-05-11
 
 ## Creating New ADRs
 
@@ -73,3 +73,4 @@ Additional information, links, or future review dates
 | [ADR-011](ADR-011-generic-evm-metric-system.md)          | Generic EVM Metric System                     | Accepted | 2026-01-22 |
 | [ADR-012](ADR-012-evm-time-series-data-strategy.md)      | EVM Time-Series Data Strategy                 | Accepted | 2026-01-22 |
 | [ADR-013](ADR-013-computed-budget-attribute.md)         | Computed Budget Attribute Pattern             | Accepted | 2026-02-28 |
+| [ADR-014](ADR-014-unified-rbac.md)                     | Unified RBAC System                            | Accepted | 2026-05-10 |

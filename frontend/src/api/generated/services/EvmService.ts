@@ -30,7 +30,7 @@ export class EvmService {
      *
      * Time-Travel & Branching:
      * - All metrics respect time-travel: entities are fetched as they were at control_date
-     * - Branch mode (STRICT/MERGE) controls parent branch fallback behavior
+     * - Branch mode （ISOLATED/MERGE) controls parent branch fallback behavior
      * - Cost registrations and progress entries are global facts (not branchable)
      *
      * Supports entity types:
@@ -43,7 +43,7 @@ export class EvmService {
      * @param entityId
      * @param controlDate Control date for time-travel query (ISO 8601, defaults to now). All entities are fetched as they were at this valid_time.
      * @param branch Branch to query
-     * @param branchMode Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)
+     * @param branchMode Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)
      * @returns EVMMetricsResponse Successful Response
      * @throws ApiError
      */
@@ -52,7 +52,7 @@ export class EvmService {
         entityId: string,
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = 'merge',
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<EVMMetricsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -98,7 +98,7 @@ export class EvmService {
      * @param granularity Time granularity for aggregation (day, week, month)
      * @param controlDate Control date for time-travel query (ISO 8601, defaults to now).
      * @param branch Branch to query
-     * @param branchMode Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)
+     * @param branchMode Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)
      * @returns EVMTimeSeriesResponse Successful Response
      * @throws ApiError
      */
@@ -108,7 +108,7 @@ export class EvmService {
         granularity: EVMTimeSeriesGranularity = 'week',
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = 'merge',
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<EVMTimeSeriesResponse> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -141,7 +141,7 @@ export class EvmService {
      * entity_ids: List of entity IDs to calculate metrics for
      * control_date: Optional control date for time-travel (defaults to now)
      * branch: Branch name (defaults to "main")
-     * branch_mode: Branch isolation mode (defaults to "merge")
+     * branch_mode: Branch isolation mode (defaults to "merged")
      *
      * Supports entity types:
      * - cost_element: Aggregate multiple cost elements

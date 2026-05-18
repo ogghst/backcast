@@ -138,10 +138,10 @@ def _apply_branch_mode_filter(
 ) -> Any:
     """Apply branch mode filtering for branchable entities.
 
-    STRICT: only the specified branch.
-    MERGE: DISTINCT ON with branch precedence (current branch over main).
+    ISOLATED: only the specified branch.
+    MERGED: DISTINCT ON with branch precedence (current branch over main).
     """
-    if branch_mode == BranchMode.MERGE and branch != "main":
+    if branch_mode == BranchMode.MERGED and branch != "main":
         stmt = stmt.where(
             cast(Any, entity_class).branch.in_([branch, "main"]),
         )
@@ -303,11 +303,10 @@ class GlobalSearchService:
         query: str,
         *,
         user_id: UUID,
-        user_role: str,
         project_id: UUID | None = None,
         wbe_id: UUID | None = None,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
         as_of: datetime | None = None,
         limit: int = 50,
     ) -> GlobalSearchResponse:
@@ -316,11 +315,10 @@ class GlobalSearchService:
         Args:
             query: Search string (at least 1 character).
             user_id: Authenticated user ID for RBAC scoping.
-            user_role: User role for RBAC scoping.
             project_id: Optional project root ID to scope results.
             wbe_id: Optional WBE root ID to scope results (includes descendants).
             branch: Branch name (default "main").
-            branch_mode: STRICT or MERGE for branchable entities.
+            branch_mode: ISOLATED or MERGED for branchable entities.
             as_of: Optional timestamp for time-travel queries.
             limit: Maximum results to return.
 
@@ -328,7 +326,7 @@ class GlobalSearchService:
             GlobalSearchResponse with ranked results.
         """
         # 1. Resolve accessible project IDs via RBAC
-        accessible_project_ids = await self._get_accessible_projects(user_id, user_role)
+        accessible_project_ids = await self._get_accessible_projects(user_id)
 
         # 2. If wbe_id provided, resolve descendant WBE IDs
         wbe_ids: list[UUID] | None = None
@@ -375,17 +373,19 @@ class GlobalSearchService:
     async def _get_accessible_projects(
         self,
         user_id: UUID,
-        user_role: str,
     ) -> list[UUID]:
         """Get project IDs accessible to the user via RBAC.
 
         Admin users see all projects. Others are filtered by membership.
         """
-        from app.core.rbac import get_rbac_service, inject_rbac_session
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
 
-        rbac_service = get_rbac_service()
-        inject_rbac_session(rbac_service, self.session)
-        return await rbac_service.get_user_projects(user_id, user_role)
+        set_unified_rbac_session(self.session)
+        service = get_unified_rbac_service()
+        return await service.get_accessible_projects(user_id)
 
     async def _resolve_wbe_descendants(
         self,

@@ -47,9 +47,8 @@ async def read_cost_elements(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch to query"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     wbe_id: UUID | None = Query(None, description="Filter by WBE ID"),
@@ -74,16 +73,12 @@ async def read_cost_elements(
     service: CostElementService = Depends(get_cost_element_service),
 ) -> dict[str, Any]:
     """Retrieve cost elements with server-side search, filtering, and sorting."""
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
     from app.models.schemas.cost_element import CostElementRead
 
     # Default to current time if as_of is not provided
     if as_of is None:
         as_of = datetime.now(tz=UTC)
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Legacy filters support
     legacy_filters = {}
@@ -156,9 +151,8 @@ async def create_cost_element(
 async def read_cost_element(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to query"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     as_of: datetime | None = Query(
@@ -175,10 +169,6 @@ async def read_cost_element(
     # Default to current time if as_of is not provided
     if as_of is None:
         as_of = datetime.now(tz=UTC)
-
-    from app.core.versioning.enums import BranchMode
-
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     if as_of:
         # Time travel query
@@ -569,7 +559,7 @@ async def read_evm_metrics(
     ),
     branch: str = Query("main", description="Branch to query"),
     branch_mode: BranchMode = Query(
-        BranchMode.MERGE,
+        BranchMode.MERGED,
         description="Branch mode: ISOLATED (only this branch) or MERGE (fall back to parent branches)",
     ),
     service: EVMService = Depends(get_evm_service),
@@ -633,7 +623,7 @@ async def read_evm_history(
     ),
     branch: str = Query("main", description="Branch to query"),
     branch_mode: BranchMode = Query(
-        BranchMode.MERGE,
+        BranchMode.MERGED,
         description="Branch mode",
     ),
     service: EVMService = Depends(get_evm_service),
@@ -675,9 +665,8 @@ async def read_evm_history(
 async def get_cost_element_forecast(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to query"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     as_of: datetime | None = Query(
@@ -698,10 +687,6 @@ async def get_cost_element_forecast(
     This endpoint follows the inverted FK pattern, querying via
     cost_element.forecast_id instead of forecast.cost_element_id.
     """
-    from app.core.versioning.enums import BranchMode
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Default to current time if as_of is not provided
     if as_of is None:

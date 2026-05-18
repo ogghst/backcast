@@ -44,7 +44,7 @@ class TestStatePersistence:
         ]
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
         thread_id = "test-thread-persistence"
 
         # Act - First invocation
@@ -118,7 +118,7 @@ class TestStatePersistence:
         ]
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
         thread_id = "test-thread-tool-persistence"
 
         # Act
@@ -163,7 +163,7 @@ class TestStatePersistence:
         ]
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
-        graph = create_graph(llm=mock_llm, tools=tools)
+        graph, _ = create_graph(llm=mock_llm, tools=tools)
 
         # Act - Thread 1
         result1 = await graph.ainvoke(

@@ -120,19 +120,19 @@ class EVMService:
         cost_element_id: UUID,
         control_date: datetime,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> EVMMetricsRead:
         """Calculate all EVM metrics for a cost element as of control_date.
 
         All calculations respect time-travel (control_date) and branch mode:
         - ISOLATED: Only use data from the specified branch
-        - MERGE: Use data from specified branch, falling back to parent branches
+        - MERGED: Use data from specified branch, falling back to parent branches
 
         Args:
             cost_element_id: The cost element to calculate metrics for
             control_date: The control date for time-travel query (fetches entities at correct valid_time)
             branch: Branch name (default: "main")
-            branch_mode: Branch isolation mode (default: MERGE)
+            branch_mode: Branch isolation mode (default: MERGED)
 
         Returns:
             EVMMetricsRead with all calculated metrics
@@ -391,7 +391,7 @@ class EVMService:
             cost_element_id: The cost element to get EAC for
             as_of: Time-travel query date (fetches forecast at correct valid_time)
             branch: Branch name
-            branch_mode: Branch isolation mode (STRICT or MERGE)
+            branch_mode: Branch isolation mode （ISOLATED or MERGE)
 
         Returns:
             EAC value or None if forecast not found
@@ -639,7 +639,7 @@ class EVMService:
         valid_ids: list[UUID] = []
 
         # Deduplicate to prevent double-counting EVM metrics when the same CE
-        # appears in multiple WBEs (e.g., in MERGE mode with branch versions)
+        # appears in multiple WBEs (e.g., in MERGED mode with branch versions)
         unique_cost_element_ids = list(dict.fromkeys(cost_element_ids))
 
         ce_map = await self.ce_service.get_as_of_batch(
@@ -656,7 +656,7 @@ class EVMService:
         valid_ids = list(ce_map.keys())
 
         # 2. Bulk fetch all related data in parallel
-        forecast_branch = "main" if branch_mode == BranchMode.MERGE else branch
+        forecast_branch = "main" if branch_mode == BranchMode.MERGED else branch
         baselines_map, ac_map, progress_map, forecasts_map = await asyncio.gather(
             self.sb_service.get_baselines_for_cost_elements(
                 valid_ids, branch, as_of=control_date
@@ -738,7 +738,7 @@ class EVMService:
         entity_ids: list[UUID],
         control_date: datetime,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> EVMMetricsResponse:
         """Calculate EVM metrics for multiple entities and aggregate them.
 
@@ -752,7 +752,7 @@ class EVMService:
             entity_ids: List of entity IDs to calculate metrics for
             control_date: Control date for time-travel query
             branch: Branch name (default: "main")
-            branch_mode: Branch isolation mode (default: MERGE)
+            branch_mode: Branch isolation mode (default: MERGED)
 
         Returns:
             EVMMetricsResponse with aggregated metrics
@@ -1241,7 +1241,7 @@ class EVMService:
         granularity: EVMTimeSeriesGranularity,
         control_date: datetime,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGE,
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> EVMTimeSeriesResponse:
         """Get historical EVM metrics as time-series data for charts.
 
@@ -1259,7 +1259,7 @@ class EVMService:
             granularity: Time granularity (day, week, month)
             control_date: Control date for time-travel queries
             branch: Branch name (default: "main")
-            branch_mode: Branch isolation mode (default: MERGE)
+            branch_mode: Branch isolation mode (default: MERGED)
 
         Returns:
             EVMTimeSeriesResponse with aggregated time-series data
@@ -1416,10 +1416,8 @@ class EVMService:
         ac_map: dict[datetime, Decimal] = {}
         for entry in cumulative_costs:
             entry_date = datetime.fromisoformat(entry["registration_date"]).replace(
-                hour=0, minute=0, second=0, microsecond=0
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=UTC
             )
-            if entry_date.tzinfo is None and control_date.tzinfo is not None:
-                entry_date = entry_date.replace(tzinfo=control_date.tzinfo)
             ac_map[entry_date] = Decimal(str(entry["cumulative_amount"]))
 
         # Batch fetch all progress entries (EV data) for the cost element
@@ -1672,10 +1670,8 @@ class EVMService:
             ac_map: dict[datetime, Decimal] = {}
             for entry in ac_raw.get(ce_id, []):
                 entry_date = datetime.fromisoformat(entry["registration_date"]).replace(
-                    hour=0, minute=0, second=0, microsecond=0
+                    hour=0, minute=0, second=0, microsecond=0, tzinfo=UTC
                 )
-                if entry_date.tzinfo is None and control_date.tzinfo is not None:
-                    entry_date = entry_date.replace(tzinfo=control_date.tzinfo)
                 ac_map[entry_date] = Decimal(str(entry["cumulative_amount"]))
 
             # Build EV map (same logic as _generate_timeseries_points)

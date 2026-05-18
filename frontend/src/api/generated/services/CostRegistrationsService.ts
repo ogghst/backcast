@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchMode } from '../models/BranchMode';
 import type { CostRegistrationCreate } from '../models/CostRegistrationCreate';
 import type { CostRegistrationRead } from '../models/CostRegistrationRead';
 import type { CostRegistrationUpdate } from '../models/CostRegistrationUpdate';
@@ -23,7 +24,7 @@ export class CostRegistrationsService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query (for context)
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param costElementId Filter by Cost Element ID
      * @param wbeId Filter by WBE ID (returns all registrations under this WBE)
      * @param projectId Filter by Project ID (returns all registrations under this project)
@@ -39,7 +40,7 @@ export class CostRegistrationsService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         costElementId?: (string | null),
         wbeId?: (string | null),
         projectId?: (string | null),
@@ -56,7 +57,7 @@ export class CostRegistrationsService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'cost_element_id': costElementId,
                 'wbe_id': wbeId,
                 'project_id': projectId,
@@ -150,7 +151,7 @@ export class CostRegistrationsService {
      * @param projectId
      * @param branch Branch context to resolve Project budget
      * @param asOf Time travel: get budget status as of this timestamp (ISO 8601)
-     * @param branchMode Branch mode: merge (fallback to main) or isolated (current branch only)
+     * @param branchMode Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -158,7 +159,7 @@ export class CostRegistrationsService {
         projectId: string,
         branch: string = 'main',
         asOf?: (string | null),
-        branchMode: string = 'merge',
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -186,7 +187,7 @@ export class CostRegistrationsService {
      * @param wbeId
      * @param branch Branch context to resolve WBE budget
      * @param asOf Time travel: get budget status as of this timestamp (ISO 8601)
-     * @param branchMode Branch mode: merge (fallback to main) or isolated (current branch only)
+     * @param branchMode Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -194,7 +195,7 @@ export class CostRegistrationsService {
         wbeId: string,
         branch: string = 'main',
         asOf?: (string | null),
-        branchMode: string = 'merge',
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',

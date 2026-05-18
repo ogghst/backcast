@@ -6,11 +6,12 @@
  * Project workflow statuses.
  *
  * Each status has an associated Ant Design color name for UI rendering.
+ * All status values are lowercase for consistency.
  */
 export enum ProjectStatus {
-    DRAFT = 'Draft',
-    ACTIVE = 'Active',
-    ON_HOLD = 'On Hold',
-    COMPLETED = 'Completed',
-    CANCELLED = 'Cancelled',
+    DRAFT = 'draft',
+    ACTIVE = 'active',
+    ON_HOLD = 'on_hold',
+    COMPLETED = 'completed',
+    CANCELLED = 'cancelled',
 }

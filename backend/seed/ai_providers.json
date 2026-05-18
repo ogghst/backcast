@@ -78,5 +78,28 @@
         "is_active": true
       }
     ]
+  },
+  {
+    "id": "01234567-89ab-cdef-0123-456789abcde2",
+    "provider_type": "deepseek",
+    "name": "DeepSeek",
+    "base_url": "https://api.deepseek.com/v1",
+    "is_active": false,
+    "configs": [
+      {
+        "id": "11111111-1111-1111-1111-111111111113",
+        "key": "api_key",
+        "value": "",
+        "is_encrypted": true
+      }
+    ],
+    "models": [
+      {
+        "id": "77777777-7777-7777-7777-777777777777",
+        "model_id": "deepseek-v4-flash",
+        "display_name": "DeepSeek V4 Flash",
+        "is_active": true
+      }
+    ]
   }
 ]

@@ -18,7 +18,6 @@ def admin_user() -> User:
         user_id=uuid4(),
         email="admin@example.com",
         is_active=True,
-        role="admin",
         full_name="Admin User",
         hashed_password="hash",
         created_by=uuid4(),
@@ -124,11 +123,12 @@ async def test_change_order_active_versions(db_session: AsyncSession, admin_user
 
     service = ChangeOrderService(db_session)
     actor_id = admin_user.user_id
+    project_id = project.project_id
 
     # Create
     co = await service.create_change_order(
         ChangeOrderCreate(
-            code=f"CO-ACT-{uuid4().hex[:4]}", project_id=project.project_id, title="V1"
+            code=f"CO-ACT-{uuid4().hex[:4]}", project_id=project_id, title="V1"
         ),
         actor_id=actor_id,
     )
@@ -139,6 +139,8 @@ async def test_change_order_active_versions(db_session: AsyncSession, admin_user
     await service.update_change_order(
         co_id, ChangeOrderUpdate(title="V2"), actor_id=actor_id
     )
+    await db_session.commit()
+    db_session.expire_all()
 
     # Active Fetch
     current = await service.get_as_of(co_id, as_of=None, branch="main")
@@ -146,7 +148,7 @@ async def test_change_order_active_versions(db_session: AsyncSession, admin_user
     assert current.title == "V2"
 
     # List Fetch
-    results, total = await service.get_change_orders(project_id=project.project_id)
+    results, total = await service.get_change_orders(project_id=project_id)
     assert total == 1
     assert results[0].title == "V2"
 
@@ -167,18 +169,19 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
 
     service = ChangeOrderService(db_session)
     actor_id = admin_user.user_id
+    project_id = project.project_id
 
     # 2. CREATE
     co_in = ChangeOrderCreate(
         code="CO-CRUD-001",
-        project_id=project.project_id,
+        project_id=project_id,
         title="CRUD Title",
         description="Desc",
     )
     co = await service.create_change_order(co_in, actor_id=actor_id)
 
     assert co.title == "CRUD Title"
-    assert co.status == "Draft"
+    assert co.status == "draft"
     assert co.branch_name == "BR-CO-CRUD-001"
 
     co_id = co.change_order_id
@@ -189,20 +192,25 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
     assert fetched.change_order_id == co_id
 
     # 4. UPDATE
-    # Use valid transition "Submitted for Approval"
+    # Use valid transition "submitted_for_approval"
     update_in = ChangeOrderUpdate(
-        description="Updated Desc", status="Submitted for Approval"
+        description="Updated Desc", status="submitted_for_approval"
     )
     updated = await service.update_change_order(co_id, update_in, actor_id=actor_id)
 
     assert updated.description == "Updated Desc"
-    assert updated.status == "Submitted for Approval"
+    assert updated.status == "submitted_for_approval"
+
+    # Expire session to ensure next query fetches fresh data
+    await db_session.commit()
+    db_session.expire_all()
 
     # 4.5. REJECT (Required before deletion)
     # Only Draft or Rejected COs can be deleted
-    reject_in = ChangeOrderUpdate(status="Rejected")
+    # Transition: submitted_for_approval -> rejected (valid)
+    reject_in = ChangeOrderUpdate(status="rejected")
     rejected = await service.update_change_order(co_id, reject_in, actor_id=actor_id)
-    assert rejected.status == "Rejected"
+    assert rejected.status == "rejected"
 
     # 5. DELETE (Soft Delete)
     deleted = await service.delete_change_order(co_id, actor_id=actor_id)
@@ -214,7 +222,7 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
     assert missing is None
 
     # Should not be in list
-    lst, _ = await service.get_change_orders(project_id=project.project_id)
+    lst, _ = await service.get_change_orders(project_id=project_id)
     assert len(lst) == 0
 
     # But should be in history/time-travel (before delete)

@@ -18,7 +18,7 @@ const mockChangeOrder: ChangeOrderPublic = {
   change_order_id: "BR-123",
   code: "CO-2026-001",
   title: "Test Change Order",
-  status: "Draft",
+  status: "draft",
   description: "Test description",
   justification: "Test justification",
   effective_date: "2026-01-15",
@@ -44,7 +44,7 @@ describe("ChangeOrderSummaryCard", () => {
 
     expect(screen.getByText("CO-2026-001")).toBeInTheDocument();
     expect(screen.getByText("Test Change Order")).toBeInTheDocument();
-    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(screen.getByText("draft")).toBeInTheDocument();
     expect(screen.getByText("2026-01-15")).toBeInTheDocument();
     expect(screen.getByText("Test description")).toBeInTheDocument();
   });

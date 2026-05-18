@@ -5,13 +5,16 @@ with metrics. Caches results for performance.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.db_utils import safe_db_execute
+from app.core.temporal_queries import is_current_version, is_current_version_on_branch
 
 # Defer imports to avoid circular import issues
 from app.models.domain.change_order import ChangeOrder
@@ -59,6 +62,21 @@ class DashboardService:
         self.cost_element_service = CostElementService(session)
         self.change_order_service = ChangeOrderService(session)
 
+    async def _get_accessible_project_ids(self, user_id: UUID) -> set[UUID]:
+        """Get the set of project IDs the user has RBAC access to.
+
+        Args:
+            user_id: User ID to check access for
+
+        Returns:
+            Set of accessible project IDs (all project IDs for global roles)
+        """
+        from app.core.rbac_unified import get_unified_rbac_service
+
+        unified_service = get_unified_rbac_service()
+        accessible = await unified_service.get_accessible_projects(user_id)
+        return set(accessible)
+
     async def get_dashboard_data(
         self,
         user_id: UUID,
@@ -67,77 +85,103 @@ class DashboardService:
         """Get complete dashboard data for a user.
 
         Args:
-            user_id: User ID to get data for (not currently used, for future filtering)
+            user_id: User ID to get data for, used for RBAC filtering
             activity_limit: Maximum number of activities per entity type
 
         Returns:
-            DashboardData with last edited project and recent activity
+            DashboardData with last edited project and recent activity,
+            filtered by the user's RBAC-accessible projects
         """
-        # Note: user_id validation skipped for now since auth is handled at API layer
-        # In the future, this could be used to filter dashboard data by user permissions
+        try:
+            # Resolve RBAC-accessible project IDs once, then filter all entities
+            accessible_ids = await self._get_accessible_project_ids(user_id)
 
-        # Get recent activity for all entities with eager loading to avoid N+1 queries
-        recent_projects: list[
-            Project
-        ] = await self.project_service.get_recently_updated(
-            user_id=None,  # Get all projects, not just user's
-            limit=activity_limit,
-            branch="main",
-        )
-
-        recent_wbes: list[WBE] = await self.wbe_service.get_recently_updated(
-            user_id=None,
-            limit=activity_limit,
-            branch="main",
-            eager_load_project=True,  # Eager load project to avoid N+1 queries
-        )
-
-        recent_cost_elements: list[
-            CostElement
-        ] = await self.cost_element_service.get_recently_updated(
-            user_id=None,
-            limit=activity_limit,
-            branch="main",
-            eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
-        )
-
-        recent_change_orders: list[
-            ChangeOrder
-        ] = await self.change_order_service.get_recently_updated(
-            user_id=None,
-            limit=activity_limit,
-            branch="main",
-            eager_load_project=True,  # Eager load project to avoid N+1 queries
-        )
-
-        # Convert to dashboard activities
-        project_activities = [self._project_to_activity(p) for p in recent_projects]
-        wbe_activities = [await self._wbe_to_activity(w) for w in recent_wbes]
-        cost_element_activities = [
-            await self._cost_element_to_activity(ce)
-            for ce in recent_cost_elements or []
-        ]
-        change_order_activities = [
-            await self._change_order_to_activity(co)
-            for co in recent_change_orders or []
-        ]
-
-        # Get last edited project with metrics
-        last_edited_project = None
-        if recent_projects:
-            last_edited_project = await self._get_project_spotlight(
-                recent_projects[0].project_id
+            # Get recent activity for all entities with eager loading to avoid N+1 queries
+            recent_projects: list[
+                Project
+            ] = await self.project_service.get_recently_updated(
+                user_id=None,
+                limit=activity_limit,
+                branch="main",
             )
 
-        return DashboardData(
-            last_edited_project=last_edited_project,
-            recent_activity={
-                "projects": project_activities,
-                "wbes": wbe_activities,
-                "cost_elements": cost_element_activities,
-                "change_orders": change_order_activities,
-            },
-        )
+            # Filter projects by user's RBAC access
+            recent_projects = [
+                p for p in recent_projects if p.project_id in accessible_ids
+            ]
+
+            recent_wbes: list[WBE] = await self.wbe_service.get_recently_updated(
+                user_id=None,
+                limit=activity_limit,
+                branch="main",
+                eager_load_project=True,  # Eager load project to avoid N+1 queries
+            )
+
+            # Filter WBEs by user's RBAC access
+            recent_wbes = [w for w in recent_wbes if w.project_id in accessible_ids]
+
+            recent_cost_elements: list[
+                CostElement
+            ] = await self.cost_element_service.get_recently_updated(
+                user_id=None,
+                limit=activity_limit,
+                branch="main",
+                eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
+            )
+
+            # Filter Cost Elements by user's RBAC access (via loaded WBE's project_id)
+            recent_cost_elements = [
+                ce
+                for ce in (recent_cost_elements or [])
+                if hasattr(ce, "wbe") and ce.wbe and ce.wbe.project_id in accessible_ids
+            ]
+
+            recent_change_orders: list[
+                ChangeOrder
+            ] = await self.change_order_service.get_recently_updated(
+                user_id=None,
+                limit=activity_limit,
+                branch="main",
+                eager_load_project=True,  # Eager load project to avoid N+1 queries
+            )
+
+            # Filter Change Orders by user's RBAC access
+            recent_change_orders = [
+                co
+                for co in (recent_change_orders or [])
+                if co.project_id in accessible_ids
+            ]
+
+            # Convert to dashboard activities
+            project_activities = [self._project_to_activity(p) for p in recent_projects]
+            wbe_activities = [await self._wbe_to_activity(w) for w in recent_wbes]
+            cost_element_activities = [
+                await self._cost_element_to_activity(ce) for ce in recent_cost_elements
+            ]
+            change_order_activities = [
+                await self._change_order_to_activity(co) for co in recent_change_orders
+            ]
+
+            # Get last edited project with metrics
+            last_edited_project = None
+            if recent_projects:
+                last_edited_project = await self._get_project_spotlight(
+                    recent_projects[0].project_id
+                )
+
+            return DashboardData(
+                last_edited_project=last_edited_project,
+                recent_activity={
+                    "projects": project_activities,
+                    "wbes": wbe_activities,
+                    "cost_elements": cost_element_activities,
+                    "change_orders": change_order_activities,
+                },
+            )
+        except Exception as e:
+            # Rollback transaction on error to prevent InFailedSQLTransactionError
+            await self.session.rollback()
+            raise ValueError(f"Failed to get dashboard data: {str(e)}") from e
 
     def _project_to_activity(self, project: Project) -> DashboardActivity:
         """Convert a Project to DashboardActivity.
@@ -160,7 +204,7 @@ class DashboardService:
             action=action,
             timestamp=project.transaction_time.lower
             if project.transaction_time
-            else datetime.utcnow(),
+            else datetime.now(UTC),
             actor_id=project.created_by,
             actor_name=getattr(project, "created_by_name", None),
             project_id=None,  # Projects don't have a parent project
@@ -202,7 +246,7 @@ class DashboardService:
             action=action,
             timestamp=wbe.transaction_time.lower
             if wbe.transaction_time
-            else datetime.utcnow(),
+            else datetime.now(UTC),
             actor_id=wbe.created_by,
             actor_name=getattr(wbe, "created_by_name", None),
             project_id=wbe.project_id,
@@ -257,7 +301,7 @@ class DashboardService:
             action=action,
             timestamp=cost_element.transaction_time.lower
             if cost_element.transaction_time
-            else datetime.utcnow(),
+            else datetime.now(UTC),
             actor_id=cost_element.created_by,
             actor_name=getattr(cost_element, "created_by_name", None),
             project_id=project_id,
@@ -293,10 +337,10 @@ class DashboardService:
 
         # Determine action based on status
         action = "updated"
-        if change_order.status == "Draft":
+        if change_order.status == "draft":
             action = "created"
-        elif change_order.status in ("Approved", "Rejected", "Merged"):
-            action = change_order.status.lower()
+        elif change_order.status in ("approved", "rejected", "implemented"):
+            action = change_order.status
 
         return DashboardActivity(
             entity_id=change_order.change_order_id,
@@ -305,7 +349,7 @@ class DashboardService:
             action=action,
             timestamp=change_order.transaction_time.lower
             if change_order.transaction_time
-            else datetime.utcnow(),
+            else datetime.now(UTC),
             actor_id=change_order.created_by,
             actor_name=getattr(change_order, "created_by_name", None),
             project_id=change_order.project_id,
@@ -340,7 +384,7 @@ class DashboardService:
             project_id=project.project_id,
             project_name=project.name,
             project_code=project.code,
-            last_activity=last_activity or datetime.utcnow(),
+            last_activity=last_activity or datetime.now(UTC),
             metrics=metrics,
             branch=project.branch,
         )
@@ -367,12 +411,19 @@ class DashboardService:
             .select_from(WBE)
             .where(
                 WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, WBE).valid_time,
+                    WBE.branch,
+                    "main",
+                    cast(Any, WBE).deleted_at,
+                ),
             )
         )
-        wbe_result = await self.session.execute(wbe_stmt)
+        wbe_result = await safe_db_execute(
+            self.session,
+            self.session.execute(wbe_stmt),
+            "Failed to count WBEs for project metrics",
+        )
         total_wbes = wbe_result.scalar() or 0
 
         # Count Cost Elements
@@ -383,17 +434,27 @@ class DashboardService:
                 CostElement.wbe_id.in_(
                     select(WBE.wbe_id).where(
                         WBE.project_id == project_id,
-                        WBE.branch == "main",
-                        func.upper(cast(Any, WBE).valid_time).is_(None),
-                        cast(Any, WBE).deleted_at.is_(None),
+                        is_current_version_on_branch(
+                            cast(Any, WBE).valid_time,
+                            WBE.branch,
+                            "main",
+                            cast(Any, WBE).deleted_at,
+                        ),
                     )
                 ),
-                CostElement.branch == "main",
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, CostElement).valid_time,
+                    CostElement.branch,
+                    "main",
+                    cast(Any, CostElement).deleted_at,
+                ),
             )
         )
-        ce_result = await self.session.execute(ce_stmt)
+        ce_result = await safe_db_execute(
+            self.session,
+            self.session.execute(ce_stmt),
+            "Failed to count cost elements for project metrics",
+        )
         total_cost_elements = ce_result.scalar() or 0
 
         # Count active change orders
@@ -404,13 +465,21 @@ class DashboardService:
                 ChangeOrder.project_id == project_id,
                 ChangeOrder.branch == "main",
                 ChangeOrder.status.in_(
-                    ["Draft", "Submitted for Approval", "Under Review"]
+                    ["draft", "submitted_for_approval", "under_review"]
                 ),
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                cast(Any, ChangeOrder).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, ChangeOrder).valid_time,
+                    ChangeOrder.branch,
+                    "main",
+                    cast(Any, ChangeOrder).deleted_at,
+                ),
             )
         )
-        co_result = await self.session.execute(co_stmt)
+        co_result = await safe_db_execute(
+            self.session,
+            self.session.execute(co_stmt),
+            "Failed to count change orders for project metrics",
+        )
         active_change_orders = co_result.scalar() or 0
 
         # Get EVM status (simplified - could be enhanced with actual EVM calculations)
@@ -439,8 +508,10 @@ class DashboardService:
         """
         stmt = select(User).where(
             User.user_id == user_id,
-            func.upper(cast(Any, User).transaction_time).is_(None),
-            cast(Any, User).deleted_at.is_(None),
+            is_current_version(
+                cast(Any, User).transaction_time,
+                cast(Any, User).deleted_at,
+            ),
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

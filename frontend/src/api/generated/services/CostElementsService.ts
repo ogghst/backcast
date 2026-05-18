@@ -17,7 +17,7 @@ export class CostElementsService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param wbeId Filter by WBE ID
      * @param costElementTypeId Filter by Cost Element Type ID
      * @param search Search term (code, name)
@@ -32,7 +32,7 @@ export class CostElementsService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         wbeId?: (string | null),
         costElementTypeId?: (string | null),
         search?: (string | null),
@@ -48,7 +48,7 @@ export class CostElementsService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'wbe_id': wbeId,
                 'cost_element_type_id': costElementTypeId,
                 'search': search,
@@ -90,7 +90,7 @@ export class CostElementsService {
      * the cost element's state at any historical point in time.
      * @param costElementId
      * @param branch Branch to query
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: get cost element state as of this timestamp (ISO 8601)
      * @returns CostElementRead Successful Response
      * @throws ApiError
@@ -98,7 +98,7 @@ export class CostElementsService {
     public static getCostElement(
         costElementId: string,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<CostElementRead> {
         return __request(OpenAPI, {
@@ -109,7 +109,7 @@ export class CostElementsService {
             },
             query: {
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'as_of': asOf,
             },
             errors: {
@@ -375,7 +375,7 @@ export class CostElementsService {
         costElementId: string,
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = 'merge',
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -409,7 +409,7 @@ export class CostElementsService {
         granularity: string = 'week',
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = 'merge',
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -442,7 +442,7 @@ export class CostElementsService {
      * cost_element.forecast_id instead of forecast.cost_element_id.
      * @param costElementId
      * @param branch Branch to query
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: get forecast state as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
@@ -450,7 +450,7 @@ export class CostElementsService {
     public static getCostElementForecast(
         costElementId: string,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
@@ -461,7 +461,7 @@ export class CostElementsService {
             },
             query: {
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'as_of': asOf,
             },
             errors: {

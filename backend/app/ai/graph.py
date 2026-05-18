@@ -15,11 +15,11 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
-from langgraph.prebuilt import ToolNode
 
 from app.ai.state import AgentState
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.rbac_tool_node import RBACToolNode
+from app.ai.tools.sequential_tool_node import SequentialToolNode
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ def create_agent_node(
 
         # Bind tools to LLM
         # This is the LangGraph 1.0+ way to enable tool calling
-        llm_with_tools = llm.bind_tools(tools)
+        llm_with_tools = llm.bind_tools(tools, parallel_tool_calls=False)
 
         # Invoke the LLM asynchronously
         # The response will be an AIMessage, possibly with tool_calls
@@ -196,7 +196,7 @@ def create_graph(
 
     # Add tools node using RBACToolNode for permission checking
     # If context is provided, RBACToolNode will check permissions before execution
-    # Otherwise, falls back to standard ToolNode behavior
+    # Otherwise, falls back to SequentialToolNode (sequential execution)
     # If websocket and session_id are provided, use InterruptNode for approval workflow
     interrupt_node = None
     if context and websocket and session_id:
@@ -206,7 +206,7 @@ def create_graph(
     elif context:
         tool_node = RBACToolNode(tools, context)
     else:
-        tool_node = ToolNode(tools)
+        tool_node = SequentialToolNode(tools)
     workflow.add_node("tools", tool_node)
 
     # Set entry point
@@ -296,7 +296,7 @@ def export_graphviz(graph: Any) -> str:
             if node_name == "agent":
                 label = "Agent\\n(LLM + Tools)"
             elif node_name == "tools":
-                label = "Tools\\n(ToolNode)"
+                label = "Tools\\n(SequentialToolNode)"
             else:
                 label = node_name
 

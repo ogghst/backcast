@@ -257,10 +257,11 @@ async def delete_model(
 )
 async def list_assistant_configs(
     include_inactive: bool = False,
+    agent_type: str | None = None,
     service: AIConfigService = Depends(get_ai_config_service),
 ) -> list[AIAssistantConfigPublic]:
     """List all assistant configurations."""
-    configs = await service.list_assistant_configs(include_inactive)
+    configs = await service.list_assistant_configs(include_inactive, agent_type)
     return [AIAssistantConfigPublic.model_validate(c) for c in configs]
 
 
@@ -367,6 +368,7 @@ async def list_ai_tools() -> list[AIToolPublic]:
     registry.discover_and_register(
         "app.ai.tools.templates.forecast_cost_progress_template"
     )
+    registry.discover_and_register("app.ai.tools.templates.batch_tools_template")
 
     tools = get_all_tools()
 

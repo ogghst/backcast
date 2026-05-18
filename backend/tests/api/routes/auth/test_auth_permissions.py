@@ -1,47 +1,63 @@
 """Tests for /auth/me endpoint with permissions."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from app.core.rbac import RBACServiceABC
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestAuthMeWithPermissions:
     """Test /auth/me endpoint returns user with permissions."""
 
     @pytest.mark.asyncio
-    async def test_user_public_from_user_includes_permissions(self) -> None:
-        """Test UserPublic.from_user() includes permissions from RBAC service."""
+    async def test_user_public_from_user_async_loads_permissions_from_db(self) -> None:
+        """Test UserPublic.from_user_async() loads permissions from database via RBAC."""
         from uuid import uuid4
 
         from app.models.domain.user import User
         from app.models.schemas.user import UserPublic
 
-        # Mock user
+        # Mock user (no .role attribute needed)
         mock_user = MagicMock(spec=User)
         mock_user.id = uuid4()
         mock_user.user_id = uuid4()
         mock_user.email = "admin@example.com"
         mock_user.full_name = "Admin User"
-        mock_user.role = "admin"
         mock_user.is_active = True
 
-        # Mock RBAC service
-        mock_rbac = MagicMock(spec=RBACServiceABC)
-        mock_rbac.get_user_permissions.return_value = [
-            "user-read",
-            "user-create",
-            "user-update",
-            "user-delete",
-            "department-read",
-            "department-create",
-            "department-update",
-            "department-delete",
+        # Mock session
+        mock_session = AsyncMock(spec=AsyncSession)
+
+        # Mock get_user_roles to return admin role
+        mock_rbac = MagicMock()
+        mock_rbac.get_user_roles = AsyncMock(return_value=["admin"])
+        mock_rbac._get_cached_permissions = MagicMock(return_value=None)
+
+        # Mock database result for permissions
+        mock_result = MagicMock()
+        mock_result.all.return_value = [
+            ("user-read",),
+            ("user-create",),
+            ("user-update",),
+            ("user-delete",),
+            ("department-read",),
+            ("department-create",),
+            ("department-update",),
+            ("department-delete",),
         ]
 
-        # Act
-        user_public = UserPublic.from_user(mock_user, mock_rbac)
+        # Mock execute to return our mock result
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch(
+                "app.core.rbac_unified.get_unified_rbac_service",
+                return_value=mock_rbac,
+            ),
+            patch("app.core.rbac_unified.set_unified_rbac_session"),
+        ):
+            # Act
+            user_public = await UserPublic.from_user_async(mock_user, mock_session)
 
         # Assert
         assert user_public.id == mock_user.id
@@ -50,34 +66,49 @@ class TestAuthMeWithPermissions:
         assert len(user_public.permissions) == 8
         assert "user-read" in user_public.permissions
         assert "user-delete" in user_public.permissions
-        mock_rbac.get_user_permissions.assert_called_once_with("admin")
 
     @pytest.mark.asyncio
-    async def test_user_public_from_user_viewer_permissions(self) -> None:
-        """Test UserPublic.from_user() for viewer role."""
+    async def test_user_public_from_user_async_viewer_permissions(self) -> None:
+        """Test UserPublic.from_user_async() for viewer role."""
         from uuid import uuid4
 
         from app.models.domain.user import User
         from app.models.schemas.user import UserPublic
 
-        # Mock user
+        # Mock user (no .role attribute needed)
         mock_user = MagicMock(spec=User)
         mock_user.id = uuid4()
         mock_user.user_id = uuid4()
         mock_user.email = "viewer@example.com"
         mock_user.full_name = "Viewer User"
-        mock_user.role = "viewer"
         mock_user.is_active = True
 
-        # Mock RBAC service
-        mock_rbac = MagicMock(spec=RBACServiceABC)
-        mock_rbac.get_user_permissions.return_value = [
-            "user-read",
-            "department-read",
+        # Mock session
+        mock_session = AsyncMock(spec=AsyncSession)
+
+        # Mock get_user_roles to return viewer role
+        mock_rbac = MagicMock()
+        mock_rbac.get_user_roles = AsyncMock(return_value=["viewer"])
+        mock_rbac._get_cached_permissions = MagicMock(return_value=None)
+
+        # Mock database result for permissions
+        mock_result = MagicMock()
+        mock_result.all.return_value = [
+            ("user-read",),
+            ("department-read",),
         ]
 
-        # Act
-        user_public = UserPublic.from_user(mock_user, mock_rbac)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch(
+                "app.core.rbac_unified.get_unified_rbac_service",
+                return_value=mock_rbac,
+            ),
+            patch("app.core.rbac_unified.set_unified_rbac_session"),
+        ):
+            # Act
+            user_public = await UserPublic.from_user_async(mock_user, mock_session)
 
         # Assert
         assert user_public.role == "viewer"
@@ -85,3 +116,51 @@ class TestAuthMeWithPermissions:
         assert "user-read" in user_public.permissions
         assert "department-read" in user_public.permissions
         assert "user-delete" not in user_public.permissions
+
+    @pytest.mark.asyncio
+    async def test_user_public_from_user_async_uses_cache_when_available(self) -> None:
+        """Test UserPublic.from_user_async() uses cache when available."""
+        from uuid import uuid4
+
+        from app.models.domain.user import User
+        from app.models.schemas.user import UserPublic
+
+        # Mock user (no .role attribute needed)
+        mock_user = MagicMock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.user_id = uuid4()
+        mock_user.email = "admin@example.com"
+        mock_user.full_name = "Admin User"
+        mock_user.is_active = True
+
+        # Mock session
+        mock_session = AsyncMock(spec=AsyncSession)
+
+        # Mock get_user_roles to return admin
+        mock_rbac = MagicMock()
+        mock_rbac.get_user_roles = AsyncMock(return_value=["admin"])
+        # Pre-populate cache for "admin" role
+        mock_rbac._get_cached_permissions = MagicMock(
+            return_value=[
+                "user-read",
+                "user-create",
+                "user-update",
+                "user-delete",
+            ]
+        )
+
+        with (
+            patch(
+                "app.core.rbac_unified.get_unified_rbac_service",
+                return_value=mock_rbac,
+            ),
+            patch("app.core.rbac_unified.set_unified_rbac_session"),
+        ):
+            # Act
+            user_public = await UserPublic.from_user_async(mock_user, mock_session)
+
+        # Assert - should use cache, not query database
+        assert len(user_public.permissions) == 4
+        assert "user-read" in user_public.permissions
+        # Session execute should not be called when cache is hit
+        mock_session.execute.assert_not_called()

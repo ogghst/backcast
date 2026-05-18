@@ -12,6 +12,10 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
+from app.core.temporal_queries import (
+    current_join_filter,
+    is_current_version_on_branch,
+)
 from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.cost_element import CostElement
 from app.models.domain.forecast import Forecast
@@ -119,9 +123,12 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             select(Forecast)
             .where(
                 Forecast.forecast_id == forecast_id,
-                Forecast.branch == branch,
-                func.upper(cast(Any, Forecast).valid_time).is_(None),
-                cast(Any, Forecast).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, Forecast).valid_time,
+                    Forecast.branch,
+                    branch,
+                    cast(Any, Forecast).deleted_at,
+                ),
             )
             .order_by(cast(Any, Forecast).valid_time.desc())
             .limit(1)
@@ -168,9 +175,12 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         """
         # Build base query for current versions on specified branch
         stmt = select(Forecast).where(
-            Forecast.branch == branch,
-            func.upper(cast(Any, Forecast).valid_time).is_(None),
-            cast(Any, Forecast).deleted_at.is_(None),
+            is_current_version_on_branch(
+                cast(Any, Forecast).valid_time,
+                Forecast.branch,
+                branch,
+                cast(Any, Forecast).deleted_at,
+            ),
         )
 
         # Apply filters if provided
@@ -211,9 +221,11 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
                 Forecast.branch == branch,
                 # CRITICAL: Only match cost elements WITH a forecast
                 CostElement.forecast_id.is_not(None),
-                # "Current" filter (no as_of)
-                func.upper(Forecast.valid_time).is_(None),
-                Forecast.deleted_at.is_(None),
+                # "Current" filter (no as_of) - use temporal helper
+                current_join_filter(
+                    (Forecast.valid_time, Forecast.deleted_at),
+                    (CostElement.valid_time, CostElement.deleted_at),
+                ),
             )
             .order_by(Forecast.valid_time.desc())
             .limit(1)
@@ -406,10 +418,18 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
                     # CRITICAL: Only match cost elements WITH a forecast
                     CostElement.forecast_id.is_not(None),
                     # "Current" filter (no as_of)
-                    func.upper(Forecast.valid_time).is_(None),
-                    Forecast.deleted_at.is_(None),
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                    is_current_version_on_branch(
+                        Forecast.valid_time,
+                        Forecast.branch,
+                        branch,
+                        Forecast.deleted_at,
+                    ),
+                    is_current_version_on_branch(
+                        cast(Any, CostElement).valid_time,
+                        CostElement.branch,
+                        branch,
+                        cast(Any, CostElement).deleted_at,
+                    ),
                 )
             )
 

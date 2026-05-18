@@ -10,7 +10,7 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
 
@@ -100,10 +100,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.briefing import BriefingDocument
-from app.ai.config import AgentConfig, OrchestratorMode
-from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
+from app.ai.config import AgentConfig
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
+from app.ai.execution.agent_metrics import AgentExecutionMetrics
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.graph import create_graph
 from app.ai.graph_cache import (
@@ -128,6 +128,7 @@ from app.ai.token_estimator import (
 )
 from app.ai.tools import ToolContext, create_project_tools, filter_tools_by_role
 from app.ai.tools.interrupt_node import InterruptNode
+from app.ai.tools.sequential_tool_node import patch_tool_node_for_sequential_execution
 from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
 from app.api.websocket_utils import is_websocket_connected
@@ -155,6 +156,10 @@ _tracer_provider = initialize_telemetry(
     service_name="backcast-ai",
     enable_console=os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true",
 )
+
+# Defense-in-depth: ensure all ToolNode instances (including specialist
+# subgraphs created via langchain_create_agent) execute tools sequentially
+patch_tool_node_for_sequential_execution()
 
 # NOTE: DeepSeek reasoning_content handling is now provided natively by
 # langchain-deepseek package (ChatDeepSeek class). No monkey-patches needed.
@@ -258,7 +263,7 @@ _USER_ROLE_TTL = 300  # 5 minutes
 
 
 async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
-    """Get user role with TTL caching."""
+    """Get user role with TTL caching via unified RBAC."""
     cached = _user_role_cache.get(user_id)
     if cached is not None:
         expires_at, role = cached
@@ -266,11 +271,12 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
             return role
         del _user_role_cache[user_id]
 
-    from app.services.user import UserService
+    from app.core.rbac_unified import get_unified_rbac_service, rbac_session
 
-    user_service = UserService(session)
-    user = await user_service.get_user(user_id)
-    role = user.role if user else "guest"
+    async with rbac_session(session):
+        roles = await get_unified_rbac_service().get_user_roles(user_id, "global", None)
+        role = roles[0] if roles else "viewer"
+
     _user_role_cache[user_id] = (time.time() + _USER_ROLE_TTL, role)
     return role
 
@@ -536,22 +542,13 @@ class AgentService:
                 user_role=user_role,
             )
 
-            if settings.AI_ORCHESTRATOR == OrchestratorMode.SUPERVISOR:
-                supervisor_orchestrator = SupervisorOrchestrator(
-                    model=llm,
-                    context=tool_context,
-                    system_prompt=system_prompt,
-                )
-                graph = supervisor_orchestrator.create_supervisor_graph(agent_config)
-            else:
-                deep_orchestrator = DeepAgentOrchestrator(
-                    model=llm,
-                    context=tool_context,
-                    system_prompt=system_prompt,
-                    enable_subagents=enable_subagents,
-                    interrupt_node=None,
-                )
-                graph = deep_orchestrator.create_agent(agent_config)
+            supervisor_orchestrator = SupervisorOrchestrator(
+                model=llm,
+                context=tool_context,
+                system_prompt=system_prompt,
+                main_assistant_config=assistant_config,
+            )
+            graph = await supervisor_orchestrator.create_supervisor_graph(agent_config)
 
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
             logger.info(
@@ -707,13 +704,13 @@ class AgentService:
         tools_dict = {tool.name: tool for tool in available_tools}
 
         if assistant_config.default_role:
-            filtered = filter_tools_by_role(
+            filtered = await filter_tools_by_role(
                 list(tools_dict.values()), assistant_config.default_role
             )
             tools_dict = {t.name: t for t in filtered}
 
         # Filter by user's actual role
-        filtered = filter_tools_by_role(list(tools_dict.values()), user_role)
+        filtered = await filter_tools_by_role(list(tools_dict.values()), user_role)
         tools_dict = {t.name: t for t in filtered}
 
         graph, _interrupt_node = create_graph(
@@ -905,7 +902,7 @@ class AgentService:
         branch_mode: Literal["merged", "isolated"] | None = None,
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
         context: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> AgentExecutionMetrics:
         """Run the agent graph and publish streaming events to an AgentEventBus.
 
         Decoupled from WebSocket: events are published to the bus so any consumer
@@ -924,6 +921,9 @@ class AgentService:
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries
             execution_mode: Execution mode for tool filtering
+
+        Returns:
+            AgentExecutionMetrics with aggregated token usage and tool call count.
         """
         self._subagent_invocation_counts.clear()
         history = await self._build_conversation_history(session_id)
@@ -1030,6 +1030,7 @@ class AgentService:
             {
                 "on_chain_start",
                 "on_chain_end",
+                "on_chat_model_start",
                 "on_chat_model_stream",
                 "on_chat_model_end",
                 "on_tool_start",
@@ -1038,6 +1039,11 @@ class AgentService:
                 "on_end",
             }
         )
+
+        # Per-call timing: track individual LLM and tool call durations
+        _llm_call_start: float | None = None
+        _llm_call_count = 0
+        _tool_call_start: float | None = None
 
         # Per-invocation token accumulator for batched publishing
         _token_accumulator: dict[str, list[str]] = {}
@@ -1048,7 +1054,7 @@ class AgentService:
                 AgentEvent(
                     event_type=event_type,
                     data=data,
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                 )
             )
 
@@ -1148,6 +1154,12 @@ class AgentService:
 
             for _retry_attempt in range(max_retries + 1):
                 try:
+                    from app.db.session import log_pool_status
+
+                    log_pool_status(
+                        f"graph.astream_events start | session={session_id}"
+                    )
+
                     async for event in graph.astream_events(
                         {
                             "messages": history,
@@ -1258,8 +1270,24 @@ class AgentService:
                                     log_label="CHAIN_END_NON_SPECIALIST",
                                 )
 
+                        if event_type == "on_chat_model_start":
+                            _llm_call_count += 1
+                            _llm_call_start = time.time()
+                            inv_data = data.get("invocation_info", {})
+                            if not inv_data:
+                                inv_data = event.get("metadata", {})
+                            fn_name = ""
+                            if isinstance(inv_data, dict):
+                                fn_name = inv_data.get("fn_name", "")
+                            logger.info(
+                                "[LLM_CALL_START] #%d | model=%s | fn=%s",
+                                _llm_call_count,
+                                model_name or "unknown",
+                                fn_name,
+                            )
+
                         # Handle token streaming
-                        if event_type == "on_chat_model_stream":
+                        elif event_type == "on_chat_model_stream":
                             chunk = data.get("chunk")
                             # Token streaming: accumulate per-invocation, flush in batches.
                             if isinstance(chunk, AIMessageChunk):
@@ -1309,8 +1337,16 @@ class AgentService:
                                             content
                                         )
 
-                        # Handle chat model end -- capture actual token usage
+                        # Handle chat model end -- capture actual token usage + timing
                         elif event_type == "on_chat_model_end":
+                            if _llm_call_start is not None:
+                                llm_duration_ms = (time.time() - _llm_call_start) * 1000
+                                logger.info(
+                                    "[LLM_CALL_END] #%d | duration_ms=%.0f",
+                                    _llm_call_count,
+                                    llm_duration_ms,
+                                )
+                                _llm_call_start = None
                             token_accumulator.accumulate_from_event(data)
 
                         # Handle tool start
@@ -1324,6 +1360,14 @@ class AgentService:
                             tool_input = data.get("input", {})
                             tool_calls_count += 1
                             current_step += 1
+                            _tool_call_start = time.time()
+                            logger.info(
+                                "[TOOL_START] #%d tool=%s | step=%d/%s",
+                                tool_calls_count,
+                                tool_name,
+                                current_step,
+                                estimated_total_steps or "?",
+                            )
 
                             if tool_name == "task":
                                 current_subagent_name = (
@@ -1412,6 +1456,16 @@ class AgentService:
                             # After a task (subagent delegation) completes, generate a
                             # new main invocation_id to start a fresh response segment.
                             tool_name = event.get("name", "")
+                            if _tool_call_start is not None:
+                                tool_duration_ms = (
+                                    time.time() - _tool_call_start
+                                ) * 1000
+                                logger.info(
+                                    "[TOOL_END] tool=%s | duration_ms=%.0f",
+                                    tool_name,
+                                    tool_duration_ms,
+                                )
+                                _tool_call_start = None
 
                             # Subagent result handling
                             if (
@@ -1622,7 +1676,7 @@ class AgentService:
                 AgentEvent(
                     event_type="error",
                     data={"message": str(e), "code": 500},
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                 )
             )
         finally:
@@ -1637,10 +1691,16 @@ class AgentService:
                 _flush_accumulated_tokens(inv_id)
             clear_request_context()
             self.unregister_interrupt_node(session_id)
+            # Commit tool session - critical for cost element persistence
             try:
                 await ToolSessionManager.commit()
-            except Exception:
-                pass
+            except Exception as commit_err:
+                logger.error(
+                    f"[TOOL_SESSION] Failed to commit tool session: {commit_err}",
+                    exc_info=True,
+                )
+                # Re-raise to ensure commit failures are surfaced
+                raise
 
             # Persist briefing on error if not already done — specialist
             # findings survive even when streaming fails.
@@ -1788,6 +1848,27 @@ class AgentService:
             execution_id=event_bus.execution_id,
         )
 
+        return AgentExecutionMetrics(
+            total_tokens=usage_dict["total_tokens"],
+            tool_calls_count=tool_calls_count,
+        )
+
+    @staticmethod
+    async def _clear_active_execution(db: AsyncSession, session_id: UUID) -> None:
+        """Clear active_execution_id on the conversation session (best-effort)."""
+        try:
+            result = await db.execute(
+                select(AIConversationSession).where(
+                    AIConversationSession.id == str(session_id)
+                )
+            )
+            row = result.scalar_one_or_none()
+            if row is not None:
+                row.active_execution_id = None
+                await db.commit()
+        except Exception:
+            pass
+
     async def start_execution(
         self,
         message: str,
@@ -1850,6 +1931,10 @@ class AgentService:
 
         # Create independent DB session for this execution
         async with async_session_maker() as db:
+            from app.db.session import log_pool_status
+
+            log_pool_status(f"start_execution entry | execution_id={execution_id}")
+
             # Pre-fetch the session row so it is accessible in except/finally blocks
             session_stmt = select(AIConversationSession).where(
                 AIConversationSession.id == str(session_id)
@@ -1858,6 +1943,8 @@ class AgentService:
             db_session = session_result.scalar_one_or_none()
 
             try:
+                metrics: AgentExecutionMetrics | None = None
+
                 # Create execution tracking row
                 execution = AIAgentExecution(
                     session_id=str(session_id),
@@ -1873,11 +1960,20 @@ class AgentService:
                     db_session.active_execution_id = str(execution.id)
                     await db.commit()
 
+                # Capture context before releasing the connection
+                session_context = db_session.context if db_session else None
+
+                # Release the DB connection back to the pool before entering
+                # the graph. The session stays usable — it will re-checkout a
+                # connection on the next query. This prevents holding a
+                # connection for the entire graph execution (minutes).
+                await db.close()
+
                 # Create agent service with this DB session
                 exec_service = AgentService(db)
 
                 # Run the agent graph, publishing events to the bus
-                await exec_service._run_agent_graph(
+                metrics = await exec_service._run_agent_graph(
                     message=message,
                     assistant_config=assistant_config,
                     session_id=session_id,
@@ -1889,39 +1985,51 @@ class AgentService:
                     branch_name=branch_name,
                     branch_mode=branch_mode,
                     execution_mode=execution_mode,
-                    context=db_session.context if db_session else None,
+                    context=session_context,
                 )
 
-                # Update execution tracking row
+                # Re-query since db.close() detached the object
+                exec_stmt = select(AIAgentExecution).where(
+                    AIAgentExecution.id == str(execution.id)
+                )
+                exec_result = await db.execute(exec_stmt)
+                execution = exec_result.scalar_one()
                 execution.status = "completed"
-                execution.completed_at = datetime.now()  # type: ignore[assignment]
+                execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
+                execution.total_tokens = metrics.total_tokens
+                execution.tool_calls_count = metrics.tool_calls_count
                 await db.commit()
 
-                # Clear active_execution_id on session
-                if db_session is not None:
-                    db_session.active_execution_id = None
-                    await db.commit()
+                await self._clear_active_execution(db, session_id)
 
             except Exception as e:
                 logger.error(
                     f"Error in start_execution {execution_id}: {e}", exc_info=True
                 )
-                # Update execution tracking row with error
+                # Update execution tracking row with error and partial metrics.
+                # Always re-query since db.close() may have detached the object.
                 try:
-                    execution.status = "error"
-                    execution.error_message = str(e)
-                    execution.completed_at = datetime.now()  # type: ignore[assignment]
-                    await db.commit()
+                    stmt = select(AIAgentExecution).where(
+                        AIAgentExecution.id == str(execution.id)
+                    )
+                    result = await db.execute(stmt)
+                    fresh_execution = result.scalar_one_or_none()
+                    if fresh_execution is not None:
+                        fresh_execution.status = "error"
+                        fresh_execution.error_message = str(e)[:2000]
+                        fresh_execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
+                        if metrics is not None:
+                            fresh_execution.total_tokens = metrics.total_tokens
+                            fresh_execution.tool_calls_count = metrics.tool_calls_count
+                        await db.commit()
                 except Exception:
                     await db.rollback()
+                    logger.error(
+                        "Failed to update execution row on error path",
+                        exc_info=True,
+                    )
 
-                # Clear active_execution_id on session (best-effort)
-                if db_session is not None:
-                    try:
-                        db_session.active_execution_id = None
-                        await db.commit()
-                    except Exception:
-                        pass
+                await self._clear_active_execution(db, session_id)
 
                 # Publish execution status so frontend clears activeExecutionIdRef
                 event_bus.publish(
@@ -1933,7 +2041,7 @@ class AgentService:
                             "status": "error",
                             "session_id": str(session_id),
                         },
-                        timestamp=datetime.now(),
+                        timestamp=datetime.now(UTC),
                     )
                 )
 
@@ -1942,7 +2050,7 @@ class AgentService:
                     AgentEvent(
                         event_type="error",
                         data={"message": str(e), "code": 500},
-                        timestamp=datetime.now(),
+                        timestamp=datetime.now(UTC),
                     )
                 )
 

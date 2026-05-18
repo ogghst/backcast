@@ -8,12 +8,68 @@ Tests T-017 and T-018:
 import json
 import logging
 from datetime import datetime
+from typing import Any
 from uuid import uuid4
 
 import pytest
 
 from app.ai.tools.approval_audit import ApprovalAuditLogger
 from app.ai.tools.types import ExecutionMode, RiskLevel
+
+_TARGET_LOGGER = "app.ai.tools.approval_audit"
+
+
+class _LogCapture:
+    """Simple log capture that attaches directly to a named logger.
+
+    Avoids pytest caplog interference from Alembic migration logging setup
+    in session-scoped fixtures that may run before these tests.
+    """
+
+    def __init__(self, logger_name: str, level: int = logging.INFO) -> None:
+        self._logger = logging.getLogger(logger_name)
+        self._level = level
+        self._handler: logging.Handler | None = None
+        self.records: list[logging.LogRecord] = []
+        self._original_level: int = logging.NOTSET
+        self._original_propagate: bool = True
+        self._original_disabled: bool = False
+
+    def __enter__(self) -> "_LogCapture":
+        self._handler = _RecordHandler(self.records)
+        self._handler.setLevel(self._level)
+        self._original_level = self._logger.level
+        self._original_propagate = self._logger.propagate
+        self._original_disabled = self._logger.disabled
+        self._logger.addHandler(self._handler)
+        # Re-enable logger in case Alembic's fileConfig disabled it
+        self._logger.disabled = False
+        self._logger.propagate = True
+        if self._original_level > self._level or self._original_level == logging.NOTSET:
+            self._logger.setLevel(self._level)
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        if self._handler:
+            self._logger.removeHandler(self._handler)
+        self._logger.setLevel(self._original_level)
+        self._logger.propagate = self._original_propagate
+        self._logger.disabled = self._original_disabled
+
+    @property
+    def text(self) -> str:
+        return "\n".join(r.getMessage() for r in self.records)
+
+
+class _RecordHandler(logging.Handler):
+    """Handler that appends LogRecords to a list."""
+
+    def __init__(self, records: list[logging.LogRecord]) -> None:
+        super().__init__()
+        self._records = records
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._records.append(record)
 
 
 @pytest.fixture
@@ -35,7 +91,7 @@ def audit_logger(session_id, user_id):
 
 
 # T-017: test_tool_execution_logged
-def test_tool_execution_logged(audit_logger, caplog):
+def test_tool_execution_logged(audit_logger):
     """Test that tool execution is logged with all required fields.
 
     Expected behavior:
@@ -50,7 +106,7 @@ def test_tool_execution_logged(audit_logger, caplog):
     execution_mode = ExecutionMode.STANDARD
 
     # Act
-    with caplog.at_level(logging.INFO):
+    with _LogCapture(_TARGET_LOGGER) as capture:
         audit_logger.log_tool_execution(
             tool_name=tool_name,
             tool_args=tool_args,
@@ -59,12 +115,11 @@ def test_tool_execution_logged(audit_logger, caplog):
         )
 
     # Assert
-    # Check that a log entry was created
-    assert len(caplog.records) > 0
+    assert len(capture.records) > 0
 
     # Find the tool execution log entry
     tool_log = None
-    for record in caplog.records:
+    for record in capture.records:
         if "Tool execution:" in record.message:
             tool_log = record.message
             break
@@ -86,7 +141,7 @@ def test_tool_execution_logged(audit_logger, caplog):
 
 
 # T-018: test_approval_logged
-def test_approval_logged(audit_logger, caplog):
+def test_approval_logged(audit_logger):
     """Test that approval is logged with user, decision, and timestamp.
 
     Expected behavior:
@@ -102,7 +157,7 @@ def test_approval_logged(audit_logger, caplog):
     response_time = 5.2
 
     # Act
-    with caplog.at_level(logging.INFO):
+    with _LogCapture(_TARGET_LOGGER) as capture:
         audit_logger.log_approval_response(
             approval_id=approval_id,
             tool_name=tool_name,
@@ -112,12 +167,11 @@ def test_approval_logged(audit_logger, caplog):
         )
 
     # Assert
-    # Check that a log entry was created
-    assert len(caplog.records) > 0
+    assert len(capture.records) > 0
 
     # Find the approval response log entry
     approval_log = None
-    for record in caplog.records:
+    for record in capture.records:
         if "Approval response:" in record.message:
             approval_log = record.message
             break
@@ -137,7 +191,7 @@ def test_approval_logged(audit_logger, caplog):
     assert "timestamp" in log_data
 
 
-def test_approval_request_logged(audit_logger, caplog):
+def test_approval_request_logged(audit_logger):
     """Test that approval request is logged."""
     # Arrange
     approval_id = str(uuid4())
@@ -146,7 +200,7 @@ def test_approval_request_logged(audit_logger, caplog):
     expires_at = datetime.now()
 
     # Act
-    with caplog.at_level(logging.INFO):
+    with _LogCapture(_TARGET_LOGGER) as capture:
         audit_logger.log_approval_request(
             approval_id=approval_id,
             tool_name=tool_name,
@@ -155,10 +209,10 @@ def test_approval_request_logged(audit_logger, caplog):
         )
 
     # Assert
-    assert len(caplog.records) > 0
+    assert len(capture.records) > 0
 
     approval_log = None
-    for record in caplog.records:
+    for record in capture.records:
         if "Approval request:" in record.message:
             approval_log = record.message
             break
@@ -173,24 +227,24 @@ def test_approval_request_logged(audit_logger, caplog):
     assert log_data["tool_args"] == tool_args
 
 
-def test_approval_timeout_logged(audit_logger, caplog):
+def test_approval_timeout_logged(audit_logger):
     """Test that approval timeout is logged."""
     # Arrange
     approval_id = str(uuid4())
     tool_name = "delete_project"
 
     # Act
-    with caplog.at_level(logging.WARNING):
+    with _LogCapture(_TARGET_LOGGER, level=logging.WARNING) as capture:
         audit_logger.log_approval_timeout(
             approval_id=approval_id,
             tool_name=tool_name,
         )
 
     # Assert
-    assert len(caplog.records) > 0
+    assert len(capture.records) > 0
 
     timeout_log = None
-    for record in caplog.records:
+    for record in capture.records:
         if "Approval timeout:" in record.message:
             timeout_log = record.message
             break
@@ -204,7 +258,7 @@ def test_approval_timeout_logged(audit_logger, caplog):
     assert log_data["tool_name"] == tool_name
 
 
-def test_tool_result_logged(audit_logger, caplog):
+def test_tool_result_logged(audit_logger):
     """Test that tool result is logged."""
     # Arrange
     tool_name = "delete_project"
@@ -212,7 +266,7 @@ def test_tool_result_logged(audit_logger, caplog):
     execution_time = 0.5
 
     # Act
-    with caplog.at_level(logging.INFO):
+    with _LogCapture(_TARGET_LOGGER) as capture:
         audit_logger.log_tool_result(
             tool_name=tool_name,
             success=success,
@@ -220,10 +274,10 @@ def test_tool_result_logged(audit_logger, caplog):
         )
 
     # Assert
-    assert len(caplog.records) > 0
+    assert len(capture.records) > 0
 
     result_log = None
-    for record in caplog.records:
+    for record in capture.records:
         if "Tool result:" in record.message:
             result_log = record.message
             break
@@ -238,7 +292,7 @@ def test_tool_result_logged(audit_logger, caplog):
     assert log_data["execution_time_seconds"] == execution_time
 
 
-def test_error_logged(audit_logger, caplog):
+def test_error_logged(audit_logger):
     """Test that errors are logged."""
     # Arrange
     error_type = "websocket_error"
@@ -246,7 +300,7 @@ def test_error_logged(audit_logger, caplog):
     context = {"session_id": str(uuid4())}
 
     # Act
-    with caplog.at_level(logging.ERROR):
+    with _LogCapture(_TARGET_LOGGER, level=logging.ERROR) as capture:
         audit_logger.log_error(
             error_type=error_type,
             message=message,
@@ -254,10 +308,10 @@ def test_error_logged(audit_logger, caplog):
         )
 
     # Assert
-    assert len(caplog.records) > 0
+    assert len(capture.records) > 0
 
     error_log = None
-    for record in caplog.records:
+    for record in capture.records:
         if "Error:" in record.message:
             error_log = record.message
             break

@@ -19,7 +19,6 @@ class TestValidateJWTToken:
         user = User(
             email="test@example.com",
             full_name="Test User",
-            role="viewer",
             is_active=True,
         )
         db_session.add(user)

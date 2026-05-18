@@ -7,9 +7,13 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.user import User
+from tests.conftest import MockUnifiedRBACService
 
 # --- Mocks for Auth ---
 mock_admin_user = User(
@@ -17,7 +21,6 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
 )
@@ -31,48 +34,15 @@ def mock_get_current_active_user() -> User:
     return mock_admin_user
 
 
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "project-read",
-            "change-order-read",
-            "change-order-create",
-            "change-order-update",
-            "change-order-delete",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
-
-
 @pytest.fixture(autouse=True)
 def override_auth():
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -104,14 +74,14 @@ async def test_search_change_orders(
         "project_id": project_id,
         "code": "CO-SEARCH-1",
         "title": "Alpha Change",
-        "status": "Draft",
+        "status": "draft",
         "description": "First CO",
     }
     co2 = {
         "project_id": project_id,
         "code": "CO-SEARCH-2",
         "title": "Beta Change",
-        "status": "Submitted for Approval",
+        "status": "submitted_for_approval",
         "description": "Second CO",
     }
 
@@ -154,14 +124,14 @@ async def test_filter_change_orders(
         "project_id": project_id,
         "code": "CO-FILT-1",
         "title": "Draft CO",
-        "status": "Draft",
-        "description": "Draft",
+        "status": "draft",
+        "description": "draft",
     }
     co2 = {
         "project_id": project_id,
         "code": "CO-FILT-2",
         "title": "Submitted CO",
-        "status": "Submitted for Approval",
+        "status": "submitted_for_approval",
         "description": "Submitted",
     }
 
@@ -171,14 +141,14 @@ async def test_filter_change_orders(
     # 2. Filter by status:Draft
     resp = await client.get(
         "/api/v1/change-orders",
-        params={"project_id": project_id, "filters": "status:Draft"},
+        params={"project_id": project_id, "filters": "status:draft"},
     )
     assert resp.status_code == 200
     results = resp.json()["items"]
 
     assert len(results) == 1
     assert results[0]["code"] == "CO-FILT-1"
-    assert results[0]["status"] == "Draft"
+    assert results[0]["status"] == "draft"
 
 
 @pytest.mark.asyncio
@@ -199,7 +169,7 @@ async def test_merge_change_order(
         "project_id": project_id,
         "code": "TEST-MERGE",
         "title": "Original Title",
-        "status": "Draft",
+        "status": "draft",
     }
     resp = await client.post("/api/v1/change-orders", json=co_data)
     assert resp.status_code == 201
@@ -453,16 +423,16 @@ async def test_revert_change_order(
         "project_id": project_id,
         "code": "TEST-REVERT",
         "title": "Revert Test",
-        "status": "Draft",
+        "status": "draft",
     }
     resp = await client.post("/api/v1/change-orders", json=co_data)
     assert resp.status_code == 201
     co_id = resp.json()["change_order_id"]
     initial_id = resp.json()["id"]
 
-    # 2. Update CO (New Version) - use valid workflow transition "Draft" → "Submitted for Approval"
+    # 2. Update CO (New Version) - use valid workflow transition "draft" → "submitted_for_approval"
     put_resp = await client.put(
-        f"/api/v1/change-orders/{co_id}", json={"status": "Submitted for Approval"}
+        f"/api/v1/change-orders/{co_id}", json={"status": "submitted_for_approval"}
     )
     assert put_resp.status_code == 200, f"PUT failed: {put_resp.text}"
     updated_id = put_resp.json()["id"]
@@ -470,12 +440,12 @@ async def test_revert_change_order(
     # Verify we got a new version ID (update creates new version)
     assert updated_id != initial_id, "Update should create a new version"
 
-    # Verify current is "Submitted for Approval"
+    # Verify current is "submitted_for_approval"
     curr_resp = await client.get(f"/api/v1/change-orders/{co_id}")
     assert curr_resp.status_code == 200
     curr_data = curr_resp.json()
-    assert curr_data["status"] == "Submitted for Approval", (
-        f"Expected 'Submitted for Approval', got '{curr_data['status']}'"
+    assert curr_data["status"] == "submitted_for_approval", (
+        f"Expected 'submitted_for_approval', got '{curr_data['status']}'"
     )
 
     # 3. Revert - should create V3 with status from V1 (Draft)
@@ -487,10 +457,10 @@ async def test_revert_change_order(
     # Verify we got another new version ID (revert creates new version)
     assert reverted_id != updated_id, "Revert should create a new version"
 
-    # Verify status reverted to Draft (cloned from V1)
+    # Verify status reverted to draft (cloned from V1)
     final_resp = await client.get(f"/api/v1/change-orders/{co_id}")
     assert final_resp.status_code == 200
     final_data = final_resp.json()
-    assert final_data["status"] == "Draft", (
+    assert final_data["status"] == "draft", (
         f"Expected 'Draft' after revert, got '{final_data['status']}'"
     )

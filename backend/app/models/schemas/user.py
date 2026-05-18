@@ -3,9 +3,9 @@ from typing import TYPE_CHECKING, Annotated, Any
 from uuid import UUID
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
-    from app.core.rbac import RBACServiceABC
     from app.models.domain.user import User
 
 
@@ -24,20 +24,20 @@ RangeToList = Annotated[
 ]
 
 
-# Shared properties
+# Shared properties (no role — role is managed via UserRoleAssignment)
 class UserBase(BaseModel):
     """Base generic User schema."""
 
     email: EmailStr
     full_name: str
     department: str | None = None
-    role: str = "viewer"
 
 
 # Properties to receive via API on creation
 class UserRegister(UserBase):
     """Schema for user registration."""
 
+    role: str = "viewer"
     user_id: UUID | None = Field(
         None,
         description="Root User ID (internal use only for seeding)",
@@ -81,7 +81,11 @@ class UserRead(UserBase):
 
 # Public user schema with RBAC permissions
 class UserPublic(BaseModel):
-    """User public data with RBAC permissions for frontend."""
+    """User public data with RBAC permissions for frontend.
+
+    Must be constructed via from_user() or from_user_async().
+    Role is resolved from UserRoleAssignment, not the User model.
+    """
 
     id: UUID
     user_id: UUID  # For compatibility with versioning
@@ -94,26 +98,90 @@ class UserPublic(BaseModel):
         description="List of permission strings (e.g., 'user-read', 'department-delete')",
     )
 
-    model_config = ConfigDict(from_attributes=True)
-
     @classmethod
-    def from_user(cls, user: "User", rbac_service: "RBACServiceABC") -> "UserPublic":
-        """Create UserPublic from User domain object with RBAC permissions.
+    def from_user(cls, user: "User") -> "UserPublic":
+        """Create UserPublic from User domain object with fallback role.
+
+        DEPRECATED: Use from_user_async() for proper role and permission loading.
+        This synchronous version cannot look up roles from UserRoleAssignment and
+        will return "viewer" as a fallback role with empty permissions.
 
         Args:
             user: User domain object
-            rbac_service: RBAC service to fetch permissions
 
         Returns:
-            UserPublic instance with permissions populated
+            UserPublic instance with fallback role and empty permissions
         """
-        permissions = rbac_service.get_user_permissions(user.role)
         return cls(
             id=user.id,
             user_id=user.user_id,
             email=user.email,
             full_name=user.full_name,
-            role=user.role,
+            role="viewer",
+            is_active=user.is_active,
+            permissions=[],
+        )
+
+    @classmethod
+    async def from_user_async(
+        cls, user: "User", session: "AsyncSession"
+    ) -> "UserPublic":
+        """Create UserPublic from User domain object with RBAC permissions.
+
+        Resolves the user's global role from UserRoleAssignment and loads
+        permissions for that role via the unified RBAC service.
+
+        Args:
+            user: User domain object
+            session: Database session for RBAC service
+
+        Returns:
+            UserPublic instance with permissions populated
+        """
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
+
+        try:
+            set_unified_rbac_session(session)
+            unified_service = get_unified_rbac_service()
+
+            # Resolve role from UserRoleAssignment
+            roles = await unified_service.get_user_roles(user.user_id, "global", None)
+            display_role = roles[0] if roles else "viewer"
+
+            # Try cache first for permissions
+            perms = unified_service._get_cached_permissions(display_role)
+
+            # If cache miss, load from database
+            if perms is None:
+                from sqlalchemy import select
+
+                from app.models.domain.rbac import RBACRole, RBACRolePermission
+
+                stmt = (
+                    select(RBACRolePermission.permission)
+                    .join(RBACRole, RBACRolePermission.role_id == RBACRole.id)
+                    .where(RBACRole.name == display_role)
+                )
+                result = await session.execute(stmt)
+                perms = [row[0] for row in result.all()]
+
+                if perms:
+                    unified_service._cache_permissions(display_role, perms)
+
+            permissions = perms if perms is not None else []
+
+        finally:
+            set_unified_rbac_session(None)
+
+        return cls(
+            id=user.id,
+            user_id=user.user_id,
+            email=user.email,
+            full_name=user.full_name,
+            role=display_role,
             is_active=user.is_active,
             permissions=permissions,
         )

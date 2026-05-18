@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchMode } from '../models/BranchMode';
 import type { ScheduleBaselineCreate } from '../models/ScheduleBaselineCreate';
 import type { ScheduleBaselineRead } from '../models/ScheduleBaselineRead';
 import type { ScheduleBaselineUpdate } from '../models/ScheduleBaselineUpdate';
@@ -14,11 +15,11 @@ export class ScheduleBaselinesService {
      * Retrieve schedule baselines with pagination.
      *
      * Supports time-travel queries and branch mode filtering.
-     * In MERGE mode, combines results from current branch and main branch.
+     * In MERGED mode, combines results from current branch and main branch.
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: get schedule baselines as of this timestamp (ISO 8601)
      * @param costElementId Filter by Cost Element ID
      * @returns any Successful Response
@@ -28,7 +29,7 @@ export class ScheduleBaselinesService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
         costElementId?: (string | null),
     ): CancelablePromise<any> {
@@ -39,7 +40,7 @@ export class ScheduleBaselinesService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'as_of': asOf,
                 'cost_element_id': costElementId,
             },

@@ -74,7 +74,12 @@ async def test_merge_branch_command_missing_source(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_merge_branch_command_missing_target(db_session: AsyncSession):
-    """Test MergeBranchCommand raises ValueError when target branch missing."""
+    """Test MergeBranchCommand handles missing target branch gracefully.
+
+    When the target branch has no active version, the entity was created on
+    the source branch only. The command treats this as an addition (no conflict)
+    and clones the source version to the target branch.
+    """
     root_id = uuid4()
     actor_id = uuid4()
 
@@ -92,8 +97,12 @@ async def test_merge_branch_command_missing_target(db_session: AsyncSession):
     cmd = MergeBranchCommand(
         Project, root_id, actor_id, source_branch="feature/exists", target_branch="main"
     )
-    with pytest.raises(ValueError, match="Target branch .* not found"):
-        await cmd.execute(db_session)
+    result = await cmd.execute(db_session)
+
+    # Should succeed by cloning source to target branch
+    assert result is not None
+    assert result.branch == "main"
+    assert result.project_id == root_id
 
 
 @pytest.mark.asyncio

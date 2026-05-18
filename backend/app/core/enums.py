@@ -11,13 +11,14 @@ class ProjectStatus(str, Enum):
     """Project workflow statuses.
 
     Each status has an associated Ant Design color name for UI rendering.
+    All status values are lowercase for consistency.
     """
 
-    DRAFT = "Draft"
-    ACTIVE = "Active"
-    ON_HOLD = "On Hold"
-    COMPLETED = "Completed"
-    CANCELLED = "Cancelled"
+    DRAFT = "draft"
+    ACTIVE = "active"
+    ON_HOLD = "on_hold"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
     @property
     def color(self) -> str:
@@ -40,14 +41,15 @@ class ChangeOrderStatus(str, Enum):
     """Change Order workflow statuses.
 
     Each status has an associated Ant Design color name for UI rendering.
+    All status values are lowercase with underscores for consistency.
     """
 
-    DRAFT = "Draft"
-    SUBMITTED_FOR_APPROVAL = "Submitted for Approval"
-    UNDER_REVIEW = "Under Review"
-    APPROVED = "Approved"
-    IMPLEMENTED = "Implemented"
-    REJECTED = "Rejected"
+    DRAFT = "draft"
+    SUBMITTED_FOR_APPROVAL = "submitted_for_approval"
+    UNDER_REVIEW = "under_review"
+    APPROVED = "approved"
+    IMPLEMENTED = "implemented"
+    REJECTED = "rejected"
 
     @property
     def color(self) -> str:

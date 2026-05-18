@@ -45,7 +45,7 @@ async def setup_hierarchy(db_session: AsyncSession):
         name="Project Alpha",
         code="PROJ-A",
         budget=Decimal("1000000.00"),
-        status="Draft",
+        status="draft",
     )
     project = await project_service.create_project(project_in, actor_id=uuid4())
 

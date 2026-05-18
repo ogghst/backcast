@@ -113,7 +113,7 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
     )
 
     # Workflow State
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="Draft")
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft")
 
     # Branch reference (explicit link to branches table)
     branch_name: Mapped[str | None] = mapped_column(

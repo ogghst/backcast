@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +18,8 @@ from app.models.schemas.user import (
 from app.services.auth import AuthService
 from app.services.user import UserService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
@@ -28,6 +31,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 )
 async def register(
     user_in: UserRegister,
+    session: Annotated[AsyncSession, Depends(get_db)],
     service: UserService = Depends(get_user_service),
 ) -> Any:
     """
@@ -54,7 +58,8 @@ async def register(
         # Pass Pydantic model directly
         user = await service.create_user(user_in=user_in, actor_id=system_actor)
 
-        return user
+        # Use async version to properly load permissions
+        return await UserPublic.from_user_async(user, session)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -89,12 +94,28 @@ async def login(
     # Notify admins of login
     from app.core.notifications import notifier
     from app.core.notifications._types import NotificationEvent, NotificationPayload
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_session,
+    )
+
+    # Resolve role from unified RBAC for the notification
+    user_role = "viewer"
+    try:
+        set_unified_rbac_session(session)
+        roles = await get_unified_rbac_service().get_user_roles(
+            user.user_id, "global", None
+        )
+        if roles:
+            user_role = roles[0]
+    finally:
+        set_unified_rbac_session(None)
 
     notifier.send_fire_and_forget(
         NotificationPayload(
             event=NotificationEvent.USER_LOGIN,
             message=f"User logged in: {user.email}",
-            details={"name": user.full_name, "role": user.role},
+            details={"name": user.full_name, "role": user_role},
         )
     )
 
@@ -104,6 +125,7 @@ async def login(
 @router.get("/me", response_model=UserPublic, operation_id="get_current_user")
 async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserPublic:
     """
     Get current user profile with RBAC permissions.
@@ -111,10 +133,7 @@ async def read_users_me(
     Returns user data including their role-based permissions for use
     in frontend authorization checks.
     """
-    from app.core.rbac import get_rbac_service
-
-    rbac_service = get_rbac_service()
-    return UserPublic.from_user(current_user, rbac_service)
+    return await UserPublic.from_user_async(current_user, session)
 
 
 @router.post("/refresh", response_model=Token, operation_id="refresh_token")
@@ -169,16 +188,21 @@ async def logout(
 
     The access token will still be valid until it expires, but the
     refresh token cannot be used to get new access tokens.
+
+    This endpoint is idempotent: it returns 200 OK even if the token
+    was not found or already revoked.
     """
     auth_service = AuthService(session)
 
-    # Revoke the refresh token
+    # Revoke the refresh token (idempotent operation)
     revoked = await auth_service.revoke_refresh_token(refresh_request.refresh_token)
 
     if not revoked:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Refresh token not found or already revoked",
+        # Token not found or already revoked - log for security auditing but return success
+        logger.info(
+            "Logout attempt with non-existent or already revoked token: %s...%s",
+            refresh_request.refresh_token[:8] if refresh_request.refresh_token else "",
+            refresh_request.refresh_token[-8:] if refresh_request.refresh_token else "",
         )
 
     return {"message": "Successfully logged out"}

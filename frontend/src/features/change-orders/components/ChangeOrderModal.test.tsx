@@ -25,8 +25,8 @@ vi.mock("../hooks/useWorkflowInfo", () => ({
     isBranchLocked: false,
     lockedBranchWarning: null,
     statusOptions: [
-      { label: "Draft", value: "Draft" },
-      { label: "Submitted", value: "Submitted" },
+      { label: "draft", value: "draft" },
+      { label: "submitted", value: "submitted" },
     ],
     isStatusDisabled: false,
   })),

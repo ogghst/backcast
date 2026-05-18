@@ -46,6 +46,7 @@ from app.ai.subagent_compiler import (
     filter_tools_for_context,
 )
 from app.ai.subagents import get_all_subagents
+from app.ai.subagents.db_loader import load_specialists_from_db
 from app.ai.supervisor_state import BackcastSupervisorState
 from app.ai.tools.types import ToolContext
 from app.core.config import settings
@@ -200,12 +201,14 @@ class SupervisorOrchestrator:
         model: str | BaseChatModel,
         context: ToolContext,
         system_prompt: str | None = None,
+        main_assistant_config: Any | None = None,
     ) -> None:
         self.model = model
         self.context = context
         self.system_prompt = system_prompt
+        self.main_assistant_config = main_assistant_config
 
-    def create_supervisor_graph(self, config: AgentConfig | None = None) -> Any:
+    async def create_supervisor_graph(self, config: AgentConfig | None = None) -> Any:
         """Create the briefing-based supervisor + specialist parent graph.
 
         Args:
@@ -225,12 +228,34 @@ class SupervisorOrchestrator:
         )
 
         # --- 1. Tool filtering ---
-        all_tools = filter_tools_for_context(self.context, config)
+        all_tools = await filter_tools_for_context(self.context, config)
 
         # --- 2. Compile specialists ---
-        subagent_configs = (
-            config.subagents if config.subagents is not None else get_all_subagents()
-        )
+        # Try DB-loaded specialists first, fall back to hardcoded
+        if config.subagents is not None:
+            subagent_configs = config.subagents
+        else:
+            try:
+                subagent_configs = await load_specialists_from_db()
+                if not subagent_configs:
+                    logger.info("[SUPERVISOR] No DB specialists found, using hardcoded")
+                    subagent_configs = get_all_subagents()
+            except Exception as exc:
+                logger.warning(
+                    "[SUPERVISOR] DB specialist loading failed, using hardcoded: %s",
+                    exc,
+                )
+                subagent_configs = get_all_subagents()
+
+        # Filter specialists by delegation config
+        if self.main_assistant_config and self.main_assistant_config.delegation_config:
+            allowed = self.main_assistant_config.delegation_config.get(
+                "allowed_specialists"
+            )
+            if allowed is not None:
+                subagent_configs = [
+                    s for s in subagent_configs if s.get("name") in allowed
+                ]
         specialist_graphs = compile_subagents(
             self.model,
             self.context,
@@ -249,22 +274,44 @@ class SupervisorOrchestrator:
             return self._build_fallback_graph(all_tools, config)
 
         # --- 3. Build supervisor tools ---
-        # Supervisor only sees get_briefing and handoff tools -- never Backcast
-        # domain tools directly.
         get_briefing_tool = _create_get_briefing_tool()
         handoff_tools = create_all_handoff_tools(subagent_configs)
 
         supervisor_tools: list[BaseTool] = [get_briefing_tool] + list(handoff_tools)
 
-        temporal_context_tool = next(
-            (t for t in all_tools if t.name == "get_temporal_context"), None
-        )
-        if temporal_context_tool:
-            supervisor_tools.append(temporal_context_tool)
+        # Inject direct tools from the main agent's delegation config
+        direct_tool_names: list[str] = []
+        if self.main_assistant_config and self.main_assistant_config.delegation_config:
+            direct_tool_names = (
+                self.main_assistant_config.delegation_config.get("direct_tools", [])
+                or []
+            )
+
+        direct_tools: list[BaseTool] = []
+        if direct_tool_names:
+            tool_map = {t.name: t for t in all_tools}
+            for name in direct_tool_names:
+                if name in tool_map:
+                    direct_tools.append(tool_map[name])
+            supervisor_tools.extend(direct_tools)
 
         # --- 4. Build supervisor agent ---
         base_prompt = self.system_prompt or BRIEFING_ROOM_SUPERVISOR_PROMPT
-        supervisor_prompt = base_prompt + _BRIEFING_HANDOFF_SUFFIX
+
+        # Conditional prompt based on direct tool availability
+        if direct_tools:
+            tool_names = ", ".join(t.name for t in direct_tools)
+            direct_tools_suffix = (
+                f"\n\nYou have DIRECT access to these Backcast tools: [{tool_names}]. "
+                "Use them directly for their respective operations. "
+                "ALL other Backcast operations must be delegated to specialists "
+                "via handoff tools.\n"
+                "The current briefing is already in your context — review it "
+                "before deciding."
+            )
+            supervisor_prompt = base_prompt + direct_tools_suffix
+        else:
+            supervisor_prompt = base_prompt + _BRIEFING_HANDOFF_SUFFIX
 
         supervisor_agent = langchain_create_agent(
             model=self.model,

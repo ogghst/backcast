@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.temporal_queries import is_current_version
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -53,8 +54,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             select(Department.id)
             .where(
                 Department.department_id == type_in.department_id,
-                func.upper(Department.valid_time).is_(None),
-                Department.deleted_at.is_(None),
+                is_current_version(Department.valid_time, Department.deleted_at),
             )
             .limit(1)
         )
@@ -123,8 +123,9 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             select(CostElementType)
             .where(
                 CostElementType.cost_element_type_id == cost_element_type_id,
-                func.upper(CostElementType.valid_time).is_(None),
-                CostElementType.deleted_at.is_(None),
+                is_current_version(
+                    CostElementType.valid_time, CostElementType.deleted_at
+                ),
             )
             .order_by(CostElementType.valid_time.desc())
             .limit(1)
@@ -145,13 +146,12 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         """Get cost element types with server-side features."""
         from typing import Any
 
-        from sqlalchemy import and_, func, or_
+        from sqlalchemy import and_, or_
 
         from app.core.filtering import FilterParser
 
         stmt = select(CostElementType).where(
-            func.upper(CostElementType.valid_time).is_(None),
-            CostElementType.deleted_at.is_(None),
+            is_current_version(CostElementType.valid_time, CostElementType.deleted_at)
         )
 
         if filters:
@@ -219,16 +219,16 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         """Get cost element type as it was at specific timestamp.
 
         Provides System Time Travel semantics for single-entity queries.
-        Uses STRICT mode by default (only searches in specified branch).
-        Use BranchMode.MERGE to fall back to main branch if not found.
+        Uses ISOLATED mode by default (only searches in specified branch).
+        Use BranchMode.MERGED to fall back to main branch if not found.
 
         Args:
             cost_element_type_id: The unique identifier of the cost element type
             as_of: Timestamp to query (historical state)
             branch: Branch name to query (default: "main")
             branch_mode: Resolution mode for branches
-                - None/STRICT: Only return from specified branch (default)
-                - MERGE: Fall back to main if not found on branch
+                - None/ISOLATED: Only return from specified branch (default)
+                - MERGED: Fall back to main if not found on branch
 
         Returns:
             CostElementType if found at the specified timestamp, None otherwise

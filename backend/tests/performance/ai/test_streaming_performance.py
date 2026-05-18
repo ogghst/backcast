@@ -64,7 +64,7 @@ async def test_first_token_latency_p50(mock_streaming_llm):
     Target: <100ms (p50)
     """
     # Arrange
-    graph = create_graph(llm=mock_streaming_llm, tools=[])
+    graph, _ = create_graph(llm=mock_streaming_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello, what can you help with?")],
@@ -122,7 +122,7 @@ async def test_first_token_latency_percentiles(mock_streaming_llm):
     - p99: <200ms
     """
     # Arrange
-    graph = create_graph(llm=mock_streaming_llm, tools=[])
+    graph, _ = create_graph(llm=mock_streaming_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
@@ -184,7 +184,7 @@ async def test_token_throughput(mock_streaming_llm):
     Target: >50 tokens/second
     """
     # Arrange
-    graph = create_graph(llm=mock_streaming_llm, tools=[])
+    graph, _ = create_graph(llm=mock_streaming_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Tell me about projects")],
@@ -236,7 +236,7 @@ async def test_concurrent_streams(mock_streaming_llm):
     Target: Average first token latency should not increase by >100% at 5 concurrent streams
     """
     # Arrange
-    graph = create_graph(llm=mock_streaming_llm, tools=[])
+    graph, _ = create_graph(llm=mock_streaming_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
@@ -311,7 +311,7 @@ async def test_websocket_message_overhead(mock_streaming_llm):
     # Arrange
     from app.models.schemas.ai import WSTokenMessage
 
-    graph = create_graph(llm=mock_streaming_llm, tools=[])
+    graph, _ = create_graph(llm=mock_streaming_llm, tools=[])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],

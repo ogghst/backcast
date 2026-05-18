@@ -123,7 +123,10 @@ class TestProgressEntryServiceCreate:
         # Act & Assert - Pydantic validates before service is called
         from pydantic import ValidationError as PydanticValidationError
 
-        with pytest.raises(PydanticValidationError, match="greater_than_equal"):
+        with pytest.raises(
+            PydanticValidationError,
+            match="Progress percentage must be between 0 and 100",
+        ):
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("-1.00"),
@@ -144,7 +147,10 @@ class TestProgressEntryServiceCreate:
         # Act & Assert - Pydantic validates before service is called
         from pydantic import ValidationError as PydanticValidationError
 
-        with pytest.raises(PydanticValidationError, match="less_than_equal"):
+        with pytest.raises(
+            PydanticValidationError,
+            match="Progress percentage must be between 0 and 100",
+        ):
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("101.00"),

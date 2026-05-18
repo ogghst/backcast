@@ -29,7 +29,6 @@ from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.api.errors import build_ws_error
 from app.api.websocket_utils import is_websocket_connected
 from app.core.jwt_utils import validate_jwt_token
-from app.core.rbac import get_rbac_service
 from app.db.session import get_db
 from app.models.domain.ai import (
     AIAgentExecution,
@@ -596,8 +595,18 @@ async def chat_stream(
         user_id = user.user_id
 
         # Step 2: Check RBAC permission
-        rbac_service = get_rbac_service()
-        if not rbac_service.has_permission(user.role, "ai-chat"):
+        from app.core.rbac_unified import (
+            get_unified_rbac_service,
+            set_unified_rbac_session,
+        )
+
+        set_unified_rbac_session(db)
+        unified_service = get_unified_rbac_service()
+        has_chat_perm = await unified_service.has_permission(
+            user_id=user.user_id,
+            required_permission="ai-chat",
+        )
+        if not has_chat_perm:
             logger.warning(
                 f"WebSocket connection rejected: user {user_id} lacks ai-chat permission"
             )
@@ -996,6 +1005,9 @@ async def chat_stream(
                 # WebSocket may already be closed
                 pass
         finally:
+            # Clear RBAC session context before db session closes
+            set_unified_rbac_session(None)
+
             # Signal ping loop to stop
             stop_ping.set()
 

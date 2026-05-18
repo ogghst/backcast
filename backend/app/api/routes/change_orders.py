@@ -3,16 +3,14 @@
 import logging
 from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
-
-if TYPE_CHECKING:
-    from app.services.approval_matrix_service import ApprovalMatrixService
+from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.change_order import (
@@ -45,15 +43,6 @@ def get_impact_analysis_service(
     session: AsyncSession = Depends(get_db),
 ) -> ImpactAnalysisService:
     return ImpactAnalysisService(session)
-
-
-def get_approval_matrix_service(
-    session: AsyncSession = Depends(get_db),
-) -> "ApprovalMatrixService":
-    """Get ApprovalMatrixService instance."""
-    from app.services.approval_matrix_service import ApprovalMatrixService
-
-    return ApprovalMatrixService(session)
 
 
 def get_reporting_service(
@@ -122,9 +111,8 @@ async def read_change_orders(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     search: str | None = Query(None, description="Search term (code, title)"),
@@ -152,13 +140,10 @@ async def read_change_orders(
 
     Requires read permission.
     """
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
 
-    # Parse mode string to BranchMode enum
     # Note: branch_mode is parsed but not currently used by get_change_orders service
-    # This is reserved for future implementation of MERGE/STRICT mode filtering
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT  # noqa: F841
+    # This is reserved for future implementation of MERGED/ISOLATED mode filtering
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -290,9 +275,8 @@ async def get_pending_approvals(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     current_user: User = Depends(get_current_active_user),
@@ -309,11 +293,7 @@ async def get_pending_approvals(
 
     Requires read permission.
     """
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -671,9 +651,8 @@ async def get_change_order_impact(
     branch_name: str = Query(
         ..., description="Branch name to compare (e.g., 'BR-CO-2026-001')"
     ),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Comparison mode: merged (main+change) or isolated (change only)",
     ),
     as_of: datetime | None = Query(
@@ -699,10 +678,6 @@ async def get_change_order_impact(
 
     Requires read permission.
     """
-    from app.core.versioning.enums import BranchMode
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     try:
         impact_analysis = await service.analyze_impact(
@@ -1060,7 +1035,10 @@ async def get_change_order_approval_info(
 
     Requires read permission.
     """
-    from app.services.approval_matrix_service import ApprovalMatrixService
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_session,
+    )
     from app.services.impact_analysis_service import ImpactAnalysisService
 
     try:
@@ -1074,9 +1052,6 @@ async def get_change_order_approval_info(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Change Order {change_order_id} not found",
             )
-
-        # Get approval matrix service
-        approval_service = ApprovalMatrixService(service.session)
 
         # Calculate financial impact
         financial_impact = None
@@ -1101,18 +1076,39 @@ async def get_change_order_approval_info(
             user_service = UserService(service.session)
             approver = await user_service.get_user(co.assigned_approver_id)
             if approver:
+                # Resolve role from unified RBAC
+                set_unified_rbac_session(service.session)
+                try:
+                    approver_rbac = get_unified_rbac_service()
+                    approver_roles = await approver_rbac.get_user_roles(
+                        approver.user_id, "global", None
+                    )
+                    approver_role = approver_roles[0] if approver_roles else "unknown"
+                finally:
+                    set_unified_rbac_session(None)
+
                 assigned_approver = {
                     "user_id": approver.user_id,
                     "full_name": approver.full_name,
                     "email": approver.email,
-                    "role": approver.role,
+                    "role": approver_role,
                 }
 
-        # Get current user's authority level
-        user_authority = await approval_service.get_user_authority_level(current_user)
-
-        # Check if current user can approve
-        can_approve = await approval_service.can_approve(current_user, co)
+        # Get current user's authority level and approval permission via unified RBAC
+        set_unified_rbac_session(service.session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            user_authority = await unified_rbac.get_user_authority_level(
+                current_user.user_id
+            )
+            can_approve = await unified_rbac.has_permission(
+                user_id=current_user.user_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         # Calculate business days remaining until SLA deadline
         sla_business_days_remaining = None

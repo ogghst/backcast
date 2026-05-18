@@ -520,7 +520,7 @@ class DataSeeder:
                         continue
 
                     # Store the target status for workflow transition
-                    target_status = item.get("status", "Draft")
+                    target_status = item.get("status", "draft")
 
                     # Store workflow state fields for direct update after creation
                     workflow_fields = {}
@@ -559,53 +559,31 @@ class DataSeeder:
                     created_count += 1
                     logger.info(f"Created Change Order: {co_in.code} - {co_in.title}")
 
-                    # Verify impact analysis completed - retry if needed
-                    max_retries = 3
-                    impact_analysis_completed = False
-                    for retry in range(max_retries):
-                        await session.refresh(created_co)
-                        if created_co.impact_analysis_status == "completed":
-                            logger.info(f"  → Impact analysis completed: {co_in.code}")
-                            impact_analysis_completed = True
-                            break
-                        elif created_co.impact_analysis_status in ("failed", "skipped"):
-                            logger.warning(
-                                f"  → Impact analysis {created_co.impact_analysis_status}, "
-                                f"retrying ({retry + 1}/{max_retries}): {co_in.code}"
+                    # Run impact analysis explicitly (not triggered by creation)
+                    if created_co.branch_name:
+                        try:
+                            await co_service._run_impact_analysis(
+                                created_co, created_co.branch_name
                             )
-                            # Re-run impact analysis
-                            if created_co.branch_name:
-                                try:
-                                    await co_service._run_impact_analysis(
-                                        created_co, created_co.branch_name
-                                    )
-                                    await session.commit()
-                                except Exception as e:
-                                    logger.warning(
-                                        f"  → Impact analysis retry failed: {e}"
-                                    )
-                                    await session.rollback()
-                                    await asyncio.sleep(2)  # Wait before retry
-                            else:
-                                logger.warning(
-                                    "  → Cannot retry impact analysis: branch_name is None"
-                                )
-                                break
-                        else:
-                            # Still in progress, wait
-                            logger.info("  → Impact analysis in progress, waiting...")
-                            await asyncio.sleep(2)
+                            await session.commit()
+                        except Exception as e:
+                            logger.warning(
+                                f"  → Impact analysis failed for {co_in.code}: {e}"
+                            )
+                            await session.rollback()
 
-                    # After retry loop, check final status
-                    if not impact_analysis_completed:
-                        await session.refresh(created_co)
-                        if created_co.impact_analysis_status != "completed":
-                            logger.warning(
-                                f"  → Impact analysis not completed after {max_retries} retries, "
-                                f"skipping workflow transitions for {co_in.code}"
-                            )
-                            # Skip workflow transitions but keep the CO in Draft status
-                            continue
+                    # Verify impact analysis completed
+                    await asyncio.sleep(1)
+                    await session.refresh(created_co)
+
+                    if created_co.impact_analysis_status == "completed":
+                        logger.info(f"  → Impact analysis completed: {co_in.code}")
+                    else:
+                        logger.warning(
+                            f"  → Impact analysis status: {created_co.impact_analysis_status}, "
+                            f"skipping workflow transitions for {co_in.code}"
+                        )
+                        continue
 
                     # Prevent timestamp overlap for subsequent updates
                     await asyncio.sleep(1)
@@ -626,10 +604,13 @@ class DataSeeder:
                         await asyncio.sleep(1)
 
                     # If target status is not Draft, attempt to transition through workflow
-                    if target_status and target_status != "Draft":
+                    if target_status and target_status != "draft":
                         try:
                             # For Submitted for Approval status
-                            if "Submitted for Approval" in target_status:
+                            if (
+                                "submitted_for_approval" in target_status
+                                or "Submitted for Approval" in target_status
+                            ):
                                 await co_service.submit_for_approval(
                                     change_order_id=co_id,
                                     actor_id=actor_id,
@@ -639,7 +620,10 @@ class DataSeeder:
                                 logger.info(f"  → Submitted for approval: {co_in.code}")
 
                             # For Under Review status (need to submit first)
-                            elif "Under Review" in target_status:
+                            elif (
+                                "under_review" in target_status
+                                or "Under Review" in target_status
+                            ):
                                 # First submit
                                 await co_service.submit_for_approval(
                                     change_order_id=co_id,
@@ -651,7 +635,7 @@ class DataSeeder:
                                 # Then transition to Under Review by updating status
                                 # Note: This is a direct status update for seeding purposes
                                 under_review_update = ChangeOrderUpdate(
-                                    status="Under Review"
+                                    status="under_review"
                                 )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
@@ -662,7 +646,10 @@ class DataSeeder:
                                 logger.info(f"  → Under Review: {co_in.code}")
 
                             # For Approved status (need to submit → under review → approve)
-                            elif "Approved" in target_status:
+                            elif (
+                                "approved" in target_status
+                                or "Approved" in target_status
+                            ):
                                 # First submit
                                 await co_service.submit_for_approval(
                                     change_order_id=co_id,
@@ -673,7 +660,7 @@ class DataSeeder:
 
                                 # Then transition to Under Review
                                 under_review_update = ChangeOrderUpdate(
-                                    status="Under Review"
+                                    status="under_review"
                                 )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
@@ -693,7 +680,10 @@ class DataSeeder:
                                 logger.info(f"  → Approved: {co_in.code}")
 
                             # For Rejected status (need to submit → under review → reject)
-                            elif "Rejected" in target_status:
+                            elif (
+                                "rejected" in target_status
+                                or "Rejected" in target_status
+                            ):
                                 # First submit
                                 await co_service.submit_for_approval(
                                     change_order_id=co_id,
@@ -704,7 +694,7 @@ class DataSeeder:
 
                                 # Then transition to Under Review
                                 under_review_update = ChangeOrderUpdate(
-                                    status="Under Review"
+                                    status="under_review"
                                 )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
@@ -941,6 +931,13 @@ class DataSeeder:
                         max_tokens=assistant_dict.get("max_tokens"),
                         is_active=assistant_dict.get("is_active", True),
                         default_role=assistant_dict.get("default_role"),
+                        agent_type=assistant_dict.get("agent_type", "main"),
+                        allowed_tools=assistant_dict.get("allowed_tools"),
+                        delegation_config=assistant_dict.get("delegation_config"),
+                        structured_output_schema=assistant_dict.get(
+                            "structured_output_schema"
+                        ),
+                        is_system=assistant_dict.get("is_system", False),
                     )
                     session.add(assistant)
                     await session.flush()
@@ -955,6 +952,121 @@ class DataSeeder:
 
         logger.info(
             f"AI Assistant seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
+    async def seed_ai_tools_test_data(self, session: AsyncSession) -> None:
+        """Seed AI Tools test data from ai_tools_test_data.json file.
+
+        Args:
+            session: Database session
+        """
+        from app.db.ai_tools_seeder import AIToolsTestDataSeeder
+
+        logger.info("Starting AI Tools test data seeding...")
+
+        # Check if test data file exists
+        test_data_file = self.seed_dir / "ai_tools_test_data.json"
+        if not test_data_file.exists():
+            logger.info("No AI Tools test data file found, skipping")
+            return
+
+        try:
+            ai_tools_seeder = AIToolsTestDataSeeder(seed_dir=self.seed_dir)
+            await ai_tools_seeder.seed_all(session)
+        except Exception as e:
+            logger.warning(f"AI Tools test data seeding failed (non-critical): {e}")
+
+    async def seed_ai_specialists(self, session: AsyncSession) -> None:
+        """Seed AI specialist configs from ai_specialist_configs.json file.
+
+        Specialists are DB-configurable agents with agent_type='specialist'.
+        Idempotent — checks by name + agent_type before inserting.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.ai import AIAssistantConfig
+
+        logger.info("Starting AI specialist seeding...")
+        specialist_data = self.load_seed_file("ai_specialist_configs.json")
+
+        if not specialist_data:
+            logger.info("No AI specialist seed data found or file is empty")
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for idx, spec_dict in enumerate(specialist_data):
+                try:
+                    # Check if specialist already exists by name + agent_type
+                    stmt = sql_select(AIAssistantConfig).where(
+                        AIAssistantConfig.name == spec_dict["name"],
+                        AIAssistantConfig.agent_type == "specialist",
+                    )
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        logger.debug(
+                            f"AI Specialist {spec_dict['name']} already exists, skipping"
+                        )
+                        skipped_count += 1
+                        continue
+
+                    # Look up model_id — use the first active model if not specified
+                    model_id = spec_dict.get("model_id")
+                    if not model_id:
+                        from app.models.domain.ai import AIModel
+
+                        model_stmt = (
+                            sql_select(AIModel)
+                            .where(AIModel.is_active.is_(True))
+                            .limit(1)
+                        )
+                        model_result = await session.execute(model_stmt)
+                        model = model_result.scalar_one_or_none()
+                        if not model:
+                            logger.error(
+                                "No active AI model found, skipping specialist seeding"
+                            )
+                            return
+                        model_id = str(model.id)
+
+                    specialist = AIAssistantConfig(
+                        name=spec_dict["name"],
+                        description=spec_dict.get("description"),
+                        model_id=str(model_id),
+                        system_prompt=spec_dict.get("system_prompt"),
+                        temperature=spec_dict.get("temperature"),
+                        max_tokens=spec_dict.get("max_tokens"),
+                        is_active=spec_dict.get("is_active", True),
+                        default_role=spec_dict.get("default_role"),
+                        agent_type="specialist",
+                        allowed_tools=spec_dict.get("allowed_tools"),
+                        delegation_config=spec_dict.get("delegation_config"),
+                        structured_output_schema=spec_dict.get(
+                            "structured_output_schema"
+                        ),
+                        is_system=spec_dict.get("is_system", True),
+                    )
+                    session.add(specialist)
+                    await session.flush()
+
+                    created_count += 1
+                    logger.info(f"Created AI Specialist: {specialist.name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed AI specialist at index {idx}: {e}")
+                    skipped_count += 1
+                    continue
+
+        logger.info(
+            f"AI Specialist seeding complete: {created_count} created, "
+            f"{skipped_count} skipped/failed"
         )
 
     async def seed_rbac_roles(self, session: AsyncSession) -> None:
@@ -1134,6 +1246,125 @@ class DataSeeder:
             f" {permission_removed_count} removed"
         )
 
+    async def seed_user_role_assignments(self, session: AsyncSession) -> None:
+        """Seed global UserRoleAssignment records for each user.
+
+        Creates one GLOBAL-scoped UserRoleAssignment for each user by reading
+        the role from the seed data (users.json) and mapping it to the
+        corresponding RBACRole. Uses direct SQLAlchemy queries consistent
+        with seed_rbac_roles() pattern.
+
+        Idempotent - skips users that already have a global assignment.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select
+
+        from app.models.domain.rbac import RBACRole
+        from app.models.domain.user import User
+        from app.models.domain.user_role_assignment import (
+            ScopeType,
+            UserRoleAssignment,
+        )
+
+        logger.info("Starting user role assignment seeding...")
+
+        # Load seed data to get role mappings by user_id
+        user_seed_data = self.load_seed_file("users.json")
+        seed_role_map: dict[str, str] = {}  # user_id string -> role name
+        for item in user_seed_data:
+            uid = item.get("user_id")
+            role_name = item.get("role")
+            if uid and role_name:
+                seed_role_map[uid] = role_name
+
+        # Load all users
+        stmt_users = select(User)
+        result_users = await session.execute(stmt_users)
+        users = result_users.scalars().all()
+
+        if not users:
+            logger.info("No users found, skipping role assignment seeding")
+            return
+
+        # Load all RBAC roles
+        stmt_roles = select(RBACRole)
+        result_roles = await session.execute(stmt_roles)
+        roles = result_roles.scalars().all()
+
+        # Build role name -> role_id lookup
+        role_map: dict[str, UUID] = {role.name: role.id for role in roles}
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for user in users:
+                user_id_str = str(user.user_id)
+                user_role_name = seed_role_map.get(user_id_str)
+
+                if not user_role_name:
+                    logger.warning(
+                        f"User {user.email} has no role in seed data, "
+                        f"skipping assignment"
+                    )
+                    skipped_count += 1
+                    continue
+
+                # Look up the RBACRole for the user's role name
+                if user_role_name not in role_map:
+                    logger.warning(
+                        f"User {user.email} has unrecognized role "
+                        f"'{user_role_name}', skipping assignment"
+                    )
+                    skipped_count += 1
+                    continue
+
+                role_id = role_map[user_role_name]
+
+                # Check if global assignment already exists
+                stmt_existing = select(UserRoleAssignment).where(
+                    UserRoleAssignment.user_id == user.user_id,
+                    UserRoleAssignment.scope_type == ScopeType.GLOBAL,
+                    UserRoleAssignment.scope_id.is_(None),
+                )
+                result_existing = await session.execute(stmt_existing)
+                existing = result_existing.scalar_one_or_none()
+
+                if existing:
+                    logger.debug(
+                        f"User {user.email} already has global role assignment, "
+                        f"skipping"
+                    )
+                    skipped_count += 1
+                    continue
+
+                # Create the global assignment
+                from uuid import uuid4
+
+                assignment = UserRoleAssignment(
+                    id=uuid4(),
+                    user_id=user.user_id,
+                    role_id=role_id,
+                    scope_type=ScopeType.GLOBAL,
+                    scope_id=None,
+                    granted_at=datetime.now(UTC),
+                )
+                session.add(assignment)
+                created_count += 1
+                logger.info(
+                    f"Created global role assignment: {user.email} -> {user_role_name}"
+                )
+
+            if created_count > 0:
+                await session.flush()
+
+        logger.info(
+            f"User role assignment seeding complete: {created_count} created, "
+            f"{skipped_count} skipped"
+        )
+
     async def seed_co_workflow_config(self, session: AsyncSession) -> None:
         """Seed change order workflow configuration.
 
@@ -1281,6 +1512,9 @@ class DataSeeder:
             # Then seed users (depend on roles and departments)
             await self.seed_users(session)
 
+            # Seed user role assignments (depends on users and rbac_roles)
+            await self.seed_user_role_assignments(session)
+
             # Seed CO Workflow Config (required by change orders)
             await self.seed_co_workflow_config(session)
 
@@ -1313,6 +1547,12 @@ class DataSeeder:
 
             # Seed AI Assistants
             await self.seed_ai_assistants(session)
+
+            # Seed AI Specialists
+            await self.seed_ai_specialists(session)
+
+            # Seed AI Tools Test Data
+            await self.seed_ai_tools_test_data(session)
 
             # Commit all changes (services usually commit internally for writes?
             # Or depend on session commit at end. If services use execute() they might depend on session commit.)

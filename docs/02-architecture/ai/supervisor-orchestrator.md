@@ -2,11 +2,13 @@
 
 A handoff-based orchestration pattern where a supervisor agent routes user requests to specialist agents via handoff tools. Specialists do NOT share message history -- instead, each receives a compiled briefing document as context and contributes findings back to the accumulating document. The briefing acts as the primary knowledge carrier between supervisor turns.
 
+The supervisor also has **direct tool access** for lightweight operations (e.g., changing the as-of date) configured via the main agent's `delegation_config.direct_tools`. This eliminates delegation overhead for trivial tasks.
+
 > **Prerequisite:** This document assumes familiarity with [Agent System: Common Concepts](./agent-common-concepts.md).
 >
 > **Related Documentation:**
 > - [Agent System: Common Concepts](./agent-common-concepts.md) -- shared infrastructure, tools, middleware, event bus
-> - [Deep Agent Orchestrator](./deep-agent-orchestrator.md) -- task-based delegation with isolated subagents
+> - ~~[Deep Agent Orchestrator](./deep-agent-orchestrator.md)~~ -- removed; supervisor is the sole orchestrator
 
 ---
 
@@ -44,15 +46,20 @@ The supervisor orchestrator builds a parent `StateGraph` where the supervisor ro
 
 ### Invocation Path
 
-The supervisor is invoked via `DeepAgentOrchestrator.create_agent()` when `config.use_supervisor=True` (controlled by `settings.AI_ORCHESTRATOR`). The Deep Agent orchestrator transparently delegates:
+The supervisor is invoked directly from `agent_service.py`. It is the sole orchestrator (the Deep Agent path has been removed):
 
 ```python
-# In DeepAgentOrchestrator.create_agent()
-# Routing priority: supervisor -> default
-if config.use_supervisor:
-    supervisor = SupervisorOrchestrator(...)
-    return supervisor.create_supervisor_graph(config)
+# In agent_service.py
+supervisor = SupervisorOrchestrator(
+    model=llm_client,
+    context=tool_context,
+    system_prompt=system_prompt,
+    main_assistant_config=assistant_config,  # DB-loaded main agent config
+)
+graph = supervisor.create_supervisor_graph(config)
 ```
+
+The `main_assistant_config` parameter carries the DB-loaded `AIAssistantConfig` row, which includes `delegation_config` (direct tools + allowed specialists) and `agent_type`.
 
 ### Architecture Diagram
 
@@ -169,9 +176,23 @@ ALL Backcast operations must be delegated to specialists via handoff tools.
 Always start by calling get_briefing to review the current state of knowledge.
 ```
 
+### Direct Tools
+
+When the main agent's `delegation_config.direct_tools` is non-empty, the supervisor receives those tools directly alongside `get_briefing` and handoff tools. The `_BRIEFING_HANDOFF_SUFFIX` is replaced with a conditional message:
+
+```
+You have DIRECT access to these tools: [list of direct tool names].
+Use them for lightweight operations. All other Backcast operations must be
+delegated to specialists via handoff tools.
+
+Always start by calling get_briefing to review the current state of knowledge.
+```
+
+**Default direct tools:** `get_temporal_context`, `set_temporal_context`, `global_search`. Fully configurable per main agent via the admin UI.
+
 ### Routing Guidelines
 
-The supervisor has three tool categories: `get_briefing` (read compiled findings), `handoff_to_X` (delegate to specialist), and `get_temporal_context` (temporal context). There is no `task` tool -- all delegation is via handoff to ensure every specialist contribution passes through briefing compilation.
+The supervisor has three tool categories: `get_briefing` (read compiled findings), `handoff_to_X` (delegate to specialist), and optional **direct tools** from the main agent's `delegation_config`. There is no `task` tool -- all delegation is via handoff to ensure every specialist contribution passes through briefing compilation.
 
 ---
 
@@ -260,8 +281,26 @@ Specialist compilation is handled by the shared `compile_subagents()` function i
 1. Each specialist is compiled via `langchain_create_agent()` with `name=agent_name` (so the graph node is properly identified).
 2. **Fresh middleware per specialist** -- each gets its own `TemporalContextMiddleware` and `BackcastSecurityMiddleware` instances to prevent mutable state leakage.
 3. Middleware stack: `TemporalContextMiddleware` + `BackcastSecurityMiddleware` (no `TodoListMiddleware` for specialists).
-4. Tool filtering follows the same intersection logic as Deep Agent subagents.
+4. Tool filtering follows the same intersection logic.
 5. Specialists with zero tools after filtering are skipped.
+
+### Specialist Loading (DB-first with Fallback)
+
+Specialists are loaded from the database via `ai/subagents/db_loader.py`:
+
+```python
+# Primary: Load from ai_assistant_configs where agent_type='specialist'
+subagent_configs = await load_specialists_from_db()
+
+# Fallback: If DB returns empty, use hardcoded configs from subagents/__init__.py
+if not subagent_configs:
+    subagent_configs = get_all_subagents()
+```
+
+- **TTL cache**: 5 minutes. Specialist configs change rarely.
+- **Invalidation**: `invalidate_cache()` called after specialist CRUD via admin API.
+- **Filtering by `allowed_specialists`**: If the main agent's `delegation_config.allowed_specialists` is non-null, only those specialists are loaded.
+- **Converter**: `assistant_config_to_specialist_dict()` maps DB rows to the dict schema expected by `compile_subagents()`.
 
 ### Specialist Wrapper Nodes
 
@@ -591,11 +630,13 @@ sequenceDiagram
 
 | File | Responsibility |
 |------|---------------|
-| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: briefing-based agent delegation with compiled context |
+| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: briefing-based agent delegation with compiled context, direct tool support |
 | `ai/supervisor_state.py` | `BackcastSupervisorState`: state schema with briefing fields and iteration counters |
 | `ai/briefing.py` | `BriefingDocument`, `BriefingSection`: Pydantic models for the briefing artifact |
 | `ai/briefing_compiler.py` | `initialize_briefing()`, `compile_specialist_output()`: zero-cost compilation |
 | `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: handoff tools with deterministic briefing update |
 | `ai/subagent_compiler.py` | Shared compilation logic for specialist graphs |
-| `ai/subagents/__init__.py` | Seven subagent configurations used by the orchestrator |
-| `ai/config.py` | `AgentConfig` dataclass with `use_supervisor` field |
+| `ai/subagents/__init__.py` | Hardcoded specialist configs (fallback when DB is empty) |
+| `ai/subagents/db_loader.py` | `load_specialists_from_db()`: TTL-cached DB specialist loading with `assistant_config_to_specialist_dict()` converter |
+| `ai/config.py` | `AgentConfig` dataclass (supervisor-only mode) |
+| `ai/agent_service.py` | Runtime graph creation — passes `main_assistant_config` to orchestrator |

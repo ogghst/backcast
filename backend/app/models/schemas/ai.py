@@ -171,6 +171,13 @@ class AIModelPublic(AIModelBase):
 # === Assistant Config Schemas ===
 
 
+class DelegationConfig(BaseModel):
+    """Delegation configuration for main agents."""
+
+    direct_tools: list[str] | None = None
+    allowed_specialists: list[str] | None = None
+
+
 class AIAssistantConfigBase(BaseModel):
     """Base schema for assistant config."""
 
@@ -192,6 +199,27 @@ class AIAssistantConfigBase(BaseModel):
         description="RBAC role for tool filtering (e.g., ai-viewer, ai-manager, ai-admin)",
     )
     is_active: bool = Field(True)
+    agent_type: Literal["main", "specialist"] = Field(
+        "main",
+        description="Agent type: 'main' (user-facing) or 'specialist' (delegated)",
+    )
+    allowed_tools: list[str] | None = Field(
+        None,
+        description="Tool whitelist for specialist agents. None means all available tools.",
+    )
+    delegation_config: DelegationConfig | None = Field(
+        None,
+        description="Delegation configuration for main agents",
+    )
+    structured_output_schema: str | None = Field(
+        None,
+        max_length=100,
+        description="Fully qualified Pydantic model class name for structured output (specialist-only)",
+    )
+    is_system: bool = Field(
+        False,
+        description="System agents cannot be deleted, only disabled",
+    )
 
 
 class AIAssistantConfigCreate(AIAssistantConfigBase):
@@ -216,6 +244,11 @@ class AIAssistantConfigUpdate(BaseModel):
     )
     model_id: UUID | None = None
     is_active: bool | None = None
+    agent_type: Literal["main", "specialist"] | None = None
+    allowed_tools: list[str] | None = None
+    delegation_config: DelegationConfig | None = None
+    structured_output_schema: str | None = Field(None, max_length=100)
+    is_system: bool | None = None
 
 
 class AIAssistantConfigPublic(AIAssistantConfigBase):

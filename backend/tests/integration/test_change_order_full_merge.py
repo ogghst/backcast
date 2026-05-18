@@ -57,7 +57,7 @@ class TestChangeOrderFullMerge:
             title="Test CO",
             description="Test Change Order",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create WBEs on main branch first
@@ -93,7 +93,7 @@ class TestChangeOrderFullMerge:
             title="Test CO",
             description="Test Change Order",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create new versions of WBEs on source branch
@@ -149,7 +149,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Assert
-        assert result.status == "Implemented"
+        assert result.status == "implemented"
 
         # Verify WBEs are on main branch
         wbes_main = await wbe_service.get_wbes(branch="main")
@@ -189,7 +189,7 @@ class TestChangeOrderFullMerge:
             title="Test CO",
             description="Test Change Order",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create WBE on main branch first
@@ -218,7 +218,7 @@ class TestChangeOrderFullMerge:
             title="Test CO",
             description="Test Change Order",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create new version of WBE on source branch
@@ -277,7 +277,7 @@ class TestChangeOrderFullMerge:
             title="Test CO",
             description="Test Change Order",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create CO version on empty source branch
@@ -290,7 +290,7 @@ class TestChangeOrderFullMerge:
             title="Test CO",
             description="Test Change Order",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Act - merge empty branch
@@ -301,7 +301,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Assert
-        assert result.status == "Implemented"
+        assert result.status == "implemented"
 
     @pytest.mark.asyncio
     async def test_merge_soft_deletes_entities(self, db_session: AsyncSession) -> None:
@@ -337,7 +337,7 @@ class TestChangeOrderFullMerge:
             title="Test CO",
             description="Test Change Order",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create WBE on main branch first
@@ -367,7 +367,7 @@ class TestChangeOrderFullMerge:
             title="Test CO",
             description="Test Change Order",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create WBE version on source branch

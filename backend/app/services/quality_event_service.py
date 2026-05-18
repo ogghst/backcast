@@ -7,6 +7,11 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.temporal_queries import (
+    current_join_filter,
+    is_current_version,
+    is_current_version_on_branch,
+)
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -83,9 +88,12 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
             select(CostElement.id)
             .where(
                 CostElement.cost_element_id == event_in.cost_element_id,
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, CostElement).valid_time,
+                    CostElement.branch,
+                    branch,
+                    cast(Any, CostElement).deleted_at,
+                ),
             )
             .limit(1)
         )
@@ -95,9 +103,12 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
                 select(CostElement.id)
                 .where(
                     CostElement.cost_element_id == event_in.cost_element_id,
-                    CostElement.branch == "main",
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                    is_current_version_on_branch(
+                        cast(Any, CostElement).valid_time,
+                        CostElement.branch,
+                        "main",
+                        cast(Any, CostElement).deleted_at,
+                    ),
                 )
                 .limit(1)
             )
@@ -181,8 +192,10 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
             select(QualityEvent)
             .where(
                 QualityEvent.quality_event_id == quality_event_id,
-                func.upper(QualityEvent.valid_time).is_(None),
-                QualityEvent.deleted_at.is_(None),
+                is_current_version(
+                    cast(Any, QualityEvent).valid_time,
+                    QualityEvent.deleted_at,
+                ),
             )
             .order_by(QualityEvent.valid_time.desc())
             .limit(1)
@@ -219,8 +232,12 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
         if as_of is not None:
             stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            stmt = stmt.where(func.upper(QualityEvent.valid_time).is_(None))
-            stmt = stmt.where(QualityEvent.deleted_at.is_(None))
+            stmt = stmt.where(
+                is_current_version(
+                    cast(Any, QualityEvent).valid_time,
+                    QualityEvent.deleted_at,
+                )
+            )
 
         # Apply filters
         if filters:
@@ -239,8 +256,10 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
                 select(CostElement.cost_element_id)
                 .where(
                     CostElement.wbe_id == wbe_id,
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                    is_current_version(
+                        cast(Any, CostElement).valid_time,
+                        cast(Any, CostElement).deleted_at,
+                    ),
                 )
                 .correlate(QualityEvent)
             )
@@ -253,10 +272,13 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
+                    current_join_filter(
+                        (
+                            cast(Any, CostElement).valid_time,
+                            cast(Any, CostElement).deleted_at,
+                        ),
+                        (cast(Any, WBE).valid_time, cast(Any, WBE).deleted_at),
+                    ),
                 )
                 .correlate(QualityEvent)
             )
@@ -338,8 +360,12 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
         if as_of is not None:
             stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            stmt = stmt.where(func.upper(QualityEvent.valid_time).is_(None))
-            stmt = stmt.where(QualityEvent.deleted_at.is_(None))
+            stmt = stmt.where(
+                is_current_version(
+                    cast(Any, QualityEvent).valid_time,
+                    QualityEvent.deleted_at,
+                )
+            )
 
         result = await self.session.execute(stmt)
         return result.scalar_one() or 0
@@ -404,8 +430,12 @@ class QualityEventService(TemporalService[QualityEvent]):  # type: ignore[type-v
         if as_of is not None:
             stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            stmt = stmt.where(func.upper(QualityEvent.valid_time).is_(None))
-            stmt = stmt.where(QualityEvent.deleted_at.is_(None))
+            stmt = stmt.where(
+                is_current_version(
+                    cast(Any, QualityEvent).valid_time,
+                    QualityEvent.deleted_at,
+                )
+            )
 
         # Group by period and order
         stmt = stmt.group_by("period_start").order_by("period_start")

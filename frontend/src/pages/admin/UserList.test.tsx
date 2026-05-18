@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfigProvider } from "antd";
 
 // Mock useAuthStore to allow all permissions
-// Mock useAuthStore to allow all permissions
 vi.mock("@/stores/useAuthStore", () => ({
   useAuthStore: (selector: (state: unknown) => unknown) => {
     const state = {
@@ -17,6 +16,17 @@ vi.mock("@/stores/useAuthStore", () => ({
     return selector ? selector(state) : state;
   },
 }));
+
+// Mock role assignments hook — returns empty assignments so legacy role fallback is used
+vi.mock(
+  "@/features/admin/role-assignments/hooks/useRoleAssignments",
+  () => ({
+    useRoleAssignments: () => ({ data: [], isLoading: false }),
+    useCreateRoleAssignment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useUpdateRoleAssignment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useDeleteRoleAssignment: () => ({ mutate: vi.fn(), isPending: false }),
+  }),
+);
 
 // UserList uses createResourceHooks with TanStack Query directly
 // MSW handlers in setupTests.ts will intercept the requests
@@ -162,5 +172,30 @@ describe("UserList Integration", () => {
 
     // Verifying v1 (older)
     expect(screen.getByText(/v1/)).toBeInTheDocument();
+  });
+
+  it("shows legacy role tag when no assignments exist", async () => {
+    // useRoleAssignments mock returns empty array,
+    // so the fallback legacy role tag should be displayed
+    renderWithProviders(<UserList />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
+    });
+
+    // MSW mock users have role: "admin" / "user"
+    // Fallback displays them as uppercase tags
+    expect(screen.getByText("ADMIN")).toBeInTheDocument();
+  });
+
+  it("renders View Assignments button for each user", async () => {
+    renderWithProviders(<UserList />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
+    });
+
+    const assignmentButtons = screen.getAllByTitle("View Assignments");
+    expect(assignmentButtons.length).toBeGreaterThanOrEqual(1);
   });
 });

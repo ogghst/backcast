@@ -29,7 +29,7 @@ class TestChangeOrderAuditLog:
             code="CO-001",
             project_id=uuid4(),
             title="Test Change Order",
-            status="Draft",
+            status="draft",
         )
         co = await service.create_change_order(co_create, actor_id=uuid4())
         # Capture ID before entity might be expired
@@ -38,7 +38,7 @@ class TestChangeOrderAuditLog:
         # Update status with comment - should create audit log entry
         comment = "Ready for review"
         co_update = ChangeOrderUpdate(
-            status="Submitted for Approval",
+            status="submitted_for_approval",
             comment=comment,
         )
         updated_co = await service.update_change_order(
@@ -46,7 +46,7 @@ class TestChangeOrderAuditLog:
         )
 
         # Verify the update succeeded
-        assert updated_co.status == "Submitted for Approval"
+        assert updated_co.status == "submitted_for_approval"
 
         # Query to verify audit log entry was created
         # Note: We use a fresh query to avoid session state issues
@@ -60,8 +60,8 @@ class TestChangeOrderAuditLog:
 
         # Verify audit log entry was created with correct data
         assert audit_entry is not None
-        assert audit_entry.old_status == "Draft"
-        assert audit_entry.new_status == "Submitted for Approval"
+        assert audit_entry.old_status == "draft"
+        assert audit_entry.new_status == "submitted_for_approval"
         assert audit_entry.comment == comment
 
     @pytest.mark.asyncio
@@ -76,26 +76,26 @@ class TestChangeOrderAuditLog:
             code="CO-002",
             project_id=uuid4(),
             title="Test Change Order 2",
-            status="Draft",
+            status="draft",
         )
         co = await service.create_change_order(co_create, actor_id=uuid4())
         # Capture ID before entity might be expired
         co_id = co.change_order_id
 
         # Update status WITHOUT comment
-        co_update = ChangeOrderUpdate(status="Submitted for Approval")
+        co_update = ChangeOrderUpdate(status="submitted_for_approval")
         updated_co = await service.update_change_order(
             co_id, co_update, actor_id=uuid4()
         )
 
         # Verify the update succeeded
-        assert updated_co.status == "Submitted for Approval"
+        assert updated_co.status == "submitted_for_approval"
 
         # Verify audit entry exists with null comment
         stmt = select(ChangeOrderAuditLog).where(
             ChangeOrderAuditLog.change_order_id == co_id,
-            ChangeOrderAuditLog.old_status == "Draft",
-            ChangeOrderAuditLog.new_status == "Submitted for Approval",
+            ChangeOrderAuditLog.old_status == "draft",
+            ChangeOrderAuditLog.new_status == "submitted_for_approval",
         )
 
         result = await db_session.execute(stmt)
@@ -117,34 +117,40 @@ class TestChangeOrderAuditLog:
             code="CO-003",
             project_id=uuid4(),
             title="Test Change Order 3",
-            status="Draft",
+            status="draft",
         )
         co = await service.create_change_order(co_create, actor_id=actor_id)
         # Capture ID before entity might be expired
         co_id = co.change_order_id
 
-        # First transition: Draft -> Submitted for Approval
+        # First transition: Draft -> submitted_for_approval
         await service.update_change_order(
             co_id,
             ChangeOrderUpdate(
-                status="Submitted for Approval", comment="Ready for review"
+                status="submitted_for_approval", comment="Ready for review"
             ),
             actor_id=actor_id,
         )
+        await db_session.commit()
+        db_session.expire_all()
 
-        # Second transition: Submitted for Approval -> Under Review
+        # Second transition: submitted_for_approval -> under_review
         await service.update_change_order(
             co_id,
-            ChangeOrderUpdate(status="Under Review", comment="Starting review"),
+            ChangeOrderUpdate(status="under_review", comment="Starting review"),
             actor_id=actor_id,
         )
+        await db_session.commit()
+        db_session.expire_all()
 
-        # Third transition: Under Review -> Approved
+        # Third transition: under_review -> rejected
+        # (Can't use "approved" because it requires approver validation)
         await service.update_change_order(
             co_id,
-            ChangeOrderUpdate(status="Approved", comment="Looks good, approved"),
+            ChangeOrderUpdate(status="rejected", comment="Not approved, rejected"),
             actor_id=actor_id,
         )
+        await db_session.commit()
 
         # Verify audit trail has all three transitions
         stmt = select(ChangeOrderAuditLog).where(
@@ -159,12 +165,12 @@ class TestChangeOrderAuditLog:
 
         # Verify status transitions
         transitions = [(e.old_status, e.new_status) for e in audit_entries]
-        assert ("Draft", "Submitted for Approval") in transitions
-        assert ("Submitted for Approval", "Under Review") in transitions
-        assert ("Under Review", "Approved") in transitions
+        assert ("draft", "submitted_for_approval") in transitions
+        assert ("submitted_for_approval", "under_review") in transitions
+        assert ("under_review", "rejected") in transitions
 
         # Verify comments
         comments = [e.comment for e in audit_entries]
         assert "Ready for review" in comments
         assert "Starting review" in comments
-        assert "Looks good, approved" in comments
+        assert "Not approved, rejected" in comments

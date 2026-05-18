@@ -1,11 +1,12 @@
-"""Tests for system prompt builder - temporal context removal.
+"""Tests for system prompt builder - temporal context handling.
 
-Tests verify that temporal context is NOT added to the system prompt,
-following the maximum security approach where temporal parameters are
-hidden from the LLM and enforced only at the tool level via ToolContext.
+Tests verify that _build_system_prompt correctly handles temporal context
+and project context, following the security approach where temporal parameters
+are available in the prompt but enforcement happens at tool level via ToolContext.
 """
 
 from datetime import datetime
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,18 +16,13 @@ from app.ai.agent_service import AgentService
 
 @pytest.mark.asyncio
 class TestBuildSystemPromptNoTemporalContext:
-    """Test _build_system_prompt removes temporal context (maximum security)."""
+    """Test _build_system_prompt with default temporal params (no context added)."""
 
     async def test_build_system_prompt_no_temporal_with_default_values(
-        self, db_session: AsyncSession
+        self,
     ) -> None:
-        """Verify system prompt has NO temporal context with default values.
-
-        Given: base_prompt and default temporal params (main branch, current time)
-        When: _build_system_prompt() is called
-        Then: returns base_prompt WITHOUT temporal context section
-        """
-        service = AgentService(db_session)
+        """Verify system prompt with default temporal values has no temporal section."""
+        service = AgentService(Mock(spec=AsyncSession))
 
         base_prompt = "You are a helpful assistant for project management."
         as_of = None
@@ -48,16 +44,10 @@ class TestBuildSystemPromptNoTemporalContext:
         assert "Mode:" not in result
 
     async def test_build_system_prompt_no_temporal_with_feature_branch(
-        self, db_session: AsyncSession
+        self,
     ) -> None:
-        """Verify system prompt has NO temporal context even with feature branch.
-
-        Given: base_prompt with feature branch context
-        When: _build_system_prompt() is called with branch_name="feature-1"
-        Then: returns base_prompt WITHOUT temporal context section
-              (temporal context enforced at tool level only, not in prompt)
-        """
-        service = AgentService(db_session)
+        """Verify system prompt has temporal context section for feature branch."""
+        service = AgentService(Mock(spec=AsyncSession))
 
         base_prompt = "You are a helpful assistant for project management."
         as_of = None
@@ -71,22 +61,16 @@ class TestBuildSystemPromptNoTemporalContext:
             branch_mode=branch_mode,
         )
 
-        # Should return base prompt unchanged (maximum security: no temporal info in prompt)
-        assert result == base_prompt
-        assert "[TEMPORAL CONTEXT]" not in result
-        assert "feature-1" not in result
-        assert "Branch:" not in result
+        # Non-main branches should add temporal context
+        assert "[TEMPORAL CONTEXT]" in result
+        assert "feature-1" in result
+        assert result.startswith(base_prompt)
 
     async def test_build_system_prompt_no_temporal_with_historical_date(
-        self, db_session: AsyncSession
+        self,
     ) -> None:
-        """Verify system prompt has NO temporal context even with historical date.
-
-        Given: base_prompt with historical as_of date
-        When: _build_system_prompt() is called with as_of=datetime(2025, 1, 1)
-        Then: returns base_prompt WITHOUT temporal context section
-        """
-        service = AgentService(db_session)
+        """Verify system prompt has temporal context section for historical date."""
+        service = AgentService(Mock(spec=AsyncSession))
 
         base_prompt = "You are a helpful assistant for project management."
         as_of = datetime(2025, 1, 1)
@@ -100,24 +84,15 @@ class TestBuildSystemPromptNoTemporalContext:
             branch_mode=branch_mode,
         )
 
-        # Should return base prompt unchanged (maximum security)
-        assert result == base_prompt
-        assert "[TEMPORAL CONTEXT]" not in result
-        assert "2025" not in result
-        assert "January" not in result
-        assert "As of:" not in result
+        # Historical as_of (with main branch) should add temporal context
+        assert "[TEMPORAL CONTEXT]" in result
+        assert result.startswith(base_prompt)
 
     async def test_build_system_prompt_no_temporal_with_all_params(
-        self, db_session: AsyncSession
+        self,
     ) -> None:
-        """Verify system prompt has NO temporal context with all params set.
-
-        Given: base_prompt with all temporal params set
-        When: _build_system_prompt() is called with as_of, branch, and mode
-        Then: returns base_prompt WITHOUT temporal context section
-              (temporal enforcement happens at tool level only)
-        """
-        service = AgentService(db_session)
+        """Verify system prompt with all temporal params set adds context section."""
+        service = AgentService(Mock(spec=AsyncSession))
 
         base_prompt = "You are a helpful assistant for project management."
         as_of = datetime(2025, 12, 15)
@@ -131,23 +106,16 @@ class TestBuildSystemPromptNoTemporalContext:
             branch_mode=branch_mode,
         )
 
-        # Should return base prompt unchanged (maximum security)
-        assert result == base_prompt
-        assert "[TEMPORAL CONTEXT]" not in result
-        assert "change-order-1" not in result
-        assert "December" not in result
-        assert "isolated" not in result
+        # Non-main branch takes precedence over as_of
+        assert "[TEMPORAL CONTEXT]" in result
+        assert "change-order-1" in result
+        assert result.startswith(base_prompt)
 
     async def test_build_system_prompt_preserves_original_content(
-        self, db_session: AsyncSession
+        self,
     ) -> None:
-        """Verify system prompt preserves original base prompt content.
-
-        Given: base_prompt with multiline content
-        When: _build_system_prompt() is called
-        Then: returns base_prompt unchanged, preserving all content
-        """
-        service = AgentService(db_session)
+        """Verify system prompt preserves original base prompt content."""
+        service = AgentService(Mock(spec=AsyncSession))
 
         base_prompt = """You are a helpful assistant for project management.
 
@@ -168,8 +136,7 @@ Always provide accurate and helpful responses."""
             branch_mode=branch_mode,
         )
 
-        # Should return base prompt unchanged, preserving all content
-        assert result == base_prompt
+        # Should preserve base prompt content
         assert "Earned value management" in result
         assert "Change order management" in result
-        assert "[TEMPORAL CONTEXT]" not in result
+        assert result.startswith(base_prompt)

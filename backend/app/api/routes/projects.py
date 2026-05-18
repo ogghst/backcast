@@ -14,7 +14,8 @@ from app.api.dependencies.auth import (
     RoleChecker,
     get_current_active_user,
 )
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
+from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.project import Project
 from app.models.domain.user import User
@@ -45,9 +46,8 @@ async def read_projects(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     search: str | None = Query(None, description="Search term (code, name)"),
@@ -66,7 +66,7 @@ async def read_projects(
         description="Time travel: get Projects as of this timestamp (ISO 8601)",
     ),
     current_user: User = Depends(get_current_active_user),
-    rbac_service: RBACServiceABC = Depends(get_rbac_service),
+    session: AsyncSession = Depends(get_db),
     service: ProjectService = Depends(get_project_service),
 ) -> dict[str, Any]:
     """Retrieve projects with server-side search, filtering, and sorting.
@@ -80,11 +80,7 @@ async def read_projects(
 
     Requires read permission. Non-admin users only see projects they are members of.
     """
-    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
-
-    # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -109,15 +105,15 @@ async def read_projects(
             as_of=as_of,
         )
 
-        # Filter projects by user's access for non-admin users
-        if current_user.role != "admin":
-            accessible_project_ids = await rbac_service.get_user_projects(
-                user_id=current_user.user_id,
-                user_role=current_user.role,
-            )
-            # Filter projects to only those the user can access
-            projects = [p for p in projects if p.project_id in accessible_project_ids]
-            total = len(projects)
+        # Filter projects by user's access
+        set_unified_rbac_session(session)
+        unified_service = get_unified_rbac_service()
+        accessible_project_ids = await unified_service.get_accessible_projects(
+            user_id=current_user.user_id,
+        )
+        set_unified_rbac_session(None)
+        projects = [p for p in projects if p.project_id in accessible_project_ids]
+        total = len(projects)
 
         # Convert to Pydantic models
         from app.models.schemas.project import ProjectPublic

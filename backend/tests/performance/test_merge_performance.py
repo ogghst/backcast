@@ -67,7 +67,7 @@ class TestMergePerformance:
             title="Performance Test CO",
             description="CO for performance testing",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create 50 WBEs on main branch first
@@ -110,7 +110,7 @@ class TestMergePerformance:
             title="Performance Test CO",
             description="CO for performance testing",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create new versions of WBEs on source branch
@@ -149,7 +149,7 @@ class TestMergePerformance:
         total_time_seconds = end_time - start_time
 
         # Assert: Performance SLA met
-        assert result.status == "Implemented", "Merge should complete successfully"
+        assert result.status == "implemented", "Merge should complete successfully"
         assert total_time_seconds < 5.0, (
             f"Merge of 100 entities (50 WBEs + 50 CostElements) took "
             f"{total_time_seconds:.2f}s, exceeding 5s SLA requirement"
@@ -206,7 +206,7 @@ class TestMergePerformance:
             title="Performance Test CO - WBEs",
             description="CO for WBE performance testing",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create 100 WBEs on main branch first
@@ -234,7 +234,7 @@ class TestMergePerformance:
             title="Performance Test CO - WBEs",
             description="CO for WBE performance testing",
             project_id=project_id,
-            status="Approved",
+            status="approved",
         )
 
         # Create new versions of WBEs on source branch
@@ -261,7 +261,7 @@ class TestMergePerformance:
         total_time_seconds = end_time - start_time
 
         # Assert: Performance SLA met
-        assert result.status == "Implemented", "Merge should complete successfully"
+        assert result.status == "implemented", "Merge should complete successfully"
         assert total_time_seconds < 5.0, (
             f"Merge of 100 WBEs took {total_time_seconds:.2f}s, "
             f"exceeding 5s SLA requirement"

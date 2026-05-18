@@ -66,7 +66,7 @@ def filter_tools_by_execution_mode(
     return filtered_tools
 
 
-def filter_tools_by_role(
+async def filter_tools_by_role(
     tools: list[BaseTool],
     role: str,
 ) -> list[BaseTool]:
@@ -75,6 +75,10 @@ def filter_tools_by_role(
     Removes tools whose required permissions are not granted by the role.
     Tools without permissions metadata are always allowed.
 
+    On cache miss, triggers an on-demand refresh of the permissions cache
+    before filtering. Falls back to an empty permission set (deny all
+    permissioned tools) if refresh also fails.
+
     Args:
         tools: List of tools to filter
         role: RBAC role string (e.g., "ai-viewer", "ai-manager", "ai-admin")
@@ -82,18 +86,15 @@ def filter_tools_by_role(
     Returns:
         Filtered list of tools the role is permitted to use
     """
-    from app.core.rbac import RBACServiceABC, get_rbac_service
+    from app.core.rbac_unified import get_unified_rbac_service
 
-    rbac_service = get_rbac_service()
+    unified_service = get_unified_rbac_service()
     filtered: list[BaseTool] = []
 
-    # Batch: load all permissions once, use set.issubset instead of N calls
-    if isinstance(rbac_service, RBACServiceABC):
-        role_permissions: set[str] = set(rbac_service.get_user_permissions(role))
-        use_batch = True
-    else:
-        role_permissions = set()
-        use_batch = False
+    # Batch: load all permissions once from cache, use set.issubset
+    # Use get_permissions_with_refresh to handle cache misses gracefully
+    perms = await unified_service.get_permissions_with_refresh(role)
+    role_permissions: set[str] = set(perms)
 
     for tool in tools:
         metadata = getattr(tool, "_tool_metadata", None)
@@ -103,12 +104,7 @@ def filter_tools_by_role(
             continue
 
         # Check ALL required permissions for this tool
-        if use_batch:
-            has_all = set(metadata.permissions).issubset(role_permissions)
-        else:
-            has_all = all(
-                rbac_service.has_permission(role, perm) for perm in metadata.permissions
-            )
+        has_all = set(metadata.permissions).issubset(role_permissions)
 
         if has_all:
             filtered.append(tool)
@@ -146,6 +142,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     from app.ai.tools.templates import (
         advanced_analysis_template,
         analysis_template,
+        batch_tools_template,
         change_order_template,
         cost_element_template,
         crud_template,
@@ -278,6 +275,20 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         forecast_cost_progress_template.get_cost_element_summary,
     ]
     tools.extend(forecast_cost_progress_tools)
+
+    # Add batch tools for bulk operations
+    batch_tools = [
+        batch_tools_template.create_cost_elements,
+        batch_tools_template.create_wbes,
+        batch_tools_template.create_cost_registrations,
+        batch_tools_template.create_progress_entries,
+        batch_tools_template.update_cost_elements,
+        batch_tools_template.delete_cost_elements,
+        batch_tools_template.get_budget_status_batch,
+        batch_tools_template.get_cost_element_summaries,
+        batch_tools_template.update_wbes,
+    ]
+    tools.extend(batch_tools)
 
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [tool for tool in tools if isinstance(tool, BaseTool)]

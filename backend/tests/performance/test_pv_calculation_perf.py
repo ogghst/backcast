@@ -95,7 +95,7 @@ class TestPVCalculationPerformance:
             cost_element_id=cost_element.cost_element_id,
             as_of=control_date,
             branch="main",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
 
         # Measure actual performance
@@ -107,7 +107,7 @@ class TestPVCalculationPerformance:
                 cost_element_id=cost_element.cost_element_id,
                 as_of=control_date,
                 branch="main",
-                branch_mode=BranchMode.MERGE,
+                branch_mode=BranchMode.MERGED,
             )
             # Verify PV is calculated correctly
             assert pv > 0
@@ -190,7 +190,7 @@ class TestPVCalculationPerformance:
                 cost_element_id=cost_element.cost_element_id,
                 as_of=control_date,
                 branch="main",
-                branch_mode=BranchMode.MERGE,
+                branch_mode=BranchMode.MERGED,
             )
             results.append(pv)
 
@@ -267,7 +267,7 @@ class TestPVCalculationPerformance:
                 cost_element_id=cost_element.cost_element_id,
                 as_of=control_date,
                 branch="main",
-                branch_mode=BranchMode.MERGE,
+                branch_mode=BranchMode.MERGED,
             )
             results.append(pv)
 
@@ -344,7 +344,7 @@ class TestPVCalculationPerformance:
                     cost_element_id=cost_elements[prog_type].cost_element_id,
                     as_of=control_date,
                     branch="main",
-                    branch_mode=BranchMode.MERGE,
+                    branch_mode=BranchMode.MERGED,
                 )
                 assert pv > 0
 
@@ -401,7 +401,7 @@ class TestPVCalculationPerformance:
             cost_element_id=cost_element.cost_element_id,
             as_of=control_date,
             branch="main",
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000

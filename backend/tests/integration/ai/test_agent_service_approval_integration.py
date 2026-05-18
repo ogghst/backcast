@@ -7,7 +7,7 @@ Tests the full end-to-end approval flow:
 4. Graph resumes and tool executes or returns error
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -106,7 +106,7 @@ async def test_agent_service_approval_response_routing(
         "approved": None,
         "tool_name": "test_tool",
         "tool_args": {},
-        "expires_at": datetime.now() + timedelta(minutes=5),
+        "expires_at": datetime.now(UTC) + timedelta(minutes=5),
     }
 
     # Act
@@ -178,7 +178,7 @@ async def test_interrupt_node_checks_approval_status(
         "approved": None,
         "tool_name": "test_tool",
         "tool_args": {},
-        "expires_at": datetime.now() + timedelta(minutes=5),
+        "expires_at": datetime.now(UTC) + timedelta(minutes=5),
     }
 
     # Act & Assert - Waiting for approval
@@ -198,7 +198,7 @@ async def test_interrupt_node_checks_approval_status(
         "approved": None,
         "tool_name": "test_tool",
         "tool_args": {},
-        "expires_at": datetime.now() + timedelta(minutes=5),
+        "expires_at": datetime.now(UTC) + timedelta(minutes=5),
     }
     interrupt_node.register_approval_response(approval_id_2, False)
     approved, error = interrupt_node._check_approval(approval_id_2)

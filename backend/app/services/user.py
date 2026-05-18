@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_password_hash
+from app.core.temporal_queries import is_current_version
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -71,17 +72,17 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
 
     async def get_by_email(self, email: str) -> User | None:
         """Get user by email address (current active version)."""
-        # Use upper(valid_time) IS NULL for open-ended ranges (consistent with get_all)
+        # Use GIST-indexable current version filter
         from typing import Any, cast
-
-        from sqlalchemy import func
 
         stmt = (
             select(User)
             .where(
                 User.email == email,
-                func.upper(cast(Any, User).valid_time).is_(None),
-                cast(Any, User).deleted_at.is_(None),
+                is_current_version(
+                    cast(Any, User).valid_time,
+                    cast(Any, User).deleted_at,
+                ),
             )
             .order_by(cast(Any, User).valid_time.desc())
             .limit(1)
@@ -104,6 +105,9 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         if password:
             user_data["hashed_password"] = get_password_hash(password)
 
+        # Role is managed via UserRoleAssignment, not the User model
+        role = user_data.pop("role", None)
+
         # Use provided user_id (for seeding) or generate new one
         root_id = user_in.user_id or uuid4()
         user_data["user_id"] = root_id
@@ -115,7 +119,12 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
             control_date=control_date,
             **user_data,
         )
-        return await cmd.execute(self.session)
+        user = await cmd.execute(self.session)
+
+        if role:
+            await self._assign_role(user.user_id, role, actor_id)
+
+        return user
 
     async def update_user(
         self, user_id: UUID, user_in: UserUpdate, actor_id: UUID
@@ -128,24 +137,33 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
             password = update_data.pop("password")
             update_data["hashed_password"] = get_password_hash(password)
 
-        # If no changes remaining (e.g. empty update), we might still want to
-        # create a new version if that's the semantic, or just return current.
-        # But UpdateVersionCommand usually expects something.
-        # However, purely strictly speaking, if nothing to update, we pass it down
-        # and let the command decide or just do it.
+        # Role is managed via UserRoleAssignment, not the User model
+        new_role = update_data.pop("role", None)
 
         # Extract control_date from schema
         control_date = getattr(user_in, "control_date", None)
         update_data.pop("control_date", None)
 
-        cmd = UpdateVersionCommand(
-            entity_class=User,  # type: ignore[type-var,unused-ignore]
-            root_id=user_id,
-            actor_id=actor_id,
-            control_date=control_date,
-            **update_data,
-        )
-        return await cmd.execute(self.session)
+        # Only create a new version if there are actual model fields to update
+        if update_data:
+            cmd = UpdateVersionCommand(
+                entity_class=User,  # type: ignore[type-var,unused-ignore]
+                root_id=user_id,
+                actor_id=actor_id,
+                control_date=control_date,
+                **update_data,
+            )
+            user = await cmd.execute(self.session)
+        else:
+            existing = await self.get_user(user_id)
+            if not existing:
+                raise ValueError(f"User {user_id} not found")
+            user = existing
+
+        if new_role:
+            await self._assign_role(user_id, new_role, actor_id)
+
+        return user
 
     async def delete_user(self, user_id: UUID, actor_id: UUID) -> User:
         """Soft delete user using SoftDeleteCommand."""
@@ -155,6 +173,27 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
             actor_id=actor_id,
         )
         return await cmd.execute(self.session)
+
+    async def _assign_role(
+        self, user_id: UUID, role_name: str, granted_by: UUID
+    ) -> None:
+        """Assign a global role to a user via UserRoleAssignment."""
+        from app.models.domain.rbac import RBACRole
+        from app.models.domain.user_role_assignment import ScopeType, UserRoleAssignment
+
+        stmt = select(RBACRole.id).where(RBACRole.name == role_name)
+        result = await self.session.execute(stmt)
+        role_id = result.scalar_one_or_none()
+        if role_id:
+            assignment = UserRoleAssignment(
+                user_id=user_id,
+                scope_type=ScopeType.GLOBAL,
+                scope_id=None,
+                role_id=role_id,
+                granted_by=granted_by,
+            )
+            self.session.add(assignment)
+            await self.session.flush()
 
     async def get_user_history(self, user_id: UUID) -> list[User]:
         """Get all versions of a user by root user_id (with creator name)."""
@@ -170,16 +209,16 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         """Get user as it was at specific timestamp.
 
         Provides System Time Travel semantics for single-entity queries.
-        Uses STRICT mode by default (only searches in specified branch).
-        Use BranchMode.MERGE to fall back to main branch if not found.
+        Uses ISOLATED mode by default (only searches in specified branch).
+        Use BranchMode.MERGED to fall back to main branch if not found.
 
         Args:
             user_id: The unique identifier of the user
             as_of: Timestamp to query (historical state)
             branch: Branch name to query (default: "main")
             branch_mode: Resolution mode for branches
-                - None/STRICT: Only return from specified branch (default)
-                - MERGE: Fall back to main if not found on branch
+                - None/ISOLATED: Only return from specified branch (default)
+                - MERGED: Fall back to main if not found on branch
 
         Returns:
             User if found at the specified timestamp, None otherwise

@@ -103,7 +103,7 @@ export const QualityEventModal = ({
       onOk={handleSubmit}
       okText={isEdit ? "Save" : "Create"}
       confirmLoading={confirmLoading}
-      destroyOnClose
+      destroyOnHidden
       width={600}
     >
       <Form form={form} layout="vertical" name="quality_event_form">

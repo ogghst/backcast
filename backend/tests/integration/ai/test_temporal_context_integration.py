@@ -182,12 +182,17 @@ class TestTemporalContextIntegration:
             patch(
                 "app.services.project.ProjectService.get_projects", mock_get_projects
             ),
-            patch("app.core.rbac.get_rbac_service") as mock_rbac_get,
+            patch("app.db.session.get_tool_session", return_value=AsyncMock()),
         ):
-            mock_rbac = AsyncMock()
-            mock_rbac.get_user_projects = AsyncMock(return_value=project_ids)
-            mock_rbac.session = None
-            mock_rbac_get.return_value = mock_rbac
+            # Set up unified RBAC mock with accessible projects
+            from app.core.rbac_unified import set_unified_rbac_service
+            from tests.conftest import MockUnifiedRBACService
+
+            class TemporalTestMockRBAC(MockUnifiedRBACService):
+                async def get_accessible_projects(self, user_id):
+                    return project_ids
+
+            set_unified_rbac_service(TemporalTestMockRBAC())
 
             # Act: Call the raw function
             result = await project_tools.list_projects.coroutine(context=context)
@@ -334,16 +339,8 @@ class TestTemporalContextIntegration:
             branch_mode="merged",
         )
 
-        # Mock both ProjectService and RBAC service
-        with (
-            patch("app.services.project.ProjectService.get_as_of", mock_get_by_id),
-            patch("app.core.rbac.get_rbac_service") as mock_rbac_get,
-        ):
-            mock_rbac = AsyncMock()
-            mock_rbac.has_project_access = AsyncMock(return_value=True)
-            mock_rbac.session = None
-            mock_rbac_get.return_value = mock_rbac
-
+        # Mock ProjectService (get_project does not use RBAC)
+        with patch("app.services.project.ProjectService.get_as_of", mock_get_by_id):
             # Act: Call the raw function
             result = await project_tools.get_project.coroutine(
                 project_id="00000000-0000-0000-0000-000000000002",

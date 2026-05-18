@@ -249,7 +249,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 title="Expand Assembly Station 1",
                 description="Add capacity to Assembly Station 1",
                 project_id=project_id,
-                status="Draft",
+                status="draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -257,7 +257,7 @@ class TestChangeOrderWorkflowFullTemporal:
         co_id = co.change_order_id
 
         assert co.code == "CO-2026-001"
-        assert co.status == "Draft"
+        assert co.status == "draft"
         assert co.branch == "main"
         assert co.branch_name == "BR-CO-2026-001"
 
@@ -280,7 +280,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1_before,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_before is None, "CO should not exist before T1"
 
@@ -289,7 +289,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1_after,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_after is not None, "CO should exist after T1"
         assert co_after.code == "CO-2026-001"
@@ -299,7 +299,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T1_after,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe1_co_strict is None, "WBE1 should not exist on CO branch yet"
 
@@ -308,7 +308,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T1_after,
             branch=source_branch,
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
         assert wbe1_co_merge is not None, "MERGE mode should fall back to main"
         assert wbe1_co_merge.name == "Assembly Station 1"
@@ -376,7 +376,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T2,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe1_main.name == "Assembly Station 1", "Main branch should be unchanged"
 
@@ -384,7 +384,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T2,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_main.budget_amount == Decimal("100000.00"), (
             "Main branch budget should be unchanged"
@@ -395,7 +395,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe1_id,
             as_of=T2,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe1_co.name == "Assembly Station 1 - EXPANDED"
 
@@ -403,7 +403,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T2,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_co.budget_amount == Decimal("150000.00")
 
@@ -414,16 +414,16 @@ class TestChangeOrderWorkflowFullTemporal:
         # 1. Submit
         await co_service.update_change_order(
             change_order_id=co_id,
-            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
             actor_id=actor_id,
             control_date=T3,
             branch=source_branch,
         )
 
-        # 2. Under Review
+        # 2. under_review
         await co_service.update_change_order(
             change_order_id=co_id,
-            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            change_order_in=ChangeOrderUpdate(status="under_review"),
             actor_id=actor_id,
             control_date=T3 + timedelta(seconds=1),
             branch=source_branch,
@@ -432,7 +432,7 @@ class TestChangeOrderWorkflowFullTemporal:
         # 3. Approve
         await co_service.update_change_order(
             change_order_id=co_id,
-            change_order_in=ChangeOrderUpdate(status="Approved"),
+            change_order_in=ChangeOrderUpdate(status="approved"),
             actor_id=actor_id,
             control_date=T3 + timedelta(seconds=2),
             branch=source_branch,
@@ -446,14 +446,14 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Verify CO status
-        assert merged_co.status == "Implemented"
+        assert merged_co.status == "implemented"
 
         # Verify WBE1 merged
         wbe1_main_merged = await wbe_service.get_as_of(
             entity_id=wbe1_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe1_main_merged.name == "Assembly Station 1 - EXPANDED"
 
@@ -462,7 +462,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_main_merged.budget_amount == Decimal("150000.00")
 
@@ -471,7 +471,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe2_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe2_main_merged.name == "Assembly Station 2"
 
@@ -481,7 +481,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T1_after,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_at_t1.budget_amount == Decimal("100000.00")
 
@@ -490,7 +490,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_at_t3.budget_amount == Decimal("150000.00")
 
@@ -499,7 +499,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=ce1_id,
             as_of=T3,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce1_co_preserved is not None
         assert ce1_co_preserved.budget_amount == Decimal("150000.00")
@@ -552,7 +552,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Draft",
+                status="draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -564,7 +564,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1_before,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_before is None
 
@@ -573,7 +573,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_at is not None
         assert co_at.code == "CO-001"
@@ -583,7 +583,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=co_id,
             as_of=T1_after,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert co_after is not None
         assert co_after.code == "CO-001"
@@ -642,7 +642,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Approved",
+                status="approved",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -654,7 +654,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_strict is None
 
@@ -663,7 +663,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
-            branch_mode=BranchMode.MERGE,
+            branch_mode=BranchMode.MERGED,
         )
         assert wbe_merge is not None
         assert wbe_merge.name == "Original WBE"
@@ -685,7 +685,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_strict_after is not None
         assert wbe_strict_after.name == "Modified WBE"
@@ -801,7 +801,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Draft",
+                status="draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -825,21 +825,21 @@ class TestChangeOrderWorkflowFullTemporal:
         # Transition ensuring intermediate states
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
             actor_id=actor_id,
             control_date=T1,
             branch=co.branch_name,
         )
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            change_order_in=ChangeOrderUpdate(status="under_review"),
             actor_id=actor_id,
             control_date=T1 + timedelta(seconds=1),
             branch=co.branch_name,
         )
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Approved"),
+            change_order_in=ChangeOrderUpdate(status="approved"),
             actor_id=actor_id,
             control_date=T1 + timedelta(seconds=2),
             branch=co.branch_name,
@@ -852,14 +852,14 @@ class TestChangeOrderWorkflowFullTemporal:
             control_date=T1,
         )
 
-        assert merged_co.status == "Implemented"
+        assert merged_co.status == "implemented"
 
         # Verify CE merged
         ce_merged = await ce_service.get_as_of(
             entity_id=ce_id,
             as_of=T1,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert ce_merged.budget_amount == Decimal("75000.00")
 
@@ -915,7 +915,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Draft",
+                status="draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -937,21 +937,21 @@ class TestChangeOrderWorkflowFullTemporal:
         # Merge
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            change_order_in=ChangeOrderUpdate(status="submitted_for_approval"),
             actor_id=actor_id,
             control_date=T2,
             branch=co.branch_name,
         )
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            change_order_in=ChangeOrderUpdate(status="under_review"),
             actor_id=actor_id,
             control_date=T2 + timedelta(seconds=1),
             branch=co.branch_name,
         )
         await co_service.update_change_order(
             change_order_id=co.change_order_id,
-            change_order_in=ChangeOrderUpdate(status="Approved"),
+            change_order_in=ChangeOrderUpdate(status="approved"),
             actor_id=actor_id,
             control_date=T2 + timedelta(seconds=2),
             branch=co.branch_name,
@@ -970,7 +970,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T0,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_t0.name == "Original WBE"
 
@@ -979,7 +979,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T1,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_t1.name == "Original WBE"
 
@@ -988,7 +988,7 @@ class TestChangeOrderWorkflowFullTemporal:
             entity_id=wbe_id,
             as_of=T3,
             branch="main",
-            branch_mode=BranchMode.STRICT,
+            branch_mode=BranchMode.ISOLATED,
         )
         assert wbe_t3.name == "Modified WBE"
 

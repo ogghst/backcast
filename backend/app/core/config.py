@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     RBAC_POLICY_FILE: str
 
     # Provider configuration
-    RBAC_PROVIDER: str = "json"  # "json" | "database" (future: "entra")
+    RBAC_PROVIDER: str = "database"  # "json" (legacy) | "database" | "entra" (future)
     AUTH_PROVIDER: str = "local"  # "local" | "oidc" (future)
     USER_PROVIDER: str = "local"  # "local" | "entra" | "hybrid" (future)
 
@@ -45,9 +45,6 @@ class Settings(BaseSettings):
     AI_TOKEN_BUFFER_ENABLED: bool = True
     AI_TOKEN_BUFFER_INTERVAL_MS: int = 2000  # 2 seconds default
     AI_TOKEN_BUFFER_MAX_SIZE: int = 10000  # Max tokens before forced flush
-
-    # AI Agent Orchestration
-    AI_ORCHESTRATOR: str = "supervisor"  # OrchestratorMode value
 
     # AI Approval Settings (used by BackcastSecurityMiddleware polling loop)
     AI_APPROVAL_TIMEOUT_SECONDS: float = 60.0

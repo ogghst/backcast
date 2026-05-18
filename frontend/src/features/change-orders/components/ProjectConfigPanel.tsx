@@ -15,6 +15,7 @@ import {
   Spin,
   Switch,
   Tabs,
+  Tag,
   Typography,
   theme,
 } from "antd";
@@ -52,20 +53,19 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
 
   // Data
   const { data: globalConfig, isLoading: globalLoading } = useGlobalConfig();
-  const {
-    data: projectConfig,
-    isLoading: projectLoading,
-    error: projectError,
-  } = useProjectConfig(projectId, {
-    retry: false,
-  });
+  const { data: projectConfig, isLoading: projectLoading } = useProjectConfig(
+    projectId,
+    {
+      retry: false,
+    },
+  );
 
   // Mutations
   const updateMutation = useUpdateProjectConfig(projectId);
   const resetMutation = useResetProjectConfig(projectId);
 
-  // Has project override? (404 means using global defaults)
-  const hasOverride = !projectError && !!projectConfig;
+  // Has project override? project_id is null when using global defaults
+  const hasOverride = projectConfig?.project_id !== null;
   const [useOverride, setUseOverride] = useState(hasOverride);
   const isReadOnly = !useOverride;
 
@@ -174,7 +174,16 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
       fallback={null}
     >
       <Card
-        title="Change Order Workflow Configuration"
+        title={
+          <Space>
+            Change Order Workflow Configuration
+            {hasOverride ? (
+              <Tag color="blue">Custom Override</Tag>
+            ) : (
+              <Tag color="default">Using Global Defaults</Tag>
+            )}
+          </Space>
+        }
         style={{ height: "100%" }}
         extra={
           <Space>

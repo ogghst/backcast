@@ -1,0 +1,239 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - region "Notifications alt+T"
+      - generic [ref=e4]:
+        - generic:
+          - img
+        - banner [ref=e5]:
+          - generic [ref=e6]:
+            - generic [ref=e8]: Backcast
+            - menu [ref=e10]:
+              - menuitem "home" [ref=e11] [cursor=pointer]:
+                - img "home" [ref=e12]:
+                  - img [ref=e13]
+              - menuitem "appstore" [ref=e15] [cursor=pointer]:
+                - img "appstore" [ref=e16]:
+                  - img [ref=e17]
+              - menuitem "message" [ref=e19] [cursor=pointer]:
+                - img "message" [ref=e20]:
+                  - img [ref=e21]
+          - button "search" [ref=e24] [cursor=pointer]:
+            - img "search" [ref=e26]:
+              - img [ref=e27]
+          - generic [ref=e29]:
+            - button "bell" [ref=e32] [cursor=pointer]:
+              - img "bell" [ref=e34]:
+                - img [ref=e35]
+            - img "user" [ref=e41] [cursor=pointer]:
+              - img [ref=e42]
+        - main [ref=e44]:
+          - generic [ref=e47]:
+            - generic [ref=e50]:
+              - generic [ref=e51]:
+                - generic [ref=e52]: Role Assignments
+                - generic [ref=e53]:
+                  - generic [ref=e54]:
+                    - generic: Filter by User
+                    - combobox [ref=e55]
+                  - img "down" [ref=e57]:
+                    - img [ref=e58]
+                - generic [ref=e60] [cursor=pointer]:
+                  - generic [ref=e61]:
+                    - generic: Filter by Scope
+                    - combobox [ref=e62]
+                  - img "down" [ref=e64]:
+                    - img [ref=e65]
+                - generic [ref=e67]:
+                  - generic [ref=e68]:
+                    - generic: Filter by Role
+                    - combobox [ref=e69]
+                  - img "down" [ref=e71]:
+                    - img [ref=e72]
+              - button "plus Add Assignment" [ref=e74] [cursor=pointer]:
+                - img "plus" [ref=e76]:
+                  - img [ref=e77]
+                - generic [ref=e80]: Add Assignment
+            - generic [ref=e83]:
+              - table [ref=e87]:
+                - rowgroup [ref=e96]:
+                  - row "User Name Role Scope Type Scope Entity Granted By Granted At Actions" [ref=e97]:
+                    - columnheader "User Name" [ref=e98] [cursor=pointer]:
+                      - generic [ref=e99]:
+                        - generic [ref=e100]: User Name
+                        - generic [ref=e102]:
+                          - img [ref=e103]:
+                            - img [ref=e104]
+                          - img [ref=e106]:
+                            - img [ref=e107]
+                    - columnheader "Role" [ref=e109] [cursor=pointer]:
+                      - generic [ref=e110]:
+                        - generic [ref=e111]: Role
+                        - generic [ref=e113]:
+                          - img [ref=e114]:
+                            - img [ref=e115]
+                          - img [ref=e117]:
+                            - img [ref=e118]
+                    - columnheader "Scope Type" [ref=e120] [cursor=pointer]:
+                      - generic [ref=e121]:
+                        - generic [ref=e122]: Scope Type
+                        - generic [ref=e124]:
+                          - img [ref=e125]:
+                            - img [ref=e126]
+                          - img [ref=e128]:
+                            - img [ref=e129]
+                    - columnheader "Scope Entity" [ref=e131]
+                    - columnheader "Granted By" [ref=e132]
+                    - columnheader "Granted At" [ref=e133] [cursor=pointer]:
+                      - generic [ref=e134]:
+                        - generic [ref=e135]: Granted At
+                        - generic [ref=e137]:
+                          - img [ref=e138]:
+                            - img [ref=e139]
+                          - img [ref=e141]:
+                            - img [ref=e142]
+                    - columnheader "Actions" [ref=e144]
+                - rowgroup [ref=e145]:
+                  - row "Viewer User viewer Global — Viewer User 2026-05-11 22:17 edit delete" [ref=e146]:
+                    - cell "Viewer User" [ref=e147]
+                    - cell "viewer" [ref=e148]:
+                      - generic [ref=e149]: viewer
+                    - cell "Global" [ref=e150]:
+                      - generic [ref=e151]: Global
+                    - cell "—" [ref=e152]
+                    - cell "Viewer User" [ref=e153]
+                    - cell "2026-05-11 22:17" [ref=e154]
+                    - cell "edit delete" [ref=e155]:
+                      - generic [ref=e156]:
+                        - button "edit" [ref=e158] [cursor=pointer]:
+                          - img "edit" [ref=e160]:
+                            - img [ref=e161]
+                        - button "delete" [ref=e164] [cursor=pointer]:
+                          - img "delete" [ref=e166]:
+                            - img [ref=e167]
+                  - row "Project Manager manager Global — Project Manager 2026-05-11 22:17 edit delete" [ref=e169]:
+                    - cell "Project Manager" [ref=e170]
+                    - cell "manager" [ref=e171]:
+                      - generic [ref=e172]: manager
+                    - cell "Global" [ref=e173]:
+                      - generic [ref=e174]: Global
+                    - cell "—" [ref=e175]
+                    - cell "Project Manager" [ref=e176]
+                    - cell "2026-05-11 22:17" [ref=e177]
+                    - cell "edit delete" [ref=e178]:
+                      - generic [ref=e179]:
+                        - button "edit" [ref=e181] [cursor=pointer]:
+                          - img "edit" [ref=e183]:
+                            - img [ref=e184]
+                        - button "delete" [ref=e187] [cursor=pointer]:
+                          - img "delete" [ref=e189]:
+                            - img [ref=e190]
+                  - row "System Administrator admin Global — System Administrator 2026-05-11 22:17 edit delete" [ref=e192]:
+                    - cell "System Administrator" [ref=e193]
+                    - cell "admin" [ref=e194]:
+                      - generic [ref=e195]: admin
+                    - cell "Global" [ref=e196]:
+                      - generic [ref=e197]: Global
+                    - cell "—" [ref=e198]
+                    - cell "System Administrator" [ref=e199]
+                    - cell "2026-05-11 22:17" [ref=e200]
+                    - cell "edit delete" [ref=e201]:
+                      - generic [ref=e202]:
+                        - button "edit" [ref=e204] [cursor=pointer]:
+                          - img "edit" [ref=e206]:
+                            - img [ref=e207]
+                        - button "delete" [ref=e210] [cursor=pointer]:
+                          - img "delete" [ref=e212]:
+                            - img [ref=e213]
+                  - row "Director viewer Global — — 2026-05-11 22:58 edit delete" [ref=e215]:
+                    - cell "Director" [ref=e216]
+                    - cell "viewer" [ref=e217]:
+                      - generic [ref=e218]: viewer
+                    - cell "Global" [ref=e219]:
+                      - generic [ref=e220]: Global
+                    - cell "—" [ref=e221]
+                    - cell "—" [ref=e222]
+                    - cell "2026-05-11 22:58" [ref=e223]
+                    - cell "edit delete" [ref=e224]:
+                      - generic [ref=e225]:
+                        - button "edit" [ref=e227] [cursor=pointer]:
+                          - img "edit" [ref=e229]:
+                            - img [ref=e230]
+                        - button "delete" [ref=e233] [cursor=pointer]:
+                          - img "delete" [ref=e235]:
+                            - img [ref=e236]
+              - list [ref=e238]:
+                - listitem [ref=e239]: 1-4 of 4 items
+                - listitem "Previous Page" [ref=e240]:
+                  - button "left" [disabled] [ref=e241]:
+                    - img "left" [ref=e242]:
+                      - img [ref=e243]
+                - listitem "1" [ref=e245] [cursor=pointer]:
+                  - generic [ref=e246]: "1"
+                - listitem "Next Page" [ref=e247]:
+                  - button "right" [disabled] [ref=e248]:
+                    - img "right" [ref=e249]:
+                      - img [ref=e250]
+                - listitem [ref=e252]:
+                  - generic "Page Size" [ref=e253]:
+                    - generic [ref=e254]:
+                      - generic "10 / page" [ref=e255]
+                      - combobox "Page Size" [ref=e256]
+                    - img "down" [ref=e258]:
+                      - img [ref=e259]
+        - contentinfo [ref=e261]:
+          - generic [ref=e264]: Backcast ©2026
+    - generic [ref=e265]:
+      - img [ref=e267]
+      - button "Open Tanstack query devtools" [ref=e315] [cursor=pointer]:
+        - img [ref=e316]
+  - generic [ref=e364]:
+    - dialog "Create Role Assignment":
+      - generic [ref=e365]:
+        - button "Close" [ref=e366] [cursor=pointer]:
+          - generic "Close" [ref=e367]:
+            - img "close" [ref=e368]:
+              - img [ref=e369]
+        - generic [ref=e372]: Create Role Assignment
+        - generic [ref=e374]:
+          - generic [ref=e376]:
+            - generic "User" [ref=e378]: "* User"
+            - generic [ref=e382]:
+              - generic [ref=e383]:
+                - generic "Director" [ref=e440]: Director (director@backcast.org)
+                - combobox "* User" [ref=e384]
+              - img "down" [ref=e441]:
+                - img [ref=e442]
+          - generic [ref=e390]:
+            - generic "Role" [ref=e392]: "* Role"
+            - generic [ref=e396] [cursor=pointer]:
+              - generic [ref=e397]:
+                - generic "project_viewer" [ref=e499]
+                - combobox "* Role" [ref=e398]
+              - img "down" [ref=e400]:
+                - img [ref=e401]
+          - generic [ref=e404]:
+            - generic "Scope Type" [ref=e406]: "* Scope Type"
+            - generic [ref=e410] [cursor=pointer]:
+              - generic [ref=e411]:
+                - generic "Project" [ref=e484]
+                - combobox "* Scope Type" [ref=e413]
+              - img "down" [ref=e415]:
+                - img [ref=e416]
+          - generic [ref=e486]:
+            - generic "Project" [ref=e488]: "* Project"
+            - generic [ref=e492]:
+              - generic [ref=e493]:
+                - generic: Search projects...
+                - combobox "* Project" [expanded] [active] [ref=e494]:
+                  - listbox [ref=e500]:
+                    - generic [ref=e501]:
+                      - img "No data" [ref=e503]
+                      - generic [ref=e509]: No data
+              - img "search" [ref=e510]:
+                - img [ref=e511]
+        - generic [ref=e418]:
+          - button "Cancel" [ref=e419] [cursor=pointer]:
+            - generic [ref=e420]: Cancel
+          - button "Create" [ref=e421] [cursor=pointer]:
+            - generic [ref=e422]: Create

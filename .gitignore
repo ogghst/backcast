@@ -58,6 +58,7 @@ htmlcov/
 .ruff_cache/
 .benchmarks
 .mcp.json
+e2e/
 
 # Claude Code skills (external dependencies)
 .claude/skills/

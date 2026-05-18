@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.cost_registration import CostRegistration
 from app.models.domain.user import User
@@ -68,9 +69,8 @@ async def read_cost_registrations(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch to query (for context)"),
-    mode: str = Query(
-        "merged",
-        pattern="^(merged|isolated)$",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
@@ -338,10 +338,9 @@ async def get_project_budget_status(
         None,
         description="Time travel: get budget status as of this timestamp (ISO 8601)",
     ),
-    branch_mode: str = Query(
-        "merge",
-        pattern="^(merge|isolated)$",
-        description="Branch mode: merge (fallback to main) or isolated (current branch only)",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
+        description="Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
     ),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
@@ -384,10 +383,9 @@ async def get_wbe_budget_status(
         None,
         description="Time travel: get budget status as of this timestamp (ISO 8601)",
     ),
-    branch_mode: str = Query(
-        "merge",
-        pattern="^(merge|isolated)$",
-        description="Branch mode: merge (fallback to main) or isolated (current branch only)",
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
+        description="Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
     ),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:

@@ -21,12 +21,12 @@ interface ChangeOrdersListConfig {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  Draft: "default",
-  "Submitted for Approval": "processing",
-  "Under Review": "purple",
-  Approved: "success",
-  Rejected: "error",
-  Implemented: "cyan",
+  draft: "default",
+  submitted_for_approval: "processing",
+  under_review: "purple",
+  approved: "success",
+  rejected: "error",
+  implemented: "cyan",
 };
 
 // ---------------------------------------------------------------------------
@@ -64,14 +64,14 @@ const ChangeOrdersListComponent: FC<
       switch (config.statusFilter) {
         case "open":
           return (
-            status === "Draft" ||
-            status === "Submitted for Approval" ||
-            status === "Under Review"
+            status === "draft" ||
+            status === "submitted_for_approval" ||
+            status === "under_review"
           );
         case "approved":
-          return status === "Approved" || status === "Implemented";
+          return status === "approved" || status === "implemented";
         case "rejected":
-          return status === "Rejected";
+          return status === "rejected";
         default:
           return true;
       }

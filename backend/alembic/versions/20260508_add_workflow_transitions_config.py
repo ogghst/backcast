@@ -25,16 +25,16 @@ def upgrade() -> None:
         UPDATE co_workflow_config
         SET workflow_transitions = '{
             "transitions": {
-                "Draft": ["Submitted for Approval"],
-                "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
-                "Under Review": ["Approved", "Rejected"],
-                "Rejected": ["Draft", "Submitted for Approval"],
-                "Approved": ["Implemented"],
-                "Implemented": []
+                "draft": ["submitted_for_approval"],
+                "submitted_for_approval": ["under_review", "approved", "rejected"],
+                "under_review": ["approved", "rejected"],
+                "rejected": ["draft", "submitted_for_approval"],
+                "approved": ["implemented"],
+                "implemented": []
             },
-            "lock_transitions": [["Draft", "Submitted for Approval"]],
-            "unlock_transitions": [["Under Review", "Rejected"]],
-            "editable_statuses": ["Draft", "Rejected"]
+            "lock_transitions": [["draft", "submitted_for_approval"]],
+            "unlock_transitions": [["under_review", "rejected"]],
+            "editable_statuses": ["draft", "rejected"]
         }'::jsonb
         WHERE project_id IS NULL;
     """)

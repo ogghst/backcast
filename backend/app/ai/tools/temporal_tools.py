@@ -5,7 +5,7 @@ Provides read and write access to temporal context information for the LLM.
 - set_temporal_context: Change the temporal viewing context (as_of, branch, mode)
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -73,7 +73,7 @@ async def get_temporal_context(
         against prompt injection attacks.
     """
     # Use system time when as_of is None, otherwise use the provided as_of time
-    current_time = context.as_of if context.as_of else datetime.now()
+    current_time = context.as_of if context.as_of else datetime.now(UTC)
 
     return {
         "as_of": context.as_of.isoformat() if context.as_of else None,

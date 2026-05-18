@@ -32,7 +32,7 @@ class GanttService:
         self,
         project_id: UUID,
         branch: str = "main",
-        mode: str = "merged",
+        branch_mode: BranchMode = BranchMode.MERGED,
         as_of: datetime | None = None,
     ) -> GanttDataResponse:
         """Get aggregated Gantt data for a project.
@@ -43,7 +43,7 @@ class GanttService:
         Args:
             project_id: Project root ID
             branch: Branch name (default: "main")
-            mode: Branch mode ("merged" or "isolated")
+            branch_mode: Branch resolution mode
             as_of: Optional timestamp for time-travel queries
 
         Returns:
@@ -51,7 +51,6 @@ class GanttService:
         """
         from datetime import UTC
 
-        branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
         if as_of is None:
             as_of = datetime.now(tz=UTC)
 
@@ -67,7 +66,7 @@ class GanttService:
         )
 
         # Apply branch filtering
-        if branch_mode == BranchMode.STRICT:
+        if branch_mode == BranchMode.ISOLATED:
             wbe_sq = (
                 select(WBE)
                 .where(
@@ -79,7 +78,7 @@ class GanttService:
                 .subquery("wbe_sq")
             )
         else:
-            # MERGE mode: prefer branch versions, fallback to main
+            # MERGED mode: prefer branch versions, fallback to main
             wpe_prioritized = (
                 select(
                     WBE,
@@ -129,7 +128,7 @@ class GanttService:
             )
 
         # Build cost element subquery with same branch logic
-        if branch_mode == BranchMode.STRICT:
+        if branch_mode == BranchMode.ISOLATED:
             ce_sq = (
                 select(CostElement)
                 .where(
@@ -189,7 +188,7 @@ class GanttService:
             )
 
         # Build schedule baseline subquery
-        if branch_mode == BranchMode.STRICT:
+        if branch_mode == BranchMode.ISOLATED:
             sb_sq = (
                 select(ScheduleBaseline)
                 .where(

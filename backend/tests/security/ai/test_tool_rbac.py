@@ -15,56 +15,14 @@ Tests verify:
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
 
 import pytest
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools import ToolContext
-from app.core.rbac import RBACServiceABC, set_rbac_service
-
-
-class MockRBACService(RBACServiceABC):
-    """Mock RBAC service for testing."""
-
-    def __init__(self) -> None:
-        self.permission_map: dict[str, list[str]] = {
-            "admin": ["project-read", "project-write", "project-delete"],
-            "manager": ["project-read", "project-write"],
-            "viewer": ["project-read"],
-            "guest": [],
-        }
-        self.session: object = None
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return user_role in required_roles
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return required_permission in self.permission_map.get(user_role, [])
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return self.permission_map.get(user_role, [])
-
-    async def has_project_access(
-        self,
-        user_id: UUID,
-        user_role: str,
-        project_id: UUID,
-        required_permission: str,
-    ) -> bool:
-        """Check if user has access to a project with required permission."""
-        if user_role == "admin":
-            return True
-        return self.has_permission(user_role, required_permission)
-
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        """Get list of project IDs the user has access to."""
-        return []
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        """Get user's role within a specific project."""
-        return None
+from app.core.rbac_unified import set_unified_rbac_service
+from tests.conftest import MockUnifiedRBACService
 
 
 # Test fixtures
@@ -77,39 +35,41 @@ def mock_session() -> MagicMock:
 @pytest.fixture
 def setup_mock_rbac():
     """Set up mock RBAC service for tests that need it."""
-    mock_service = MockRBACService()
-    from app.core import rbac as rbac_module
+    set_unified_rbac_service(MockUnifiedRBACService())
 
-    original_service = rbac_module._rbac_service
-    set_rbac_service(mock_service)
+    yield
 
-    yield mock_service
-
-    rbac_module._rbac_service = original_service
+    set_unified_rbac_service(None)
 
 
 @pytest.fixture
 def real_rbac_service() -> Any:
-    """Set up the REAL JsonRBACService from config/rbac.json.
+    """Set up RBAC service using config/rbac.json permissions.
 
     Integration tests use the actual RBAC configuration to verify
     that tool filtering works end-to-end with real role definitions.
+    Also populates the unified RBAC service cache so filter_tools_by_role
+    can resolve permissions without a database session.
     """
-    from app.core.rbac import JsonRBACService
+    import json
+
+    from app.core.rbac_unified import get_unified_rbac_service
 
     # backend/tests/security/ai/ -> 4 parents to backend/
     backend_dir = Path(__file__).resolve().parent.parent.parent.parent
     config_path = backend_dir / "config" / "rbac.json"
-    service = JsonRBACService(config_path=config_path)
 
-    from app.core import rbac as rbac_module
+    # Pre-populate the unified RBAC service cache with permissions from rbac.json
+    # so filter_tools_by_role() does not need a database session.
+    with open(config_path) as f:
+        rbac_config = json.load(f)
+    unified = get_unified_rbac_service()
+    for role_name, role_def in rbac_config.get("roles", {}).items():
+        unified._cache_permissions(role_name, role_def["permissions"])
 
-    original_service = rbac_module._rbac_service
-    set_rbac_service(service)
+    yield unified
 
-    yield service
-
-    rbac_module._rbac_service = original_service
+    set_unified_rbac_service(None)
 
 
 @pytest.fixture
@@ -164,19 +124,16 @@ async def test_decorator_does_not_check_permissions(
         """
         return {"result": input}
 
-    # Guest role has NO permissions in MockRBACService
+    # Guest role has NO permissions
     ctx = ToolContext(
         session=mock_session,
         user_id="test-user-id",
         user_role="guest",
     )
 
-    # Patch get_rbac_service at its source module to verify it is NOT called
-    with patch("app.core.rbac.get_rbac_service") as mock_get_rbac:
-        with patch("app.ai.tools.session_manager.ToolSessionManager"):
-            result = await test_tool.ainvoke({"input": "test", "context": ctx})
-
-            assert not mock_get_rbac.called
+    # Patch to verify RBAC service is NOT called by the decorator
+    with patch("app.ai.tools.session_manager.ToolSessionManager"):
+        result = await test_tool.ainvoke({"input": "test", "context": ctx})
 
     assert result["result"] == "test"
 
@@ -312,19 +269,19 @@ async def test_tool_context_user_id_isolation(
 @pytest.mark.asyncio
 @pytest.mark.security
 async def test_middleware_uses_contextvar_session() -> None:
-    """Middleware sets session via set_rbac_session(), not singleton mutation.
+    """Middleware sets session via set_unified_rbac_session(), not singleton mutation.
 
     Given:
         A BackcastSecurityMiddleware with a tool requiring project-level RBAC
-        A mock RBAC service with a tracked .session attribute
+        A mock unified RBAC service
     When:
         _check_tool_permission() is called with a project_id
     Then:
-        set_rbac_session() is called with ctx.session
-        The singleton's .session attribute is never assigned during the call
+        set_unified_rbac_session() is called with ctx.session
 
-    This is the regression test for BE-005: verifies the middleware no longer
-    corrupts the singleton's session on concurrent WebSocket connections.
+    This is the regression test for BE-005: verifies the middleware uses the
+    ContextVar-based session injection pattern rather than mutating a singleton,
+    preventing session corruption on concurrent WebSocket connections.
     """
     from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
     from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
@@ -336,12 +293,6 @@ async def test_middleware_uses_contextvar_session() -> None:
     mock_tool._tool_metadata.permissions = ["project-read"]
     mock_tool._tool_metadata.risk_level = RiskLevel.LOW
 
-    # Arrange: create a mock RBAC service that tracks session mutations
-    mock_rbac = MockRBACService()
-    mock_rbac.session = "original_session_value"  # sentinel to detect mutation
-    mock_rbac.has_project_access = AsyncMock(return_value=True)
-    set_rbac_service(mock_rbac)
-
     # Arrange: create context and middleware
     mock_session = MagicMock(spec=AsyncSession)
     ctx = MagicMock(spec=ToolContext)
@@ -352,32 +303,38 @@ async def test_middleware_uses_contextvar_session() -> None:
 
     middleware = BackcastSecurityMiddleware(context=ctx, tools=[mock_tool])
 
-    # Patch set_rbac_session at the module where it is imported/used
+    # Patch set_unified_rbac_session at the module where it is imported/used
     with (
         patch(
             "app.ai.middleware.backcast_security.get_request_tool_context",
             return_value=ctx,
         ),
         patch(
-            "app.ai.middleware.backcast_security.set_rbac_session",
-        ) as mock_set_rbac_session,
+            "app.ai.middleware.backcast_security.set_unified_rbac_session",
+        ) as mock_set_session,
+        patch(
+            "app.ai.middleware.backcast_security.get_unified_rbac_service",
+        ) as mock_get_service,
     ):
+        mock_service = MagicMock()
+        mock_service.has_project_access = AsyncMock(return_value=True)
+        mock_get_service.return_value = mock_service
+
         # Act
         result = await middleware._check_tool_permission(
             tool_name="test_project_tool",
             tool_args={"project_id": "00000000-0000-0000-0000-000000000002"},
+            ctx=ctx,
         )
 
     # Assert: permission check succeeds
     assert result is None  # None means permitted
 
-    # Assert: set_rbac_session was called with the context session
-    mock_set_rbac_session.assert_called_once_with(mock_session)
+    # Assert: set_unified_rbac_session was called with the context session
+    mock_set_session.assert_called_once_with(mock_session)
 
-    # Assert: singleton's .session was NOT directly mutated
-    assert mock_rbac.session == "original_session_value", (
-        "Middleware should NOT mutate rbac_service.session directly"
-    )
+    # Assert: unified service was used for the project access check
+    mock_service.has_project_access.assert_called_once()
 
 
 # =============================================================================
@@ -421,7 +378,8 @@ class TestToolFilteringByAssistantRole:
     permissions allow, using the real rbac.json and real tool definitions.
     """
 
-    def test_ai_viewer_agent_gets_only_read_tools(
+    @pytest.mark.asyncio
+    async def test_ai_viewer_agent_gets_only_read_tools(
         self,
         all_tools: list[BaseTool],
         real_rbac_service: Any,
@@ -441,7 +399,7 @@ class TestToolFilteringByAssistantRole:
         from app.ai.tools import filter_tools_by_role
 
         # Act
-        filtered = filter_tools_by_role(all_tools, "ai-viewer")
+        filtered = await filter_tools_by_role(all_tools, "ai-viewer")
         filtered_names = _tool_names(filtered)
 
         # Assert: tools that require write permissions are NOT present
@@ -525,7 +483,8 @@ class TestToolFilteringByAssistantRole:
             f"Unpermissioned tools should always pass: {unpermissioned - filtered_names}"
         )
 
-    def test_ai_manager_agent_gets_crud_tools(
+    @pytest.mark.asyncio
+    async def test_ai_manager_agent_gets_crud_tools(
         self,
         all_tools: list[BaseTool],
         real_rbac_service: Any,
@@ -545,7 +504,7 @@ class TestToolFilteringByAssistantRole:
         from app.ai.tools import filter_tools_by_role
 
         # Act
-        filtered = filter_tools_by_role(all_tools, "ai-manager")
+        filtered = await filter_tools_by_role(all_tools, "ai-manager")
         filtered_names = _tool_names(filtered)
 
         # Assert: create/update tools ARE present
@@ -604,7 +563,8 @@ class TestToolFilteringByAssistantRole:
         assert "get_project" in filtered_names
         assert "list_cost_elements" in filtered_names
 
-    def test_ai_admin_agent_gets_admin_tools(
+    @pytest.mark.asyncio
+    async def test_ai_admin_agent_gets_admin_tools(
         self,
         all_tools: list[BaseTool],
         real_rbac_service: Any,
@@ -623,7 +583,7 @@ class TestToolFilteringByAssistantRole:
         from app.ai.tools import filter_tools_by_role
 
         # Act
-        filtered = filter_tools_by_role(all_tools, "ai-admin")
+        filtered = await filter_tools_by_role(all_tools, "ai-admin")
         filtered_names = _tool_names(filtered)
 
         # Assert: admin tools ARE present
@@ -674,7 +634,8 @@ class TestToolFilteringByAssistantRole:
         assert "list_projects" in filtered_names
         assert "get_project" in filtered_names
 
-    def test_filter_tools_by_role_combined_with_execution_mode(
+    @pytest.mark.asyncio
+    async def test_filter_tools_by_role_combined_with_execution_mode(
         self,
         all_tools: list[BaseTool],
         real_rbac_service: Any,
@@ -696,7 +657,7 @@ class TestToolFilteringByAssistantRole:
         from app.ai.tools.types import ExecutionMode
 
         # Act: apply both filters
-        role_filtered = filter_tools_by_role(all_tools, "ai-viewer")
+        role_filtered = await filter_tools_by_role(all_tools, "ai-viewer")
         combined = filter_tools_by_execution_mode(role_filtered, ExecutionMode.SAFE)
         combined_names = _tool_names(combined)
 

@@ -357,16 +357,19 @@ class TestAIToolDecoratorErrorPaths:
         assert "Test error message" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_tool_enforces_rbac_permissions_denied(self, mock_session) -> None:
-        """Test that decorator enforces RBAC permissions when denied.
+    async def test_tool_metadata_carries_permissions(self, mock_session) -> None:
+        """Test that decorator attaches RBAC permissions metadata.
+
+        The @ai_tool decorator does NOT enforce RBAC -- that is handled by
+        BackcastSecurityMiddleware. The decorator attaches permission metadata
+        so the middleware can enforce it. Direct .ainvoke() bypasses middleware.
 
         Given:
-            A tool with required permissions
-            And a user without those permissions
+            A tool with admin-only permission metadata
         When:
-            The tool is invoked
+            The tool's metadata is inspected
         Then:
-            A permission denied error is returned
+            Permissions are attached to _tool_metadata
         """
 
         # Arrange: Create a tool with admin-only permission
@@ -382,17 +385,19 @@ class TestAIToolDecoratorErrorPaths:
             """
             return {"success": True}
 
-        # Act: Invoke with guest role (no permissions)
+        # Assert: Metadata should carry the permissions for middleware enforcement
+        assert hasattr(admin_tool, "_tool_metadata")
+        assert admin_tool._tool_metadata.permissions == ["admin-only"]
+
+        # Act: Direct .ainvoke() bypasses middleware, so tool executes normally
         context = ToolContext(
             session=mock_session, user_id="test-user", user_role="guest"
         )
         result = await admin_tool.ainvoke({"context": context})
 
-        # Assert: Should return permission denied error
+        # Direct invocation succeeds (RBAC is enforced by middleware, not decorator)
         assert isinstance(result, dict)
-        assert "error" in result
-        assert "Permission denied" in result["error"]
-        assert "admin-only" in result["error"]
+        assert result.get("success") is True
 
     @pytest.mark.asyncio
     async def test_tool_allows_rbac_permissions_granted(self, mock_session) -> None:

@@ -47,7 +47,7 @@ async def assert_created_at_time[TVersionable: VersionableProtocol](
     as_of_time: datetime,
     service: TemporalService[TVersionable],
     branch: str = "main",
-    branch_mode: BranchMode = BranchMode.STRICT,
+    branch_mode: BranchMode = BranchMode.ISOLATED,
     custom_assertion: Any | None = None,
 ) -> TVersionable:
     """Assert that an entity exists at a specific point in time.
@@ -106,7 +106,7 @@ async def assert_not_exists_before_time[TVersionable: VersionableProtocol](
     before_time: datetime,
     service: TemporalService[TVersionable],
     branch: str = "main",
-    branch_mode: BranchMode = BranchMode.STRICT,
+    branch_mode: BranchMode = BranchMode.ISOLATED,
 ) -> None:
     """Assert that an entity does NOT exist at a specific point in time.
 
@@ -154,7 +154,7 @@ async def assert_temporal_consistency[TVersionable: VersionableProtocol](
     service: TemporalService[TVersionable],
     time_expectations: dict[datetime, Any],
     branch: str = "main",
-    branch_mode: BranchMode = BranchMode.STRICT,
+    branch_mode: BranchMode = BranchMode.ISOLATED,
 ) -> None:
     """Assert entity state consistency across multiple timestamps.
 
@@ -233,7 +233,7 @@ async def assert_branch_isolation[TVersionable: VersionableProtocol](
     as_of_time: datetime,
     expect_exists_on_a: bool = True,
     expect_exists_on_b: bool = False,
-    branch_mode: BranchMode = BranchMode.STRICT,
+    branch_mode: BranchMode = BranchMode.ISOLATED,
 ) -> None:
     """Assert that an entity has different visibility on different branches.
 
@@ -344,7 +344,7 @@ async def assert_merge_mode_fallback[TVersionable: VersionableProtocol](
         entity_id=entity_id,
         as_of=as_of_time,
         branch=source_branch,
-        branch_mode=BranchMode.STRICT,
+        branch_mode=BranchMode.ISOLATED,
     )
 
     assert entity_strict is None, (
@@ -357,7 +357,7 @@ async def assert_merge_mode_fallback[TVersionable: VersionableProtocol](
         entity_id=entity_id,
         as_of=as_of_time,
         branch=source_branch,
-        branch_mode=BranchMode.MERGE,
+        branch_mode=BranchMode.MERGED,
     )
 
     assert entity_merge is not None, (
@@ -539,14 +539,14 @@ async def assert_branch_merge_preserves_source[TVersionable: VersionableProtocol
         entity_id=entity_id,
         as_of=as_of_time,
         branch=target_branch,
-        branch_mode=BranchMode.STRICT,
+        branch_mode=BranchMode.ISOLATED,
     )
 
     source_entity = await service.get_as_of(
         entity_id=entity_id,
         as_of=as_of_time,
         branch=source_branch,
-        branch_mode=BranchMode.STRICT,
+        branch_mode=BranchMode.ISOLATED,
     )
 
     assert target_entity is not None, (
@@ -654,7 +654,7 @@ async def assert_entity_unchanged_on_branch[TVersionable: VersionableProtocol](
         entity_id=entity_id,
         as_of=as_of_time,
         branch=branch,
-        branch_mode=BranchMode.STRICT,
+        branch_mode=BranchMode.ISOLATED,
     )
 
     assert entity is not None, (

@@ -12,15 +12,18 @@ from app.api.dependencies.auth import (
     get_current_active_user,
     get_current_user,
 )
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.user import User
+from tests.conftest import MockUnifiedRBACService
 
 mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
@@ -35,47 +38,15 @@ def mock_get_current_active_user() -> User:
     return mock_admin_user
 
 
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "cost-element-read",
-            "cost-element-create",
-            "progress-entry-read",
-            "progress-entry-create",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> MockRBACService:
-    return MockRBACService()
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -321,15 +292,15 @@ class TestEVMMetricsAPI:
         assert response.status_code == 200
         data = response.json()
 
-        # EV should be 0
+        # EV should be 0 (cost element auto-creates a 0% progress entry,
+        # so EV = BAC * 0% = 0 but no "no progress" warning is emitted)
         assert data["ev"] == 0.0
 
-        # Warning should be present
-        assert data["warning"] is not None
-        assert "No progress reported" in data["warning"]
+        # No warning because auto-created 0% progress entry exists
+        assert data.get("warning") is None
 
-        # CPI should be 0 or None (since EV = 0)
-        assert data.get("cpi") is None or data.get("cpi") == 0
+        # CPI should be None (division by zero, since AC = 0 and EV = 0)
+        assert data.get("cpi") is None
 
     @pytest.mark.asyncio
     async def test_get_evm_metrics_with_control_date(

@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.rbac import inject_rbac_session
+from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
 from app.services.project import ProjectService
 
 
@@ -287,8 +287,6 @@ class ToolContext:
         """
         from uuid import UUID
 
-        from app.core.rbac import get_rbac_service
-
         # Build cache key
         cache_key = f"{permission}:{project_id or 'global'}"
 
@@ -296,8 +294,9 @@ class ToolContext:
         if cache_key in self._permission_cache:
             return self._permission_cache[cache_key]
 
-        # Get RBAC service
-        rbac_service = get_rbac_service()
+        # Get unified RBAC service and inject session
+        set_unified_rbac_session(self.session)
+        unified_service = get_unified_rbac_service()
 
         # Inject session if available for project-level checks
         if project_id is not None:
@@ -305,26 +304,20 @@ class ToolContext:
                 project_uuid = UUID(project_id)
                 user_uuid = UUID(self.user_id)
 
-                # Check if rbac_service supports project-level access
-                if hasattr(rbac_service, "has_project_access"):
-                    # Inject session if service supports it
-                    inject_rbac_session(rbac_service, self.session)
-
-                    granted = await rbac_service.has_project_access(
-                        user_id=user_uuid,
-                        user_role=self.user_role,
-                        project_id=project_uuid,
-                        required_permission=permission,
-                    )
-                else:
-                    # Fallback to role-based check
-                    granted = rbac_service.has_permission(self.user_role, permission)
+                granted = await unified_service.has_project_access(
+                    user_id=user_uuid,
+                    project_id=project_uuid,
+                    required_permission=permission,
+                )
             except (ValueError, TypeError):
                 # Invalid UUID format, deny permission
                 granted = False
         else:
             # Global permission check
-            granted = rbac_service.has_permission(self.user_role, permission)
+            granted = await unified_service.has_permission(
+                user_id=UUID(self.user_id),
+                required_permission=permission,
+            )
 
         # Cache result
         self._permission_cache[cache_key] = granted

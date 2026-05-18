@@ -46,7 +46,6 @@ class TestUserServiceGetUser:
             email="test@example.com",
             hashed_password="hashed_pw",
             full_name="Test User",
-            role="viewer",
             is_active=True,
             created_by=actor_id,
         )
@@ -213,7 +212,6 @@ class TestServiceGetById:
             email="test@example.com",
             hashed_password="hashed_pw",
             full_name="Test User",
-            role="viewer",
             is_active=True,
             created_by=actor_id,
         )
@@ -245,7 +243,6 @@ class TestServiceGetById:
             email="distinction@example.com",
             hashed_password="hashed_pw",
             full_name="Distinction Test",
-            role="viewer",
             is_active=True,
             created_by=actor_id,
         )

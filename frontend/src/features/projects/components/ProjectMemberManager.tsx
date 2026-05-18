@@ -2,9 +2,10 @@
  * Project Member Manager Component
  *
  * Displays and manages project members with their roles.
+ * Uses the unified /api/v1/role-assignments API via mapped hooks.
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Table, Button, Select, Modal, message, Space, Tag, Avatar, Card, Input, Empty } from "antd";
 import { PlusOutlined, DeleteOutlined, SearchOutlined, UserOutlined } from "@ant-design/icons";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -12,11 +13,11 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import {
   useProjectMembers,
   useRemoveProjectMember,
-  useUpdateProjectMember,
   useAddProjectMember,
+  useProjectRoleMap,
 } from "../hooks/useProjectMembers";
 import { useUsers } from "@/features/users/api/useUsers";
-import { ProjectRole, type ProjectMemberRead } from "../types/projectMembers";
+import type { ProjectMemberRead, ProjectRole } from "../types/projectMembers";
 import type { ColumnsType } from "antd/es/table";
 import { formatDate } from "@/utils/formatters";
 
@@ -33,17 +34,41 @@ export const ProjectMemberManager = ({
   const { user: currentUser } = useAuthStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<ProjectRole>(ProjectRole.PROJECT_VIEWER);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [searchText, setSearchText] = useState("");
 
   // Fetch project members and available users
   const { data: members, isLoading } = useProjectMembers(projectId);
   const { data: users = [], isLoading: isLoadingUsers } = useUsers(100);
 
+  // RBAC roles for the role dropdown
+  const { roles, roleIdToName, isLoading: isLoadingRoles } = useProjectRoleMap();
+
   // Mutations
   const addMemberMutation = useAddProjectMember();
   const removeMemberMutation = useRemoveProjectMember();
-  const updateRoleMutation = useUpdateProjectMember();
+
+  // Build a user lookup for enriching member display with user info
+  const userLookup = useMemo(() => {
+    const map = new Map<string, { full_name?: string; email: string }>();
+    for (const u of users) {
+      map.set(u.user_id, { full_name: u.full_name, email: u.email });
+    }
+    return map;
+  }, [users]);
+
+  // Enrich members with user info from the users list
+  const enrichedMembers = useMemo(() => {
+    if (!members) return undefined;
+    return members.map((m) => {
+      const userInfo = userLookup.get(m.user_id);
+      return {
+        ...m,
+        user_name: m.user_name ?? userInfo?.full_name,
+        user_email: m.user_email ?? userInfo?.email,
+      };
+    });
+  }, [members, userLookup]);
 
   // Filter out users who are already members
   const memberUserIds = new Set(members?.map((m) => m.user_id) || []);
@@ -68,100 +93,90 @@ export const ProjectMemberManager = ({
       .slice(0, 2);
   };
 
-  // Handle add member
-  const handleAddMember = () => {
-    if (!selectedUserId || !currentUser?.user_id) {
-      message.error("Please select a user to add");
+  // Role display configuration keyed by RBAC role ID
+  // Uses the role name from RBAC; colors are assigned by convention.
+  const roleColorMap: Record<string, string> = {
+    admin: "red",
+    manager: "orange",
+    editor: "blue",
+    viewer: "default",
+  };
+
+  const getRoleColor = (roleName: string): string => {
+    const lower = roleName.toLowerCase();
+    for (const [key, color] of Object.entries(roleColorMap)) {
+      if (lower.includes(key)) return color;
+    }
+    return "default";
+  };
+
+  const getRoleLabel = (roleName: string): string => {
+    // Convert "project_admin" -> "Project Admin", "admin" -> "Admin"
+    return roleName
+      .replace(/^project_/, "")
+      .split("_")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  };
+
+  // Handle add member -- creates one assignment per selected role
+  const handleAddMember = async () => {
+    if (!selectedUserId || !currentUser?.user_id || selectedRoleIds.length === 0) {
+      message.error("Please select a user and at least one role");
       return;
     }
 
     const selectedUser = users.find((u) => u.user_id === selectedUserId);
     if (!selectedUser) return;
 
-    addMemberMutation.mutate(
-      {
-        user_id: selectedUserId,
-        project_id: projectId,
-        role: selectedRole,
-        assigned_by: currentUser.user_id,
-      },
-      {
-        onSuccess: () => {
-          setIsAddModalOpen(false);
-          setSelectedUserId(null);
-          setSelectedRole(ProjectRole.PROJECT_VIEWER);
-          setSearchText("");
-          message.success(`Added ${selectedUser.full_name || selectedUser.email} to the project`);
-        },
+    try {
+      // Create one assignment per selected role
+      for (const roleId of selectedRoleIds) {
+        await addMemberMutation.mutateAsync({
+          user_id: selectedUserId,
+          project_id: projectId,
+          role: (roleIdToName.get(roleId) ?? "") as ProjectRole,
+          assigned_by: currentUser.user_id,
+          role_id: roleId,
+        });
       }
-    );
+      setIsAddModalOpen(false);
+      setSelectedUserId(null);
+      setSelectedRoleIds([]);
+      setSearchText("");
+      message.success(`Added ${selectedUser.full_name || selectedUser.email} to the project`);
+    } catch {
+      // Error toast is handled by the mutation's onError
+    }
   };
 
   // Handle modal close
   const handleModalClose = () => {
     setIsAddModalOpen(false);
     setSelectedUserId(null);
-    setSelectedRole(ProjectRole.PROJECT_VIEWER);
+    setSelectedRoleIds([]);
     setSearchText("");
   };
 
-  // Role display configuration
-  const roleConfig: Record<
-    ProjectRole,
-    { label: string; color: string; description: string }
-  > = {
-    [ProjectRole.PROJECT_ADMIN]: {
-      label: "Admin",
-      color: "red",
-      description: "Full control including member management",
-    },
-    [ProjectRole.PROJECT_MANAGER]: {
-      label: "Manager",
-      color: "orange",
-      description: "Manage project settings and content",
-    },
-    [ProjectRole.PROJECT_EDITOR]: {
-      label: "Editor",
-      color: "blue",
-      description: "Edit project content",
-    },
-    [ProjectRole.PROJECT_VIEWER]: {
-      label: "Viewer",
-      color: "default",
-      description: "Read-only access",
-    },
-  };
+  // Handle member removal -- removes all assignments for the user
+  const handleRemoveMember = async (member: ProjectMemberRead) => {
+    const allIds = member.assignment_ids || [member.id];
+    const displayName = member.user_name || member.user_email;
 
-  // Handle role change
-  const handleRoleChange = (member: ProjectMemberRead, newRole: ProjectRole) => {
-    if (!currentUser?.user_id) {
-      message.error("You must be logged in to perform this action");
-      return;
-    }
-
-    updateRoleMutation.mutate({
-      projectId,
-      userId: member.user_id,
-      update: {
-        role: newRole,
-        assigned_by: currentUser.user_id,
-      },
-    });
-  };
-
-  // Handle member removal
-  const handleRemoveMember = (member: ProjectMemberRead) => {
     Modal.confirm({
       title: "Remove Project Member",
-      content: `Are you sure you want to remove ${member.user_name || member.user_email} from this project?`,
+      content: `Are you sure you want to remove ${displayName} from this project? All role assignments will be removed.`,
       okText: "Remove",
       okType: "danger",
       cancelText: "Cancel",
-      onOk: () => {
-        removeMemberMutation.mutate({
-          projectId,
-          userId: member.user_id,
-        });
+      onOk: async () => {
+        for (const assignmentId of allIds) {
+          await removeMemberMutation.mutateAsync({
+            projectId,
+            userId: member.user_id,
+            assignmentId,
+          });
+        }
       },
     });
   };
@@ -186,31 +201,70 @@ export const ProjectMemberManager = ({
       ),
     },
     {
-      title: "Role",
-      dataIndex: "role",
+      title: "Roles",
       key: "role",
-      width: 200,
-      render: (role: ProjectRole, record) => {
+      width: 250,
+      render: (_: unknown, record) => {
+        const memberRoles = record.roles || [record.role];
         const isCurrentUser = record.user_id === currentUser?.user_id;
 
         return (
-          <Select
-            value={role}
-            onChange={(newRole) => handleRoleChange(record, newRole)}
-            loading={updateRoleMutation.isPending}
-            disabled={isCurrentUser || updateRoleMutation.isPending}
-            style={{ width: "100%" }}
-            placeholder="Select role"
-          >
-            {Object.entries(roleConfig).map(([key, { label, color }]) => (
-              <Select.Option key={key} value={key}>
-                <Space size="small">
-                  <Tag color={color}>{label}</Tag>
-                  <span>{label}</span>
-                </Space>
-              </Select.Option>
-            ))}
-          </Select>
+          <Space size={[4, 4]} wrap>
+            {memberRoles.map((roleName, index) => {
+              const assignmentId = record.assignment_ids?.[index];
+              return (
+                <Tag
+                  key={roleName}
+                  color={getRoleColor(roleName)}
+                  closable={!isCurrentUser && !!assignmentId && memberRoles.length > 1}
+                  onClose={(e) => {
+                    e.preventDefault();
+                    if (assignmentId) {
+                      removeMemberMutation.mutate({
+                        projectId,
+                        userId: record.user_id,
+                        assignmentId,
+                      });
+                    }
+                  }}
+                >
+                  {getRoleLabel(roleName)}
+                </Tag>
+              );
+            })}
+            {/* Add role dropdown -- only if user can manage roles and there are unassigned roles */}
+            {!isCurrentUser && (
+              <Select
+                size="small"
+                placeholder="+ Add"
+                value={undefined}
+                variant="borderless"
+                style={{ minWidth: 80 }}
+                loading={isLoadingRoles}
+                onChange={(newRoleId) => {
+                  if (currentUser?.user_id && newRoleId) {
+                    addMemberMutation.mutate({
+                      user_id: record.user_id,
+                      project_id: projectId,
+                      role: (roleIdToName.get(newRoleId) ?? "") as ProjectRole,
+                      assigned_by: currentUser.user_id,
+                      role_id: newRoleId,
+                    });
+                  }
+                }}
+              >
+                {roles
+                  .filter((r) => !memberRoles.includes(r.name))
+                  .map((role) => (
+                    <Select.Option key={role.id} value={role.id}>
+                      <Tag color={getRoleColor(role.name)} style={{ margin: 0 }}>
+                        {getRoleLabel(role.name)}
+                      </Tag>
+                    </Select.Option>
+                  ))}
+              </Select>
+            )}
+          </Space>
         );
       },
     },
@@ -291,7 +345,7 @@ export const ProjectMemberManager = ({
 
       <Table
         columns={columns}
-        dataSource={members || []}
+        dataSource={enrichedMembers || []}
         rowKey="id"
         loading={isLoading}
         pagination={false}
@@ -314,12 +368,12 @@ export const ProjectMemberManager = ({
         onOk={handleAddMember}
         okText="Add Member"
         okButtonProps={{
-          disabled: !selectedUserId || addMemberMutation.isPending,
+          disabled: !selectedUserId || selectedRoleIds.length === 0 || addMemberMutation.isPending,
           loading: addMemberMutation.isPending,
         }}
         cancelText="Cancel"
         width={600}
-        destroyOnClose
+        destroyOnHidden
         styles={{
           body: { padding: spacing.lg },
         }}
@@ -456,20 +510,26 @@ export const ProjectMemberManager = ({
                 color: colors.textSecondary,
               }}
             >
-              Select Role
+              Select Roles
             </div>
             <Select
-              value={selectedRole}
-              onChange={setSelectedRole}
+              mode="multiple"
+              value={selectedRoleIds}
+              onChange={setSelectedRoleIds}
               size="large"
               style={{ width: "100%" }}
-              placeholder="Select a role"
+              placeholder="Select one or more roles"
+              loading={isLoadingRoles}
             >
-              {Object.entries(roleConfig).map(([key, { label, color, description }]) => (
-                <Select.Option key={key} value={key}>
+              {roles.map((role) => (
+                <Select.Option key={role.id} value={role.id}>
                   <Space size="small">
-                    <Tag color={color}>{label}</Tag>
-                    <span>{description}</span>
+                    <Tag color={getRoleColor(role.name)}>{getRoleLabel(role.name)}</Tag>
+                    {role.description && (
+                      <span style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>
+                        {role.description}
+                      </span>
+                    )}
                   </Space>
                 </Select.Option>
               ))}
@@ -477,7 +537,7 @@ export const ProjectMemberManager = ({
           </div>
 
           {/* Selected User Summary */}
-          {selectedUserId && (
+          {selectedUserId && selectedRoleIds.length > 0 && (
             <div
               style={{
                 padding: spacing.md,
@@ -493,9 +553,17 @@ export const ProjectMemberManager = ({
                     users.find((u) => u.user_id === selectedUserId)?.email}
                 </strong>{" "}
                 as{" "}
-                <Tag color={roleConfig[selectedRole].color} style={{ margin: 0 }}>
-                  {roleConfig[selectedRole].label}
-                </Tag>
+                <Space size={[4, 4]} wrap>
+                  {selectedRoleIds.map((roleId) => (
+                    <Tag
+                      key={roleId}
+                      color={getRoleColor(roleIdToName.get(roleId) ?? "")}
+                      style={{ margin: 0 }}
+                    >
+                      {getRoleLabel(roleIdToName.get(roleId) ?? "")}
+                    </Tag>
+                  ))}
+                </Space>
               </div>
             </div>
           )}
@@ -519,10 +587,12 @@ export const ProjectMemberManager = ({
             gap: spacing.sm,
           }}
         >
-          {Object.entries(roleConfig).map(([key, { label, color, description }]) => (
-            <div key={key} style={{ display: "flex", alignItems: "flex-start", gap: spacing.xs }}>
-              <Tag color={color}>{label}</Tag>
-              <span style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>{description}</span>
+          {roles.map((role) => (
+            <div key={role.id} style={{ display: "flex", alignItems: "flex-start", gap: spacing.xs }}>
+              <Tag color={getRoleColor(role.name)}>{getRoleLabel(role.name)}</Tag>
+              <span style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>
+                {role.description || getRoleLabel(role.name)}
+              </span>
             </div>
           ))}
         </div>

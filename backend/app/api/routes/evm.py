@@ -52,8 +52,8 @@ async def get_evm_metrics(
     ),
     branch: str = Query("main", description="Branch to query"),
     branch_mode: BranchMode = Query(
-        BranchMode.MERGE,
-        description="Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)",
+        BranchMode.MERGED,
+        description="Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
     ),
     service: EVMService = Depends(get_evm_service),
 ) -> dict[str, Any]:
@@ -74,7 +74,7 @@ async def get_evm_metrics(
 
     Time-Travel & Branching:
     - All metrics respect time-travel: entities are fetched as they were at control_date
-    - Branch mode (STRICT/MERGE) controls parent branch fallback behavior
+    - Branch mode （ISOLATED/MERGE) controls parent branch fallback behavior
     - Cost registrations and progress entries are global facts (not branchable)
 
     Supports entity types:
@@ -187,8 +187,8 @@ async def get_evm_timeseries(
     ),
     branch: str = Query("main", description="Branch to query"),
     branch_mode: BranchMode = Query(
-        BranchMode.MERGE,
-        description="Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)",
+        BranchMode.MERGED,
+        description="Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
     ),
     service: EVMService = Depends(get_evm_service),
 ) -> dict[str, Any]:
@@ -257,7 +257,7 @@ async def get_evm_batch(
         entity_ids: List of entity IDs to calculate metrics for
         control_date: Optional control date for time-travel (defaults to now)
         branch: Branch name (defaults to "main")
-        branch_mode: Branch isolation mode (defaults to "merge")
+        branch_mode: Branch isolation mode (defaults to "merged")
 
     Supports entity types:
     - cost_element: Aggregate multiple cost elements
@@ -273,7 +273,7 @@ async def get_evm_batch(
         entity_ids_str = request_data.get("entity_ids", [])
         control_date_str = request_data.get("control_date")
         branch = request_data.get("branch", "main")
-        branch_mode_str = request_data.get("branch_mode", "merge")
+        branch_mode_str = request_data.get("branch_mode", "merged")
 
         # Validate entity_type
         if entity_type_str == EntityType.COST_ELEMENT:
@@ -300,10 +300,9 @@ async def get_evm_batch(
             control_date = datetime.now(tz=UTC)
 
         # Parse branch_mode
-        if branch_mode_str == "isolated" or branch_mode_str == "strict":
-            branch_mode = BranchMode.STRICT
-        else:
-            branch_mode = BranchMode.MERGE
+        branch_mode = (
+            BranchMode.ISOLATED if branch_mode_str == "isolated" else BranchMode.MERGED
+        )
 
     except (ValueError, TypeError) as e:
         raise HTTPException(

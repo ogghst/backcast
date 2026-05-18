@@ -18,47 +18,17 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.db.session import get_db
 from app.main import app
 from app.models.domain.user import User
 from app.services.dashboard_layout_service import DashboardLayoutService
+from tests.conftest import MockUnifiedRBACService
 
 BASE_URL = "/api/v1/dashboard-layouts"
-
-
-# ---------------------------------------------------------------------------
-# Mock RBAC that grants all permissions
-# ---------------------------------------------------------------------------
-
-
-class _MockRBAC(RBACServiceABC):
-    """RBAC service that grants all permissions for testing."""
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return []
-
-    async def has_project_access(
-        self,
-        user_id: UUID,
-        user_role: str,
-        project_id: UUID,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        return []
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return None
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: authenticated clients for owner and other user
@@ -77,7 +47,6 @@ async def owner_user(db_session: AsyncSession) -> User:
         user_id=uuid4(),
         email="owner@test.com",
         full_name="Owner User",
-        role="admin",
         is_active=True,
         hashed_password="hash",
         created_by=uuid4(),
@@ -100,7 +69,6 @@ async def other_user(db_session: AsyncSession) -> User:
         user_id=uuid4(),
         email="other@test.com",
         full_name="Other User",
-        role="viewer",
         is_active=True,
         hashed_password="hash",
         created_by=uuid4(),
@@ -123,7 +91,8 @@ async def auth_client(
     """
     app.dependency_overrides[get_current_active_user] = lambda: owner_user
     app.dependency_overrides[get_current_user] = lambda: owner_user
-    app.dependency_overrides[get_rbac_service] = lambda: _MockRBAC()
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     app.dependency_overrides[get_db] = lambda: db_session
 
     async with AsyncClient(
@@ -131,6 +100,7 @@ async def auth_client(
     ) as ac:
         yield ac
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -146,7 +116,8 @@ async def other_client(
     """
     app.dependency_overrides[get_current_active_user] = lambda: other_user
     app.dependency_overrides[get_current_user] = lambda: other_user
-    app.dependency_overrides[get_rbac_service] = lambda: _MockRBAC()
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     app.dependency_overrides[get_db] = lambda: db_session
 
     async with AsyncClient(
@@ -154,6 +125,7 @@ async def other_client(
     ) as ac:
         yield ac
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 

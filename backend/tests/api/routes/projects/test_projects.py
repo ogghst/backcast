@@ -9,9 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.user import User
+from app.models.domain.user_role_assignment import ScopeType
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -19,7 +23,6 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
@@ -34,44 +37,30 @@ def mock_get_current_active_user() -> User:
     return mock_admin_user
 
 
-# Mock RBAC service that allows everything
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "project-read",
-            "project-create",
-            "project-update",
-            "project-delete",
-            "wbe-read",
-            "wbe-create",
-            "wbe-update",
-            "wbe-delete",
-        ]
-
-    async def has_project_access(
+# Mock Unified RBAC service that allows everything
+class MockUnifiedRBACService(UnifiedRBACService):
+    async def has_permission(
         self,
         user_id: UUID,
-        user_role: str,
-        project_id: UUID,
         required_permission: str,
+        scope_type: str = ScopeType.GLOBAL,
+        scope_id: UUID | None = None,
     ) -> bool:
+        # Grant all permissions for testing
         return True
 
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        return []
+    async def get_user_roles(
+        self,
+        user_id: UUID,
+        scope_type: str = ScopeType.GLOBAL,
+        scope_id: UUID | None = None,
+    ) -> list[str]:
+        # Return admin role for all requests
+        return ["admin"]
 
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return None
 
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
+def mock_get_unified_rbac_service() -> UnifiedRBACService:
+    return MockUnifiedRBACService()
 
 
 @pytest.fixture(autouse=True)
@@ -79,8 +68,14 @@ def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
+
+    # Set the mock unified RBAC service globally
+    set_unified_rbac_service(mock_get_unified_rbac_service())
+
     yield
+
+    # Reset to default service
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 
@@ -94,7 +89,7 @@ async def test_create_project(
         "name": "Test Project",
         "code": unique_code,
         "contract_value": 120000,
-        "status": "Draft",
+        "status": "draft",
         "description": "A test project",
     }
 

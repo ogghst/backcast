@@ -8,7 +8,15 @@
     "temperature": 0.1,
     "max_tokens": 3000,
     "is_active": true,
-    "default_role": "ai-viewer"
+    "default_role": "ai-viewer",
+    "agent_type": "main",
+    "is_system": true,
+    "allowed_tools": null,
+    "delegation_config": {
+      "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search"],
+      "allowed_specialists": null
+    },
+    "structured_output_schema": null
   },
   {
     "id": "88888888-8888-8888-8888-888888888888",
@@ -19,7 +27,15 @@
     "temperature": 0.3,
     "max_tokens": 4000,
     "is_active": true,
-    "default_role": "ai-manager"
+    "default_role": "ai-manager",
+    "agent_type": "main",
+    "is_system": true,
+    "allowed_tools": null,
+    "delegation_config": {
+      "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search"],
+      "allowed_specialists": null
+    },
+    "structured_output_schema": null
   },
   {
     "id": "99999999-9999-9999-9999-999999999999",
@@ -30,6 +46,14 @@
     "temperature": 0.0,
     "max_tokens": 3000,
     "is_active": true,
-    "default_role": "ai-admin"
+    "default_role": "ai-admin",
+    "agent_type": "main",
+    "is_system": true,
+    "allowed_tools": null,
+    "delegation_config": {
+      "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search"],
+      "allowed_specialists": null
+    },
+    "structured_output_schema": null
   }
 ]

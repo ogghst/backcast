@@ -1,8 +1,6 @@
 {
-  "_comment": "Optional RBAC roles seed file. If this file exists, it will be used instead of config/rbac.json for seeding RBAC roles. This allows environment-specific role configurations.",
   "roles": {
     "admin": {
-      "description": "Full system administrator with complete access to all modules and features",
       "permissions": [
         "user-read",
         "user-create",
@@ -75,11 +73,14 @@
         "change-order-workflow-config-manage",
         "change-order-workflow-config-override",
         "change-order-escalate",
-        "temporal-write"
+        "temporal-write",
+        "role-assignment-read",
+        "role-assignment-create",
+        "role-assignment-update",
+        "role-assignment-delete"
       ]
     },
     "manager": {
-      "description": "Project manager with full access except deletion of core entities and user management",
       "permissions": [
         "user-read",
         "user-update",
@@ -130,7 +131,6 @@
       ]
     },
     "viewer": {
-      "description": "Read-only access to most modules for viewing project data and reports",
       "permissions": [
         "department-read",
         "project-read",
@@ -139,13 +139,13 @@
         "cost-element-type-read",
         "cost-registration-read",
         "change-order-read",
+        "change-order-approve",
         "forecast-read",
         "schedule-baseline-read",
         "quality-event-read"
       ]
     },
     "ai-viewer": {
-      "description": "Read-only access with AI chat capabilities for AI-assisted project analysis",
       "permissions": [
         "project-read",
         "wbe-read",
@@ -164,7 +164,6 @@
       ]
     },
     "ai-manager": {
-      "description": "AI-focused manager with full AI feature access plus project management capabilities",
       "permissions": [
         "project-read",
         "project-create",
@@ -208,7 +207,6 @@
       ]
     },
     "ai-admin": {
-      "description": "Limited administrator role for AI-specific features and configuration",
       "permissions": [
         "project-read",
         "user-read",
@@ -228,6 +226,18 @@
         "mcp-server-update",
         "mcp-server-delete",
         "mcp-tool-execute"
+      ]
+    },
+    "change_order_approver": {
+      "permissions": [
+        "user-read",
+        "change-order-read",
+        "change-order-approve",
+        "change-order-submit",
+        "change-order-escalate",
+        "project-read",
+        "cost-element-read",
+        "forecast-read"
       ]
     }
   }

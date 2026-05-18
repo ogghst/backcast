@@ -212,8 +212,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     assistants: {
       all: ["ai", "assistants"] as const,
       lists: () => ["ai", "assistants", "list"] as const,
-      list: (includeInactive?: boolean) =>
-        ["ai", "assistants", "list", includeInactive] as const,
+      list: (includeInactive?: boolean, agentType?: string) =>
+        ["ai", "assistants", "list", includeInactive, agentType] as const,
       detail: (id: string) => ["ai", "assistants", "detail", id] as const,
     },
     chat: {
@@ -327,6 +327,16 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     },
     permissions: ["admin-rbac", "permissions"] as const,
     providerStatus: ["admin-rbac", "provider-status"] as const,
+  },
+
+  // Role Assignments
+  roleAssignments: {
+    all: ["role-assignments"] as const,
+    lists: () => ["role-assignments", "list"] as const,
+    list: (params?: { userId?: string; scopeType?: string; scopeId?: string; roleId?: string }) =>
+      ["role-assignments", "list", params] as const,
+    details: () => ["role-assignments", "detail"] as const,
+    detail: (id: string) => ["role-assignments", "detail", id] as const,
   },
 
   // Notifications

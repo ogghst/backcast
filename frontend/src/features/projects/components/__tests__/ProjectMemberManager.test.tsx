@@ -32,6 +32,7 @@ vi.mock("../../hooks/useProjectMembers", () => ({
   useAddProjectMember: vi.fn(),
   useRemoveProjectMember: vi.fn(),
   useUpdateProjectMember: vi.fn(),
+  useProjectRoleMap: vi.fn(),
 }));
 
 // Mock the auth store
@@ -95,7 +96,7 @@ vi.mock("@/features/users/api/useUsers", () => ({
   useUsers: vi.fn(),
 }));
 
-import { useProjectMembers, useAddProjectMember, useRemoveProjectMember, useUpdateProjectMember } from "../../hooks/useProjectMembers";
+import { useProjectMembers, useAddProjectMember, useRemoveProjectMember, useUpdateProjectMember, useProjectRoleMap } from "../../hooks/useProjectMembers";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useUsers } from "@/features/users/api/useUsers";
 
@@ -103,6 +104,7 @@ const mockUseProjectMembers = vi.mocked(useProjectMembers);
 const mockUseAddProjectMember = vi.mocked(useAddProjectMember);
 const mockUseRemoveProjectMember = vi.mocked(useRemoveProjectMember);
 const mockUseUpdateProjectMember = vi.mocked(useUpdateProjectMember);
+const mockUseProjectRoleMap = vi.mocked(useProjectRoleMap);
 const mockUseAuthStore = vi.mocked(useAuthStore);
 const mockUseUsers = vi.mocked(useUsers);
 
@@ -214,6 +216,29 @@ describe("ProjectMemberManager", () => {
       mutate: mutateUpdate,
       isPending: false,
     } as MockMutationReturn);
+
+    // Mock useProjectRoleMap
+    mockUseProjectRoleMap.mockReturnValue({
+      roles: [
+        { id: "role-pa", name: "project_admin", description: "Full control including member management" },
+        { id: "role-pm", name: "project_manager", description: "Manage project settings and content" },
+        { id: "role-pe", name: "project_editor", description: "Edit project content" },
+        { id: "role-pv", name: "project_viewer", description: "Read-only access" },
+      ],
+      roleNameToId: new Map([
+        ["project_admin", "role-pa"],
+        ["project_manager", "role-pm"],
+        ["project_editor", "role-pe"],
+        ["project_viewer", "role-pv"],
+      ]),
+      roleIdToName: new Map([
+        ["role-pa", "project_admin"],
+        ["role-pm", "project_manager"],
+        ["role-pe", "project_editor"],
+        ["role-pv", "project_viewer"],
+      ]),
+      isLoading: false,
+    });
   });
 
   const createWrapper = () => {

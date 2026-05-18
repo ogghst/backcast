@@ -145,6 +145,33 @@ class AIAssistantConfig(SimpleEntityBase):
         nullable=True,
         comment="RBAC role for permission filtering (e.g., ai-viewer, ai-manager, ai-admin)",
     )
+    agent_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="main",
+        comment="Agent type: 'main' (user-facing) or 'specialist' (delegated)",
+    )
+    allowed_tools: Mapped[list[str] | None] = mapped_column(
+        JSONB(),
+        nullable=True,
+        comment="Tool whitelist for specialist agents. None means all available tools.",
+    )
+    delegation_config: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(),
+        nullable=True,
+        comment="Delegation config for main agents: {direct_tools: [...], allowed_specialists: [...] or null}",
+    )
+    structured_output_schema: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Fully qualified Pydantic model class name for structured output (specialist-only)",
+    )
+    is_system: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="System agents cannot be deleted, only disabled",
+    )
 
     # Relationships
     model: Mapped["AIModel"] = relationship(

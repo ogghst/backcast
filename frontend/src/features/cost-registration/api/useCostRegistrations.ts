@@ -166,7 +166,7 @@ export const useProjectBudgetStatus = (projectId: string) => {
         url: `/api/v1/cost-registrations/project-budget-status/${projectId}`,
         query: {
           branch,
-          branch_mode: mode === "merged" ? "merge" : "strict",
+          branch_mode: mode,
           as_of: asOf || undefined,
         },
         errors: { 404: "Project not found", 422: "Validation Error" },
@@ -188,7 +188,7 @@ export const useWBEBudgetStatus = (wbeId: string) => {
         url: `/api/v1/cost-registrations/wbe-budget-status/${wbeId}`,
         query: {
           branch,
-          branch_mode: mode === "merged" ? "merge" : "strict",
+          branch_mode: mode,
           as_of: asOf || undefined,
         },
         errors: { 404: "WBE not found", 422: "Validation Error" },

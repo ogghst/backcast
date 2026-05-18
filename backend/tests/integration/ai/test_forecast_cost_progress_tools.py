@@ -7,6 +7,7 @@ Tests verify:
 - End-to-end workflows
 """
 
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -28,68 +29,14 @@ from app.ai.tools.templates.forecast_cost_progress_template import (
     update_forecast,
 )
 from app.ai.tools.types import ToolContext
-from app.core.rbac import RBACServiceABC
-
-# =============================================================================
-# Mock RBAC Service
-# =============================================================================
-
-
-class MockRBACService(RBACServiceABC):
-    """Mock RBAC service that allows everything for testing."""
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        # Return all possible permissions for testing
-        return [
-            "forecast-read",
-            "forecast-create",
-            "forecast-update",
-            "cost-registration-read",
-            "cost-registration-create",
-            "progress-entry-read",
-            "progress-entry-create",
-            "project-read",
-            "project-create",
-            "wbe-read",
-            "wbe-create",
-            "cost-element-read",
-            "cost-element-create",
-        ]
-
-    # Project-level RBAC methods (mocked - allow all)
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str) -> list:
-        return []
-
-    async def get_project_role(self, user_id, project_id) -> str | None:
-        return None
+from app.core.rbac_unified import set_unified_rbac_service
+from tests.conftest import MockUnifiedRBACService
 
 
 @pytest.fixture(autouse=True)
-def mock_rbac_service(monkeypatch):
+def mock_rbac_service():
     """Mock RBAC service for all integration tests."""
-
-    def mock_get_rbac_service():
-        return MockRBACService()
-
-    # Monkey patch the get_rbac_service function in rbac module
-    import app.core.rbac as rbac_module
-
-    monkeypatch.setattr(rbac_module, "get_rbac_service", mock_get_rbac_service)
+    set_unified_rbac_service(MockUnifiedRBACService())
 
 
 @pytest.mark.asyncio
@@ -205,13 +152,6 @@ async def test_tools_have_correct_permissions():
 async def test_tool_execution_via_langgraph(db_session, test_cost_element):
     """Test that tools can be executed through LangGraph's invoke pattern."""
     # Arrange
-    context = ToolContext(
-        session=db_session,
-        user_id="test-user-id",
-        user_role="admin",
-    )
-
-    # Create a forecast for testing (or use existing)
     from decimal import Decimal
 
     from app.services.forecast_service import ForecastService
@@ -239,13 +179,22 @@ async def test_tool_execution_via_langgraph(db_session, test_cost_element):
     )
     await db_session.commit()
 
-    # Act - Call get_forecast via LangGraph's ainvoke pattern
-    result = await get_forecast.ainvoke(
-        {
-            "cost_element_id": str(test_cost_element.cost_element_id),
-            "context": context,
-        }
-    )
+    # Patch get_tool_session to return the test's db_session so that
+    # ToolContext.session property uses the same session that has the data.
+    with patch("app.db.session.get_tool_session", return_value=db_session):
+        context = ToolContext(
+            session=db_session,
+            user_id="test-user-id",
+            user_role="admin",
+        )
+
+        # Act - Call get_forecast via LangGraph's ainvoke pattern
+        result = await get_forecast.ainvoke(
+            {
+                "cost_element_id": str(test_cost_element.cost_element_id),
+                "context": context,
+            }
+        )
 
     # Assert
     assert "error" not in result
@@ -263,12 +212,6 @@ async def test_end_to_end_summary_workflow(db_session, test_cost_element):
     from app.models.schemas.progress_entry import ProgressEntryCreate
     from app.services.forecast_service import ForecastService
     from app.services.progress_entry_service import ProgressEntryService
-
-    context = ToolContext(
-        session=db_session,
-        user_id="test-user-id",
-        user_role="admin",
-    )
 
     # Create forecast (handle existing forecast)
     forecast_service = ForecastService(db_session)
@@ -305,13 +248,22 @@ async def test_end_to_end_summary_workflow(db_session, test_cost_element):
 
     await db_session.commit()
 
-    # Act - Get complete summary
-    result = await get_cost_element_summary.ainvoke(
-        {
-            "cost_element_id": str(test_cost_element.cost_element_id),
-            "context": context,
-        }
-    )
+    # Patch get_tool_session to return the test's db_session so that
+    # ToolContext.session property uses the same session that has the data.
+    with patch("app.db.session.get_tool_session", return_value=db_session):
+        context = ToolContext(
+            session=db_session,
+            user_id="test-user-id",
+            user_role="admin",
+        )
+
+        # Act - Get complete summary
+        result = await get_cost_element_summary.ainvoke(
+            {
+                "cost_element_id": str(test_cost_element.cost_element_id),
+                "context": context,
+            }
+        )
 
     # Assert - Summary should include all three data types
     assert "error" not in result

@@ -1,7 +1,6 @@
 """Integration tests for Dashboard API endpoint."""
 
 from collections.abc import AsyncGenerator
-from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -10,7 +9,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    set_unified_rbac_service,
+)
 from app.db.session import get_db
 from app.main import app
 from app.models.domain.user import User
@@ -19,6 +20,7 @@ from app.models.schemas.wbe import WBECreate
 from app.services.change_order_service import ChangeOrderService
 from app.services.project import ProjectService
 from app.services.wbe import WBEService
+from tests.conftest import MockUnifiedRBACService
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -26,7 +28,6 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
 )
@@ -38,43 +39,6 @@ def mock_get_current_user() -> User:
 
 def mock_get_current_active_user() -> User:
     return mock_admin_user
-
-
-# Mock RBAC service that allows everything
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return [
-            "project-read",
-            "project-create",
-            "project-update",
-            "project-delete",
-            "dashboard-read",
-        ]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
-
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
 
 
 @pytest_asyncio.fixture
@@ -89,12 +53,10 @@ async def client(
     def override_get_current_active_user():
         return mock_admin_user
 
-    def override_get_rbac_service():
-        return MockRBACService()
-
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_current_active_user] = override_get_current_active_user
-    app.dependency_overrides[get_rbac_service] = override_get_rbac_service
+
+    set_unified_rbac_service(MockUnifiedRBACService())
     app.dependency_overrides[get_db] = lambda: db_session
 
     async with AsyncClient(
@@ -135,7 +97,6 @@ async def test_get_dashboard_recent_activity_with_project(
     project_in = ProjectCreate(
         name="Test Project",
         code="TEST-001",
-        budget=Decimal("100000.00"),
     )
     project = await project_service.create_project(
         project_in=project_in,
@@ -153,9 +114,9 @@ async def test_get_dashboard_recent_activity_with_project(
     assert data["last_edited_project"]["project_name"] == "Test Project"
     assert data["last_edited_project"]["project_code"] == "TEST-001"
 
-    # Check metrics
+    # Check metrics - budget is computed from cost elements, 0 when none exist
     metrics = data["last_edited_project"]["metrics"]
-    assert metrics["total_budget"] == "100000.00"
+    assert metrics["total_budget"] == "0"
     assert metrics["total_wbes"] == 0
     assert metrics["total_cost_elements"] == 0
     assert metrics["active_change_orders"] == 0
@@ -179,7 +140,6 @@ async def test_get_dashboard_recent_activity_with_wbe(
     project_in = ProjectCreate(
         name="Test Project",
         code="TEST-001",
-        budget=Decimal("100000.00"),
     )
     project = await project_service.create_project(
         project_in=project_in,
@@ -223,7 +183,6 @@ async def test_get_dashboard_recent_activity_with_change_order(
     project_in = ProjectCreate(
         name="Test Project",
         code="TEST-001",
-        budget=Decimal("100000.00"),
     )
     project = await project_service.create_project(
         project_in=project_in,
@@ -274,7 +233,6 @@ async def test_get_dashboard_recent_activity_limit(
         project_in = ProjectCreate(
             name=f"Test Project {i}",
             code=f"TEST-{i:03d}",
-            budget=Decimal("100000.00"),
         )
         await project_service.create_project(
             project_in=project_in,
@@ -302,7 +260,6 @@ async def test_get_dashboard_project_metrics(
     project_in = ProjectCreate(
         name="Test Project",
         code="TEST-001",
-        budget=Decimal("100000.00"),
     )
     project = await project_service.create_project(
         project_in=project_in,
@@ -332,4 +289,4 @@ async def test_get_dashboard_project_metrics(
     data = response.json()
     metrics = data["last_edited_project"]["metrics"]
     assert metrics["total_wbes"] == 3
-    assert metrics["total_budget"] == "100000.00"
+    assert metrics["total_budget"] == "0"

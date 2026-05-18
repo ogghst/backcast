@@ -150,14 +150,9 @@ def ai_tool(
             # Add context to kwargs for the original function
             kwargs["context"] = context_obj
 
-            # Execute original function with task-local session lifecycle
-            # Each concurrent tool execution gets its own scoped session via async_scoped_session
-            # We commit after successful execution to persist changes and clean up the session
             try:
                 result = await func(*args, **kwargs)
 
-                # Commit task-local session after successful tool execution
-                # This ensures the tool's database changes are persisted
                 from app.ai.tools.session_manager import ToolSessionManager
 
                 try:
@@ -174,7 +169,6 @@ def ai_tool(
             except Exception as e:
                 logger.error(f"Error in tool {tool_name}: {e}", exc_info=True)
 
-                # Rollback task-local session on error
                 from app.ai.tools.session_manager import ToolSessionManager
 
                 try:
@@ -188,6 +182,15 @@ def ai_tool(
                     )
 
                 return {"error": str(e)}
+            except BaseException:
+                # CancelledError, KeyboardInterrupt, etc. — clean up session without returning a result
+                from app.ai.tools.session_manager import ToolSessionManager
+
+                try:
+                    await ToolSessionManager.rollback()
+                except Exception:
+                    pass
+                raise
 
         # Apply LangChain's @tool decorator with parse_docstring=True
         # This enables automatic docstring parsing for parameter descriptions

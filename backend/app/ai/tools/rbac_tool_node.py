@@ -9,13 +9,13 @@ from typing import Any
 
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
-from langgraph.prebuilt import ToolNode
 
+from app.ai.tools.sequential_tool_node import SequentialToolNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
-from app.core.rbac import get_rbac_service, inject_rbac_session
+from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
 
 
-class RBACToolNode(ToolNode):
+class RBACToolNode(SequentialToolNode):
     """ToolNode subclass with RBAC permission checking and risk checking.
 
     Wraps LangGraph's ToolNode to add permission and risk checks before tool execution.
@@ -70,8 +70,8 @@ class RBACToolNode(ToolNode):
 
         Note:
             Reads _tool_metadata.permissions from the tool instance.
-            Uses RBACServiceABC.has_project_access for project-level checks when available.
-            Falls back to RBACServiceABC.has_permission for global permissions.
+            Uses UnifiedRBACService.has_permission for both project-level
+            and global permission checks.
         """
         # Find the tool by name
         tool = None
@@ -92,28 +92,24 @@ class RBACToolNode(ToolNode):
         # Extract project_id from tool_args if present
         project_id = tool_args.get("project_id")
 
-        # Get RBAC service
-        rbac_service = get_rbac_service()
+        from uuid import UUID
 
-        # Inject session if service supports it and project_id is provided
-        if project_id is not None:
-            inject_rbac_session(rbac_service, self.context.session)
+        # Get unified RBAC service and inject session
+        set_unified_rbac_session(self.context.session)
+        unified_service = get_unified_rbac_service()
 
         # Check each required permission
         for permission in metadata.permissions:
             # Use project-level access check if project_id is provided
-            if project_id is not None and hasattr(rbac_service, "has_project_access"):
-                from uuid import UUID
-
+            if project_id is not None:
                 try:
                     project_uuid = (
                         UUID(project_id) if isinstance(project_id, str) else project_id
                     )
                     user_uuid = UUID(self.context.user_id)
 
-                    has_access = await rbac_service.has_project_access(
+                    has_access = await unified_service.has_project_access(
                         user_id=user_uuid,
-                        user_role=self.context.user_role,
                         project_id=project_uuid,
                         required_permission=permission,
                     )
@@ -132,7 +128,11 @@ class RBACToolNode(ToolNode):
                     )
             else:
                 # Global permission check
-                if not rbac_service.has_permission(self.context.user_role, permission):
+                has_perm = await unified_service.has_permission(
+                    user_id=UUID(self.context.user_id),
+                    required_permission=permission,
+                )
+                if not has_perm:
                     return (
                         f"Permission denied: {permission} required "
                         f"(user_role: {self.context.user_role}, tool: {tool_name})"

@@ -121,7 +121,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
               margin: 0,
             }}
           >
-            {project.status || "Draft"}
+            {project.status || "draft"}
           </Tag>
           <Button type="text" icon={<EditOutlined />} size="small" />
         </Space>
@@ -256,7 +256,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
                   margin: 0,
                 }}
               >
-                {project.status || "Draft"}
+                {project.status || "draft"}
               </Tag>
             </Col>
             {calculateDuration(project.start_date, project.end_date) && (

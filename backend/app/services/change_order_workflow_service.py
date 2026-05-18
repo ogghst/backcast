@@ -8,7 +8,7 @@ Workflow States (from FR-8.3):
 Draft -> Submitted for Approval -> Under Review -> Approved/Rejected -> Implemented
 
 Context: This service orchestrates the approval workflow by integrating with
-FinancialImpactService, ApprovalMatrixService, and SLAService to manage the
+FinancialImpactService, UnifiedRBACService, and SLAService to manage the
 complete approval lifecycle from submission to approval/rejection.
 """
 
@@ -21,10 +21,14 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import ChangeOrderStatus
+from app.core.rbac_unified import (
+    get_unified_rbac_service,
+    set_unified_rbac_session,
+)
 from app.models.domain.change_order import ChangeOrder, SLAStatus
 from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
 from app.models.domain.user import User
-from app.services.approval_matrix_service import ApprovalMatrixService
 from app.services.financial_impact_service import FinancialImpactService
 from app.services.sla_service import SLAService
 
@@ -44,23 +48,36 @@ class ChangeOrderWorkflowService:
 
     # Default transition rules (used when no config available)
     _DEFAULT_TRANSITIONS: dict[str, list[str]] = {
-        "Draft": ["Submitted for Approval"],
-        "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
-        "Under Review": ["Approved", "Rejected"],
-        "Rejected": ["Draft", "Submitted for Approval"],
-        "Approved": ["Implemented"],
-        "Implemented": [],
+        ChangeOrderStatus.DRAFT.value: [ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value],
+        ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value: [
+            ChangeOrderStatus.UNDER_REVIEW.value,
+            ChangeOrderStatus.APPROVED.value,
+            ChangeOrderStatus.REJECTED.value,
+        ],
+        ChangeOrderStatus.UNDER_REVIEW.value: [
+            ChangeOrderStatus.APPROVED.value,
+            ChangeOrderStatus.REJECTED.value,
+        ],
+        ChangeOrderStatus.REJECTED.value: [
+            ChangeOrderStatus.DRAFT.value,
+            ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+        ],
+        ChangeOrderStatus.APPROVED.value: [ChangeOrderStatus.IMPLEMENTED.value],
+        ChangeOrderStatus.IMPLEMENTED.value: [],
     }
 
     _DEFAULT_LOCK_TRANSITIONS: set[tuple[str, str]] = {
-        ("Draft", "Submitted for Approval"),
+        (ChangeOrderStatus.DRAFT.value, ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value),
     }
 
     _DEFAULT_UNLOCK_TRANSITIONS: set[tuple[str, str]] = {
-        ("Under Review", "Rejected"),
+        (ChangeOrderStatus.UNDER_REVIEW.value, ChangeOrderStatus.REJECTED.value),
     }
 
-    _DEFAULT_EDITABLE_STATUSES: set[str] = {"Draft", "Rejected"}
+    _DEFAULT_EDITABLE_STATUSES: set[str] = {
+        ChangeOrderStatus.DRAFT.value,
+        ChangeOrderStatus.REJECTED.value,
+    }
 
     def __init__(
         self,
@@ -219,9 +236,9 @@ class ChangeOrderWorkflowService:
 
         This method orchestrates the submission workflow by:
         1. Calculating financial impact level using FinancialImpactService
-        2. Assigning appropriate approver using ApprovalMatrixService
+        2. Assigning appropriate approver using UnifiedRBACService
         3. Setting SLA deadline using SLAService
-        4. Transitioning status from "Draft" to "Submitted for Approval"
+        4. Transitioning status from "Draft" to "Submitted for Approval" (using enum values)
         5. Creating audit log entry
 
         Args:
@@ -255,21 +272,27 @@ class ChangeOrderWorkflowService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         # Validate current status is Draft
-        if current_co.status != "Draft":
+        if current_co.status != ChangeOrderStatus.DRAFT.value:
             raise ValueError(
                 f"Cannot submit change order in status '{current_co.status}'. "
-                "Only Draft change orders can be submitted for approval."
+                f"Only {ChangeOrderStatus.DRAFT.value} change orders can be submitted for approval."
             )
 
         # Calculate financial impact level
         financial_service = FinancialImpactService(db_session)
         impact_level = await financial_service.calculate_impact_level(change_order_id)
 
-        # Assign approver based on impact level
-        approval_service = ApprovalMatrixService(db_session)
-        approver_id = await approval_service.get_approver_for_impact(
-            current_co.project_id, impact_level
-        )
+        # Assign approver based on impact level (excluding CO creator for SoD)
+        set_unified_rbac_session(db_session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            approver_id = await unified_rbac.get_approver_for_impact(
+                current_co.project_id,
+                impact_level,
+                exclude_user_id=current_co.created_by,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if approver_id is None:
             raise ValueError(
@@ -286,7 +309,7 @@ class ChangeOrderWorkflowService:
 
         # Prepare update data
         update_data = {
-            "status": "Submitted for Approval",
+            "status": ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
             "impact_level": impact_level,
             "assigned_approver_id": approver_id,
             "sla_assigned_at": submission_time,
@@ -310,8 +333,8 @@ class ChangeOrderWorkflowService:
         # Create audit log entry for submission
         audit_entry = ChangeOrderAuditLog(
             change_order_id=change_order_id,
-            old_status="Draft",
-            new_status="Submitted for Approval",
+            old_status=ChangeOrderStatus.DRAFT.value,
+            new_status=ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
             comment=f"Submitted for approval. Impact level: {impact_level}, SLA deadline: {sla_deadline.isoformat()}",
             changed_by=actor_id,
         )
@@ -374,11 +397,22 @@ class ChangeOrderWorkflowService:
         if current_co is None:
             raise ValueError(f"Change order {change_order_id} not found")
 
+        # Separation of duties: creator cannot approve their own CO
+        if current_co.created_by == actor_id:
+            raise ValueError(
+                "Cannot approve your own change order. "
+                "Separation of duties requires a different approver."
+            )
+
         # Validate current status is "Submitted for Approval"
-        if current_co.status not in ["Submitted for Approval", "Under Review"]:
+        if current_co.status not in [
+            ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+            ChangeOrderStatus.UNDER_REVIEW.value,
+        ]:
             raise ValueError(
                 f"Cannot approve change order in status '{current_co.status}'. "
-                "Only change orders in 'Submitted for Approval' or 'Under Review' status can be approved."
+                f"Only change orders in '{ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value}' or "
+                f"'{ChangeOrderStatus.UNDER_REVIEW.value}' status can be approved."
             )
 
         # Get actor (approver) user object
@@ -394,28 +428,43 @@ class ChangeOrderWorkflowService:
         if actor is None:
             raise ValueError(f"User {actor_id} not found")
 
-        # Validate approver authority
-        approval_service = ApprovalMatrixService(db_session)
-        can_approve = await approval_service.can_approve(actor, current_co)
+        # Validate approver authority via unified RBAC
+        set_unified_rbac_session(db_session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+
+            # Check if user has permission to approve change orders
+            can_approve = await unified_rbac.has_permission(
+                user_id=actor_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=current_co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if not can_approve:
-            # Get required authority for error message (handle None case)
+            # Get required authority for detailed error message
+            from app.services.change_order_config_service import (
+                ChangeOrderConfigService,
+            )
+
+            config_service = ChangeOrderConfigService(db_session)
+            impact_authority = await config_service.get_impact_authority_mapping()
             required_authority = (
-                await approval_service.get_authority_for_impact(current_co.impact_level)
+                impact_authority.get(current_co.impact_level, "UNKNOWN")
                 if current_co.impact_level
                 else "UNKNOWN"
             )
-            user_authority = await approval_service.get_user_authority_level(actor)
             raise ValueError(
                 f"User {actor_id} does not have sufficient authority to approve "
                 f"change order with impact level '{current_co.impact_level}'. "
-                f"Required authority: {required_authority}, "
-                f"User authority: {user_authority}"
+                f"Required authority: {required_authority}"
             )
 
         # Prepare update data with comment
         update_data = {
-            "status": "Approved",
+            "status": ChangeOrderStatus.APPROVED.value,
             "comment": comments,
         }
 
@@ -437,8 +486,8 @@ class ChangeOrderWorkflowService:
         if not comments:
             audit_entry = ChangeOrderAuditLog(
                 change_order_id=change_order_id,
-                old_status="Submitted for Approval",
-                new_status="Approved",
+                old_status=ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+                new_status=ChangeOrderStatus.APPROVED.value,
                 comment=f"Approved by {actor.full_name}",
                 changed_by=actor_id,
             )
@@ -505,10 +554,14 @@ class ChangeOrderWorkflowService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         # Validate current status is "Submitted for Approval"
-        if current_co.status not in ["Submitted for Approval", "Under Review"]:
+        if current_co.status not in [
+            ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+            ChangeOrderStatus.UNDER_REVIEW.value,
+        ]:
             raise ValueError(
                 f"Cannot reject change order in status '{current_co.status}'. "
-                "Only change orders in 'Submitted for Approval' or 'Under Review' status can be rejected."
+                f"Only change orders in '{ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value}' or "
+                f"'{ChangeOrderStatus.UNDER_REVIEW.value}' status can be rejected."
             )
 
         # Get actor (approver) user object
@@ -524,28 +577,41 @@ class ChangeOrderWorkflowService:
         if actor is None:
             raise ValueError(f"User {actor_id} not found")
 
-        # Validate approver authority
-        approval_service = ApprovalMatrixService(db_session)
-        can_approve = await approval_service.can_approve(actor, current_co)
+        # Validate approver authority via unified RBAC
+        set_unified_rbac_session(db_session)
+        try:
+            unified_rbac = get_unified_rbac_service()
+            can_approve = await unified_rbac.has_permission(
+                user_id=actor_id,
+                required_permission="change-order-approve",
+                scope_type="project",
+                scope_id=current_co.project_id,
+            )
+        finally:
+            set_unified_rbac_session(None)
 
         if not can_approve:
-            # Get required authority for error message (handle None case)
+            # Get required authority for detailed error message
+            from app.services.change_order_config_service import (
+                ChangeOrderConfigService,
+            )
+
+            config_service = ChangeOrderConfigService(db_session)
+            impact_authority = await config_service.get_impact_authority_mapping()
             required_authority = (
-                await approval_service.get_authority_for_impact(current_co.impact_level)
+                impact_authority.get(current_co.impact_level, "UNKNOWN")
                 if current_co.impact_level
                 else "UNKNOWN"
             )
-            user_authority = await approval_service.get_user_authority_level(actor)
             raise ValueError(
                 f"User {actor_id} does not have sufficient authority to reject "
                 f"change order with impact level '{current_co.impact_level}'. "
-                f"Required authority: {required_authority}, "
-                f"User authority: {user_authority}"
+                f"Required authority: {required_authority}"
             )
 
         # Prepare update data - clear SLA fields and set status, include comment
         update_data = {
-            "status": "Rejected",
+            "status": ChangeOrderStatus.REJECTED.value,
             "assigned_approver_id": None,
             "sla_assigned_at": None,
             "sla_due_date": None,
@@ -571,8 +637,8 @@ class ChangeOrderWorkflowService:
         if not comments:
             audit_entry = ChangeOrderAuditLog(
                 change_order_id=change_order_id,
-                old_status="Submitted for Approval",
-                new_status="Rejected",
+                old_status=ChangeOrderStatus.SUBMITTED_FOR_APPROVAL.value,
+                new_status=ChangeOrderStatus.REJECTED.value,
                 comment=f"Rejected by {actor.full_name}",
                 changed_by=actor_id,
             )

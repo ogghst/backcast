@@ -78,7 +78,7 @@ class TestWBEBreadcrumbDuplicates:
 
         # 5. Fetch breadcrumb for L2 in MERGE mode
         breadcrumb = await wbe_service.get_breadcrumb(
-            l2_id, branch="BR-FEAT", branch_mode=BranchMode.MERGE
+            l2_id, branch="BR-FEAT", branch_mode=BranchMode.MERGED
         )
 
         # Assertions
@@ -181,7 +181,7 @@ class TestWBEBreadcrumbDuplicates:
 
         # 6. Fetch breadcrumb for L3 in MERGE mode
         breadcrumb = await wbe_service.get_breadcrumb(
-            l3_id, branch="BR-FEAT", branch_mode=BranchMode.MERGE
+            l3_id, branch="BR-FEAT", branch_mode=BranchMode.MERGED
         )
 
         # Assertions

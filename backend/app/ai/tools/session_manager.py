@@ -39,13 +39,20 @@ class ToolSessionManager:
         session from the current task context. This ensures clean session
         lifecycle management for concurrent tool executions.
 
+        CRITICAL: Always commit even if in_transaction() returns False.
+        AsyncSession may have an implicit transaction (created by first
+        SQL operation) that in_transaction() doesn't detect. Skipping
+        commit causes connection pool exhaustion as uncommitted sessions
+        accumulate.
+
         Raises:
             SQLAlchemyError: If the commit operation fails
         """
         session = tool_scoped_session_factory()
-        if session.in_transaction():
+        try:
             await session.commit()
-        await tool_scoped_session_factory.remove()
+        finally:
+            await tool_scoped_session_factory.remove()
 
     @staticmethod
     async def rollback() -> None:
@@ -55,10 +62,17 @@ class ToolSessionManager:
         session from the current task context. This ensures clean session
         lifecycle management when tool execution fails.
 
+        CRITICAL: Always rollback even if in_transaction() returns False.
+        AsyncSession may have an implicit transaction (created by first
+        SQL operation) that in_transaction() doesn't detect. Skipping
+        rollback causes connection pool exhaustion as uncommitted sessions
+        accumulate.
+
         Note:
             This is safe to call even if no transaction is active.
         """
         session = tool_scoped_session_factory()
-        if session.in_transaction():
+        try:
             await session.rollback()
-        await tool_scoped_session_factory.remove()
+        finally:
+            await tool_scoped_session_factory.remove()

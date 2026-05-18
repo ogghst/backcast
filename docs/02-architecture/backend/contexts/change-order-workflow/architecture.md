@@ -1,8 +1,8 @@
 # Change Order Workflow Validation Architecture
 
-**Last Updated:** 2026-05-09
+**Last Updated:** 2026-05-16
 **Owner:** Backend Team
-**Related ADRs:** [ADR-007: RBAC Service](../../decisions/ADR-007-rbac-service.md)
+**Related ADRs:** [ADR-014: Unified RBAC System](../../decisions/ADR-014-unified-rbac.md), [ADR-007: RBAC Service](../../decisions/ADR-007-rbac-service.md) (historical)
 
 ---
 
@@ -44,7 +44,7 @@ graph TB
     subgraph "Service Layer"
         B[ChangeOrderService]
         C[ChangeOrderWorkflowService]
-        D[ApprovalMatrixService]
+        D[UnifiedRBACService]
         E[SLAService]
         F[FinancialImpactService]
         G[ChangeOrderConfigService]
@@ -95,7 +95,7 @@ graph TB
 | Layer | Responsibility | Key Classes |
 |-------|---------------|-------------|
 | **API** | HTTP endpoints, request/response handling | `change_orders.py`, `change_order_config.py` routers |
-| **Service** | Business logic orchestration, state transitions | `ChangeOrderWorkflowService`, `ChangeOrderService`, `ChangeOrderConfigService` |
+| **Service** | Business logic orchestration, state transitions | `ChangeOrderWorkflowService`, `ChangeOrderService`, `ChangeOrderConfigService`, `UnifiedRBACService` |
 | **Validation** | Control date sequence validation | `ControlDateValidator` |
 | **Model** | Data structures, ORM mapping | `ChangeOrder`, `ChangeOrderAuditLog`, config models |
 | **Database** | Persistence, indexing, constraints | PostgreSQL with audit log, config tables |
@@ -189,6 +189,53 @@ Change Orders can only be edited in specific states:
 _EDITABLE_STATUSES: set[str] = {"Draft", "Rejected"}
 ```
 
+### Workflow Configuration Schema
+
+The workflow transitions, locking rules, and editable statuses are configurable through the `workflow_transitions` JSONB column on `co_workflow_config`. This allows organizations to customize their change approval workflows without code changes.
+
+**Schema Structure:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `transitions` | `dict[str, list[str]]` | Maps each status to a list of allowed target statuses |
+| `lock_transitions` | `list[tuple[str, str]]` | List of `[from_status, to_status]` pairs that trigger branch locking |
+| `unlock_transitions` | `list[tuple[str, str]]` | List of `[from_status, to_status]` pairs that trigger branch unlocking |
+| `editable_statuses` | `list[str]` | List of statuses where change order metadata can be modified |
+
+**Term Definitions:**
+
+- **Lock Transitions:** Determines when a change order's Git-style branch should be **locked** to prevent further modifications during critical workflow stages. Used for transitions where data should be frozen during review/approval. Example: `[["draft", "submitted_for_approval"]]` locks the branch when submitting for approval.
+
+- **Unlock Transitions:** Determines when a previously locked branch should be **released** back to an editable state. Used when a change order needs modification for resubmission. Example: `[["under_review", "rejected"]]` unlocks the branch when rejected, allowing edits.
+
+- **Editable Statuses:** Defines which workflow states allow modification of change order metadata (title, description, justification, etc.). This is separate from status transitions—read-only statuses typically represent points of no-return in the approval workflow. Example: `["draft", "rejected"]` means only draft and rejected orders are editable.
+
+**Configuration Example:**
+
+```json
+{
+  "transitions": {
+    "draft": ["submitted_for_approval"],
+    "submitted_for_approval": ["under_review", "approved", "rejected"],
+    "under_review": ["approved", "rejected"],
+    "rejected": ["draft", "submitted_for_approval"],
+    "approved": ["implemented"],
+    "implemented": []
+  },
+  "lock_transitions": [["draft", "submitted_for_approval"]],
+  "unlock_transitions": [["under_review", "rejected"]],
+  "editable_statuses": ["draft", "rejected"]
+}
+```
+
+**Implementation Notes:**
+
+- Stored as JSONB in `co_workflow_config.workflow_transitions`
+- Follows the same pattern as `impact_weights` and `score_boundaries`
+- Per-project overrides supported via `project_id` on config record
+- Fallback to hardcoded defaults when no config exists (system bootstrapping)
+- Cross-validation ensures all status references are valid according to the transitions graph
+
 ---
 
 ## Validation Rules
@@ -208,21 +255,21 @@ async def is_valid_transition(self, from_status: str, to_status: str) -> bool:
 
 ### 2. Approver Authority Validation
 
-**Rule:** Users can only approve/reject change orders if their authority level meets or exceeds the required authority for the impact level, AND they are the assigned approver for that specific change order.
+**Rule:** Users can only approve/reject change orders if their authority level meets or exceeds the required authority for the impact level, AND they are the assigned approver for that specific change order. Authority is resolved via `UnifiedRBACService.has_authority_level()`.
 
 **Authority Hierarchy:**
 ```
 CRITICAL (4) > HIGH (3) > MEDIUM (2) > LOW (1)
 ```
 
-**Role to Authority Mapping:**
+**Authority Resolution:** Authority levels are stored in `UserRoleAssignment.metadata_` as `{"authority_level": "HIGH"}` for change-order-scoped assignments. Global role-to-authority mapping:
 - `admin` role → CRITICAL authority
 - `manager` role → HIGH authority
 - `viewer` role → LOW authority
 
 **Assigned Approver Check:** The approver must match the `assigned_approver_id` on the change order. This prevents unauthorized users from approving even if they have sufficient authority level.
 
-**Implementation:** `ApprovalMatrixService.can_approve(actor, change_order)` + `ChangeOrderService` validates `co.assigned_approver_id == approver_id`
+**Implementation:** `UnifiedRBACService.has_authority_level(user_id, required_authority, scope_id)` + `ChangeOrderService` validates `co.assigned_approver_id == approver_id`
 
 ### 3. Control Date Sequence Validation
 
@@ -351,18 +398,19 @@ The `control_date` field ensures workflow operations occur in chronological orde
 | `recover_change_order()` | Admin recovery for stuck workflows |
 | `archive_change_order_branch()` | Archive implemented/rejected COs |
 
-### ApprovalMatrixService
+### UnifiedRBACService — Approval Authority
 
-**Purpose:** Approver authority validation and assignment.
+**Purpose:** Approval authority validation and permission resolution.
 
 **Key Methods:**
 
 | Method | Purpose |
 |--------|---------|
-| `get_approver_for_impact()` | Find eligible approver for impact level |
-| `can_approve()` | Validate user authority for specific CO |
-| `get_user_authority_level()` | Get user's authority level from role |
-| `get_authority_for_impact()` | Get required authority for impact level |
+| `has_authority_level()` | Check if user has sufficient authority for approval |
+| `has_permission()` | Check change-order-scoped permissions (e.g., `change-order-approve`) |
+| `get_user_roles()` | Get user's roles for a scope |
+
+> **Note:** The former `ApprovalMatrixService` was deleted in the 2026-05-16 unified RBAC cleanup. Its authority validation logic is now handled by `UnifiedRBACService` which reads authority levels from `UserRoleAssignment.metadata_`.
 
 ### SLAService
 
@@ -462,7 +510,7 @@ The `control_date` field ensures workflow operations occur in chronological orde
 
 | Service | Purpose |
 |---------|---------|
-| `ApprovalMatrixService` | Approver assignment and authority validation |
+| `UnifiedRBACService` | Approver authority validation and permission resolution |
 | `SLAService` | SLA deadline calculation (reads from config) |
 | `FinancialImpactService` | Impact level calculation (reads from config) |
 | `ChangeOrderService` | CRUD operations and version management |
@@ -499,7 +547,7 @@ The `control_date` field ensures workflow operations occur in chronological orde
 - **Workflow Validation:** `app/services/change_order_workflow_validation.py`
 - **Change Order Service:** `app/services/change_order_service.py`
 - **Config Service:** `app/services/change_order_config_service.py`
-- **Approval Matrix Service:** `app/services/approval_matrix_service.py`
+- **Unified RBAC Service:** `app/core/rbac_unified.py` — Authority level checks
 - **SLA Service:** `app/services/sla_service.py`
 - **Reporting Service:** `app/services/change_order_reporting_service.py`
 - **Financial Impact Service:** `app/services/financial_impact_service.py`
@@ -535,7 +583,8 @@ The `control_date` field ensures workflow operations occur in chronological orde
 
 ### Architecture Decisions
 
-- [ADR-007: RBAC Service](../../decisions/ADR-007-rbac-service.md) - Role-based access control
+- [ADR-014: Unified RBAC System](../../decisions/ADR-014-unified-rbac.md) - Current RBAC implementation with authority levels
+- [ADR-007: RBAC Service](../../decisions/ADR-007-rbac-service.md) - Original RBAC system (historical)
 
 ### Cross-Cutting
 

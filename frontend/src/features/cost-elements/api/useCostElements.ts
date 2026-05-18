@@ -23,17 +23,6 @@ export type CreateWithBranch = CostElementCreate & { branch?: string };
 export type UpdateWithBranch = CostElementUpdate & { branch?: string };
 
 /**
- * Map frontend branch mode to API branch mode for EVM endpoints.
- * Frontend uses "merged"/"isolated", EVM API uses "merge"/"strict".
- *
- * @param mode - Frontend mode ("merged" | "isolated")
- * @returns API branch mode ("merge" | "strict")
- */
-function mapBranchModeForEvm(mode: "merged" | "isolated"): "merge" | "strict" {
-  return mode === "merged" ? "merge" : "strict";
-}
-
-/**
  * Cost Element API parameters for filtering, pagination, and sorting.
  */
 interface CostElementListParams {
@@ -501,7 +490,7 @@ export const useCostElementEvmMetrics = (
         costElementId,
         asOf || undefined,
         branch || tmBranch || "main",
-        mapBranchModeForEvm(mode),
+        mode,
       );
     },
     enabled: !!costElementId,
@@ -537,7 +526,7 @@ export const useCostElementEvmHistory = (
         granularity,
         asOf || undefined,
         branch || tmBranch || "main",
-        mapBranchModeForEvm(mode),
+        mode,
       );
     },
     enabled: !!costElementId,

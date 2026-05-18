@@ -13,7 +13,10 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.ai import (
     AIAssistantConfig,
@@ -23,6 +26,7 @@ from app.models.domain.ai import (
     AIProvider,
 )
 from app.models.domain.user import User
+from tests.conftest import MockUnifiedRBACService
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -30,12 +34,10 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
 )
-
 
 # Mock regular user for ownership tests
 mock_regular_user = User(
@@ -43,7 +45,6 @@ mock_regular_user = User(
     user_id=uuid4(),
     email="user@example.com",
     is_active=True,
-    role="user",
     full_name="Regular User",
     hashed_password="hash",
     created_by=uuid4(),
@@ -64,37 +65,6 @@ def mock_get_current_active_admin() -> User:
 
 def mock_get_current_active_regular_user() -> User:
     return mock_regular_user
-
-
-def mock_get_rbac_service() -> RBACServiceABC:
-    return MockRBACService()
-
-
-# Mock RBAC service
-class MockRBACService(RBACServiceABC):
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["ai-chat"]
-
-    async def has_project_access(
-        self,
-        user_id,
-        user_role: str,
-        project_id,
-        required_permission: str,
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id, user_role: str):
-        return []
-
-    async def get_project_role(self, user_id, project_id):
-        return "admin"
 
 
 @pytest.fixture
@@ -120,8 +90,10 @@ def override_regular_auth() -> Generator[None, None, None]:
 @pytest.fixture(autouse=True)
 def override_rbac() -> Generator[None, None, None]:
     """Override RBAC for all tests."""
-    app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
+    set_unified_rbac_service(MockUnifiedRBACService())
     yield
+
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
 
 

@@ -399,7 +399,8 @@ class TestSupervisorGraphCreation:
     @patch("app.ai.supervisor_orchestrator.langchain_create_agent")
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
     @patch("app.ai.supervisor_orchestrator.compile_subagents")
-    def test_fallback_graph_built_when_no_specialists(
+    @pytest.mark.asyncio
+    async def test_fallback_graph_built_when_no_specialists(
         self,
         mock_compile: MagicMock,
         mock_filter_tools: MagicMock,
@@ -416,7 +417,7 @@ class TestSupervisorGraphCreation:
         )
 
         with _patch_build_middleware():
-            result = orchestrator.create_supervisor_graph(AgentConfig())
+            result = await orchestrator.create_supervisor_graph(AgentConfig())
 
         assert result is not None
         mock_compile.assert_called_once()
@@ -425,7 +426,8 @@ class TestSupervisorGraphCreation:
     @patch("app.ai.supervisor_orchestrator.langchain_create_agent")
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
     @patch("app.ai.supervisor_orchestrator.compile_subagents")
-    def test_graph_uses_custom_system_prompt(
+    @pytest.mark.asyncio
+    async def test_graph_uses_custom_system_prompt(
         self,
         mock_compile: MagicMock,
         mock_filter_tools: MagicMock,
@@ -443,7 +445,7 @@ class TestSupervisorGraphCreation:
         )
 
         with _patch_build_middleware():
-            result = orchestrator.create_supervisor_graph(AgentConfig())
+            result = await orchestrator.create_supervisor_graph(AgentConfig())
 
         assert result is not None
         call_kwargs = mock_create_agent.call_args[1]
@@ -453,7 +455,8 @@ class TestSupervisorGraphCreation:
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
     @patch("app.ai.supervisor_orchestrator.compile_subagents")
     @patch("app.ai.supervisor_orchestrator.create_all_handoff_tools")
-    def test_full_graph_compilation_with_specialists(
+    @pytest.mark.asyncio
+    async def test_full_graph_compilation_with_specialists(
         self,
         mock_handoff_tools: MagicMock,
         mock_compile: MagicMock,
@@ -490,7 +493,7 @@ class TestSupervisorGraphCreation:
         config = AgentConfig(subagents=subagent_configs)
 
         with _patch_build_middleware():
-            result = orchestrator.create_supervisor_graph(config)
+            result = await orchestrator.create_supervisor_graph(config)
 
         assert result is not None
         mock_compile.assert_called_once()
@@ -498,7 +501,8 @@ class TestSupervisorGraphCreation:
     @patch("app.ai.supervisor_orchestrator.langchain_create_agent")
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
     @patch("app.ai.supervisor_orchestrator.compile_subagents")
-    def test_default_config_used_when_none(
+    @pytest.mark.asyncio
+    async def test_default_config_used_when_none(
         self,
         mock_compile: MagicMock,
         mock_filter_tools: MagicMock,
@@ -515,7 +519,7 @@ class TestSupervisorGraphCreation:
         )
 
         with _patch_build_middleware():
-            result = orchestrator.create_supervisor_graph()
+            result = await orchestrator.create_supervisor_graph()
 
         assert result is not None
         mock_compile.assert_called_once()
@@ -524,14 +528,15 @@ class TestSupervisorGraphCreation:
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
     @patch("app.ai.supervisor_orchestrator.compile_subagents")
     @patch("app.ai.supervisor_orchestrator.create_all_handoff_tools")
-    def test_temporal_context_tool_added_when_present(
+    @pytest.mark.asyncio
+    async def test_temporal_context_tool_added_when_present(
         self,
         mock_handoff_tools: MagicMock,
         mock_compile: MagicMock,
         mock_filter_tools: MagicMock,
         mock_create_agent: MagicMock,
     ) -> None:
-        """When a get_temporal_context tool exists, it is added to supervisor tools."""
+        """When get_temporal_context is in direct_tools, it is added to supervisor."""
         temporal_tool = MagicMock()
         temporal_tool.name = "get_temporal_context"
 
@@ -549,10 +554,18 @@ class TestSupervisorGraphCreation:
         mock_handoff_tools.return_value = []
         mock_create_agent.return_value = AsyncMock()
 
+        # Create a mock main assistant config with get_temporal_context as direct tool
+        main_config = MagicMock()
+        main_config.delegation_config = {
+            "direct_tools": ["get_temporal_context"],
+            "allowed_specialists": None,
+        }
+
         context = _make_tool_context()
         orchestrator = SupervisorOrchestrator(
             model="openai:gpt-4o",
             context=context,
+            main_assistant_config=main_config,
         )
         config = AgentConfig(
             subagents=[
@@ -561,7 +574,7 @@ class TestSupervisorGraphCreation:
         )
 
         with _patch_build_middleware():
-            result = orchestrator.create_supervisor_graph(config)
+            result = await orchestrator.create_supervisor_graph(config)
 
         assert result is not None
 
@@ -575,7 +588,8 @@ class TestSupervisorGraphCreation:
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
     @patch("app.ai.supervisor_orchestrator.compile_subagents")
     @patch("app.ai.supervisor_orchestrator.create_all_handoff_tools")
-    def test_no_temporal_context_tool_when_absent(
+    @pytest.mark.asyncio
+    async def test_no_temporal_context_tool_when_absent(
         self,
         mock_handoff_tools: MagicMock,
         mock_compile: MagicMock,
@@ -609,7 +623,7 @@ class TestSupervisorGraphCreation:
         )
 
         with _patch_build_middleware():
-            orchestrator.create_supervisor_graph(config)
+            await orchestrator.create_supervisor_graph(config)
 
         supervisor_call = mock_create_agent.call_args_list[0]
         tools_passed = supervisor_call[1]["tools"]
@@ -620,7 +634,8 @@ class TestSupervisorGraphCreation:
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
     @patch("app.ai.supervisor_orchestrator.compile_subagents")
     @patch("app.ai.supervisor_orchestrator.create_all_handoff_tools")
-    def test_graph_wired_with_multiple_specialists(
+    @pytest.mark.asyncio
+    async def test_graph_wired_with_multiple_specialists(
         self,
         mock_handoff_tools: MagicMock,
         mock_compile: MagicMock,
@@ -661,7 +676,7 @@ class TestSupervisorGraphCreation:
         )
 
         with _patch_build_middleware():
-            result = orchestrator.create_supervisor_graph(config)
+            result = await orchestrator.create_supervisor_graph(config)
 
         assert result is not None
         mock_handoff_tools.assert_called_once()
@@ -730,7 +745,7 @@ class TestInitializeBriefingNode:
             mock_parent.compile.return_value = MagicMock()
             MockGraph.return_value = mock_parent
 
-            orchestrator.create_supervisor_graph(config)
+            await orchestrator.create_supervisor_graph(config)
 
         assert "initialize_briefing" in added_nodes
         init_fn = added_nodes["initialize_briefing"]
@@ -792,7 +807,7 @@ class TestInitializeBriefingNode:
             mock_parent.compile.return_value = MagicMock()
             MockGraph.return_value = mock_parent
 
-            orchestrator.create_supervisor_graph(config)
+            await orchestrator.create_supervisor_graph(config)
 
         init_fn = added_nodes["initialize_briefing"]
 
@@ -870,7 +885,7 @@ class TestInitializeBriefingNode:
             mock_parent.compile.return_value = MagicMock()
             MockGraph.return_value = mock_parent
 
-            orchestrator.create_supervisor_graph(config)
+            await orchestrator.create_supervisor_graph(config)
 
         init_fn = added_nodes["initialize_briefing"]
 
@@ -932,7 +947,7 @@ class TestInitializeBriefingNode:
             mock_parent.compile.return_value = MagicMock()
             MockGraph.return_value = mock_parent
 
-            orchestrator.create_supervisor_graph(config)
+            await orchestrator.create_supervisor_graph(config)
 
         init_fn = added_nodes["initialize_briefing"]
 
@@ -1331,7 +1346,8 @@ class TestBuildFallbackGraph:
 
     @patch("app.ai.supervisor_orchestrator.langchain_create_agent")
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
-    def test_fallback_uses_default_prompt_when_none(
+    @pytest.mark.asyncio
+    async def test_fallback_uses_default_prompt_when_none(
         self,
         mock_filter: MagicMock,
         mock_create_agent: MagicMock,
@@ -1350,7 +1366,7 @@ class TestBuildFallbackGraph:
             patch("app.ai.supervisor_orchestrator.compile_subagents", return_value=[]),
             _patch_build_middleware(),
         ):
-            orchestrator.create_supervisor_graph(config)
+            await orchestrator.create_supervisor_graph(config)
 
         mock_create_agent.assert_called_once()
         call_kwargs = mock_create_agent.call_args[1]
@@ -1358,7 +1374,8 @@ class TestBuildFallbackGraph:
 
     @patch("app.ai.supervisor_orchestrator.langchain_create_agent")
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
-    def test_fallback_uses_custom_prompt(
+    @pytest.mark.asyncio
+    async def test_fallback_uses_custom_prompt(
         self,
         mock_filter: MagicMock,
         mock_create_agent: MagicMock,
@@ -1378,14 +1395,15 @@ class TestBuildFallbackGraph:
             patch("app.ai.supervisor_orchestrator.compile_subagents", return_value=[]),
             _patch_build_middleware(),
         ):
-            orchestrator.create_supervisor_graph(config)
+            await orchestrator.create_supervisor_graph(config)
 
         call_kwargs = mock_create_agent.call_args[1]
         assert "My custom fallback prompt" in call_kwargs["system_prompt"]
 
     @patch("app.ai.supervisor_orchestrator.langchain_create_agent")
     @patch("app.ai.supervisor_orchestrator.filter_tools_for_context")
-    def test_fallback_passes_all_tools_directly(
+    @pytest.mark.asyncio
+    async def test_fallback_passes_all_tools_directly(
         self,
         mock_filter: MagicMock,
         mock_create_agent: MagicMock,
@@ -1410,7 +1428,7 @@ class TestBuildFallbackGraph:
             patch("app.ai.supervisor_orchestrator.compile_subagents", return_value=[]),
             _patch_build_middleware(),
         ):
-            orchestrator.create_supervisor_graph(config)
+            await orchestrator.create_supervisor_graph(config)
 
         call_kwargs = mock_create_agent.call_args[1]
         assert call_kwargs["tools"] == [tool_a, tool_b]

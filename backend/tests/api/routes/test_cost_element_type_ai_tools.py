@@ -9,6 +9,7 @@ Tests the 5 Cost Element Type AI CRUD tools following TDD methodology:
 """
 
 from collections.abc import Generator
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -26,7 +27,10 @@ from app.ai.tools.templates.cost_element_template import (
 )
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, set_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.main import app
 from app.models.domain.department import Department
 from app.models.domain.user import User
@@ -36,6 +40,11 @@ from app.models.schemas.cost_element_type import (
 from app.models.schemas.department import DepartmentCreate
 from app.services.cost_element_type_service import CostElementTypeService
 from app.services.department import DepartmentService
+from tests.conftest import MockUnifiedRBACService
+
+# Patch target for overriding ToolContext.session to use the test db_session
+# instead of creating a task-scoped session from the production engine.
+_GET_TOOL_SESSION_PATCH = "app.db.session.get_tool_session"
 
 # Mock admin user for auth
 mock_admin_user = User(
@@ -43,7 +52,6 @@ mock_admin_user = User(
     user_id=uuid4(),
     email="admin@example.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
     created_by=uuid4(),
@@ -58,43 +66,18 @@ def mock_get_current_active_user() -> User:
     return mock_admin_user
 
 
-class MockRBACService(RBACServiceABC):
-    """Mock RBAC service for API tests."""
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True  # Admin has all roles
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True  # Admin has all permissions
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["*"]
-
-    def has_project_access(self, user_id: str, project_id: str) -> bool:
-        return True  # Admin has access to all projects
-
-    def get_user_projects(self, user_id: str) -> list[str]:
-        return []  # No specific projects for admin
-
-    def get_project_role(self, user_id: str, project_id: str) -> str | None:
-        return "admin"  # Admin has admin role on all projects
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
-    # Set up mock RBAC service
-    mock_rbac = MockRBACService()
-    set_rbac_service(mock_rbac)
+    set_unified_rbac_service(MockUnifiedRBACService())
 
     yield
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-    # Reset RBAC service to prevent test pollution
-    set_rbac_service(None)
 
 
 @pytest_asyncio.fixture
@@ -219,11 +202,12 @@ async def test_list_cost_element_types_returns_dict_with_simple_types(
     )
 
     # Call the tool via ainvoke (LangChain BaseTool pattern)
-    result = await list_cost_element_types.ainvoke(
-        {
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await list_cost_element_types.ainvoke(
+            {
+                "context": context,
+            }
+        )
 
     # Verify result structure
     assert "cost_element_types" in result
@@ -265,12 +249,13 @@ async def test_list_cost_element_types_with_department_filter(
     )
 
     # Test filtering by department
-    result = await list_cost_element_types.ainvoke(
-        {
-            "department_id": str(test_department.department_id),
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await list_cost_element_types.ainvoke(
+            {
+                "department_id": str(test_department.department_id),
+                "context": context,
+            }
+        )
 
     assert "error" not in result
     assert result["total"] >= 1
@@ -301,12 +286,13 @@ async def test_list_cost_element_types_with_search(
     )
 
     # Test search
-    result = await list_cost_element_types.ainvoke(
-        {
-            "search": "Equip",
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await list_cost_element_types.ainvoke(
+            {
+                "search": "Equip",
+                "context": context,
+            }
+        )
 
     assert "error" not in result
     # Should find the "Equipment" type
@@ -336,12 +322,13 @@ async def test_get_cost_element_type_returns_dict_with_simple_types(
     )
 
     # Call the tool via ainvoke
-    result = await get_cost_element_type.ainvoke(
-        {
-            "cost_element_type_id": str(created_type.cost_element_type_id),
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await get_cost_element_type.ainvoke(
+            {
+                "cost_element_type_id": str(created_type.cost_element_type_id),
+                "context": context,
+            }
+        )
 
     # Verify result structure and AI-friendly format
     assert "error" not in result
@@ -365,12 +352,13 @@ async def test_get_cost_element_type_not_found_error(db_session: AsyncSession) -
 
     # Call with non-existent ID
     fake_id = str(uuid4())
-    result = await get_cost_element_type.ainvoke(
-        {
-            "cost_element_type_id": fake_id,
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await get_cost_element_type.ainvoke(
+            {
+                "cost_element_type_id": fake_id,
+                "context": context,
+            }
+        )
 
     # Verify error response
     assert "error" in result
@@ -390,15 +378,16 @@ async def test_create_cost_element_type_success(
     )
 
     # Call the tool via ainvoke
-    result = await create_cost_element_type.ainvoke(
-        {
-            "code": "TEST",
-            "name": "Test Type",
-            "description": "Test cost element type",
-            "department_id": str(test_department.department_id),
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await create_cost_element_type.ainvoke(
+            {
+                "code": "TEST",
+                "name": "Test Type",
+                "description": "Test cost element type",
+                "department_id": str(test_department.department_id),
+                "context": context,
+            }
+        )
 
     # Verify result structure and AI-friendly format
     assert "error" not in result
@@ -424,14 +413,15 @@ async def test_create_cost_element_type_invalid_department_error(
 
     # Call with non-existent department
     fake_dept_id = str(uuid4())
-    result = await create_cost_element_type.ainvoke(
-        {
-            "code": "TEST",
-            "name": "Test Type",
-            "department_id": fake_dept_id,
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await create_cost_element_type.ainvoke(
+            {
+                "code": "TEST",
+                "name": "Test Type",
+                "department_id": fake_dept_id,
+                "context": context,
+            }
+        )
 
     # Verify error response
     assert "error" in result
@@ -460,14 +450,15 @@ async def test_update_cost_element_type_success(
     )
 
     # Call the tool to update via ainvoke
-    result = await update_cost_element_type.ainvoke(
-        {
-            "cost_element_type_id": str(created_type.cost_element_type_id),
-            "name": "Updated Name",
-            "description": "Updated description",
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await update_cost_element_type.ainvoke(
+            {
+                "cost_element_type_id": str(created_type.cost_element_type_id),
+                "name": "Updated Name",
+                "description": "Updated description",
+                "context": context,
+            }
+        )
 
     # Verify result structure and AI-friendly format
     assert "error" not in result
@@ -490,13 +481,14 @@ async def test_update_cost_element_type_not_found_error(
 
     # Call with non-existent ID
     fake_id = str(uuid4())
-    result = await update_cost_element_type.ainvoke(
-        {
-            "cost_element_type_id": fake_id,
-            "name": "Updated Name",
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await update_cost_element_type.ainvoke(
+            {
+                "cost_element_type_id": fake_id,
+                "name": "Updated Name",
+                "context": context,
+            }
+        )
 
     # Verify error response
     assert "error" in result
@@ -525,12 +517,13 @@ async def test_delete_cost_element_type_success(
     )
 
     # Call the tool to delete via ainvoke
-    result = await delete_cost_element_type.ainvoke(
-        {
-            "cost_element_type_id": str(created_type.cost_element_type_id),
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await delete_cost_element_type.ainvoke(
+            {
+                "cost_element_type_id": str(created_type.cost_element_type_id),
+                "context": context,
+            }
+        )
 
     # Verify deletion response
     assert "error" not in result
@@ -556,12 +549,13 @@ async def test_delete_cost_element_type_not_found_error(
 
     # Call with non-existent ID
     fake_id = str(uuid4())
-    result = await delete_cost_element_type.ainvoke(
-        {
-            "cost_element_type_id": fake_id,
-            "context": context,
-        }
-    )
+    with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
+        result = await delete_cost_element_type.ainvoke(
+            {
+                "cost_element_type_id": fake_id,
+                "context": context,
+            }
+        )
 
     # Verify error response
     assert "error" in result

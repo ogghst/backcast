@@ -30,7 +30,6 @@ def admin_user() -> User:
         user_id=uuid4(),
         email="admin@example.com",
         is_active=True,
-        role="admin",
         full_name="Admin User",
         hashed_password="hash",
         created_by=uuid4(),

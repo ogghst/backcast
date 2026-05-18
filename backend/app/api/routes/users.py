@@ -3,12 +3,14 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import (
     RoleChecker,
     get_current_active_user,
     get_user_service,
 )
+from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.preference import (
     UserPreferenceResponse,
@@ -18,6 +20,21 @@ from app.models.schemas.user import UserHistory, UserPublic, UserRegister, UserU
 from app.services.user import UserService
 
 router = APIRouter()
+
+
+async def _is_admin(user_id: UUID, session: AsyncSession) -> bool:
+    """Check if a user has the admin role via unified RBAC."""
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_session,
+    )
+
+    try:
+        set_unified_rbac_session(session)
+        roles = await get_unified_rbac_service().get_user_roles(user_id, "global", None)
+        return "admin" in roles
+    finally:
+        set_unified_rbac_session(None)
 
 
 @router.get(
@@ -30,12 +47,14 @@ async def read_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1),
     service: UserService = Depends(get_user_service),
-) -> Sequence[User]:
+    session: AsyncSession = Depends(get_db),
+) -> list[UserPublic]:
     """
     Retrieve users.
     Only Admins can list all users.
     """
-    return await service.get_users(skip=skip, limit=limit)
+    users = await service.get_users(skip=skip, limit=limit)
+    return [await UserPublic.from_user_async(u, session) for u in users]
 
 
 @router.post(
@@ -49,16 +68,15 @@ async def create_user(
     user_in: UserRegister,
     current_user: User = Depends(get_current_active_user),
     service: UserService = Depends(get_user_service),
-) -> User:
+    session: AsyncSession = Depends(get_db),
+) -> UserPublic:
     """
     Create a new user.
     Admin only.
     """
     try:
-        # Pass Pydantic model directly to service
-        # Service handles hashing and dictionary conversion
         user = await service.create_user(user_in=user_in, actor_id=current_user.user_id)
-        return user
+        return await UserPublic.from_user_async(user, session)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -123,17 +141,21 @@ async def update_my_preferences(
     dependencies=[Depends(RoleChecker(required_permission="user-read"))],
 )
 async def read_user(
-    user_id: UUID,  # This fetches by version ID (PK)
+    user_id: UUID,
     current_user: User = Depends(get_current_active_user),
     service: UserService = Depends(get_user_service),
-) -> User:
+    session: AsyncSession = Depends(get_db),
+) -> UserPublic:
     """
     Get a specific user by id.
     Admin can get any user. Users can only get themselves.
     Requires read permission.
     """
     # Additional authorization: non-admins can only read themselves
-    if current_user.role != "admin" and current_user.user_id != user_id:
+    if (
+        not await _is_admin(current_user.user_id, session)
+        and current_user.user_id != user_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this user",
@@ -145,7 +167,7 @@ async def read_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    return user
+    return await UserPublic.from_user_async(user, session)
 
 
 @router.put(
@@ -159,14 +181,18 @@ async def update_user(
     user_in: UserUpdate,
     current_user: User = Depends(get_current_active_user),
     service: UserService = Depends(get_user_service),
-) -> User:
+    session: AsyncSession = Depends(get_db),
+) -> UserPublic:
     """
     Update a user.
     Admin can update any user. Users can only update themselves.
     Requires update permission.
     """
     # Additional authorization: non-admins can only update themselves
-    if current_user.role != "admin" and current_user.user_id != user_id:
+    if (
+        not await _is_admin(current_user.user_id, session)
+        and current_user.user_id != user_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this user",
@@ -176,7 +202,7 @@ async def update_user(
         updated_user = await service.update_user(
             user_id=user_id, user_in=user_in, actor_id=current_user.user_id
         )
-        return updated_user
+        return await UserPublic.from_user_async(updated_user, session)
     except ValueError as e:  # Entity not found or version conflict
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -218,6 +244,7 @@ async def get_user_history(
     user_id: UUID,
     current_user: User = Depends(get_current_active_user),
     service: UserService = Depends(get_user_service),
+    session: AsyncSession = Depends(get_db),
 ) -> Sequence[User]:
     """
     Get version history for a user.
@@ -225,7 +252,10 @@ async def get_user_history(
     Requires read permission.
     """
     # Additional authorization: non-admins can only view their own history
-    if current_user.role != "admin" and current_user.user_id != user_id:
+    if (
+        not await _is_admin(current_user.user_id, session)
+        and current_user.user_id != user_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this user's history",

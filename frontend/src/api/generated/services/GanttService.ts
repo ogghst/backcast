@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchMode } from '../models/BranchMode';
 import type { GanttDataResponse } from '../models/GanttDataResponse';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
@@ -15,7 +16,7 @@ export class GanttService {
      * filtered by branch, mode, and optional time-travel timestamp.
      * @param projectId
      * @param branch Branch to query
-     * @param mode Branch mode: merged or isolated
+     * @param branchMode Branch mode: merged or isolated
      * @param asOf Time travel: get data as of this timestamp (ISO 8601)
      * @returns GanttDataResponse Successful Response
      * @throws ApiError
@@ -23,7 +24,7 @@ export class GanttService {
     public static getProjectGanttData(
         projectId: string,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<GanttDataResponse> {
         return __request(OpenAPI, {
@@ -34,7 +35,7 @@ export class GanttService {
             },
             query: {
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'as_of': asOf,
             },
             errors: {

@@ -1,12 +1,16 @@
 # Deep Agent Orchestrator: Task-Based Delegation
 
+> **ARCHIVED:** This orchestrator pattern has been removed. The system now uses only the [Supervisor Orchestrator](./supervisor-orchestrator.md) with DB-configurable specialists and direct tool access for main agents. See the [unified agent config iteration](../../03-project-plan/iterations/2026-05-16-unified-agent-config/) for details.
+>
+> This document is retained for historical reference only.
+
 The task-based orchestration pattern where a main agent delegates Backcast operations to isolated subagents via a `task` tool. Each subagent runs in its own context window with no access to the parent conversation.
 
 > **Prerequisite:** This document assumes familiarity with [Agent System: Common Concepts](./agent-common-concepts.md).
 >
 > **Related Documentation:**
 > - [Agent System: Common Concepts](./agent-common-concepts.md) — shared infrastructure, tools, middleware, event bus
-> - [Supervisor Orchestrator](./supervisor-orchestrator.md) — handoff-based delegation with shared state
+> - [Supervisor Orchestrator](./supervisor-orchestrator.md) — handoff-based delegation with shared state (current production orchestrator)
 
 ---
 

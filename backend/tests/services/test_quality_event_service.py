@@ -12,6 +12,54 @@ from app.models.schemas.quality_event import QualityEventCreate, QualityEventUpd
 from app.services.quality_event_service import QualityEventService
 
 
+async def create_test_department(db_session: AsyncSession):
+    """Create a test department with proper temporal fields."""
+    dept_id = uuid4()
+    stmt = text("""
+        INSERT INTO departments (id, department_id, code, name, is_active, valid_time, transaction_time, created_by)
+        VALUES (:id, :department_id, :code, :name, true, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
+        RETURNING department_id
+    """)
+    result = await db_session.execute(
+        stmt,
+        {
+            "id": uuid4(),
+            "department_id": str(dept_id),
+            "code": "ENG",
+            "name": "Engineering",
+            "now": datetime.now(UTC),
+            "created_by": str(uuid4()),
+        },
+    )
+    return result.scalar_one()
+
+
+async def create_test_cost_element_type(
+    db_session: AsyncSession,
+    department_id,
+):
+    """Create a test cost element type with proper temporal fields."""
+    type_id = uuid4()
+    stmt = text("""
+        INSERT INTO cost_element_types (id, cost_element_type_id, department_id, code, name, valid_time, transaction_time, created_by)
+        VALUES (:id, :cost_element_type_id, :department_id, :code, :name, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
+        RETURNING cost_element_type_id
+    """)
+    result = await db_session.execute(
+        stmt,
+        {
+            "id": uuid4(),
+            "cost_element_type_id": str(type_id),
+            "department_id": str(department_id),
+            "code": "TEST-TYPE",
+            "name": "Test Cost Element Type",
+            "now": datetime.now(UTC),
+            "created_by": str(uuid4()),
+        },
+    )
+    return result.scalar_one()
+
+
 async def create_test_project(db_session: AsyncSession, admin_user, project_id: uuid4):
     """Create a test project with proper temporal fields."""
     stmt = text("""
@@ -26,7 +74,7 @@ async def create_test_project(db_session: AsyncSession, admin_user, project_id: 
             "project_id": str(project_id),
             "name": "Test Project",
             "code": "TEST-PROJ",
-            "status": "Active",
+            "status": "active",
             "branch": "main",
             "now": datetime.now(UTC),
             "created_by": str(admin_user.id),
@@ -62,12 +110,16 @@ async def create_test_wbe(
 
 
 async def create_test_cost_element(
-    db_session: AsyncSession, admin_user, cost_element_id: uuid4, wbe_id: uuid4
+    db_session: AsyncSession,
+    admin_user,
+    cost_element_id: uuid4,
+    wbe_id: uuid4,
+    cost_element_type_id,
 ):
     """Create a test cost element with proper temporal fields."""
     stmt = text("""
-        INSERT INTO cost_elements (id, cost_element_id, wbe_id, name, budget_amount, branch, valid_time, transaction_time, created_by)
-        VALUES (:id, :cost_element_id, :wbe_id, :name, :budget_amount, :branch, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
+        INSERT INTO cost_elements (id, cost_element_id, wbe_id, cost_element_type_id, code, name, budget_amount, branch, valid_time, transaction_time, created_by)
+        VALUES (:id, :cost_element_id, :wbe_id, :cost_element_type_id, :code, :name, :budget_amount, :branch, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
         RETURNING id
     """)
     result = await db_session.execute(
@@ -76,6 +128,8 @@ async def create_test_cost_element(
             "id": uuid4(),
             "cost_element_id": str(cost_element_id),
             "wbe_id": str(wbe_id),
+            "cost_element_type_id": str(cost_element_type_id),
+            "code": "TEST-CE",
             "name": "Test Cost Element",
             "budget_amount": Decimal("10000.00"),
             "branch": "main",
@@ -98,7 +152,11 @@ async def test_create_quality_event(db_session: AsyncSession, admin_user):
     # Create test hierarchy
     await create_test_project(db_session, admin_user, project_id)
     await create_test_wbe(db_session, admin_user, wbe_id, project_id)
-    await create_test_cost_element(db_session, admin_user, cost_element_id, wbe_id)
+    _dept_id = await create_test_department(db_session)
+    _ce_type_id = await create_test_cost_element_type(db_session, _dept_id)
+    await create_test_cost_element(
+        db_session, admin_user, cost_element_id, wbe_id, _ce_type_id
+    )
     await db_session.flush()
 
     event_in = QualityEventCreate(
@@ -141,7 +199,11 @@ async def test_update_quality_event(db_session: AsyncSession, admin_user):
     # Create test hierarchy
     await create_test_project(db_session, admin_user, project_id)
     await create_test_wbe(db_session, admin_user, wbe_id, project_id)
-    await create_test_cost_element(db_session, admin_user, cost_element_id, wbe_id)
+    _dept_id = await create_test_department(db_session)
+    _ce_type_id = await create_test_cost_element_type(db_session, _dept_id)
+    await create_test_cost_element(
+        db_session, admin_user, cost_element_id, wbe_id, _ce_type_id
+    )
     await db_session.flush()
 
     # Create initial event
@@ -169,7 +231,7 @@ async def test_update_quality_event(db_session: AsyncSession, admin_user):
 
     updated = await service.update_quality_event(
         quality_event_id=quality_event_id,
-        registration_in=update_data,
+        event_in=update_data,
         actor_id=admin_user.id,
     )
 
@@ -191,7 +253,11 @@ async def test_soft_delete_quality_event(db_session: AsyncSession, admin_user):
     # Create test hierarchy
     await create_test_project(db_session, admin_user, project_id)
     await create_test_wbe(db_session, admin_user, wbe_id, project_id)
-    await create_test_cost_element(db_session, admin_user, cost_element_id, wbe_id)
+    _dept_id = await create_test_department(db_session)
+    _ce_type_id = await create_test_cost_element_type(db_session, _dept_id)
+    await create_test_cost_element(
+        db_session, admin_user, cost_element_id, wbe_id, _ce_type_id
+    )
     await db_session.flush()
 
     # Create event
@@ -231,7 +297,11 @@ async def test_get_quality_events(db_session: AsyncSession, admin_user):
     # Create test hierarchy
     await create_test_project(db_session, admin_user, project_id)
     await create_test_wbe(db_session, admin_user, wbe_id, project_id)
-    await create_test_cost_element(db_session, admin_user, cost_element_id, wbe_id)
+    _dept_id = await create_test_department(db_session)
+    _ce_type_id = await create_test_cost_element_type(db_session, _dept_id)
+    await create_test_cost_element(
+        db_session, admin_user, cost_element_id, wbe_id, _ce_type_id
+    )
     await db_session.flush()
 
     # Create multiple events
@@ -271,7 +341,11 @@ async def test_get_total_for_cost_element(db_session: AsyncSession, admin_user):
     # Create test hierarchy
     await create_test_project(db_session, admin_user, project_id)
     await create_test_wbe(db_session, admin_user, wbe_id, project_id)
-    await create_test_cost_element(db_session, admin_user, cost_element_id, wbe_id)
+    _dept_id = await create_test_department(db_session)
+    _ce_type_id = await create_test_cost_element_type(db_session, _dept_id)
+    await create_test_cost_element(
+        db_session, admin_user, cost_element_id, wbe_id, _ce_type_id
+    )
     await db_session.flush()
 
     # Create events with known costs
@@ -306,7 +380,11 @@ async def test_get_quality_events_by_period(db_session: AsyncSession, admin_user
     # Create test hierarchy
     await create_test_project(db_session, admin_user, project_id)
     await create_test_wbe(db_session, admin_user, wbe_id, project_id)
-    await create_test_cost_element(db_session, admin_user, cost_element_id, wbe_id)
+    _dept_id = await create_test_department(db_session)
+    _ce_type_id = await create_test_cost_element_type(db_session, _dept_id)
+    await create_test_cost_element(
+        db_session, admin_user, cost_element_id, wbe_id, _ce_type_id
+    )
     await db_session.flush()
 
     # Create events on different dates
@@ -334,7 +412,9 @@ async def test_get_quality_events_by_period(db_session: AsyncSession, admin_user
     )
 
     assert len(result) == 3
-    assert all("period_start" in item and "total_amount" in item for item in result)
+    assert all(
+        "period_start" in item and "total_cost_impact" in item for item in result
+    )
 
 
 @pytest.mark.asyncio
@@ -350,7 +430,11 @@ async def test_time_travel_query(db_session: AsyncSession, admin_user):
     # Create test hierarchy
     await create_test_project(db_session, admin_user, project_id)
     await create_test_wbe(db_session, admin_user, wbe_id, project_id)
-    await create_test_cost_element(db_session, admin_user, cost_element_id, wbe_id)
+    _dept_id = await create_test_department(db_session)
+    _ce_type_id = await create_test_cost_element_type(db_session, _dept_id)
+    await create_test_cost_element(
+        db_session, admin_user, cost_element_id, wbe_id, _ce_type_id
+    )
     await db_session.flush()
 
     # Create event
@@ -376,7 +460,7 @@ async def test_time_travel_query(db_session: AsyncSession, admin_user):
 
     await service.update_quality_event(
         quality_event_id=quality_event_id,
-        registration_in=update_data,
+        event_in=update_data,
         actor_id=admin_user.id,
     )
 

@@ -1,21 +1,21 @@
 # Authentication & Authorization Architecture
 
-**Last Updated:** 2026-01-04  
-**Owner:** Backend Team  
+**Last Updated:** 2026-05-16
+**Owner:** Backend Team
 **ADRs:**
-
-- [ADR-007: RBAC Service Design](../../decisions/ADR-007-rbac-service.md)
+- [ADR-014: Unified RBAC System](../../decisions/ADR-014-unified-rbac.md) (current implementation)
+- [ADR-007: RBAC Service Design](../../decisions/ADR-007-rbac-service.md) (historical context)
 
 ---
 
 ## Responsibility
 
-The Authentication & Authorization (Auth) context provides secure user identity verification and fine-grained access control for the Backcast  system. It enables:
+The Authentication & Authorization (Auth) context provides secure user identity verification and fine-grained access control for the Backcast system. It enables:
 
 - **User Authentication:** JWT-based token generation and validation
-- **Role-Based Access Control (RBAC):** Permission management with resource-specific granularity
+- **Unified RBAC:** Single coherent authorization system with scoped role assignments
 - **Declarative Authorization:** FastAPI dependency injection for route protection
-- **Extensible Design:** Abstract interface allowing multiple RBAC backends (JSON, database, external services)
+- **Scoped Permissions:** Global, project, and change_order level access control
 
 ---
 
@@ -28,52 +28,59 @@ graph TB
     subgraph "API Layer"
         A[Auth Routes /auth/*]
         B[Protected Routes]
+        C[Role Assignments API /role-assignments/*]
     end
 
     subgraph "Dependencies Layer"
-        C[get_current_user]
-        D[get_current_active_user]
-        E[RoleChecker]
+        D[get_current_user]
+        E[get_current_active_user]
+        F[RoleChecker - global]
+        G[ProjectRoleChecker - project scoped]
     end
 
     subgraph "Service Layer"
-        F[AuthService]
-        G[UserService]
-        H[RBACService]
+        H[AuthService]
+        I[UserService]
+        J[UnifiedRBACService]
     end
 
     subgraph "Core Security"
-        I[JWT Token Utils]
-        J[Password Hashing]
+        K[JWT Token Utils]
+        L[Password Hashing]
     end
 
     subgraph "Model Layer"
-        K[User Model]
-        L[RBAC Config]
+        M[User Model]
+        N[UserRoleAssignment]
+        O[RBACRole / RBACRolePermission]
     end
 
-    A --> C
-    B --> E
-    E --> C
-    E --> H
-    C --> I
-    C --> G
-    F --> I
+    A --> D
+    B --> F
+    B --> G
     F --> J
-    F --> G
+    G --> J
+    C --> J
+    D --> K
+    D --> I
+    E --> D
+    H --> K
     H --> L
-    G --> K
+    H --> I
+    J --> O
+    J --> N
+    I --> M
 ```
 
 ### Layer Responsibilities
 
 | Layer            | Responsibility                            | Key Components                                            |
 | ---------------- | ----------------------------------------- | --------------------------------------------------------- |
-| **API**          | HTTP endpoints for auth operations        | `/auth/register`, `/auth/login`, `/auth/me`               |
-| **Dependencies** | Reusable auth/authz checks                | `get_current_user`, `RoleChecker`                         |
-| **Service**      | Business logic for auth & user management | `AuthService`, `UserService`, `RBACServiceABC`            |
+| **API**          | HTTP endpoints for auth operations        | `/auth/register`, `/auth/login`, `/auth/me`, `/role-assignments/*` |
+| **Dependencies** | Reusable auth/authz checks                | `get_current_user`, `RoleChecker`, `ProjectRoleChecker`   |
+| **Service**      | Business logic for auth & RBAC             | `AuthService`, `UserService`, `UnifiedRBACService`         |
 | **Core**         | Cryptographic operations                  | `create_access_token`, `verify_password`, `hash_password` |
-| **Model**        | Data structures                           | `User`, `Token`, `rbac.json`                              |
+| **Model**        | Data structures                           | `User`, `UserRoleAssignment`, `RBACRole`, `RBACRolePermission` |
 
 ---
 
@@ -101,7 +108,7 @@ sequenceDiagram
 **Key Points:**
 
 - Password hashing performed in `UserService` layer
-- Default role: `viewer`
+- Default role: `viewer` (via global UserRoleAssignment)
 - Actor ID for registration: system UUID (`00000000-0000-0000-0000-000000000000`)
 
 ### 2. User Login
@@ -172,136 +179,235 @@ sequenceDiagram
 
 ---
 
-## Authorization (RBAC) Flow
+## Authorization (Unified RBAC) Flow
 
 ### Architecture
 
-The RBAC system follows an **abstract interface + concrete implementation** pattern:
+The RBAC system follows a **unified service pattern with scoped role assignments**:
 
 ```mermaid
 classDiagram
-    class RBACServiceABC {
-        <<abstract>>
-        +has_role(user_role, required_roles) bool
-        +has_permission(user_role, permission) bool
-        +get_user_permissions(user_role) list[str]
+    class UnifiedRBACService {
+        <<service>>
+        -_permissions_cache: dict
+        -_assignment_cache: dict
+        +has_permission(user_id, permission, scope_type, scope_id) bool
+        +get_user_roles(user_id, scope_type, scope_id) list[str]
+        +assign_role(user_id, role_id, scope_type, scope_id, ...) UserRoleAssignment
+        +revoke_role(user_id, scope_type, scope_id) bool
+        +has_authority_level(user_id, required_authority, scope_id) bool
+        +refresh_permissions_cache() None
     }
 
-    class JsonRBACService {
-        -config_path: Path
-        -_config: dict
-        +_load_config() dict
-        +has_role() bool
-        +has_permission() bool
-        +get_user_permissions() list[str]
+    class UserRoleAssignment {
+        <<entity>>
+        +id: UUID
+        +user_id: UUID
+        +role_id: UUID
+        +scope_type: ScopeType
+        +scope_id: UUID | None
+        +metadata_: JSONB
+        +granted_by: UUID
+        +granted_at: datetime
+        +expires_at: datetime | None
+    }
+
+    class RBACRole {
+        <<entity>>
+        +id: UUID
+        +name: str
+        +description: str
+        +is_system: bool
+    }
+
+    class RBACRolePermission {
+        <<entity>>
+        +id: UUID
+        +role_id: UUID
+        +permission: str
     }
 
     class RoleChecker {
+        <<dependency>>
         -allowed_roles: list[str] | None
         -required_permission: str | None
-        +__call__(current_user, rbac_service) User
+        +__call__(current_user, session) User
     }
 
-    RBACServiceABC <|-- JsonRBACService : implements
-    RoleChecker --> RBACServiceABC : depends on
+    class ProjectRoleChecker {
+        <<dependency>>
+        -required_permission: str
+        +__call__(project_id, current_user, session) User
+    }
+
+    UnifiedRBACService --> UserRoleAssignment : queries
+    UnifiedRBACService --> RBACRole : queries
+    UnifiedRBACService --> RBACRolePermission : queries
+    RoleChecker --> UnifiedRBACService : delegates
+    ProjectRoleChecker --> UnifiedRBACService : delegates
+    UserRoleAssignment --> RBACRole : FK
+    RBACRole --> RBACRolePermission : 1:N
 ```
+
+### Scope Types
+
+**Three Scope Levels:**
+
+1. **GLOBAL** (`ScopeType.GLOBAL`): System-wide roles
+   - Replaces the old `User.role` field
+   - Admin users have global access to all resources
+   - `scope_id` is NULL
+
+2. **PROJECT** (`ScopeType.PROJECT`): Project-scoped roles
+   - Replaces the old `ProjectMember` entity
+   - Users can have different roles on different projects
+   - `scope_id` is the project UUID
+
+3. **CHANGE_ORDER** (`ScopeType.CHANGE_ORDER`): Change order scoped roles
+   - Replaces the old `ApprovalMatrixService`
+   - Approvers can have authority levels per change order
+   - `scope_id` is the change order UUID
+   - Authority levels stored in `metadata_`: `{"authority_level": "HIGH"}`
 
 ### Permission Model
 
 **Resource-Specific Permissions** - Format: `{resource}-{action}`
 
+**Example Permissions:**
 ```json
 {
-  "roles": {
-    "admin": {
-      "permissions": [
-        "user-read",
-        "user-create",
-        "user-update",
-        "user-delete",
-        "department-read",
-        "department-create",
-        "department-update",
-        "department-delete"
-      ]
-    },
-    "manager": {
-      "permissions": [
-        "user-read",
-        "user-update",
-        "department-read",
-        "department-create",
-        "department-update"
-      ]
-    },
-    "viewer": {
-      "permissions": ["user-read", "department-read"]
-    }
+  "admin": {
+    "permissions": [
+      "user-read", "user-create", "user-update", "user-delete",
+      "project-read", "project-create", "project-update", "project-delete",
+      "change-order-approve", "change-order-escalate",
+      "ai-config-read", "ai-config-write", "ai-chat",
+      "mcp-tool-execute", "dashboard-template-update"
+      // ... 76 total permissions
+    ]
+  },
+  "manager": {
+    "permissions": [
+      "user-read", "user-update",
+      "project-read", "project-create", "project-update",
+      "change-order-read", "change-order-create", "change-order-approve",
+      "ai-chat", "evm-create", "evm-update"
+      // ... 46 total permissions
+    ]
+  },
+  "viewer": {
+    "permissions": [
+      "project-read", "change-order-read", "evm-read"
+      // ... 11 total permissions
+    ]
   }
 }
 ```
 
-**Benefits:**
+**Specialized Roles:**
+- **ai-viewer**: Read-only AI assistant access (14 permissions)
+- **ai-manager**: Full AI CRUD access (37 permissions)
+- **ai-admin**: AI system management (13 permissions)
+- **change_order_approver**: Change order approval with authority levels (7 permissions)
 
-- **Granular Control:** Separate read/write access per resource
-- **Resource Isolation:** Can grant user access without department access
-- **Scalability:** Easy to add new resources with independent permissions
-- **Audit Clarity:** Clear understanding of what each permission grants
+### Permission Resolution
 
-### RoleChecker Dependency
+**Resolution Order:**
 
-The `RoleChecker` provides **three authorization modes**:
+1. Check global roles (always checked first)
+2. Admin role bypasses all checks
+3. Check scoped roles if not global scope
+4. Return True if any role has the permission
 
-#### 1. Role-Only Authorization
+**Example:**
+```python
+# User has:
+# - Global: "viewer" role
+# - Project A: "manager" role
+# - Change Order 123: "change_order_approver" with authority="HIGH"
+
+# Checks:
+await service.has_permission(user_id, "project-update", ScopeType.PROJECT, project_a_id)
+# → True (manager role on Project A has project-update)
+
+await service.has_permission(user_id, "user-delete", ScopeType.GLOBAL, None)
+# → False (viewer role doesn't have user-delete, admin not present)
+```
+
+### Two-Tier Cache
+
+**Cache Architecture:**
+
+```mermaid
+graph LR
+    A[Permission Check] --> B{Permissions Cache}
+    B -->|Hit| C[Return Result]
+    B -->|Miss| D{Assignment Cache}
+    D -->|Hit| E[Query DB for Permissions]
+    D -->|Miss| F[Query DB for Assignments]
+    E --> G[Update Permissions Cache]
+    F --> H[Update Assignment Cache]
+    G --> C
+    H --> E
+```
+
+**Cache TTL:**
+- Permissions cache: 1 hour (role → permissions mapping)
+- Assignment cache: 5 minutes (user + scope → roles mapping)
+
+**Performance Target:** <5ms for cached permission checks
+
+### Authorization Dependencies
+
+**1. RoleChecker - Global Authorization**
 
 ```python
-@router.get("/admin", dependencies=[Depends(RoleChecker(["admin"]))])
+@router.get("/admin",
+    dependencies=[Depends(RoleChecker(required_permission="user-delete"))]
+)
 async def admin_only_route():
     return {"message": "Admin access"}
 ```
 
-**Logic:** User's role must be in `allowed_roles` list
+**Logic:**
+- Get current user from JWT
+- Check global roles via `UnifiedRBACService.get_user_roles(user_id, GLOBAL, None)`
+- Check permissions via `UnifiedRBACService.has_permission(user_id, permission, GLOBAL, None)`
+- Return user if authorized, raise HTTPException(403) if not
 
-#### 2. Permission-Only Authorization
-
-```python
-@router.get("/users", dependencies=[Depends(RoleChecker(required_permission="user-read"))])
-async def list_users():
-    return {"users": [...]}
-```
-
-**Logic:** User's role must have the `required_permission`
-
-#### 3. Combined Authorization (OR Logic)
+**2. ProjectRoleChecker - Project-Scoped Authorization**
 
 ```python
-@router.delete(
-    "/users/{id}",
-    dependencies=[Depends(RoleChecker(["admin"], "user-delete"))]
+@router.put("/projects/{project_id}",
+    dependencies=[Depends(ProjectRoleChecker(required_permission="project-update"))]
 )
-async def delete_user(id: UUID):
-    return {"deleted": id}
+async def update_project(project_id: UUID):
+    return {"updated": project_id}
 ```
 
-**Logic:** User passes if **either** they have admin role **OR** user-delete permission
+**Logic:**
+- Get current user from JWT
+- Extract `project_id` from path parameters
+- Check project-scoped permissions via `UnifiedRBACService.has_permission(user_id, permission, PROJECT, project_id)`
+- Return user if authorized, raise HTTPException(403) if not
 
 ### Authorization Decision Flow
 
 ```mermaid
 flowchart TD
-    A[Request arrives] --> B{RoleChecker configured?}
+    A[Request arrives] --> B{Has permission check?}
     B -->|No| C[Allow - no auth required]
-    B -->|Yes| D[Get current_user]
-    D --> E{allowed_roles specified?}
-    E -->|Yes| F{user.role in allowed_roles?}
+    B -->|Yes| D[Get current_user from JWT]
+    D --> E{Check global roles}
+    E -->|Admin| C
+    E -->|Not admin| F{Has permission in global roles?}
     F -->|Yes| C
-    F -->|No| G{required_permission specified?}
-    E -->|No| G
-    G -->|Yes| H{has_permission\user.role, permission\?}
-    G -->|No| I[Deny - no criteria]
-    H -->|Yes| C
-    H -->|No| I
-    I --> J[HTTP 403 Forbidden]
+    F -->|No| G{Project-scoped check?}
+    G -->|No| H[Deny - insufficient permissions]
+    G -->|Yes| I{Has permission in project roles?}
+    I -->|Yes| C
+    I -->|No| H
+    H --> J[HTTP 403 Forbidden]
 ```
 
 ---
@@ -342,6 +448,56 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ---
 
+## Database Schema
+
+### RBAC Tables
+
+**rbac_roles**
+```sql
+id              UUID PRIMARY KEY
+name            VARCHAR(100) UNIQUE NOT NULL
+description     TEXT
+is_system       BOOLEAN DEFAULT FALSE
+created_at      TIMESTAMPTZ DEFAULT NOW()
+updated_at      TIMESTAMPTZ DEFAULT NOW()
+```
+
+**rbac_role_permissions**
+```sql
+id              UUID PRIMARY KEY
+role_id         UUID REFERENCES rbac_roles(id) ON DELETE CASCADE
+permission      VARCHAR(100) NOT NULL
+UNIQUE(role_id, permission)
+```
+
+**user_role_assignments**
+```sql
+id              UUID PRIMARY KEY
+user_id         UUID NOT NULL              -- REFERENCES users(user_id)
+role_id         UUID REFERENCES rbac_roles(id) ON DELETE CASCADE
+scope_type      VARCHAR(50) NOT NULL       -- 'global', 'project', 'change_order'
+scope_id        UUID NULL                  -- NULL for global scope
+metadata_       JSONB NULL                 -- Stores authority_level, etc.
+granted_by      UUID NULL                  -- REFERENCES users(user_id)
+granted_at      TIMESTAMPTZ DEFAULT NOW()
+expires_at      TIMESTAMPTZ NULL
+UNIQUE(user_id, scope_type, scope_id)
+INDEX(user_id)
+INDEX(role_id)
+INDEX(scope_type, scope_id)
+```
+
+**Migration History:**
+- `7fc133112eef`: Initial RBAC roles tables
+- `20260510`: User role assignments table for unified RBAC
+- `20260510b`: Migrate existing roles to unified RBAC
+- `20260511`: Add project-scoped RBAC roles
+- `20260511b`: Migrate project members to unified
+- `1eba1b50cdf5`: Drop project_members table (2026-05-16)
+- `fa57821982c7`: Drop users.role column (2026-05-16)
+
+---
+
 ## Code Locations
 
 ### Core Files
@@ -350,26 +506,28 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 backend/app/
 ├── api/
 │   ├── dependencies/
-│   │   └── auth.py                    # Auth dependencies (get_current_user, RoleChecker)
+│   │   └── auth.py                    # Auth dependencies (get_current_user, RoleChecker, ProjectRoleChecker)
 │   └── routes/
 │       ├── auth.py                    # Auth endpoints (/register, /login, /me)
 │       ├── users.py                   # User management with RBAC
-│       └── departments.py             # Department management with RBAC
+│       └── user_role_assignments.py   # Role assignment CRUD API
 ├── core/
-│   ├── rbac.py                        # RBAC service (RBACServiceABC, JsonRBACService)
+│   ├── rbac_unified.py                # UnifiedRBACService (primary RBAC system)
 │   ├── security.py                    # JWT & password utilities
 │   └── config.py                      # Settings (SECRET_KEY, JWT expiry)
 ├── models/
-│   ├── domain/
-│   │   └── user.py                    # User ORM model
-│   └── schemas/
-│       └── user.py                    # Pydantic schemas
+│   └── domain/
+│       ├── user.py                    # User ORM model (no role column)
+│       ├── user_role_assignment.py    # UserRoleAssignment entity
+│       └── rbac.py                    # RBACRole, RBACRolePermission entities
+├── schemas/
+│   └── user_role_assignment.py        # Pydantic schemas for role assignments
 └── services/
     ├── auth.py                        # AuthService (login logic)
     └── user.py                        # UserService (CRUD operations)
 
 config/
-└── rbac.json                          # RBAC permission configuration
+└── rbac.json                          # RBAC permission configuration (seed data)
 ```
 
 ### Tests
@@ -377,27 +535,100 @@ config/
 ```
 backend/tests/
 ├── core/
-│   └── test_rbac.py                   # Unit tests for RBAC service (18 tests)
-└── api/
-    └── test_role_checker.py           # Integration tests for RoleChecker (7 tests)
+│   └── test_rbac_unified.py           # Unit tests for UnifiedRBACService
+├── api/
+│   ├── test_role_checker.py           # Integration tests for RoleChecker
+│   └── test_dependencies/
+│       └── test_project_role_checker.py  # Integration tests for ProjectRoleChecker
+└── models/
+    └── domain/
+        └── test_user_role_assignment.py  # Unit tests for UserRoleAssignment entity
 ```
+
+---
+
+## Thread Safety
+
+### ContextVar Session Injection
+
+**Problem:** FastAPI `Depends(get_db)` creates a new session for each route, but `UnifiedRBACService` needs access to the session for database queries.
+
+**Solution:** ContextVar pattern for request-scoped session injection
+
+```python
+_unified_rbac_session: ContextVar[AsyncSession | None] = ContextVar(
+    "_unified_rbac_session", default=None
+)
+
+def get_unified_rbac_session() -> AsyncSession | None:
+    return _unified_rbac_session.get()
+
+def set_unified_rbac_session(session: AsyncSession | None) -> None:
+    _unified_rbac_session.set(session)
+```
+
+**Usage in Dependencies:**
+
+```python
+async def __call__(self, current_user, session):
+    try:
+        set_unified_rbac_session(session)
+        unified_service = get_unified_rbac_service()
+        # ... permission checks
+    finally:
+        set_unified_rbac_session(None)  # Cleanup
+```
+
+**Benefits:**
+- Thread-safe for concurrent requests
+- Safe for WebSocket connections
+- No singleton state mutation
 
 ---
 
 ## Testing Strategy
 
-**Coverage:** 95.56% of `app/core/rbac.py`
+**Coverage:** 90%+ for `UnifiedRBACService`
 
-**Total Tests:** 18 RBAC tests passing
+**Test Categories:**
+
+1. **Unit Tests**
+   - Permission cache (hit/miss, TTL expiration)
+   - Assignment cache (hit/miss, invalidation)
+   - Permission checking (global, project, change_order scopes)
+   - Authority level checking (hierarchy comparison)
+   - CRUD operations (assign_role, revoke_role, get_user_roles)
+
+2. **Integration Tests**
+   - RoleChecker dependency (authorized/unauthorized access)
+   - ProjectRoleChecker dependency (project-scoped authorization)
+   - UserRoleAssignment API (CRUD endpoints, RBAC protection)
+
+3. **Migration Tests**
+   - Data integrity (all users migrated)
+   - Audit trail preservation (granted_by, granted_at)
+   - Rollback verification
+
+4. **Performance Tests**
+   - Cached permission checks (<5ms target)
+   - Uncached permission checks (acceptable threshold)
+   - Concurrent requests (100 rps target)
+
+5. **Security Tests**
+   - Privilege escalation attempts
+   - Expired role denial
+   - Cache poisoning attempts
+   - Audit trail integrity
 
 ---
 
 ## Related Documentation
 
-- [ADR-007: RBAC Service Design](../../decisions/ADR-007-rbac-service.md)
-- [User Management Context](../user-management/architecture.md)
+- [ADR-014: Unified RBAC System](../../decisions/ADR-014-unified-rbac.md) - Current RBAC implementation
+- [ADR-007: RBAC Service Design](../../decisions/ADR-007-rbac-service.md) - Original RBAC system (historical)
+- [Unified RBAC Implementation](./unified-rbac-implementation.md) - Implementation details and links
+- [Frontend Authentication](../../../frontend/contexts/06-authentication.md) - Frontend auth patterns
 - [Cross-Cutting: Security](../../cross-cutting/security.md)
-- [System Map](../../00-system-map.md)
 
 ---
 
@@ -405,5 +636,7 @@ backend/tests/
 
 | Date       | Change                                              | Author       |
 | ---------- | --------------------------------------------------- | ------------ |
-| 2026-01-04 | Added RBAC implementation, fine-grained permissions | Backend Team |
+| 2026-05-16 | Cleanup — removed legacy RBAC files, dropped project_members table and users.role column | Backend Team |
+| 2026-05-11 | Major update - Unified RBAC system, scoped permissions, UserRoleAssignment entity | Architecture Team |
+| 2026-01-04 | Initial documentation - JSON RBAC, RoleChecker      | Backend Team |
 | 2025-12-29 | Initial authentication documentation                | Backend Team |

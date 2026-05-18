@@ -52,7 +52,7 @@ export function useCanApprove(changeOrder: ChangeOrderPublic | undefined): UseCa
   const { data: approvalInfo, isLoading } = useApprovalInfo(
     changeOrder?.change_order_id,
     {
-      enabled: !!changeOrder && changeOrder.status !== "Draft",
+      enabled: !!changeOrder && changeOrder.status !== "draft",
     }
   );
 
@@ -71,7 +71,7 @@ export function useCanApprove(changeOrder: ChangeOrderPublic | undefined): UseCa
     }
 
     // Draft status cannot be approved (must be submitted first)
-    if (changeOrder.status === "Draft") {
+    if (changeOrder.status === "draft") {
       return {
         canApprove: false,
         authorityLevel: approvalInfo?.user_authority_level || null,
@@ -81,7 +81,7 @@ export function useCanApprove(changeOrder: ChangeOrderPublic | undefined): UseCa
     }
 
     // Rejected or Implemented status cannot be approved
-    if (changeOrder.status === "Rejected" || changeOrder.status === "Implemented") {
+    if (changeOrder.status === "rejected" || changeOrder.status === "implemented") {
       return {
         canApprove: false,
         authorityLevel: approvalInfo?.user_authority_level || null,
@@ -91,7 +91,7 @@ export function useCanApprove(changeOrder: ChangeOrderPublic | undefined): UseCa
     }
 
     // Already approved
-    if (changeOrder.status === "Approved") {
+    if (changeOrder.status === "approved") {
       return {
         canApprove: false,
         authorityLevel: approvalInfo?.user_authority_level || null,

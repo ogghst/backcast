@@ -26,7 +26,7 @@ vi.mock("@/features/change-orders/hooks/useWorkflowActions", () => ({
 vi.mock("@/features/change-orders/hooks/useWorkflowInfo", () => ({
   useWorkflowInfo: vi.fn(() => ({
     statusOptions: [
-      { label: "Draft", value: "Draft" },
+      { label: "draft", value: "draft" },
       { label: "Submitted for Approval", value: "Submitted for Approval" },
     ],
     isStatusDisabled: false,

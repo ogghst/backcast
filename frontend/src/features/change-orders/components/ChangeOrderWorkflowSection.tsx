@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { Card, Badge, Button, Space, Alert, Tag } from "antd";
 import {
   CheckCircleOutlined,
-  ClockCircleOutlined,
   CloseCircleOutlined,
   SyncOutlined,
   MergeCellsOutlined,
@@ -16,6 +15,7 @@ import {
 } from "../hooks/useWorkflowActions";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import { ChangeOrderRecoveryDialog } from "./ChangeOrderRecoveryDialog";
+import { getChangeOrderStatusColor, getChangeOrderStatusIcon } from "@/lib/status";
 
 interface ChangeOrderWorkflowSectionProps {
   changeOrder: ChangeOrderPublic | null;
@@ -24,26 +24,6 @@ interface ChangeOrderWorkflowSectionProps {
   /** Whether to use CollapsibleCard wrapper */
   useCollapsibleCard?: boolean;
 }
-
-// Status badge colors
-const STATUS_COLORS: Record<string, string> = {
-  Draft: "default",
-  "Submitted for Approval": "blue",
-  "Under Review": "cyan",
-  Approved: "green",
-  Rejected: "red",
-  Implemented: "purple",
-};
-
-// Status icons
-const STATUS_ICONS: Record<string, React.ReactNode> = {
-  Draft: <ClockCircleOutlined />,
-  "Submitted for Approval": <SyncOutlined spin />,
-  "Under Review": <SyncOutlined spin />,
-  Approved: <CheckCircleOutlined />,
-  Rejected: <CloseCircleOutlined />,
-  Implemented: <MergeCellsOutlined />,
-};
 
 /**
  * ChangeOrderWorkflowSection - Displays workflow status and available actions.
@@ -81,7 +61,7 @@ export function ChangeOrderWorkflowSection({
 
   // Check if change order is stuck and needs recovery (must be before early return)
   const isStuck = useMemo(() => {
-    const stuckStatuses = ["Submitted for Approval", "Under Review"];
+    const stuckStatuses = ["submitted_for_approval", "under_review"];
     return (
       changeOrder &&
       stuckStatuses.includes(status || "") &&
@@ -130,14 +110,14 @@ export function ChangeOrderWorkflowSection({
             Current Status
           </div>
           <Badge
-            color={STATUS_COLORS[status || "Draft"] ?? "default"}
+            color={getChangeOrderStatusColor(status || "draft")}
             text={
               <Tag
-                icon={STATUS_ICONS[status || "Draft"] ?? undefined}
-                color={STATUS_COLORS[status || "Draft"] ?? "default"}
+                icon={getChangeOrderStatusIcon(status || "draft")}
+                color={getChangeOrderStatusColor(status || "draft")}
                 style={{ fontSize: 14, padding: "4px 12px" }}
               >
-                {status || "Draft"}
+                {status || "draft"}
               </Tag>
             }
           />
@@ -217,7 +197,7 @@ export function ChangeOrderWorkflowSection({
               </Button>
             )}
             {/* Archive button - visible for Implemented/Rejected */}
-            {(status === "Implemented" || status === "Rejected") && (
+            {(status === "implemented" || status === "rejected") && (
               <Button
                 danger
                 icon={<DeleteOutlined />}

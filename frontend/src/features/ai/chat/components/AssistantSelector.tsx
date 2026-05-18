@@ -42,8 +42,9 @@ export const AssistantSelector = ({
     enabled: !disabled,
   });
 
-  // Filter to active assistants only
-  const activeAssistants = assistants?.filter((a) => a.is_active) ?? [];
+  // Filter to active main agents only (specialists are not user-selectable)
+  const activeAssistants =
+    assistants?.filter((a) => a.is_active && a.agent_type === "main") ?? [];
 
   // Find the current assistant for locked state display
   const currentAssistant = activeAssistants.find((a) => a.id === value);

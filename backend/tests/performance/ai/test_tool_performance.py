@@ -103,7 +103,7 @@ async def test_simple_tool_execution_p50(mock_fast_llm_with_tool_call, simple_to
     Target: <100ms (p50)
     """
     # Arrange
-    graph = create_graph(llm=mock_fast_llm_with_tool_call, tools=[simple_tool])
+    graph, _ = create_graph(llm=mock_fast_llm_with_tool_call, tools=[simple_tool])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Execute simple tool")],
@@ -159,7 +159,7 @@ async def test_simple_tool_execution_percentiles(
     - p99: <200ms
     """
     # Arrange
-    graph = create_graph(llm=mock_fast_llm_with_tool_call, tools=[simple_tool])
+    graph, _ = create_graph(llm=mock_fast_llm_with_tool_call, tools=[simple_tool])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Use the simple tool")],
@@ -214,7 +214,7 @@ async def test_complex_tool_execution_p50(mock_slow_llm_with_tool_call, complex_
     Target: <500ms (p50)
     """
     # Arrange
-    graph = create_graph(llm=mock_slow_llm_with_tool_call, tools=[complex_tool])
+    graph, _ = create_graph(llm=mock_slow_llm_with_tool_call, tools=[complex_tool])
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Use the complex tool")],
@@ -312,7 +312,7 @@ async def test_tool_chaining_performance(simple_tool):
     llm.bind_tools = MagicMock(return_value=llm)
     llm.ainvoke = AsyncMock(side_effect=invoke_with_chain)
 
-    graph = create_graph(llm=llm, tools=[tool_a, tool_b, tool_c])
+    graph, _ = create_graph(llm=llm, tools=[tool_a, tool_b, tool_c])
 
     # Act - Measure execution time for 3-tool chain
     initial_state: AgentState = {

@@ -26,7 +26,6 @@ from app.services.wbe import WBEService
 
 UTC = UTC
 
-
 # ============================================================================
 # Project Zombie Check (TemporalService)
 # ============================================================================
@@ -181,7 +180,7 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
         entity_id=wbe_id,
         as_of=datetime.now(UTC) + timedelta(seconds=1),
         branch="BR-123",
-        branch_mode=BranchMode.MERGE,
+        branch_mode=BranchMode.MERGED,
     )
     # Note: This test may fail if MERGE mode fallback logic doesn't properly
     # detect that the entity was deleted on the requested branch.
@@ -214,7 +213,6 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
 #
 # Reference: docs/02-architecture/cross-cutting/temporal-query-reference.md
 # ============================================================================
-
 
 # ============================================================================
 # Branch Zombie Check (TemporalService)

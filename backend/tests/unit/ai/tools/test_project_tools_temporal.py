@@ -9,12 +9,13 @@ These tests verify that:
 """
 
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
 from app.ai.tools.types import ToolContext
+from app.core.rbac_unified import set_unified_rbac_service, set_unified_rbac_session
 
 TEMPORAL_LOGGER = "app.ai.tools.temporal_logging"
 
@@ -90,33 +91,58 @@ def _make_log_handler() -> tuple[logging.StreamHandler, list[str]]:
     return handler, records
 
 
+def _setup_unified_rbac_mock(
+    accessible_projects: list[str] | None = None,
+    has_permission: bool = True,
+) -> MagicMock:
+    """Create and inject a mock UnifiedRBACService.
+
+    Args:
+        accessible_projects: List of project ID strings to return.
+        has_permission: Whether has_permission returns True.
+
+    Returns:
+        The mock service that was injected.
+    """
+    mock_service = MagicMock()
+    mock_service.get_accessible_projects = AsyncMock(
+        return_value=accessible_projects or []
+    )
+    mock_service.has_permission = AsyncMock(return_value=has_permission)
+    mock_service.has_project_access = AsyncMock(return_value=has_permission)
+    set_unified_rbac_service(mock_service)
+    set_unified_rbac_session(AsyncMock())
+    return mock_service
+
+
+def _cleanup_unified_rbac() -> None:
+    """Reset unified RBAC service and session after test."""
+    set_unified_rbac_service(None)  # type: ignore[arg-type]
+    set_unified_rbac_session(None)
+
+
 @pytest.mark.asyncio
 async def test_list_projects_logs_temporal_context(mock_tool_context):
     """Test that list_projects logs temporal context at tool start."""
     from app.ai.tools.project_tools import list_projects
 
+    _setup_unified_rbac_mock(accessible_projects=[])
     handler, records = _make_log_handler()
     logger = logging.getLogger(TEMPORAL_LOGGER)
     logger.addHandler(handler)
 
     try:
-        with patch("app.core.rbac.get_rbac_service") as mock_rbac:
-            mock_rbac_service = AsyncMock()
-            mock_rbac_service.get_user_projects = AsyncMock(return_value=[])
-            mock_rbac_service.session = None
-            mock_rbac.return_value = mock_rbac_service
-
-            await list_projects.ainvoke(
-                {
-                    "search": None,
-                    "status": None,
-                    "skip": 0,
-                    "limit": 10,
-                    "sort_field": None,
-                    "sort_order": "asc",
-                    "context": mock_tool_context,
-                }
-            )
+        await list_projects.ainvoke(
+            {
+                "search": None,
+                "status": None,
+                "skip": 0,
+                "limit": 10,
+                "sort_field": None,
+                "sort_order": "asc",
+                "context": mock_tool_context,
+            }
+        )
 
         output = "\n".join(records)
         assert "TEMPORAL_CONTEXT" in output
@@ -126,6 +152,7 @@ async def test_list_projects_logs_temporal_context(mock_tool_context):
         assert "mode=merged" in output
     finally:
         logger.removeHandler(handler)
+        _cleanup_unified_rbac()
 
 
 @pytest.mark.asyncio
@@ -135,63 +162,12 @@ async def test_list_projects_logs_temporal_context_with_params(
     """Test that list_projects logs non-default temporal parameters."""
     from app.ai.tools.project_tools import list_projects
 
+    _setup_unified_rbac_mock(accessible_projects=[])
     handler, records = _make_log_handler()
     logger = logging.getLogger(TEMPORAL_LOGGER)
     logger.addHandler(handler)
 
     try:
-        with patch("app.core.rbac.get_rbac_service") as mock_rbac:
-            mock_rbac_service = AsyncMock()
-            mock_rbac_service.get_user_projects = AsyncMock(return_value=[])
-            mock_rbac_service.session = None
-            mock_rbac.return_value = mock_rbac_service
-
-            mock_project = MagicMock()
-            mock_project.project_id = str(uuid4())
-            mock_project.code = "PRJ001"
-            mock_project.name = "Test Project"
-            mock_project.description = "Test"
-            mock_project.status = "ACT"
-            mock_project.budget = 100000.0
-            mock_project.start_date = None
-            mock_project.end_date = None
-
-            mock_tool_context_with_temporal_params.project_service.get_projects = (
-                AsyncMock(return_value=([mock_project], 1))
-            )
-
-            await list_projects.ainvoke(
-                {
-                    "search": None,
-                    "status": None,
-                    "skip": 0,
-                    "limit": 10,
-                    "sort_field": None,
-                    "sort_order": "asc",
-                    "context": mock_tool_context_with_temporal_params,
-                }
-            )
-
-        output = "\n".join(records)
-        assert "TEMPORAL_CONTEXT" in output
-        assert "2025-06-15" in output
-        assert "branch=feature-branch-1" in output
-        assert "mode=isolated" in output
-    finally:
-        logger.removeHandler(handler)
-
-
-@pytest.mark.asyncio
-async def test_list_projects_adds_temporal_metadata_to_result(mock_tool_context):
-    """Test that list_projects adds temporal metadata to results."""
-    from app.ai.tools.project_tools import list_projects
-
-    with patch("app.core.rbac.get_rbac_service") as mock_rbac:
-        mock_rbac_service = AsyncMock()
-        mock_rbac_service.get_user_projects = AsyncMock(return_value=[str(uuid4())])
-        mock_rbac_service.session = None
-        mock_rbac.return_value = mock_rbac_service
-
         mock_project = MagicMock()
         mock_project.project_id = str(uuid4())
         mock_project.code = "PRJ001"
@@ -202,10 +178,54 @@ async def test_list_projects_adds_temporal_metadata_to_result(mock_tool_context)
         mock_project.start_date = None
         mock_project.end_date = None
 
-        mock_tool_context.project_service.get_projects = AsyncMock(
+        mock_tool_context_with_temporal_params.project_service.get_projects = AsyncMock(
             return_value=([mock_project], 1)
         )
 
+        await list_projects.ainvoke(
+            {
+                "search": None,
+                "status": None,
+                "skip": 0,
+                "limit": 10,
+                "sort_field": None,
+                "sort_order": "asc",
+                "context": mock_tool_context_with_temporal_params,
+            }
+        )
+
+        output = "\n".join(records)
+        assert "TEMPORAL_CONTEXT" in output
+        assert "2025-06-15" in output
+        assert "branch=feature-branch-1" in output
+        assert "mode=isolated" in output
+    finally:
+        logger.removeHandler(handler)
+        _cleanup_unified_rbac()
+
+
+@pytest.mark.asyncio
+async def test_list_projects_adds_temporal_metadata_to_result(mock_tool_context):
+    """Test that list_projects adds temporal metadata to results."""
+    from app.ai.tools.project_tools import list_projects
+
+    _setup_unified_rbac_mock(accessible_projects=[str(uuid4())])
+
+    mock_project = MagicMock()
+    mock_project.project_id = str(uuid4())
+    mock_project.code = "PRJ001"
+    mock_project.name = "Test Project"
+    mock_project.description = "Test"
+    mock_project.status = "ACT"
+    mock_project.budget = 100000.0
+    mock_project.start_date = None
+    mock_project.end_date = None
+
+    mock_tool_context.project_service.get_projects = AsyncMock(
+        return_value=([mock_project], 1)
+    )
+
+    try:
         result = await list_projects.ainvoke(
             {
                 "search": None,
@@ -217,6 +237,8 @@ async def test_list_projects_adds_temporal_metadata_to_result(mock_tool_context)
                 "context": mock_tool_context,
             }
         )
+    finally:
+        _cleanup_unified_rbac()
 
     assert "_temporal_context" in result
     assert result["_temporal_context"]["as_of"] is None
@@ -229,26 +251,23 @@ async def test_list_projects_preserves_existing_result_fields(mock_tool_context)
     """Test that temporal metadata addition preserves existing result fields."""
     from app.ai.tools.project_tools import list_projects
 
-    with patch("app.core.rbac.get_rbac_service") as mock_rbac:
-        mock_rbac_service = AsyncMock()
-        mock_rbac_service.get_user_projects = AsyncMock(return_value=[str(uuid4())])
-        mock_rbac_service.session = None
-        mock_rbac.return_value = mock_rbac_service
+    _setup_unified_rbac_mock(accessible_projects=[str(uuid4())])
 
-        mock_project = MagicMock()
-        mock_project.project_id = str(uuid4())
-        mock_project.code = "PRJ001"
-        mock_project.name = "Test Project"
-        mock_project.description = "Test"
-        mock_project.status = "ACT"
-        mock_project.budget = 100000.0
-        mock_project.start_date = None
-        mock_project.end_date = None
+    mock_project = MagicMock()
+    mock_project.project_id = str(uuid4())
+    mock_project.code = "PRJ001"
+    mock_project.name = "Test Project"
+    mock_project.description = "Test"
+    mock_project.status = "ACT"
+    mock_project.budget = 100000.0
+    mock_project.start_date = None
+    mock_project.end_date = None
 
-        mock_tool_context.project_service.get_projects = AsyncMock(
-            return_value=([mock_project], 1)
-        )
+    mock_tool_context.project_service.get_projects = AsyncMock(
+        return_value=([mock_project], 1)
+    )
 
+    try:
         result = await list_projects.ainvoke(
             {
                 "search": None,
@@ -260,6 +279,8 @@ async def test_list_projects_preserves_existing_result_fields(mock_tool_context)
                 "context": mock_tool_context,
             }
         )
+    finally:
+        _cleanup_unified_rbac()
 
     assert "projects" in result
     assert "total" in result
@@ -273,52 +294,7 @@ async def test_get_project_logs_temporal_context(mock_tool_context):
     """Test that get_project logs temporal context at tool start."""
     from app.ai.tools.project_tools import get_project
 
-    handler, records = _make_log_handler()
-    logger = logging.getLogger(TEMPORAL_LOGGER)
-    logger.addHandler(handler)
-
-    try:
-        mock_project = MagicMock()
-        mock_project.project_id = str(uuid4())
-        mock_project.code = "PRJ001"
-        mock_project.name = "Test Project"
-        mock_project.description = "Test"
-        mock_project.status = "ACT"
-        mock_project.budget = 100000.0
-        mock_project.start_date = None
-        mock_project.end_date = None
-        mock_project.branch = "main"
-
-        mock_tool_context.project_service.get_as_of = AsyncMock(
-            return_value=mock_project
-        )
-
-        with patch("app.core.rbac.get_rbac_service") as mock_rbac:
-            mock_rbac_service = AsyncMock()
-            mock_rbac_service.has_permission = AsyncMock(return_value=True)
-            mock_rbac.return_value = mock_rbac_service
-
-            await get_project.ainvoke(
-                {
-                    "project_id": str(mock_project.project_id),
-                    "context": mock_tool_context,
-                }
-            )
-
-        output = "\n".join(records)
-        assert "TEMPORAL_CONTEXT" in output
-        assert "get_project" in output
-        assert "as_of=None (current time)" in output
-        assert "branch=main" in output
-        assert "mode=merged" in output
-    finally:
-        logger.removeHandler(handler)
-
-
-@pytest.mark.asyncio
-async def test_get_project_adds_temporal_metadata_to_result(mock_tool_context):
-    """Test that get_project adds temporal metadata to results."""
-    from app.ai.tools.project_tools import get_project
+    _setup_unified_rbac_mock(has_permission=True)
 
     mock_project = MagicMock()
     mock_project.project_id = str(uuid4())
@@ -333,14 +309,55 @@ async def test_get_project_adds_temporal_metadata_to_result(mock_tool_context):
 
     mock_tool_context.project_service.get_as_of = AsyncMock(return_value=mock_project)
 
-    with patch("app.core.rbac.get_rbac_service") as mock_rbac:
-        mock_rbac_service = AsyncMock()
-        mock_rbac_service.has_permission = AsyncMock(return_value=True)
-        mock_rbac.return_value = mock_rbac_service
+    handler, records = _make_log_handler()
+    logger = logging.getLogger(TEMPORAL_LOGGER)
+    logger.addHandler(handler)
 
+    try:
+        await get_project.ainvoke(
+            {
+                "project_id": str(mock_project.project_id),
+                "context": mock_tool_context,
+            }
+        )
+
+        output = "\n".join(records)
+        assert "TEMPORAL_CONTEXT" in output
+        assert "get_project" in output
+        assert "as_of=None (current time)" in output
+        assert "branch=main" in output
+        assert "mode=merged" in output
+    finally:
+        logger.removeHandler(handler)
+        _cleanup_unified_rbac()
+
+
+@pytest.mark.asyncio
+async def test_get_project_adds_temporal_metadata_to_result(mock_tool_context):
+    """Test that get_project adds temporal metadata to results."""
+    from app.ai.tools.project_tools import get_project
+
+    _setup_unified_rbac_mock(has_permission=True)
+
+    mock_project = MagicMock()
+    mock_project.project_id = str(uuid4())
+    mock_project.code = "PRJ001"
+    mock_project.name = "Test Project"
+    mock_project.description = "Test"
+    mock_project.status = "ACT"
+    mock_project.budget = 100000.0
+    mock_project.start_date = None
+    mock_project.end_date = None
+    mock_project.branch = "main"
+
+    mock_tool_context.project_service.get_as_of = AsyncMock(return_value=mock_project)
+
+    try:
         result = await get_project.ainvoke(
             {"project_id": str(mock_project.project_id), "context": mock_tool_context}
         )
+    finally:
+        _cleanup_unified_rbac()
 
     assert "_temporal_context" in result
     assert result["_temporal_context"]["as_of"] is None
@@ -353,6 +370,8 @@ async def test_get_project_preserves_existing_result_fields(mock_tool_context):
     """Test that temporal metadata addition preserves existing result fields."""
     from app.ai.tools.project_tools import get_project
 
+    _setup_unified_rbac_mock(has_permission=True)
+
     mock_project = MagicMock()
     mock_project.project_id = str(uuid4())
     mock_project.code = "PRJ001"
@@ -366,14 +385,12 @@ async def test_get_project_preserves_existing_result_fields(mock_tool_context):
 
     mock_tool_context.project_service.get_as_of = AsyncMock(return_value=mock_project)
 
-    with patch("app.core.rbac.get_rbac_service") as mock_rbac:
-        mock_rbac_service = AsyncMock()
-        mock_rbac_service.has_permission = AsyncMock(return_value=True)
-        mock_rbac.return_value = mock_rbac_service
-
+    try:
         result = await get_project.ainvoke(
             {"project_id": str(mock_project.project_id), "context": mock_tool_context}
         )
+    finally:
+        _cleanup_unified_rbac()
 
     assert "id" in result
     assert "code" in result
@@ -390,16 +407,16 @@ async def test_get_project_handles_not_found(mock_tool_context):
     """Test that get_project handles project not found with temporal metadata."""
     from app.ai.tools.project_tools import get_project
 
+    _setup_unified_rbac_mock(has_permission=True)
+
     mock_tool_context.project_service.get_as_of = AsyncMock(return_value=None)
 
-    with patch("app.core.rbac.get_rbac_service") as mock_rbac:
-        mock_rbac_service = AsyncMock()
-        mock_rbac_service.has_permission = AsyncMock(return_value=True)
-        mock_rbac.return_value = mock_rbac_service
-
+    try:
         result = await get_project.ainvoke(
             {"project_id": str(uuid4()), "context": mock_tool_context}
         )
+    finally:
+        _cleanup_unified_rbac()
 
     assert "error" in result
     assert "_temporal_context" in result

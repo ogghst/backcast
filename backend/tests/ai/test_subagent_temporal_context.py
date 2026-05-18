@@ -66,6 +66,7 @@ class TestSubagentTemporalContextAccess:
             "visualization_specialist",
             "forecast_manager",
             "general_purpose",
+            "mcp_specialist",
         }
 
         assert subagent_names == expected_names, (

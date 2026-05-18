@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchMode } from '../models/BranchMode';
 import type { QualityEventCreate } from '../models/QualityEventCreate';
 import type { QualityEventRead } from '../models/QualityEventRead';
 import type { QualityEventUpdate } from '../models/QualityEventUpdate';
@@ -23,7 +24,7 @@ export class QualityEventsService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query (for context)
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param costElementId Filter by Cost Element ID
      * @param wbeId Filter by WBE ID (returns all events under this WBE)
      * @param projectId Filter by Project ID (returns all events under this project)
@@ -37,7 +38,7 @@ export class QualityEventsService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         costElementId?: (string | null),
         wbeId?: (string | null),
         projectId?: (string | null),
@@ -52,7 +53,7 @@ export class QualityEventsService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'cost_element_id': costElementId,
                 'wbe_id': wbeId,
                 'project_id': projectId,

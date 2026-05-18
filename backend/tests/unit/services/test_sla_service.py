@@ -462,11 +462,11 @@ class TestEscalateChangeOrder:
 
     @pytest.mark.asyncio
     async def test_escalate_submitted_co(self) -> None:
-        """Escalates a CO in Submitted for Approval status."""
+        """Escalates a CO in submitted_for_approval status."""
         sla_service = SLAService(MagicMock())
 
         co = MagicMock()
-        co.status = "Submitted for Approval"
+        co.status = "submitted_for_approval"
         co.sla_status = SLAStatus.PENDING
         co.change_order_id = str(uuid4())
 
@@ -489,7 +489,7 @@ class TestEscalateChangeOrder:
         sla_service = SLAService(MagicMock())
 
         co = MagicMock()
-        co.status = "Draft"
+        co.status = "draft"
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = co

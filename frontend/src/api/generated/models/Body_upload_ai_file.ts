@@ -6,6 +6,6 @@ export type Body_upload_ai_file = {
     /**
      * Document file (PDF, DOCX, XLSX, PPTX, TXT, CSV, JSON, MD, max 10MB)
      */
-    file: Blob;
+    file: string;
 };
 

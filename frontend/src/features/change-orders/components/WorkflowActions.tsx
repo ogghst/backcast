@@ -79,12 +79,12 @@ export function WorkflowActions({
   // Determine if approve/reject should be shown
   // Show when status is Submitted for Approval or Under Review, and user has authority
   const canShowApproveReject =
-    (changeOrder.status === "Submitted for Approval" || changeOrder.status === "Under Review") &&
+    (changeOrder.status === "submitted_for_approval" || changeOrder.status === "under_review") &&
     canApprove;
 
   // Determine if submit should be shown
   // Only show when status is Draft and user is the creator
-  const canShowSubmit = changeOrder.status === "Draft" && isCreator && canSubmit;
+  const canShowSubmit = changeOrder.status === "draft" && isCreator && canSubmit;
 
   const isLoading =
     submitMutation.isPending ||
@@ -200,8 +200,8 @@ export function WorkflowActions({
 
         {/* Disabled approve button (for users without authority) */}
         {mode !== "primary" &&
-          (changeOrder.status === "Submitted for Approval" ||
-            changeOrder.status === "Under Review") &&
+          (changeOrder.status === "submitted_for_approval" ||
+            changeOrder.status === "under_review") &&
           !canApprove &&
           !checkingAuthority && (
             <Tooltip title={reason || "You are not authorized to approve this change order"}>
@@ -311,7 +311,7 @@ export function WorkflowActions({
             <MergeConfirmationContent
               sourceBranch={`BR-${changeOrder.code}`}
               targetBranch="main"
-              targetStatus="Implemented"
+              targetStatus="implemented"
             />
             <WorkflowTransitionContent
               comment={comment}

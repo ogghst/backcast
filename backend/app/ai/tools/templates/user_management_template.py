@@ -37,6 +37,30 @@ from app.models.schemas.user import UserRegister, UserUpdate
 
 logger = logging.getLogger(__name__)
 
+
+async def _resolve_user_role(session: Any, user_id: UUID) -> str:
+    """Resolve a user's global role from UserRoleAssignment via unified RBAC.
+
+    Args:
+        session: Database session
+        user_id: The user's root ID (user_id, not PK)
+
+    Returns:
+        First global role name, or "viewer" as fallback.
+    """
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_session,
+    )
+
+    try:
+        set_unified_rbac_session(session)
+        roles = await get_unified_rbac_service().get_user_roles(user_id, "global", None)
+        return roles[0] if roles else "viewer"
+    finally:
+        set_unified_rbac_session(None)
+
+
 # =============================================================================
 # USER CRUD TOOLS
 # =============================================================================
@@ -92,19 +116,23 @@ async def list_users(
         total = len(users)
 
         # Convert to AI-friendly format
-        return {
-            "users": [
+        user_list = []
+        for user in users:
+            role = await _resolve_user_role(context.session, user.user_id)
+            user_list.append(
                 {
                     "id": str(user.user_id),
                     "email": user.email,
                     "full_name": user.full_name,
                     "department": user.department,
-                    "role": user.role,
+                    "role": role,
                     "is_active": user.is_active,
                     "preferences": user.preferences if user.preferences else None,
                 }
-                for user in users
-            ],
+            )
+
+        return {
+            "users": user_list,
             "total": total,
             "skip": skip,
             "limit": limit,
@@ -159,12 +187,13 @@ async def get_user(
             return {"error": f"User {user_id} not found"}
 
         # Convert to AI-friendly format
+        role = await _resolve_user_role(context.session, user.user_id)
         return {
             "id": str(user.user_id),
             "email": user.email,
             "full_name": user.full_name,
             "department": user.department,
-            "role": user.role,
+            "role": role,
             "is_active": user.is_active,
             "preferences": user.preferences if user.preferences else None,
             "password_changed_at": user.password_changed_at.isoformat()
@@ -242,12 +271,13 @@ async def create_user(
         )
 
         # Convert to AI-friendly format (exclude password)
+        role = await _resolve_user_role(context.session, user.user_id)
         return {
             "id": str(user.user_id),
             "email": user.email,
             "full_name": user.full_name,
             "department": user.department,
-            "role": user.role,
+            "role": role,
             "is_active": user.is_active,
             "message": "User created successfully (password hashed)",
         }
@@ -340,12 +370,13 @@ async def update_user(
         )
 
         # Convert to AI-friendly format
+        role = await _resolve_user_role(context.session, user.user_id)
         return {
             "id": str(user.user_id),
             "email": user.email,
             "full_name": user.full_name,
             "department": user.department,
-            "role": user.role,
+            "role": role,
             "is_active": user.is_active,
             "message": "User updated successfully",
         }

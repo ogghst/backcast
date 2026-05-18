@@ -1,0 +1,183 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - region "Notifications alt+T":
+      - list:
+        - listitem [ref=e191]:
+          - img [ref=e193]
+          - generic [ref=e196]: Insufficient permissions
+        - listitem [ref=e197]:
+          - img [ref=e199]
+          - generic [ref=e202]: Insufficient permissions
+        - listitem [ref=e203]:
+          - img [ref=e205]
+          - generic [ref=e208]: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+        - listitem:
+          - generic:
+            - img
+          - generic:
+            - generic: Insufficient permissions
+    - generic [ref=e16]:
+      - generic:
+        - img
+      - banner [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e20]: Backcast
+          - menu [ref=e210]:
+            - menuitem "home" [ref=e211] [cursor=pointer]:
+              - img "home" [ref=e212]:
+                - img [ref=e213]
+            - menuitem "appstore" [ref=e215] [cursor=pointer]:
+              - img "appstore" [ref=e216]:
+                - img [ref=e217]
+            - menuitem "message" [ref=e219] [cursor=pointer]:
+              - img "message" [ref=e220]:
+                - img [ref=e221]
+        - button "search" [ref=e22] [cursor=pointer]:
+          - img "search" [ref=e24]:
+            - img [ref=e25]
+        - generic [ref=e27]:
+          - generic [ref=e29]:
+            - button "bell" [ref=e30] [cursor=pointer]:
+              - img "bell" [ref=e32]:
+                - img [ref=e33]
+            - superscript [ref=e223]:
+              - generic [ref=e225]: "5"
+          - img "user" [ref=e39] [cursor=pointer]:
+            - img [ref=e40]
+      - main [ref=e42]:
+        - generic [ref=e45]:
+          - generic [ref=e48]:
+            - generic [ref=e49]:
+              - generic [ref=e50]: Role Assignments
+              - generic [ref=e51]:
+                - generic [ref=e52]:
+                  - generic: Filter by User
+                  - combobox [ref=e53]
+                - img "down" [ref=e226]:
+                  - img [ref=e227]
+              - generic [ref=e58] [cursor=pointer]:
+                - generic [ref=e59]:
+                  - generic: Filter by Scope
+                  - combobox [ref=e60]
+                - img "down" [ref=e62]:
+                  - img [ref=e63]
+              - generic [ref=e65]:
+                - generic [ref=e66]:
+                  - generic: Filter by Role
+                  - combobox [ref=e67]
+                - img "down" [ref=e69]:
+                  - img [ref=e70]
+            - button "plus Add Assignment" [ref=e72] [cursor=pointer]:
+              - img "plus" [ref=e74]:
+                - img [ref=e75]
+              - generic [ref=e78]: Add Assignment
+          - generic [ref=e80]:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - table:
+                      - rowgroup:
+                        - row "User Name Role Scope Type Scope Entity Granted By Granted At Actions":
+                          - columnheader "User Name":
+                            - generic:
+                              - generic: User Name
+                              - generic:
+                                - generic:
+                                  - img:
+                                    - img
+                                  - img:
+                                    - img
+                          - columnheader "Role":
+                            - generic:
+                              - generic: Role
+                              - generic:
+                                - generic:
+                                  - img:
+                                    - img
+                                  - img:
+                                    - img
+                          - columnheader "Scope Type":
+                            - generic:
+                              - generic: Scope Type
+                              - generic:
+                                - generic:
+                                  - img:
+                                    - img
+                                  - img:
+                                    - img
+                          - columnheader "Scope Entity"
+                          - columnheader "Granted By"
+                          - columnheader "Granted At":
+                            - generic:
+                              - generic: Granted At
+                              - generic:
+                                - generic:
+                                  - img:
+                                    - img
+                                  - img:
+                                    - img
+                          - columnheader "Actions"
+                      - rowgroup:
+                        - row "No data No data":
+                          - cell "No data No data":
+                            - generic:
+                              - generic:
+                                - img "No data"
+                              - generic: No data
+      - contentinfo [ref=e88]:
+        - generic [ref=e91]: Backcast ©2026
+  - generic [ref=e92]:
+    - img [ref=e94]
+    - button "Open Tanstack query devtools" [ref=e142] [cursor=pointer]:
+      - img [ref=e143]

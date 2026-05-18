@@ -10,15 +10,17 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8020";
 
 // Configure generated client
 OpenAPI.BASE = API_URL;
-OpenAPI.TOKEN = async () => {
-  const token = useAuthStore.getState().token;
-  return token || "";
-};
+// Enable credentials for CORS to match global axios config
+// This is required for cookie-based auth and proper CORS handling
+OpenAPI.WITH_CREDENTIALS = true;
+// Note: We don't set OpenAPI.TOKEN here because it would add auth header to login request
+// The axios interceptor handles token injection for authenticated requests
 
 // Configure Global Axios Instance
 // Generated services use the default 'axios' import, so we must configure THAT instance.
 axios.defaults.baseURL = API_URL;
 axios.defaults.withCredentials = true;
+axios.defaults.timeout = 30_000; // 30s timeout prevents indefinite hanging on slow/unresponsive API
 
 // Track ongoing refresh token requests to prevent multiple simultaneous refresh attempts
 let isRefreshing = false;
@@ -42,9 +44,14 @@ const processQueue = (error: unknown, token: string | null = null) => {
 // Request interceptor: Add JWT token to Authorization header and debug logging
 axios.interceptors.request.use(
   (config) => {
-    const token = useAuthStore.getState().token;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Don't add auth header to login or refresh endpoints
+    const isAuthEndpoint = config.url?.includes('/auth/login') || config.url?.includes('/auth/refresh');
+
+    if (!isAuthEndpoint) {
+      const token = useAuthStore.getState().token;
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
 
     // Debug logging for empty POST request bodies (helps diagnose May 7 validation error)

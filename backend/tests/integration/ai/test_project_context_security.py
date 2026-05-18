@@ -12,44 +12,34 @@ Security Principle:
 - LLM can only query project state via get_project_context (read-only)
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
 
 from app.ai.tools.types import ToolContext
-from app.core.rbac import RBACServiceABC
+from app.core.rbac_unified import set_unified_rbac_service
+from app.services.project import ProjectService
+from tests.conftest import MockUnifiedRBACService
 
 
-class MockRBACService(RBACServiceABC):
-    """Mock RBAC service for testing that returns predefined values."""
+class ConfigurableMockUnifiedRBACService(MockUnifiedRBACService):
+    """Mock UnifiedRBACService with configurable accessible projects and roles."""
 
     def __init__(
-        self, user_projects: list[UUID] | None = None, project_role: str | None = None
-    ):
-        self._user_projects = user_projects or []
-        self._project_role = project_role
-        self.session = MagicMock()  # Non-None to avoid session injection
+        self,
+        accessible_projects: list[UUID] | None = None,
+        project_roles: dict[UUID, list[str]] | None = None,
+    ) -> None:
+        super().__init__()
+        self._accessible_projects = accessible_projects or []
+        self._project_roles = project_roles or {}
 
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return True
+    async def get_accessible_projects(self, user_id: UUID) -> list[UUID]:
+        return self._accessible_projects
 
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["project-read", "project-write"]
-
-    async def has_project_access(
-        self, user_id: UUID, user_role: str, project_id: UUID, required_permission: str
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        return self._user_projects
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return self._project_role
+    async def get_project_roles(self, user_id: UUID, project_id: UUID) -> list[str]:
+        return self._project_roles.get(project_id, [])
 
 
 @pytest.mark.integration
@@ -97,13 +87,16 @@ class TestProjectContextSecurity:
         mock_project_999.start_date = None
         mock_project_999.end_date = None
 
-        # Create mock RBAC service
-        mock_rbac = MockRBACService(user_projects=[test_project_id, other_project_id])
+        # Configure unified RBAC with access to both projects
+        mock_rbac = ConfigurableMockUnifiedRBACService(
+            accessible_projects=[test_project_id, other_project_id],
+        )
+        set_unified_rbac_service(mock_rbac)
 
-        with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
-            # Mock project service to return both projects
+        with patch("app.db.session.get_tool_session", return_value=AsyncMock()):
+            # Patch at class level so all ProjectService instances use the mock
             with patch.object(
-                context.project_service,
+                ProjectService,
                 "get_projects",
                 AsyncMock(return_value=([mock_project_123, mock_project_999], 2)),
             ):
@@ -146,14 +139,17 @@ class TestProjectContextSecurity:
         mock_project.name = "Test Project"
         mock_project.code = "TPJ"
 
-        mock_rbac = MockRBACService(project_role="editor")
+        mock_rbac = ConfigurableMockUnifiedRBACService(
+            project_roles={test_project_id: ["editor"]},
+        )
+        set_unified_rbac_service(mock_rbac)
 
-        with patch.object(
-            context.project_service,
-            "get_as_of",
-            AsyncMock(return_value=mock_project),
-        ):
-            with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
+        with patch("app.db.session.get_tool_session", return_value=AsyncMock()):
+            with patch.object(
+                ProjectService,
+                "get_as_of",
+                AsyncMock(return_value=mock_project),
+            ):
                 # Act: Call the raw function (not LangChain wrapper)
                 result = await context_tools.get_project_context.coroutine(
                     context=context
@@ -163,7 +159,7 @@ class TestProjectContextSecurity:
         assert result["project_id"] == str(test_project_id)
         assert result["project_name"] == "Test Project"
         assert result["project_code"] == "TPJ"
-        assert result["user_role"] == "editor"
+        assert "editor" in result["user_roles"]
         assert result["scope"] == "project"
 
         # Verify context was not modified (ToolContext is immutable by design)
@@ -217,37 +213,38 @@ class TestProjectContextSecurity:
         project_1_id = UUID("11111111-1111-1111-1111-111111111111")
         project_2_id = UUID("22222222-2222-2222-2222-222222222222")
 
-        mock_rbac = MockRBACService(user_projects=[project_1_id, project_2_id])
+        mock_rbac = ConfigurableMockUnifiedRBACService(
+            accessible_projects=[project_1_id, project_2_id],
+        )
+        set_unified_rbac_service(mock_rbac)
 
-        # Mock project service
-        with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
+        # Create mock projects
+        mock_p1 = AsyncMock()
+        mock_p1.project_id = project_1_id
+        mock_p1.code = "P1"
+        mock_p1.name = "Project 1"
+        mock_p1.description = "Test 1"
+        mock_p1.status = "ACT"
+        mock_p1.budget = 100000.0
+        mock_p1.start_date = None
+        mock_p1.end_date = None
+
+        mock_p2 = AsyncMock()
+        mock_p2.project_id = project_2_id
+        mock_p2.code = "P2"
+        mock_p2.name = "Project 2"
+        mock_p2.description = "Test 2"
+        mock_p2.status = "ACT"
+        mock_p2.budget = 200000.0
+        mock_p2.start_date = None
+        mock_p2.end_date = None
+
+        with patch("app.db.session.get_tool_session", return_value=AsyncMock()):
             with patch.object(
-                context.project_service,
+                ProjectService,
                 "get_projects",
-            ) as mock_get:
-                # Create mock projects
-                mock_p1 = AsyncMock()
-                mock_p1.project_id = project_1_id
-                mock_p1.code = "P1"
-                mock_p1.name = "Project 1"
-                mock_p1.description = "Test 1"
-                mock_p1.status = "ACT"
-                mock_p1.budget = 100000.0
-                mock_p1.start_date = None
-                mock_p1.end_date = None
-
-                mock_p2 = AsyncMock()
-                mock_p2.project_id = project_2_id
-                mock_p2.code = "P2"
-                mock_p2.name = "Project 2"
-                mock_p2.description = "Test 2"
-                mock_p2.status = "ACT"
-                mock_p2.budget = 200000.0
-                mock_p2.start_date = None
-                mock_p2.end_date = None
-
-                mock_get.return_value = ([mock_p1, mock_p2], 2)
-
+                AsyncMock(return_value=([mock_p1, mock_p2], 2)),
+            ):
                 # Act: Call the tool
                 result = await project_tools.list_projects.coroutine(context=context)
 
@@ -278,27 +275,28 @@ class TestProjectContextSecurity:
         )
 
         # Mock RBAC to return empty list (no access)
-        mock_rbac = MockRBACService(user_projects=[])
+        mock_rbac = ConfigurableMockUnifiedRBACService(
+            accessible_projects=[],  # No project access
+        )
+        set_unified_rbac_service(mock_rbac)
 
-        # Mock project service
-        with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
+        # Create mock project
+        mock_project = AsyncMock()
+        mock_project.project_id = restricted_project_id
+        mock_project.code = "RESTRICTED"
+        mock_project.name = "Restricted Project"
+        mock_project.description = "No Access"
+        mock_project.status = "ACT"
+        mock_project.budget = 500000.0
+        mock_project.start_date = None
+        mock_project.end_date = None
+
+        with patch("app.db.session.get_tool_session", return_value=AsyncMock()):
             with patch.object(
-                context.project_service,
+                ProjectService,
                 "get_projects",
-            ) as mock_get:
-                # Create mock project
-                mock_project = AsyncMock()
-                mock_project.project_id = restricted_project_id
-                mock_project.code = "RESTRICTED"
-                mock_project.name = "Restricted Project"
-                mock_project.description = "No Access"
-                mock_project.status = "ACT"
-                mock_project.budget = 500000.0
-                mock_project.start_date = None
-                mock_project.end_date = None
-
-                mock_get.return_value = ([mock_project], 1)
-
+                AsyncMock(return_value=([mock_project], 1)),
+            ):
                 # Act: Call the tool
                 result = await project_tools.list_projects.coroutine(context=context)
 
@@ -394,13 +392,16 @@ class TestProjectContextSecurity:
         mock_project_999.start_date = None
         mock_project_999.end_date = None
 
-        # Mock RBAC to return access to both projects
-        mock_rbac = MockRBACService(user_projects=[locked_project_id, other_project_id])
+        # Configure unified RBAC with access to both projects
+        mock_rbac = ConfigurableMockUnifiedRBACService(
+            accessible_projects=[locked_project_id, other_project_id],
+        )
+        set_unified_rbac_service(mock_rbac)
 
-        with patch("app.core.rbac.get_rbac_service", return_value=mock_rbac):
-            # Mock project service to return both projects
+        with patch("app.db.session.get_tool_session", return_value=AsyncMock()):
+            # Patch at class level so all ProjectService instances use the mock
             with patch.object(
-                context.project_service,
+                ProjectService,
                 "get_projects",
                 AsyncMock(return_value=([mock_project_123, mock_project_999], 2)),
             ):

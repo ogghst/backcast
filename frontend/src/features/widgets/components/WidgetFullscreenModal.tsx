@@ -45,7 +45,7 @@ export function WidgetFullscreenModal({
       open={open}
       onCancel={closeFullscreen}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
       width="100vw"
       style={{ top: 0, padding: 0, maxWidth: "100vw" }}
       styles={{

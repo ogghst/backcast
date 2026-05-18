@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchMode } from '../models/BranchMode';
 import type { BranchPublic } from '../models/BranchPublic';
 import type { ProjectCreate } from '../models/ProjectCreate';
 import type { ProjectRead } from '../models/ProjectRead';
@@ -25,7 +26,7 @@ export class ProjectsService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch name
-     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param search Search term (code, name)
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
@@ -38,7 +39,7 @@ export class ProjectsService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        mode: string = 'merged',
+        branchMode: BranchMode = 'merged',
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -52,7 +53,7 @@ export class ProjectsService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
-                'mode': mode,
+                'branch_mode': branchMode,
                 'search': search,
                 'filters': filters,
                 'sort_field': sortField,

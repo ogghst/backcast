@@ -73,23 +73,15 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Get all entities (current versions) with pagination.
 
         Filters by upper(valid_time) IS NULL (open-ended) and deleted_at IS NULL.
-        Excludes empty ranges to avoid selecting invalid versions.
         """
-        from typing import Any, cast
-
-        from sqlalchemy import func
+        from app.core.temporal_queries import is_current_version
 
         stmt = (
             select(self.entity_class)
             .where(
-                # CRITICAL FIX: Use upper(valid_time) IS NULL instead of @> operator
-                # The @> operator can match recently-closed versions if query runs
-                # at the exact same microsecond as the close operation
-                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                func.not_(
-                    func.isempty(self.entity_class.valid_time)
-                ),  # Exclude empty ranges
-                cast(Any, self.entity_class).deleted_at.is_(None),
+                is_current_version(
+                    self.entity_class.valid_time, self.entity_class.deleted_at
+                )
             )
             .offset(skip)
             .limit(limit)
@@ -115,8 +107,8 @@ class TemporalService[TVersionable: VersionableProtocol]:
             as_of: Timestamp to query
             branch: Branch name (default: main)
             branch_mode: Resolution mode for branches
-                - STRICT (default): Only return from specified branch
-                - MERGE: Fall back to main if not found on branch
+                - ISOLATED (default): Only return from specified branch
+                - MERGED: Fall back to main if not found on branch
 
         Returns entity if:
         - as_of >= lower(valid_time) (entity existed at that time)
@@ -132,18 +124,18 @@ class TemporalService[TVersionable: VersionableProtocol]:
 
         from app.core.versioning.enums import BranchMode
 
-        # Default to STRICT mode if not specified
+        # Default to ISOLATED mode if not specified
         if branch_mode is None:
-            branch_mode = BranchMode.STRICT
+            branch_mode = BranchMode.ISOLATED
 
         # Try to get from requested branch
         result = await self._get_as_of_from_branch(entity_id, as_of, branch)
 
-        # If found, or strict mode, or already on main, return result
-        if result is not None or branch_mode == BranchMode.STRICT or branch == "main":
+        # If found, or isolated mode, or already on main, return result
+        if result is not None or branch_mode == BranchMode.ISOLATED or branch == "main":
             return result
 
-        # MERGE mode: Check if explicitly deleted on branch before falling back
+        # MERGED mode: Check if explicitly deleted on branch before falling back
         is_deleted_on_branch = await self._is_deleted_on_branch(
             entity_id, as_of, branch
         )
@@ -246,10 +238,10 @@ class TemporalService[TVersionable: VersionableProtocol]:
         branch_mode: "BranchMode | None",
         as_of: datetime | None = None,
     ) -> Any:
-        """Apply branch mode filtering (STRICT vs MERGE) to a statement.
+        """Apply branch mode filtering （ISOLATED vs MERGE) to a statement.
 
-        For STRICT mode: Filters to only the specified branch.
-        For MERGE mode: Uses DISTINCT ON to merge main branch with specified branch,
+        For ISOLATED mode: Filters to only the specified branch.
+        For MERGED mode: Uses DISTINCT ON to merge main branch with specified branch,
         with branch taking precedence over main for entities that exist in both.
 
         Also handles deleted entities - entities deleted on current branch
@@ -258,16 +250,16 @@ class TemporalService[TVersionable: VersionableProtocol]:
         Args:
             stmt: SQLAlchemy statement to filter
             branch: Current branch name
-            branch_mode: STRICT (isolated) or MERGE (composite)
+            branch_mode: ISOLATED (isolated) or MERGED (composite)
             as_of: Optional timestamp for time-travel queries
 
         Returns:
-            Filtered statement with DISTINCT ON applied for MERGE mode
+            Filtered statement with DISTINCT ON applied for MERGED mode
 
         Note:
             This method is only applicable to entities that support branching
             (those with a 'branch' column). For non-branchable entities, it
-            will apply STRICT filtering (branch == :branch).
+            will apply ISOLATED filtering (branch == :branch).
         """
         from typing import Any, cast
 
@@ -282,13 +274,13 @@ class TemporalService[TVersionable: VersionableProtocol]:
         from app.core.versioning.enums import BranchMode
 
         if branch_mode is None:
-            branch_mode = BranchMode.STRICT
+            branch_mode = BranchMode.ISOLATED
 
         # Get root field name (e.g., "wbe_id", "project_id")
         root_field = self._get_root_field_name()
 
-        if branch_mode == BranchMode.MERGE and branch != "main":
-            # MERGE MODE: Use DISTINCT ON with branch precedence
+        if branch_mode == BranchMode.MERGED and branch != "main":
+            # MERGED MODE: Use DISTINCT ON with branch precedence
             # Filter to include both current branch AND main
             stmt = stmt.where(cast(Any, self.entity_class).branch.in_([branch, "main"]))
 
@@ -331,7 +323,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
 
             return stmt
         else:
-            # STRICT MODE: Only query the specified branch (current behavior)
+            # ISOLATED MODE: Only query the specified branch (current behavior)
             return stmt.where(cast(Any, self.entity_class).branch == branch)
 
     def _apply_bitemporal_filter_for_time_travel(

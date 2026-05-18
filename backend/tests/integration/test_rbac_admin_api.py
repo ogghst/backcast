@@ -10,7 +10,8 @@ Tests cover:
 
 from collections.abc import AsyncGenerator
 from typing import Any
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -18,10 +19,14 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
-from app.core.rbac import RBACServiceABC, get_rbac_service
+from app.core.rbac_unified import (
+    UnifiedRBACService,
+    set_unified_rbac_service,
+)
 from app.db.session import get_db
 from app.main import app
 from app.models.domain.user import User
+from tests.conftest import MockUnifiedRBACService
 
 # ---------------------------------------------------------------------------
 # Mock users
@@ -32,7 +37,6 @@ MOCK_ADMIN = User(
     user_id=uuid4(),
     email="admin@test.com",
     is_active=True,
-    role="admin",
     full_name="Admin User",
     hashed_password="hash",
 )
@@ -42,35 +46,9 @@ MOCK_VIEWER = User(
     user_id=uuid4(),
     email="viewer@test.com",
     is_active=True,
-    role="viewer",
     full_name="Viewer User",
     hashed_password="hash",
 )
-
-
-class AllowAllRBAC(RBACServiceABC):
-    """RBAC service that grants all permissions for testing."""
-
-    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
-        return user_role in required_roles
-
-    def has_permission(self, user_role: str, required_permission: str) -> bool:
-        return True
-
-    def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["admin"]
-
-    async def has_project_access(
-        self, user_id: UUID, user_role: str, project_id: UUID, required_permission: str
-    ) -> bool:
-        return True
-
-    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
-        return []
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return None
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -86,13 +64,15 @@ async def admin_client(
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: MOCK_ADMIN
     app.dependency_overrides[get_current_active_user] = lambda: MOCK_ADMIN
-    app.dependency_overrides[get_rbac_service] = lambda: AllowAllRBAC()
+
+    set_unified_rbac_service(MockUnifiedRBACService())
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
 
 
@@ -105,13 +85,17 @@ async def viewer_client(
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: MOCK_VIEWER
     app.dependency_overrides[get_current_active_user] = lambda: MOCK_VIEWER
-    app.dependency_overrides[get_rbac_service] = lambda: AllowAllRBAC()
+
+    mock_rbac = MockUnifiedRBACService()
+    mock_rbac.get_user_roles = AsyncMock(return_value=["viewer"])  # type: ignore[method-assign]
+    set_unified_rbac_service(mock_rbac)
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
 
+    set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
 
 

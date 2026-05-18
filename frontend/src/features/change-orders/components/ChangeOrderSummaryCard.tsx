@@ -49,9 +49,9 @@ export const ChangeOrderSummaryCard = ({
         <Descriptions.Item label="Status">
           <Tag
             color={
-              changeOrder.status === "Approved" || changeOrder.status === "Implemented"
+              changeOrder.status === "approved" || changeOrder.status === "implemented"
                 ? "green"
-                : changeOrder.status === "Rejected"
+                : changeOrder.status === "rejected"
                 ? "red"
                 : "orange"
             }

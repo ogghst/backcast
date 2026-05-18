@@ -1,10 +1,10 @@
 # Agent System: Common Concepts
 
-How the Backcast AI agent system turns a user message into a response: prompt composition, tool filtering, security middleware, event streaming, and the shared subagent roster.
+How the Backcast AI agent system turns a user message into a response: prompt composition, tool filtering, security middleware, event streaming, and the DB-configurable specialist roster.
 
 > **Related Documentation:**
-> - [Deep Agent Orchestrator](./deep-agent-orchestrator.md) — Task-based delegation with isolated subagents
-> - [Supervisor Orchestrator](./supervisor-orchestrator.md) — Handoff-based delegation with compiled briefing documents
+> - [Supervisor Orchestrator](./supervisor-orchestrator.md) — Handoff-based delegation with compiled briefing documents and direct tool access
+> - ~~[Deep Agent Orchestrator](./deep-agent-orchestrator.md)~~ — Removed. Supervisor is the sole orchestrator.
 
 ---
 
@@ -30,11 +30,8 @@ When a user sends a message, the system follows this sequence:
 flowchart LR
     Browser["Browser\n(React)"] --> WS["WebSocket Endpoint\nai_chat.py"]
     WS --> AS["AgentService\n.start_execution()"]
-    AS --> ORC{"Orchestrator\nChoice"}
-    ORC -->|"use_supervisor=True"| SO["SupervisorOrchestrator\n.create_supervisor_graph()"]
-    ORC -->|"default"| DAO["DeepAgentOrchestrator\n.create_agent()"]
-    DAO --> LC["LangChain\ncreate_agent"]
-    SO --> LC
+    AS --> SO["SupervisorOrchestrator\n.create_supervisor_graph()"]
+    SO --> LC["LangChain\ncreate_agent"]
     AS --> GAE["graph.astream_events()\nloop"]
     GAE --> AEB["AgentEventBus\n.publish()"]
     AEB -->|WebSocket messages| Browser
@@ -61,10 +58,10 @@ flowchart LR
    - Composes the system prompt (see Section 2).
    - Resolves LLM config (provider, model, API key) from the `AIAssistantConfig`.
    - Creates a `ToolContext` with user role, project scope, execution mode.
-   - Creates the agent graph via `DeepAgentOrchestrator` (which may delegate to `SupervisorOrchestrator` when `config.use_supervisor=True`).
+   - Creates the supervisor agent graph via `SupervisorOrchestrator`, passing the main agent's DB config for specialist loading and direct tool injection.
    - Runs `graph.astream_events()` and publishes events to the `AgentEventBus`.
 
-   > **Orchestrator choice** is determined by `AgentConfig.use_supervisor` (set via `settings.AI_ORCHESTRATOR`). See [Deep Agent Orchestrator](./deep-agent-orchestrator.md) or [Supervisor Orchestrator](./supervisor-orchestrator.md) for their specific architectures.
+   > **Orchestrator** is always the `SupervisorOrchestrator`. See [Supervisor Orchestrator](./supervisor-orchestrator.md) for the architecture details.
 
 6. **The WebSocket handler** subscribes to the event bus and forwards events to the browser.
 
@@ -98,7 +95,7 @@ When a session is scoped to a context, a context section is appended. The system
 
 ### Layer 3: Orchestrator-Specific
 
-See [Deep Agent > System Prompt](./deep-agent-orchestrator.md#2-system-prompt-deep-agent) or [Supervisor > System Prompt](./supervisor-orchestrator.md#4-supervisor-system-prompt).
+See [Supervisor > System Prompt](./supervisor-orchestrator.md#4-supervisor-system-prompt).
 
 ---
 
@@ -218,14 +215,14 @@ _build_conversation_history()
 
 ### Subagent Context Isolation
 
-When subagents are spawned (by either orchestrator pattern), the subagent gets its own isolated context:
+When specialists are invoked (via handoff tools), each specialist gets its own isolated context:
 
-- **Own system prompt** — domain-specific prompt from the subagent configuration.
-- **Own tool list** — filtered to the subagent's domain.
+- **Own system prompt** — domain-specific prompt from the specialist's `AIAssistantConfig` row.
+- **Own tool list** — filtered to the specialist's `allowed_tools` whitelist.
 - **Own middleware stack** — same `TemporalContextMiddleware` + `BackcastSecurityMiddleware`.
 - **Same `BackcastRuntimeContext`** — via `ContextVar`, so security context is preserved.
 
-The exact state initialization differs between orchestrators. See [Deep Agent > Task Tool](./deep-agent-orchestrator.md#4-the-task-tool) for task-based isolation and [Supervisor > State Schema](./supervisor-orchestrator.md#3-state-schema) for shared-state handoff.
+The specialist receives the compiled briefing document as its only input (not raw message history). See [Supervisor > State Schema](./supervisor-orchestrator.md#3-state-schema) for the state layout.
 
 ### Message Persistence
 
@@ -282,8 +279,8 @@ flowchart TD
     EXP --> AR
     AR --> UR["filter_tools_by_role\n(user RBAC role)"]
     UR --> SA["Orchestrator-specific\nassignment"]
-    SA --> MA["Main agent gets:\norchestration tools + get_temporal_context"]
-    SA --> SUB["Subagents get:\ntheir filtered subset"]
+    SA --> MA["Main agent gets:\nget_briefing + handoff tools + direct_tools"]
+    SA --> SUB["Specialists get:\ntheir allowed_tools subset"]
 ```
 
 ### Role-Based Tool Filtering
@@ -305,19 +302,32 @@ Tools without `_tool_metadata` or with empty permissions always pass through (e.
 
 ---
 
-## 5. Subagent Roster
+## 5. Specialist Roster
 
-Seven specialized subagents, each mapped to a domain:
+Eight DB-configurable specialists (stored in `ai_assistant_configs` with `agent_type='specialist'`), each mapped to a domain. Hardcoded definitions in `ai/subagents/__init__.py` serve as fallback when the database is empty.
 
-| Subagent | Domain | Allowed Tools | Structured Output |
+| Specialist | Domain | Allowed Tools | Structured Output |
 |----------|--------|--------------|-------------------|
-| `project_manager` | Projects, WBEs, cost elements, cost tracking, progress entries | 35 | None |
+| `project_manager` | Projects, WBEs, cost elements, cost tracking, progress entries | 36 | None |
 | `evm_analyst` | EVM metrics (CPI, SPI, CV, SV, EAC) and health analysis | 10 | `EVMMetricsRead` |
 | `change_order_manager` | Change order CRUD, approval workflows, impact analysis | 10 | `ImpactAnalysisResponse` |
 | `user_admin` | Users and departments CRUD | 12 | None |
 | `visualization_specialist` | Mermaid diagram generation | 3 | None |
 | `forecast_manager` | Forecasts, schedule baselines, trend analysis | 13 | `ForecastRead` |
+| `mcp_specialist` | MCP server tools | all | None |
 | `general_purpose` | Fallback for tasks that don't fit a specialist | all | None |
+
+### Main Agents
+
+Three DB-configurable main agents (stored in `ai_assistant_configs` with `agent_type='main'`). Only main agents appear in the chat assistant selector.
+
+| Main Agent | Default Role | Direct Tools |
+|-----------|-------------|-------------|
+| `Friendly Project Analyzer` | `ai-viewer` | `get_temporal_context`, `set_temporal_context`, `global_search` |
+| `Senior Project Manager` | `ai-manager` | `get_temporal_context`, `set_temporal_context`, `global_search` |
+| `System Manager` | `ai-admin` | `get_temporal_context`, `set_temporal_context`, `global_search` |
+
+Direct tools are configured via the `delegation_config.direct_tools` field on each main agent and are fully admin-configurable.
 
 ### Structured Output Schemas
 
@@ -328,15 +338,15 @@ Subagents with `structured_output_schema` produce validated Pydantic model outpu
 - **`ForecastRead`** — Forecast details with budget variance
 - **`DashboardData`** — Project summaries and activity counts
 
-### Subagent Compilation
+### Specialist Compilation
 
-All subagent configurations are defined in `ai/subagents/__init__.py` as dictionaries with keys: `name`, `description`, `system_prompt`, `allowed_tools`, `structured_output_schema`. The orchestrators compile these into runnable LangChain agents at graph creation time.
+Specialist configs are loaded from the database via `ai/subagents/db_loader.py` (`load_specialists_from_db()`) with a 5-minute TTL cache. The DB rows are converted to the dict schema (`name`, `description`, `system_prompt`, `allowed_tools`, `structured_output_schema`) expected by `compile_subagents()`. Hardcoded definitions in `ai/subagents/__init__.py` serve as fallback.
 
-Both orchestrators apply the same compilation process:
-1. Filter tools by subagent's `allowed_tools` list (or use all available tools when `None`).
+Compilation applies the same process:
+1. Filter tools by specialist's `allowed_tools` list (or use all available tools when `None`).
 2. Intersect with the main agent's tool whitelist (if configured).
 3. Apply the middleware stack: `TemporalContextMiddleware` + `BackcastSecurityMiddleware`.
-4. Compile via `langchain_create_agent()` with the subagent's domain-specific system prompt.
+4. Compile via `langchain_create_agent()` with the specialist's domain-specific system prompt.
 
 ---
 
@@ -465,15 +475,14 @@ Tokens from the LLM are accumulated in a buffer and flushed in batches rather th
 @dataclass(frozen=True)
 class AgentConfig:
     allowed_tools: list[str] | None = None      # Tool name whitelist
-    subagents: list[dict[str, Any]] | None = None # Override default subagents
+    subagents: list[dict[str, Any]] | None = None # Override default specialists (DB or hardcoded)
     checkpointer: Any | None = None               # Shared checkpointer
     context_schema: type | None = None             # StateGraph context schema
     assistant_role: str | None = None              # RBAC role for assistant
     user_role: str | None = None                   # Per-user RBAC role
-    use_supervisor: bool = False                   # Delegate to SupervisorOrchestrator
 ```
 
-When `use_supervisor=True`, `DeepAgentOrchestrator.create_agent()` delegates to `SupervisorOrchestrator.create_supervisor_graph()`. Otherwise it builds its own subagent-as-tool graph.
+The system always uses the supervisor orchestrator. The `use_supervisor` field and `OrchestratorMode` enum have been removed.
 
 ---
 
@@ -483,8 +492,7 @@ When `use_supervisor=True`, `DeepAgentOrchestrator.create_agent()` delegates to 
 |------|---------------|
 | `api/routes/ai_chat.py` | WebSocket endpoint, JWT auth, session creation, approval handling |
 | `ai/agent_service.py` | Orchestration: `_run_agent_graph()`, `_build_system_prompt()`, `_build_conversation_history()`, `start_execution()` |
-| `ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator`: subagent compilation, task-based delegation, prompt composition |
-| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based specialist delegation with compiled briefing documents |
+| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based specialist delegation with compiled briefing documents, direct tool support, DB specialist loading |
 | `ai/briefing.py` | `BriefingDocument`, `BriefingSection`: Pydantic models for the briefing artifact |
 | `ai/briefing_compiler.py` | `initialize_briefing()`, `compile_specialist_output()`: zero-cost compilation |
 | `ai/supervisor_state.py` | `BackcastSupervisorState`: shared state schema for supervisor graph |
@@ -493,7 +501,8 @@ When `use_supervisor=True`, `DeepAgentOrchestrator.create_agent()` delegates to 
 | `ai/state.py` | `AgentState` TypedDict: `messages`, `tool_call_count`, `max_tool_iterations`, `next` |
 | `ai/graph.py` | LangGraph `StateGraph` with `should_continue()` routing, graph creation factory |
 | `ai/graph_cache.py` | `BackcastRuntimeContext`, `LLMClientCache`, `shared_checkpointer`, ContextVar helpers |
-| `ai/subagents/__init__.py` | Seven subagent configurations (name, prompt, allowed_tools, structured_output_schema) |
+| `ai/subagents/__init__.py` | Hardcoded specialist configurations (fallback when DB is empty) |
+| `ai/subagents/db_loader.py` | `load_specialists_from_db()`, `assistant_config_to_specialist_dict()`: TTL-cached DB specialist loading |
 | `ai/tools/__init__.py` | `create_project_tools()` (74 tools), `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
 | `ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT`, `TASK_TOOL_DESCRIPTION`, `_summarize_structured_output()` |
 | `ai/middleware/temporal_context.py` | `TemporalContextMiddleware`: injects temporal params into tool args |
