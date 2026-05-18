@@ -14,6 +14,7 @@
 #   -s, --skip-backup   Skip database backup (NOT recommended)
 #   -n, --no-build      Skip container rebuild (use existing images)
 #   -m, --no-migrate    Skip database migrations
+#   -r, --reseed        Truncate all data and re-seed from JSON files
 #   -y, --yes           Auto-confirm all prompts
 #   -v, --verbose       Enable verbose output
 #
@@ -39,6 +40,7 @@ BRANCH=""
 SKIP_BACKUP=false
 SKIP_BUILD=false
 SKIP_MIGRATE=false
+RESEED=false
 AUTO_CONFIRM=false
 VERBOSE=false
 
@@ -89,6 +91,7 @@ Options:
     -s, --skip-backup   Skip database backup (NOT recommended for production)
     -n, --no-build      Skip container rebuild (use existing images)
     -m, --no-migrate    Skip database migrations (NOT recommended - may cause errors)
+    -r, --reseed        Truncate all data and re-seed from JSON files
     -y, --yes           Auto-confirm all prompts (non-interactive mode)
     -v, --verbose       Enable verbose output
 
@@ -123,6 +126,10 @@ parse_args() {
                 ;;
             -m|--no-migrate)
                 SKIP_MIGRATE=true
+                shift
+                ;;
+            -r|--reseed)
+                RESEED=true
                 shift
                 ;;
             -y|--yes)
@@ -272,7 +279,8 @@ rebuild_containers() {
 
     if docker compose --env-file .env.production build \
       --build-arg VITE_GIT_SHA="$git_sha" \
-      --build-arg VITE_BUILD_DATE="$build_date"; then
+      --build-arg VITE_BUILD_DATE="$build_date" \
+      backend frontend alembic; then
         log_success "Container build completed"
     else
         log_error "Container build failed"
@@ -317,16 +325,21 @@ run_migrations() {
     fi
 }
 
-# Run database seeding
-run_seed() {
-    log_info "Running database seeding..."
+# Run database reseed
+run_reseed() {
+    if [ "$RESEED" != true ]; then
+        return
+    fi
+
+    log_info "Reseeding database (truncate + seed)..."
 
     cd "$DEPLOY_DIR"
 
-    if docker compose --env-file .env.production run --rm backend python -m app.db.seed; then
-        log_success "Database seeding completed"
+    if docker compose --env-file .env.production run --rm backend python -m app.db.reseed --yes; then
+        log_success "Database reseed completed"
     else
-        log_warning "Database seeding failed or completed with warnings"
+        log_error "Database reseed failed"
+        exit 1
     fi
 }
 
@@ -412,6 +425,7 @@ main() {
         log_verbose "  Skip backup: $SKIP_BACKUP"
         log_verbose "  Skip build: $SKIP_BUILD"
         log_verbose "  Skip migrations: $SKIP_MIGRATE"
+        log_verbose "  Reseed: $RESEED"
         log_verbose "  Auto-confirm: $AUTO_CONFIRM"
         echo
     fi
@@ -429,7 +443,7 @@ main() {
     rebuild_containers
     restart_services
     run_migrations
-    run_seed
+    run_reseed
     verify_deployment
     print_summary
 

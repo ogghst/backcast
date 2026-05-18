@@ -62,7 +62,7 @@ services:
         condition: service_healthy
     networks:
       - dev_network
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8020 --reload
+    command: .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8020 --reload
 
   frontend:
     build:
@@ -106,7 +106,7 @@ services:
       - dev_network
     profiles:
       - migrations
-    command: alembic upgrade head
+    command: .venv/bin/alembic upgrade head
 
   adminer:
     image: adminer:latest

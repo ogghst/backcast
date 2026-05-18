@@ -35,6 +35,7 @@ COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
 COPY backend/config ./config
+COPY backend/seed ./seed
 
 # Create necessary directories
 RUN mkdir -p /app/logs && \
