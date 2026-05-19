@@ -52,7 +52,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   // Dashboard
   dashboard: {
     all: ["dashboard"] as const,
-    recentActivity: ["dashboard", "recent-activity"] as const,
+    recentActivity: (params?: { asOf?: string; branch?: string }) =>
+      ["dashboard", "recent-activity", params] as const,
   },
 
   // Projects
