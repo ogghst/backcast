@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-05-19
-**Total Archived Items:** 46
+**Total Archived Items:** 48
 
 ---
 
@@ -10,6 +10,20 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ---
 
 ## Archived Items
+
+#### [TD-102] Dual-Source RBAC Config (JSON vs DB) Without Sync Validation
+
+- **Source:** 2026-05-11 unified RBAC cutover CHECK phase
+- **Description:** Two sources of RBAC role/permission definitions: `config/rbac.json` (legacy `JsonRBACService`) and `seed/rbac_roles.json` + `rbac_roles` table (`UnifiedRBACService`). Past incident where `change-order-approve` was accidentally removed from `viewer` role in `rbac.json`.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Deleted `config/rbac.json`, removed `RBAC_POLICY_FILE` config setting, removed fallback in seeder, updated `.env`/Docker/test files. `seed/rbac_roles.json` is now the single source of truth. `RBAC_PROVIDER` no longer supports `"json"`.
+
+#### [TD-092] Frontend TypeScript Errors (Pre-existing)
+
+- **Source:** 2026-05-10-co-critical-fixes CHECK phase report
+- **Description:** 26 TypeScript errors in frontend codebase (mock data incomplete, test setup type mismatches, component prop type mismatches).
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** `npx tsc --noEmit` passes with zero errors. The 26 pre-existing errors were fixed incidentally during subsequent iterations.
 
 #### [TD-108] SequentialToolNode._extract_state() Signature Mismatch with LangGraph
 
@@ -464,5 +478,5 @@ This file contains all completed, closed, or resolved technical debt items. For 
 |--------|-------|
 | Complete | 9 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **11** |
-| **Total (All Time)** | **36** |
+| **Total (2026)** | **13** |
+| **Total (All Time)** | **38** |

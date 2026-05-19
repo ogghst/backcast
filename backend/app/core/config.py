@@ -19,10 +19,8 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: list[str]
     BACKEND_CORS_METHODS: list[str]
     BACKEND_CORS_HEADERS: list[str]
-    RBAC_POLICY_FILE: str
-
     # Provider configuration
-    RBAC_PROVIDER: str = "database"  # "json" (legacy) | "database" | "entra" (future)
+    RBAC_PROVIDER: str = "database"  # "database" | "entra" (future)
     AUTH_PROVIDER: str = "local"  # "local" | "oidc" (future)
     USER_PROVIDER: str = "local"  # "local" | "entra" | "hybrid" (future)
 

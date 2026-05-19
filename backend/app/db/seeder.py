@@ -1070,7 +1070,7 @@ class DataSeeder:
         )
 
     async def seed_rbac_roles(self, session: AsyncSession) -> None:
-        """Seed RBAC roles and permissions from config/rbac.json or seed/rbac_roles.json.
+        """Seed RBAC roles and permissions from seed/rbac_roles.json.
 
         Idempotent - safe to run multiple times. Skips existing roles.
         Creates system roles (is_system=True) that cannot be deleted via API.
@@ -1084,21 +1084,17 @@ class DataSeeder:
 
         logger.info("Starting RBAC role seeding...")
 
-        # Try seed file first, fall back to config
-        seed_file = self.seed_dir / "rbac_roles.json"
-        config_file = Path(__file__).parent.parent.parent / "config" / "rbac.json"
-
-        rbac_file = seed_file if seed_file.exists() else config_file
+        rbac_file = self.seed_dir / "rbac_roles.json"
 
         if not rbac_file.exists():
-            logger.warning(f"RBAC config file not found: {rbac_file}")
+            logger.warning(f"RBAC seed file not found: {rbac_file}")
             return
 
         try:
             with rbac_file.open() as f:
                 rbac_config = json.load(f)
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in RBAC config file {rbac_file}: {e}")
+            logger.error(f"Invalid JSON in RBAC seed file {rbac_file}: {e}")
             return
 
         roles_data = rbac_config.get("roles", {})

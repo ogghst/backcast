@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-05-19
-**Total Open Items:** 16
-**Total Estimated Effort:** ~17.5 days
+**Total Open Items:** 14
+**Total Estimated Effort:** ~15.5 days
 
 ---
 
@@ -50,17 +50,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-092] Frontend TypeScript Errors (Pre-existing)
+### [TD-092] ~~Frontend TypeScript Errors (Pre-existing)~~
 
-- **Source:** 2026-05-10-co-critical-fixes CHECK phase report
-- **Description:** 26 TypeScript errors exist in frontend codebase, unrelated to iteration changes. Errors include: mock data incomplete (missing `level`, `valid_time_formatted` fields), test setup type mismatches, component prop type mismatches. These errors existed before the iteration and were documented during CHECK phase verification.
-- **Impact:** Reduces type safety confidence, may cause runtime issues, blocks full TypeScript strict mode adoption
-- **Estimated Effort:** 4 hours
-- **Status:** Open
-- **Owner:** Frontend Developer
-- **Priority:** P2 (Medium)
-- **Blocker:** No
-- **Suggested Approach:** Fix mock data first (easiest wins), then address component prop types, finally tackle test setup issues. Add baseline tracking to CI to distinguish new errors from pre-existing.
+- **Status:** ✅ Resolved (2026-05-19) — `npx tsc --noEmit` passes with zero errors. The 26 pre-existing TypeScript errors were fixed incidentally during subsequent iterations. See archive.
 
 ---
 
@@ -203,17 +195,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-102] Dual-Source RBAC Config (JSON vs DB) Without Sync Validation
+### [TD-102] ~~Dual-Source RBAC Config (JSON vs DB) Without Sync Validation~~
 
-- **Source:** 2026-05-11 unified RBAC cutover CHECK phase
-- **Description:** The system has two sources of RBAC role/permission definitions: `config/rbac.json` (used by `JsonRBACService` for legacy tests) and `seed/rbac_roles.json` + `rbac_roles` table (used by `UnifiedRBACService`). During the cutover, `change-order-approve` was accidentally removed from the `viewer` role in `rbac.json`, causing a test regression. There is no validation that the two sources stay in sync.
-- **Impact:** MEDIUM -- Config drift between JSON and DB causes confusing test failures. The `RBAC_PROVIDER` now defaults to `"database"` but some tests still use `JsonRBACService` via `rbac.json`.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P2 (Medium)
-- **Blocker:** No
-- **Suggested Approach:** Short-term: Add a CI test that validates `config/rbac.json` permissions are a subset of `seed/rbac_roles.json` permissions for each role. Long-term: Remove `JsonRBACService` and `rbac.json` entirely, making the DB the single source of truth for both runtime and tests. Update `test_rbac.py` to test against the database seed data instead of JSON config.
+- **Status:** ✅ Resolved (2026-05-19) — Removed `config/rbac.json` and all legacy `RBAC_PROVIDER=json` code paths. `seed/rbac_roles.json` is now the single source of truth. Updated seeder, config, env files, tests, and Docker configs. See archive.
 
 ---
 
@@ -259,10 +243,10 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 5 | ~10.5 days |
-| Medium (P2-P3) | 8 | ~9 days |
+| High (P0-P1) | 4 | ~10.5 days |
+| Medium (P2-P3) | 7 | ~7 days |
 | Low (P4+) | 2 | 5 hours |
-| **Total** | **15** | **~17.5 days** |
+| **Total** | **13** | **~15.5 days** |
 
 ---
 
