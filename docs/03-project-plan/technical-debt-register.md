@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-05-19
-**Total Open Items:** 13
-**Total Estimated Effort:** ~14.5 days
+**Total Open Items:** 7
+**Total Estimated Effort:** ~10.5 days
 
 ---
 
@@ -76,28 +76,6 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-088] Test Fixture RBAC Implementations Outdated
-
-- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
-- **Description:** `AllowAllRBAC` and `DenyAIRBAC` test fixtures in `tests/api/routes/ai_chat/test_websocket_integration.py` were missing async abstract methods (`has_project_access`, `get_user_projects`, `get_project_role`) required by `RBACServiceABC`. The abstract base class was updated to include these methods, but test fixtures were not updated accordingly, causing 16 test errors during CI.
-- **Impact:** 16 websocket integration tests failing at setup due to `TypeError: Can't instantiate abstract class`. Blocks integration testing of AI chat features.
-- **Estimated Effort:** 4 hours
-- **Status:** ✅ Fixed (2026-04-27)
-- **Owner:** Backend Developer
-- **Fix:** Added implementations of missing async abstract methods to both `AllowAllRBAC` and `DenyAIRBAC` classes with reasonable default return values for testing.
-
----
-
-### [TD-089] Test Fixtures Reference Removed `allowed_tools` Column
-
-- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
-- **Description:** `AIAssistantConfig` model schema removed the `allowed_tools` column in a prior migration, but test fixtures in `tests/conftest.py` (`test_ai_assistant`, `inactive_ai_assistant`, `test_ai_provider_with_config_factory`) were still instantiating with `allowed_tools=["list_projects"]` parameter. This caused `TypeError: 'allowed_tools' is an invalid keyword argument for AIAssistantConfig`.
-- **Impact:** 12 websocket integration tests failing at fixture setup. Tests cannot instantiate AI assistant configurations for integration testing.
-- **Estimated Effort:** 2 hours
-- **Status:** ✅ Fixed (2026-04-27)
-- **Owner:** Backend Developer
-- **Fix:** Removed all `allowed_tools` parameter references from `AIAssistantConfig` instantiations in test fixtures.
-
 ---
 
 ### [TD-084] Decompose `_run_agent_graph` Method
@@ -126,27 +104,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ## Medium Severity (P2 - P3)
 
-### [TD-090] WebSocket Integration Test Failures (Pre-existing)
+### [TD-091] ~~Unit Test Failures (Pre-existing)~~
 
-- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
-- **Description:** 12 websocket integration tests in `tests/api/routes/ai_chat/test_websocket_integration.py` are failing with pre-existing issues unrelated to recent code changes. Failures include: connection acceptance errors, streaming token issues, tool execution problems, session persistence errors, and various edge case validations. Root causes appear to be: missing OpenAI API keys in test environment, database state inconsistencies, and test isolation issues.
-- **Impact:** Cannot validate AI chat WebSocket functionality end-to-end. Blocking confidence in chat feature reliability.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Investigate each failure category separately: (1) Add test-only OpenAI API mocking or key setup, (2) Improve database isolation between tests, (3) Fix fixture teardown/cleanup issues.
-
----
-
-### [TD-091] Unit Test Failures (Pre-existing)
-
-- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
-- **Description:** Approximately 33 unit tests are failing with pre-existing issues across multiple test files. These failures existed before the simplify refactor work and are unrelated to recent changes. Categories include: database assertion mismatches, async fixture setup issues, and mock configuration problems.
-- **Impact:** Reduces confidence in test suite. Developers must manually verify which failures are regressions vs pre-existing.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Categorize failures by root cause (database, async, mocking), fix in priority order, add CI baseline tracking to distinguish new failures from pre-existing ones.
+- **Status:** ✅ Resolved (2026-05-19) — All 1279 unit tests pass (0 failures). Root causes: (1) `get_accessible_projects` admin path didn't filter `None` scope_ids, (2) RBAC migration read from deleted `config/rbac.json` instead of `seed/rbac_roles.json`, (3) test conftest truncated `rbac_roles`/`rbac_role_permissions` seed tables. All three fixed. See archive.
 
 ---
 
@@ -163,15 +123,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 - **Status:** Resolved (2026-05-19) -- Created `AgentEventType` and `ExecutionStatus` enums in `backend/app/ai/event_types.py`. Updated all references in `agent_service.py`, `agent_event_bus.py`, `ai_chat.py` routes, `app/main.py`, and `app/models/schemas/ai.py`. See archive.
 
-### [TD-087] Parameter Sprawl in Graph Creation Methods
+### [TD-087] ~~Parameter Sprawl in Graph Creation Methods~~
 
-- **Source:** Code review `/simplify` pass on `backend/app/ai/agent_service.py`
-- **Description:** `_create_deep_agent_graph` takes 12 parameters and `_run_agent_graph` takes 13. Many are optional with complex interdependencies (e.g., `websocket` is only needed when `interrupt_node` is used). The parameter lists make callers hard to read and error-prone to extend.
-- **Impact:** Adding new graph configuration (e.g., supervisor mode toggles, new middleware) requires modifying long parameter lists in multiple methods.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Group parameters into TypedDicts/dataclasses: `GraphCreationConfig` (llm, tool_context, assistant_config), `GraphExecutionParams` (message, session_id, user_id, project_id, temporal params), `StreamConfig` (event_bus, execution_mode).
+- **Status:** ✅ Resolved (2026-05-19) — Created `GraphCreationParams` and `GraphExecutionParams` dataclasses in `app/ai/graph_params.py`. Refactored `_create_deep_agent_graph` (11→1 param) and `_run_agent_graph` (13→1 param) to accept grouped params with destructuring. `start_execution` public API unchanged. See archive.
 
 ---
 
@@ -235,15 +189,15 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 4 | ~10.5 days |
-| Medium (P2-P3) | 6 | ~6 days |
-| Low (P4+) | 2 | 5 hours |
-| **Total** | **12** | **~14.5 days** |
+| High (P0-P1) | 3 | ~8.5 days |
+| Medium (P2-P3) | 3 | ~4 days |
+| Low (P4+) | 1 | 5 hours |
+| **Total** | **7** | **~10.5 days** |
 
 ---
 
 ## Links
 
-- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (35 items)
+- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (54 items)
 - [Sprint Backlog](./sprint-backlog.md) - Current iteration
 - [Product Backlog](./product-backlog.md) - All pending work

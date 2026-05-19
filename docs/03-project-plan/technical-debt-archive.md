@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-05-19
-**Total Archived Items:** 49
+**Total Archived Items:** 54
 
 ---
 
@@ -10,6 +10,43 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ---
 
 ## Archived Items
+
+#### [TD-090] WebSocket Integration Test Failures (Pre-existing)
+
+- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
+- **Description:** 12 websocket integration tests in `tests/api/routes/ai_chat/test_websocket_integration.py` were failing with pre-existing issues: connection acceptance errors, streaming token issues, tool execution problems, session persistence errors, and various edge case validations. Root causes: missing OpenAI API keys in test environment, database state inconsistencies, and test isolation issues.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** All 21 websocket integration tests now pass (0 failures). The original 12 failures were fixed incidentally during subsequent iterations — specifically the unified RBAC refactoring (TD-091 root causes: RBAC migration path, conftest truncation of seed tables) and the abstract method fixes in TD-088/TD-089.
+
+#### [TD-089] Test Fixtures Reference Removed `allowed_tools` Column
+
+- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
+- **Description:** `AIAssistantConfig` model schema removed the `allowed_tools` column in a prior migration, but test fixtures in `tests/conftest.py` were still instantiating with `allowed_tools=["list_projects"]` parameter, causing `TypeError`.
+- **Status:** ✅ Resolved (2026-04-27)
+- **Resolution:** Removed all `allowed_tools` parameter references from `AIAssistantConfig` instantiations in test fixtures.
+
+#### [TD-088] Test Fixture RBAC Implementations Outdated
+
+- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
+- **Description:** `AllowAllRBAC` and `DenyAIRBAC` test fixtures were missing async abstract methods (`has_project_access`, `get_user_projects`, `get_project_role`) required by `RBACServiceABC`, causing 16 test errors during CI.
+- **Status:** ✅ Resolved (2026-04-27)
+- **Resolution:** Added implementations of missing async abstract methods to both `AllowAllRBAC` and `DenyAIRBAC` classes with reasonable default return values for testing.
+
+#### [TD-087] Parameter Sprawl in Graph Creation Methods
+
+- **Source:** Code review `/simplify` pass on `backend/app/ai/agent_service.py`
+- **Description:** `_create_deep_agent_graph` took 11 parameters and `_run_agent_graph` took 13. Many optional with complex interdependencies. Parameter lists made callers hard to read and error-prone to extend.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Created `GraphCreationParams` (11 fields) and `GraphExecutionParams` (13 fields) dataclasses in `app/ai/graph_params.py`. Refactored both methods to accept a single grouped params object with local destructuring. `start_execution` public API unchanged. Adding new graph configuration now only requires extending the dataclass, not modifying parameter lists across multiple methods.
+- **Files Changed:** `app/ai/graph_params.py` (new), `app/ai/agent_service.py`
+
+#### [TD-091] Unit Test Failures (Pre-existing)
+
+- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
+- **Description:** Approximately 33 unit tests were failing with pre-existing issues. Root causes identified and fixed: (1) `get_accessible_projects` admin path didn't filter `None` scope_ids from query results, (2) RBAC migration `7fc133112eef` read from deleted `config/rbac.json` instead of `seed/rbac_roles.json` (broken by TD-102 removal), (3) test conftest truncated `rbac_roles`/`rbac_role_permissions` seed tables between tests, preventing role lookups.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Fixed all three root causes. All 1279 unit tests now pass (0 failures, 14 skipped, 1 xfailed).
+- **Files Changed:** `app/core/rbac_unified.py`, `alembic/versions/7fc133112eef_add_rbac_roles_tables.py`, `tests/conftest.py`
 
 #### [TD-096] Security Tests for Unified RBAC
 
@@ -485,5 +522,5 @@ This file contains all completed, closed, or resolved technical debt items. For 
 |--------|-------|
 | Complete | 9 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **14** |
-| **Total (All Time)** | **39** |
+| **Total (2026)** | **17** |
+| **Total (All Time)** | **42** |
