@@ -81,12 +81,17 @@ class DashboardService:
         self,
         user_id: UUID,
         activity_limit: int = 10,
+        as_of: datetime | None = None,
+        branch: str = "main",
     ) -> DashboardData:
         """Get complete dashboard data for a user.
 
         Args:
             user_id: User ID to get data for, used for RBAC filtering
             activity_limit: Maximum number of activities per entity type
+            as_of: Optional timestamp for time-travel queries (not yet used
+                in sub-queries; reserved for future implementation)
+            branch: Branch name to query (default: "main")
 
         Returns:
             DashboardData with last edited project and recent activity,
@@ -102,7 +107,7 @@ class DashboardService:
             ] = await self.project_service.get_recently_updated(
                 user_id=None,
                 limit=activity_limit,
-                branch="main",
+                branch=branch,
             )
 
             # Filter projects by user's RBAC access
@@ -113,7 +118,7 @@ class DashboardService:
             recent_wbes: list[WBE] = await self.wbe_service.get_recently_updated(
                 user_id=None,
                 limit=activity_limit,
-                branch="main",
+                branch=branch,
                 eager_load_project=True,  # Eager load project to avoid N+1 queries
             )
 
@@ -125,7 +130,7 @@ class DashboardService:
             ] = await self.cost_element_service.get_recently_updated(
                 user_id=None,
                 limit=activity_limit,
-                branch="main",
+                branch=branch,
                 eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
             )
 
@@ -141,7 +146,7 @@ class DashboardService:
             ] = await self.change_order_service.get_recently_updated(
                 user_id=None,
                 limit=activity_limit,
-                branch="main",
+                branch=branch,
                 eager_load_project=True,  # Eager load project to avoid N+1 queries
             )
 
@@ -166,7 +171,8 @@ class DashboardService:
             last_edited_project = None
             if recent_projects:
                 last_edited_project = await self._get_project_spotlight(
-                    recent_projects[0].project_id
+                    recent_projects[0].project_id,
+                    branch=branch,
                 )
 
             return DashboardData(
@@ -357,23 +363,26 @@ class DashboardService:
             branch=change_order.branch,
         )
 
-    async def _get_project_spotlight(self, project_id: UUID) -> ProjectSpotlight | None:
+    async def _get_project_spotlight(
+        self, project_id: UUID, branch: str = "main"
+    ) -> ProjectSpotlight | None:
         """Get project spotlight with metrics.
 
         Args:
             project_id: Project ID to get spotlight for
+            branch: Branch name to query (default: "main")
 
         Returns:
             ProjectSpotlight with metrics, or None if project not found
         """
 
         # Get project
-        project = await self.project_service.get_as_of(project_id, branch="main")
+        project = await self.project_service.get_as_of(project_id, branch=branch)
         if not project:
             return None
 
         # Calculate metrics
-        metrics = await self._calculate_project_metrics(project_id)
+        metrics = await self._calculate_project_metrics(project_id, branch=branch)
 
         # Get last activity timestamp
         last_activity = project.transaction_time.lower
@@ -389,11 +398,14 @@ class DashboardService:
             branch=project.branch,
         )
 
-    async def _calculate_project_metrics(self, project_id: UUID) -> ProjectMetrics:
+    async def _calculate_project_metrics(
+        self, project_id: UUID, branch: str = "main"
+    ) -> ProjectMetrics:
         """Calculate metrics for a project.
 
         Args:
             project_id: Project ID to calculate metrics for
+            branch: Branch name to query (default: "main")
 
         Returns:
             ProjectMetrics with calculated values
@@ -401,7 +413,7 @@ class DashboardService:
         from typing import Any, cast
 
         # Get project
-        project = await self.project_service.get_as_of(project_id, branch="main")
+        project = await self.project_service.get_as_of(project_id, branch=branch)
         if not project:
             raise ValueError(f"Project {project_id} not found")
 
@@ -414,7 +426,7 @@ class DashboardService:
                 is_current_version_on_branch(
                     cast(Any, WBE).valid_time,
                     WBE.branch,
-                    "main",
+                    branch,
                     cast(Any, WBE).deleted_at,
                 ),
             )
@@ -437,7 +449,7 @@ class DashboardService:
                         is_current_version_on_branch(
                             cast(Any, WBE).valid_time,
                             WBE.branch,
-                            "main",
+                            branch,
                             cast(Any, WBE).deleted_at,
                         ),
                     )
@@ -445,7 +457,7 @@ class DashboardService:
                 is_current_version_on_branch(
                     cast(Any, CostElement).valid_time,
                     CostElement.branch,
-                    "main",
+                    branch,
                     cast(Any, CostElement).deleted_at,
                 ),
             )
@@ -463,14 +475,14 @@ class DashboardService:
             .select_from(ChangeOrder)
             .where(
                 ChangeOrder.project_id == project_id,
-                ChangeOrder.branch == "main",
+                ChangeOrder.branch == branch,
                 ChangeOrder.status.in_(
                     ["draft", "submitted_for_approval", "under_review"]
                 ),
                 is_current_version_on_branch(
                     cast(Any, ChangeOrder).valid_time,
                     ChangeOrder.branch,
-                    "main",
+                    branch,
                     cast(Any, ChangeOrder).deleted_at,
                 ),
             )

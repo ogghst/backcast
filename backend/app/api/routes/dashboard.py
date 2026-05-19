@@ -1,5 +1,6 @@
 """Dashboard API routes with authentication."""
 
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -44,6 +45,10 @@ async def get_dashboard_recent_activity(
             description="Maximum number of activities per entity type (1-50)",
         ),
     ] = 10,
+    as_of: datetime | None = Query(
+        None, alias="asOf", description="Optional timestamp for time-travel queries"
+    ),
+    branch: str = Query("main", description="Branch name to query"),
     service: DashboardService = Depends(get_dashboard_service),
     current_user: User = Depends(get_current_active_user),
 ) -> DashboardData:
@@ -56,10 +61,17 @@ async def get_dashboard_recent_activity(
     The activity_limit parameter controls how many recent items to return per
     entity type (default: 10, max: 50).
 
+    The as_of parameter enables time-travel queries, returning data as it
+    appeared at a specific point in time.
+
+    The branch parameter controls which branch to query (default: "main").
+
     Requires authentication.
     """
     async with rbac_session(service.session):
         return await service.get_dashboard_data(
             user_id=current_user.user_id,
             activity_limit=activity_limit,
+            as_of=as_of,
+            branch=branch,
         )
