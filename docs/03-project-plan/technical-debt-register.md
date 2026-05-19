@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-05-19
-**Total Open Items:** 7
-**Total Estimated Effort:** ~10.5 days
+**Total Open Items:** 6
+**Total Estimated Effort:** ~10 days
 
 ---
 
@@ -110,14 +110,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-016] Performance Optimization (Large Projects)
+### [TD-016] ~~Performance Optimization (Large Projects)~~
 
-- **Source:** Hierarchical Nav ACT phase
-- **Description:** `useWBEs` fetches full list. Needs pagination or server-side tree loading.
-- **Impact:** Slow load times for large datasets
-- **Estimated Effort:** 3 hours
-- **Status:** ⏸️ Deferred (2026-04-23)
-- **Owner:** Full Stack Developer
+- **Status:** ✅ Resolved (2026-05-19) — Backend supports pagination (`page`/`per_page`), `useWBEs` defaults to pageSize 20, and ProjectTree uses lazy loading via `loadData`. See archive.
 
 ### [TD-086] ~~Stringly-Typed Event Types and Tool Names~~
 
@@ -190,9 +185,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 3 | ~8.5 days |
-| Medium (P2-P3) | 3 | ~4 days |
+| Medium (P2-P3) | 2 | ~3.5 days |
 | Low (P4+) | 1 | 5 hours |
-| **Total** | **7** | **~10.5 days** |
+| **Total** | **6** | **~10 days** |
 
 ---
 

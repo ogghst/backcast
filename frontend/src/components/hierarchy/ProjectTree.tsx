@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, type ReactNode, type CSSProperties } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode, type CSSProperties } from "react";
 import { Tree, Empty, Spin, Alert, Typography, theme } from "antd";
 import { FolderOutlined, AppstoreOutlined, PayCircleOutlined } from "@ant-design/icons";
 import type { DataNode, EventDataNode } from "antd/es/tree";
@@ -172,17 +172,6 @@ export const ProjectTree = ({
 
   useEffect(() => {
     if (projectData && wbesData?.items) {
-      console.log('[ProjectTree] ========================================');
-      console.log('[ProjectTree] ⚠️⚠️⚠️ BUILDING TREE - DEBUG MODE ⚠️⚠️⚠️');
-      console.log('[ProjectTree] Building tree with project:', projectData.name);
-      console.log('[ProjectTree] Root WBEs received:', wbesData.items.map((w: WBERead) => `${w.code}: ${w.name} (id: ${w.wbe_id})`));
-      console.log('[ProjectTree] Total root WBEs:', wbesData.items.length);
-
-      // Check if F5 is in the data
-      const f5 = wbesData.items.find((w: WBERead) => w.code === 'F5');
-      console.log('[ProjectTree] 🔍 F5 SEARCH:');
-      console.log('[ProjectTree] F5 found in data?', !!f5, f5 ? `Name: ${f5.name}, ID: ${f5.wbe_id}` : '❌ NOT FOUND');
-
       const projectDates = formatDateRange(projectData.start_date, projectData.end_date);
       const projectKey = `project-${projectData.project_id}`;
       nodeMetaRef.current.set(projectKey, {
@@ -215,19 +204,6 @@ export const ProjectTree = ({
         };
       });
 
-      console.log('[ProjectTree] Built', wbeRoots.length, 'root WBE nodes');
-      console.log('[ProjectTree] Root node keys:', wbeRoots.map(n => `${n.key} (${n.props?.title?.props?.name || n.props?.title || 'unknown'})`));
-
-      // Check if F5 node was created
-      const f5Node = wbeRoots.find(n => n.key === 'wbe-cfafbab0-079d-4750-a537-458528e1c5fd');
-      console.log('[ProjectTree] F5 node created?', !!f5Node, f5Node ? 'F5 node found!' : 'F5 node NOT found!');
-
-      // Log each node individually
-      wbeRoots.forEach((node, idx) => {
-        const nodeName = node.props?.title?.props?.name || 'unknown';
-        console.log(`[ProjectTree] [${idx}] key=${node.key}, name=${nodeName}`);
-      });
-
       const projectRoot: DataNode = {
         key: projectKey,
         title: (
@@ -245,20 +221,8 @@ export const ProjectTree = ({
         isLeaf: false,
       };
 
-      console.log('[ProjectTree] Setting treeData with', wbeRoots.length, 'children');
-      console.log('[ProjectTree] Final tree structure:', JSON.stringify(projectRoot, (key, value) => {
-        if (key === 'title' && React.isValidElement(value)) {
-          return '[React Element]';
-        }
-        return value;
-      }, 2));
-      console.log('[ProjectTree] ========================================');
       setTreeData([projectRoot]);
     } else {
-      console.log('[ProjectTree] No data available - projectData:', !!projectData, 'wbesData?.items:', !!wbesData?.items);
-      if (wbesData) {
-        console.log('[ProjectTree] wbesData:', wbesData);
-      }
       setTreeData([]);
     }
   }, [wbesData, projectData, showBudget, showDates]);
@@ -266,14 +230,11 @@ export const ProjectTree = ({
   const onLoadData = useCallback(
     async (treeNode: EventDataNode<DataNode>) => {
       const meta = nodeMetaRef.current.get(String(treeNode.key));
-      console.log('[ProjectTree onLoadData] Loading children for node:', treeNode.key, 'meta:', meta);
 
       if (meta?.type !== "wbe") return;
       if (treeNode.children && treeNode.children.length > 0) return;
 
       try {
-        console.log('[ProjectTree onLoadData] Fetching children for parent:', meta.name, '(', meta.id, ')');
-
         const [childWBEsResponse, costElementsResponse] = await Promise.all([
           queryClient.fetchQuery({
             queryKey: queryKeys.wbes.list(projectId, {
@@ -323,16 +284,6 @@ export const ProjectTree = ({
 
         const childWBEs = extractItems(childWBEsResponse) as WBERead[];
         const costElements = extractItems(costElementsResponse) as CostElementRead[];
-
-        // Debug: Log the parent-child relationship to verify correctness
-        console.log('[ProjectTree onLoadData] ========================================');
-        console.log(`[ProjectTree onLoadData] Loaded ${childWBEs.length} children for parent ${meta.name} (${meta.id}):`);
-        childWBEs.forEach(w => {
-          console.log(`  - ${w.code}: ${w.name} (parent_wbe_id: ${w.parent_wbe_id})`);
-        });
-        console.log(`[ProjectTree onLoadData] Parent WBE ID in meta: ${meta.id}`);
-        console.log(`[ProjectTree onLoadData] Parent WBE wbe_id (if available): ${meta.wbe_id || 'N/A'}`);
-        console.log('[ProjectTree onLoadData] ========================================');
 
         // Fetch schedule baselines for cost elements when showDates is enabled
         const baselines: Record<string, { start_date: string; end_date: string }> = {};

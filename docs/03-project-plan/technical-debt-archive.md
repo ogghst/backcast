@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-05-19
-**Total Archived Items:** 54
+**Total Archived Items:** 55
 
 ---
 
@@ -10,6 +10,13 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ---
 
 ## Archived Items
+
+#### [TD-016] Performance Optimization (Large Projects)
+
+- **Source:** Hierarchical Nav ACT phase
+- **Description:** `useWBEs` fetched full list without pagination. Needed pagination or server-side tree loading.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Backend WBE endpoint now supports `page`/`per_page` pagination. `useWBEs` hook defaults to pageSize 20. ProjectTree uses lazy loading via Ant Design `loadData` callback — root WBEs load first, children fetch on expand. All callers pass appropriate pagination params.
 
 #### [TD-090] WebSocket Integration Test Failures (Pre-existing)
 
