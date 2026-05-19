@@ -194,12 +194,18 @@ export const useUpdateProjectMember = () => {
   });
 };
 
+/** Roles that can be assigned to human users at project scope. */
+const PROJECT_ASSIGNABLE_ROLES = new Set(["admin", "manager", "viewer"]);
+
 /**
  * Hook that fetches RBAC roles and builds lookup maps.
+ * Filters to only project-assignable roles (excludes ai-*, change_order_approver).
  * Returns { roles, roleNameToId, roleIdToName, isLoading }.
  */
 export const useProjectRoleMap = () => {
-  const { data: roles, isLoading } = useRBACRoles();
+  const { data: allRoles, isLoading } = useRBACRoles();
+
+  const roles = allRoles?.filter((r) => PROJECT_ASSIGNABLE_ROLES.has(r.name));
 
   const roleNameToId = new Map<string, string>();
   const roleIdToName = new Map<string, string>();
