@@ -486,7 +486,7 @@ class UnifiedRBACService:
             if session is None:
                 return []
             result = await session.execute(select(Project.project_id))
-            return [row[0] for row in result.all()]
+            return [row[0] for row in result.all() if row[0] is not None]
 
         # Non-admin: project-scoped assignments
         session = get_unified_rbac_session()

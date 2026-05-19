@@ -235,8 +235,6 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
                     "dashboard_layouts",
                     "notifications",
                     "user_role_assignments",
-                    "rbac_role_permissions",
-                    "rbac_roles",
                     "cost_registrations",
                     "progress_entries",
                     "cost_elements",

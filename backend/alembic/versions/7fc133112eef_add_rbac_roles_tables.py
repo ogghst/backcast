@@ -91,8 +91,8 @@ def upgrade() -> None:
         ['role_id'],
     )
 
-    # --- Seed data from rbac.json ---
-    rbac_path = Path(__file__).resolve().parent.parent.parent / 'config' / 'rbac.json'
+    # --- Seed data from seed/rbac_roles.json ---
+    rbac_path = Path(__file__).resolve().parent.parent.parent / 'seed' / 'rbac_roles.json'
     if not rbac_path.exists():
         return
 
