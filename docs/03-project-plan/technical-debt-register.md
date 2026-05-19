@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-05-19
-**Total Open Items:** 14
-**Total Estimated Effort:** ~15.5 days
+**Total Open Items:** 13
+**Total Estimated Effort:** ~14.5 days
 
 ---
 
@@ -24,17 +24,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-096] Security Tests for Unified RBAC
+### [TD-096] ~~Security Tests for Unified RBAC~~
 
-- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-025)
-- **Description:** The unified RBAC system has fail-secure defaults tested at the unit level, but lacks dedicated security tests for edge cases: metadata injection (arbitrary authority_level values in JSONB), expired role denial, cache poisoning scenarios, privilege escalation via scope manipulation, and concurrent assignment modification.
-- **Impact:** MEDIUM -- Fail-secure defaults work, but no automated tests for adversarial edge cases.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P2 (Medium)
-- **Blocker:** No
-- **Suggested Approach:** Create `tests/unit/core/test_rbac_unified_security.py` with tests for: setting arbitrary authority_level values, expired role assignments being denied, concurrent cache invalidation, role assignment with conflicting scopes, admin bypass verification.
+- **Status:** ✅ Resolved (2026-05-19) — Created `tests/unit/core/test_rbac_unified_security.py` with 27 tests across 5 classes: metadata injection, expired role denial, cache poisoning, scope isolation, admin bypass. Found and documented gap: `get_user_roles()` does not filter expired assignments. See archive.
 
 ---
 
@@ -244,9 +236,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 4 | ~10.5 days |
-| Medium (P2-P3) | 7 | ~7 days |
+| Medium (P2-P3) | 6 | ~6 days |
 | Low (P4+) | 2 | 5 hours |
-| **Total** | **13** | **~15.5 days** |
+| **Total** | **12** | **~14.5 days** |
 
 ---
 

@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-05-19
-**Total Archived Items:** 48
+**Total Archived Items:** 49
 
 ---
 
@@ -10,6 +10,13 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ---
 
 ## Archived Items
+
+#### [TD-096] Security Tests for Unified RBAC
+
+- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-025)
+- **Description:** The unified RBAC system lacked dedicated security tests for adversarial edge cases: metadata injection, expired role denial, cache poisoning, privilege escalation via scope manipulation, and admin bypass verification.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Created `tests/unit/core/test_rbac_unified_security.py` with 27 tests across 5 classes (TestMetadataInjection, TestExpiredRoleDenial, TestCachePoisoningAndInvalidation, TestScopeIsolation, TestAdminBypassVerification). Found gap: `get_user_roles()` does not filter expired assignments (`expires_at` not checked in DB query). Documented as xfail test.
 
 #### [TD-102] Dual-Source RBAC Config (JSON vs DB) Without Sync Validation
 
@@ -478,5 +485,5 @@ This file contains all completed, closed, or resolved technical debt items. For 
 |--------|-------|
 | Complete | 9 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **13** |
-| **Total (All Time)** | **38** |
+| **Total (2026)** | **14** |
+| **Total (All Time)** | **39** |
