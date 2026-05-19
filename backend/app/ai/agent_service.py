@@ -119,6 +119,7 @@ from app.ai.graph_cache import (
     set_request_context,
     shared_checkpointer,
 )
+from app.ai.graph_params import GraphCreationParams, GraphExecutionParams
 from app.ai.message_utils import extract_tool_output_content
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.subagents import get_all_subagents
@@ -480,17 +481,7 @@ class AgentService:
 
     async def _create_deep_agent_graph(
         self,
-        llm: ChatOpenAI | ChatDeepSeek,
-        tool_context: ToolContext,
-        assistant_config: AIAssistantConfig,
-        websocket: WebSocket | None = None,
-        session_id: UUID | None = None,
-        enable_subagents: bool = True,
-        provider_type: str | None = None,
-        model_name: str | None = None,
-        available_tools: list[Any] | None = None,
-        event_bus: AgentEventBus | None = None,
-        user_role: str = "guest",
+        params: GraphCreationParams,
     ) -> tuple[Any, InterruptNode | None]:
         """Create Deep Agent graph with Backcast context.
 
@@ -498,17 +489,7 @@ class AgentService:
         LangChain Deep Agents SDK. Preserves security model and temporal context.
 
         Args:
-            llm: The language model to use (ChatOpenAI or ChatDeepSeek)
-            tool_context: ToolContext with user permissions and temporal parameters
-            assistant_config: AI assistant configuration
-            websocket: Optional WebSocket connection for InterruptNode
-            session_id: Optional session ID for InterruptNode
-            enable_subagents: Whether to enable subagent delegation
-            provider_type: Optional provider type for model string construction
-            model_name: Optional model name for model string construction
-            available_tools: Optional list of available tools for InterruptNode
-            event_bus: Optional event bus for InterruptNode
-            user_role: Per-user RBAC role for tool visibility filtering
+            params: Grouped parameters for graph creation.
 
         Returns:
             Tuple of (compiled_graph, interrupt_node) where interrupt_node may be None
@@ -517,10 +498,17 @@ class AgentService:
             This is an alternative to create_graph() that uses the Deep Agents SDK
             for planning and subagent delegation. Falls back to create_graph() if
             Deep Agents SDK is not available or encounters errors.
-
-            InterruptNode is integrated via BackcastSecurityMiddleware to handle
-            approvals for HIGH risk tools in standard mode. CRITICAL tools are blocked entirely.
         """
+        # Destructure for local use
+        llm = params.llm
+        tool_context = params.tool_context
+        assistant_config = params.assistant_config
+        websocket = params.websocket
+        session_id = params.session_id
+        available_tools = params.available_tools
+        event_bus = params.event_bus
+        user_role = params.user_role
+
         # Create InterruptNode first (needed for middleware and always per-request)
         interrupt_node = None
         if available_tools and session_id and (websocket or event_bus):
@@ -896,18 +884,7 @@ class AgentService:
 
     async def _run_agent_graph(
         self,
-        message: str,
-        assistant_config: AIAssistantConfig,
-        session_id: UUID,
-        user_id: UUID,
-        event_bus: AgentEventBus,
-        project_id: UUID | None = None,
-        branch_id: UUID | None = None,
-        as_of: datetime | None = None,
-        branch_name: str | None = None,
-        branch_mode: Literal["merged", "isolated"] | None = None,
-        execution_mode: ExecutionMode = ExecutionMode.STANDARD,
-        context: dict[str, Any] | None = None,
+        params: GraphExecutionParams,
     ) -> AgentExecutionMetrics:
         """Run the agent graph and publish streaming events to an AgentEventBus.
 
@@ -916,21 +893,24 @@ class AgentService:
         Communicates results entirely through event_bus.
 
         Args:
-            message: The user's input message
-            assistant_config: Configuration defining the model and allowed tools
-            session_id: Existing session ID to continue
-            user_id: ID of the user who sent the message
-            event_bus: AgentEventBus to publish events to
-            project_id: Optional project context UUID
-            branch_id: Optional branch context UUID
-            as_of: Optional historical date for temporal queries
-            branch_name: Optional branch name for temporal queries
-            branch_mode: Optional branch mode for temporal queries
-            execution_mode: Execution mode for tool filtering
+            params: Grouped parameters for graph execution.
 
         Returns:
             AgentExecutionMetrics with aggregated token usage and tool call count.
         """
+        # Destructure for local use
+        assistant_config = params.assistant_config
+        session_id = params.session_id
+        user_id = params.user_id
+        event_bus = params.event_bus
+        project_id = params.project_id
+        branch_id = params.branch_id
+        as_of = params.as_of
+        branch_name = params.branch_name
+        branch_mode = params.branch_mode
+        execution_mode = params.execution_mode
+        context = params.context
+
         self._subagent_invocation_counts.clear()
         history = await self._build_conversation_history(session_id)
 
@@ -978,17 +958,19 @@ class AgentService:
         available_tools = create_project_tools(tool_context)
 
         graph, interrupt_node = await self._create_deep_agent_graph(
-            llm=llm,
-            tool_context=tool_context,
-            assistant_config=assistant_config,
-            websocket=None,
-            session_id=session_id,
-            enable_subagents=True,
-            provider_type=provider_type,
-            model_name=model_name,
-            available_tools=available_tools,
-            event_bus=event_bus,
-            user_role=user_role,
+            GraphCreationParams(
+                llm=llm,
+                tool_context=tool_context,
+                assistant_config=assistant_config,
+                websocket=None,
+                session_id=session_id,
+                enable_subagents=True,
+                provider_type=provider_type,
+                model_name=model_name,
+                available_tools=available_tools,
+                event_bus=event_bus,
+                user_role=user_role,
+            )
         )
 
         set_request_context(tool_context, interrupt_node)
@@ -1980,18 +1962,20 @@ class AgentService:
 
                 # Run the agent graph, publishing events to the bus
                 metrics = await exec_service._run_agent_graph(
-                    message=message,
-                    assistant_config=assistant_config,
-                    session_id=session_id,
-                    user_id=user_id,
-                    event_bus=event_bus,
-                    project_id=project_id,
-                    branch_id=branch_id,
-                    as_of=as_of,
-                    branch_name=branch_name,
-                    branch_mode=branch_mode,
-                    execution_mode=execution_mode,
-                    context=session_context,
+                    GraphExecutionParams(
+                        message=message,
+                        assistant_config=assistant_config,
+                        session_id=session_id,
+                        user_id=user_id,
+                        event_bus=event_bus,
+                        project_id=project_id,
+                        branch_id=branch_id,
+                        as_of=as_of,
+                        branch_name=branch_name,
+                        branch_mode=branch_mode,
+                        execution_mode=execution_mode,
+                        context=session_context,
+                    )
                 )
 
                 # Re-query since db.close() detached the object
