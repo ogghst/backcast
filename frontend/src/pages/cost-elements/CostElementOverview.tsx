@@ -29,6 +29,10 @@ import { queryKeys } from "@/api/queryKeys";
 import type { ScheduleBaselineRead } from "@/features/schedule-baselines/api/useScheduleBaselines";
 import type { ProgressEntryRead } from "@/api/generated";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
+import { useWBE } from "@/features/wbes/api/useWBEs";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { getCurrencySymbol } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -119,6 +123,11 @@ export const UnifiedMetricsSection = ({ costElement }: UnifiedMetricsSectionProp
   const isMobile = !screens.md;
 
   const currentBranch = tmBranch || costElement.branch || "main";
+
+  // Resolve project currency
+  const { data: wbe } = useWBE(costElement.wbe_id);
+  const currency = useProjectCurrency(wbe?.project_id);
+  const currencySymbol = getCurrencySymbol(currency);
 
   // Forecast state
   const [isForecastModalOpen, setIsForecastModalOpen] = useState(false);
@@ -276,7 +285,7 @@ export const UnifiedMetricsSection = ({ costElement }: UnifiedMetricsSectionProp
                 fontSize: token.fontSizeLG,
                 fontWeight: 600,
               }}>
-                €{eac?.toLocaleString()}
+                {currencySymbol}{eac?.toLocaleString()}
               </Text>
             </div>
             <div>
@@ -289,7 +298,7 @@ export const UnifiedMetricsSection = ({ costElement }: UnifiedMetricsSectionProp
                 fontWeight: 600,
                 color: getVacColor(),
               }}>
-                {vac !== null ? (vac > 0 ? "+" : "") + `€${vac.toLocaleString()}` : "-"}
+                {vac !== null ? (vac > 0 ? "+" : "") + `${currencySymbol}${vac.toLocaleString()}` : "-"}
               </Text>
             </div>
             <div>
@@ -449,6 +458,7 @@ export const UnifiedMetricsSection = ({ costElement }: UnifiedMetricsSectionProp
         costElementId={costElement.cost_element_id}
         costElementName={`Cost Element ${costElement.cost_element_id}`}
         budgetAmount={bac}
+        projectId={wbe?.project_id}
       />
 
       <Modal
@@ -461,6 +471,7 @@ export const UnifiedMetricsSection = ({ costElement }: UnifiedMetricsSectionProp
         <ForecastHistoryView
           costElementId={costElement.cost_element_id}
           currentBranch={currentBranch}
+          projectId={useTimeMachineStore.getState().currentProjectId ?? undefined}
         />
       </Modal>
 
@@ -534,6 +545,7 @@ export const CostElementOverview = () => {
               entityType="cost_element"
               entityId={id}
               headless
+              projectId={useTimeMachineStore.getState().currentProjectId ?? undefined}
             />
           ) : undefined
         }

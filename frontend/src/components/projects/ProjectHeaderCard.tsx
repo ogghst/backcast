@@ -24,6 +24,7 @@ export const ProjectHeaderCard = ({
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const { asOf } = useTimeMachineParams();
+  const currency = project.currency || "EUR";
 
   // control_date is returned by the API but not yet in the generated type
   const controlDate = (project as Record<string, unknown>)
@@ -251,7 +252,7 @@ export const ProjectHeaderCard = ({
             </div>
             <div style={{ marginTop: token.marginMD }}>
               <div>
-                <Text strong>{formatCompactCurrency(costBudget)}</Text>
+                <Text strong>{formatCompactCurrency(costBudget, currency)}</Text>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
                   budget
                 </Text>
@@ -266,7 +267,7 @@ export const ProjectHeaderCard = ({
                   marginRight: token.marginXS,
                 }} />
                 <Text style={{ fontSize: token.fontSizeSM }}>
-                  {formatCompactCurrency(costActual)} costs
+                  {formatCompactCurrency(costActual, currency)} costs
                 </Text>
                 {costBudget > 0 && (
                   <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
@@ -285,7 +286,7 @@ export const ProjectHeaderCard = ({
                     marginRight: token.marginXS,
                   }} />
                   <Text style={{ fontSize: token.fontSizeSM }}>
-                    {formatCompactCurrency(costRevenue)} revenue
+                    {formatCompactCurrency(costRevenue, currency)} revenue
                   </Text>
                 </div>
               )}

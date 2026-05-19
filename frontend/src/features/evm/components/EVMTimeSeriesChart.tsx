@@ -42,6 +42,8 @@ interface EVMTimeSeriesChartProps {
   height?: number | string;
   /** Whether to fill the container height (for both charts mode) */
   fillContainer?: boolean;
+  /** ISO 4217 currency code */
+  currency?: string;
 }
 
 /**
@@ -57,6 +59,7 @@ export const EVMTimeSeriesChart = ({
   headless = false,
   height,
   fillContainer = false,
+  currency = "EUR",
 }: EVMTimeSeriesChartProps) => {
   // Get current granularity from timeSeries or prop
   const granularity =
@@ -72,7 +75,7 @@ export const EVMTimeSeriesChart = ({
       showExport={showExport}
       currentGranularity={granularity}
       onGranularityChange={onGranularityChange}
-      currency="EUR"
+      currency={currency}
       delayRender={delayRender}
       height={height}
       fillContainer={fillContainer}

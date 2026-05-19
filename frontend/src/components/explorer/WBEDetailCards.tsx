@@ -29,6 +29,8 @@ import { EntityType } from "@/features/evm/types";
 import type { EVMTimeSeriesGranularity } from "@/features/evm/types";
 import { formatTimestamp } from "./shared/formatters";
 import { KPIStrip, BudgetOverviewChart, BudgetDistributionChart } from "./charts";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { getCurrencySymbol } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -42,6 +44,8 @@ export const WBEDetailCards = ({ wbeId }: WBEDetailCardsProps) => {
   const [granularity, setGranularity] = useState<EVMTimeSeriesGranularity>("week");
 
   const { data: wbe, isLoading, error } = useWBE(wbeId);
+  const currency = useProjectCurrency(wbe?.project_id);
+  const currencySymbol = getCurrencySymbol(currency);
   const { data: evmMetrics, isLoading: evmLoading } = useEVMMetrics(
     EntityType.WBE,
     wbeId,
@@ -133,7 +137,7 @@ export const WBEDetailCards = ({ wbeId }: WBEDetailCardsProps) => {
               title="Budget"
               value={Number(wbe.budget_allocation) || 0}
               precision={0}
-              prefix="€"
+              prefix={currencySymbol}
               valueStyle={{ fontSize: token.fontSizeLG }}
             />
           </Col>
@@ -142,7 +146,7 @@ export const WBEDetailCards = ({ wbeId }: WBEDetailCardsProps) => {
               title="Revenue"
               value={Number(wbe.revenue_allocation) || 0}
               precision={0}
-              prefix="€"
+              prefix={currencySymbol}
               valueStyle={{ fontSize: token.fontSizeLG }}
             />
           </Col>
@@ -282,6 +286,7 @@ export const WBEDetailCards = ({ wbeId }: WBEDetailCardsProps) => {
         timeSeries={timeSeries}
         loading={evmLoading || timeSeriesLoading}
         onGranularityChange={(g) => setGranularity(g)}
+        currency={currency}
       />
     </>
   );

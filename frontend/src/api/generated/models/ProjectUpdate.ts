@@ -10,6 +10,10 @@ export type ProjectUpdate = {
     name?: (string | null);
     contract_value?: (number | string | null);
     /**
+     * ISO 4217 currency code
+     */
+    currency?: (string | null);
+    /**
      * Project status
      */
     status?: (ProjectStatus | null);

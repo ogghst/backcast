@@ -1,6 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useCostElement } from "@/features/cost-elements/api/useCostElements";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 
 export const CostElementCostHistory = () => {
   const { id } = useParams<{ id: string }>();
@@ -12,7 +13,7 @@ export const CostElementCostHistory = () => {
     <CostHistoryChart
       entityType="cost_element"
       entityId={costElement.cost_element_id}
-      budgetAmount={Number(costElement.budget_amount)}
+      projectId={useTimeMachineStore.getState().currentProjectId ?? undefined}
     />
   );
 };

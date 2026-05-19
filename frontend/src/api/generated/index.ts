@@ -9,8 +9,8 @@ export type { OpenAPIConfig } from './core/OpenAPI';
 
 export type { AgentExecutionPublic } from './models/AgentExecutionPublic';
 export type { AgingChangeOrder } from './models/AgingChangeOrder';
-export type { AIAssistantConfigCreate } from './models/AIAssistantConfigCreate';
-export type { AIAssistantConfigPublic } from './models/AIAssistantConfigPublic';
+export { AIAssistantConfigCreate } from './models/AIAssistantConfigCreate';
+export { AIAssistantConfigPublic } from './models/AIAssistantConfigPublic';
 export type { AIAssistantConfigUpdate } from './models/AIAssistantConfigUpdate';
 export { AIConversationMessagePublic } from './models/AIConversationMessagePublic';
 export type { AIConversationSessionPaginated } from './models/AIConversationSessionPaginated';
@@ -60,6 +60,7 @@ export type { DashboardData } from './models/DashboardData';
 export type { DashboardLayoutCreate } from './models/DashboardLayoutCreate';
 export type { DashboardLayoutRead } from './models/DashboardLayoutRead';
 export type { DashboardLayoutUpdate } from './models/DashboardLayoutUpdate';
+export type { DelegationConfig } from './models/DelegationConfig';
 export type { DepartmentCreate } from './models/DepartmentCreate';
 export type { DepartmentRead } from './models/DepartmentRead';
 export type { DepartmentUpdate } from './models/DepartmentUpdate';

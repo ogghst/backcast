@@ -23,6 +23,7 @@ interface WBETableProps {
   onRowClick?: (wbe: WBERead) => void;
   variant?: ViewMode;
   pagination?: WBETablePagination;
+  currency?: string;
 }
 
 export const WBETable = ({
@@ -31,6 +32,7 @@ export const WBETable = ({
   onRowClick,
   variant = "auto",
   pagination,
+  currency = "EUR",
 }: WBETableProps) => {
   const { token } = theme.useToken();
   const screens = useBreakpoint();
@@ -62,7 +64,7 @@ export const WBETable = ({
         title: "Budget",
         dataIndex: "budget_allocation",
         key: "budget_allocation",
-        render: (val) => (val ? formatCurrency(val) : "-"),
+        render: (val) => (val ? formatCurrency(val, currency) : "-"),
         width: 150,
         align: "right",
         sorter: (a, b) =>
@@ -100,7 +102,7 @@ export const WBETable = ({
     });
 
     return cols;
-  }, [isMobile, isTablet, onRowClick]);
+  }, [isMobile, isTablet, onRowClick, currency]);
 
   if (useCard) {
     if (loading) {
@@ -131,7 +133,7 @@ export const WBETable = ({
               wbe.budget_allocation
                 ? (
                   <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                    Budget: {formatCurrency(wbe.budget_allocation)}
+                    Budget: {formatCurrency(wbe.budget_allocation, currency)}
                   </Text>
                 )
                 : undefined

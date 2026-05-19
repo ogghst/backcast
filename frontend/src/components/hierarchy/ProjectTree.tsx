@@ -36,13 +36,18 @@ const InfoPill = ({ children, style }: { children: ReactNode; style?: CSSPropert
   );
 };
 
-const formatCurrency = (value: string | number | undefined): string => {
-  if (value === undefined || value === null) return "€0.00";
+const formatCurrency = (value: string | number | undefined, currency: string = "EUR"): string => {
+  if (value === undefined || value === null) return "-";
   const numValue = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat("en-IE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(numValue);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+    }).format(numValue);
+  } catch {
+    return `${currency}${numValue}`;
+  }
 };
 
 const formatDateShort = (dateStr: string | null | undefined): string | null => {
@@ -173,6 +178,7 @@ export const ProjectTree = ({
   useEffect(() => {
     if (projectData && wbesData?.items) {
       const projectDates = formatDateRange(projectData.start_date, projectData.end_date);
+      const projectCurrency = projectData.currency || "EUR";
       const projectKey = `project-${projectData.project_id}`;
       nodeMetaRef.current.set(projectKey, {
         id: projectData.project_id,
@@ -195,7 +201,7 @@ export const ProjectTree = ({
               icon={<FolderOutlined style={{ color: "var(--ant-color-text-secondary)" }} />}
               name={wbe.name}
               strong
-              budget={formatCurrency(wbe.budget_allocation)}
+              budget={formatCurrency(wbe.budget_allocation, projectCurrency)}
               showBudget={showBudget}
               showDates={showDates}
             />
@@ -211,7 +217,7 @@ export const ProjectTree = ({
             icon={<AppstoreOutlined style={{ color: "var(--ant-color-primary)" }} />}
             name={`${projectData.code} - ${projectData.name}`}
             strong
-            budget={formatCurrency(projectData.budget)}
+            budget={formatCurrency(projectData.budget, projectCurrency)}
             dates={projectDates}
             showBudget={showBudget}
             showDates={showDates}
@@ -235,6 +241,7 @@ export const ProjectTree = ({
       if (treeNode.children && treeNode.children.length > 0) return;
 
       try {
+        const projectCurrency = projectData?.currency || "EUR";
         const [childWBEsResponse, costElementsResponse] = await Promise.all([
           queryClient.fetchQuery({
             queryKey: queryKeys.wbes.list(projectId, {
@@ -320,7 +327,7 @@ export const ProjectTree = ({
               <NodeTitle
                 icon={<FolderOutlined style={{ color: "var(--ant-color-text-secondary)" }} />}
                 name={wbe.name}
-                budget={formatCurrency(wbe.budget_allocation)}
+                budget={formatCurrency(wbe.budget_allocation, projectCurrency)}
                 showBudget={showBudget}
                 showDates={showDates}
               />
@@ -346,7 +353,7 @@ export const ProjectTree = ({
               <NodeTitle
                 icon={<PayCircleOutlined style={{ color: "var(--ant-color-success)" }} />}
                 name={ce.name}
-                budget={formatCurrency(ce.budget_amount)}
+                budget={formatCurrency(ce.budget_amount, projectCurrency)}
                 dates={ceDates}
                 showBudget={showBudget}
                 showDates={showDates}
@@ -363,7 +370,7 @@ export const ProjectTree = ({
         console.error("Error loading children:", error);
       }
     },
-    [projectId, queryClient, branch, mode, asOf, showBudget, showDates],
+    [projectId, queryClient, branch, mode, asOf, showBudget, showDates, projectData],
   );
 
   const handleSelect = useCallback(

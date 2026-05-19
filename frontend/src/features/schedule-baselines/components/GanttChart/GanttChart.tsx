@@ -16,6 +16,7 @@ import { useEChartsTheme } from "@/features/evm/utils/echartsTheme";
 import { useGanttData } from "../../api/useGanttData";
 import { transformGanttData, type GanttRow } from "./GanttDataTransformer";
 import { buildGanttOptions, TIME_LEGEND_HEIGHT, CHART_BOTTOM_PADDING } from "./GanttChartOptions";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 /** Row height in pixels for each Gantt row. */
 const ROW_HEIGHT = 32;
@@ -42,6 +43,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const { token } = theme.useToken();
   const { data, isLoading, isError } = useGanttData(projectId);
   const { colors, tooltipConfig } = useEChartsTheme();
+  const currency = useProjectCurrency(projectId);
 
   // Resizable panel: left grid width
   const GRID_LEFT_MIN = 300;
@@ -100,8 +102,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
   // Build ECharts options (y-axis labels hidden — rendered by React panel)
   const chartOption = useMemo(
-    () => buildGanttOptions(rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft),
-    [rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft],
+    () => buildGanttOptions(rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft, currency),
+    [rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft, currency],
   );
 
   // Handle bar clicks for cost element navigation only (WBE collapse handled by React panel)

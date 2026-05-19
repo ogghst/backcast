@@ -92,6 +92,7 @@ export const WBEOverview = () => {
                 entityId={wbeId}
                 headless
                 controlDate={controlDate || undefined}
+                projectId={projectId}
               />
             ) : undefined
           }

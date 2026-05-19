@@ -18,6 +18,7 @@ class ProjectBase(BaseModel):
     name: str = Field(..., max_length=200, description="Project name")
     code: str = Field(..., max_length=50, description="Unique project code")
     contract_value: Decimal | None = Field(None, ge=0, description="Contract value")
+    currency: str = Field("EUR", min_length=3, max_length=3, description="ISO 4217 currency code")
     status: ProjectStatus = Field(ProjectStatus.DRAFT, description="Project status")
     start_date: datetime | None = Field(None, description="Project start date")
     end_date: datetime | None = Field(None, description="Project end date")
@@ -46,6 +47,7 @@ class ProjectUpdate(BaseModel):
 
     name: NotEmptyString = Field(None, max_length=200)
     contract_value: Decimal | None = Field(None, ge=0)
+    currency: str | None = Field(None, min_length=3, max_length=3, description="ISO 4217 currency code")
     status: ProjectStatus | None = Field(None, description="Project status")
     start_date: datetime | None = None
     end_date: datetime | None = None

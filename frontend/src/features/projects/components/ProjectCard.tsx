@@ -26,13 +26,13 @@ const statusColorMap: Record<string, string> = {
   "On Hold": "warning",
 };
 
-const formatCurrency = (value: number | null | undefined) =>
+const formatCurrency = (value: string | number | null | undefined, currency: string = "EUR") =>
   value
     ? new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "EUR",
+        currency,
         currencyDisplay: "narrowSymbol",
-      }).format(value)
+      }).format(Number(value))
     : "-";
 
 export const ProjectCard = ({
@@ -72,7 +72,7 @@ export const ProjectCard = ({
             }}
           >
             <DollarOutlined />
-            <span>Budget: {formatCurrency(project.budget)}</span>
+            <span>Budget: {formatCurrency(project.budget, project.currency)}</span>
           </div>
           {project.contract_value && (
             <div
@@ -85,7 +85,7 @@ export const ProjectCard = ({
               }}
             >
               <DollarOutlined />
-              <span>Contract: {formatCurrency(project.contract_value)}</span>
+              <span>Contract: {formatCurrency(project.contract_value, project.currency)}</span>
             </div>
           )}
         </div>

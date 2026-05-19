@@ -250,35 +250,62 @@ export function useDateTimeFormatter(options: FormatDateOptions = {}) {
 // Currency & Number Formatters
 // ============================================================================
 
-/** Currency formatter instance (EUR). */
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "EUR",
-});
+/**
+ * Get the currency symbol for an ISO 4217 currency code.
+ *
+ * @param currency - ISO 4217 currency code (default: "EUR")
+ * @returns Currency symbol (e.g., "$", "€", "£")
+ */
+export function getCurrencySymbol(currency: string = "EUR"): string {
+  try {
+    const parts = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).formatToParts(0);
+    return parts.find((p) => p.type === "currency")?.value ?? currency;
+  } catch {
+    return currency;
+  }
+}
 
 /**
- * Format a value as EUR currency.
+ * Format a value as currency.
  *
  * @param value - Numeric value to format
+ * @param currency - ISO 4217 currency code (default: "EUR")
  * @returns Formatted currency string (e.g., "€1,234.56")
  *
  * @example
- * formatCurrency(1234.56)  // "€1,234.56"
- * formatCurrency(null)     // "-"
+ * formatCurrency(1234.56)          // "€1,234.56"
+ * formatCurrency(1234.56, "USD")   // "$1,234.56"
+ * formatCurrency(null)             // "-"
  */
-export function formatCurrency(value: string | number | null | undefined): string {
+export function formatCurrency(
+  value: string | number | null | undefined,
+  currency: string = "EUR",
+): string {
   if (!value) return "-";
-  return currencyFormatter.format(Number(value));
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+    }).format(Number(value));
+  } catch {
+    return `${currency}${Number(value)}`;
+  }
 }
 
 /**
  * Format a value as compact currency (K/M suffixes).
  *
  * @param value - Numeric value to format
- * @returns Formatted compact currency string (e.g., "€1.2M", "€345K")
+ * @param currency - ISO 4217 currency code (default: "EUR")
+ * @returns Formatted compact currency string (e.g., "€1.2M", "$345K")
  */
 export function formatCompactCurrency(
-  value: string | number | null | undefined
+  value: string | number | null | undefined,
+  currency: string = "EUR",
 ): string {
   if (value === null || value === undefined) return "--";
   const num = Number(value);
@@ -286,10 +313,11 @@ export function formatCompactCurrency(
 
   const sign = num < 0 ? "-" : "";
   const abs = Math.abs(num);
+  const symbol = getCurrencySymbol(currency);
 
-  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(1)}K`;
-  return `${sign}€${abs.toFixed(0)}`;
+  if (abs >= 1_000_000) return `${sign}${symbol}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}${symbol}${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}${symbol}${abs.toFixed(0)}`;
 }
 
 // ============================================================================

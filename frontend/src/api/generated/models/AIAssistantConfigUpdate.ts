@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { DelegationConfig } from './DelegationConfig';
 /**
  * Schema for updating an assistant config.
  */
@@ -18,5 +19,10 @@ export type AIAssistantConfigUpdate = {
     default_role?: (string | null);
     model_id?: (string | null);
     is_active?: (boolean | null);
+    agent_type?: ('main' | 'specialist' | null);
+    allowed_tools?: (Array<string> | null);
+    delegation_config?: (DelegationConfig | null);
+    structured_output_schema?: (string | null);
+    is_system?: (boolean | null);
 };
 

@@ -32,6 +32,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useWBE } from "@/features/wbes/api/useWBEs";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { getCurrencySymbol } from "@/utils/formatters";
 
 interface CostRegistrationsTabProps {
   costElement: CostElementRead;
@@ -61,6 +63,8 @@ export const CostRegistrationsTab = ({
 
   // Fetch WBE to get project_id for project-level budget validation
   const { data: wbe } = useWBE(costElement.wbe_id);
+  const currency = useProjectCurrency(wbe?.project_id);
+  const currencySymbol = getCurrencySymbol(currency);
 
   // Build query params
   const queryParams: CostRegistrationApiParams = {
@@ -208,7 +212,7 @@ export const CostRegistrationsTab = ({
       width: 120,
       render: (amount) => (
         <span>
-          €
+          {currencySymbol}
           {Number(amount).toLocaleString(undefined, {
             minimumFractionDigits: 2,
           })}
@@ -340,7 +344,7 @@ export const CostRegistrationsTab = ({
                 Cost Registrations
               </div>
               <Tag color="blue">
-                Total: €
+                Total: {currencySymbol}
                 {totalCosts.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                 })}
@@ -397,7 +401,7 @@ export const CostRegistrationsTab = ({
         versions={mapHistoryVersions(historyVersions)}
         entityName={`Cost Registration: ${
           selectedRegistration?.description ||
-          `€${selectedRegistration?.amount}`
+          `${currencySymbol}${selectedRegistration?.amount}`
         }`}
         isLoading={historyLoading}
       />

@@ -9735,6 +9735,22 @@
               "default": false,
               "title": "Include Inactive"
             }
+          },
+          {
+            "name": "agent_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent Type"
+            }
           }
         ],
         "responses": {
@@ -10593,7 +10609,7 @@
           "Dashboard"
         ],
         "summary": "Get Dashboard Recent Activity",
-        "description": "Get dashboard data with recent activity and project spotlight.\n\nReturns aggregated dashboard data including:\n- Last edited project with metrics (budget, WBEs, cost elements, change orders)\n- Recent activity across Projects, WBEs, Cost Elements, and Change Orders\n\nThe activity_limit parameter controls how many recent items to return per\nentity type (default: 10, max: 50).\n\nRequires authentication.",
+        "description": "Get dashboard data with recent activity and project spotlight.\n\nReturns aggregated dashboard data including:\n- Last edited project with metrics (budget, WBEs, cost elements, change orders)\n- Recent activity across Projects, WBEs, Cost Elements, and Change Orders\n\nThe activity_limit parameter controls how many recent items to return per\nentity type (default: 10, max: 50).\n\nThe as_of parameter enables time-travel queries, returning data as it\nappeared at a specific point in time.\n\nThe branch parameter controls which branch to query (default: \"main\").\n\nRequires authentication.",
         "operationId": "get_dashboard_recent_activity",
         "security": [
           {
@@ -10614,6 +10630,37 @@
               "title": "Activity Limit"
             },
             "description": "Maximum number of activities per entity type (1-50)"
+          },
+          {
+            "name": "asOf",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional timestamp for time-travel queries",
+              "title": "Asof"
+            },
+            "description": "Optional timestamp for time-travel queries"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name to query"
           }
         ],
         "responses": {
@@ -12562,6 +12609,61 @@
             "type": "boolean",
             "title": "Is Active",
             "default": true
+          },
+          "agent_type": {
+            "type": "string",
+            "enum": [
+              "main",
+              "specialist"
+            ],
+            "title": "Agent Type",
+            "description": "Agent type: 'main' (user-facing) or 'specialist' (delegated)",
+            "default": "main"
+          },
+          "allowed_tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Tools",
+            "description": "Tool whitelist for specialist agents. None means all available tools."
+          },
+          "delegation_config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DelegationConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Delegation configuration for main agents"
+          },
+          "structured_output_schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output Schema",
+            "description": "Fully qualified Pydantic model class name for structured output (specialist-only)"
+          },
+          "is_system": {
+            "type": "boolean",
+            "title": "Is System",
+            "description": "System agents cannot be deleted, only disabled",
+            "default": false
           }
         },
         "type": "object",
@@ -12665,6 +12767,61 @@
             "type": "boolean",
             "title": "Is Active",
             "default": true
+          },
+          "agent_type": {
+            "type": "string",
+            "enum": [
+              "main",
+              "specialist"
+            ],
+            "title": "Agent Type",
+            "description": "Agent type: 'main' (user-facing) or 'specialist' (delegated)",
+            "default": "main"
+          },
+          "allowed_tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Tools",
+            "description": "Tool whitelist for specialist agents. None means all available tools."
+          },
+          "delegation_config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DelegationConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Delegation configuration for main agents"
+          },
+          "structured_output_schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output Schema",
+            "description": "Fully qualified Pydantic model class name for structured output (specialist-only)"
+          },
+          "is_system": {
+            "type": "boolean",
+            "title": "Is System",
+            "description": "System agents cannot be deleted, only disabled",
+            "default": false
           },
           "id": {
             "type": "string",
@@ -12805,6 +12962,68 @@
               }
             ],
             "title": "Is Active"
+          },
+          "agent_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "main",
+                  "specialist"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Type"
+          },
+          "allowed_tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Tools"
+          },
+          "delegation_config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DelegationConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "structured_output_schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output Schema"
+          },
+          "is_system": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is System"
           }
         },
         "type": "object",
@@ -16305,6 +16524,41 @@
         "title": "DashboardLayoutUpdate",
         "description": "Schema for updating a dashboard layout. All fields optional."
       },
+      "DelegationConfig": {
+        "properties": {
+          "direct_tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Tools"
+          },
+          "allowed_specialists": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Specialists"
+          }
+        },
+        "type": "object",
+        "title": "DelegationConfig",
+        "description": "Delegation configuration for main agents."
+      },
       "DepartmentCreate": {
         "properties": {
           "name": {
@@ -18867,6 +19121,14 @@
             "title": "Contract Value",
             "description": "Contract value"
           },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "default": "EUR"
+          },
           "status": {
             "$ref": "#/components/schemas/ProjectStatus",
             "description": "Project status",
@@ -19024,6 +19286,14 @@
             ],
             "title": "Contract Value",
             "description": "Contract value"
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "default": "EUR"
           },
           "status": {
             "$ref": "#/components/schemas/ProjectStatus",
@@ -19298,6 +19568,20 @@
               }
             ],
             "title": "Contract Value"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 3,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency",
+            "description": "ISO 4217 currency code"
           },
           "status": {
             "anyOf": [

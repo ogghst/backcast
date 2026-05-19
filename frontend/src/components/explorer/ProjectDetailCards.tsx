@@ -30,6 +30,8 @@ import { EntityType } from "@/features/evm/types";
 import type { EVMTimeSeriesGranularity } from "@/features/evm/types";
 import { formatCurrency, formatDate, formatTimestamp, calculateDuration } from "./shared/formatters";
 import { KPIStrip, BudgetOverviewChart, VarianceChart, PerformanceRadar } from "./charts";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { getCurrencySymbol } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -45,6 +47,8 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
   );
 
   const { data: project, isLoading, error } = useProject(projectId);
+  const currency = useProjectCurrency(projectId);
+  const currencySymbol = getCurrencySymbol(currency);
   const { data: evmMetrics, isLoading: evmLoading } = useEVMMetrics(
     EntityType.PROJECT,
     projectId,
@@ -135,7 +139,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
               title="Budget"
               value={Number(project.budget) || 0}
               precision={0}
-              prefix="€"
+              prefix={currencySymbol}
               valueStyle={{ fontSize: token.fontSizeLG, color: token.colorText }}
             />
           </Col>
@@ -144,7 +148,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
               title="Variance"
               value={budgetVariance ?? 0}
               precision={0}
-              prefix="€"
+              prefix={currencySymbol}
               valueStyle={{
                 fontSize: token.fontSizeLG,
                 color:
@@ -290,7 +294,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
                 Budget
               </Text>
               <Text style={valueStyle}>
-                {formatCurrency(project.budget)}
+                {formatCurrency(project.budget, currency)}
               </Text>
             </Col>
           </Row>
@@ -331,6 +335,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
         timeSeries={timeSeries}
         loading={evmLoading || timeSeriesLoading}
         onGranularityChange={(g) => setGranularity(g)}
+        currency={currency}
       />
     </>
   );

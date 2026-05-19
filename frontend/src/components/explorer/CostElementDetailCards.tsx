@@ -31,6 +31,9 @@ import { formatCurrency } from "@/utils/formatters";
 import { useEVMMetrics } from "@/features/evm/api/useEVMMetrics";
 import { EntityType } from "@/features/evm/types";
 import { formatDateTime } from "@/utils/formatters";
+import { useWBE } from "@/features/wbes/api/useWBEs";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { getCurrencySymbol } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -51,6 +54,11 @@ export const CostElementDetailCards = ({
     EntityType.COST_ELEMENT,
     costElementId,
   );
+
+  // Resolve project currency through cost element -> WBE -> project chain
+  const { data: wbe } = useWBE(costElement?.wbe_id);
+  const currency = useProjectCurrency(wbe?.project_id);
+  const currencySymbol = getCurrencySymbol(currency);
 
   // Prefetch forecast data (1:1 relationship) so the Forecast card loads instantly
   useCostElementForecast(costElementId);
@@ -147,7 +155,7 @@ export const CostElementDetailCards = ({
               title="Budget"
               value={budget}
               precision={0}
-              prefix="€"
+              prefix={currencySymbol}
               valueStyle={{
                 fontSize: token.fontSizeLG,
                 color: token.colorInfo,
@@ -159,7 +167,7 @@ export const CostElementDetailCards = ({
               title="Used"
               value={used}
               precision={0}
-              prefix="€"
+              prefix={currencySymbol}
               valueStyle={{
                 fontSize: token.fontSizeLG,
                 color: percentage >= 100 ? token.colorError : token.colorSuccess,
@@ -171,7 +179,7 @@ export const CostElementDetailCards = ({
               title="Remaining"
               value={remaining}
               precision={0}
-              prefix="€"
+              prefix={currencySymbol}
               valueStyle={{
                 fontSize: token.fontSizeLG,
                 color: remaining < 0 ? token.colorError : token.colorSuccess,
@@ -212,7 +220,7 @@ export const CostElementDetailCards = ({
                     title="Budget"
                     value={budget}
                     precision={0}
-                    prefix="€"
+                    prefix={currencySymbol}
                     valueStyle={{
                       fontSize: token.fontSize,
                       color: token.colorInfo,
@@ -224,7 +232,7 @@ export const CostElementDetailCards = ({
                     title="Used"
                     value={used}
                     precision={0}
-                    prefix="€"
+                    prefix={currencySymbol}
                     valueStyle={{
                       fontSize: token.fontSize,
                       color:
@@ -239,7 +247,7 @@ export const CostElementDetailCards = ({
                     title="Remaining"
                     value={remaining}
                     precision={0}
-                    prefix="€"
+                    prefix={currencySymbol}
                     valueStyle={{
                       fontSize: token.fontSize,
                       color:
@@ -253,7 +261,7 @@ export const CostElementDetailCards = ({
               {remaining < 0 && (
                 <Alert
                   message="Budget Exceeded"
-                  description={`Exceeded by ${formatCurrency(Math.abs(remaining))}`}
+                  description={`Exceeded by ${formatCurrency(Math.abs(remaining), currency)}`}
                   type="warning"
                   showIcon
                   style={{ marginTop: token.marginSM }}

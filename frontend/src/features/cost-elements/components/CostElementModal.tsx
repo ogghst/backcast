@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Modal, Form, Input, Select, InputNumber } from "antd";
 import type {
   CostElementRead,
@@ -6,6 +6,7 @@ import type {
   CostElementUpdate,
 } from "@/api/generated";
 import { useCostElementTypes } from "@/features/cost-elements/api/useCostElementTypes";
+import { getCurrencySymbol } from "@/utils/formatters";
 
 interface CostElementModalProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface CostElementModalProps {
   currentBranch: string; // Used for "Create in Branch" context if needed
   wbeId?: string;
   wbeName?: string;
+  currency?: string;
 }
 
 export const CostElementModal = ({
@@ -27,9 +29,22 @@ export const CostElementModal = ({
   currentBranch,
   wbeId,
   wbeName,
+  currency = "EUR",
 }: CostElementModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
+  const currencySymbol = getCurrencySymbol(currency);
+
+  const currencyFormatValue = useMemo(
+    () => (value: string | number | undefined) =>
+      `${currencySymbol} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ","),
+    [currencySymbol],
+  );
+
+  const currencyParseRegex = useMemo(
+    () => new RegExp(`\\${currencySymbol}\\s?|(,*)`, "g"),
+    [currencySymbol],
+  );
 
   const { data: types = [], isLoading: loadingOpts } = useCostElementTypes();
 
@@ -110,11 +125,9 @@ export const CostElementModal = ({
         >
           <InputNumber
             style={{ width: "100%" }}
-            formatter={(value) =>
-              `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-            }
+            formatter={(value) => currencyFormatValue(value)}
             parser={(value) =>
-              value?.replace(/€\s?|(,*)/g, "") as unknown as number
+              value?.replace(currencyParseRegex, "") as unknown as number
             }
           />
         </Form.Item>

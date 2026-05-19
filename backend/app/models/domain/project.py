@@ -52,6 +52,9 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
     contract_value: Mapped[Decimal | None] = mapped_column(
         DECIMAL(15, 2), nullable=True
     )
+    currency: Mapped[str] = mapped_column(
+        String(3), nullable=False, default="EUR"
+    )
 
     # Status
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft")

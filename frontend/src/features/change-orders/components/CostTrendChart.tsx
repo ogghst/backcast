@@ -12,9 +12,10 @@ const { Title } = Typography;
 interface CostTrendChartProps {
   data: ChangeOrderTrendPoint[] | undefined;
   loading?: boolean;
+  currency?: string;
 }
 
-export const CostTrendChart = ({ data, loading }: CostTrendChartProps) => {
+export const CostTrendChart = ({ data, loading, currency = "EUR" }: CostTrendChartProps) => {
   const chartData = data?.map((item) => ({
     date: item.date,
     cumulative_value: Number(item.cumulative_value),
@@ -49,7 +50,7 @@ export const CostTrendChart = ({ data, loading }: CostTrendChartProps) => {
           name: "Cumulative Cost",
           value: new Intl.NumberFormat("en-US", {
             style: "currency",
-            currency: "EUR",
+            currency,
           }).format(datum.cumulative_value),
         };
       },
@@ -60,7 +61,7 @@ export const CostTrendChart = ({ data, loading }: CostTrendChartProps) => {
         formatter: (value: number) =>
           new Intl.NumberFormat("en-US", {
             style: "currency",
-            currency: "EUR",
+            currency,
             notation: "compact",
           }).format(value),
       },

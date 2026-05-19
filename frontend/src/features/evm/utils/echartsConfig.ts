@@ -746,13 +746,15 @@ export interface DonutConfigOptions {
   centerLabel?: string;
   /** Value displayed in the donut center */
   centerValue?: string;
+  /** ISO 4217 currency code for formatting (default: "EUR") */
+  currency?: string;
 }
 
 export function buildDonutOptions(
   options: DonutConfigOptions,
   colors: EChartsColorPalette,
 ): EChartsOption {
-  const { items, centerLabel, centerValue } = options;
+  const { items, centerLabel, centerValue, currency = "EUR" } = options;
 
   const sliceColors = antDesignTheme.color;
 
@@ -768,7 +770,7 @@ export function buildDonutOptions(
           percent: number;
         };
         return `<div style="font-weight: 600; margin-bottom: 4px;">${p.name}</div>
-          <div>Value: ${createCurrencyFormatter()(p.value)}</div>
+          <div>Value: ${createCurrencyFormatter(currency)(p.value)}</div>
           <div>Share: ${p.percent.toFixed(1)}%</div>`;
       },
     },

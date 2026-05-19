@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Modal, Form, Input, InputNumber, Tooltip } from "antd";
 import type { WBERead, WBECreate, WBEUpdate } from "@/api/generated";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
+import { getCurrencySymbol } from "@/utils/formatters";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 interface WBEModalProps {
   open: boolean;
@@ -27,6 +29,19 @@ export const WBEModal = ({
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
   const { branch } = useTimeMachine();
+  const currency = useProjectCurrency(projectId);
+  const currencySymbol = getCurrencySymbol(currency);
+
+  const currencyFormatValue = useMemo(
+    () => (value: string | number | undefined) =>
+      `${currencySymbol} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ","),
+    [currencySymbol],
+  );
+
+  const currencyParseRegex = useMemo(
+    () => new RegExp(`\\${currencySymbol}\\s?|(,*)`, "g"),
+    [currencySymbol],
+  );
 
   // Check if we're in a change order branch (revenue is only editable in CO branches)
   const isChangeOrderBranch = branch.startsWith("BR-");
@@ -116,7 +131,7 @@ export const WBEModal = ({
             name="revenue_allocation"
             label={
               <span>
-                Revenue Allocation (€){" "}
+                Revenue Allocation ({currencySymbol}){" "}
                 <Tooltip title="Revenue allocated to this WBE. Only editable in change order branches.">
                   <span style={{ cursor: "help", marginLeft: 4 }}>ⓘ</span>
                 </Tooltip>
@@ -138,11 +153,9 @@ export const WBEModal = ({
               style={{ width: "100%" }}
               min={0}
               precision={2}
-              formatter={(value) =>
-                `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-              }
+              formatter={(value) => currencyFormatValue(value)}
               parser={(value) =>
-                value?.replace(/€\s?|(,*)/g, "") as unknown as number
+                value?.replace(currencyParseRegex, "") as unknown as number
               }
               placeholder="0.00"
             />

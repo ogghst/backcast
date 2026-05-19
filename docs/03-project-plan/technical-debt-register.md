@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-05-19
-**Total Open Items:** 6
-**Total Estimated Effort:** ~10 days
+**Total Open Items:** 5
+**Total Estimated Effort:** ~9 days
 
 ---
 
@@ -148,17 +148,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-104] Currency Hardcoded to EUR
+### [TD-104] ~~Currency Hardcoded to EUR~~
 
-- **Source:** 2026-05-14 E2E test `20260514_0007-ai-cost-progress` and `20260513_2113-ai-chat-van-project`
-- **Description:** All monetary amounts in the frontend are displayed in EUR regardless of project or user input. Currency formatting is hardcoded in: `CostHistoryChart.tsx` (`createCurrencyFormatter("EUR")`), `ForecastHistoryView.tsx` (hardcoded `€` symbols), `GanttChartOptions.ts` (`Intl.NumberFormat("en-US", { currency: "EUR" })`), `ProjectList.columns.tsx` (`currency: "EUR"`). When a user enters "$45,000", the system displays "€45.0K".
-- **Impact:** LOW — No multi-currency support. Not a regression — has been this way since initial implementation.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Full Stack Developer
-- **Priority:** P3 (Low)
-- **Blocker:** No
-- **Suggested Approach:** Add `currency` field to project settings (default "EUR"). Create shared `useCurrencyFormatter(projectId)` hook. Replace all hardcoded `€` and `"EUR"` references with the dynamic formatter. AI tools should read and pass the project's currency when registering costs.
+- **Status:** ✅ Resolved (2026-05-19) — Added `currency` field (ISO 4217, default "EUR") to Project model with Alembic migration. Created `useProjectCurrency` hook and updated `formatCurrency`/`formatCompactCurrency`/`getCurrencySymbol` to accept currency param. Replaced all 40+ hardcoded EUR/€ references across 25+ frontend components. Both `ProjectModal` (list) and `ProjectEditModal` (overview) include currency dropdown with 5 options. E2E verified: EUR→USD→EUR round-trip works correctly across project list, edit modal, and overview page. See archive.
 
 ---
 
@@ -185,9 +177,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 3 | ~8.5 days |
-| Medium (P2-P3) | 2 | ~3.5 days |
+| Medium (P2-P3) | 1 | ~2.5 days |
 | Low (P4+) | 1 | 5 hours |
-| **Total** | **6** | **~10 days** |
+| **Total** | **5** | **~9 days** |
 
 ---
 

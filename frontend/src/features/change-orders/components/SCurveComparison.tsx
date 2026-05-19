@@ -7,6 +7,7 @@ const { Title } = Typography;
 interface SCurveComparisonProps {
   timeSeries: TimeSeriesData[] | undefined;
   loading?: boolean;
+  currency?: string;
 }
 
 /**
@@ -17,7 +18,7 @@ interface SCurveComparisonProps {
  *
  * Uses a dual-line chart from @ant-design/charts.
  */
-export const SCurveComparison = ({ timeSeries, loading }: SCurveComparisonProps) => {
+export const SCurveComparison = ({ timeSeries, loading, currency = "EUR" }: SCurveComparisonProps) => {
   // Find the budget metric (typically the first or only metric)
   const budgetData = timeSeries?.find((ts) => ts.metric_name === "budget");
 
@@ -72,7 +73,7 @@ export const SCurveComparison = ({ timeSeries, loading }: SCurveComparisonProps)
         name: datum.branch,
         value: new Intl.NumberFormat("en-US", {
           style: "currency",
-          currency: "EUR",
+          currency,
         }).format(datum.value),
       }),
     },
@@ -81,7 +82,7 @@ export const SCurveComparison = ({ timeSeries, loading }: SCurveComparisonProps)
         formatter: (value: number) =>
           new Intl.NumberFormat("en-US", {
             style: "currency",
-            currency: "EUR",
+            currency,
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
           }).format(value),

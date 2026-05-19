@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-05-19
-**Total Archived Items:** 55
+**Total Archived Items:** 56
 
 ---
 
@@ -10,6 +10,13 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ---
 
 ## Archived Items
+
+#### [TD-104] Currency Hardcoded to EUR
+
+- **Source:** 2026-05-14 E2E test `20260514_0007-ai-cost-progress` and `20260513_2113-ai-chat-van-project`
+- **Description:** All monetary amounts in the frontend were displayed in EUR regardless of project or user input. Currency formatting was hardcoded in 40+ locations across 25+ frontend components.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Added `currency` field (ISO 4217, default "EUR") to Project model with Alembic migration. Created `useProjectCurrency` hook and updated `formatCurrency`/`formatCompactCurrency`/`getCurrencySymbol` to accept currency param. Replaced all hardcoded EUR/€ references. Both `ProjectModal` and `ProjectEditModal` include currency dropdown (EUR, USD, GBP, CHF, JPY). E2E verified: EUR→USD→EUR round-trip works correctly.
 
 #### [TD-016] Performance Optimization (Large Projects)
 

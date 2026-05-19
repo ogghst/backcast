@@ -303,17 +303,20 @@ export class AiConfigurationService {
      * List Assistant Configs
      * List all assistant configurations.
      * @param includeInactive
+     * @param agentType
      * @returns AIAssistantConfigPublic Successful Response
      * @throws ApiError
      */
     public static listAssistantConfigs(
         includeInactive: boolean = false,
+        agentType?: (string | null),
     ): CancelablePromise<Array<AIAssistantConfigPublic>> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/ai/config/assistants',
             query: {
                 'include_inactive': includeInactive,
+                'agent_type': agentType,
             },
             errors: {
                 422: `Validation Error`,

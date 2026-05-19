@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { App, Modal, Form, Input, InputNumber, DatePicker } from "antd";
 import type {
   CostRegistrationRead,
@@ -11,6 +11,8 @@ import {
   useBudgetStatus,
   useProjectBudgetSettings,
 } from "../api/useCostRegistrations";
+import { getCurrencySymbol } from "@/utils/formatters";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 interface CostRegistrationModalProps {
   open: boolean;
@@ -51,6 +53,25 @@ export const CostRegistrationModal = ({
   const { data: projectBudgetSettings } = useProjectBudgetSettings(projectId);
   const isEdit = !!initialValues;
   const enforceBudget = projectBudgetSettings?.enforce_budget ?? false;
+  const currency = useProjectCurrency(projectId);
+  const currencySymbol = getCurrencySymbol(currency);
+
+  const currencyFormatValue = useMemo(
+    () => (value: string | number | undefined) => {
+      if (!value) return "";
+      return `${currencySymbol} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    },
+    [currencySymbol],
+  );
+
+  const currencyParseValue = useMemo(
+    () =>
+      new RegExp(`\\${currencySymbol}\\s?|(,*)`, "g"),
+    [currencySymbol],
+  );
+
+  const formatBudgetDisplay = (amount: number) =>
+    `${currencySymbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
   useEffect(() => {
     if (open) {
@@ -129,11 +150,11 @@ export const CostRegistrationModal = ({
                   Budget enforcement is enabled. This cost registration would exceed the cost element budget.
                 </p>
                 <div style={{ marginTop: 8, marginBottom: 8, padding: 8, background: "#fff1f0", borderRadius: 4, border: "1px solid #ffccc7" }}>
-                  <p style={{ margin: 0 }}><strong>Cost Element Budget:</strong> €{costElementBudget.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                  <p style={{ margin: 0 }}><strong>Currently Used:</strong> €{effectiveCostElementUsed.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                  <p style={{ margin: 0, color: "#cf1322" }}><strong>Projected Total:</strong> €{projectedCostElementSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  <p style={{ margin: 0 }}><strong>Cost Element Budget:</strong> {formatBudgetDisplay(costElementBudget)}</p>
+                  <p style={{ margin: 0 }}><strong>Currently Used:</strong> {formatBudgetDisplay(effectiveCostElementUsed)}</p>
+                  <p style={{ margin: 0, color: "#cf1322" }}><strong>Projected Total:</strong> {formatBudgetDisplay(projectedCostElementSpend)}</p>
                   <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-                    Over budget by: €{(projectedCostElementSpend - costElementBudget).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    Over budget by: {formatBudgetDisplay(projectedCostElementSpend - costElementBudget)}
                   </p>
                 </div>
                 <p>Contact your project manager to increase the budget or disable enforcement.</p>
@@ -161,28 +182,20 @@ export const CostRegistrationModal = ({
                 }}
               >
                 <p style={{ margin: 0 }}>
-                  <strong>Cost Element Budget:</strong> €
-                  {costElementBudget.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
+                  <strong>Cost Element Budget:</strong>{" "}
+                  {formatBudgetDisplay(costElementBudget)}
                 </p>
                 <p style={{ margin: 0 }}>
-                  <strong>Currently Used:</strong> €
-                  {effectiveCostElementUsed.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
+                  <strong>Currently Used:</strong>{" "}
+                  {formatBudgetDisplay(effectiveCostElementUsed)}
                 </p>
                 <p style={{ margin: 0, color: "#cf1322" }}>
-                  <strong>Projected Total:</strong> €
-                  {projectedCostElementSpend.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
+                  <strong>Projected Total:</strong>{" "}
+                  {formatBudgetDisplay(projectedCostElementSpend)}
                 </p>
                 <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-                  Over budget by: €
-                  {(projectedCostElementSpend - costElementBudget).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
+                  Over budget by:{" "}
+                  {formatBudgetDisplay(projectedCostElementSpend - costElementBudget)}
                 </p>
               </div>
               <p>Are you sure you want to proceed?</p>
@@ -217,30 +230,21 @@ export const CostRegistrationModal = ({
                 }}
               >
                 <p style={{ margin: 0 }}>
-                  <strong>Cost Element Budget:</strong> €
-                  {costElementBudget.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
+                  <strong>Cost Element Budget:</strong>{" "}
+                  {formatBudgetDisplay(costElementBudget)}
                 </p>
                 <p style={{ margin: 0 }}>
-                  <strong>Currently Used:</strong> €
-                  {effectiveCostElementUsed.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}{" "}
+                  <strong>Currently Used:</strong>{" "}
+                  {formatBudgetDisplay(effectiveCostElementUsed)}{" "}
                   ({((effectiveCostElementUsed / costElementBudget) * 100).toFixed(1)}%)
                 </p>
                 <p style={{ margin: 0, color: "#d46b08" }}>
-                  <strong>Projected Total:</strong> €
-                  {projectedCostElementSpend.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}{" "}
+                  <strong>Projected Total:</strong>{" "}
+                  {formatBudgetDisplay(projectedCostElementSpend)}{" "}
                   ({projectedPercentage.toFixed(1)}%)
                 </p>
                 <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-                  <strong>Warning threshold:</strong> {warningThresholdPercent}% (€
-                  {costElementWarningLimit.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })})
+                  <strong>Warning threshold:</strong> {warningThresholdPercent}% ({formatBudgetDisplay(costElementWarningLimit)})
                 </p>
               </div>
               <p>Are you sure you want to proceed?</p>
@@ -292,11 +296,11 @@ export const CostRegistrationModal = ({
             placeholder="0.00"
             formatter={(value) => {
               if (!value) return "";
-              return `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+              return currencyFormatValue(value);
             }}
             parser={(value) => {
               if (!value) return undefined as unknown as number;
-              const cleaned = value.replace(/€\s?|,/g, "");
+              const cleaned = value.replace(currencyParseValue, "");
               const parsed = parseFloat(cleaned);
               return isNaN(parsed) ? undefined : parsed;
             }}

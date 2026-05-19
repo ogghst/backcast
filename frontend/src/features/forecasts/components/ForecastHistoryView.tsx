@@ -21,19 +21,23 @@ import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useCostElementHistory } from "@/features/cost-elements/api/useCostElements";
-import { parseTemporalRangeLower, formatTemporalRangeString } from "@/utils/formatters";
+import { parseTemporalRangeLower, formatTemporalRangeString, formatCurrency } from "@/utils/formatters";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 const { RangePicker } = DatePicker;
 
 interface ForecastHistoryViewProps {
   costElementId: string;
   currentBranch?: string;
+  projectId?: string;
 }
 
 export const ForecastHistoryView = ({
   costElementId,
   currentBranch = "main",
+  projectId,
 }: ForecastHistoryViewProps) => {
+  const currency = useProjectCurrency(projectId);
   const { asOf, setAsOf } = useTimeMachineParams();
   const [selectedBranch, setSelectedBranch] = useState<string>(currentBranch);
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
@@ -242,7 +246,7 @@ export const ForecastHistoryView = ({
                           Budget (BAC)
                         </div>
                         <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-                          €{Number(ce.budget_amount).toLocaleString()}
+                          {formatCurrency(ce.budget_amount, currency)}
                         </div>
                       </Col>
                       <Col span={8}>
@@ -251,7 +255,7 @@ export const ForecastHistoryView = ({
                         </div>
                         <div style={{ fontSize: "16px", fontWeight: "bold" }}>
                           {forecast?.eac_amount
-                            ? `€${Number(forecast.eac_amount).toLocaleString()}`
+                            ? formatCurrency(forecast.eac_amount, currency)
                             : "No forecast"}
                         </div>
                       </Col>
@@ -324,7 +328,7 @@ export const ForecastHistoryView = ({
                   }}
                 >
                   {sortedHistory[0]?.forecast?.eac_amount
-                    ? `€${Number(sortedHistory[0].forecast.eac_amount).toLocaleString()}`
+                    ? formatCurrency(sortedHistory[0].forecast.eac_amount, currency)
                     : "N/A"}
                 </div>
                 <div style={{ fontSize: "12px", color: "#999" }}>
