@@ -46,7 +46,7 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
   // Subscribe to store state
   // Subscribe to store state changes directly to ensure re-renders
   const selectedTime = useTimeMachineStore((state) => {
-    if (!state.currentProjectId) return null;
+    if (!state.currentProjectId) return state.globalSelectedTime;
     return state.projectSettings[state.currentProjectId]?.selectedTime ?? null;
   });
 

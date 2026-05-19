@@ -125,7 +125,7 @@ const AppLayout: React.FC = () => {
               size="small"
             />
           </Tooltip>
-          {projectId && <TimeMachineCompact projectId={projectId} />}
+          <TimeMachineCompact projectId={projectId} />
         </div>
 
         {/* Right: NotificationBell + UserProfile - always visible */}
@@ -136,11 +136,11 @@ const AppLayout: React.FC = () => {
       </Header>
 
       {/* Time Machine Expanded Panel (below header) */}
-      {projectId && isTimeMachineExpanded && (
+      {isTimeMachineExpanded && (
         <TimeMachineExpanded
           projectId={projectId}
           projectName={project?.name}
-          timelineData={{
+          timelineData={projectId ? {
             startDate: (() => {
               const parsed = parseTemporalRangeLower(project?.valid_time ?? null);
               if (parsed) return new Date(parsed);
@@ -149,7 +149,7 @@ const AppLayout: React.FC = () => {
             endDate: project?.end_date ? new Date(project.end_date) : null,
             branches: branches.map((b) => b.name),
             events: [], // TODO: Fetch branch events from API
-          }}
+          } : undefined}
         />
       )}
 

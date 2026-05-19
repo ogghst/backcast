@@ -38,6 +38,9 @@ interface TimeMachineState {
   /** Whether the timeline panel is expanded */
   isExpanded: boolean;
 
+  /** Global selected time when no project is selected (ISO string, null = "now") */
+  globalSelectedTime: string | null;
+
   /** Per-project settings (persisted to localStorage) */
   projectSettings: Record<string, ProjectTimeMachineSettings>;
 
@@ -107,11 +110,12 @@ export const useTimeMachineStore = create<TimeMachineState>()(
       (set, get) => ({
         currentProjectId: null,
         isExpanded: false,
+        globalSelectedTime: null,
         projectSettings: {},
 
         getSelectedTime: (): string | null => {
-          const { currentProjectId, projectSettings } = get();
-          if (!currentProjectId) return null;
+          const { currentProjectId, projectSettings, globalSelectedTime } = get();
+          if (!currentProjectId) return globalSelectedTime;
           return (
             projectSettings[currentProjectId]?.selectedTime ??
             DEFAULT_PROJECT_SETTINGS.selectedTime
@@ -180,7 +184,11 @@ export const useTimeMachineStore = create<TimeMachineState>()(
         selectTime: (time) =>
           set((state) => {
             const { currentProjectId } = state;
-            if (!currentProjectId) return;
+            if (!currentProjectId) {
+              // Global scope: set global time
+              state.globalSelectedTime = time ? time.toISOString() : null;
+              return;
+            }
 
             // Ensure project settings exist
             if (!state.projectSettings[currentProjectId]) {
@@ -228,7 +236,10 @@ export const useTimeMachineStore = create<TimeMachineState>()(
         resetToNow: () =>
           set((state) => {
             const { currentProjectId } = state;
-            if (!currentProjectId) return;
+            if (!currentProjectId) {
+              state.globalSelectedTime = null;
+              return;
+            }
 
             if (state.projectSettings[currentProjectId]) {
               state.projectSettings[currentProjectId].selectedTime = null;
@@ -244,14 +255,16 @@ export const useTimeMachineStore = create<TimeMachineState>()(
           set((state) => {
             state.currentProjectId = null;
             state.isExpanded = false;
+            state.globalSelectedTime = null;
             state.projectSettings = {};
           }),
       }),
       {
         name: "time-machine-storage",
         partialize: (state) => ({
-          // Only persist project settings, not UI state
+          // Persist project settings and global time, not UI state
           projectSettings: state.projectSettings,
+          globalSelectedTime: state.globalSelectedTime,
         }),
         onRehydrateStorage: () => (state) => {
           // Reset transient state on rehydration
@@ -271,7 +284,7 @@ export const useTimeMachineStore = create<TimeMachineState>()(
  */
 export function useAsOfParam(): string | undefined {
   const selectedTime = useTimeMachineStore((state) => {
-    if (!state.currentProjectId) return null;
+    if (!state.currentProjectId) return state.globalSelectedTime;
     return state.projectSettings[state.currentProjectId]?.selectedTime ?? null;
   });
   return selectedTime ?? undefined;

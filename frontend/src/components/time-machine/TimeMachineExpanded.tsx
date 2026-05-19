@@ -19,8 +19,8 @@ import "./TimeMachine.styles.css";
 import { formatDate, formatTime } from "@/utils/formatters";
 
 interface TimeMachineExpandedProps {
-  /** Project ID */
-  projectId: string;
+  /** Project ID (undefined in global scope) */
+  projectId?: string;
   /** Project name for display */
   projectName?: string;
   /** Timeline data (start/end dates, branches, events) */
@@ -74,10 +74,10 @@ export function TimeMachineExpanded({
     [selectedTime]
   );
 
-  // Default date range if not provided
+  // Default date range: use project timeline if available, otherwise broad range for global scope
   const now = useMemo(() => new Date(), []);
-  const minDate = timelineData?.startDate || now;
-  const maxDate = timelineData?.endDate || now;
+  const minDate = timelineData?.startDate ?? (projectId ? now : new Date(now.getFullYear() - 5, 0, 1));
+  const maxDate = timelineData?.endDate ?? (projectId ? now : new Date(now.getFullYear() + 1, 11, 31));
 
   // Handle time selection with query invalidation
   const handleSelectTime = useCallback(
@@ -205,32 +205,36 @@ export function TimeMachineExpanded({
         </button>
       </div>
 
-      {/* Branch and View Mode Row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: token.marginMD,
-          marginBottom: token.marginMD,
-        }}
-      >
-        <BranchSelector projectId={projectId} />
-        <ViewModeSelector />
-      </div>
+      {/* Branch and View Mode Row - only in project scope */}
+      {projectId && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: token.marginMD,
+            marginBottom: token.marginMD,
+          }}
+        >
+          <BranchSelector projectId={projectId} />
+          <ViewModeSelector />
+        </div>
+      )}
 
       <Divider style={{ margin: `${token.marginMD}px 0` }} />
 
-      {/* Timeline Slider */}
-      <div style={{ margin: `${token.marginLG}px 0` }}>
-        <TimelineSlider
-          minDate={minDate}
-          maxDate={maxDate}
-          value={selectedDate}
-          onChange={handleSelectTime}
-          events={timelineData?.events || []}
-          disabled={isLoading}
-        />
-      </div>
+      {/* Timeline Slider - only in project scope */}
+      {projectId && (
+        <div style={{ margin: `${token.marginLG}px 0` }}>
+          <TimelineSlider
+            minDate={minDate}
+            maxDate={maxDate}
+            value={selectedDate}
+            onChange={handleSelectTime}
+            events={timelineData?.events || []}
+            disabled={isLoading}
+          />
+        </div>
+      )}
 
       {/* Quick Actions Row */}
       <div

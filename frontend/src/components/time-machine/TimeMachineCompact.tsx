@@ -20,8 +20,8 @@ import { formatDate } from "@/utils/formatters";
 const MOBILE_BREAKPOINT = 600;
 
 interface TimeMachineCompactProps {
-  /** Project ID for context */
-  projectId: string;
+  /** Project ID for context (undefined in global scope) */
+  projectId?: string;
 }
 
 /**
@@ -67,14 +67,20 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Fetch project data and branches
-  useProject(projectId);
-  const { data: branches = [] } = useProjectBranches(projectId);
+  // Fetch project data and branches (hooks always called, disabled via enabled: !!id internally)
+  useProject(projectId ?? undefined);
+  const { data: branches = [] } = useProjectBranches(projectId ?? undefined);
 
-  // Ensure store knows about current project
+  // Ensure store knows about current project (only when projectId is defined)
   React.useEffect(() => {
-    setCurrentProject(projectId, null);
-    return () => setCurrentProject(null);
+    if (projectId) {
+      setCurrentProject(projectId, null);
+    }
+    return () => {
+      if (projectId) {
+        setCurrentProject(null);
+      }
+    };
   }, [projectId, setCurrentProject]);
 
   const selectedTime = getSelectedTime();
@@ -150,32 +156,34 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
         </div>
       </Tooltip>
 
-      {/* Branch label with icon and status indicator */}
-      <Tooltip
-        title={
-          currentBranch?.change_order_status
-            ? `${selectedBranch} (${currentBranch.change_order_status})`
-            : selectedBranch
-        }
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: isMobile ? token.marginXXS : token.marginXS,
-            color: token.colorText,
-            fontSize: isMobile ? token.fontSizeSM : token.fontSize,
-            cursor: "default",
-          }}
+      {/* Branch label with icon and status indicator - only in project scope */}
+      {projectId && (
+        <Tooltip
+          title={
+            currentBranch?.change_order_status
+              ? `${selectedBranch} (${currentBranch.change_order_status})`
+              : selectedBranch
+          }
         >
-          <BranchesOutlined style={{ fontSize: isMobile ? token.fontSizeSM : token.fontSize }} />
-          {!isMobile && <span>{selectedBranch}</span>}
-          {getStatusIcon}
-        </div>
-      </Tooltip>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: isMobile ? token.marginXXS : token.marginXS,
+              color: token.colorText,
+              fontSize: isMobile ? token.fontSizeSM : token.fontSize,
+              cursor: "default",
+            }}
+          >
+            <BranchesOutlined style={{ fontSize: isMobile ? token.fontSizeSM : token.fontSize }} />
+            {!isMobile && <span>{selectedBranch}</span>}
+            {getStatusIcon}
+          </div>
+        </Tooltip>
+      )}
 
-      {/* View mode label with icon */}
-      {viewMode === "merged" ? (
+      {/* View mode label with icon - only in project scope */}
+      {projectId && (viewMode === "merged" ? (
         <Tooltip title="Merged view: See data from current branch combined with main">
           <div
             style={{
@@ -205,7 +213,7 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
             {!isMobile && <span>Isolated</span>}
           </div>
         </Tooltip>
-      )}
+      ))}
 
       {/* Separate expand button */}
       <button
