@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
-**Last Updated:** 2026-05-16
-**Total Archived Items:** 36
+**Last Updated:** 2026-05-19
+**Total Archived Items:** 46
 
 ---
 
@@ -10,6 +10,76 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ---
 
 ## Archived Items
+
+#### [TD-108] SequentialToolNode._extract_state() Signature Mismatch with LangGraph
+
+- **Source:** TD-086 enum refactoring UI verification (2026-05-19)
+- **Description:** `SequentialToolNode._afunc` in `app/ai/tools/sequential_tool_node.py` called `self._extract_state(input, cfg)` with 2 arguments, but the upstream LangGraph `ToolNode._extract_state` method signature only accepts 1 argument (`input`). Also passed a removed `tools` kwarg to `ToolRuntime` constructor. Caused `TypeError` on every AI chat request reaching tool execution.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Fixed `sequential_tool_node.py` — changed `self._extract_state(input, cfg)` to `self._extract_state(input)` and removed the `tools=` kwarg from `ToolRuntime()` constructor to match current LangGraph API. The monkey-patch `patch_tool_node_for_sequential_execution()` was already correct (it replaces `_afunc` entirely with the fixed version). All 5 existing tests pass.
+
+#### [TD-086] Stringly-Typed Event Types and Tool Names
+
+- **Source:** Code review `/simplify` pass on `backend/app/ai/agent_service.py`
+- **Description:** Event types (`"thinking"`, `"tool_call"`, `"subagent"`, `"complete"`, etc.), tool names (`"task"`, `"write_todos"`), and execution statuses (`"running"`, `"completed"`, `"error"`) were raw strings scattered across `_run_agent_graph` and related files.
+- **Status:** Resolved (2026-05-19)
+- **Resolution:** Created `AgentEventType` and `ExecutionStatus` enums (both `str, Enum`) in `backend/app/ai/event_types.py`. Replaced all string literals in `agent_service.py`, `agent_event_bus.py`, `ai_chat.py` routes, `app/main.py`, and `app/models/schemas/ai.py` (removed 6 constants and the `ExecutionStatus = Literal[...]` type alias). The `str, Enum` pattern ensures JSON serialization remains unchanged -- no frontend changes needed.
+
+#### [TD-097] Performance Benchmarks for Unified RBAC
+
+- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-024)
+- **Description:** No performance benchmarks existed to verify the unified RBAC cache performance targets (<5ms cached, <50ms cold).
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Created `tests/perf/bench_rbac_unified.py` with 4 benchmarks against real database. All targets exceeded: cached permission check 0.00ms avg, cold check 1.80ms avg (p95=2.27ms), bulk loading 4.27ms worst, cache invalidation 0.18ms. Also fixed missing `rbac_roles`/`rbac_role_permissions`/`user_role_assignments` tables in `conftest.py` truncation list.
+
+#### [TD-099] Test DB Fixture Uses create_all() Instead of Alembic Migrations
+
+- **Source:** 2026-05-10-rbac-seeding-fix CHECK phase -- Root cause analysis of 13 pre-existing test_seeder.py failures
+- **Description:** The test database session fixture was reported to use SQLAlchemy `create_all()` instead of Alembic migrations, causing FK constraint failures.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** The `apply_migrations` fixture in `tests/conftest.py` already uses `command.upgrade(alembic_cfg, "head")` (full Alembic migration chain). The wipe-and-recreate approach via `wipe_db.py` followed by Alembic upgrade has been in place. All 24 seeder tests pass. The original report was based on a state that has since been corrected.
+
+#### [TD-107] Dashboard Widgets Ignore Temporal Context
+
+- **Source:** 2026-05-19 TD-103 UI testing
+- **Description:** Dashboard widgets fetched data without passing `as_of` / `branch` parameters from the Time Machine.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Added `useTimeMachineParams()` to `useDashboardData` hook, updated query key to include temporal params (`asOf`, `branch`), added `branch` and `as_of` query params to backend endpoint (`GET /api/v1/dashboard/recent-activity`) and `DashboardService.get_dashboard_data()`. Branch param now forwarded to all `get_recently_updated` calls and project spotlight metrics.
+
+#### [TD-101] Admin Role Assignments Page Shows "—" for User Name
+
+- **Source:** 2026-05-11 unified RBAC cutover CHECK phase (E2E Finding #3)
+- **Description:** The admin Role Assignments page (`/admin/role-assignments`) showed "—" in the User Name column.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** The list endpoint (`GET /api/v1/role-assignments/`) already enriches responses with `user_name`, `role_name`, and `granted_by_name` via batch JOINs against the `users` and `rbac_roles` tables. The enrichment was implemented as part of the unified RBAC iteration. Verified via API call and browser UI — User Name column shows "System Administrator", "Viewer User", etc.
+
+#### [TD-100] Role Dropdown Shows All Roles in Project Context
+
+- **Source:** 2026-05-11 unified RBAC cutover CHECK phase (E2E Finding #2)
+- **Description:** The "Select Role" dropdown in the Add Project Member modal showed all RBAC roles including AI-specific roles (`ai-admin`, `ai-manager`, `ai-viewer`) and `change_order_approver`. Only project-applicable roles (`admin`, `manager`, `viewer`) should appear.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Added `PROJECT_ASSIGNABLE_ROLES` constant in `useProjectRoleMap` hook (`frontend/src/features/projects/hooks/useProjectMembers.ts`) to filter the dropdown to only project-assignable roles.
+
+#### [TD-103] Temporal Context Not Propagated to Global AI Chat
+
+- **Source:** 2026-05-14 E2E test `20260514_0007-ai-cost-progress`
+- **Description:** Time Machine was project-scoped — `getSelectedTime()` returned null on global routes, preventing temporal AI operations from global chat.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Added `globalSelectedTime` to `useTimeMachineStore` (persisted to localStorage). Made `TimeMachineCompact` and `TimeMachineExpanded` work without `projectId` — showing only time selector (no branch/view mode) in global scope. Updated `TimeMachineContext` and layout to render Time Machine on all routes.
+
+#### [TD-095] Migration Verification Tests for Unified RBAC
+
+- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-020)
+- **Description:** Data migration `20260510b_migrate_existing_roles_to_unified_rbac.py` had no automated tests.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** One-time migration already ran successfully. Source data (User.role, ProjectMember) no longer exists — migration is not re-runnable, so verification tests are moot.
+
+#### [TD-105] Pre-existing MyPy Type-Var Errors in change_order_service.py
+
+- **Source:** 2026-05-16-unified-rbac-cleanup CHECK phase
+- **Description:** Two pre-existing `type-var` MyPy errors in `app/services/change_order_service.py` at lines 2320 and 2363.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** MyPy passes clean — errors were fixed incidentally during a prior iteration.
 
 ### High Severity
 

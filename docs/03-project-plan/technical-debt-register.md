@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-05-16
-**Total Open Items:** 21
-**Total Estimated Effort:** ~22 days
+**Last Updated:** 2026-05-19
+**Total Open Items:** 16
+**Total Estimated Effort:** ~17.5 days
 
 ---
 
@@ -12,31 +12,15 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ## High Severity (P0 - P1)
 
-### [TD-099] Test DB Fixture Uses create_all() Instead of Alembic Migrations
+### [TD-099] ~~Test DB Fixture Uses create_all() Instead of Alembic Migrations~~
 
-- **Source:** 2026-05-10-rbac-seeding-fix CHECK phase -- Root cause analysis of 13 pre-existing test_seeder.py failures
-- **Description:** The test database session fixture in `tests/conftest.py` uses SQLAlchemy `create_all()` (model metadata) instead of running the full Alembic migration chain. After the `user_role_assignments` table was added in the unified RBAC iteration (migration `20260510_add_user_role_assignments_table.py`), the FK constraint `FOREIGN KEY(granted_by) REFERENCES users(user_id)` fails because `create_all()` does not replicate the unique constraint on `users.user_id` that was added in an earlier migration (`42751fa7cef1`). This causes 13 existing seeder tests to ERROR with `asyncpg.exceptions.InvalidForeignKeyError`.
-- **Impact:** HIGH -- 13 tests in `test_seeder.py` ERROR at setup. Any future migration adding cross-table FK relationships will cause similar failures. Test DB schema does not match production schema.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P1 (High)
-- **Blocker:** No
-- **Suggested Approach:** Replace `create_all()` in the test session fixture with `alembic.command.upgrade(config, "head")` to run the full migration chain against the test database. Alternatively, add the missing unique constraint explicitly in the test fixture. Verify by running the full test_seeder.py suite. Consider creating a dedicated CI step that validates all Alembic migrations against a fresh database.
+- **Status:** ✅ Resolved (2026-05-19) — The `apply_migrations` fixture already uses `command.upgrade(alembic_cfg, "head")` (Alembic migrations). All 24 seeder tests pass. See archive.
 
 ---
 
-### [TD-095] Migration Verification Tests for Unified RBAC
+### [TD-095] ~~Migration Verification Tests for Unified RBAC~~
 
-- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-020)
-- **Description:** The data migration `20260510b_migrate_existing_roles_to_unified_rbac.py` copies User.role and ProjectMember data into the unified `user_role_assignments` table. This migration has no automated verification tests. The SQL looks correct but is untested. The downgrade logic is imprecise -- deletes by pattern rather than migration tracking, which could delete manually-created assignments.
-- **Impact:** HIGH -- Data integrity risk during production migration. Could lose role assignments or create duplicates without detection.
-- **Estimated Effort:** 4 hours
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P1 (High)
-- **Blocker:** No (but should be completed before next production deployment)
-- **Suggested Approach:** Create `tests/integration/test_rbac_migration.py` with tests for: up migration with existing User.role data, up migration with ProjectMember data, idempotency (run twice), down migration cleanup, edge cases (NULL roles, missing users). Consider adding migration_id column for precise downgrade tracking.
+- **Status:** ✅ Resolved (2026-05-19) — One-time data migration already ran; source data (User.role, ProjectMember) no longer exists. Migration is not re-runnable, so verification tests are moot. See archive.
 
 ---
 
@@ -54,17 +38,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-097] Performance Benchmarks for Unified RBAC
+### [TD-097] ~~Performance Benchmarks for Unified RBAC~~
 
-- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-024)
-- **Description:** The unified RBAC uses a two-tier cache (1h permissions, 5min assignments) designed for <5ms cached permission checks. No performance benchmarks exist to verify this target. The cache-first design should achieve this, but it is unverified.
-- **Impact:** LOW -- Cache design is sound, but target is unverified.
-- **Estimated Effort:** 4 hours
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P3 (Low)
-- **Blocker:** No
-- **Suggested Approach:** Create `tests/perf/bench_rbac_unified.py` with benchmarks for: cached permission check latency, cache miss latency, bulk assignment loading, cache invalidation performance. Target: cached check <5ms, cold check <50ms.
+- **Status:** ✅ Resolved (2026-05-19) — Created `tests/perf/bench_rbac_unified.py` with 4 benchmarks. All targets met: cached 0.00ms, cold 1.80ms, bulk worst 4.27ms, invalidation 0.18ms. See archive.
 
 ---
 
@@ -199,15 +175,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 - **Status:** ⏸️ Deferred (2026-04-23)
 - **Owner:** Full Stack Developer
 
-### [TD-086] Stringly-Typed Event Types and Tool Names
+### [TD-086] ~~Stringly-Typed Event Types and Tool Names~~
 
-- **Source:** Code review `/simplify` pass on `backend/app/ai/agent_service.py`
-- **Description:** Event types (`"thinking"`, `"tool_call"`, `"subagent"`, `"complete"`, etc.), tool names (`"task"`, `"write_todos"`), and execution statuses (`"running"`, `"completed"`, `"error"`) are raw strings scattered across `_run_agent_graph`. These are also referenced by the frontend, so changes must be coordinated. Hardcoded strings risk typos and make refactoring error-prone.
-- **Impact:** No compile-time safety; renaming an event type requires finding all string literals across backend and frontend.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Create `AgentEventType` and `ExecutionStatus` enums in backend. Export as constants that frontend can import via shared types or OpenAPI spec.
+- **Status:** Resolved (2026-05-19) -- Created `AgentEventType` and `ExecutionStatus` enums in `backend/app/ai/event_types.py`. Updated all references in `agent_service.py`, `agent_event_bus.py`, `ai_chat.py` routes, `app/main.py`, and `app/models/schemas/ai.py`. See archive.
 
 ### [TD-087] Parameter Sprawl in Graph Creation Methods
 
@@ -221,31 +191,15 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-100] Role Dropdown Shows All Roles in Project Context
+### [TD-100] ~~Role Dropdown Shows All Roles in Project Context~~
 
-- **Source:** 2026-05-11 unified RBAC cutover CHECK phase (E2E Finding #2)
-- **Description:** The "Select Role" dropdown in the Add Project Member modal shows all 11 RBAC roles including `ai-admin`, `ai-manager`, `ai-viewer`, `change_order_approver`. Only the 4 project-scoped roles (`project_admin`, `project_manager`, `project_editor`, `project_viewer`) are meaningful at project scope.
-- **Impact:** LOW -- Cosmetic/UX issue, no security impact. Users could accidentally assign an AI-specific role at project scope.
-- **Estimated Effort:** 2 hours
-- **Status:** Open
-- **Owner:** Frontend Developer
-- **Priority:** P3 (Low)
-- **Blocker:** No
-- **Suggested Approach:** Filter the role dropdown by roles that have project-applicable permissions. The `rbac_roles` table has `is_system=True` for all roles — add a `scope_applicability` column (e.g., `['global', 'project']`) or create a frontend-side filter list. Alternatively, the role-assignments API could expose a `/roles?scope=project` endpoint.
+- **Status:** ✅ Resolved (2026-05-19) — Added `PROJECT_ASSIGNABLE_ROLES` filter constant in `useProjectRoleMap` hook to exclude AI-specific and system-only roles from the project member dropdown. See archive.
 
 ---
 
-### [TD-101] Admin Role Assignments Page Shows "—" for User Name
+### [TD-101] ~~Admin Role Assignments Page Shows "—" for User Name~~
 
-- **Source:** 2026-05-11 unified RBAC cutover CHECK phase (E2E Finding #3)
-- **Description:** The admin Role Assignments page (`/admin/role-assignments`) shows "—" in the User Name column. The `GET /api/v1/role-assignments/` list endpoint returns `user_id` but doesn't enrich with user info (email, full_name). The frontend would need to join or batch-fetch user details.
-- **Impact:** LOW -- UX issue. Admins can't identify who an assignment belongs to without cross-referencing user IDs.
-- **Estimated Effort:** 3 hours
-- **Status:** Open
-- **Owner:** Full Stack Developer
-- **Priority:** P3 (Low)
-- **Blocker:** No
-- **Suggested Approach:** Either: (A) Enrich the list endpoint response with user details via a JOIN on the `users` table (add `user_email` and `user_name` fields to `UserRoleAssignmentRead`), or (B) Have the frontend batch-fetch user details via a separate endpoint. Option A is simpler and avoids N+1.
+- **Status:** ✅ Resolved (2026-05-19) — The list endpoint already enriches with `user_name`, `role_name`, `granted_by_name` via batch JOINs. The enrichment was implemented as part of the unified RBAC iteration. See archive.
 
 ---
 
@@ -263,17 +217,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-103] Temporal Context Not Propagated to Global AI Chat
+### [TD-103] ~~Temporal Context Not Propagated to Global AI Chat~~
 
-- **Source:** 2026-05-14 E2E test `20260514_0007-ai-cost-progress`
-- **Description:** The Time Machine temporal date is not available when using the global `/chat` route. When a user sets the Time Machine to a specific date on the project page and navigates to global chat, the AI agent's `get_temporal_context` returns today's date instead. All tool calls show `as_of=None`. The Time Machine store is project-scoped — `getSelectedTime()` returns `null` when `currentProjectId` is null (global routes).
-- **Impact:** MEDIUM — Users cannot perform temporal AI operations (register costs at specific dates, view historical state) from global chat. Workaround exists: use project-scoped chat tab (when rendering correctly).
-- **Estimated Effort:** 3 hours
-- **Status:** Open
-- **Owner:** Full Stack Developer
-- **Priority:** P2 (Medium)
-- **Blocker:** May become moot if project-scoped chat tab rendering is fixed
-- **Suggested Approach:** Primary fix is ensuring project-scoped `/projects/:id/chat` renders correctly. If that's insufficient, allow global chat to accept a `project_id` query parameter that sets Time Machine context for that session. Affected files: `useTimeMachineStore.ts`, `useStreamingChat.ts`, `ProjectChat.tsx`.
+- **Status:** ✅ Resolved (2026-05-19) — Added `globalSelectedTime` to Time Machine store, made UI components work without projectId (date-only, no branch selector). See archive.
 
 ---
 
@@ -291,17 +237,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-105] Pre-existing MyPy Type-Var Errors in change_order_service.py
+### [TD-105] ~~Pre-existing MyPy Type-Var Errors in change_order_service.py~~
 
-- **Source:** 2026-05-16-unified-rbac-cleanup CHECK phase
-- **Description:** Two pre-existing `type-var` MyPy errors in `app/services/change_order_service.py` at lines 2320 and 2363. Unrelated to the unified RBAC cleanup — existed before this iteration. Production code for the iteration passes MyPy clean; these are in unrelated change order service methods.
-- **Impact:** LOW -- MyPy strict mode does not pass cleanly. Two type inference issues in change order service.
-- **Estimated Effort:** 1 hour
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P3 (Low)
-- **Blocker:** No
-- **Suggested Approach:** Inspect lines 2320 and 2363 in `change_order_service.py`, add explicit type annotations to resolve the `type-var` errors. Run `uv run mypy app/` to verify.
+- **Status:** ✅ Resolved (2026-05-19) — MyPy passes clean on `change_order_service.py`. Errors were likely fixed incidentally during a prior iteration. See archive.
 
 ---
 
@@ -309,16 +247,22 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 - **Status:** ✅ Resolved (2026-05-16) — Fixed with `ruff check --fix tests/` in ACT phase.
 
+### [TD-107] ~~Dashboard Widgets Ignore Temporal Context~~
+
+- **Status:** ✅ Resolved (2026-05-19) — Added `useTimeMachineParams()` to `useDashboardData` hook, updated query key to include temporal params, added `branch` and `as_of` params to backend endpoint and service. See archive.
+
+---
+
 ---
 
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 7 | ~12 days |
-| Medium (P2-P3) | 13 | ~9 days |
-| Low (P4+) | 1 | 1 hour |
-| **Total** | **21** | **~22 days** |
+| High (P0-P1) | 5 | ~10.5 days |
+| Medium (P2-P3) | 8 | ~9 days |
+| Low (P4+) | 2 | 5 hours |
+| **Total** | **15** | **~17.5 days** |
 
 ---
 
