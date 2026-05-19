@@ -20,6 +20,8 @@ import collections
 import logging
 from typing import TYPE_CHECKING
 
+from app.ai.event_types import AgentEventType
+
 if TYPE_CHECKING:
     pass  # avoid circular imports; AgentEvent is only used as a type hint
 
@@ -160,7 +162,7 @@ class AgentEventBus:
         # Mark the bus as completed AFTER delivering to subscriber queues.
         # This prevents the race condition where the consumer checks is_completed
         # and exits before the terminal event is delivered to its queue.
-        if published.event_type in ("complete", "error"):
+        if published.event_type in (AgentEventType.COMPLETE, AgentEventType.ERROR):
             logger.debug(
                 "Bus %s marking completed after delivering %s to %d subscribers",
                 self._execution_id,

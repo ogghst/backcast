@@ -101,6 +101,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.briefing import BriefingDocument
 from app.ai.config import AgentConfig
+from app.ai.event_types import (
+    TOOL_NAME_TASK,
+    TOOL_NAME_WRITE_TODOS,
+    AgentEventType,
+    ExecutionStatus,
+)
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.agent_metrics import AgentExecutionMetrics
@@ -1049,7 +1055,7 @@ class AgentService:
         _token_accumulator: dict[str, list[str]] = {}
 
         # -- Event helpers (closures over stream state) --
-        def _publish(event_type: str, data: dict[str, Any]) -> None:
+        def _publish(event_type: str | AgentEventType, data: dict[str, Any]) -> None:
             event_bus.publish(
                 AgentEvent(
                     event_type=event_type,
@@ -1069,7 +1075,7 @@ class AgentService:
             _publish(
                 "token_batch",
                 {
-                    "type": "token_batch",
+                    "type": "token_batch",  # not in AgentEventType -- wire-level only
                     "tokens": concatenated,
                     "session_id": str(session_id),
                     "source": "subagent" if current_subagent_name else "main",
@@ -1102,9 +1108,9 @@ class AgentService:
             completed = chain_output.get("completed_specialists", set())
             completed_list = sorted(completed) if isinstance(completed, set) else []
             _publish(
-                "briefing_update",
+                AgentEventType.BRIEFING_UPDATE,
                 WSBriefingMessage(
-                    type="briefing_update",
+                    type=AgentEventType.BRIEFING_UPDATE,
                     briefing=briefing_md,
                     specialist_name=chain_name,
                     completed_specialists=completed_list,
@@ -1145,7 +1151,7 @@ class AgentService:
                 )
 
             # Send thinking event
-            _publish("thinking", {"type": "thinking"})
+            _publish(AgentEventType.THINKING, {"type": AgentEventType.THINKING})
 
             # Retry loop for transient network errors during streaming
             max_retries = 2
@@ -1205,9 +1211,9 @@ class AgentService:
                                 current_invocation_id = str(uuid.uuid4())
                                 last_entered_agent = chain_name
                                 _publish(
-                                    "agent_transition",
+                                    AgentEventType.AGENT_TRANSITION,
                                     {
-                                        "type": "agent_transition",
+                                        "type": AgentEventType.AGENT_TRANSITION,
                                         "agent_name": chain_name,
                                         "direction": "enter",
                                         "invocation_id": current_invocation_id,
@@ -1235,9 +1241,9 @@ class AgentService:
                             if output_dict and "briefing_data" in output_dict:
                                 _publish_briefing_update(output_dict, chain_name)
                                 _publish(
-                                    "agent_transition",
+                                    AgentEventType.AGENT_TRANSITION,
                                     {
-                                        "type": "agent_transition",
+                                        "type": AgentEventType.AGENT_TRANSITION,
                                         "agent_name": chain_name,
                                         "direction": "exit",
                                         "invocation_id": current_invocation_id,
@@ -1369,7 +1375,7 @@ class AgentService:
                                 estimated_total_steps or "?",
                             )
 
-                            if tool_name == "task":
+                            if tool_name == TOOL_NAME_TASK:
                                 current_subagent_name = (
                                     tool_input.get("subagent_type")
                                     if isinstance(tool_input, dict)
@@ -1379,7 +1385,7 @@ class AgentService:
                                 task_initiating_main_invocation_id = main_invocation_id
 
                             # Planning event
-                            if tool_name == "write_todos":
+                            if tool_name == TOOL_NAME_WRITE_TODOS:
                                 plan = (
                                     tool_input.get("plan")
                                     if isinstance(tool_input, dict)
@@ -1395,9 +1401,9 @@ class AgentService:
                                         ]
                                         estimated_total_steps = len(steps)
                                 _publish(
-                                    "planning",
+                                    AgentEventType.PLANNING,
                                     {
-                                        "type": "planning",
+                                        "type": AgentEventType.PLANNING,
                                         "plan": plan,
                                         "steps": [
                                             {"text": s.text, "done": s.done}
@@ -1412,7 +1418,7 @@ class AgentService:
                                 )
 
                             # Subagent delegation event
-                            elif tool_name == "task":
+                            elif tool_name == TOOL_NAME_TASK:
                                 subagent_type = (
                                     tool_input.get("subagent_type")
                                     if isinstance(tool_input, dict)
@@ -1425,9 +1431,9 @@ class AgentService:
                                 )
                                 if subagent_type:
                                     _publish(
-                                        "subagent",
+                                        AgentEventType.SUBAGENT,
                                         {
-                                            "type": "subagent",
+                                            "type": AgentEventType.SUBAGENT,
                                             "subagent": subagent_type,
                                             "message": description,
                                             "step_number": current_step,
@@ -1438,9 +1444,9 @@ class AgentService:
 
                             # Standard tool_call event
                             _publish(
-                                "tool_call",
+                                AgentEventType.TOOL_CALL,
                                 {
-                                    "type": "tool_call",
+                                    "type": AgentEventType.TOOL_CALL,
                                     "tool": tool_name,
                                     "args": tool_input,
                                     "step_number": current_step,
@@ -1469,7 +1475,7 @@ class AgentService:
 
                             # Subagent result handling
                             if (
-                                tool_name == "task"
+                                tool_name == TOOL_NAME_TASK
                                 and current_invocation_id is not None
                             ):
                                 # Flush subagent tokens before processing result
@@ -1514,9 +1520,9 @@ class AgentService:
                                     )
 
                                     _publish(
-                                        "subagent_result",
+                                        AgentEventType.SUBAGENT_RESULT,
                                         {
-                                            "type": "subagent_result",
+                                            "type": AgentEventType.SUBAGENT_RESULT,
                                             "subagent_name": current_subagent_name
                                             or "subagent",
                                             "content": subagent_content,
@@ -1526,9 +1532,9 @@ class AgentService:
 
                                 # Subagent completion
                                 _publish(
-                                    "agent_complete",
+                                    AgentEventType.AGENT_COMPLETE,
                                     {
-                                        "type": "agent_complete",
+                                        "type": AgentEventType.AGENT_COMPLETE,
                                         "agent_type": "subagent",
                                         "invocation_id": current_invocation_id,
                                         "agent_name": current_subagent_name,
@@ -1537,9 +1543,9 @@ class AgentService:
 
                                 # Content reset after subagent
                                 _publish(
-                                    "content_reset",
+                                    AgentEventType.CONTENT_RESET,
                                     {
-                                        "type": "content_reset",
+                                        "type": AgentEventType.CONTENT_RESET,
                                         "reason": "subagent_completed",
                                     },
                                 )
@@ -1551,7 +1557,7 @@ class AgentService:
                             # Generate new main invocation_id after task tool
                             # completion only (subagent delegation). For other
                             # tools, the same agent continues — keep one segment.
-                            if tool_name == "task":
+                            if tool_name == TOOL_NAME_TASK:
                                 main_invocation_id = str(uuid.uuid4())
 
                             tool_output = data.get("output", "")
@@ -1580,9 +1586,9 @@ class AgentService:
                                 all_tool_results.append(tool_result_dict)
 
                             _publish(
-                                "tool_result",
+                                AgentEventType.TOOL_RESULT,
                                 {
-                                    "type": "tool_result",
+                                    "type": AgentEventType.TOOL_RESULT,
                                     "tool": tool_name,
                                     "result": jsonable_encoder(tool_result_dict),
                                     "invocation_id": current_invocation_id
@@ -1606,9 +1612,9 @@ class AgentService:
                                 all_tool_results.append(error_result_dict)
 
                                 _publish(
-                                    "tool_result",
+                                    AgentEventType.TOOL_RESULT,
                                     {
-                                        "type": "tool_result",
+                                        "type": AgentEventType.TOOL_RESULT,
                                         "tool": tool_name,
                                         "result": jsonable_encoder(error_result_dict),
                                         "invocation_id": current_invocation_id
@@ -1674,7 +1680,7 @@ class AgentService:
             logger.error(f"Error in _run_agent_graph: {e}", exc_info=True)
             event_bus.publish(
                 AgentEvent(
-                    event_type="error",
+                    event_type=AgentEventType.ERROR,
                     data={"message": str(e), "code": 500},
                     timestamp=datetime.now(UTC),
                 )
@@ -1794,9 +1800,9 @@ class AgentService:
 
         # Publish main agent completion
         _publish(
-            "agent_complete",
+            AgentEventType.AGENT_COMPLETE,
             {
-                "type": "agent_complete",
+                "type": AgentEventType.AGENT_COMPLETE,
                 "agent_type": "main",
                 "invocation_id": main_invocation_id,
                 "agent_name": "Assistant",
@@ -1805,18 +1811,18 @@ class AgentService:
 
         # Publish execution status so frontend clears activeExecutionIdRef
         _publish(
-            "execution_status",
+            AgentEventType.EXECUTION_STATUS,
             {
-                "type": "execution_status",
+                "type": AgentEventType.EXECUTION_STATUS,
                 "execution_id": event_bus.execution_id,
-                "status": "completed",
+                "status": ExecutionStatus.COMPLETED,
                 "session_id": str(session_id),
             },
         )
 
         # Publish final complete event
         _publish(
-            "complete",
+            AgentEventType.COMPLETE,
             WSCompleteMessage(
                 type="complete",
                 session_id=session_id,
@@ -1948,7 +1954,7 @@ class AgentService:
                 # Create execution tracking row
                 execution = AIAgentExecution(
                     session_id=str(session_id),
-                    status="running",
+                    status=ExecutionStatus.RUNNING,
                     execution_mode=execution_mode.value,
                 )
                 db.add(execution)
@@ -1994,7 +2000,7 @@ class AgentService:
                 )
                 exec_result = await db.execute(exec_stmt)
                 execution = exec_result.scalar_one()
-                execution.status = "completed"
+                execution.status = ExecutionStatus.COMPLETED
                 execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
                 execution.total_tokens = metrics.total_tokens
                 execution.tool_calls_count = metrics.tool_calls_count
@@ -2015,7 +2021,7 @@ class AgentService:
                     result = await db.execute(stmt)
                     fresh_execution = result.scalar_one_or_none()
                     if fresh_execution is not None:
-                        fresh_execution.status = "error"
+                        fresh_execution.status = ExecutionStatus.ERROR
                         fresh_execution.error_message = str(e)[:2000]
                         fresh_execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
                         if metrics is not None:
@@ -2034,11 +2040,11 @@ class AgentService:
                 # Publish execution status so frontend clears activeExecutionIdRef
                 event_bus.publish(
                     AgentEvent(
-                        event_type="execution_status",
+                        event_type=AgentEventType.EXECUTION_STATUS,
                         data={
-                            "type": "execution_status",
+                            "type": AgentEventType.EXECUTION_STATUS,
                             "execution_id": execution_id,
-                            "status": "error",
+                            "status": ExecutionStatus.ERROR,
                             "session_id": str(session_id),
                         },
                         timestamp=datetime.now(UTC),
@@ -2048,7 +2054,7 @@ class AgentService:
                 # Publish error event
                 event_bus.publish(
                     AgentEvent(
-                        event_type="error",
+                        event_type=AgentEventType.ERROR,
                         data={"message": str(e), "code": 500},
                         timestamp=datetime.now(UTC),
                     )

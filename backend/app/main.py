@@ -159,10 +159,18 @@ async def _cleanup_orphaned_executions() -> None:
     """
     from sqlalchemy import select, update
 
+    from app.ai.event_types import ExecutionStatus
     from app.db.session import async_session_maker
     from app.models.domain.ai import AIAgentExecution, AIConversationSession
 
-    orphaned_statuses = ("running", "pending", "awaiting_approval")
+    orphaned_statuses = [
+        s.value
+        for s in (
+            ExecutionStatus.RUNNING,
+            ExecutionStatus.PENDING,
+            ExecutionStatus.AWAITING_APPROVAL,
+        )
+    ]
 
     async with async_session_maker() as db:
         # Find orphaned execution ids
@@ -183,7 +191,7 @@ async def _cleanup_orphaned_executions() -> None:
             update(AIAgentExecution)
             .where(AIAgentExecution.id.in_(orphaned_ids))
             .values(
-                status="error",
+                status=ExecutionStatus.ERROR,
                 error_message="Server restarted during execution",
                 completed_at=now,
             )

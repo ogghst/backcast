@@ -16,6 +16,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.ai.event_types import ExecutionStatus
 from app.ai.tools.types import ExecutionMode
 
 # Risk level literals
@@ -274,28 +275,6 @@ class AIToolPublic(BaseModel):
 
 
 # === Agent Execution Schemas ===
-
-
-# Execution status values
-EXECUTION_STATUS_PENDING = "pending"
-EXECUTION_STATUS_RUNNING = "running"
-EXECUTION_STATUS_COMPLETED = "completed"
-EXECUTION_STATUS_ERROR = "error"
-EXECUTION_STATUS_AWAITING_APPROVAL = "awaiting_approval"
-EXECUTION_STATUS_VALUES = [
-    EXECUTION_STATUS_PENDING,
-    EXECUTION_STATUS_RUNNING,
-    EXECUTION_STATUS_COMPLETED,
-    EXECUTION_STATUS_ERROR,
-    EXECUTION_STATUS_AWAITING_APPROVAL,
-]
-ExecutionStatus = Literal[
-    "pending",
-    "running",
-    "completed",
-    "error",
-    "awaiting_approval",
-]
 
 
 class AgentExecutionPublic(BaseModel):

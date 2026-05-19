@@ -22,6 +22,7 @@ from sqlalchemy.orm import selectinload
 
 from app.ai.agent_service import AgentService
 from app.ai.briefing import BriefingDocument
+from app.ai.event_types import AgentEventType, ExecutionStatus
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.tools.types import ExecutionMode
@@ -84,7 +85,7 @@ async def forward_bus_events(
                         "Failed to forward event to WebSocket for user %s", user_id
                     )
                 break
-            if event.event_type in ("complete", "error"):
+            if event.event_type in (AgentEventType.COMPLETE, AgentEventType.ERROR):
                 break
         else:
             # Loop exited because bus.is_completed became True.
@@ -100,7 +101,10 @@ async def forward_bus_events(
                         break
                     payload = {**event.data, "type": event.event_type}
                     await websocket.send_json(payload)
-                    if event.event_type in ("complete", "error"):
+                    if event.event_type in (
+                        AgentEventType.COMPLETE,
+                        AgentEventType.ERROR,
+                    ):
                         break
                 except Exception:
                     break
@@ -179,7 +183,14 @@ async def list_sessions(
 
     # Collect session IDs and find active executions in a single query
     session_ids = [s.id for s in sessions]
-    active_statuses = ("pending", "running", "awaiting_approval")
+    active_statuses = [
+        s.value
+        for s in (
+            ExecutionStatus.PENDING,
+            ExecutionStatus.RUNNING,
+            ExecutionStatus.AWAITING_APPROVAL,
+        )
+    ]
     exec_stmt = select(AIAgentExecution).where(
         AIAgentExecution.session_id.in_(session_ids),
         AIAgentExecution.status.in_(active_statuses),
@@ -254,7 +265,14 @@ async def list_sessions_paginated(
 
     # Collect session IDs and find active executions in a single query
     session_ids = [s.id for s in sessions]
-    active_statuses = ("pending", "running", "awaiting_approval")
+    active_statuses = [
+        s.value
+        for s in (
+            ExecutionStatus.PENDING,
+            ExecutionStatus.RUNNING,
+            ExecutionStatus.AWAITING_APPROVAL,
+        )
+    ]
     exec_stmt = select(AIAgentExecution).where(
         AIAgentExecution.session_id.in_(session_ids),
         AIAgentExecution.status.in_(active_statuses),
