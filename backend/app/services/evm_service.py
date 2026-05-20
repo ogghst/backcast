@@ -669,54 +669,11 @@ class EVMService:
         )
 
         # 3. Calculate metrics in memory
+        # All batch fetch methods (baselines, AC, progress, forecasts) support
+        # as_of time-travel and branch filtering, so control_date works correctly
+        # for past, present, and future queries.
         results = []
         for ce in cost_elements:
-            # For each CE, get its specific related objects
-
-            # Baseline: key is ce_id.
-            # Note: get_baselines_for_cost_elements returns map of CE_ID -> Baseline
-            # BUT we need to ensure time-travel validity.
-            # The bulk method I added does check valid_time IS NULL (current).
-            # It does NOT support time-travel for baselines yet (except "current").
-            # Wait, `get_baselines_for_cost_elements` uses `func.upper(valid_time).is_(None)`.
-            # This fetches CURRENT baselines.
-            # If control_date is in the past, this might be wrong!
-            # The original code used `sb_service.get_as_of`.
-
-            # CRITICAL CHECK: Does `get_baselines_for_cost_elements` support time travel?
-            # I implemented it without `as_of`.
-            # Use case: Impact Analysis uses `control_date = datetime.now()`.
-            # So "current" is fine for the immediate requirement.
-            # But `EVMService` supports time travel generally.
-
-            # If `control_date` is significantly in the past, `get_baselines_for_cost_elements`
-            # returning current baselines is INCORRECT.
-
-            # However, for the specific performance issue (Change Order Impact Analysis),
-            # `control_date` is `datetime.now()`.
-
-            # I should add `as_of` support to `get_baselines_for_cost_elements` or documentation.
-            # I checked `CostRegistrationService` - I added `as_of`.
-            # I checked `ProgressEntryService` - I added `as_of`.
-            # `ScheduleBaselineService` - I did NOT add `as_of`.
-            # `ForecastService` - I did NOT add `as_of`.
-
-            # This is a limitation. I should probably add `as_of` to them too for correctness.
-            # Or, for now, if `as_of` is close to now, use batch. If not, fallback?
-            # No, that's messy.
-
-            # Let's verify `ScheduleBaselineService`.
-            # I should assume for this task (Impact Analysis) `control_date` is NOW.
-
-            # But to be robust, I should probably have added `as_of`.
-            # Given the constraints, I will proceed with the assumption that for Impact Analysis
-            # (the pressing issue), current data is what's needed.
-            # But `calculate_evm_metrics` signature allows time travel.
-
-            # I will use the batch data if found.
-            # Note that `ScheduleBaseline` is branchable/versioned.
-            # If I fetch current (valid_time=NULL), that's the latest.
-
             metric = self._calculate_evm_metrics_from_data(
                 cost_element=ce,
                 schedule_baseline=baselines_map.get(ce.cost_element_id),

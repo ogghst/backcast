@@ -149,7 +149,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         # Calculate total spend across all cost elements in the project
         # Join: WBE -> CostElement -> CostRegistration
-        # Cost registrations are global (not branchable), so we don't need to check multiple branches
+        # Cost registrations are global (not branchable), but CE/WBE must be filtered
+        # to the effective branch to avoid counting the same cost registration once
+        # per branch (since cost_element_id appears as separate rows in each branch).
         total_spend_stmt = (
             select(func.sum(CostRegistration.amount))
             .join(
@@ -159,8 +161,10 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
+                WBE.branch == effective_branch,
                 func.upper(CostElement.valid_time).is_(None),
                 CostElement.deleted_at.is_(None),
+                CostElement.branch == effective_branch,
                 func.upper(WBE.valid_time).is_(None),
                 WBE.deleted_at.is_(None),
             )
@@ -260,7 +264,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         budget = Decimal(str(budget_result.scalar_one()))
 
         # Sum actual cost registrations in the hierarchy
-        # Cost registrations are global (not branchable)
+        # Cost registrations are global (not branchable), but CostElement must be
+        # filtered by branch to avoid counting the same registration once per branch.
         spend_stmt = (
             select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
             .select_from(wbe_hierarchy)
@@ -268,6 +273,11 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             .join(
                 CostRegistration,
                 CostRegistration.cost_element_id == CostElement.cost_element_id,
+            )
+            .where(
+                CostElement.branch == branch,
+                func.upper(cast("Any", CostElement).valid_time).is_(None),
+                cast("Any", CostElement).deleted_at.is_(None),
             )
         )
 
