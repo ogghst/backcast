@@ -5,6 +5,7 @@ import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { getCurrentUser, loginUser, type TokenResponse } from "@/api/auth";
 import type { UserLogin, UserPublic } from "@/types/auth";
 import { queryKeys } from "@/api/queryKeys";
+import { requestPersistentStorage } from "@/utils/storagePersistence";
 
 /**
  * Custom hook that combines authentication state and user data
@@ -55,6 +56,9 @@ export const useAuth = () => {
       setTokens(data.access_token, data.refresh_token);
       // Invalidate and refetch user data
       queryClient.invalidateQueries({ queryKey: queryKeys.users.me });
+
+      // Request persistent storage to protect IndexedDB from browser eviction
+      requestPersistentStorage();
     },
   });
 

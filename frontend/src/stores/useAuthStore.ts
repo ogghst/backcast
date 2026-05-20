@@ -117,14 +117,20 @@ export const useAuthStore = create<AuthState>()(
 
         logout: async () => {
           const { refreshToken } = get();
-          // Call logout API to revoke refresh token
           if (refreshToken) {
             try {
               await apiLogoutUser(refreshToken);
             } catch (error) {
               console.error("Failed to revoke refresh token:", error);
-              // Continue with local logout even if API call fails
             }
+          }
+
+          try {
+            const { getAppPersister } = await import("../api/queryPersister");
+            const p = getAppPersister();
+            if (p) await p.removeClient();
+          } catch {
+            // Persister may not be available in test environments
           }
 
           set({
