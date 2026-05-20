@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-05-19
-**Total Open Items:** 5
-**Total Estimated Effort:** ~9 days
+**Total Open Items:** 4
+**Total Estimated Effort:** ~7 days
 
 ---
 
@@ -78,27 +78,21 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-084] Decompose `_run_agent_graph` Method
+### [TD-084] ~~Decompose `_run_agent_graph` Method~~
 
-- **Source:** Code review `/simplify` pass on `backend/app/ai/agent_service.py`
-- **Description:** `_run_agent_graph` is ~800 lines with deep nesting (try/try/try/except/finally), handling graph setup, event processing, error handling, token batching, and message persistence in a single method. The event processing loop contains 15+ state tracking variables that could be grouped into a dataclass.
-- **Impact:** Hard to test, maintain, and reason about. Any change to streaming, persistence, or event handling risks regressions across all concerns.
-- **Estimated Effort:** 2 days
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Extract into focused methods: `_init_execution_state()`, `_setup_graph()`, `_process_stream_events()`, `_cleanup_execution()`, `_persist_results()`. Group the 15+ tracking variables into an `ExecutionState` dataclass.
+- **Status:** ✅ Resolved (2026-05-20) — Decomposed 957-line method into 14 focused units. Created `StreamState` and `GraphContext` dataclasses in `graph_params.py`. Extracted 12 methods: `_prepare_graph_execution`, `_process_stream_events`, `_persist_session_messages`, `_finalize_execution`, and 9 event handler methods. Main method reduced to 84-line orchestrator. See archive.
 
 ---
 
 ### [TD-085] Migrate `astream_events` from v1 to v2
 
 - **Source:** LangGraph best practices review (Context7 docs)
-- **Description:** `_run_agent_graph` uses `graph.astream_events(..., version="v1")`. LangGraph recommends `version="v2"` which changes the event format and provides cleaner stream modes (`updates`, `custom`, `messages`). The v1 API is legacy and may be deprecated. Migration requires updating all event type handling in the 400+ line event loop.
+- **Description:** `_process_stream_events` uses `graph.astream_events(..., version="v1")`. LangGraph recommends `version="v2"` which changes the event format and provides cleaner stream modes (`updates`, `custom`, `messages`). The v1 API is legacy and may be deprecated. Migration requires updating all 9 event handler methods.
 - **Impact:** Stuck on deprecated API; v2 offers `stream_mode=["updates", "custom"]` which could replace manual event bus publishing and simplify token streaming via `get_stream_writer()`.
 - **Estimated Effort:** 2 days
 - **Status:** Open
 - **Owner:** Backend Developer
-- **Suggested Approach:** Migrate event loop to v2 format first (no behavior change), then evaluate replacing manual `_publish` / `_token_accumulator` with LangGraph's `get_stream_writer()` and `stream_mode=["updates", "custom", "messages"]`.
+- **Suggested Approach:** Migrate event handlers to v2 format first (no behavior change), then evaluate replacing manual `StreamState.publish` / `StreamState.token_buffer` with LangGraph's `get_stream_writer()` and `stream_mode=["updates", "custom", "messages"]`.
 
 ---
 
@@ -176,10 +170,10 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 3 | ~8.5 days |
-| Medium (P2-P3) | 1 | ~2.5 days |
+| High (P0-P1) | 2 | ~2.5 days |
+| Medium (P2-P3) | 1 | ~2 days |
 | Low (P4+) | 1 | 5 hours |
-| **Total** | **5** | **~9 days** |
+| **Total** | **4** | **~7 days** |
 
 ---
 

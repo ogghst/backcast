@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-05-19
-**Total Archived Items:** 56
+**Total Archived Items:** 57
 
 ---
 
@@ -528,13 +528,24 @@ This file contains all completed, closed, or resolved technical debt items. For 
 - **Q4:** 15 items closed
 - **Q3:** 7 items closed
 
+### [TD-084] Decompose `_run_agent_graph` Method (Resolved 2026-05-20)
+
+- **Original Description:** `_run_agent_graph` was 957 lines with deep nesting (try/try/try/except/finally), handling graph setup, event processing, error handling, token batching, and message persistence in a single method. The event processing loop contained 15+ state tracking variables.
+- **Resolution:** Decomposed into 14 focused units:
+  - Created `StreamState` dataclass (25 fields + 3 helper methods) grouping all mutable tracking variables
+  - Created `GraphContext` dataclass for prepared execution resources
+  - Extracted 12 methods: `_prepare_graph_execution`, `_process_stream_events`, `_persist_session_messages`, `_finalize_execution`, and 9 event handler methods (`_handle_chain_start/end`, `_handle_chat_model_start/stream/end`, `_handle_tool_start/end/error`, `_handle_graph_end`)
+  - Main `_run_agent_graph` reduced to 84-line orchestrator
+  - `_HANDLED_EVENTS` frozenset moved to module level
+  - All 26 unit tests pass; ruff and mypy clean.
+
 ---
 
 ## Archive Statistics
 
 | Status | Count |
 |--------|-------|
-| Complete | 9 |
+| Complete | 10 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **17** |
-| **Total (All Time)** | **42** |
+| **Total (2026)** | **18** |
+| **Total (All Time)** | **43** |
