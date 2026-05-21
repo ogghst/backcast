@@ -19,7 +19,9 @@ import type { TemporalRange } from "@/components/common/VersionHistory";
 type ApiHistoryItem = {
   valid_from?: string;
   valid_time?: string | TemporalRange | { lower: string; start?: string };
+  valid_time_formatted?: { lower_formatted: string; upper_formatted: string; [key: string]: unknown };
   transaction_time?: string | TemporalRange | { lower: string; start?: string };
+  transaction_time_formatted?: { lower_formatted: string; upper_formatted: string; [key: string]: unknown };
   created_by_name?: string;
   [key: string]: unknown; // Allow additional entity-specific fields
 };
@@ -74,6 +76,11 @@ function extractValidFrom(item: ApiHistoryItem): string {
     return item.valid_from;
   }
 
+  // Prefer pre-formatted date from API
+  if (item.valid_time_formatted?.lower_formatted) {
+    return item.valid_time_formatted.lower_formatted;
+  }
+
   // valid_time field (string or object)
   if (item.valid_time) {
     if (typeof item.valid_time === "string") {
@@ -91,6 +98,11 @@ function extractValidFrom(item: ApiHistoryItem): string {
  * Extract transaction_time from history item variations.
  */
 function extractTransactionTime(item: ApiHistoryItem): string {
+  // Prefer pre-formatted date from API
+  if (item.transaction_time_formatted?.lower_formatted) {
+    return item.transaction_time_formatted.lower_formatted;
+  }
+
   if (!item.transaction_time) {
     return "";
   }

@@ -4162,6 +4162,25 @@
               "title": "As Of"
             },
             "description": "Time travel: get Cost Registrations as of this timestamp (ISO 8601)"
+          },
+          {
+            "name": "work_package_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Work Package ID",
+              "title": "Work Package Id"
+            },
+            "description": "Filter by Work Package ID"
           }
         ],
         "responses": {
@@ -8109,20 +8128,32 @@
         }
       }
     },
-    "/api/v1/quality-events": {
+    "/api/v1/work-packages": {
       "get": {
         "tags": [
-          "Quality Events"
+          "Work Packages"
         ],
-        "summary": "Read Quality Events",
-        "description": "Retrieve quality events with filtering and pagination.\n\nQuality events track rework costs and quality issues against cost elements.\nThey are versionable but NOT branchable (quality events are global facts).\nBranch and mode parameters are provided for API consistency and context,\nthough quality events themselves are not branch-specific.\n\nFiltering hierarchy: cost_element_id > wbe_id > project_id.\nWhen multiple are provided, all applicable filters are applied (AND).",
-        "operationId": "get_quality_events",
+        "summary": "Read Work Packages",
+        "description": "Retrieve work packages for a project with pagination and filtering.\n\nWork packages are versionable but NOT branchable (costs are global facts).",
+        "operationId": "get_work_packages",
         "security": [
           {
             "OAuth2PasswordBearer": []
           }
         ],
         "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Required project ID filter",
+              "title": "Project Id"
+            },
+            "description": "Required project ID filter"
+          },
           {
             "name": "page",
             "in": "query",
@@ -8150,87 +8181,26 @@
             "description": "Items per page"
           },
           {
-            "name": "branch",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Branch to query (for context)",
-              "default": "main",
-              "title": "Branch"
-            },
-            "description": "Branch to query (for context)"
-          },
-          {
-            "name": "branch_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/BranchMode",
-              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
-              "default": "merged"
-            },
-            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
-          },
-          {
-            "name": "cost_element_id",
+            "name": "coq_category",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
                   "type": "string",
-                  "format": "uuid"
+                  "pattern": "^(conformance|nonconformance)$"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Filter by Cost Element ID",
-              "title": "Cost Element Id"
+              "description": "Filter by COQ category",
+              "title": "Coq Category"
             },
-            "description": "Filter by Cost Element ID"
+            "description": "Filter by COQ category"
           },
           {
-            "name": "wbe_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by WBE ID (returns all events under this WBE)",
-              "title": "Wbe Id"
-            },
-            "description": "Filter by WBE ID (returns all events under this WBE)"
-          },
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by Project ID (returns all events under this project)",
-              "title": "Project Id"
-            },
-            "description": "Filter by Project ID (returns all events under this project)"
-          },
-          {
-            "name": "event_type",
+            "name": "package_type",
             "in": "query",
             "required": false,
             "schema": {
@@ -8242,28 +8212,29 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by event type (defect, rework, scrap, warranty, other)",
-              "title": "Event Type"
+              "description": "Filter by package type",
+              "title": "Package Type"
             },
-            "description": "Filter by event type (defect, rework, scrap, warranty, other)"
+            "description": "Filter by package type"
           },
           {
-            "name": "severity",
+            "name": "status",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "pattern": "^(open|closed)$"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Filter by severity (low, medium, high, critical)",
-              "title": "Severity"
+              "description": "Filter by status",
+              "title": "Status"
             },
-            "description": "Filter by severity (low, medium, high, critical)"
+            "description": "Filter by status"
           },
           {
             "name": "as_of",
@@ -8279,10 +8250,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Time travel: get Quality Events as of this timestamp (ISO 8601)",
+              "description": "Time travel: get packages as of this timestamp (ISO 8601)",
               "title": "As Of"
             },
-            "description": "Time travel: get Quality Events as of this timestamp (ISO 8601)"
+            "description": "Time travel: get packages as of this timestamp (ISO 8601)"
           }
         ],
         "responses": {
@@ -8308,28 +8279,14 @@
       },
       "post": {
         "tags": [
-          "Quality Events"
+          "Work Packages"
         ],
-        "summary": "Create Quality Event",
-        "description": "Create a new quality event.\n\nThe control_date parameter allows setting the valid_time start date,\nuseful for backdated quality events or testing time-travel scenarios.",
-        "operationId": "create_quality_event",
+        "summary": "Create Work Package",
+        "description": "Create a new work package.\n\nTracks the cost and schedule impact of an external event on a project.\nOptionally includes cost allocations to specific cost elements.",
+        "operationId": "create_work_package",
         "security": [
           {
             "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "branch",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Branch to check cost element against",
-              "default": "main",
-              "title": "Branch"
-            },
-            "description": "Branch to check cost element against"
           }
         ],
         "requestBody": {
@@ -8337,7 +8294,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/QualityEventCreate"
+                "$ref": "#/components/schemas/WorkPackageCreate"
               }
             }
           }
@@ -8348,7 +8305,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/QualityEventRead"
+                  "$ref": "#/components/schemas/WorkPackageRead"
                 }
               }
             }
@@ -8366,14 +8323,14 @@
         }
       }
     },
-    "/api/v1/quality-events/cost-element/{cost_element_id}/total": {
+    "/api/v1/work-packages/project/{project_id}/summary": {
       "get": {
         "tags": [
-          "Quality Events"
+          "Work Packages"
         ],
-        "summary": "Get Quality Event Total",
-        "description": "Get total quality event costs for a cost element with time-travel support.\n\nReturns the sum of all cost_impact values for quality events associated\nwith the specified cost element. Useful for displaying total rework costs.\n\nThe as_of parameter allows viewing the total at any historical point in time,\nshowing only quality events that were valid as of that timestamp.",
-        "operationId": "get_quality_event_total",
+        "summary": "Get Work Package Summary",
+        "description": "Get aggregated COQ summary for a project.\n\nReturns total cost, conformance/nonconformance breakdown,\ntotal schedule impact days, and COQ ratio against project budget.\nOnly includes quality_impact-typed work packages.",
+        "operationId": "get_work_package_summary",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -8381,13 +8338,13 @@
         ],
         "parameters": [
           {
-            "name": "cost_element_id",
+            "name": "project_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Cost Element Id"
+              "title": "Project Id"
             }
           },
           {
@@ -8404,10 +8361,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Time travel: get total as of this timestamp (ISO 8601)",
+              "description": "Time travel: get summary as of this timestamp (ISO 8601)",
               "title": "As Of"
             },
-            "description": "Time travel: get total as of this timestamp (ISO 8601)"
+            "description": "Time travel: get summary as of this timestamp (ISO 8601)"
           }
         ],
         "responses": {
@@ -8416,9 +8373,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Quality Event Total"
+                  "$ref": "#/components/schemas/WorkPackageSummary"
                 }
               }
             }
@@ -8436,14 +8391,14 @@
         }
       }
     },
-    "/api/v1/quality-events/by-period": {
+    "/api/v1/work-packages/project/{project_id}/coq-metrics": {
       "get": {
         "tags": [
-          "Quality Events"
+          "Work Packages"
         ],
-        "summary": "Get Quality Events By Period",
-        "description": "Get quality event aggregations by time period.\n\nReturns quality event costs aggregated by day, week, or month for a cost element.\n\nExample:\n    - period=daily: One row per day with total cost_impact\n    - period=weekly: One row per week (starts Monday) with total cost_impact\n    - period=monthly: One row per month (starts 1st) with total cost_impact\n\nAll quality events respect time-travel queries via the as_of parameter.",
-        "operationId": "get_quality_events_by_period",
+        "summary": "Get Coq Metrics",
+        "description": "Get COQ metrics for a project.\n\nReturns Cost of Quality metrics including CPQ, CPIq, QPI, and COQ ratio\ncomplementing standard EVM indicators.\nOnly includes quality_impact-typed work packages.",
+        "operationId": "get_coq_metrics",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -8451,131 +8406,13 @@
         ],
         "parameters": [
           {
-            "name": "cost_element_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "description": "Cost Element ID to aggregate quality events for",
-              "title": "Cost Element Id"
-            },
-            "description": "Cost Element ID to aggregate quality events for"
-          },
-          {
-            "name": "period",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^(daily|weekly|monthly)$",
-              "description": "Aggregation period (daily, weekly, or monthly)",
-              "title": "Period"
-            },
-            "description": "Aggregation period (daily, weekly, or monthly)"
-          },
-          {
-            "name": "start_date",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "description": "Start date for aggregation (ISO 8601)",
-              "title": "Start Date"
-            },
-            "description": "Start date for aggregation (ISO 8601)"
-          },
-          {
-            "name": "end_date",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "End date for aggregation (ISO 8601, defaults to now)",
-              "title": "End Date"
-            },
-            "description": "End date for aggregation (ISO 8601, defaults to now)"
-          },
-          {
-            "name": "as_of",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Time travel: get quality events as of this timestamp (ISO 8601)",
-              "title": "As Of"
-            },
-            "description": "Time travel: get quality events as of this timestamp (ISO 8601)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response Get Quality Events By Period"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/quality-events/{quality_event_id}": {
-      "get": {
-        "tags": [
-          "Quality Events"
-        ],
-        "summary": "Read Quality Event",
-        "description": "Get a specific quality event by id.\n\nSupports time-travel queries via the as_of parameter to view\nthe quality event's state at any historical point in time.",
-        "operationId": "get_quality_event",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "quality_event_id",
+            "name": "project_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Quality Event Id"
+              "title": "Project Id"
             }
           },
           {
@@ -8592,10 +8429,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Time travel: get quality event state as of this timestamp (ISO 8601)",
+              "description": "Time travel query",
               "title": "As Of"
             },
-            "description": "Time travel: get quality event state as of this timestamp (ISO 8601)"
+            "description": "Time travel query"
           }
         ],
         "responses": {
@@ -8604,7 +8441,75 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/QualityEventRead"
+                  "$ref": "#/components/schemas/COQMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/work-packages/{work_package_id}": {
+      "get": {
+        "tags": [
+          "Work Packages"
+        ],
+        "summary": "Read Work Package",
+        "description": "Get a specific work package by root ID.\n\nSupports time-travel queries via the as_of parameter.",
+        "operationId": "get_work_package",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "work_package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Work Package Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get package state as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get package state as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkPackageRead"
                 }
               }
             }
@@ -8623,11 +8528,11 @@
       },
       "put": {
         "tags": [
-          "Quality Events"
+          "Work Packages"
         ],
-        "summary": "Update Quality Event",
-        "description": "Update a quality event.\n\nCreates a new version of the quality event with the updated values.\nPrevious versions are preserved in the history.\n\nThe control_date parameter allows setting the valid_time start date for\nthe new version, useful for backdating updates or testing time-travel.",
-        "operationId": "update_quality_event",
+        "summary": "Update Work Package",
+        "description": "Update a work package.\n\nCreates a new version with updated values. Previous versions are\npreserved in the history. Cost allocations are replaced if provided.",
+        "operationId": "update_work_package",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -8635,13 +8540,13 @@
         ],
         "parameters": [
           {
-            "name": "quality_event_id",
+            "name": "work_package_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Quality Event Id"
+              "title": "Work Package Id"
             }
           }
         ],
@@ -8650,7 +8555,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/QualityEventUpdate"
+                "$ref": "#/components/schemas/WorkPackageUpdate"
               }
             }
           }
@@ -8661,7 +8566,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/QualityEventRead"
+                  "$ref": "#/components/schemas/WorkPackageRead"
                 }
               }
             }
@@ -8680,11 +8585,11 @@
       },
       "delete": {
         "tags": [
-          "Quality Events"
+          "Work Packages"
         ],
-        "summary": "Delete Quality Event",
-        "description": "Soft delete a quality event.\n\nMarks the quality event as deleted but preserves it in the history.",
-        "operationId": "delete_quality_event",
+        "summary": "Delete Work Package",
+        "description": "Soft delete a work package.\n\nMarks the work package as deleted but preserves it in the history.",
+        "operationId": "delete_work_package",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -8692,13 +8597,13 @@
         ],
         "parameters": [
           {
-            "name": "quality_event_id",
+            "name": "work_package_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Quality Event Id"
+              "title": "Work Package Id"
             }
           },
           {
@@ -8738,14 +8643,14 @@
         }
       }
     },
-    "/api/v1/quality-events/{quality_event_id}/history": {
+    "/api/v1/work-packages/{work_package_id}/history": {
       "get": {
         "tags": [
-          "Quality Events"
+          "Work Packages"
         ],
-        "summary": "Get Quality Event History",
-        "description": "Get full version history for a quality event.\n\nReturns all versions of the quality event, ordered by transaction time.\nIncludes both current and historical versions.",
-        "operationId": "get_quality_event_history",
+        "summary": "Get Work Package History",
+        "description": "Get full version history for a work package.\n\nReturns all versions ordered by transaction time (newest first).",
+        "operationId": "get_work_package_history",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -8753,13 +8658,13 @@
         ],
         "parameters": [
           {
-            "name": "quality_event_id",
+            "name": "work_package_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Quality Event Id"
+              "title": "Work Package Id"
             }
           }
         ],
@@ -8771,9 +8676,127 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/QualityEventRead"
+                    "$ref": "#/components/schemas/WorkPackageRead"
                   },
-                  "title": "Response Get Quality Event History"
+                  "title": "Response Get Work Package History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/work-packages/{work_package_id}/allocations": {
+      "get": {
+        "tags": [
+          "Work Packages"
+        ],
+        "summary": "Get Work Package Allocations",
+        "description": "Get cost allocation entries for a work package.\n\nReturns CostRegistration entries linked to this work package,\nwith cost element and WBE names for display.",
+        "operationId": "get_work_package_allocations",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "work_package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Work Package Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QualityCostAllocationRead"
+                  },
+                  "title": "Response Get Work Package Allocations"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Work Packages"
+        ],
+        "summary": "Upsert Work Package Allocations",
+        "description": "Replace all cost allocations for a work package.\n\nSoft-deletes existing linked CostRegistration entries and creates new ones.",
+        "operationId": "upsert_work_package_allocations",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "work_package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Work Package Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QualityCostAllocation"
+                },
+                "title": "Allocations In"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QualityCostAllocationRead"
+                  },
+                  "title": "Response Upsert Work Package Allocations"
                 }
               }
             }
@@ -14221,6 +14244,86 @@
         "title": "BranchPublic",
         "description": "Schema for a branch option."
       },
+      "COQMetrics": {
+        "properties": {
+          "total_coq": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Coq"
+          },
+          "cpq": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cpq"
+          },
+          "cpq_percentage": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cpq Percentage"
+          },
+          "cpiq": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpiq"
+          },
+          "qpi": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qpi"
+          },
+          "qpi_rating": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qpi Rating"
+          },
+          "total_ac": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Ac"
+          },
+          "coq_ratio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coq Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_coq",
+          "cpq",
+          "cpq_percentage",
+          "total_ac"
+        ],
+        "title": "COQMetrics",
+        "description": "COQ metrics complementing standard EVM indicators."
+      },
       "ChangeOrderApproval": {
         "properties": {
           "comments": {
@@ -15865,6 +15968,19 @@
             "title": "Cost Element Id",
             "description": "ID of the cost element to charge"
           },
+          "work_package_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Package Id",
+            "description": "Optional work package to link this cost registration to"
+          },
           "control_date": {
             "anyOf": [
               {
@@ -15986,6 +16102,40 @@
             "type": "string",
             "format": "uuid",
             "title": "Cost Element Id"
+          },
+          "work_package_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Package Id"
+          },
+          "work_package_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Package Name"
+          },
+          "work_package_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Package Type"
           },
           "created_by": {
             "type": "string",
@@ -16113,6 +16263,19 @@
               }
             ],
             "title": "Vendor Reference"
+          },
+          "work_package_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Package Id",
+            "description": "Optional work package to link this cost registration to"
           },
           "control_date": {
             "anyOf": [
@@ -19660,14 +19823,14 @@
         "title": "ProjectUpdate",
         "description": "Schema for updating an existing project."
       },
-      "QualityEventCreate": {
+      "QualityCostAllocation": {
         "properties": {
-          "description": {
+          "cost_element_id": {
             "type": "string",
-            "title": "Description",
-            "description": "Description of the quality issue"
+            "format": "uuid",
+            "title": "Cost Element Id"
           },
-          "cost_impact": {
+          "amount": {
             "anyOf": [
               {
                 "type": "number",
@@ -19675,52 +19838,12 @@
               },
               {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               }
             ],
-            "title": "Cost Impact",
-            "description": "Financial impact (must be positive)"
+            "title": "Amount"
           },
-          "event_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Date",
-            "description": "When the quality event occurred (defaults to control date if not provided)"
-          },
-          "event_type": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Type",
-            "description": "Category of quality event (e.g., defect, rework, scrap, warranty, other)"
-          },
-          "severity": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 20
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Severity",
-            "description": "Impact severity level (e.g., low, medium, high, critical)"
-          },
-          "root_cause": {
+          "description": {
             "anyOf": [
               {
                 "type": "string"
@@ -19729,191 +19852,34 @@
                 "type": "null"
               }
             ],
-            "title": "Root Cause",
-            "description": "Optional root cause analysis"
-          },
-          "resolution_notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolution Notes",
-            "description": "Optional resolution description"
-          },
-          "quality_event_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quality Event Id",
-            "description": "Root Quality Event ID (internal use only for seeding)"
-          },
-          "cost_element_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Cost Element Id",
-            "description": "ID of the cost element to associate the quality event with"
-          },
-          "control_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Control Date",
-            "description": "Optional control date for creation (valid_time start)"
+            "title": "Description"
           }
         },
         "type": "object",
         "required": [
-          "description",
-          "cost_impact",
-          "cost_element_id"
+          "cost_element_id",
+          "amount"
         ],
-        "title": "QualityEventCreate",
-        "description": "Properties required for creating a Quality Event."
+        "title": "QualityCostAllocation",
+        "description": "A quality cost allocation to a specific cost element."
       },
-      "QualityEventRead": {
+      "QualityCostAllocationRead": {
         "properties": {
-          "description": {
-            "type": "string",
-            "title": "Description",
-            "description": "Description of the quality issue"
-          },
-          "cost_impact": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
-            "title": "Cost Impact",
-            "description": "Financial impact (must be positive)"
-          },
-          "event_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Date",
-            "description": "When the quality event occurred (defaults to control date if not provided)"
-          },
-          "event_type": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Type",
-            "description": "Category of quality event (e.g., defect, rework, scrap, warranty, other)"
-          },
-          "severity": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 20
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Severity",
-            "description": "Impact severity level (e.g., low, medium, high, critical)"
-          },
-          "root_cause": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Root Cause",
-            "description": "Optional root cause analysis"
-          },
-          "resolution_notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolution Notes",
-            "description": "Optional resolution description"
-          },
-          "id": {
+          "cost_registration_id": {
             "type": "string",
             "format": "uuid",
-            "title": "Id"
-          },
-          "quality_event_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Quality Event Id"
+            "title": "Cost Registration Id"
           },
           "cost_element_id": {
             "type": "string",
             "format": "uuid",
             "title": "Cost Element Id"
           },
-          "created_by": {
+          "amount": {
             "type": "string",
-            "format": "uuid",
-            "title": "Created By"
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
           },
-          "event_date_formatted": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "object",
-            "title": "Event Date Formatted",
-            "description": "Display-ready event date data.\n\nReturns pre-formatted date information including:\n- ISO timestamp for machine processing\n- Formatted display string for UI\n\nThis allows the frontend to display dates without additional formatting.\n\nExample:\n    {\n        \"iso\": \"2026-01-15T10:00:00+00:00\",\n        \"formatted\": \"January 15, 2026\"\n    }",
-            "readOnly": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "description",
-          "cost_impact",
-          "id",
-          "quality_event_id",
-          "cost_element_id",
-          "created_by",
-          "event_date_formatted"
-        ],
-        "title": "QualityEventRead",
-        "description": "Properties returned to client."
-      },
-      "QualityEventUpdate": {
-        "properties": {
           "description": {
             "anyOf": [
               {
@@ -19925,59 +19891,7 @@
             ],
             "title": "Description"
           },
-          "cost_impact": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cost Impact"
-          },
-          "event_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Date"
-          },
-          "event_type": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Type"
-          },
-          "severity": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 20
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Severity"
-          },
-          "root_cause": {
+          "cost_element_name": {
             "anyOf": [
               {
                 "type": "string"
@@ -19986,9 +19900,9 @@
                 "type": "null"
               }
             ],
-            "title": "Root Cause"
+            "title": "Cost Element Name"
           },
-          "resolution_notes": {
+          "wbe_code": {
             "anyOf": [
               {
                 "type": "string"
@@ -19997,25 +19911,17 @@
                 "type": "null"
               }
             ],
-            "title": "Resolution Notes"
-          },
-          "control_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Control Date",
-            "description": "Optional control date for update (valid_time start)"
+            "title": "Wbe Code"
           }
         },
         "type": "object",
-        "title": "QualityEventUpdate",
-        "description": "Properties that can be updated on a Quality Event."
+        "required": [
+          "cost_registration_id",
+          "cost_element_id",
+          "amount"
+        ],
+        "title": "QualityCostAllocationRead",
+        "description": "A quality cost allocation entry (from CostRegistration)."
       },
       "RBACPermissionRead": {
         "properties": {
@@ -22243,6 +22149,572 @@
         ],
         "title": "WaterfallSegment",
         "description": "A single segment in the waterfall chart."
+      },
+      "WorkPackageCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "package_type": {
+            "type": "string",
+            "pattern": "^(quality_impact|site_visit|production_phase|warranty_batch|commissioning)$",
+            "title": "Package Type"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "status": {
+            "type": "string",
+            "pattern": "^(open|closed)$",
+            "title": "Status",
+            "default": "open"
+          },
+          "external_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Event Id",
+            "description": "External reference identifier (e.g., QMS ID, PO number, work order)"
+          },
+          "event_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Date"
+          },
+          "coq_category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(conformance|nonconformance)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coq Category"
+          },
+          "cost_impact": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Cost Impact",
+            "default": "0"
+          },
+          "schedule_impact_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Impact Days"
+          },
+          "work_package_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Work Package Id"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date"
+          },
+          "cost_allocations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/QualityCostAllocation"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Allocations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "package_type",
+          "project_id"
+        ],
+        "title": "WorkPackageCreate",
+        "description": "Properties required for creating a WorkPackage."
+      },
+      "WorkPackageRead": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "package_type": {
+            "type": "string",
+            "pattern": "^(quality_impact|site_visit|production_phase|warranty_batch|commissioning)$",
+            "title": "Package Type"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "status": {
+            "type": "string",
+            "pattern": "^(open|closed)$",
+            "title": "Status",
+            "default": "open"
+          },
+          "external_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Event Id",
+            "description": "External reference identifier (e.g., QMS ID, PO number, work order)"
+          },
+          "event_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Date"
+          },
+          "coq_category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(conformance|nonconformance)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coq Category"
+          },
+          "cost_impact": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Impact",
+            "default": "0"
+          },
+          "schedule_impact_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Impact Days"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "work_package_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Work Package Id"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "valid_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Time"
+          },
+          "transaction_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Time"
+          },
+          "actual_cost": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Cost"
+          },
+          "valid_time_formatted": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Valid Time Formatted",
+            "description": "Display-ready valid_time temporal data.\n\nReturns pre-formatted temporal range information including:\n- ISO timestamps for machine processing\n- Formatted display strings for UI\n- Validity status\n\nThis allows the frontend to display dates without parsing\nPostgreSQL range syntax.\n\nExample:\n    {\n        \"lower\": \"2026-01-15T10:00:00+00:00\",\n        \"upper\": null,\n        \"lower_formatted\": \"January 15, 2026\",\n        \"upper_formatted\": \"Present\",\n        \"is_currently_valid\": true\n    }\n\nReturns:\n    Dictionary with formatted temporal range information",
+            "readOnly": true
+          },
+          "transaction_time_formatted": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Transaction Time Formatted",
+            "description": "Display-ready transaction_time temporal data.\n\nReturns pre-formatted temporal range information for the\ntransaction time (when this version was created in the system).\n\nSee valid_time_formatted for response format details.\n\nReturns:\n    Dictionary with formatted temporal range information",
+            "readOnly": true
+          },
+          "event_date_formatted": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Event Date Formatted",
+            "description": "Display-ready event date data.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "package_type",
+          "project_id",
+          "id",
+          "work_package_id",
+          "created_by",
+          "valid_time_formatted",
+          "transaction_time_formatted",
+          "event_date_formatted"
+        ],
+        "title": "WorkPackageRead",
+        "description": "Properties returned to client."
+      },
+      "WorkPackageSummary": {
+        "properties": {
+          "total_cost": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Cost"
+          },
+          "conformance_cost": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Conformance Cost"
+          },
+          "nonconformance_cost": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Nonconformance Cost"
+          },
+          "total_schedule_days": {
+            "type": "integer",
+            "title": "Total Schedule Days"
+          },
+          "impact_count": {
+            "type": "integer",
+            "title": "Impact Count"
+          },
+          "coq_ratio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coq Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_cost",
+          "conformance_cost",
+          "nonconformance_cost",
+          "total_schedule_days",
+          "impact_count"
+        ],
+        "title": "WorkPackageSummary",
+        "description": "Aggregated COQ summary for a project."
+      },
+      "WorkPackageUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "package_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(quality_impact|site_visit|production_phase|warranty_batch|commissioning)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Type"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(open|closed)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "external_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Event Id",
+            "description": "External reference identifier (e.g., QMS ID, PO number, work order)"
+          },
+          "event_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Date"
+          },
+          "coq_category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(conformance|nonconformance)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coq Category"
+          },
+          "cost_impact": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Impact"
+          },
+          "schedule_impact_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Impact Days"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date"
+          },
+          "cost_allocations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/QualityCostAllocation"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Allocations"
+          }
+        },
+        "type": "object",
+        "title": "WorkPackageUpdate",
+        "description": "Properties that can be updated on a WorkPackage."
       },
       "WorkflowConfigResponse": {
         "properties": {

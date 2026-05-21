@@ -121,7 +121,8 @@ def _parse_postgresql_range_string(range_str: str) -> dict[str, str | bool | Non
         lower_str = range_str[1:comma_index].strip()
 
         # Remove escaped quotes if present (JSON serialization artifact)
-        lower_str = lower_str.replace('\\"', "")
+        # Also remove regular double quotes (from Pydantic validator output)
+        lower_str = lower_str.replace('\\"', "").replace('"', "")
 
         # Extract upper bound (after comma, before closing bracket)
         # PostgreSQL ranges can end with ) for exclusive or ] for inclusive
@@ -135,7 +136,7 @@ def _parse_postgresql_range_string(range_str: str) -> dict[str, str | bool | Non
             upper_str = upper_str[:-1]  # Remove ) or ]
 
         upper_str = upper_str.strip()
-        upper_str = upper_str.replace('\\"', "")
+        upper_str = upper_str.replace('\\"', "").replace('"', "")
 
         # Check for unbounded (empty string or infinity)
         is_unbounded = not upper_str or upper_str in ("-infinity", "infinity")

@@ -87,3 +87,6 @@ deploy/backup*.gz
 
 node_modules/
 snapshot/
+
+# Generated OpenAPI spec (run: cd backend && uv run generate-openapi)
+openapi.json

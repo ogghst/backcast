@@ -13,18 +13,18 @@ from pydantic import BeforeValidator
 
 
 def convert_range_to_str(v: Any) -> str | None:
-    """Convert PostgreSQL Range object to string representation.
+    """Convert PostgreSQL Range object to full range string representation.
 
     This validator handles TSTZRANGE objects from PostgreSQL and converts them
-    to strings for API responses. It handles both range objects (with .lower/.upper)
-    and pre-formatted strings.
+    to PostgreSQL range strings for API responses. It preserves both lower and
+    upper bounds so that temporal computed fields can correctly determine validity.
 
     Args:
         v: TSTZRANGE range object, string, or None
 
     Returns:
-        String representation of the range, ISO timestamp of lower bound,
-        or None if input is None
+        PostgreSQL range string (e.g., '["2026-01-15T10:00:00+00:00",)'),
+        pre-formatted string, or None
 
     Examples:
         >>> convert_range_to_str(None)
@@ -41,33 +41,36 @@ def convert_range_to_str(v: Any) -> str | None:
     if isinstance(v, str):
         return v
 
-    # Convert range object to string
-    # Extract lower bound as ISO timestamp if available
+    # Convert range object to full PostgreSQL range string
     if hasattr(v, "lower") and v.lower:
-        # Return ISO timestamp of lower bound (more useful for frontend)
-        return v.lower.isoformat() if hasattr(v.lower, "isoformat") else str(v.lower)
+        lower = v.lower.isoformat() if hasattr(v.lower, "isoformat") else str(v.lower)
+        if hasattr(v, "upper") and v.upper:
+            upper = v.upper.isoformat() if hasattr(v.upper, "isoformat") else str(v.upper)
+            return f'["{lower}","{upper}")'
+        return f'["{lower}",)'
 
     return str(v)
 
 
 def convert_range_to_iso(v: Any) -> str | None:
-    """Convert TSTZRANGE to ISO 8601 timestamp string (lower bound).
+    """Convert TSTZRANGE to PostgreSQL range string.
 
-    This is a specialized variant that extracts only the lower bound as an
-    ISO 8601 formatted timestamp, which is more useful for frontend consumption.
+    This validator preserves the full temporal range (both lower and upper bounds)
+    as a PostgreSQL range string. Identical to convert_range_to_str — kept for
+    backward compatibility with existing schema references.
 
     Args:
         v: TSTZRANGE range object, string, or None
 
     Returns:
-        ISO 8601 formatted timestamp string or None
+        PostgreSQL range string or None
 
     Examples:
         >>> convert_range_to_iso(None)
         None
-        >>> # With a range object with lower bound
+        >>> # With a bounded range object
         >>> convert_range_to_iso(range_obj)
-        '2026-01-15T10:00:00+00:00'
+        '["2026-01-15T10:00:00+00:00","2026-02-15T10:00:00+00:00")'
     """
     if v is None:
         return None
@@ -75,9 +78,13 @@ def convert_range_to_iso(v: Any) -> str | None:
     if isinstance(v, str):
         return v
 
-    # Extract lower bound from TSTZRANGE and format as ISO 8601
+    # Extract full TSTZRANGE as PostgreSQL range string
     if hasattr(v, "lower") and v.lower:
-        return v.lower.isoformat() if hasattr(v.lower, "isoformat") else str(v.lower)
+        lower = v.lower.isoformat() if hasattr(v.lower, "isoformat") else str(v.lower)
+        if hasattr(v, "upper") and v.upper:
+            upper = v.upper.isoformat() if hasattr(v.upper, "isoformat") else str(v.upper)
+            return f'["{lower}","{upper}")'
+        return f'["{lower}",)'
 
     return str(v)
 

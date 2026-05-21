@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { App, Modal, Form, Input, InputNumber, DatePicker } from "antd";
+import { App, Modal, Form, Input, InputNumber, DatePicker, Select } from "antd";
 import type {
   CostRegistrationRead,
   CostRegistrationCreate,
@@ -13,6 +13,7 @@ import {
 } from "../api/useCostRegistrations";
 import { getCurrencySymbol } from "@/utils/formatters";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { useWorkPackages, PACKAGE_TYPE_OPTIONS } from "@/features/work-package/api/useWorkPackages";
 
 interface CostRegistrationModalProps {
   open: boolean;
@@ -56,6 +57,21 @@ export const CostRegistrationModal = ({
   const currency = useProjectCurrency(projectId);
   const currencySymbol = getCurrencySymbol(currency);
 
+  // Fetch open work packages for the project
+  const { data: wpData, isLoading: wpLoading } = useWorkPackages({
+    project_id: projectId,
+    status: "open",
+    perPage: 100,
+  });
+
+  const workPackageOptions = (wpData?.items || []).map((wp) => {
+    const typeLabel = PACKAGE_TYPE_OPTIONS.find((o) => o.value === wp.package_type)?.label || wp.package_type;
+    return {
+      label: `${wp.name} (${typeLabel})`,
+      value: wp.work_package_id,
+    };
+  });
+
   const currencyFormatValue = useMemo(
     () => (value: string | number | undefined) => {
       if (!value) return "";
@@ -87,6 +103,7 @@ export const CostRegistrationModal = ({
           description: initialValues.description,
           invoice_number: initialValues.invoice_number,
           vendor_reference: initialValues.vendor_reference,
+          work_package_id: initialValues.work_package_id,
         };
         form.setFieldsValue(formValues);
       } else {
@@ -346,6 +363,17 @@ export const CostRegistrationModal = ({
             showTime
             format="YYYY-MM-DD HH:mm"
             placeholder="Select date and time"
+          />
+        </Form.Item>
+
+        <Form.Item name="work_package_id" label="Work Package (optional)">
+          <Select
+            placeholder="Select work package"
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            options={workPackageOptions}
+            loading={wpLoading}
           />
         </Form.Item>
 

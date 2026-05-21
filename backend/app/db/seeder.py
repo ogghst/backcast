@@ -415,6 +415,52 @@ class DataSeeder:
             f"Cost Registration seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
+    async def seed_work_packages(self, session: AsyncSession) -> None:
+        """Seed Work Packages from work_packages.json file.
+
+        Args:
+            session: Database session
+        """
+        from app.models.schemas.work_package import WorkPackageCreate
+        from app.services.work_package_service import WorkPackageService
+
+        logger.info("Starting Work Package seeding...")
+        wp_data = self.load_seed_file("work_packages.json")
+
+        if not wp_data:
+            logger.info("No Work Package seed data found or file is empty")
+            return
+
+        wp_service = WorkPackageService(session)
+
+        from uuid import uuid4
+
+        actor_id = uuid4()
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for _, item in enumerate(wp_data):
+                try:
+                    wp_in = WorkPackageCreate(**item)
+                    await wp_service.create_work_package(
+                        data=wp_in,
+                        actor_id=actor_id,
+                    )
+                    created_count += 1
+                    logger.info(f"Created Work Package: {wp_in.name}")
+                except Exception as e:
+                    logger.error(
+                        f"Failed to seed Work Package {item.get('name')}: {e}"
+                    )
+                    skipped_count += 1
+
+        logger.info(
+            f"Work Package seeding complete: {created_count} created, "
+            f"{skipped_count} skipped/failed"
+        )
+
     async def seed_progress_entries(self, session: AsyncSession) -> None:
         """Seed Progress Entries from progress_entries.json file.
 
@@ -1528,6 +1574,9 @@ class DataSeeder:
 
             # Seed Cost Registrations
             await self.seed_cost_registrations(session)
+
+            # Seed Work Packages
+            await self.seed_work_packages(session)
 
             # Seed Progress Entries
             await self.seed_progress_entries(session)

@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
-    "generate-client": "openapi --input ../backend/openapi.json --output ./src/api/generated --client axios",
+    "generate-client": "cd ../backend && uv run generate-openapi && cd ../frontend && openapi --input ../backend/openapi.json --output ./src/api/generated --client axios",
     "prepare": "husky",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

@@ -97,6 +97,9 @@ async def read_cost_registrations(
         None,
         description="Time travel: get Cost Registrations as of this timestamp (ISO 8601)",
     ),
+    work_package_id: UUID | None = Query(
+        None, description="Filter by Work Package ID"
+    ),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
     """Retrieve cost registrations with server-side search, filtering, and sorting.
@@ -122,17 +125,25 @@ async def read_cost_registrations(
 
         as_of = datetime.now(tz=UTC)
 
-    items, total = await service.get_cost_registrations(
+    items, total, wp_map = await service.get_cost_registrations(
         filters=query_filters,
         skip=skip,
         limit=per_page,
         as_of=as_of,
         wbe_id=wbe_id,
         project_id=project_id,
+        work_package_id=work_package_id,
     )
 
-    # Convert to Pydantic models
-    items_out = [CostRegistrationRead.model_validate(i) for i in items]
+    # Convert to Pydantic models with denormalized work package data
+    items_out = []
+    for i in items:
+        read = CostRegistrationRead.model_validate(i)
+        if i.work_package_id and i.work_package_id in wp_map:
+            name, pkg_type = wp_map[i.work_package_id]
+            read.work_package_name = name
+            read.work_package_type = pkg_type
+        items_out.append(read)
 
     # Return paginated response
     response = PaginatedResponse[CostRegistrationRead](
@@ -244,9 +255,16 @@ async def create_cost_registration(
             branch=branch,
         )
 
-        # Prepare response
+        # Prepare response with denormalized work package data
+        read_model = CostRegistrationRead.model_validate(registration)
+        wp_name, wp_type = await service.get_work_package_info(
+            registration.work_package_id
+        )
+        read_model.work_package_name = wp_name
+        read_model.work_package_type = wp_type
+
         response = {
-            **CostRegistrationRead.model_validate(registration).model_dump(),
+            **read_model.model_dump(),
             "budget_warning": budget_warning.model_dump() if budget_warning else None,
         }
 

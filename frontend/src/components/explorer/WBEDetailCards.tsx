@@ -30,7 +30,7 @@ import type { EVMTimeSeriesGranularity } from "@/features/evm/types";
 import { formatTimestamp } from "./shared/formatters";
 import { KPIStrip, BudgetOverviewChart, BudgetDistributionChart } from "./charts";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
-import { getCurrencySymbol } from "@/utils/formatters";
+import { getCurrencySymbol, formatTemporalRange } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -269,10 +269,14 @@ export const WBEDetailCards = ({ wbeId }: WBEDetailCardsProps) => {
                 {formatTimestamp(wbe.created_at)}
               </Descriptions.Item>
               <Descriptions.Item label="Valid Time">
-                {formatTimestamp(wbe.valid_time)}
+                {wbe.valid_time_formatted
+                  ? formatTemporalRange(wbe.valid_time_formatted)
+                  : "-"}
               </Descriptions.Item>
               <Descriptions.Item label="Transaction Time">
-                {formatTimestamp(wbe.transaction_time)}
+                {wbe.transaction_time_formatted
+                  ? formatTemporalRange(wbe.transaction_time_formatted)
+                  : "-"}
               </Descriptions.Item>
             </Descriptions>
           </Collapse.Panel>

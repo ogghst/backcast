@@ -16,11 +16,11 @@ from app.api.routes import (
     notifications,
     progress_entries,
     projects,
-    quality_events,
     schedule_baselines,
     search,
     users,
     wbes,
+    work_packages,
 )
 
 __all__ = [
@@ -43,4 +43,5 @@ __all__ = [
     "search",
     "users",
     "wbes",
+    "work_packages",
 ]

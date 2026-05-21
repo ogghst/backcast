@@ -34,6 +34,7 @@ import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useWBE } from "@/features/wbes/api/useWBEs";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
+import { PACKAGE_TYPE_OPTIONS } from "@/features/work-package/api/useWorkPackages";
 
 interface CostRegistrationsTabProps {
   costElement: CostElementRead;
@@ -250,6 +251,30 @@ export const CostRegistrationsTab = ({
       ellipsis: true,
       ...getColumnSearchProps("description"),
       render: (description) => description || "-",
+    },
+    {
+      title: "Work Package",
+      dataIndex: "work_package_name",
+      key: "work_package_name",
+      responsive: ["md"],
+      render: (
+        name: string | null,
+        record: CostRegistrationRead,
+      ) => {
+        if (!name) return "-";
+        const typeLabel =
+          PACKAGE_TYPE_OPTIONS.find(
+            (o) => o.value === record.work_package_type,
+          )?.label || record.work_package_type;
+        return (
+          <Space size={4}>
+            <span>{name}</span>
+            {record.work_package_type && (
+              <Tag>{typeLabel}</Tag>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: "Invoice",

@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import ProjectStatus
 from app.models.schemas.mixins import TemporalComputedMixin
-from app.models.schemas.temporal_validators import TemporalRangeISO
+from app.models.schemas.temporal_validators import TemporalRange
 from app.models.schemas.validators import NotEmptyString
 
 
@@ -74,8 +74,8 @@ class ProjectRead(ProjectBase, TemporalComputedMixin):
     created_by: UUID | None = None
     created_by_name: str | None = None
     deleted_by: UUID | None = None
-    valid_time: TemporalRangeISO = None
-    transaction_time: TemporalRangeISO = None
+    valid_time: TemporalRange = None
+    transaction_time: TemporalRange = None
 
     model_config = ConfigDict(from_attributes=True)
 

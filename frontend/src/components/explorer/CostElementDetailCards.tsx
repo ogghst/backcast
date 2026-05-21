@@ -30,15 +30,12 @@ import { KPIStrip, BudgetUtilizationGauge, MiniSparkline } from "./charts";
 import { formatCurrency } from "@/utils/formatters";
 import { useEVMMetrics } from "@/features/evm/api/useEVMMetrics";
 import { EntityType } from "@/features/evm/types";
-import { formatDateTime } from "@/utils/formatters";
+import { formatTemporalRange } from "@/utils/formatters";
 import { useWBE } from "@/features/wbes/api/useWBEs";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
 
 const { Text } = Typography;
-
-const formatTimestamp = (t: string | null | undefined) =>
-  !t ? "-" : formatDateTime(t);
 
 interface CostElementDetailCardsProps {
   costElementId: string;
@@ -342,10 +339,14 @@ export const CostElementDetailCards = ({
                 {costElement.created_by}
               </Descriptions.Item>
               <Descriptions.Item label="Valid Time">
-                {formatTimestamp(costElement.valid_time)}
+                {costElement.valid_time_formatted
+                  ? formatTemporalRange(costElement.valid_time_formatted)
+                  : "-"}
               </Descriptions.Item>
               <Descriptions.Item label="Transaction Time">
-                {formatTimestamp(costElement.transaction_time)}
+                {costElement.transaction_time_formatted
+                  ? formatTemporalRange(costElement.transaction_time_formatted)
+                  : "-"}
               </Descriptions.Item>
             </Descriptions>
           </Collapse.Panel>
