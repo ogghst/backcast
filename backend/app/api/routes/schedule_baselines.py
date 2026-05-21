@@ -9,11 +9,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.schedule_baseline import ScheduleBaseline
-from app.models.domain.user import User
 from app.models.schemas.schedule_baseline import (
     ScheduleBaselineCreate,
     ScheduleBaselineRead,
@@ -151,7 +150,7 @@ async def read_schedule_baselines(
 )
 async def create_schedule_baseline(
     baseline_in: ScheduleBaselineCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ScheduleBaselineService = Depends(get_schedule_baseline_service),
 ) -> ScheduleBaseline:
     """Create a new schedule baseline in specified branch."""
@@ -226,7 +225,7 @@ async def read_schedule_baseline(
 async def update_schedule_baseline(
     schedule_baseline_id: UUID,
     baseline_in: ScheduleBaselineUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ScheduleBaselineService = Depends(get_schedule_baseline_service),
 ) -> ScheduleBaseline:
     """Update a schedule baseline. Creates new version or forks."""
@@ -271,7 +270,7 @@ async def delete_schedule_baseline(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ScheduleBaselineService = Depends(get_schedule_baseline_service),
 ) -> None:
     """Soft delete a schedule baseline in a branch."""

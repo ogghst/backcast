@@ -8,11 +8,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.quality_event import QualityEvent
-from app.models.domain.user import User
 from app.models.schemas.common import PaginatedResponse
 from app.models.schemas.quality_event import (
     QualityEventCreate,
@@ -131,7 +130,7 @@ async def read_quality_events(
 async def create_quality_event(
     event_in: QualityEventCreate,
     branch: str = Query("main", description="Branch to check cost element against"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: QualityEventService = Depends(get_quality_event_service),
 ) -> QualityEvent:
     """Create a new quality event.
@@ -308,7 +307,7 @@ async def read_quality_event(
 async def update_quality_event(
     quality_event_id: UUID,
     event_in: QualityEventUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: QualityEventService = Depends(get_quality_event_service),
 ) -> QualityEvent:
     """Update a quality event.
@@ -345,7 +344,7 @@ async def delete_quality_event(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: QualityEventService = Depends(get_quality_event_service),
 ) -> None:
     """Soft delete a quality event.

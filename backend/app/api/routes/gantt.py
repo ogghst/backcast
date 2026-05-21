@@ -6,10 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import ProjectRoleChecker, get_current_active_user
+from app.api.dependencies.auth import ProjectRoleChecker, UserIdentity, get_current_user
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.schemas.gantt import GanttDataResponse
 from app.services.gantt_service import GanttService
 
@@ -41,7 +40,7 @@ async def get_gantt_data(
         description="Time travel: get data as of this timestamp (ISO 8601)",
     ),
     service: GanttService = Depends(get_gantt_service),
-    _current_user: User = Depends(get_current_active_user),
+    _current_user: UserIdentity = Depends(get_current_user),
 ) -> GanttDataResponse:
     """Get aggregated Gantt chart data for a project.
 

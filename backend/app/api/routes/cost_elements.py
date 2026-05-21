@@ -7,11 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.cost_element import CostElement
-from app.models.domain.user import User
 from app.models.schemas.cost_element import (
     CostElementCreate,
     CostElementRead,
@@ -125,7 +124,7 @@ async def read_cost_elements(
 )
 async def create_cost_element(
     element_in: CostElementCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> CostElement:
     """Create a new cost element in specified branch."""
@@ -199,7 +198,7 @@ async def read_cost_element(
 async def update_cost_element(
     cost_element_id: UUID,
     element_in: CostElementUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> CostElement:
     """Update a cost element. Creates new version or forks."""
@@ -229,7 +228,7 @@ async def delete_cost_element(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> None:
     """Soft delete a cost element in a branch."""
@@ -369,7 +368,7 @@ async def get_cost_element_schedule_baseline(
 async def create_cost_element_schedule_baseline(
     cost_element_id: UUID,
     baseline_in: dict[str, Any],  # ScheduleBaselineBase without cost_element_id
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     baseline_service: Any = Depends(get_schedule_baseline_service),
 ) -> dict[str, Any]:
     """Create a schedule baseline for a cost element.
@@ -431,7 +430,7 @@ async def update_cost_element_schedule_baseline(
     cost_element_id: UUID,
     baseline_id: UUID,
     baseline_in: dict[str, Any],  # ScheduleBaselineUpdate
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     baseline_service: Any = Depends(get_schedule_baseline_service),
 ) -> dict[str, Any]:
     """Update the schedule baseline for a cost element.
@@ -510,7 +509,7 @@ async def update_cost_element_schedule_baseline(
 async def delete_cost_element_schedule_baseline(
     cost_element_id: UUID,
     baseline_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     branch: str = Query("main", description="Branch to delete from"),
     baseline_service: Any = Depends(get_schedule_baseline_service),
 ) -> None:
@@ -762,7 +761,7 @@ async def get_cost_element_forecast(
 async def update_cost_element_forecast(
     cost_element_id: UUID,
     forecast_in: "ForecastUpdate",
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     forecast_service: ForecastService = Depends(get_forecast_service),
 ) -> dict[str, Any]:
     """Update the forecast for a cost element.
@@ -896,7 +895,7 @@ async def update_cost_element_forecast(
 )
 async def delete_cost_element_forecast(
     cost_element_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     branch: str = Query("main", description="Branch to delete from"),
     forecast_service: ForecastService = Depends(get_forecast_service),
 ) -> None:

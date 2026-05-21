@@ -26,7 +26,7 @@ from app.ai.event_types import AgentEventType, ExecutionStatus
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.tools.types import ExecutionMode
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.api.errors import build_ws_error
 from app.api.websocket_utils import is_websocket_connected
 from app.core.jwt_utils import validate_jwt_token
@@ -155,7 +155,7 @@ def get_ai_config_service(session: AsyncSession = Depends(get_db)) -> AIConfigSe
     dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
 )
 async def list_sessions(
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
     context_type: str | None = Query(
         None, description="Filter by context type (general, project, wbe, cost_element)"
@@ -222,7 +222,7 @@ async def list_sessions(
 async def list_sessions_paginated(
     skip: int = 0,
     limit: int = 10,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
     context_type: str | None = Query(
         None, description="Filter by context type (general, project, wbe, cost_element)"
@@ -310,7 +310,7 @@ async def list_sessions_paginated(
 )
 async def get_session_messages(
     session_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
 ) -> list[AIConversationMessagePublic]:
     """Get messages for a conversation session."""
@@ -332,7 +332,7 @@ async def get_session_messages(
 )
 async def delete_session(
     session_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
 ) -> None:
     """Delete a conversation session."""
@@ -354,7 +354,7 @@ async def delete_session(
 async def invoke_agent(
     session_id: UUID,
     body: InvokeAgentRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
     db: AsyncSession = Depends(get_db),
 ) -> AgentExecutionPublic:
@@ -414,7 +414,7 @@ async def invoke_agent(
 )
 async def list_session_executions(
     session_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
     db: AsyncSession = Depends(get_db),
 ) -> list[AgentExecutionPublic]:
@@ -444,7 +444,7 @@ async def list_session_executions(
 )
 async def get_execution_status(
     execution_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AgentExecutionPublic:
     """Get the status of an agent execution.
@@ -481,7 +481,7 @@ async def get_execution_status(
 async def approve_execution(
     execution_id: UUID,
     body: ApprovalRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Approve or reject a tool execution via REST.
@@ -598,14 +598,23 @@ async def chat_stream(
     # Create database session after token validation using context manager
     # This ensures proper cleanup even with early returns
     async with async_session_maker() as db:
-        # Extract user_id from email subject (assuming sub is email)
+        # JWT subject is the user_id (UUID string)
+        try:
+            user_id = UUID(subject)
+        except ValueError:
+            logger.warning(
+                "WebSocket connection rejected: invalid user_id in token subject"
+            )
+            await websocket.close(code=1008, reason="Invalid token subject")
+            return
+
         from app.services.user import UserService
 
         user_service = UserService(db)
-        user = await user_service.get_by_email(subject)
+        user = await user_service.get_user(user_id)
         if user is None:
             logger.warning(
-                f"WebSocket connection rejected: user not found for email {subject}"
+                f"WebSocket connection rejected: user not found for id {user_id}"
             )
             await websocket.close(code=1008, reason="User not found")
             return

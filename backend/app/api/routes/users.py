@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import (
     RoleChecker,
-    get_current_active_user,
+    UserIdentity,
+    get_current_user,
     get_user_service,
 )
 from app.db.session import get_db
@@ -66,7 +67,7 @@ async def read_users(
 )
 async def create_user(
     user_in: UserRegister,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
     session: AsyncSession = Depends(get_db),
 ) -> UserPublic:
@@ -91,7 +92,7 @@ async def create_user(
     dependencies=[Depends(RoleChecker(required_permission="user-read"))],
 )
 async def get_my_preferences(
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ) -> Any:
     """
@@ -114,7 +115,7 @@ async def get_my_preferences(
 )
 async def update_my_preferences(
     pref_in: UserPreferenceUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ) -> Any:
     """
@@ -142,7 +143,7 @@ async def update_my_preferences(
 )
 async def read_user(
     user_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
     session: AsyncSession = Depends(get_db),
 ) -> UserPublic:
@@ -179,7 +180,7 @@ async def read_user(
 async def update_user(
     user_id: UUID,
     user_in: UserUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
     session: AsyncSession = Depends(get_db),
 ) -> UserPublic:
@@ -218,7 +219,7 @@ async def update_user(
 )
 async def delete_user(
     user_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ) -> None:
     """
@@ -242,7 +243,7 @@ async def delete_user(
 )
 async def get_user_history(
     user_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
     session: AsyncSession = Depends(get_db),
 ) -> Sequence[User]:

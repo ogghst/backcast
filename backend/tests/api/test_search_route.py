@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.api.routes.search import get_global_search_service
 from app.core.rbac_unified import (
     UnifiedRBACService,
@@ -36,34 +36,21 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
-
-
 def _mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def _mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all search route tests."""
     app.dependency_overrides[get_current_user] = _mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = _mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
-
 # ---------------------------------------------------------------------------
 # Helper to build a mock service that returns a fixed response
 # ---------------------------------------------------------------------------
-
-
 def _make_mock_service_response(query: str = "test") -> GlobalSearchResponse:
     """Build a standard mock search response."""
     return GlobalSearchResponse(
@@ -83,13 +70,9 @@ def _make_mock_service_response(query: str = "test") -> GlobalSearchResponse:
         total=1,
         query=query,
     )
-
-
 # ---------------------------------------------------------------------------
 # Route tests
 # ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_returns_200(
     client: AsyncClient,
@@ -114,8 +97,6 @@ async def test_search_endpoint_returns_200(
     assert len(data["results"]) == 1
     assert data["results"][0]["entity_type"] == "project"
     assert data["results"][0]["relevance_score"] == 1.0
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_requires_auth(
     client: AsyncClient,
@@ -123,13 +104,10 @@ async def test_search_endpoint_requires_auth(
     """Endpoint returns 401 when no authentication token is provided."""
     # Clear auth overrides to simulate unauthenticated request
     app.dependency_overrides.pop(get_current_user, None)
-    app.dependency_overrides.pop(get_current_active_user, None)
 
     response = await client.get("/api/v1/search", params={"q": "test"})
 
     assert response.status_code == 401
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_requires_query_param(
     client: AsyncClient,
@@ -138,8 +116,6 @@ async def test_search_endpoint_requires_query_param(
     response = await client.get("/api/v1/search")
 
     assert response.status_code == 422
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_rejects_empty_query(
     client: AsyncClient,
@@ -148,8 +124,6 @@ async def test_search_endpoint_rejects_empty_query(
     response = await client.get("/api/v1/search", params={"q": ""})
 
     assert response.status_code == 422
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_rejects_query_too_long(
     client: AsyncClient,
@@ -158,8 +132,6 @@ async def test_search_endpoint_rejects_query_too_long(
     response = await client.get("/api/v1/search", params={"q": "a" * 201})
 
     assert response.status_code == 422
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_validates_limit_bounds(
     client: AsyncClient,
@@ -172,8 +144,6 @@ async def test_search_endpoint_validates_limit_bounds(
     # limit=201 exceeds maximum
     resp_over = await client.get("/api/v1/search", params={"q": "test", "limit": 201})
     assert resp_over.status_code == 422
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_validates_mode_pattern(
     client: AsyncClient,
@@ -188,8 +158,6 @@ async def test_search_endpoint_validates_mode_pattern(
         403,
         404,
     ]  # Invalid mode treated as default
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_accepts_valid_params(
     client: AsyncClient,
@@ -215,8 +183,6 @@ async def test_search_endpoint_accepts_valid_params(
         app.dependency_overrides.pop(get_global_search_service, None)
 
     assert response.status_code == 200
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_passes_service_kwargs(
     client: AsyncClient,
@@ -257,8 +223,6 @@ async def test_search_endpoint_passes_service_kwargs(
     assert call_kwargs[1]["wbe_id"] == wbe_id
     assert call_kwargs[1]["branch"] == "feature-branch"
     assert call_kwargs[1]["limit"] == 25
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_invalid_project_id_format(
     client: AsyncClient,
@@ -270,8 +234,6 @@ async def test_search_endpoint_invalid_project_id_format(
     )
 
     assert response.status_code == 422
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_invalid_as_of_format(
     client: AsyncClient,
@@ -283,8 +245,6 @@ async def test_search_endpoint_invalid_as_of_format(
     )
 
     assert response.status_code == 422
-
-
 @pytest.mark.asyncio
 async def test_search_endpoint_default_params(
     client: AsyncClient,

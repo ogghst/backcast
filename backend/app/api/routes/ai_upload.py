@@ -14,8 +14,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.ai.file_extractors import extract_text
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
-from app.models.domain.user import User
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.models.schemas.ai import FileUploadResponse, ImageUploadResponse
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ async def upload_image(
     file: Annotated[
         UploadFile, File(description="Image file (PNG, JPG, JPEG, max 5MB)")
     ],
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
 ) -> ImageUploadResponse:
     """Upload an image for AI chat.
 
@@ -115,7 +114,7 @@ async def upload_file(
             description="Document file (PDF, DOCX, XLSX, PPTX, TXT, CSV, JSON, MD, max 10MB)"
         ),
     ],
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
 ) -> FileUploadResponse:
     """Upload a file attachment for AI chat.
 

@@ -478,10 +478,9 @@ def override_auth(
         def override_auth(override_auth: None):
             ...
     """
-    from app.api.dependencies.auth import get_current_active_user, get_current_user
+    from app.api.dependencies.auth import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: mock_admin_user
-    app.dependency_overrides[get_current_active_user] = lambda: mock_admin_user
 
     unified_mock = MockUnifiedRBACService()
     original_unified = get_unified_rbac_service()

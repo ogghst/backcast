@@ -5,10 +5,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.db.session import get_db
 from app.models.domain.project_budget_settings import ProjectBudgetSettings
-from app.models.domain.user import User
 from app.models.schemas.project_budget_settings import (
     ProjectBudgetSettingsCreate,
     ProjectBudgetSettingsRead,
@@ -70,7 +69,7 @@ async def get_project_budget_settings(
 async def update_project_budget_settings(
     project_id: UUID,
     settings_in: ProjectBudgetSettingsCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ProjectBudgetSettingsService = Depends(
         get_project_budget_settings_service
     ),

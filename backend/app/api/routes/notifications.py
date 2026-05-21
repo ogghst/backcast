@@ -12,9 +12,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user
+from app.api.dependencies.auth import UserIdentity, get_current_user
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.schemas.common import PaginatedResponse
 from app.models.schemas.notification import (
     MarkReadResponse,
@@ -43,7 +42,7 @@ async def list_notifications(
     page: int = 1,
     page_size: int = 20,
     unread_only: bool = False,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ) -> PaginatedResponse[NotificationResponse]:
     """List current user's notifications with pagination.
@@ -72,7 +71,7 @@ async def list_notifications(
 )
 async def mark_notification_read(
     notification_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ) -> MarkReadResponse:
     """Mark a single notification as read.
@@ -98,7 +97,7 @@ async def mark_notification_read(
     operation_id="mark_all_notifications_read",
 )
 async def mark_all_notifications_read(
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ) -> MarkReadResponse:
     """Mark all unread notifications as read for the current user."""
@@ -112,7 +111,7 @@ async def mark_all_notifications_read(
     operation_id="get_unread_notification_count",
 )
 async def get_unread_count(
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ) -> UnreadCountResponse:
     """Get the count of unread notifications for the current user.

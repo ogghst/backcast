@@ -18,7 +18,7 @@ from sqlalchemy import func
 from sqlalchemy import select as sql_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -42,18 +42,11 @@ def mock_get_current_user() -> User:
     return mock_admin_user
 
 
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth():
     import app.main as app_main
 
     app_main.app.dependency_overrides[get_current_user] = mock_get_current_user
-    app_main.app.dependency_overrides[get_current_active_user] = (
-        mock_get_current_active_user
-    )
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield

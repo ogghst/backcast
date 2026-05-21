@@ -8,10 +8,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import (
     WBEBreadcrumb,
@@ -171,7 +170,7 @@ async def read_wbes(
 async def create_wbe(
     wbe_in: WBECreate,
     branch: str = Query("main", description="Branch name"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: WBEService = Depends(get_wbe_service),
 ) -> WBE:
     """Create a new WBE. Requires create permission."""
@@ -245,7 +244,7 @@ async def read_wbe(
 async def update_wbe(
     wbe_id: UUID,
     wbe_in: WBEUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: WBEService = Depends(get_wbe_service),
 ) -> WBE:
     """Update a WBE. Requires update permission."""
@@ -271,7 +270,7 @@ async def delete_wbe(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: WBEService = Depends(get_wbe_service),
 ) -> None:
     """Soft delete a WBE. Requires delete permission."""

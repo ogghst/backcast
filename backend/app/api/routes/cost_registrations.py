@@ -8,11 +8,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.cost_registration import CostRegistration
-from app.models.domain.user import User
 from app.models.schemas.common import PaginatedResponse
 from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
@@ -156,7 +155,7 @@ async def read_cost_registrations(
 async def create_cost_registration(
     registration_in: CostRegistrationCreate,
     branch: str = Query("main", description="Branch to check budget against"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, object]:
     """Create a new cost registration.
@@ -596,7 +595,7 @@ async def read_cost_registration(
 async def update_cost_registration(
     cost_registration_id: UUID,
     registration_in: CostRegistrationUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> CostRegistration:
     """Update a cost registration.
@@ -642,7 +641,7 @@ async def delete_cost_registration(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> None:
     """Soft delete a cost registration.

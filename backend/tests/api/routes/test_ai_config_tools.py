@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -23,21 +23,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
-
-
 def mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
 
@@ -45,8 +36,6 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
-
 @pytest.mark.asyncio
 async def test_getting_ai_tools_list_returns_valid_schemas(
     client: AsyncClient, override_auth: None

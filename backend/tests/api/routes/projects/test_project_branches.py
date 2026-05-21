@@ -5,7 +5,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -23,31 +23,18 @@ mock_admin_user = User(
     full_name="Admin User",
     hashed_password="hash",
 )
-
-
 def mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
-
 # --- Tests ---
-
-
 @pytest.mark.asyncio
 async def test_get_branches_empty(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -69,8 +56,6 @@ async def test_get_branches_empty(
     assert data[0]["name"] == "main"
     assert data[0]["type"] == "main"
     assert data[0]["is_default"] is True
-
-
 @pytest.mark.asyncio
 async def test_get_branches_with_cos(
     client: AsyncClient, override_auth: None, db_session: AsyncSession

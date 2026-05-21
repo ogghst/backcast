@@ -10,7 +10,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.ai.tools.registry import get_registry
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -29,21 +29,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
-
-
 def mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
 
@@ -51,8 +42,6 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
-
 def test_all_template_modules_are_discovered() -> None:
     """Test that all 7 template modules are discovered and registered."""
     registry = get_registry()
@@ -144,8 +133,6 @@ def test_all_template_modules_are_discovered() -> None:
 
     # Total expected: ~54 tools (some duplicates removed)
     assert len(tool_names) >= 43, f"Expected at least 43 tools, got {len(tool_names)}"
-
-
 @pytest.mark.asyncio
 async def test_tools_endpoint_returns_all_templates(client: AsyncClient) -> None:
     """Test that the /tools endpoint returns tools from all template modules."""

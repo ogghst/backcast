@@ -5,9 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.schemas.dashboard_layout import (
     CloneTemplateRequest,
     DashboardLayoutCreate,
@@ -41,7 +40,7 @@ def get_dashboard_layout_service(
 )
 async def list_dashboard_layouts(
     project_id: UUID | None = Query(None),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> list[DashboardLayoutRead]:
     """List dashboard layouts for the current user, optionally filtered by project."""
@@ -56,7 +55,7 @@ async def list_dashboard_layouts(
     dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def list_dashboard_layout_templates(
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> list[DashboardLayoutRead]:
     """List all template dashboard layouts."""
@@ -72,7 +71,7 @@ async def list_dashboard_layout_templates(
 )
 async def get_dashboard_layout(
     layout_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> DashboardLayoutRead:
     """Get a specific dashboard layout by ID."""
@@ -99,7 +98,7 @@ async def get_dashboard_layout(
 )
 async def create_dashboard_layout(
     layout_in: DashboardLayoutCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> DashboardLayoutRead:
     """Create a new dashboard layout."""
@@ -117,7 +116,7 @@ async def create_dashboard_layout(
 async def update_dashboard_layout(
     layout_id: UUID,
     layout_update: DashboardLayoutUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> DashboardLayoutRead:
     """Update an existing dashboard layout."""
@@ -145,7 +144,7 @@ async def update_dashboard_layout(
 )
 async def delete_dashboard_layout(
     layout_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> None:
     """Delete a dashboard layout."""
@@ -170,7 +169,7 @@ async def delete_dashboard_layout(
 async def clone_dashboard_layout_template(
     layout_id: UUID,
     clone_in: CloneTemplateRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> DashboardLayoutRead:
     """Clone a template dashboard layout for the current user."""
@@ -196,7 +195,7 @@ async def clone_dashboard_layout_template(
 async def update_dashboard_layout_template(
     layout_id: UUID,
     layout_update: DashboardLayoutUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> DashboardLayoutRead:
     """Update a template dashboard layout (admin only).

@@ -8,7 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -27,16 +27,8 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
-
-
 def mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 # Mock Unified RBAC service that allows everything
 class MockUnifiedRBACService(UnifiedRBACService):
     async def has_permission(
@@ -57,17 +49,12 @@ class MockUnifiedRBACService(UnifiedRBACService):
     ) -> list[str]:
         # Return admin role for all requests
         return ["admin"]
-
-
 def mock_get_unified_rbac_service() -> UnifiedRBACService:
     return MockUnifiedRBACService()
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     # Set the mock unified RBAC service globally
     set_unified_rbac_service(mock_get_unified_rbac_service())
@@ -77,8 +64,6 @@ def override_auth() -> Generator[None, None, None]:
     # Reset to default service
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
-
 @pytest.mark.asyncio
 async def test_create_project(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -103,8 +88,6 @@ async def test_create_project(
     assert data["branch"] == "main"
     assert "id" in data
     assert "project_id" in data
-
-
 @pytest.mark.asyncio
 async def test_create_project_duplicate_code(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -125,8 +108,6 @@ async def test_create_project_duplicate_code(
     response2 = await client.post("/api/v1/projects", json=project_data)
     assert response2.status_code == 400
     assert "already exists" in response2.json()["detail"]
-
-
 @pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_get_projects(
@@ -148,8 +129,6 @@ async def test_get_projects(
     data = response.json()
     assert len(data["items"]) == 3
     assert any(p["code"] == "PRJ-000" for p in data["items"])
-
-
 @pytest.mark.asyncio
 async def test_get_project_by_id(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -173,8 +152,6 @@ async def test_get_project_by_id(
     data = response.json()
     assert data["name"] == "Specific Project"
     assert data["code"] == "SPEC-001"
-
-
 @pytest.mark.asyncio
 async def test_update_project(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -198,8 +175,6 @@ async def test_update_project(
     data = response.json()
     assert data["name"] == "Updated Name"
     assert data["code"] == "UPD-001"  # Code should remain unchanged
-
-
 @pytest.mark.asyncio
 async def test_delete_project(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -222,8 +197,6 @@ async def test_delete_project(
     list_response = await client.get("/api/v1/projects")
     projects = list_response.json()["items"]
     assert not any(p["code"] == "DEL-001" for p in projects)
-
-
 @pytest.mark.asyncio
 async def test_get_project_history(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -264,8 +237,6 @@ async def test_get_project_history(
     # Check that created_by_name is populated
     for entry in history:
         assert entry["created_by_name"] == "Admin User"
-
-
 @pytest.mark.asyncio
 async def test_get_projects_with_pagination(
     client: AsyncClient, override_auth: None, db_session: AsyncSession

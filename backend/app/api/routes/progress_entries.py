@@ -7,11 +7,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.progress_entry import ProgressEntry
-from app.models.domain.user import User
 from app.models.schemas.common import PaginatedResponse
 from app.models.schemas.progress_entry import (
     ProgressEntryCreate,
@@ -107,7 +106,7 @@ async def read_progress_entries(
 )
 async def create_progress_entry(
     progress_in: ProgressEntryCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ProgressEntryService = Depends(get_progress_entry_service),
 ) -> ProgressEntry:
     """Create a new progress entry.

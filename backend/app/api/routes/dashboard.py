@@ -6,10 +6,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.rbac_unified import rbac_session
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.schemas.dashboard import DashboardData
 from app.services.dashboard_service import DashboardService
 
@@ -50,7 +49,7 @@ async def get_dashboard_recent_activity(
     ),
     branch: str = Query("main", description="Branch name to query"),
     service: DashboardService = Depends(get_dashboard_service),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
 ) -> DashboardData:
     """Get dashboard data with recent activity and project spotlight.
 
