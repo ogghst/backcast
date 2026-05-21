@@ -80,6 +80,7 @@ frontend-screenshots/
 network.json
 context_search_results.md
 backend/uploads/
+logs/
 
 #deploy backups
 deploy/backup*.gz
