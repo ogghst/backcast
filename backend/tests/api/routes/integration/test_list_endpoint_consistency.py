@@ -11,7 +11,6 @@ import pytest
 from httpx import AsyncClient
 
 from app.api.dependencies.auth import (
-    get_current_active_user,
     get_current_user,
 )
 from app.core.rbac_unified import (
@@ -31,29 +30,18 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
-
-
 def mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides.clear()
-
-
 @pytest.mark.asyncio
 class TestScheduleBaselinesListEndpoint:
     """Tests for /api/v1/schedule-baselines list endpoint."""
@@ -107,8 +95,6 @@ class TestScheduleBaselinesListEndpoint:
         )
         # Should not raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
-
-
 @pytest.mark.asyncio
 class TestChangeOrdersListEndpoint:
     """Tests for /api/v1/change-orders list endpoint."""
@@ -139,8 +125,6 @@ class TestChangeOrdersListEndpoint:
         )
         # Should raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
-
-
 @pytest.mark.asyncio
 class TestProgressEntriesListEndpoint:
     """Tests for /api/v1/progress-entries list endpoint."""
@@ -176,8 +160,6 @@ class TestProgressEntriesListEndpoint:
         )
         # Should raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
-
-
 @pytest.mark.asyncio
 class TestCostRegistrationsListEndpoint:
     """Tests for /api/v1/cost-registrations list endpoint."""
@@ -213,8 +195,6 @@ class TestCostRegistrationsListEndpoint:
         )
         # Should raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
-
-
 @pytest.mark.asyncio
 class TestCostElementsListEndpoint:
     """Tests for /api/v1/cost-elements list endpoint (existing compliance)."""
@@ -226,8 +206,6 @@ class TestCostElementsListEndpoint:
         )
         # Should not raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
-
-
 @pytest.mark.asyncio
 class TestWBEsListEndpoint:
     """Tests for /api/v1/wbes list endpoint (existing compliance)."""

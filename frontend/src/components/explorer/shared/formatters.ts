@@ -19,25 +19,49 @@
  * @module components/explorer/shared/formatters
  */
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "EUR",
-});
+/**
+ * Get the currency symbol for an ISO 4217 currency code.
+ */
+function getCurrencySymbol(currency: string = "EUR"): string {
+  try {
+    const parts = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).formatToParts(0);
+    return parts.find((p) => p.type === "currency")?.value ?? currency;
+  } catch {
+    return currency;
+  }
+}
 
-export const formatCurrency = (v: string | number | null | undefined) =>
-  !v ? "-" : currencyFormatter.format(Number(v));
+export const formatCurrency = (
+  v: string | number | null | undefined,
+  currency: string = "EUR",
+) => {
+  if (!v) return "-";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).format(Number(v));
+  } catch {
+    return `${currency}${Number(v)}`;
+  }
+};
 
 export const formatCompactCurrency = (
   v: string | number | null | undefined,
+  currency: string = "EUR",
 ): string => {
   if (v === null || v === undefined) return "--";
   const num = Number(v);
   if (isNaN(num)) return "--";
   const sign = num < 0 ? "-" : "";
   const abs = Math.abs(num);
-  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(1)}K`;
-  return `${sign}€${abs.toFixed(0)}`;
+  const symbol = getCurrencySymbol(currency);
+  if (abs >= 1_000_000) return `${sign}${symbol}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}${symbol}${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}${symbol}${abs.toFixed(0)}`;
 };
 
 export const formatDate = (d: string | null | undefined) =>

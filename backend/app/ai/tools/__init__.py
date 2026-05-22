@@ -149,6 +149,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         diagram_template,
         forecast_cost_progress_template,
         user_management_template,
+        work_package_template,
     )
 
     # Collect all tools from project_tools (production tools)
@@ -275,6 +276,19 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         forecast_cost_progress_template.get_cost_element_summary,
     ]
     tools.extend(forecast_cost_progress_tools)
+
+    # Add tools from work_package_template (Work Package CRUD and COQ)
+    work_package_tools = [
+        work_package_template.list_work_packages,
+        work_package_template.get_work_package,
+        work_package_template.create_work_package,
+        work_package_template.update_work_package,
+        work_package_template.delete_work_package,
+        work_package_template.get_work_package_allocations,
+        work_package_template.get_coq_summary,
+        work_package_template.get_coq_metrics,
+    ]
+    tools.extend(work_package_tools)
 
     # Add batch tools for bulk operations
     batch_tools = [

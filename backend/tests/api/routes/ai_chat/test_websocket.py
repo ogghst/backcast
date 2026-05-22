@@ -28,7 +28,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -48,29 +48,18 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
-
-
 def mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
-
 @pytest.mark.asyncio
 async def test_websocket_schemas_serialization() -> None:
     """Test that WebSocket schemas can be serialized properly."""
@@ -141,8 +130,6 @@ async def test_websocket_schemas_serialization() -> None:
     error_dict = error_msg.model_dump(mode="json")
     assert error_dict["type"] == "error"
     assert error_dict["message"] == "Test error"
-
-
 @pytest.mark.asyncio
 async def test_websocket_request_validation() -> None:
     """Test that WebSocket request validation works correctly."""
@@ -178,8 +165,6 @@ async def test_websocket_request_validation() -> None:
             assistant_config_id=uuid4(),
         )
     assert "message" in str(exc_info.value).lower()
-
-
 @pytest.mark.asyncio
 async def test_agent_service_instantiation(db_session: AsyncSession) -> None:
     """Test that AgentService can be instantiated with a database session."""
@@ -189,8 +174,6 @@ async def test_agent_service_instantiation(db_session: AsyncSession) -> None:
     agent_service = AgentService(db_session)
     assert agent_service is not None
     assert agent_service.session == db_session
-
-
 @pytest.mark.asyncio
 async def test_ai_config_service_assistant_retrieval(db_session: AsyncSession) -> None:
     """Test that AIConfigService can retrieve assistant configs."""
@@ -240,8 +223,6 @@ async def test_ai_config_service_assistant_retrieval(db_session: AsyncSession) -
     assert str(retrieved_config.id) == str(config.id)
     assert retrieved_config.name == "Test Assistant"
     assert retrieved_config.is_active is True
-
-
 @pytest.mark.asyncio
 async def test_ai_config_service_inactive_assistant(db_session: AsyncSession) -> None:
     """Test that AIConfigService handles inactive assistant configs."""
@@ -290,8 +271,6 @@ async def test_ai_config_service_inactive_assistant(db_session: AsyncSession) ->
     assert retrieved_config is not None
     assert str(retrieved_config.id) == str(config.id)
     assert retrieved_config.is_active is False
-
-
 @pytest.mark.asyncio
 async def test_ai_config_service_nonexistent_assistant(
     db_session: AsyncSession,
@@ -304,8 +283,6 @@ async def test_ai_config_service_nonexistent_assistant(
     retrieved_config = await config_service.get_assistant_config(fake_id)
 
     assert retrieved_config is None
-
-
 # === T-WS-01: test_websocket_connection_authenticates ===
 @pytest.mark.asyncio
 async def test_websocket_connection_authenticates(db_session: AsyncSession) -> None:
@@ -358,8 +335,6 @@ async def test_websocket_connection_authenticates(db_session: AsyncSession) -> N
 
     with pytest.raises(ExpiredSignatureError):
         jwt.decode(expired_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-
-
 # === T-WS-02: test_websocket_receives_messages ===
 @pytest.mark.asyncio
 async def test_websocket_receives_messages(db_session: AsyncSession) -> None:
@@ -433,8 +408,6 @@ async def test_websocket_receives_messages(db_session: AsyncSession) -> None:
     error_dict = error_msg.model_dump(mode="json")
     assert error_dict["type"] == "error"
     assert error_dict["code"] == 500
-
-
 # === T-WS-03: test_websocket_handles_disconnect ===
 @pytest.mark.asyncio
 async def test_websocket_handles_disconnect(db_session: AsyncSession) -> None:
@@ -477,8 +450,6 @@ async def test_websocket_handles_disconnect(db_session: AsyncSession) -> None:
 
     # Verify cleanup completed
     assert True  # If we got here, cleanup worked
-
-
 # === T-WS-04: test_websocket_handles_runtime_error_disconnect ===
 @pytest.mark.asyncio
 async def test_websocket_handles_runtime_error_disconnect(

@@ -11,16 +11,17 @@ const { Title } = Typography;
 interface KPICardsProps {
   kpiScorecard: KPIScorecard;
   loading?: boolean;
+  currency?: string;
 }
 
 /**
- * Formats a decimal string to EUR currency.
+ * Formats a decimal string to currency.
  */
-const formatCurrency = (value: string | null | undefined): string => {
-  if (!value) return "€0.00";
+const formatCurrencyValue = (value: string | null | undefined, currency: string = "EUR"): string => {
+  if (!value) return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(0);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "EUR",
+    currency,
   }).format(Number(value));
 };
 
@@ -104,15 +105,17 @@ const getScheduleDurationColor = (delta: string | undefined): string => {
 const KPIMetricCard = ({
   title,
   metric,
+  currency,
 }: {
   title: string;
   metric: KPIMetric;
+  currency: string;
 }) => {
   const { color, icon } = getDeltaDisplay(metric.delta);
-  const mainValue = formatCurrency(metric.main_value);
-  const changeValue = formatCurrency(metric.change_value);
+  const mainValue = formatCurrencyValue(metric.main_value, currency);
+  const changeValue = formatCurrencyValue(metric.change_value, currency);
   const mergedValue = metric.merged_value
-    ? formatCurrency(metric.merged_value)
+    ? formatCurrencyValue(metric.merged_value, currency)
     : null;
 
   // Use delta for Statistic component to show the difference
@@ -126,8 +129,7 @@ const KPIMetricCard = ({
         precision={2}
         styles={{ content: { color } }}
         prefix={icon}
-        // Remove suffix as formatCurrency adds the symbol
-        formatter={(value) => formatCurrency(String(value))}
+        formatter={(value) => formatCurrencyValue(String(value), currency)}
       />
       <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
         <div>
@@ -144,7 +146,7 @@ const KPIMetricCard = ({
         {metric.delta && (
           <div>
             Delta:{" "}
-            <strong style={{ color }}>{formatCurrency(metric.delta)}</strong>
+            <strong style={{ color }}>{formatCurrencyValue(metric.delta, currency)}</strong>
           </div>
         )}
         {metric.delta_percent !== null &&
@@ -243,7 +245,6 @@ const ScheduleDurationCard = ({
         precision={0}
         styles={{ content: { color } }}
         prefix={icon}
-        // Remove suffix as formatDays adds the unit
         formatter={(value) => formatDays(String(value))}
       />
       <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
@@ -306,7 +307,7 @@ const ScheduleDurationCard = ({
  * - Schedule: Red = schedule extended, Green = schedule shortened
  * - Performance Indices: Green = >= 1.0 (good), Red = < 1.0 (poor)
  */
-export const KPICards = ({ kpiScorecard, loading }: KPICardsProps) => {
+export const KPICards = ({ kpiScorecard, loading, currency = "EUR" }: KPICardsProps) => {
   return (
     <Spin spinning={loading ?? false}>
       <div>
@@ -316,30 +317,35 @@ export const KPICards = ({ kpiScorecard, loading }: KPICardsProps) => {
             <KPIMetricCard
               title="Budget at Completion"
               metric={kpiScorecard.bac}
+              currency={currency}
             />
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <KPIMetricCard
               title="Total Budget Allocation"
               metric={kpiScorecard.budget_delta}
+              currency={currency}
             />
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <KPIMetricCard
               title="Revenue Allocation"
               metric={kpiScorecard.revenue_delta}
+              currency={currency}
             />
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <KPIMetricCard
               title="Gross Margin"
               metric={kpiScorecard.gross_margin}
+              currency={currency}
             />
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <KPIMetricCard
               title="Actual Costs"
               metric={kpiScorecard.actual_costs}
+              currency={currency}
             />
           </Col>
           {kpiScorecard.eac && (
@@ -347,6 +353,7 @@ export const KPICards = ({ kpiScorecard, loading }: KPICardsProps) => {
               <KPIMetricCard
                 title="Estimate at Completion"
                 metric={kpiScorecard.eac}
+                currency={currency}
               />
             </Col>
           )}
@@ -355,6 +362,7 @@ export const KPICards = ({ kpiScorecard, loading }: KPICardsProps) => {
               <KPIMetricCard
                 title="Variance at Completion"
                 metric={kpiScorecard.vac}
+                currency={currency}
               />
             </Col>
           )}

@@ -9,10 +9,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.schemas.change_order import (
     ApprovalInfoPublic,
     ChangeOrderApproval,
@@ -197,7 +196,7 @@ async def read_change_orders(
 )
 async def create_change_order(
     change_order_in: ChangeOrderCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Create a new change order with automatic branch creation.
@@ -279,7 +278,7 @@ async def get_pending_approvals(
         BranchMode.MERGED,
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> dict[str, Any]:
     """Get change orders pending approval for the current user.
@@ -404,7 +403,7 @@ async def read_change_order_by_code(
 async def update_change_order(
     change_order_id: UUID,
     change_order_in: ChangeOrderUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Update a change order's metadata.
@@ -454,7 +453,7 @@ async def delete_change_order(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> None:
     """Soft delete a change order.
@@ -541,7 +540,7 @@ async def get_merge_conflicts(
 async def merge_change_order(
     change_order_id: UUID,
     merge_request: MergeRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Merge a Change Order's branch into the target branch.
@@ -619,7 +618,7 @@ async def merge_change_order(
 async def revert_change_order(
     change_order_id: UUID,
     branch: str = Query("main", description="Branch to revert on"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Revert a Change Order to its previous version.
@@ -704,7 +703,7 @@ async def submit_change_order_for_approval(
     control_date: datetime | None = Query(
         None, description="Control date for the operation (defaults to now)"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Submit a change order for approval with impact calculation and approver assignment.
@@ -757,7 +756,7 @@ async def approve_change_order(
     control_date: datetime | None = Query(
         None, description="Control date for the operation (defaults to now)"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Approve a change order and transition to Approved status.
@@ -807,7 +806,7 @@ async def reject_change_order(
     control_date: datetime | None = Query(
         None, description="Control date for the operation (defaults to now)"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Reject a change order and transition to Rejected status.
@@ -852,7 +851,7 @@ async def reject_change_order(
 )
 async def archive_change_order_branch(
     change_order_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Archive (soft-delete) a Change Order's branch.
@@ -912,7 +911,7 @@ async def recover_change_order(
     control_date: datetime | None = Query(
         None, description="Control date for the operation (defaults to now)"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
     """Recover a stuck change order workflow (admin only).
@@ -970,7 +969,7 @@ async def recover_change_order(
 )
 async def escalate_change_order(
     change_order_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> ChangeOrderPublic:
     """Manually escalate a change order's SLA status.
@@ -1021,7 +1020,7 @@ async def get_change_order_approval_info(
         None,
         description="Time travel: get approval info as of this timestamp (ISO 8601)",
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ApprovalInfoPublic:
     """Get approval information for a change order.

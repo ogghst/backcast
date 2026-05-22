@@ -32,6 +32,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useWBE } from "@/features/wbes/api/useWBEs";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { getCurrencySymbol } from "@/utils/formatters";
+import { PACKAGE_TYPE_OPTIONS } from "@/features/work-package/api/useWorkPackages";
 
 interface CostRegistrationsTabProps {
   costElement: CostElementRead;
@@ -61,6 +64,8 @@ export const CostRegistrationsTab = ({
 
   // Fetch WBE to get project_id for project-level budget validation
   const { data: wbe } = useWBE(costElement.wbe_id);
+  const currency = useProjectCurrency(wbe?.project_id);
+  const currencySymbol = getCurrencySymbol(currency);
 
   // Build query params
   const queryParams: CostRegistrationApiParams = {
@@ -208,7 +213,7 @@ export const CostRegistrationsTab = ({
       width: 120,
       render: (amount) => (
         <span>
-          €
+          {currencySymbol}
           {Number(amount).toLocaleString(undefined, {
             minimumFractionDigits: 2,
           })}
@@ -246,6 +251,30 @@ export const CostRegistrationsTab = ({
       ellipsis: true,
       ...getColumnSearchProps("description"),
       render: (description) => description || "-",
+    },
+    {
+      title: "Work Package",
+      dataIndex: "work_package_name",
+      key: "work_package_name",
+      responsive: ["md"],
+      render: (
+        name: string | null,
+        record: CostRegistrationRead,
+      ) => {
+        if (!name) return "-";
+        const typeLabel =
+          PACKAGE_TYPE_OPTIONS.find(
+            (o) => o.value === record.work_package_type,
+          )?.label || record.work_package_type;
+        return (
+          <Space size={4}>
+            <span>{name}</span>
+            {record.work_package_type && (
+              <Tag>{typeLabel}</Tag>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: "Invoice",
@@ -340,7 +369,7 @@ export const CostRegistrationsTab = ({
                 Cost Registrations
               </div>
               <Tag color="blue">
-                Total: €
+                Total: {currencySymbol}
                 {totalCosts.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                 })}
@@ -397,7 +426,7 @@ export const CostRegistrationsTab = ({
         versions={mapHistoryVersions(historyVersions)}
         entityName={`Cost Registration: ${
           selectedRegistration?.description ||
-          `€${selectedRegistration?.amount}`
+          `${currencySymbol}${selectedRegistration?.amount}`
         }`}
         isLoading={historyLoading}
       />

@@ -62,6 +62,11 @@ class CostRegistration(EntityBase, VersionableMixin):
         # NOTE: No database-level ForeignKey constraint on root ID.
     )
 
+    # Optional link to a WorkPackage (when this CR is a cost allocation for a work package)
+    work_package_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID, nullable=True, index=True
+    )
+
     # Cost amount (decimal with 2 decimal places for currency)
     amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2), nullable=False

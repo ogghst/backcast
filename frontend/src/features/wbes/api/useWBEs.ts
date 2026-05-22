@@ -94,18 +94,11 @@ export const useWBEs = (params?: WBEListParams) => {
         as_of: asOf || undefined,
       };
 
-      console.log('[useWBEs] Fetching WBEs with params:', queryParams);
-
       const response = await __request(OpenAPI, {
         method: "GET",
         url: "/api/v1/wbes",
         query: queryParams,
       });
-
-      console.log('[useWBEs] Response received. Items count:', Array.isArray(response) ? response.length : response?.items?.length || 0);
-      if (!Array.isArray(response) && response?.items) {
-        console.log('[useWBEs] Root WBEs:', response.items.map((w: WBERead) => `${w.code}: ${w.name}`));
-      }
 
       // Normalize response to always be PaginatedResponse
       if (Array.isArray(response)) {

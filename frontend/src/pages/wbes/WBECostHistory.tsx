@@ -19,7 +19,7 @@ import { Spin, theme } from "antd";
  * scoped to this WBE.
  */
 export const WBECostHistory = () => {
-  const { wbeId } = useParams<{ wbeId: string }>();
+  const { projectId, wbeId } = useParams<{ projectId: string; wbeId: string }>();
   const { token } = theme.useToken();
   const { data: wbe, isLoading } = useWBE(wbeId!);
 
@@ -39,5 +39,5 @@ export const WBECostHistory = () => {
 
   if (!wbe) return null;
 
-  return <CostHistoryChart entityType="wbe" entityId={wbeId!} />;
+  return <CostHistoryChart entityType="wbe" entityId={wbeId!} projectId={projectId} />;
 };

@@ -5,10 +5,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.db.session import get_db
 from app.models.domain.cost_element_type import CostElementType
-from app.models.domain.user import User
 from app.models.schemas.cost_element_type import (
     CostElementTypeCreate,
     CostElementTypeRead,
@@ -90,7 +89,7 @@ async def read_cost_element_types(
 )
 async def create_cost_element_type(
     type_in: CostElementTypeCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostElementTypeService = Depends(get_cost_element_type_service),
 ) -> CostElementType:
     """Create a new cost element type."""
@@ -133,7 +132,7 @@ async def read_cost_element_type(
 async def update_cost_element_type(
     cost_element_type_id: UUID,
     type_in: CostElementTypeUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostElementTypeService = Depends(get_cost_element_type_service),
 ) -> CostElementType:
     """Update a cost element type."""
@@ -162,7 +161,7 @@ async def update_cost_element_type(
 )
 async def delete_cost_element_type(
     cost_element_type_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: CostElementTypeService = Depends(get_cost_element_type_service),
 ) -> None:
     """Soft delete a cost element type."""

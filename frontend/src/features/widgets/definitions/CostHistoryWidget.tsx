@@ -56,6 +56,7 @@ const CostHistoryComponent: FC<WidgetComponentProps<CostHistoryConfig>> = ({
           entityId={entityId}
           headless
           height={250}
+          projectId={context.projectId}
         />
       ) : (
         <div style={{ textAlign: "center", padding: token.paddingMD }}>

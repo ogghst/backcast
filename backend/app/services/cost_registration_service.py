@@ -149,7 +149,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         # Calculate total spend across all cost elements in the project
         # Join: WBE -> CostElement -> CostRegistration
-        # Cost registrations are global (not branchable), so we don't need to check multiple branches
+        # Cost registrations are global (not branchable), but CE/WBE must be filtered
+        # to the effective branch to avoid counting the same cost registration once
+        # per branch (since cost_element_id appears as separate rows in each branch).
         total_spend_stmt = (
             select(func.sum(CostRegistration.amount))
             .join(
@@ -159,8 +161,10 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
+                WBE.branch == effective_branch,
                 func.upper(CostElement.valid_time).is_(None),
                 CostElement.deleted_at.is_(None),
+                CostElement.branch == effective_branch,
                 func.upper(WBE.valid_time).is_(None),
                 WBE.deleted_at.is_(None),
             )
@@ -260,7 +264,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         budget = Decimal(str(budget_result.scalar_one()))
 
         # Sum actual cost registrations in the hierarchy
-        # Cost registrations are global (not branchable)
+        # Cost registrations are global (not branchable), but CostElement must be
+        # filtered by branch to avoid counting the same registration once per branch.
         spend_stmt = (
             select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
             .select_from(wbe_hierarchy)
@@ -268,6 +273,11 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             .join(
                 CostRegistration,
                 CostRegistration.cost_element_id == CostElement.cost_element_id,
+            )
+            .where(
+                CostElement.branch == branch,
+                func.upper(cast("Any", CostElement).valid_time).is_(None),
+                cast("Any", CostElement).deleted_at.is_(None),
             )
         )
 
@@ -548,6 +558,24 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                 f"WBE {cost_element.wbe_id} not found on branch {branch} or main"
             )
 
+        # Validate work_package_id belongs to same project (if provided)
+        if registration_in.work_package_id is not None:
+            from app.models.domain.work_package import WorkPackage
+
+            wp_stmt = select(WorkPackage).where(
+                WorkPackage.work_package_id == registration_in.work_package_id,
+                WorkPackage.project_id == wbe.project_id,
+                func.upper(cast(Any, WorkPackage.valid_time)).is_(None),
+                cast(Any, WorkPackage).deleted_at.is_(None),
+            )
+            wp_result = await self.session.execute(wp_stmt.limit(1))
+            wp = wp_result.scalar_one_or_none()
+            if wp is None:
+                raise ValueError(
+                    f"Work Package {registration_in.work_package_id} not found "
+                    f"in project {wbe.project_id}"
+                )
+
         # Enforce budget if enabled
         budget_error = await self.validate_cost_element_budget(
             cost_element_id=registration_in.cost_element_id,
@@ -633,6 +661,54 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                         if budget_error:
                             raise ValueError(budget_error.message)
 
+        # Validate work_package_id belongs to same project (if provided)
+        if registration_in.work_package_id is not None:
+            from app.models.domain.work_package import WorkPackage
+
+            # Get current CR to find cost_element_id
+            current = (
+                current
+                if registration_in.amount is not None
+                else await self.get_by_id(cost_registration_id)
+            )
+            if current is not None:
+                # Resolve CE -> WBE -> project_id
+                ce_result_wp = await self.session.execute(
+                    select(CostElement)
+                    .where(
+                        CostElement.cost_element_id == current.cost_element_id,
+                        func.upper(cast(Any, CostElement).valid_time).is_(None),
+                        cast(Any, CostElement).deleted_at.is_(None),
+                    )
+                    .limit(1)
+                )
+                ce_for_wp = ce_result_wp.scalar_one_or_none()
+                if ce_for_wp:
+                    wbe_result_wp = await self.session.execute(
+                        select(WBE)
+                        .where(
+                            WBE.wbe_id == ce_for_wp.wbe_id,
+                            func.upper(cast(Any, WBE).valid_time).is_(None),
+                            cast(Any, WBE).deleted_at.is_(None),
+                        )
+                        .limit(1)
+                    )
+                    wbe_for_wp = wbe_result_wp.scalar_one_or_none()
+                    if wbe_for_wp:
+                        wp_stmt = select(WorkPackage).where(
+                            WorkPackage.work_package_id
+                            == registration_in.work_package_id,
+                            WorkPackage.project_id == wbe_for_wp.project_id,
+                            func.upper(cast(Any, WorkPackage.valid_time)).is_(None),
+                            cast(Any, WorkPackage).deleted_at.is_(None),
+                        )
+                        wp_result = await self.session.execute(wp_stmt.limit(1))
+                        if wp_result.scalar_one_or_none() is None:
+                            raise ValueError(
+                                f"Work Package {registration_in.work_package_id} not found "
+                                f"in project {wbe_for_wp.project_id}"
+                            )
+
         # Custom command class to handle multi-word entity name
         class CostRegistrationUpdateCommand(UpdateVersionCommand[CostRegistration]):  # type: ignore[type-var,unused-ignore]
             def _root_field_name(self) -> str:
@@ -690,7 +766,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         as_of: datetime | None = None,
         wbe_id: UUID | None = None,
         project_id: UUID | None = None,
-    ) -> tuple[list[CostRegistration], int]:
+        work_package_id: UUID | None = None,
+    ) -> tuple[list[CostRegistration], int, dict[UUID, tuple[str, str]]]:
         """Get cost registrations with filtering, pagination, and time-travel support.
 
         Args:
@@ -700,9 +777,10 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             as_of: Optional timestamp for time-travel query (Valid Time Travel semantics)
             wbe_id: Optional WBE root ID to filter by (joins through CostElement)
             project_id: Optional Project root ID to filter by (joins through CostElement -> WBE)
+            work_package_id: Optional Work Package root ID to filter by
 
         Returns:
-            Tuple of (list of cost registrations, total count)
+            Tuple of (list of cost registrations, total count, work package name/type map)
         """
         # Build base query
         stmt = select(CostRegistration).where(
@@ -755,6 +833,10 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             )
             stmt = stmt.where(CostRegistration.cost_element_id.in_(wbe_subq))
 
+        # Filter by work_package_id
+        if work_package_id is not None:
+            stmt = stmt.where(CostRegistration.work_package_id == work_package_id)
+
         # Get total count
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.session.execute(count_stmt)
@@ -765,7 +847,47 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         stmt = stmt.offset(skip).limit(limit)
 
         result = await self.session.execute(stmt)
-        return list(result.scalars().all()), total
+        items = list(result.scalars().all())
+
+        # Build work package name map for denormalized response
+        wp_ids = {
+            item.work_package_id for item in items if item.work_package_id is not None
+        }
+        wp_map: dict[UUID, tuple[str, str]] = {}
+        if wp_ids:
+            from app.models.domain.work_package import WorkPackage
+
+            wp_name_stmt = select(
+                WorkPackage.work_package_id, WorkPackage.name, WorkPackage.package_type
+            ).where(
+                WorkPackage.work_package_id.in_(wp_ids),
+                func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                cast(Any, WorkPackage).deleted_at.is_(None),
+            )
+            wp_name_result = await self.session.execute(wp_name_stmt)
+            for row in wp_name_result.all():
+                wp_map[row.work_package_id] = (row.name, row.package_type)
+
+        return items, total, wp_map
+
+    async def get_work_package_info(
+        self, work_package_id: UUID | None
+    ) -> tuple[str | None, str | None]:
+        """Get work package name and type for denormalized response."""
+        if work_package_id is None:
+            return None, None
+        from app.models.domain.work_package import WorkPackage
+
+        stmt = select(WorkPackage.name, WorkPackage.package_type).where(
+            WorkPackage.work_package_id == work_package_id,
+            func.upper(cast(Any, WorkPackage.valid_time)).is_(None),
+            cast(Any, WorkPackage).deleted_at.is_(None),
+        )
+        result = await self.session.execute(stmt.limit(1))
+        row = result.first()
+        if row:
+            return row.name, row.package_type
+        return None, None
 
     async def get_total_for_cost_element(
         self, cost_element_id: UUID, as_of: datetime | None = None

@@ -12,6 +12,7 @@ const { Title } = Typography;
 interface StatusDistributionChartProps {
   data: ChangeOrderStatusStats[] | undefined;
   loading?: boolean;
+  currency?: string;
 }
 
 // Status color mapping
@@ -27,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
 export const StatusDistributionChart = ({
   data,
   loading,
+  currency = "EUR",
 }: StatusDistributionChartProps) => {
   const chartData = data?.map((item) => ({
     status: item.status,
@@ -61,7 +63,7 @@ export const StatusDistributionChart = ({
           name: datum.status,
           value: `${datum.count} COs (${new Intl.NumberFormat("en-US", {
             style: "currency",
-            currency: "EUR",
+            currency,
             minimumFractionDigits: 0,
           }).format(datum.value)})`,
         };

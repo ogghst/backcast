@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Modal, Form, Input, InputNumber, DatePicker, Select } from "antd";
 import type {
   QualityEventRead,
@@ -8,6 +8,7 @@ import type {
 import dayjs from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
+import { getCurrencySymbol } from "@/utils/formatters";
 
 interface QualityEventModalProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface QualityEventModalProps {
   confirmLoading: boolean;
   initialValues?: QualityEventRead | null;
   costElementId: string;
+  currency?: string;
 }
 
 // Event type options
@@ -42,11 +44,26 @@ export const QualityEventModal = ({
   confirmLoading,
   initialValues,
   costElementId,
+  currency = "EUR",
 }: QualityEventModalProps) => {
   const [form] = Form.useForm();
   const { asOf } = useTimeMachineParams();
   const { spacing } = useThemeTokens();
   const isEdit = !!initialValues;
+  const currencySymbol = getCurrencySymbol(currency);
+
+  const currencyFormatValue = useMemo(
+    () => (value: string | number | undefined) => {
+      if (!value) return "";
+      return `${currencySymbol} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    },
+    [currencySymbol],
+  );
+
+  const currencyParseRegex = useMemo(
+    () => new RegExp(`\\${currencySymbol}\\s?|(,*)`, "g"),
+    [currencySymbol],
+  );
 
   useEffect(() => {
     if (open) {
@@ -168,13 +185,10 @@ export const QualityEventModal = ({
             precision={2}
             min={0.01}
             placeholder="0.00"
-            formatter={(value) => {
-              if (!value) return "";
-              return `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-            }}
+            formatter={(value) => currencyFormatValue(value)}
             parser={(value) => {
               if (!value) return undefined as unknown as number;
-              const cleaned = value.replace(/€\s?|,/g, "");
+              const cleaned = value.replace(currencyParseRegex, "");
               const parsed = parseFloat(cleaned);
               return isNaN(parsed) ? undefined : parsed;
             }}

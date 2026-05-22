@@ -10,11 +10,9 @@ Usage:
 import argparse
 import asyncio
 import logging
-import sys
 
 from sqlalchemy import text
 
-from app.core.config import settings
 from app.db.seed_context import seed_operation
 from app.db.seeder import DataSeeder
 from app.db.session import async_session_maker, engine
@@ -32,7 +30,7 @@ TABLES_TO_TRUNCATE: list[str] = [
     "ai_conversation_sessions",
     # Notifications and quality
     "notifications",
-    "quality_events",
+    "work_packages",
     # Project data (leaf tables first)
     "cost_registrations",
     "progress_entries",

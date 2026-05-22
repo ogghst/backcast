@@ -23,6 +23,10 @@ import "./ChangeOrderAnalyticsWidget";
 import "./ChangeOrdersListWidget";
 import "./MiniGanttWidget";
 import "./CostHistoryWidget";
+import "./COQSummaryWidget";
+import "./COQTrendChartWidget";
+import "./COQCategoryBreakdownWidget";
+import "./COQWorkPackagesWidget";
 
 export function registerAllWidgets() {
   // Widgets are registered via module-level side effects on import.

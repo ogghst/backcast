@@ -348,20 +348,24 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     unreadCount: ["notifications", "unread-count"] as const,
   },
 
-  // Quality Events
-  qualityEvents: {
-    all: ["quality-events"] as const,
-    lists: () => ["quality-events", "list"] as const,
-    list: (costElementId: string, params?: unknown) =>
-      ["quality-events", "list", costElementId, params] as const,
-    details: () => ["quality-events", "detail"] as const,
-    detail: (id: string, context?: unknown) =>
-      ["quality-events", "detail", id, context] as const,
-    history: (id: string) => ["quality-events", "history", id] as const,
-    total: (costElementId: string, context?: unknown) =>
-      ["quality-events", "total", costElementId, context] as const,
-    byPeriod: (costElementId: string, params?: unknown) =>
-      ["quality-events", "by-period", costElementId, params] as const,
+  // Work Packages
+  workPackages: {
+    all: ["work-packages"] as const,
+    lists: () => ["work-packages", "list"] as const,
+    list: (projectId: string, filters?: Record<string, unknown>) =>
+      ["work-packages", "list", projectId, filters] as const,
+    details: () => ["work-packages", "detail"] as const,
+    detail: (id: string, filters?: Record<string, unknown>) =>
+      ["work-packages", "detail", id, filters] as const,
+    history: (id: string) => ["work-packages", "history", id] as const,
+    summary: (projectId: string) =>
+      ["work-packages", "summary", projectId] as const,
+    allocations: (id: string) =>
+      ["work-packages", "allocations", id] as const,
+    coqMetrics: (projectId: string) =>
+      ["work-packages", "coqMetrics", projectId] as const,
+    coqTrend: (projectId: string, granularity?: string) =>
+      ["work-packages", "coqTrend", projectId, granularity] as const,
   },
 });
 

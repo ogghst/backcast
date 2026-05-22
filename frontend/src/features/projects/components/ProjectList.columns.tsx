@@ -95,18 +95,14 @@ export const useStatusFilters = () =>
   );
 
 /**
- * Memoized currency formatter for budget columns
+ * Create a currency formatter for a given ISO 4217 currency code.
  */
-export const useCurrencyFormatter = () =>
-  useMemo(
-    () =>
-      new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "EUR",
-        currencyDisplay: "narrowSymbol",
-      }),
-    [],
-  );
+export const createCurrencyFormatterForCode = (currency: string = "EUR") =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+  });
 
 /**
  * Memoized date formatter for date columns
@@ -130,8 +126,7 @@ export const useProjectColumns = ({
   onDelete: (projectId: string) => void;
 }) => {
   const statusFilters = useStatusFilters();
-  const formatCurrency = useCurrencyFormatter();
-  const formatDate = useDateFormatter();
+  const formatDate = useProjectListDateFormatter();
 
   return useMemo<ColumnType<ProjectRead>[]>(
     () => [
@@ -161,8 +156,8 @@ export const useProjectColumns = ({
         title: "Budget",
         dataIndex: "budget",
         key: "budget",
-        render: (budget: number) =>
-          budget ? formatCurrency.format(budget) : "-",
+        render: (budget: number, record) =>
+          budget ? createCurrencyFormatterForCode(record.currency).format(budget) : "-",
         width: 150,
         sorter: true,
       },
@@ -170,7 +165,8 @@ export const useProjectColumns = ({
         title: "Contract Value",
         dataIndex: "contract_value",
         key: "contract_value",
-        render: (value: number) => (value ? formatCurrency.format(value) : "-"),
+        render: (value: number, record) =>
+          value ? createCurrencyFormatterForCode(record.currency).format(value) : "-",
         width: 150,
         sorter: true,
       },
@@ -233,7 +229,6 @@ export const useProjectColumns = ({
     ],
     [
       statusFilters,
-      formatCurrency,
       formatDate,
       onViewHistory,
       onEdit,

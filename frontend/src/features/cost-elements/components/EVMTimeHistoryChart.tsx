@@ -13,6 +13,10 @@ import {
 import { Select, Spin, Empty } from "antd";
 import { useState } from "react";
 import dayjs from "dayjs";
+import { useCostElement } from "@/features/cost-elements/api/useCostElements";
+import { useWBE } from "@/features/wbes/api/useWBEs";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { getCurrencySymbol } from "@/utils/formatters";
 
 interface EVMTimeHistoryChartProps {
   costElementId: string;
@@ -28,6 +32,12 @@ export const EVMTimeHistoryChart = ({
     costElementId,
     granularity,
   );
+
+  // Resolve project currency through cost element -> WBE -> project chain
+  const { data: costElement } = useCostElement(costElementId);
+  const { data: wbe } = useWBE(costElement?.wbe_id);
+  const currency = useProjectCurrency(wbe?.project_id);
+  const currencySymbol = getCurrencySymbol(currency);
 
   if (isLoading) {
     return (
@@ -72,8 +82,8 @@ export const EVMTimeHistoryChart = ({
     );
   };
 
-  const formatCurrency = (value: number) => {
-    return `€ ${value.toLocaleString()}`;
+  const formatCurrencyValue = (value: number) => {
+    return `${currencySymbol} ${value.toLocaleString()}`;
   };
 
   return (
@@ -102,9 +112,9 @@ export const EVMTimeHistoryChart = ({
           >
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" tickFormatter={formatDate} minTickGap={30} />
-            <YAxis tickFormatter={(val) => `€${val / 1000}k`} />
+            <YAxis tickFormatter={(val) => `${currencySymbol}${val / 1000}k`} />
             <Tooltip
-              formatter={(value: number) => formatCurrency(value)}
+              formatter={(value: number) => formatCurrencyValue(value)}
               labelFormatter={(label) => dayjs(label).format("DD MMM YYYY")}
             />
             <Legend />

@@ -185,6 +185,45 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    "COQ Analysis": {
+        "description": "Cost of Quality dashboard with 4-category breakdown, trends, and QPI",
+        "widgets": [
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "coq-summary",
+                "config": {},
+                "layout": {"x": 0, "y": 0, "w": 12, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "coq-trend-chart",
+                "config": {"granularity": "month"},
+                "layout": {"x": 0, "y": 2, "w": 6, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "coq-category-breakdown",
+                "config": {},
+                "layout": {"x": 6, "y": 2, "w": 3, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "evm-efficiency-gauges",
+                "config": {
+                    "entityType": "project",
+                    "goodThreshold": 1.0,
+                    "warningPercent": 0.9,
+                },
+                "layout": {"x": 9, "y": 2, "w": 3, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "coq-work-packages",
+                "config": {"pageSize": 10},
+                "layout": {"x": 0, "y": 5, "w": 12, "h": 3},
+            },
+        ],
+    },
 }
 
 

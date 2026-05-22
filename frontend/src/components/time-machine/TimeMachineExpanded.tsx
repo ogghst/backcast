@@ -156,17 +156,19 @@ export function TimeMachineExpanded({
               gap: token.marginXS,
             }}
           >
-            {isHistorical ? (
+            {isHistorical && selectedDate && !isNaN(selectedDate.getTime()) ? (
               <>
                 Viewing History:{" "}
                 <strong>
-                  {selectedDate ? formatDate(selectedDate.toISOString()) : ""}
+                  {formatDate(selectedDate.toISOString())}
                 </strong>
                 {" at "}
                 <strong>
-                  {selectedDate ? formatTime(selectedDate.toISOString()) : ""}
+                  {formatTime(selectedDate.toISOString())}
                 </strong>
               </>
+            ) : isHistorical ? (
+              "Viewing History"
             ) : (
               "Viewing Current State"
             )}

@@ -14,7 +14,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -32,29 +32,18 @@ mock_admin_user = User(
     full_name="Admin User",
     hashed_password="hash",
 )
-
-
 def mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
-
 @pytest_asyncio.fixture
 async def test_project(client: AsyncClient) -> dict[str, Any]:
     """Create a test project for WBE tests."""
@@ -64,8 +53,6 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     }
     response = await client.post("/api/v1/projects", json=project_data)
     return cast(dict[str, Any], response.json())
-
-
 @pytest.mark.asyncio
 async def test_update_wbe_in_change_order_branch_fallback_to_main(
     client: AsyncClient,
@@ -124,8 +111,6 @@ async def test_update_wbe_in_change_order_branch_fallback_to_main(
     co_version = cast(dict[str, Any], response.json())
     assert co_version["name"] == "Updated WBE in CO Branch"
     assert co_version["branch"] == "BR-123"
-
-
 @pytest.mark.asyncio
 async def test_update_wbe_existing_on_change_order_branch(
     client: AsyncClient,

@@ -18,19 +18,30 @@ export class DashboardService {
      * The activity_limit parameter controls how many recent items to return per
      * entity type (default: 10, max: 50).
      *
+     * The as_of parameter enables time-travel queries, returning data as it
+     * appeared at a specific point in time.
+     *
+     * The branch parameter controls which branch to query (default: "main").
+     *
      * Requires authentication.
      * @param activityLimit Maximum number of activities per entity type (1-50)
+     * @param asOf Optional timestamp for time-travel queries
+     * @param branch Branch name to query
      * @returns DashboardData Successful Response
      * @throws ApiError
      */
     public static getDashboardRecentActivity(
         activityLimit: number = 10,
+        asOf?: (string | null),
+        branch: string = 'main',
     ): CancelablePromise<DashboardData> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/dashboard/recent-activity',
             query: {
                 'activity_limit': activityLimit,
+                'asOf': asOf,
+                'branch': branch,
             },
             errors: {
                 422: `Validation Error`,

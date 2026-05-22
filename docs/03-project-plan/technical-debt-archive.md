@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-05-19
-**Total Archived Items:** 46
+**Total Archived Items:** 57
 
 ---
 
@@ -10,6 +10,78 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ---
 
 ## Archived Items
+
+#### [TD-104] Currency Hardcoded to EUR
+
+- **Source:** 2026-05-14 E2E test `20260514_0007-ai-cost-progress` and `20260513_2113-ai-chat-van-project`
+- **Description:** All monetary amounts in the frontend were displayed in EUR regardless of project or user input. Currency formatting was hardcoded in 40+ locations across 25+ frontend components.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Added `currency` field (ISO 4217, default "EUR") to Project model with Alembic migration. Created `useProjectCurrency` hook and updated `formatCurrency`/`formatCompactCurrency`/`getCurrencySymbol` to accept currency param. Replaced all hardcoded EUR/€ references. Both `ProjectModal` and `ProjectEditModal` include currency dropdown (EUR, USD, GBP, CHF, JPY). E2E verified: EUR→USD→EUR round-trip works correctly.
+
+#### [TD-016] Performance Optimization (Large Projects)
+
+- **Source:** Hierarchical Nav ACT phase
+- **Description:** `useWBEs` fetched full list without pagination. Needed pagination or server-side tree loading.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Backend WBE endpoint now supports `page`/`per_page` pagination. `useWBEs` hook defaults to pageSize 20. ProjectTree uses lazy loading via Ant Design `loadData` callback — root WBEs load first, children fetch on expand. All callers pass appropriate pagination params.
+
+#### [TD-090] WebSocket Integration Test Failures (Pre-existing)
+
+- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
+- **Description:** 12 websocket integration tests in `tests/api/routes/ai_chat/test_websocket_integration.py` were failing with pre-existing issues: connection acceptance errors, streaming token issues, tool execution problems, session persistence errors, and various edge case validations. Root causes: missing OpenAI API keys in test environment, database state inconsistencies, and test isolation issues.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** All 21 websocket integration tests now pass (0 failures). The original 12 failures were fixed incidentally during subsequent iterations — specifically the unified RBAC refactoring (TD-091 root causes: RBAC migration path, conftest truncation of seed tables) and the abstract method fixes in TD-088/TD-089.
+
+#### [TD-089] Test Fixtures Reference Removed `allowed_tools` Column
+
+- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
+- **Description:** `AIAssistantConfig` model schema removed the `allowed_tools` column in a prior migration, but test fixtures in `tests/conftest.py` were still instantiating with `allowed_tools=["list_projects"]` parameter, causing `TypeError`.
+- **Status:** ✅ Resolved (2026-04-27)
+- **Resolution:** Removed all `allowed_tools` parameter references from `AIAssistantConfig` instantiations in test fixtures.
+
+#### [TD-088] Test Fixture RBAC Implementations Outdated
+
+- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
+- **Description:** `AllowAllRBAC` and `DenyAIRBAC` test fixtures were missing async abstract methods (`has_project_access`, `get_user_projects`, `get_project_role`) required by `RBACServiceABC`, causing 16 test errors during CI.
+- **Status:** ✅ Resolved (2026-04-27)
+- **Resolution:** Added implementations of missing async abstract methods to both `AllowAllRBAC` and `DenyAIRBAC` classes with reasonable default return values for testing.
+
+#### [TD-087] Parameter Sprawl in Graph Creation Methods
+
+- **Source:** Code review `/simplify` pass on `backend/app/ai/agent_service.py`
+- **Description:** `_create_deep_agent_graph` took 11 parameters and `_run_agent_graph` took 13. Many optional with complex interdependencies. Parameter lists made callers hard to read and error-prone to extend.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Created `GraphCreationParams` (11 fields) and `GraphExecutionParams` (13 fields) dataclasses in `app/ai/graph_params.py`. Refactored both methods to accept a single grouped params object with local destructuring. `start_execution` public API unchanged. Adding new graph configuration now only requires extending the dataclass, not modifying parameter lists across multiple methods.
+- **Files Changed:** `app/ai/graph_params.py` (new), `app/ai/agent_service.py`
+
+#### [TD-091] Unit Test Failures (Pre-existing)
+
+- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
+- **Description:** Approximately 33 unit tests were failing with pre-existing issues. Root causes identified and fixed: (1) `get_accessible_projects` admin path didn't filter `None` scope_ids from query results, (2) RBAC migration `7fc133112eef` read from deleted `config/rbac.json` instead of `seed/rbac_roles.json` (broken by TD-102 removal), (3) test conftest truncated `rbac_roles`/`rbac_role_permissions` seed tables between tests, preventing role lookups.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Fixed all three root causes. All 1279 unit tests now pass (0 failures, 14 skipped, 1 xfailed).
+- **Files Changed:** `app/core/rbac_unified.py`, `alembic/versions/7fc133112eef_add_rbac_roles_tables.py`, `tests/conftest.py`
+
+#### [TD-096] Security Tests for Unified RBAC
+
+- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-025)
+- **Description:** The unified RBAC system lacked dedicated security tests for adversarial edge cases: metadata injection, expired role denial, cache poisoning, privilege escalation via scope manipulation, and admin bypass verification.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Created `tests/unit/core/test_rbac_unified_security.py` with 27 tests across 5 classes (TestMetadataInjection, TestExpiredRoleDenial, TestCachePoisoningAndInvalidation, TestScopeIsolation, TestAdminBypassVerification). Found gap: `get_user_roles()` does not filter expired assignments (`expires_at` not checked in DB query). Documented as xfail test.
+
+#### [TD-102] Dual-Source RBAC Config (JSON vs DB) Without Sync Validation
+
+- **Source:** 2026-05-11 unified RBAC cutover CHECK phase
+- **Description:** Two sources of RBAC role/permission definitions: `config/rbac.json` (legacy `JsonRBACService`) and `seed/rbac_roles.json` + `rbac_roles` table (`UnifiedRBACService`). Past incident where `change-order-approve` was accidentally removed from `viewer` role in `rbac.json`.
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** Deleted `config/rbac.json`, removed `RBAC_POLICY_FILE` config setting, removed fallback in seeder, updated `.env`/Docker/test files. `seed/rbac_roles.json` is now the single source of truth. `RBAC_PROVIDER` no longer supports `"json"`.
+
+#### [TD-092] Frontend TypeScript Errors (Pre-existing)
+
+- **Source:** 2026-05-10-co-critical-fixes CHECK phase report
+- **Description:** 26 TypeScript errors in frontend codebase (mock data incomplete, test setup type mismatches, component prop type mismatches).
+- **Status:** ✅ Resolved (2026-05-19)
+- **Resolution:** `npx tsc --noEmit` passes with zero errors. The 26 pre-existing errors were fixed incidentally during subsequent iterations.
 
 #### [TD-108] SequentialToolNode._extract_state() Signature Mismatch with LangGraph
 
@@ -456,13 +528,24 @@ This file contains all completed, closed, or resolved technical debt items. For 
 - **Q4:** 15 items closed
 - **Q3:** 7 items closed
 
+### [TD-084] Decompose `_run_agent_graph` Method (Resolved 2026-05-20)
+
+- **Original Description:** `_run_agent_graph` was 957 lines with deep nesting (try/try/try/except/finally), handling graph setup, event processing, error handling, token batching, and message persistence in a single method. The event processing loop contained 15+ state tracking variables.
+- **Resolution:** Decomposed into 14 focused units:
+  - Created `StreamState` dataclass (25 fields + 3 helper methods) grouping all mutable tracking variables
+  - Created `GraphContext` dataclass for prepared execution resources
+  - Extracted 12 methods: `_prepare_graph_execution`, `_process_stream_events`, `_persist_session_messages`, `_finalize_execution`, and 9 event handler methods (`_handle_chain_start/end`, `_handle_chat_model_start/stream/end`, `_handle_tool_start/end/error`, `_handle_graph_end`)
+  - Main `_run_agent_graph` reduced to 84-line orchestrator
+  - `_HANDLED_EVENTS` frozenset moved to module level
+  - All 26 unit tests pass; ruff and mypy clean.
+
 ---
 
 ## Archive Statistics
 
 | Status | Count |
 |--------|-------|
-| Complete | 9 |
+| Complete | 10 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **11** |
-| **Total (All Time)** | **36** |
+| **Total (2026)** | **18** |
+| **Total (All Time)** | **43** |

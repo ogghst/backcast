@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-05-19
-**Total Open Items:** 16
-**Total Estimated Effort:** ~17.5 days
+**Last Updated:** 2026-05-20
+**Total Open Items:** 5
+**Total Estimated Effort:** ~7.5 days
 
 ---
 
@@ -24,17 +24,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-096] Security Tests for Unified RBAC
+### [TD-096] ~~Security Tests for Unified RBAC~~
 
-- **Source:** 2026-05-10-unified-rbac-refactoring CHECK phase (BE-025)
-- **Description:** The unified RBAC system has fail-secure defaults tested at the unit level, but lacks dedicated security tests for edge cases: metadata injection (arbitrary authority_level values in JSONB), expired role denial, cache poisoning scenarios, privilege escalation via scope manipulation, and concurrent assignment modification.
-- **Impact:** MEDIUM -- Fail-secure defaults work, but no automated tests for adversarial edge cases.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P2 (Medium)
-- **Blocker:** No
-- **Suggested Approach:** Create `tests/unit/core/test_rbac_unified_security.py` with tests for: setting arbitrary authority_level values, expired role assignments being denied, concurrent cache invalidation, role assignment with conflicting scopes, admin bypass verification.
+- **Status:** ✅ Resolved (2026-05-19) — Created `tests/unit/core/test_rbac_unified_security.py` with 27 tests across 5 classes: metadata injection, expired role denial, cache poisoning, scope isolation, admin bypass. Found and documented gap: `get_user_roles()` does not filter expired assignments. See archive.
 
 ---
 
@@ -50,17 +42,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-092] Frontend TypeScript Errors (Pre-existing)
+### [TD-092] ~~Frontend TypeScript Errors (Pre-existing)~~
 
-- **Source:** 2026-05-10-co-critical-fixes CHECK phase report
-- **Description:** 26 TypeScript errors exist in frontend codebase, unrelated to iteration changes. Errors include: mock data incomplete (missing `level`, `valid_time_formatted` fields), test setup type mismatches, component prop type mismatches. These errors existed before the iteration and were documented during CHECK phase verification.
-- **Impact:** Reduces type safety confidence, may cause runtime issues, blocks full TypeScript strict mode adoption
-- **Estimated Effort:** 4 hours
-- **Status:** Open
-- **Owner:** Frontend Developer
-- **Priority:** P2 (Medium)
-- **Blocker:** No
-- **Suggested Approach:** Fix mock data first (easiest wins), then address component prop types, finally tackle test setup issues. Add baseline tracking to CI to distinguish new errors from pre-existing.
+- **Status:** ✅ Resolved (2026-05-19) — `npx tsc --noEmit` passes with zero errors. The 26 pre-existing TypeScript errors were fixed incidentally during subsequent iterations. See archive.
 
 ---
 
@@ -92,102 +76,45 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-088] Test Fixture RBAC Implementations Outdated
-
-- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
-- **Description:** `AllowAllRBAC` and `DenyAIRBAC` test fixtures in `tests/api/routes/ai_chat/test_websocket_integration.py` were missing async abstract methods (`has_project_access`, `get_user_projects`, `get_project_role`) required by `RBACServiceABC`. The abstract base class was updated to include these methods, but test fixtures were not updated accordingly, causing 16 test errors during CI.
-- **Impact:** 16 websocket integration tests failing at setup due to `TypeError: Can't instantiate abstract class`. Blocks integration testing of AI chat features.
-- **Estimated Effort:** 4 hours
-- **Status:** ✅ Fixed (2026-04-27)
-- **Owner:** Backend Developer
-- **Fix:** Added implementations of missing async abstract methods to both `AllowAllRBAC` and `DenyAIRBAC` classes with reasonable default return values for testing.
-
 ---
 
-### [TD-089] Test Fixtures Reference Removed `allowed_tools` Column
+### [TD-084] ~~Decompose `_run_agent_graph` Method~~
 
-- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
-- **Description:** `AIAssistantConfig` model schema removed the `allowed_tools` column in a prior migration, but test fixtures in `tests/conftest.py` (`test_ai_assistant`, `inactive_ai_assistant`, `test_ai_provider_with_config_factory`) were still instantiating with `allowed_tools=["list_projects"]` parameter. This caused `TypeError: 'allowed_tools' is an invalid keyword argument for AIAssistantConfig`.
-- **Impact:** 12 websocket integration tests failing at fixture setup. Tests cannot instantiate AI assistant configurations for integration testing.
-- **Estimated Effort:** 2 hours
-- **Status:** ✅ Fixed (2026-04-27)
-- **Owner:** Backend Developer
-- **Fix:** Removed all `allowed_tools` parameter references from `AIAssistantConfig` instantiations in test fixtures.
-
----
-
-### [TD-084] Decompose `_run_agent_graph` Method
-
-- **Source:** Code review `/simplify` pass on `backend/app/ai/agent_service.py`
-- **Description:** `_run_agent_graph` is ~800 lines with deep nesting (try/try/try/except/finally), handling graph setup, event processing, error handling, token batching, and message persistence in a single method. The event processing loop contains 15+ state tracking variables that could be grouped into a dataclass.
-- **Impact:** Hard to test, maintain, and reason about. Any change to streaming, persistence, or event handling risks regressions across all concerns.
-- **Estimated Effort:** 2 days
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Extract into focused methods: `_init_execution_state()`, `_setup_graph()`, `_process_stream_events()`, `_cleanup_execution()`, `_persist_results()`. Group the 15+ tracking variables into an `ExecutionState` dataclass.
+- **Status:** ✅ Resolved (2026-05-20) — Decomposed 957-line method into 14 focused units. Created `StreamState` and `GraphContext` dataclasses in `graph_params.py`. Extracted 12 methods: `_prepare_graph_execution`, `_process_stream_events`, `_persist_session_messages`, `_finalize_execution`, and 9 event handler methods. Main method reduced to 84-line orchestrator. See archive.
 
 ---
 
 ### [TD-085] Migrate `astream_events` from v1 to v2
 
 - **Source:** LangGraph best practices review (Context7 docs)
-- **Description:** `_run_agent_graph` uses `graph.astream_events(..., version="v1")`. LangGraph recommends `version="v2"` which changes the event format and provides cleaner stream modes (`updates`, `custom`, `messages`). The v1 API is legacy and may be deprecated. Migration requires updating all event type handling in the 400+ line event loop.
+- **Description:** `_process_stream_events` uses `graph.astream_events(..., version="v1")`. LangGraph recommends `version="v2"` which changes the event format and provides cleaner stream modes (`updates`, `custom`, `messages`). The v1 API is legacy and may be deprecated. Migration requires updating all 9 event handler methods.
 - **Impact:** Stuck on deprecated API; v2 offers `stream_mode=["updates", "custom"]` which could replace manual event bus publishing and simplify token streaming via `get_stream_writer()`.
 - **Estimated Effort:** 2 days
 - **Status:** Open
 - **Owner:** Backend Developer
-- **Suggested Approach:** Migrate event loop to v2 format first (no behavior change), then evaluate replacing manual `_publish` / `_token_accumulator` with LangGraph's `get_stream_writer()` and `stream_mode=["updates", "custom", "messages"]`.
+- **Suggested Approach:** Migrate event handlers to v2 format first (no behavior change), then evaluate replacing manual `StreamState.publish` / `StreamState.token_buffer` with LangGraph's `get_stream_writer()` and `stream_mode=["updates", "custom", "messages"]`.
 
 ---
 
 ## Medium Severity (P2 - P3)
 
-### [TD-090] WebSocket Integration Test Failures (Pre-existing)
+### [TD-091] ~~Unit Test Failures (Pre-existing)~~
 
-- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
-- **Description:** 12 websocket integration tests in `tests/api/routes/ai_chat/test_websocket_integration.py` are failing with pre-existing issues unrelated to recent code changes. Failures include: connection acceptance errors, streaming token issues, tool execution problems, session persistence errors, and various edge case validations. Root causes appear to be: missing OpenAI API keys in test environment, database state inconsistencies, and test isolation issues.
-- **Impact:** Cannot validate AI chat WebSocket functionality end-to-end. Blocking confidence in chat feature reliability.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Investigate each failure category separately: (1) Add test-only OpenAI API mocking or key setup, (2) Improve database isolation between tests, (3) Fix fixture teardown/cleanup issues.
+- **Status:** ✅ Resolved (2026-05-19) — All 1279 unit tests pass (0 failures). Root causes: (1) `get_accessible_projects` admin path didn't filter `None` scope_ids, (2) RBAC migration read from deleted `config/rbac.json` instead of `seed/rbac_roles.json`, (3) test conftest truncated `rbac_roles`/`rbac_role_permissions` seed tables. All three fixed. See archive.
 
 ---
 
-### [TD-091] Unit Test Failures (Pre-existing)
+### [TD-016] ~~Performance Optimization (Large Projects)~~
 
-- **Source:** Test failure analysis during simplify refactor work (2026-04-27)
-- **Description:** Approximately 33 unit tests are failing with pre-existing issues across multiple test files. These failures existed before the simplify refactor work and are unrelated to recent changes. Categories include: database assertion mismatches, async fixture setup issues, and mock configuration problems.
-- **Impact:** Reduces confidence in test suite. Developers must manually verify which failures are regressions vs pre-existing.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Categorize failures by root cause (database, async, mocking), fix in priority order, add CI baseline tracking to distinguish new failures from pre-existing ones.
-
----
-
-### [TD-016] Performance Optimization (Large Projects)
-
-- **Source:** Hierarchical Nav ACT phase
-- **Description:** `useWBEs` fetches full list. Needs pagination or server-side tree loading.
-- **Impact:** Slow load times for large datasets
-- **Estimated Effort:** 3 hours
-- **Status:** ⏸️ Deferred (2026-04-23)
-- **Owner:** Full Stack Developer
+- **Status:** ✅ Resolved (2026-05-19) — Backend supports pagination (`page`/`per_page`), `useWBEs` defaults to pageSize 20, and ProjectTree uses lazy loading via `loadData`. See archive.
 
 ### [TD-086] ~~Stringly-Typed Event Types and Tool Names~~
 
 - **Status:** Resolved (2026-05-19) -- Created `AgentEventType` and `ExecutionStatus` enums in `backend/app/ai/event_types.py`. Updated all references in `agent_service.py`, `agent_event_bus.py`, `ai_chat.py` routes, `app/main.py`, and `app/models/schemas/ai.py`. See archive.
 
-### [TD-087] Parameter Sprawl in Graph Creation Methods
+### [TD-087] ~~Parameter Sprawl in Graph Creation Methods~~
 
-- **Source:** Code review `/simplify` pass on `backend/app/ai/agent_service.py`
-- **Description:** `_create_deep_agent_graph` takes 12 parameters and `_run_agent_graph` takes 13. Many are optional with complex interdependencies (e.g., `websocket` is only needed when `interrupt_node` is used). The parameter lists make callers hard to read and error-prone to extend.
-- **Impact:** Adding new graph configuration (e.g., supervisor mode toggles, new middleware) requires modifying long parameter lists in multiple methods.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Suggested Approach:** Group parameters into TypedDicts/dataclasses: `GraphCreationConfig` (llm, tool_context, assistant_config), `GraphExecutionParams` (message, session_id, user_id, project_id, temporal params), `StreamConfig` (event_bus, execution_mode).
+- **Status:** ✅ Resolved (2026-05-19) — Created `GraphCreationParams` and `GraphExecutionParams` dataclasses in `app/ai/graph_params.py`. Refactored `_create_deep_agent_graph` (11→1 param) and `_run_agent_graph` (13→1 param) to accept grouped params with destructuring. `start_execution` public API unchanged. See archive.
 
 ---
 
@@ -203,17 +130,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-102] Dual-Source RBAC Config (JSON vs DB) Without Sync Validation
+### [TD-102] ~~Dual-Source RBAC Config (JSON vs DB) Without Sync Validation~~
 
-- **Source:** 2026-05-11 unified RBAC cutover CHECK phase
-- **Description:** The system has two sources of RBAC role/permission definitions: `config/rbac.json` (used by `JsonRBACService` for legacy tests) and `seed/rbac_roles.json` + `rbac_roles` table (used by `UnifiedRBACService`). During the cutover, `change-order-approve` was accidentally removed from the `viewer` role in `rbac.json`, causing a test regression. There is no validation that the two sources stay in sync.
-- **Impact:** MEDIUM -- Config drift between JSON and DB causes confusing test failures. The `RBAC_PROVIDER` now defaults to `"database"` but some tests still use `JsonRBACService` via `rbac.json`.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P2 (Medium)
-- **Blocker:** No
-- **Suggested Approach:** Short-term: Add a CI test that validates `config/rbac.json` permissions are a subset of `seed/rbac_roles.json` permissions for each role. Long-term: Remove `JsonRBACService` and `rbac.json` entirely, making the DB the single source of truth for both runtime and tests. Update `test_rbac.py` to test against the database seed data instead of JSON config.
+- **Status:** ✅ Resolved (2026-05-19) — Removed `config/rbac.json` and all legacy `RBAC_PROVIDER=json` code paths. `seed/rbac_roles.json` is now the single source of truth. Updated seeder, config, env files, tests, and Docker configs. See archive.
 
 ---
 
@@ -223,17 +142,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-104] Currency Hardcoded to EUR
+### [TD-104] ~~Currency Hardcoded to EUR~~
 
-- **Source:** 2026-05-14 E2E test `20260514_0007-ai-cost-progress` and `20260513_2113-ai-chat-van-project`
-- **Description:** All monetary amounts in the frontend are displayed in EUR regardless of project or user input. Currency formatting is hardcoded in: `CostHistoryChart.tsx` (`createCurrencyFormatter("EUR")`), `ForecastHistoryView.tsx` (hardcoded `€` symbols), `GanttChartOptions.ts` (`Intl.NumberFormat("en-US", { currency: "EUR" })`), `ProjectList.columns.tsx` (`currency: "EUR"`). When a user enters "$45,000", the system displays "€45.0K".
-- **Impact:** LOW — No multi-currency support. Not a regression — has been this way since initial implementation.
-- **Estimated Effort:** 1 day
-- **Status:** Open
-- **Owner:** Full Stack Developer
-- **Priority:** P3 (Low)
-- **Blocker:** No
-- **Suggested Approach:** Add `currency` field to project settings (default "EUR"). Create shared `useCurrencyFormatter(projectId)` hook. Replace all hardcoded `€` and `"EUR"` references with the dynamic formatter. AI tools should read and pass the project's currency when registering costs.
+- **Status:** ✅ Resolved (2026-05-19) — Added `currency` field (ISO 4217, default "EUR") to Project model with Alembic migration. Created `useProjectCurrency` hook and updated `formatCurrency`/`formatCompactCurrency`/`getCurrencySymbol` to accept currency param. Replaced all 40+ hardcoded EUR/€ references across 25+ frontend components. Both `ProjectModal` (list) and `ProjectEditModal` (overview) include currency dropdown with 5 options. E2E verified: EUR→USD→EUR round-trip works correctly across project list, edit modal, and overview page. See archive.
 
 ---
 
@@ -253,21 +164,35 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
+### [TD-108] Home Dashboard Card Shows Wrong Currency Symbol
+
+- **Source:** E2E regression test (2026-05-20 core-regression)
+- **Description:** The home dashboard project card shows `$50,000` (dollar sign) for Demo Project 1, but the project currency is EUR. The project detail page correctly shows `€50.0K`. The dashboard card component likely doesn't pass the project currency to the `formatCurrency` / `formatCompactCurrency` functions.
+- **Impact:** Cosmetic — users see wrong currency symbol on the home page but correct values everywhere else
+- **Estimated Effort:** 1 hour
+- **Status:** Open
+- **Owner:** Frontend Developer
+- **Priority:** P4 (Low)
+- **Blocker:** No
+- **Suggested Approach:** Find the home dashboard project card component, pass project currency to the formatting function using `useProjectCurrency` hook (pattern established in TD-104).
+
+---
+
 ---
 
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 5 | ~10.5 days |
-| Medium (P2-P3) | 8 | ~9 days |
-| Low (P4+) | 2 | 5 hours |
-| **Total** | **15** | **~17.5 days** |
+| High (P0-P1) | 2 | ~2.5 days |
+| Medium (P2-P3) | 1 | ~2 days |
+| Low (P4+) | 2 | 6 hours |
+| **Total** | **5** | **~7.5 days** |
 
 ---
 
 ## Links
 
-- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (35 items)
+- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (54 items)
 - [Sprint Backlog](./sprint-backlog.md) - Current iteration
 - [Product Backlog](./product-backlog.md) - All pending work

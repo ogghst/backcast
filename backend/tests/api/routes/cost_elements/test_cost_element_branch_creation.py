@@ -15,8 +15,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.cost_element import CostElement
-
-
 @pytest.mark.asyncio
 async def test_create_cost_element_in_non_main_branch_no_default(
     client: AsyncClient,
@@ -34,7 +32,6 @@ async def test_create_cost_element_in_non_main_branch_no_default(
     """
     # Setup dependencies
     from app.api.dependencies.auth import (
-        get_current_active_user,
         get_current_user,
     )
     from app.core.rbac_unified import (
@@ -57,11 +54,7 @@ async def test_create_cost_element_in_non_main_branch_no_default(
     def mock_get_current_user() -> User:
         return mock_admin_user
 
-    def mock_get_current_active_user() -> User:
-        return mock_admin_user
-
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
 

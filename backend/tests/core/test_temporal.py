@@ -2,9 +2,17 @@
 
 Tests the format_temporal_range_for_api function which converts
 PostgreSQL TSTZRANGE values to display-ready format for API responses.
+Also tests the Pydantic validators that convert Range objects to strings.
 """
 
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 from app.core.temporal import format_temporal_range_for_api
+from app.models.schemas.temporal_validators import (
+    convert_range_to_str,
+    convert_range_to_iso,
+)
 
 
 class TestFormatTemporalRangeForApi:
@@ -115,3 +123,94 @@ class TestFormatTemporalRangeForApi:
         assert result["lower"] == "2026-01-01T00:00:00+00:00"
         assert result["lower_formatted"] == "January 01, 2026"
         assert result["is_currently_valid"] is True
+
+    def test_range_string_from_converter_unbounded(self):
+        """Test range string produced by convert_range_to_str (unbounded)."""
+        range_str = '["2026-01-15T10:00:00+00:00",)'
+        result = format_temporal_range_for_api(range_str)
+
+        assert result["lower"] == "2026-01-15T10:00:00+00:00"
+        assert result["upper"] is None
+        assert result["is_currently_valid"] is True
+
+    def test_range_string_from_converter_bounded(self):
+        """Test range string produced by convert_range_to_str (bounded)."""
+        range_str = '["2026-01-15T10:00:00+00:00","2026-02-15T10:00:00+00:00")'
+        result = format_temporal_range_for_api(range_str)
+
+        assert result["lower"] == "2026-01-15T10:00:00+00:00"
+        assert result["upper"] == "2026-02-15T10:00:00+00:00"
+        assert result["upper_formatted"] == "February 15, 2026"
+        assert result["is_currently_valid"] is False
+
+
+class FakeRange:
+    """Simulates a PostgreSQL TSTZRANGE object with lower/upper attributes."""
+
+    def __init__(self, lower: datetime | None, upper: datetime | None):
+        self.lower = lower
+        self.upper = upper
+
+
+class TestConvertRangeToStr:
+    """Test convert_range_to_str preserves full range information."""
+
+    def test_none(self):
+        assert convert_range_to_str(None) is None
+
+    def test_string_passthrough(self):
+        assert convert_range_to_str("2026-01-15T10:00:00+00:00") == "2026-01-15T10:00:00+00:00"
+
+    def test_range_string_passthrough(self):
+        assert convert_range_to_str('["2026-01-15T10:00:00+00:00",)') == '["2026-01-15T10:00:00+00:00",)'
+
+    def test_unbounded_range_object(self):
+        """Range object with no upper bound produces unbounded range string."""
+        lower = datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc)
+        result = convert_range_to_str(FakeRange(lower, None))
+
+        assert result == '["2026-01-15T10:00:00+00:00",)'
+        # Verify format_temporal_range_for_api correctly parses it
+        parsed = format_temporal_range_for_api(result)
+        assert parsed["is_currently_valid"] is True
+        assert parsed["upper"] is None
+
+    def test_bounded_range_object(self):
+        """Range object with upper bound preserves both bounds."""
+        lower = datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc)
+        upper = datetime(2026, 2, 15, 10, 0, tzinfo=timezone.utc)
+        result = convert_range_to_str(FakeRange(lower, upper))
+
+        assert result == '["2026-01-15T10:00:00+00:00","2026-02-15T10:00:00+00:00")'
+        # Verify format_temporal_range_for_api correctly parses it
+        parsed = format_temporal_range_for_api(result)
+        assert parsed["is_currently_valid"] is False
+        assert parsed["upper"] == "2026-02-15T10:00:00+00:00"
+        assert parsed["upper_formatted"] == "February 15, 2026"
+
+
+class TestConvertRangeToIso:
+    """Test convert_range_to_iso produces same format as convert_range_to_str."""
+
+    def test_none(self):
+        assert convert_range_to_iso(None) is None
+
+    def test_bounded_range_object(self):
+        """After fix, convert_range_to_iso preserves upper bound."""
+        lower = datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc)
+        upper = datetime(2026, 3, 1, 8, 30, tzinfo=timezone.utc)
+        result = convert_range_to_iso(FakeRange(lower, upper))
+
+        assert result == '["2026-01-15T10:00:00+00:00","2026-03-01T08:30:00+00:00")'
+        parsed = format_temporal_range_for_api(result)
+        assert parsed["is_currently_valid"] is False
+        assert parsed["upper"] == "2026-03-01T08:30:00+00:00"
+
+    def test_unbounded_range_object(self):
+        """Unbounded range still shows is_currently_valid as True."""
+        lower = datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc)
+        result = convert_range_to_iso(FakeRange(lower, None))
+
+        assert result == '["2026-05-20T12:00:00+00:00",)'
+        parsed = format_temporal_range_for_api(result)
+        assert parsed["is_currently_valid"] is True

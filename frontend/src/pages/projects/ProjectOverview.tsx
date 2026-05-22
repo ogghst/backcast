@@ -196,6 +196,7 @@ export const ProjectOverview = () => {
                   entityId={projectId}
                   headless
                   controlDate={controlDate || undefined}
+                  projectId={projectId}
                 />
               ) : undefined
             }
@@ -225,6 +226,7 @@ export const ProjectOverview = () => {
               loading={wbesLoading}
               onRowClick={handleRowClick}
               variant={resolvedMode}
+              currency={project.currency}
             />
           </Card>
 

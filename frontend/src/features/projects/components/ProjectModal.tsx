@@ -1,11 +1,20 @@
-import { useEffect } from "react";
-import { Modal, Form, Input, InputNumber, DatePicker } from "antd";
+import { useEffect, useMemo } from "react";
+import { Modal, Form, Input, InputNumber, DatePicker, Select } from "antd";
 import dayjs from "dayjs";
 import type {
   ProjectRead,
   ProjectCreate,
   ProjectUpdate,
 } from "@/api/generated";
+import { getCurrencySymbol } from "@/utils/formatters";
+
+const CURRENCY_OPTIONS = [
+  { label: "EUR - Euro", value: "EUR" },
+  { label: "USD - US Dollar", value: "USD" },
+  { label: "GBP - British Pound", value: "GBP" },
+  { label: "CHF - Swiss Franc", value: "CHF" },
+  { label: "JPY - Japanese Yen", value: "JPY" },
+];
 
 interface ProjectModalProps {
   open: boolean;
@@ -25,6 +34,20 @@ export const ProjectModal = ({
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
 
+  const selectedCurrency = Form.useWatch("currency", form) || initialValues?.currency || "EUR";
+  const currencySymbol = useMemo(() => getCurrencySymbol(selectedCurrency), [selectedCurrency]);
+
+  const currencyFormatValue = useMemo(
+    () => (value: string | number | undefined) =>
+      `${currencySymbol} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ","),
+    [currencySymbol],
+  );
+
+  const currencyParseRegex = useMemo(
+    () => new RegExp(`\\${currencySymbol}\\s?|(,*)`, "g"),
+    [currencySymbol],
+  );
+
   useEffect(() => {
     if (open) {
       if (initialValues) {
@@ -42,6 +65,7 @@ export const ProjectModal = ({
         });
       } else {
         form.resetFields();
+        form.setFieldsValue({ currency: "EUR" });
       }
     }
   }, [open, initialValues, form]);
@@ -94,18 +118,25 @@ export const ProjectModal = ({
         </Form.Item>
 
         <Form.Item
+          name="currency"
+          label="Currency"
+          rules={[{ required: true, message: "Please select a currency" }]}
+        >
+          <Select placeholder="Select currency" options={CURRENCY_OPTIONS} />
+        </Form.Item>
+
+        <Form.Item
           name="contract_value"
-          label="Contract Value"
+          label={`Contract Value (${selectedCurrency})`}
         >
           <InputNumber
             style={{ width: "100%" }}
-            formatter={(value) =>
-              `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-            }
+            formatter={(value) => currencyFormatValue(value)}
             parser={(value) =>
-              value?.replace(/€\s?|(,*)/g, "") as unknown as number
+              value?.replace(currencyParseRegex, "") as unknown as number
             }
             placeholder="0.00"
+            addonAfter={currencySymbol}
           />
         </Form.Item>
 

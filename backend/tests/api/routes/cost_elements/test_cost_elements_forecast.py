@@ -11,7 +11,6 @@ import pytest_asyncio
 from httpx import AsyncClient
 
 from app.api.dependencies.auth import (
-    get_current_active_user,
     get_current_user,
 )
 from app.core.rbac_unified import (
@@ -31,28 +30,17 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
-
-
 def mock_get_current_user() -> User:
     return mock_admin_user
-
-
-def mock_get_current_active_user() -> User:
-    return mock_admin_user
-
-
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
     yield
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
-
-
 @pytest_asyncio.fixture
 async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
     """Setup dependencies: Project, WBE, Department, CostElementType."""
@@ -99,8 +87,6 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
         "project_id": proj_id,
         "wbe_id": wbe_id,
     }
-
-
 @pytest.mark.asyncio
 class TestCostElementForecastAPI:
     """Test forecast endpoints nested under cost elements."""
@@ -367,8 +353,6 @@ class TestCostElementForecastAPI:
         )
         assert main_again.status_code == 200
         assert main_again.json()["eac_amount"] == "100000.00"
-
-
 @pytest.mark.asyncio
 class TestForecastZombieCheck:
     """Test that soft-deleted forecasts respect time travel boundaries.

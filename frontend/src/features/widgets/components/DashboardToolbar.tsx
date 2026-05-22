@@ -107,7 +107,14 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
       const template = templates.find((t) => t.id === templateId);
       if (template) {
         const store = useDashboardCompositionStore.getState();
+        const existingBackendId = store.backendId;
         store.loadFromBackend(template, true);
+        // Restore backendId so save updates the existing record instead of
+        // creating a duplicate. Without this, isTemplate=true nulls backendId
+        // which causes the next save to INSERT a new row.
+        if (existingBackendId) {
+          useDashboardCompositionStore.setState({ backendId: existingBackendId });
+        }
         store.setEditing(true);
         // Use showMessage fallback to avoid undefined issues
         showMessage(`Template "${template.name}" applied`);

@@ -41,6 +41,7 @@ export function buildGanttOptions(
   colors: EChartsColorPalette,
   tooltipConfig: EChartsTooltipConfig,
   gridLeft: number = 300,
+  currency: string = "EUR",
 ): EChartsOption {
   const yLabels = rows.map((row) => row.name);
 
@@ -114,7 +115,7 @@ export function buildGanttOptions(
   <span>Duration</span><span style="font-weight:600;">${durationDays} days</span>
 </div>
 <div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>Budget</span><span style="font-weight:600;">${new Intl.NumberFormat("en-US", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(row.budgetAmount)}</span>
+  <span>Budget</span><span style="font-weight:600;">${new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(row.budgetAmount)}</span>
 </div>
 ${
   row.progressionType

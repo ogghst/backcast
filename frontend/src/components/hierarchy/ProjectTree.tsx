@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, type ReactNode, type CSSProperties } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode, type CSSProperties } from "react";
 import { Tree, Empty, Spin, Alert, Typography, theme } from "antd";
 import { FolderOutlined, AppstoreOutlined, PayCircleOutlined } from "@ant-design/icons";
 import type { DataNode, EventDataNode } from "antd/es/tree";
@@ -36,13 +36,18 @@ const InfoPill = ({ children, style }: { children: ReactNode; style?: CSSPropert
   );
 };
 
-const formatCurrency = (value: string | number | undefined): string => {
-  if (value === undefined || value === null) return "€0.00";
+const formatCurrency = (value: string | number | undefined, currency: string = "EUR"): string => {
+  if (value === undefined || value === null) return "-";
   const numValue = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat("en-IE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(numValue);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+    }).format(numValue);
+  } catch {
+    return `${currency}${numValue}`;
+  }
 };
 
 const formatDateShort = (dateStr: string | null | undefined): string | null => {
@@ -172,18 +177,8 @@ export const ProjectTree = ({
 
   useEffect(() => {
     if (projectData && wbesData?.items) {
-      console.log('[ProjectTree] ========================================');
-      console.log('[ProjectTree] ⚠️⚠️⚠️ BUILDING TREE - DEBUG MODE ⚠️⚠️⚠️');
-      console.log('[ProjectTree] Building tree with project:', projectData.name);
-      console.log('[ProjectTree] Root WBEs received:', wbesData.items.map((w: WBERead) => `${w.code}: ${w.name} (id: ${w.wbe_id})`));
-      console.log('[ProjectTree] Total root WBEs:', wbesData.items.length);
-
-      // Check if F5 is in the data
-      const f5 = wbesData.items.find((w: WBERead) => w.code === 'F5');
-      console.log('[ProjectTree] 🔍 F5 SEARCH:');
-      console.log('[ProjectTree] F5 found in data?', !!f5, f5 ? `Name: ${f5.name}, ID: ${f5.wbe_id}` : '❌ NOT FOUND');
-
       const projectDates = formatDateRange(projectData.start_date, projectData.end_date);
+      const projectCurrency = projectData.currency || "EUR";
       const projectKey = `project-${projectData.project_id}`;
       nodeMetaRef.current.set(projectKey, {
         id: projectData.project_id,
@@ -206,26 +201,13 @@ export const ProjectTree = ({
               icon={<FolderOutlined style={{ color: "var(--ant-color-text-secondary)" }} />}
               name={wbe.name}
               strong
-              budget={formatCurrency(wbe.budget_allocation)}
+              budget={formatCurrency(wbe.budget_allocation, projectCurrency)}
               showBudget={showBudget}
               showDates={showDates}
             />
           ),
           isLeaf: false,
         };
-      });
-
-      console.log('[ProjectTree] Built', wbeRoots.length, 'root WBE nodes');
-      console.log('[ProjectTree] Root node keys:', wbeRoots.map(n => `${n.key} (${n.props?.title?.props?.name || n.props?.title || 'unknown'})`));
-
-      // Check if F5 node was created
-      const f5Node = wbeRoots.find(n => n.key === 'wbe-cfafbab0-079d-4750-a537-458528e1c5fd');
-      console.log('[ProjectTree] F5 node created?', !!f5Node, f5Node ? 'F5 node found!' : 'F5 node NOT found!');
-
-      // Log each node individually
-      wbeRoots.forEach((node, idx) => {
-        const nodeName = node.props?.title?.props?.name || 'unknown';
-        console.log(`[ProjectTree] [${idx}] key=${node.key}, name=${nodeName}`);
       });
 
       const projectRoot: DataNode = {
@@ -235,7 +217,7 @@ export const ProjectTree = ({
             icon={<AppstoreOutlined style={{ color: "var(--ant-color-primary)" }} />}
             name={`${projectData.code} - ${projectData.name}`}
             strong
-            budget={formatCurrency(projectData.budget)}
+            budget={formatCurrency(projectData.budget, projectCurrency)}
             dates={projectDates}
             showBudget={showBudget}
             showDates={showDates}
@@ -245,20 +227,8 @@ export const ProjectTree = ({
         isLeaf: false,
       };
 
-      console.log('[ProjectTree] Setting treeData with', wbeRoots.length, 'children');
-      console.log('[ProjectTree] Final tree structure:', JSON.stringify(projectRoot, (key, value) => {
-        if (key === 'title' && React.isValidElement(value)) {
-          return '[React Element]';
-        }
-        return value;
-      }, 2));
-      console.log('[ProjectTree] ========================================');
       setTreeData([projectRoot]);
     } else {
-      console.log('[ProjectTree] No data available - projectData:', !!projectData, 'wbesData?.items:', !!wbesData?.items);
-      if (wbesData) {
-        console.log('[ProjectTree] wbesData:', wbesData);
-      }
       setTreeData([]);
     }
   }, [wbesData, projectData, showBudget, showDates]);
@@ -266,14 +236,12 @@ export const ProjectTree = ({
   const onLoadData = useCallback(
     async (treeNode: EventDataNode<DataNode>) => {
       const meta = nodeMetaRef.current.get(String(treeNode.key));
-      console.log('[ProjectTree onLoadData] Loading children for node:', treeNode.key, 'meta:', meta);
 
       if (meta?.type !== "wbe") return;
       if (treeNode.children && treeNode.children.length > 0) return;
 
       try {
-        console.log('[ProjectTree onLoadData] Fetching children for parent:', meta.name, '(', meta.id, ')');
-
+        const projectCurrency = projectData?.currency || "EUR";
         const [childWBEsResponse, costElementsResponse] = await Promise.all([
           queryClient.fetchQuery({
             queryKey: queryKeys.wbes.list(projectId, {
@@ -324,16 +292,6 @@ export const ProjectTree = ({
         const childWBEs = extractItems(childWBEsResponse) as WBERead[];
         const costElements = extractItems(costElementsResponse) as CostElementRead[];
 
-        // Debug: Log the parent-child relationship to verify correctness
-        console.log('[ProjectTree onLoadData] ========================================');
-        console.log(`[ProjectTree onLoadData] Loaded ${childWBEs.length} children for parent ${meta.name} (${meta.id}):`);
-        childWBEs.forEach(w => {
-          console.log(`  - ${w.code}: ${w.name} (parent_wbe_id: ${w.parent_wbe_id})`);
-        });
-        console.log(`[ProjectTree onLoadData] Parent WBE ID in meta: ${meta.id}`);
-        console.log(`[ProjectTree onLoadData] Parent WBE wbe_id (if available): ${meta.wbe_id || 'N/A'}`);
-        console.log('[ProjectTree onLoadData] ========================================');
-
         // Fetch schedule baselines for cost elements when showDates is enabled
         const baselines: Record<string, { start_date: string; end_date: string }> = {};
         if (showDates && costElements.length > 0) {
@@ -369,7 +327,7 @@ export const ProjectTree = ({
               <NodeTitle
                 icon={<FolderOutlined style={{ color: "var(--ant-color-text-secondary)" }} />}
                 name={wbe.name}
-                budget={formatCurrency(wbe.budget_allocation)}
+                budget={formatCurrency(wbe.budget_allocation, projectCurrency)}
                 showBudget={showBudget}
                 showDates={showDates}
               />
@@ -395,7 +353,7 @@ export const ProjectTree = ({
               <NodeTitle
                 icon={<PayCircleOutlined style={{ color: "var(--ant-color-success)" }} />}
                 name={ce.name}
-                budget={formatCurrency(ce.budget_amount)}
+                budget={formatCurrency(ce.budget_amount, projectCurrency)}
                 dates={ceDates}
                 showBudget={showBudget}
                 showDates={showDates}
@@ -412,7 +370,7 @@ export const ProjectTree = ({
         console.error("Error loading children:", error);
       }
     },
-    [projectId, queryClient, branch, mode, asOf, showBudget, showDates],
+    [projectId, queryClient, branch, mode, asOf, showBudget, showDates, projectData],
   );
 
   const handleSelect = useCallback(

@@ -18,7 +18,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -63,7 +63,6 @@ async def admin_client(
 
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: MOCK_ADMIN
-    app.dependency_overrides[get_current_active_user] = lambda: MOCK_ADMIN
 
     set_unified_rbac_service(MockUnifiedRBACService())
 
@@ -84,7 +83,6 @@ async def viewer_client(
 
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: MOCK_VIEWER
-    app.dependency_overrides[get_current_active_user] = lambda: MOCK_VIEWER
 
     mock_rbac = MockUnifiedRBACService()
     mock_rbac.get_user_roles = AsyncMock(return_value=["viewer"])  # type: ignore[method-assign]

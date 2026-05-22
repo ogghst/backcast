@@ -6,9 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.schemas.forecast import ForecastCreate, ForecastUpdate
 from app.services.forecast_service import ForecastService
 
@@ -67,7 +66,7 @@ async def read_forecasts(
 )
 async def create_forecast(
     forecast_in: ForecastCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ForecastService = Depends(get_forecast_service),
 ) -> None:
     """Create a new forecast in specified branch.
@@ -128,7 +127,7 @@ async def read_forecast(
 async def update_forecast(
     forecast_id: UUID,
     forecast_in: ForecastUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ForecastService = Depends(get_forecast_service),
 ) -> None:
     """Update a forecast. Creates new version or forks.
@@ -160,7 +159,7 @@ async def delete_forecast(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ForecastService = Depends(get_forecast_service),
 ) -> None:
     """Soft delete a forecast in a branch.

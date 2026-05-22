@@ -33,6 +33,7 @@ export class CostRegistrationsService {
      * @param sortField Field to sort by
      * @param sortOrder Sort order (asc or desc)
      * @param asOf Time travel: get Cost Registrations as of this timestamp (ISO 8601)
+     * @param workPackageId Filter by Work Package ID
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -49,6 +50,7 @@ export class CostRegistrationsService {
         sortField?: (string | null),
         sortOrder: string = 'asc',
         asOf?: (string | null),
+        workPackageId?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -66,6 +68,7 @@ export class CostRegistrationsService {
                 'sort_field': sortField,
                 'sort_order': sortOrder,
                 'as_of': asOf,
+                'work_package_id': workPackageId,
             },
             errors: {
                 422: `Validation Error`,

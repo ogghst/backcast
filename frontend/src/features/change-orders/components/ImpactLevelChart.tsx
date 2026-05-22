@@ -13,11 +13,13 @@ const { Title } = Typography;
 interface ImpactLevelChartProps {
   data: ChangeOrderImpactStats[] | undefined;
   loading?: boolean;
+  currency?: string;
 }
 
 export const ImpactLevelChart = ({
   data,
   loading,
+  currency = "EUR",
 }: ImpactLevelChartProps) => {
   const { impactColors } = useImpactLevelConfig();
 
@@ -63,7 +65,7 @@ export const ImpactLevelChart = ({
           name: datum.impact_level,
           value: `${datum.count} COs (${new Intl.NumberFormat("en-US", {
             style: "currency",
-            currency: "EUR",
+            currency,
             minimumFractionDigits: 0,
           }).format(datum.value)})`,
         };

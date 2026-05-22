@@ -17,7 +17,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
+from app.api.dependencies.auth import get_current_user
 from app.core.rbac_unified import (
     UnifiedRBACService,
     set_unified_rbac_service,
@@ -89,7 +89,6 @@ async def auth_client(
     Returns:
         AsyncClient with auth and DB dependencies overridden.
     """
-    app.dependency_overrides[get_current_active_user] = lambda: owner_user
     app.dependency_overrides[get_current_user] = lambda: owner_user
 
     set_unified_rbac_service(MockUnifiedRBACService())
@@ -114,7 +113,6 @@ async def other_client(
     Returns:
         AsyncClient with auth overridden to the non-owner user.
     """
-    app.dependency_overrides[get_current_active_user] = lambda: other_user
     app.dependency_overrides[get_current_user] = lambda: other_user
 
     set_unified_rbac_service(MockUnifiedRBACService())

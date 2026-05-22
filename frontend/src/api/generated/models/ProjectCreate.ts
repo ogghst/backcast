@@ -20,6 +20,10 @@ export type ProjectCreate = {
      */
     contract_value?: (number | string | null);
     /**
+     * ISO 4217 currency code
+     */
+    currency?: string;
+    /**
      * Project status
      */
     status?: ProjectStatus;

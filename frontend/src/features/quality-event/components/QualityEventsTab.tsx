@@ -29,6 +29,9 @@ import { QualityEventModal } from "./QualityEventModal";
 import { QualityEventSummaryCard } from "./QualityEventSummaryCard";
 import type { QualityEventRead } from "@/api/generated";
 import type { CostElementRead } from "@/api/generated";
+import { formatCurrency } from "@/utils/formatters";
+import { useWBE } from "@/features/wbes/api/useWBEs";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 interface QualityEventsTabProps {
   costElement: CostElementRead;
@@ -37,6 +40,8 @@ interface QualityEventsTabProps {
 export const QualityEventsTab = ({ costElement }: QualityEventsTabProps) => {
   const { spacing, colors, borderRadius, typography } = useThemeTokens();
   const { can } = usePermission();
+  const { data: wbe } = useWBE(costElement.wbe_id);
+  const currency = useProjectCurrency(wbe?.project_id);
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -203,7 +208,7 @@ export const QualityEventsTab = ({ costElement }: QualityEventsTabProps) => {
             color: colors.text,
           }}
         >
-          €{Number(cost || 0).toFixed(2)}
+          {formatCurrency(Number(cost || 0), currency)}
         </span>
       ),
       sorter: (a, b) =>
@@ -318,6 +323,7 @@ export const QualityEventsTab = ({ costElement }: QualityEventsTabProps) => {
         }
         initialValues={editingEvent}
         costElementId={costElement.cost_element_id}
+        currency={currency}
       />
 
       {/* History Drawer */}
@@ -374,7 +380,7 @@ export const QualityEventsTab = ({ costElement }: QualityEventsTabProps) => {
                 </>
               )}
               <div style={{ marginTop: spacing.sm, fontWeight: typography.weights.medium }}>
-                Cost Impact: €{Number(version.cost_impact || 0).toFixed(2)}
+                Cost Impact: {formatCurrency(Number(version.cost_impact || 0), currency)}
               </div>
             </div>
           </div>

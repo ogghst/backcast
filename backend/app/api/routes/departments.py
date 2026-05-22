@@ -5,10 +5,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.db.session import get_db
 from app.models.domain.department import Department
-from app.models.domain.user import User
 from app.models.schemas.department import (
     DepartmentCreate,
     DepartmentPublic,
@@ -80,7 +79,7 @@ async def read_departments(
 )
 async def create_department(
     dept_in: DepartmentCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DepartmentService = Depends(get_department_service),
 ) -> Department:
     """Create a new department. Admin only."""
@@ -125,7 +124,7 @@ async def read_department(
 async def update_department(
     department_id: UUID,
     dept_in: DepartmentUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DepartmentService = Depends(get_department_service),
 ) -> Department:
     """Update a department. Admin only."""
@@ -148,7 +147,7 @@ async def update_department(
 )
 async def delete_department(
     department_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: DepartmentService = Depends(get_department_service),
 ) -> None:
     """Soft delete a department. Admin only."""

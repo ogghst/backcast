@@ -5,9 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user, get_user_service
+from app.api.dependencies.auth import UserIdentity, get_current_user, get_user_service
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.schemas.user import (
     RefreshRequest,
     Token,
@@ -124,8 +123,9 @@ async def login(
 
 @router.get("/me", response_model=UserPublic, operation_id="get_current_user")
 async def read_users_me(
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[UserIdentity, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
+    service: UserService = Depends(get_user_service),
 ) -> UserPublic:
     """
     Get current user profile with RBAC permissions.
@@ -133,7 +133,13 @@ async def read_users_me(
     Returns user data including their role-based permissions for use
     in frontend authorization checks.
     """
-    return await UserPublic.from_user_async(current_user, session)
+    user = await service.get_user(current_user.user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    return await UserPublic.from_user_async(user, session)
 
 
 @router.post("/refresh", response_model=Token, operation_id="refresh_token")
@@ -162,8 +168,6 @@ async def refresh_token(
         )
 
     # Get user by root_id
-    from app.services.user import UserService
-
     user_service = UserService(session)
     user = await user_service.get_user(user_root_id)
 

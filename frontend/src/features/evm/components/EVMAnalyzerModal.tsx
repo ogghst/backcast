@@ -56,6 +56,8 @@ interface EVMAnalyzerModalProps {
   loading?: boolean;
   /** Callback when granularity changes */
   onGranularityChange: (granularity: EVMTimeSeriesGranularity) => void;
+  /** ISO 4217 currency code */
+  currency?: string;
 }
 
 /**
@@ -111,6 +113,7 @@ export const EVMAnalyzerModal = ({
   timeSeries,
   loading = false,
   onGranularityChange,
+  currency = "EUR",
 }: EVMAnalyzerModalProps) => {
   const { token } = theme.useToken();
   // State to trigger chart re-render when modal opens
@@ -248,7 +251,7 @@ export const EVMAnalyzerModal = ({
                   {metric.value !== null
                     ? new Intl.NumberFormat("en-IE", {
                         style: "currency",
-                        currency: "EUR",
+                        currency,
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 0,
                       }).format(metric.value)
@@ -336,6 +339,7 @@ export const EVMAnalyzerModal = ({
                   headless={true}
                   height="100%"
                   fillContainer={true}
+                  currency={currency}
                 />
               </div>
             </Card>

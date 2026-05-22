@@ -14,6 +14,7 @@
 export const formatValue = (
   value: number | null,
   format: "currency" | "percentage" | "number",
+  currency: string = "EUR",
 ): string => {
   if (value === null || value === undefined) return "N/A";
 
@@ -21,7 +22,7 @@ export const formatValue = (
     case "currency":
       return new Intl.NumberFormat("en-IE", {
         style: "currency",
-        currency: "EUR",
+        currency,
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }).format(value);

@@ -34,13 +34,13 @@ from app.api.routes import (
     progress_entries,
     project_budget_settings,
     projects,
-    quality_events,
     rbac_admin,
     schedule_baselines,
     search,
     user_role_assignments,
     users,
     wbes,
+    work_packages,
 )
 from app.core.branching.exceptions import BranchLockedException
 from app.core.config import settings
@@ -399,9 +399,9 @@ app.include_router(
     tags=["Progress Entries"],
 )
 app.include_router(
-    quality_events.router,
-    prefix=f"{settings.API_V1_STR}/quality-events",
-    tags=["Quality Events"],
+    work_packages.router,
+    prefix=f"{settings.API_V1_STR}/work-packages",
+    tags=["Work Packages"],
 )
 app.include_router(
     evm.router,

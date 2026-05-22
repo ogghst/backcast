@@ -235,8 +235,6 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
                     "dashboard_layouts",
                     "notifications",
                     "user_role_assignments",
-                    "rbac_role_permissions",
-                    "rbac_roles",
                     "cost_registrations",
                     "progress_entries",
                     "cost_elements",
@@ -480,10 +478,9 @@ def override_auth(
         def override_auth(override_auth: None):
             ...
     """
-    from app.api.dependencies.auth import get_current_active_user, get_current_user
+    from app.api.dependencies.auth import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: mock_admin_user
-    app.dependency_overrides[get_current_active_user] = lambda: mock_admin_user
 
     unified_mock = MockUnifiedRBACService()
     original_unified = get_unified_rbac_service()

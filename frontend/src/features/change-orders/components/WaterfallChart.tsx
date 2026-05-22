@@ -7,6 +7,7 @@ const { Title } = Typography;
 interface WaterfallChartProps {
   data: WaterfallSegment[] | undefined;
   loading?: boolean;
+  currency?: string;
 }
 
 /**
@@ -19,7 +20,7 @@ interface WaterfallChartProps {
  *
  * Uses a stacked column chart from @ant-design/charts.
  */
-export const WaterfallChart = ({ data, loading }: WaterfallChartProps) => {
+export const WaterfallChart = ({ data, loading, currency = "EUR" }: WaterfallChartProps) => {
   // Transform data for the chart
   const chartData = data?.map((segment) => {
     const parsedValue = Number(segment.value);
@@ -61,7 +62,7 @@ export const WaterfallChart = ({ data, loading }: WaterfallChartProps) => {
         if (!Number.isFinite(val)) return "";
         return new Intl.NumberFormat("en-US", {
           style: "currency",
-          currency: "EUR",
+          currency,
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
         }).format(val);
@@ -75,7 +76,7 @@ export const WaterfallChart = ({ data, loading }: WaterfallChartProps) => {
           name: datum?.name || "Value",
           value: new Intl.NumberFormat("en-US", {
             style: "currency",
-            currency: "EUR",
+            currency,
           }).format(safeVal),
         };
       },

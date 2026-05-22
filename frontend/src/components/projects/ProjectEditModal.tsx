@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Modal,
   Form,
@@ -9,8 +9,9 @@ import {
   Space,
   theme,
 } from "antd";
-import { ProjectRead, ProjectUpdate } from "@/api/generated";
+import { ProjectRead, ProjectUpdate, type ProjectStatus } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
+import { getCurrencySymbol } from "@/utils/formatters";
 import dayjs from "dayjs";
 
 interface ProjectEditModalProps {
@@ -24,6 +25,7 @@ interface ProjectEditModalProps {
 interface FormValues {
   name: string;
   status?: string;
+  currency?: string;
   contract_value?: number | null;
   start_date?: dayjs.Dayjs | null;
   end_date?: dayjs.Dayjs | null;
@@ -36,6 +38,14 @@ const PROJECT_STATUSES = [
   { label: "on hold", value: "on_hold" },
   { label: "completed", value: "completed" },
   { label: "cancelled", value: "cancelled" },
+];
+
+const CURRENCY_OPTIONS = [
+  { label: "EUR - Euro", value: "EUR" },
+  { label: "USD - US Dollar", value: "USD" },
+  { label: "GBP - British Pound", value: "GBP" },
+  { label: "CHF - Swiss Franc", value: "CHF" },
+  { label: "JPY - Japanese Yen", value: "JPY" },
 ];
 
 /**
@@ -54,17 +64,21 @@ export const ProjectEditModal = ({
   const { token } = theme.useToken();
   const [form] = Form.useForm<FormValues>();
 
+  const selectedCurrency = Form.useWatch("currency", form) || project?.currency || "EUR";
+  const currencySymbol = useMemo(() => getCurrencySymbol(selectedCurrency), [selectedCurrency]);
+
   useEffect(() => {
     if (open && project) {
       form.setFieldsValue({
         name: project.name,
         status: project.status || "draft",
+        currency: project.currency || "EUR",
         contract_value: project.contract_value
           ? Number(project.contract_value)
           : undefined,
         start_date: project.start_date ? dayjs(project.start_date) : undefined,
         end_date: project.end_date ? dayjs(project.end_date) : undefined,
-        description: project.description,
+        description: project.description ?? undefined,
       });
     }
   }, [open, project, form]);
@@ -74,7 +88,8 @@ export const ProjectEditModal = ({
       const values = await form.validateFields();
       const updateData: ProjectUpdate = {
         name: values.name,
-        status: values.status ?? null,
+        status: (values.status as ProjectStatus) ?? null,
+        currency: values.currency ?? null,
         contract_value: values.contract_value ?? null,
         start_date: values.start_date
           ? values.start_date.toISOString()
@@ -149,9 +164,24 @@ export const ProjectEditModal = ({
               />
             </Form.Item>
 
+            {/* Currency */}
+            <Form.Item
+              label="Currency"
+              name="currency"
+              rules={[{ required: true, message: "Please select a currency" }]}
+            >
+              <Select
+                placeholder="Select project currency"
+                options={CURRENCY_OPTIONS}
+                style={{
+                  borderRadius: token.borderRadius,
+                }}
+              />
+            </Form.Item>
+
             {/* Contract Value */}
             <Form.Item
-              label="Contract Value (EUR)"
+              label={`Contract Value (${selectedCurrency})`}
               name="contract_value"
               rules={[
                 {
@@ -167,7 +197,7 @@ export const ProjectEditModal = ({
                 precision={2}
                 min={0}
                 controls={false}
-                addonAfter="€"
+                addonAfter={currencySymbol}
               />
             </Form.Item>
 

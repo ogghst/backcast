@@ -1,6 +1,9 @@
 import { Card, Progress, Statistic, Row, Col, Alert } from "antd";
 import type { CostElementRead } from "@/api/generated";
 import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
+import { useWBE } from "@/features/wbes/api/useWBEs";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { getCurrencySymbol, formatCurrency } from "@/utils/formatters";
 
 interface BudgetTabProps {
   costElement: CostElementRead;
@@ -10,6 +13,9 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
   const { data: budgetStatus, isLoading } = useBudgetStatus(
     costElement.cost_element_id,
   );
+  const { data: wbe } = useWBE(costElement.wbe_id);
+  const currency = useProjectCurrency(wbe?.project_id);
+  const currencySymbol = getCurrencySymbol(currency);
 
   if (isLoading) {
     return <Card loading />;
@@ -52,7 +58,7 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
               title="Budget"
               value={budget}
               precision={2}
-              prefix="€"
+              prefix={currencySymbol}
               styles={{ content: { color: "#1890ff" } }}
             />
           </Card>
@@ -63,7 +69,7 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
               title="Used"
               value={used}
               precision={2}
-              prefix="€"
+              prefix={currencySymbol}
               styles={{
                 content: { color: percentage >= 100 ? "#ff4d4f" : "#52c41a" },
               }}
@@ -76,7 +82,7 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
               title="Remaining"
               value={remaining}
               precision={2}
-              prefix="€"
+              prefix={currencySymbol}
               styles={{
                 content: { color: remaining < 0 ? "#ff4d4f" : "#52c41a" },
               }}
@@ -109,7 +115,7 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
 
       <Alert
         message="Budget Exceeded"
-        description={`This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}.`}
+        description={`This cost element has exceeded its budget by ${formatCurrency(Math.abs(remaining), currency)}.`}
         type="warning"
         showIcon
         style={{ marginBottom: 16 }}

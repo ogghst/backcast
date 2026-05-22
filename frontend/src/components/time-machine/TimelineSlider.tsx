@@ -133,11 +133,17 @@ export function TimelineSlider({
 }
 
 // Helper functions
+function isValidDate(d: Date): boolean {
+  return !isNaN(d.getTime());
+}
+
 function formatShortDate(date: Date): string {
+  if (!isValidDate(date)) return "—";
   return formatDate(date.toISOString(), { style: "short" });
 }
 
 function formatDateTime(date: Date): string {
+  if (!isValidDate(date)) return "";
   return formatDateTimeUtil(date.toISOString());
 }
 

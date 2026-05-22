@@ -12,6 +12,7 @@ import { WidgetShell } from "../components/WidgetShell";
 import { CostRegistrationsConfigForm } from "../components/config-forms/CostRegistrationsConfigForm";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 const { Text } = Typography;
 
@@ -20,12 +21,17 @@ interface CostRegistrationsConfig {
   showAddButton: boolean;
 }
 
-const formatCurrency = (value: string | number): string => {
+const formatCurrency = (value: string | number, currency: string = "EUR"): string => {
   const num = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat("en-IE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(num);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+    }).format(num);
+  } catch {
+    return `${currency}${num}`;
+  }
 };
 
 const formatDate = (dateStr: string | null | undefined): string => {
@@ -37,7 +43,7 @@ const formatDate = (dateStr: string | null | undefined): string => {
   });
 };
 
-const columns: ColumnsType<CostRegistrationRead> = [
+const getColumns = (currency: string = "EUR"): ColumnsType<CostRegistrationRead> => [
   {
     title: "Date",
     dataIndex: "registration_date",
@@ -60,7 +66,7 @@ const columns: ColumnsType<CostRegistrationRead> = [
     align: "right",
     render: (val: string) => (
       <Tag color="blue" style={{ minWidth: 80, textAlign: "center" }}>
-        {formatCurrency(val)}
+        {formatCurrency(val, currency)}
       </Tag>
     ),
   },
@@ -82,6 +88,8 @@ const CostRegistrationsComponent: FC<
   WidgetComponentProps<CostRegistrationsConfig>
 > = ({ config, instanceId, isEditing, onRemove, onConfigure, onFullscreen, widgetType, dashboardName }) => {
   const context = useDashboardContext();
+  const currency = useProjectCurrency(context.projectId);
+  const columns = useMemo(() => getColumns(currency), [currency]);
 
   const [tableParams, setTableParams] = useState<TableParams>({
     pagination: {

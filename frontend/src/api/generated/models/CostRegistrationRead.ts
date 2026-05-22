@@ -37,6 +37,9 @@ export type CostRegistrationRead = {
     id: string;
     cost_registration_id: string;
     cost_element_id: string;
+    work_package_id?: (string | null);
+    work_package_name?: (string | null);
+    work_package_type?: (string | null);
     created_by: string;
     /**
      * Display-ready registration date data.

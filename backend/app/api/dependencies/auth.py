@@ -2,10 +2,15 @@
 
 Provides dependency injection for current user authentication and authorization.
 
+UserIdentity is a lightweight dataclass that avoids a per-request DB lookup.
+The JWT sub claim carries the user_id (UUID string), so validating the token
+is sufficient to establish identity.
+
 RoleChecker and ProjectRoleChecker delegate to the unified RBAC system
 (UnifiedRBACService) for all permission checks.
 """
 
+from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID
 
@@ -19,7 +24,6 @@ from app.core.rbac_unified import (
     set_unified_rbac_session,
 )
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.domain.user_role_assignment import ScopeType
 from app.services.user import UserService
 
@@ -30,11 +34,22 @@ def get_user_service(session: AsyncSession = Depends(get_db)) -> UserService:
     return UserService(session)
 
 
+@dataclass(frozen=True)
+class UserIdentity:
+    """Lightweight authenticated user identity -- no DB lookup needed.
+
+    Carries only the user_id extracted from the JWT sub claim.
+    Routes that need the full User ORM object (e.g. /auth/me) must
+    perform their own DB lookup using this user_id.
+    """
+
+    user_id: UUID
+
+
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    service: UserService = Depends(get_user_service),
-) -> User:
-    """Get current user from JWT token."""
+) -> UserIdentity:
+    """Get current user identity from JWT token without DB lookup."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -52,21 +67,12 @@ async def get_current_user(
     if jwt_result.subject is None:
         raise credentials_exception
 
-    user = await service.get_by_email(jwt_result.subject)
-    if user is None:
-        raise credentials_exception
+    try:
+        user_id = UUID(jwt_result.subject)
+    except ValueError:
+        raise credentials_exception from None
 
-    return user
-
-
-async def get_current_active_user(
-    current_user: Annotated[User, Depends(get_current_user)],
-) -> User:
-    """Check if current user is active."""
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-
-    return current_user
+    return UserIdentity(user_id=user_id)
 
 
 class RoleChecker:
@@ -100,17 +106,17 @@ class RoleChecker:
 
     async def __call__(
         self,
-        current_user: Annotated[User, Depends(get_current_user)],
+        current_user: Annotated[UserIdentity, Depends(get_current_user)],
         session: Annotated[AsyncSession, Depends(get_db)],
-    ) -> User:
+    ) -> UserIdentity:
         """Check if current user has required role or permission.
 
         Args:
-            current_user: The authenticated user from JWT token
+            current_user: The authenticated user identity from JWT token
             session: Database session
 
         Returns:
-            The current user if authorized
+            The current user identity if authorized
 
         Raises:
             HTTPException: 403 Forbidden if user lacks required role/permission
@@ -164,18 +170,18 @@ class ProjectRoleChecker:
     async def __call__(
         self,
         project_id: UUID,
-        current_user: Annotated[User, Depends(get_current_active_user)],
+        current_user: Annotated[UserIdentity, Depends(get_current_user)],
         session: Annotated[AsyncSession, Depends(get_db)],
-    ) -> User:
+    ) -> UserIdentity:
         """Check if current user has required permission for the project.
 
         Args:
             project_id: The project ID to check access for
-            current_user: The authenticated user from JWT token
+            current_user: The authenticated user identity from JWT token
             session: Database session for project-level lookups
 
         Returns:
-            The current user if authorized
+            The current user identity if authorized
 
         Raises:
             HTTPException: 403 Forbidden if user lacks required permission

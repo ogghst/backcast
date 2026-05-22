@@ -44,7 +44,7 @@ def setup_mock_rbac():
 
 @pytest.fixture
 def real_rbac_service() -> Any:
-    """Set up RBAC service using config/rbac.json permissions.
+    """Set up RBAC service using seed/rbac_roles.json permissions.
 
     Integration tests use the actual RBAC configuration to verify
     that tool filtering works end-to-end with real role definitions.
@@ -57,11 +57,11 @@ def real_rbac_service() -> Any:
 
     # backend/tests/security/ai/ -> 4 parents to backend/
     backend_dir = Path(__file__).resolve().parent.parent.parent.parent
-    config_path = backend_dir / "config" / "rbac.json"
+    seed_path = backend_dir / "seed" / "rbac_roles.json"
 
-    # Pre-populate the unified RBAC service cache with permissions from rbac.json
+    # Pre-populate the unified RBAC service cache with permissions from seed/rbac_roles.json
     # so filter_tools_by_role() does not need a database session.
-    with open(config_path) as f:
+    with open(seed_path) as f:
         rbac_config = json.load(f)
     unified = get_unified_rbac_service()
     for role_name, role_def in rbac_config.get("roles", {}).items():
@@ -340,7 +340,7 @@ async def test_middleware_uses_contextvar_session() -> None:
 # =============================================================================
 # Integration tests: Tool filtering by AI assistant role (TEST-002)
 #
-# These tests use the REAL rbac.json and REAL tool definitions to verify
+# These tests use the REAL seed/rbac_roles.json and REAL tool definitions to verify
 # end-to-end that filter_tools_by_role() correctly filters tools based on
 # each AI assistant's role permissions.
 # =============================================================================
@@ -375,7 +375,7 @@ class TestToolFilteringByAssistantRole:
     """Integration tests for filter_tools_by_role() with real RBAC config.
 
     Verifies that each AI assistant role receives only the tools its
-    permissions allow, using the real rbac.json and real tool definitions.
+    permissions allow, using the real seed/rbac_roles.json and real tool definitions.
     """
 
     @pytest.mark.asyncio
@@ -388,7 +388,7 @@ class TestToolFilteringByAssistantRole:
 
         Given:
             The real tool set from create_project_tools()
-            The real rbac.json with ai-viewer role
+            The real seed/rbac_roles.json with ai-viewer role
         When:
             Tools are filtered by ai-viewer role
         Then:
@@ -493,7 +493,7 @@ class TestToolFilteringByAssistantRole:
 
         Given:
             The real tool set from create_project_tools()
-            The real rbac.json with ai-manager role
+            The real seed/rbac_roles.json with ai-manager role
         When:
             Tools are filtered by ai-manager role
         Then:
@@ -573,7 +573,7 @@ class TestToolFilteringByAssistantRole:
 
         Given:
             The real tool set from create_project_tools()
-            The real rbac.json with ai-admin role
+            The real seed/rbac_roles.json with ai-admin role
         When:
             Tools are filtered by ai-admin role
         Then:
@@ -644,7 +644,7 @@ class TestToolFilteringByAssistantRole:
 
         Given:
             The real tool set from create_project_tools()
-            The real rbac.json with ai-viewer role
+            The real seed/rbac_roles.json with ai-viewer role
             ExecutionMode.SAFE (only LOW risk tools)
         When:
             Both filter_tools_by_role and filter_tools_by_execution_mode are applied

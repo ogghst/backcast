@@ -28,8 +28,8 @@ export function DashboardPage() {
   // Composition store for dirty state and edit mode
   const isDirty = useDashboardCompositionStore((s) => s.isDirty);
   const isEditing = useDashboardCompositionStore((s) => s.isEditing);
-  // Wire dashboard persistence -- load from backend, auto-save on changes
-  const { save, isLoading } = useDashboardPersistence(projectId ?? "");
+  // Wire dashboard persistence -- scoped to "Cost Controller" for independence from COQ Analysis
+  const { save, isLoading } = useDashboardPersistence(projectId ?? "", "Cost Controller");
 
   // Browser-level navigation guard (refresh, close, back/forward buttons)
   useEffect(() => {

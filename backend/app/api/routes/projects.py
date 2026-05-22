@@ -12,13 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import (
     ProjectRoleChecker,
     RoleChecker,
-    get_current_active_user,
+    UserIdentity,
+    get_current_user,
 )
 from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.project import Project
-from app.models.domain.user import User
 from app.models.schemas.branch import BranchPublic
 from app.models.schemas.project import (
     ProjectCreate,
@@ -65,7 +65,7 @@ async def read_projects(
         None,
         description="Time travel: get Projects as of this timestamp (ISO 8601)",
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
     service: ProjectService = Depends(get_project_service),
 ) -> dict[str, Any]:
@@ -146,7 +146,7 @@ async def read_projects(
 )
 async def create_project(
     project_in: ProjectCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ProjectService = Depends(get_project_service),
 ) -> Project:
     """Create a new project. Requires create permission."""
@@ -183,7 +183,7 @@ async def read_project(
         None,
         description="Time travel: get project state as of this timestamp (ISO 8601)",
     ),
-    current_user: User = Depends(
+    current_user: UserIdentity = Depends(
         ProjectRoleChecker(required_permission="project-read")
     ),
     service: ProjectService = Depends(get_project_service),
@@ -222,7 +222,7 @@ async def read_project(
 async def update_project(
     project_id: UUID,
     project_in: ProjectUpdate,
-    current_user: User = Depends(
+    current_user: UserIdentity = Depends(
         ProjectRoleChecker(required_permission="project-update")
     ),
     service: ProjectService = Depends(get_project_service),
@@ -254,7 +254,7 @@ async def delete_project(
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(
+    current_user: UserIdentity = Depends(
         ProjectRoleChecker(required_permission="project-delete")
     ),
     service: ProjectService = Depends(get_project_service),

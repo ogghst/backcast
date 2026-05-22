@@ -415,6 +415,50 @@ class DataSeeder:
             f"Cost Registration seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
+    async def seed_work_packages(self, session: AsyncSession) -> None:
+        """Seed Work Packages from work_packages.json file.
+
+        Args:
+            session: Database session
+        """
+        from app.models.schemas.work_package import WorkPackageCreate
+        from app.services.work_package_service import WorkPackageService
+
+        logger.info("Starting Work Package seeding...")
+        wp_data = self.load_seed_file("work_packages.json")
+
+        if not wp_data:
+            logger.info("No Work Package seed data found or file is empty")
+            return
+
+        wp_service = WorkPackageService(session)
+
+        from uuid import uuid4
+
+        actor_id = uuid4()
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for _, item in enumerate(wp_data):
+                try:
+                    wp_in = WorkPackageCreate(**item)
+                    await wp_service.create_work_package(
+                        data=wp_in,
+                        actor_id=actor_id,
+                    )
+                    created_count += 1
+                    logger.info(f"Created Work Package: {wp_in.name}")
+                except Exception as e:
+                    logger.error(f"Failed to seed Work Package {item.get('name')}: {e}")
+                    skipped_count += 1
+
+        logger.info(
+            f"Work Package seeding complete: {created_count} created, "
+            f"{skipped_count} skipped/failed"
+        )
+
     async def seed_progress_entries(self, session: AsyncSession) -> None:
         """Seed Progress Entries from progress_entries.json file.
 
@@ -1070,7 +1114,7 @@ class DataSeeder:
         )
 
     async def seed_rbac_roles(self, session: AsyncSession) -> None:
-        """Seed RBAC roles and permissions from config/rbac.json or seed/rbac_roles.json.
+        """Seed RBAC roles and permissions from seed/rbac_roles.json.
 
         Idempotent - safe to run multiple times. Skips existing roles.
         Creates system roles (is_system=True) that cannot be deleted via API.
@@ -1084,21 +1128,17 @@ class DataSeeder:
 
         logger.info("Starting RBAC role seeding...")
 
-        # Try seed file first, fall back to config
-        seed_file = self.seed_dir / "rbac_roles.json"
-        config_file = Path(__file__).parent.parent.parent / "config" / "rbac.json"
-
-        rbac_file = seed_file if seed_file.exists() else config_file
+        rbac_file = self.seed_dir / "rbac_roles.json"
 
         if not rbac_file.exists():
-            logger.warning(f"RBAC config file not found: {rbac_file}")
+            logger.warning(f"RBAC seed file not found: {rbac_file}")
             return
 
         try:
             with rbac_file.open() as f:
                 rbac_config = json.load(f)
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in RBAC config file {rbac_file}: {e}")
+            logger.error(f"Invalid JSON in RBAC seed file {rbac_file}: {e}")
             return
 
         roles_data = rbac_config.get("roles", {})
@@ -1532,6 +1572,9 @@ class DataSeeder:
 
             # Seed Cost Registrations
             await self.seed_cost_registrations(session)
+
+            # Seed Work Packages
+            await self.seed_work_packages(session)
 
             # Seed Progress Entries
             await self.seed_progress_entries(session)

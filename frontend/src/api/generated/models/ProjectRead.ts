@@ -20,6 +20,10 @@ export type ProjectRead = {
      */
     contract_value?: (string | null);
     /**
+     * ISO 4217 currency code
+     */
+    currency?: string;
+    /**
      * Project status
      */
     status?: ProjectStatus;

@@ -43,6 +43,10 @@ export type CostRegistrationCreate = {
      */
     cost_element_id: string;
     /**
+     * Optional work package to link this cost registration to
+     */
+    work_package_id?: (string | null);
+    /**
      * Optional control date for creation (valid_time start)
      */
     control_date?: (string | null);

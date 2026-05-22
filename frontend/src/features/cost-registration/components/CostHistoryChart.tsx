@@ -16,6 +16,7 @@ import {
 } from "@/features/evm/utils/echartsConfig";
 import { useEVMTimeSeries } from "@/features/evm/api/useEVMMetrics";
 import type { EVMTimeSeriesPoint } from "@/features/evm/types";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 const { Title } = Typography;
 
@@ -28,6 +29,7 @@ export interface CostHistoryChartProps {
   headless?: boolean;
   delayRender?: boolean;
   controlDate?: string;
+  projectId?: string;
 }
 
 /** Grid configuration for the chart. */
@@ -46,6 +48,7 @@ export const CostHistoryChart = ({
   headless = false,
   delayRender = false,
   controlDate,
+  projectId,
 }: CostHistoryChartProps) => {
   const { data: tsData, isLoading, error } = useEVMTimeSeries(
     entityType === "cost_element" ? "cost_element" : entityType,
@@ -55,7 +58,8 @@ export const CostHistoryChart = ({
   );
 
   const echartsTheme = useEChartsTheme();
-  const currencyFormatter = useMemo(() => createCurrencyFormatter("EUR"), []);
+  const currency = useProjectCurrency(projectId);
+  const currencyFormatter = useMemo(() => createCurrencyFormatter(currency), [currency]);
   const dateFormatter = useMemo(() => createDateFormatter("week"), []);
 
   const points = tsData?.points as EVMTimeSeriesPoint[] | undefined;

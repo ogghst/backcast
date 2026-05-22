@@ -76,11 +76,6 @@ export const CostElementLayout: React.FC = () => {
       path: `/cost-elements/${id}/evm-analysis`,
     },
     {
-      key: "quality-events",
-      label: "Quality Events",
-      path: `/cost-elements/${id}/quality-events`,
-    },
-    {
       key: "chat",
       label: "AI Chat",
       path: `/cost-elements/${id}/chat`,

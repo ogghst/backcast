@@ -96,6 +96,7 @@ class ProjectRole(str, Enum):
                 "change-order-*",
                 "forecast-*",
                 "quality-event-*",
+                "work-package-*",
             ],
             ProjectRole.PROJECT_MANAGER: [
                 "project-read",
@@ -109,6 +110,9 @@ class ProjectRole(str, Enum):
                 "quality-event-read",
                 "quality-event-create",
                 "quality-event-update",
+                "work-package-read",
+                "work-package-create",
+                "work-package-update",
             ],
             ProjectRole.PROJECT_EDITOR: [
                 "project-read",
@@ -124,6 +128,8 @@ class ProjectRole(str, Enum):
                 "forecast-create",
                 "quality-event-read",
                 "quality-event-create",
+                "work-package-read",
+                "work-package-create",
             ],
             ProjectRole.PROJECT_VIEWER: [
                 "project-read",
@@ -134,6 +140,7 @@ class ProjectRole(str, Enum):
                 "change-order-approve",
                 "forecast-read",
                 "quality-event-read",
+                "work-package-read",
             ],
         }
         return permission_map[self]
@@ -152,3 +159,91 @@ class ProjectRole(str, Enum):
             ProjectRole.PROJECT_VIEWER: "default",
         }
         return color_map[self]
+
+
+class WorkPackageType(str, Enum):
+    """Work package type discriminator.
+
+    Closed enum -- adding new types requires a migration.
+    Each type may use a different subset of nullable columns.
+    """
+
+    QUALITY_IMPACT = "quality_impact"
+    SITE_VISIT = "site_visit"
+    PRODUCTION_PHASE = "production_phase"
+    WARRANTY_BATCH = "warranty_batch"
+    COMMISSIONING = "commissioning"
+
+    @property
+    def label(self) -> str:
+        """Human-readable label for this package type."""
+        labels = {
+            WorkPackageType.QUALITY_IMPACT: "Quality Impact",
+            WorkPackageType.SITE_VISIT: "Site Visit",
+            WorkPackageType.PRODUCTION_PHASE: "Production Phase",
+            WorkPackageType.WARRANTY_BATCH: "Warranty Batch",
+            WorkPackageType.COMMISSIONING: "Commissioning",
+        }
+        return labels[self]
+
+    @property
+    def color(self) -> str:
+        """Ant Design color name for UI rendering."""
+        colors = {
+            WorkPackageType.QUALITY_IMPACT: "red",
+            WorkPackageType.SITE_VISIT: "blue",
+            WorkPackageType.PRODUCTION_PHASE: "green",
+            WorkPackageType.WARRANTY_BATCH: "orange",
+            WorkPackageType.COMMISSIONING: "purple",
+        }
+        return colors[self]
+
+
+class WorkPackageStatus(str, Enum):
+    """Work package lifecycle status.
+
+    Open = costs can be posted. Closed = read-only.
+    Two states only -- sufficient for current needs.
+    Can be extended later via migration if TECO-style states are needed.
+    """
+
+    OPEN = "open"
+    CLOSED = "closed"
+
+    @property
+    def color(self) -> str:
+        """Ant Design color name for UI rendering."""
+        colors = {
+            WorkPackageStatus.OPEN: "success",
+            WorkPackageStatus.CLOSED: "default",
+        }
+        return colors[self]
+
+
+class COQCategory(str, Enum):
+    """Cost of Quality categories per ASQ/ISO 9000 standard."""
+
+    PREVENTION = "prevention"
+    APPRAISAL = "appraisal"
+    INTERNAL_FAILURE = "internal_failure"
+    EXTERNAL_FAILURE = "external_failure"
+
+    @property
+    def label(self) -> str:
+        labels = {
+            COQCategory.PREVENTION: "Prevention",
+            COQCategory.APPRAISAL: "Appraisal",
+            COQCategory.INTERNAL_FAILURE: "Internal Failure",
+            COQCategory.EXTERNAL_FAILURE: "External Failure",
+        }
+        return labels[self]
+
+    @property
+    def color(self) -> str:
+        colors = {
+            COQCategory.PREVENTION: "blue",
+            COQCategory.APPRAISAL: "cyan",
+            COQCategory.INTERNAL_FAILURE: "orange",
+            COQCategory.EXTERNAL_FAILURE: "red",
+        }
+        return colors[self]

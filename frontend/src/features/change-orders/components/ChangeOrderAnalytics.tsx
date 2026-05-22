@@ -20,6 +20,7 @@ import { ImpactLevelChart } from "./ImpactLevelChart";
 import { CostTrendChart } from "./CostTrendChart";
 import { ApprovalWorkloadTable } from "./ApprovalWorkloadTable";
 import { AgingItemsList } from "./AgingItemsList";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 interface ChangeOrderAnalyticsProps {
   projectId: string;
@@ -34,6 +35,7 @@ export const ChangeOrderAnalytics = ({
     projectId,
     branch,
   });
+  const currency = useProjectCurrency(projectId);
 
   if (error) {
     return (
@@ -64,10 +66,10 @@ export const ChangeOrderAnalytics = ({
     );
   }
 
-  const formatCurrency = (value: number) =>
+  const formatCurrencyValue = (value: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "EUR",
+      currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -89,7 +91,7 @@ export const ChangeOrderAnalytics = ({
           <Card>
             <Statistic
               title="Total Cost Exposure"
-              value={formatCurrency(stats.total_cost_exposure)}
+              value={formatCurrencyValue(stats.total_cost_exposure)}
               prefix={<DollarOutlined />}
               styles={{ content: { color: stats.total_cost_exposure > 0 ? "#cf1322" : "#3f8600" } }}
             />
@@ -99,7 +101,7 @@ export const ChangeOrderAnalytics = ({
           <Card>
             <Statistic
               title="Pending Value"
-              value={formatCurrency(stats.pending_value)}
+              value={formatCurrencyValue(stats.pending_value)}
               prefix={<ClockCircleOutlined />}
               styles={{ content: { color: "#faad14" } }}
             />
@@ -109,7 +111,7 @@ export const ChangeOrderAnalytics = ({
           <Card>
             <Statistic
               title="Approved Value"
-              value={formatCurrency(stats.approved_value)}
+              value={formatCurrencyValue(stats.approved_value)}
               prefix={<CheckCircleOutlined />}
               styles={{ content: { color: "#52c41a" } }}
             />
@@ -123,12 +125,14 @@ export const ChangeOrderAnalytics = ({
           <StatusDistributionChart
             data={stats.by_status}
             loading={isLoading}
+            currency={currency}
           />
         </Col>
         <Col xs={24} md={12}>
           <ImpactLevelChart
             data={stats.by_impact_level}
             loading={isLoading}
+            currency={currency}
           />
         </Col>
       </Row>
@@ -136,7 +140,7 @@ export const ChangeOrderAnalytics = ({
       {/* Charts Row 2: Cost Trend */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24}>
-          <CostTrendChart data={stats.cost_trend} loading={isLoading} />
+          <CostTrendChart data={stats.cost_trend} loading={isLoading} currency={currency} />
         </Col>
       </Row>
 

@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Modal, Form, Input, InputNumber, theme } from "antd";
 import type { ForecastRead, ForecastCreate, ForecastUpdate } from "@/api/generated";
+import { getCurrencySymbol } from "@/utils/formatters";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 interface ForecastModalProps {
   open: boolean;
@@ -12,6 +14,7 @@ interface ForecastModalProps {
   costElementId?: string;
   costElementName?: string;
   budgetAmount?: number; // BAC for reference
+  projectId?: string;
 }
 
 export const ForecastModal = ({
@@ -23,10 +26,24 @@ export const ForecastModal = ({
   currentBranch,
   costElementName,
   budgetAmount,
+  projectId,
 }: ForecastModalProps) => {
   const { token } = theme.useToken();
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
+  const currency = useProjectCurrency(projectId);
+  const currencySymbol = getCurrencySymbol(currency);
+
+  const currencyFormatValue = useMemo(
+    () => (value: string | number | undefined) =>
+      `${currencySymbol} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ","),
+    [currencySymbol],
+  );
+
+  const currencyParseRegex = useMemo(
+    () => new RegExp(`\\${currencySymbol}\\s?|(,*)`, "g"),
+    [currencySymbol],
+  );
 
   useEffect(() => {
     if (open) {
@@ -77,9 +94,7 @@ export const ForecastModal = ({
           <Form.Item label="Budget at Complete (BAC)">
             <InputNumber
               style={{ width: "100%" }}
-              formatter={(value) =>
-                `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-              }
+              formatter={(value) => currencyFormatValue(value)}
               disabled
               value={budgetAmount}
             />
@@ -96,11 +111,9 @@ export const ForecastModal = ({
             style={{ width: "100%" }}
             min={0}
             precision={2}
-            formatter={(value) =>
-              `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-            }
+            formatter={(value) => currencyFormatValue(value)}
             parser={(value) =>
-              value?.replace(/€\s?|(,*)/g, "") as unknown as number
+              value?.replace(currencyParseRegex, "") as unknown as number
             }
             placeholder="0.00"
           />

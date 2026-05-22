@@ -10,9 +10,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.db.session import get_db
-from app.models.domain.user import User
 from app.models.schemas.change_order_config import (
     WorkflowConfigResponse,
     WorkflowConfigUpdateRequest,
@@ -67,7 +66,7 @@ async def get_global_config(
 )
 async def upsert_global_config(
     config_in: WorkflowConfigUpdateRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderConfigService = Depends(get_config_service),
 ) -> object:
     """Create or update the global workflow configuration.
@@ -171,7 +170,7 @@ async def get_project_config(
 async def upsert_project_config(
     project_id: UUID,
     config_in: WorkflowConfigUpdateRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderConfigService = Depends(get_config_service),
 ) -> object:
     """Create or update a project-specific workflow configuration override.
@@ -249,7 +248,7 @@ async def upsert_project_config(
 )
 async def delete_project_config(
     project_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: UserIdentity = Depends(get_current_user),
     service: ChangeOrderConfigService = Depends(get_config_service),
 ) -> None:
     """Delete a project-specific workflow configuration override.

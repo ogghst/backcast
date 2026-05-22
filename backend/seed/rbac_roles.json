@@ -53,6 +53,10 @@
         "quality-event-update",
         "quality-event-delete",
         "quality-event-write",
+        "work-package-read",
+        "work-package-create",
+        "work-package-update",
+        "work-package-delete",
         "evm-read",
         "evm-create",
         "evm-update",
@@ -121,6 +125,9 @@
         "quality-event-create",
         "quality-event-update",
         "quality-event-write",
+        "work-package-read",
+        "work-package-create",
+        "work-package-update",
         "evm-read",
         "evm-create",
         "evm-update",
@@ -142,7 +149,8 @@
         "change-order-approve",
         "forecast-read",
         "schedule-baseline-read",
-        "quality-event-read"
+        "quality-event-read",
+        "work-package-read"
       ]
     },
     "ai-viewer": {
@@ -159,6 +167,7 @@
         "user-read",
         "department-read",
         "quality-event-read",
+        "work-package-read",
         "ai-chat",
         "progress-entry-read"
       ]
@@ -197,6 +206,9 @@
         "quality-event-create",
         "quality-event-update",
         "quality-event-write",
+        "work-package-read",
+        "work-package-create",
+        "work-package-update",
         "evm-read",
         "evm-create",
         "evm-update",

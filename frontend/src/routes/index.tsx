@@ -19,6 +19,7 @@ import { ProjectStructure } from "@/pages/projects/ProjectStructure";
 // import { ProjectExplorer } from "@/pages/projects/ProjectExplorer";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
 import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
+import { ProjectCOQAnalysis } from "@/pages/projects/ProjectCOQAnalysis";
 import { ProjectSchedulePage } from "@/pages/projects/ProjectSchedulePage";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBELayout } from "@/pages/wbes/WBELayout";
@@ -32,7 +33,7 @@ import { CostElementLayout } from "@/pages/cost-elements/CostElementLayout";
 import { CostElementOverview } from "@/pages/cost-elements/CostElementOverview";
 import { CostElementCostRegistrations } from "@/pages/cost-elements/CostElementCostRegistrations";
 import { CostElementCostHistory } from "@/pages/cost-elements/CostElementCostHistory";
-import { CostElementQualityEvents } from "@/pages/cost-elements/CostElementQualityEvents";
+import { ProjectWorkPackages } from "@/pages/projects/ProjectWorkPackages";
 import { CostElementChat } from "@/pages/cost-elements/CostElementChat";
 import { CostElementEVMAnalysis } from "@/pages/cost-elements/CostElementEVMAnalysis";
 import { Profile } from "@/pages/Profile";
@@ -160,8 +161,16 @@ export const router = createBrowserRouter([
             element: <ProjectEVMAnalysis />,
           },
           {
+            path: "coq-analysis",
+            element: <ProjectCOQAnalysis />,
+          },
+          {
             path: "schedule",
             element: <ProjectSchedulePage />,
+          },
+          {
+            path: "work-packages",
+            element: <ProjectWorkPackages />,
           },
           {
             path: "chat",
@@ -207,7 +216,6 @@ export const router = createBrowserRouter([
           { path: "cost-registrations", element: <CostElementCostRegistrations /> },
           { path: "cost-history", element: <CostElementCostHistory /> },
           { path: "evm-analysis", element: <CostElementEVMAnalysis /> },
-          { path: "quality-events", element: <CostElementQualityEvents /> },
           { path: "chat", element: <CostElementChat /> },
         ],
       },

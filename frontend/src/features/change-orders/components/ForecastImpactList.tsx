@@ -23,15 +23,16 @@ interface ForecastImpactListProps {
   forecasts: ForecastComparison[];
   loading?: boolean;
   branchName?: string;
+  currency?: string;
 }
 
 /**
- * Formats a decimal number to EUR currency.
+ * Formats a decimal number to currency.
  */
-const formatCurrency = (value: number): string => {
+const formatCurrencyValue = (value: number, currency: string = "EUR"): string => {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "EUR",
+    currency,
   }).format(value);
 };
 
@@ -67,6 +68,7 @@ export const ForecastImpactList = ({
   forecasts,
   loading,
   branchName = "feature",
+  currency = "EUR",
 }: ForecastImpactListProps) => {
   const { token } = theme.useToken();
 
@@ -93,7 +95,7 @@ export const ForecastImpactList = ({
         <div>
           <div style={{ fontWeight: 500 }}>{record.costElementCode}</div>
           <div style={{ fontSize: 12, color: "#8c8c8c" }}>{record.costElementName}</div>
-          <div style={{ fontSize: 11, color: token.colorTextTertiary }}>BAC: {formatCurrency(record.budgetAmount)}</div>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary }}>BAC: {formatCurrencyValue(record.budgetAmount, currency)}</div>
         </div>
       ),
     },
@@ -120,9 +122,9 @@ export const ForecastImpactList = ({
         const status = getVACStatus(vac);
         return (
           <div>
-            <div style={{ fontWeight: 500 }}>{formatCurrency(eac)}</div>
+            <div style={{ fontWeight: 500 }}>{formatCurrencyValue(eac, currency)}</div>
             <Tag color={status.color} style={{ fontSize: 10, marginTop: 4 }}>
-              VAC: {formatCurrency(Math.abs(vac))}
+              VAC: {formatCurrencyValue(Math.abs(vac), currency)}
             </Tag>
           </div>
         );
@@ -151,9 +153,9 @@ export const ForecastImpactList = ({
         const status = getVACStatus(vac);
         return (
           <div>
-            <div style={{ fontWeight: 500 }}>{formatCurrency(eac)}</div>
+            <div style={{ fontWeight: 500 }}>{formatCurrencyValue(eac, currency)}</div>
             <Tag color={status.color} style={{ fontSize: 10, marginTop: 4 }}>
-              VAC: {formatCurrency(Math.abs(vac))}
+              VAC: {formatCurrencyValue(Math.abs(vac), currency)}
             </Tag>
           </div>
         );
@@ -181,7 +183,7 @@ export const ForecastImpactList = ({
           return (
             <Space>
               <Tag color="green">NEW</Tag>
-              <Text type="secondary">+{formatCurrency(branchEAC)}</Text>
+              <Text type="secondary">+{formatCurrencyValue(branchEAC, currency)}</Text>
             </Space>
           );
         }
@@ -191,7 +193,7 @@ export const ForecastImpactList = ({
           return (
             <Space>
               <Tag color="red">REMOVED</Tag>
-              <Text type="secondary">-{formatCurrency(mainEAC)}</Text>
+              <Text type="secondary">-{formatCurrencyValue(mainEAC, currency)}</Text>
             </Space>
           );
         }
@@ -211,7 +213,7 @@ export const ForecastImpactList = ({
             {icon}
             <span style={{ color, fontWeight: 500 }}>
               {delta > 0 ? "+" : ""}
-              {formatCurrency(delta)}
+              {formatCurrencyValue(delta, currency)}
             </span>
             <Text type="secondary" style={{ fontSize: 11 }}>
               ({((delta / mainEAC!) * 100).toFixed(1)}%)
@@ -310,7 +312,7 @@ export const ForecastImpactList = ({
               }}
             >
               {totalDelta > 0 ? "+" : ""}
-              {formatCurrency(totalDelta)}
+              {formatCurrencyValue(totalDelta, currency)}
               <span style={{ fontSize: 12, color: "#999", marginLeft: 4 }}>
                 ({deltaPercent.toFixed(1)}%)
               </span>
@@ -319,13 +321,13 @@ export const ForecastImpactList = ({
           <div>
             <Text type="secondary">Main Total:</Text>
             <div style={{ fontSize: 16, fontWeight: 500 }}>
-              {formatCurrency(totalMainEAC)}
+              {formatCurrencyValue(totalMainEAC, currency)}
             </div>
           </div>
           <div>
             <Text type="secondary">{branchName} Total:</Text>
             <div style={{ fontSize: 16, fontWeight: 500 }}>
-              {formatCurrency(totalBranchEAC)}
+              {formatCurrencyValue(totalBranchEAC, currency)}
             </div>
           </div>
         </Space>
