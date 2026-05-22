@@ -666,7 +666,11 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             from app.models.domain.work_package import WorkPackage
 
             # Get current CR to find cost_element_id
-            current = current if registration_in.amount is not None else await self.get_by_id(cost_registration_id)
+            current = (
+                current
+                if registration_in.amount is not None
+                else await self.get_by_id(cost_registration_id)
+            )
             if current is not None:
                 # Resolve CE -> WBE -> project_id
                 ce_result_wp = await self.session.execute(
@@ -692,7 +696,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                     wbe_for_wp = wbe_result_wp.scalar_one_or_none()
                     if wbe_for_wp:
                         wp_stmt = select(WorkPackage).where(
-                            WorkPackage.work_package_id == registration_in.work_package_id,
+                            WorkPackage.work_package_id
+                            == registration_in.work_package_id,
                             WorkPackage.project_id == wbe_for_wp.project_id,
                             func.upper(cast(Any, WorkPackage.valid_time)).is_(None),
                             cast(Any, WorkPackage).deleted_at.is_(None),
@@ -845,10 +850,13 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         items = list(result.scalars().all())
 
         # Build work package name map for denormalized response
-        wp_ids = {item.work_package_id for item in items if item.work_package_id is not None}
+        wp_ids = {
+            item.work_package_id for item in items if item.work_package_id is not None
+        }
         wp_map: dict[UUID, tuple[str, str]] = {}
         if wp_ids:
             from app.models.domain.work_package import WorkPackage
+
             wp_name_stmt = select(
                 WorkPackage.work_package_id, WorkPackage.name, WorkPackage.package_type
             ).where(

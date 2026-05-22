@@ -1,8 +1,7 @@
 import { DashboardOutlined } from "@ant-design/icons";
-import { Typography, theme } from "antd";
+import { Col, Progress, Row, Typography, theme } from "antd";
 import type { FC } from "react";
 import { EntityType } from "@/features/evm/types";
-import { EVMGauge } from "@/features/evm/components/EVMGauge";
 import { WidgetShell } from "../components/WidgetShell";
 import { useWidgetEVMData } from "./shared/useWidgetEVMData";
 import { registerWidget, widgetTypeId } from "..";
@@ -40,33 +39,62 @@ const EVMEfficiencyGaugesComponent: FC<
       dashboardName={dashboardName}
     >
       {metrics ? (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-around",
-            alignItems: "center",
-            height: "100%",
-          }}
-        >
-          <EVMGauge
-            value={metrics.cpi}
-            min={0}
-            max={2}
-            label="CPI"
-            size={130}
-            goodThreshold={config.goodThreshold}
-            warningThresholdPercent={config.warningPercent}
-          />
-          <EVMGauge
-            value={metrics.spi}
-            min={0}
-            max={2}
-            label="SPI"
-            size={130}
-            goodThreshold={config.goodThreshold}
-            warningThresholdPercent={config.warningPercent}
-          />
-        </div>
+        <Row gutter={[token.marginMD, token.marginMD]} justify="space-around" align="middle" style={{ height: "100%" }}>
+          <Col style={{ textAlign: "center" }}>
+            <Progress
+              type="circle"
+              percent={Math.min((metrics.cpi ?? 0) / 2 * 100, 100)}
+              size={130}
+              strokeColor={
+                (metrics.cpi ?? 0) >= config.goodThreshold
+                  ? token.colorSuccess
+                  : (metrics.cpi ?? 0) >= config.goodThreshold * config.warningPercent
+                    ? token.colorWarning
+                    : token.colorError
+              }
+              format={() => (
+                <div>
+                  <div style={{ fontSize: token.fontSizeXL, fontWeight: token.fontWeightSemiBold }}>
+                    {metrics.cpi !== null ? metrics.cpi.toFixed(2) : "—"}
+                  </div>
+                  <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
+                    CPI
+                  </div>
+                </div>
+              )}
+            />
+            <div style={{ marginTop: token.marginSM }}>
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>Cost Performance</Text>
+            </div>
+          </Col>
+          <Col style={{ textAlign: "center" }}>
+            <Progress
+              type="circle"
+              percent={Math.min((metrics.spi ?? 0) / 2 * 100, 100)}
+              size={130}
+              strokeColor={
+                (metrics.spi ?? 0) >= config.goodThreshold
+                  ? token.colorSuccess
+                  : (metrics.spi ?? 0) >= config.goodThreshold * config.warningPercent
+                    ? token.colorWarning
+                    : token.colorError
+              }
+              format={() => (
+                <div>
+                  <div style={{ fontSize: token.fontSizeXL, fontWeight: token.fontWeightSemiBold }}>
+                    {metrics.spi !== null ? metrics.spi.toFixed(2) : "—"}
+                  </div>
+                  <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
+                    SPI
+                  </div>
+                </div>
+              )}
+            />
+            <div style={{ marginTop: token.marginSM }}>
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>Schedule Performance</Text>
+            </div>
+          </Col>
+        </Row>
       ) : (
         !isLoading &&
         !error &&

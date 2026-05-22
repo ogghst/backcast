@@ -143,10 +143,21 @@ const AppLayout: React.FC = () => {
           timelineData={projectId ? {
             startDate: (() => {
               const parsed = parseTemporalRangeLower(project?.valid_time ?? null);
-              if (parsed) return new Date(parsed);
-              return project?.start_date ? new Date(project.start_date) : null;
+              if (parsed) {
+                const d = new Date(parsed);
+                return isNaN(d.getTime()) ? null : d;
+              }
+              if (project?.start_date) {
+                const d = new Date(project.start_date);
+                return isNaN(d.getTime()) ? null : d;
+              }
+              return null;
             })(),
-            endDate: project?.end_date ? new Date(project.end_date) : null,
+            endDate: (() => {
+              if (!project?.end_date) return null;
+              const d = new Date(project.end_date);
+              return isNaN(d.getTime()) ? null : d;
+            })(),
             branches: branches.map((b) => b.name),
             events: [], // TODO: Fetch branch events from API
           } : undefined}

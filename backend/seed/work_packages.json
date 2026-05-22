@@ -8,7 +8,7 @@
     "status": "open",
     "external_event_id": "NCR-2026-001",
     "event_date": "2026-03-10T09:00:00",
-    "coq_category": "nonconformance",
+    "coq_category": "internal_failure",
     "cost_impact": 8500.00,
     "schedule_impact_days": 3,
     "cost_allocations": [
@@ -34,7 +34,7 @@
     "status": "open",
     "external_event_id": "NCR-2026-002",
     "event_date": "2026-04-02T14:00:00",
-    "coq_category": "nonconformance",
+    "coq_category": "internal_failure",
     "cost_impact": 4200.00,
     "schedule_impact_days": 2,
     "cost_allocations": [
@@ -55,7 +55,7 @@
     "status": "open",
     "external_event_id": "QA-INSPECT-2026-001",
     "event_date": "2026-02-20T11:00:00",
-    "coq_category": "conformance",
+    "coq_category": "appraisal",
     "cost_impact": 2800.00,
     "schedule_impact_days": 0,
     "cost_allocations": [
@@ -81,7 +81,7 @@
     "status": "open",
     "external_event_id": "QA-AUDIT-2026-001",
     "event_date": "2026-01-28T10:00:00",
-    "coq_category": "conformance",
+    "coq_category": "appraisal",
     "cost_impact": 1800.00,
     "schedule_impact_days": 0,
     "cost_allocations": [

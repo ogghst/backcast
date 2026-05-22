@@ -19,6 +19,7 @@ import { ProjectStructure } from "@/pages/projects/ProjectStructure";
 // import { ProjectExplorer } from "@/pages/projects/ProjectExplorer";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
 import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
+import { ProjectCOQAnalysis } from "@/pages/projects/ProjectCOQAnalysis";
 import { ProjectSchedulePage } from "@/pages/projects/ProjectSchedulePage";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBELayout } from "@/pages/wbes/WBELayout";
@@ -158,6 +159,10 @@ export const router = createBrowserRouter([
           {
             path: "evm-analysis",
             element: <ProjectEVMAnalysis />,
+          },
+          {
+            path: "coq-analysis",
+            element: <ProjectCOQAnalysis />,
           },
           {
             path: "schedule",

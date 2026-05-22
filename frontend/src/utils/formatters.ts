@@ -383,8 +383,8 @@ export function parseTemporalRangeLower(
 
   let timestamp = rangeStr.slice(1, commaIndex).trim();
 
-  // Remove escaped quotes if present (JSON serialization of PostgreSQL ranges)
-  timestamp = timestamp.replace(/\\"/g, "");
+  // Remove quotes wrapping the timestamp (backend serializes as ["timestamp",))
+  timestamp = timestamp.replace(/"/g, "");
 
   // Check for infinity
   if (timestamp === "-infinity" || timestamp === "infinity") {

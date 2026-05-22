@@ -92,7 +92,7 @@ export const WorkPackageBreakdownDrawer = ({
               marginBottom: spacing.sm,
             }}
           >
-            <Text type="secondary">Total</Text>
+            <Text type="secondary">Planned Cost</Text>
             <Text strong>
               {formatCurrency(totalCost, currency)}
             </Text>

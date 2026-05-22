@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -62,7 +63,7 @@ class WorkPackageBase(BaseModel):
     event_date: datetime | None = None
     coq_category: str | None = Field(
         None,
-        pattern="^(conformance|nonconformance)$",
+        pattern="^(prevention|appraisal|internal_failure|external_failure)$",
     )
     cost_impact: Decimal = Field(default=Decimal("0"), ge=0)
     schedule_impact_days: int | None = Field(None, ge=0)
@@ -97,7 +98,9 @@ class WorkPackageUpdate(BaseModel):
 
     # Quality-specific fields
     event_date: datetime | None = None
-    coq_category: str | None = Field(None, pattern="^(conformance|nonconformance)$")
+    coq_category: str | None = Field(
+        None, pattern="^(prevention|appraisal|internal_failure|external_failure)$"
+    )
     cost_impact: Decimal | None = Field(None, gt=0)
     schedule_impact_days: int | None = Field(None, ge=0)
 
@@ -137,6 +140,10 @@ class WorkPackageSummary(BaseModel):
     total_cost: Decimal
     conformance_cost: Decimal
     nonconformance_cost: Decimal
+    prevention_cost: Decimal = Decimal("0")
+    appraisal_cost: Decimal = Decimal("0")
+    internal_failure_cost: Decimal = Decimal("0")
+    external_failure_cost: Decimal = Decimal("0")
     total_schedule_days: int
     impact_count: int
     coq_ratio: Decimal | None = None
@@ -153,3 +160,39 @@ class COQMetrics(BaseModel):
     qpi_rating: str | None = None  # Human-readable QPI rating
     total_ac: Decimal  # Total Actual Cost for the project (for context)
     coq_ratio: Decimal | None = None  # Total COQ / Project Budget * 100
+
+
+class COQTrendPoint(BaseModel):
+    """Single data point for COQ trend time-series."""
+
+    date: datetime
+    # Planned costs (from work package cost_impact)
+    planned_prevention: Decimal = Decimal("0")
+    planned_appraisal: Decimal = Decimal("0")
+    planned_internal_failure: Decimal = Decimal("0")
+    planned_external_failure: Decimal = Decimal("0")
+    total_planned: Decimal = Decimal("0")
+    # Actual costs (from cost registrations)
+    prevention: Decimal = Decimal("0")
+    appraisal: Decimal = Decimal("0")
+    internal_failure: Decimal = Decimal("0")
+    external_failure: Decimal = Decimal("0")
+    total_coq: Decimal = Decimal("0")
+    cpq: Decimal = Decimal("0")
+
+
+class COQTrendGranularity(str, Enum):
+    """Time granularity for COQ trend aggregation."""
+
+    WEEK = "week"
+    MONTH = "month"
+
+
+class COQTrendResponse(BaseModel):
+    """COQ trend time-series response."""
+
+    granularity: COQTrendGranularity
+    points: list[COQTrendPoint]
+    start_date: datetime
+    end_date: datetime
+    total_points: int

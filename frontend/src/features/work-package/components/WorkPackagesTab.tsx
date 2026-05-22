@@ -250,7 +250,7 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
       },
     },
     {
-      title: "Cost Impact",
+      title: "Planned Cost",
       dataIndex: "cost_impact",
       key: "cost_impact",
       width: 140,
@@ -291,15 +291,15 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
       width: 130,
       align: "right",
       render: (_, record) => {
-        const declared = Number(record.cost_impact || 0);
+        const planned = Number(record.cost_impact || 0);
         const actual = record.actual_cost;
         if (actual === null || actual === undefined) {
           return <span style={{ color: colors.textTertiary }}>-</span>;
         }
-        const overBudget = actual > declared;
+        const overBudget = actual > planned;
         return (
           <Tooltip
-            title={`Declared: ${formatCurrency(declared, currency)} | Actual: ${formatCurrency(actual, currency)}`}
+            title={`Planned: ${formatCurrency(planned, currency)} | Actual: ${formatCurrency(actual, currency)}`}
           >
             <span
               style={{

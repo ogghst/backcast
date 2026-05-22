@@ -129,7 +129,9 @@ class StreamState:
     tool_call_start: float | None = None
 
     # Token buffering
-    token_accumulator: Any = None  # TokenUsageAccumulator -- initialised in __post_init__
+    token_accumulator: Any = (
+        None  # TokenUsageAccumulator -- initialised in __post_init__
+    )
     token_buffer: dict[str, list[str]] = field(default_factory=dict)
 
     # Status
@@ -144,9 +146,7 @@ class StreamState:
 
     # -- Event helpers (replace closures) --
 
-    def publish(
-        self, event_type: str | AgentEventType, data: dict[str, Any]
-    ) -> None:
+    def publish(self, event_type: str | AgentEventType, data: dict[str, Any]) -> None:
         """Publish an event to the event bus."""
         from app.ai.execution.agent_event import AgentEvent
 

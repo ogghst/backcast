@@ -45,7 +45,9 @@ def convert_range_to_str(v: Any) -> str | None:
     if hasattr(v, "lower") and v.lower:
         lower = v.lower.isoformat() if hasattr(v.lower, "isoformat") else str(v.lower)
         if hasattr(v, "upper") and v.upper:
-            upper = v.upper.isoformat() if hasattr(v.upper, "isoformat") else str(v.upper)
+            upper = (
+                v.upper.isoformat() if hasattr(v.upper, "isoformat") else str(v.upper)
+            )
             return f'["{lower}","{upper}")'
         return f'["{lower}",)'
 
@@ -82,7 +84,9 @@ def convert_range_to_iso(v: Any) -> str | None:
     if hasattr(v, "lower") and v.lower:
         lower = v.lower.isoformat() if hasattr(v.lower, "isoformat") else str(v.lower)
         if hasattr(v, "upper") and v.upper:
-            upper = v.upper.isoformat() if hasattr(v.upper, "isoformat") else str(v.upper)
+            upper = (
+                v.upper.isoformat() if hasattr(v.upper, "isoformat") else str(v.upper)
+            )
             return f'["{lower}","{upper}")'
         return f'["{lower}",)'
 

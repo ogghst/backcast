@@ -77,7 +77,8 @@ async def list_work_packages(
         project_id: UUID of the project to list work packages for
         package_type: Optional filter by package type (quality_impact, site_visit,
             production_phase, warranty_batch, commissioning)
-        coq_category: Optional filter by COQ category (conformance, nonconformance)
+        coq_category: Optional filter by COQ category (prevention, appraisal,
+            internal_failure, external_failure)
         status: Optional filter by status (open, closed)
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
@@ -250,7 +251,8 @@ async def create_work_package(
         status: Status (open or closed, defaults to "open")
         external_event_id: Optional external reference identifier (e.g., QMS ID)
         event_date: Optional event date in ISO format (e.g., "2026-05-10")
-        coq_category: Optional COQ category (conformance, nonconformance)
+        coq_category: Optional COQ category (prevention, appraisal,
+            internal_failure, external_failure)
         cost_impact: Estimated cost impact (defaults to 0.0)
         schedule_impact_days: Optional schedule impact in days
         control_date: Optional control date for valid_time start (ISO format)
@@ -269,7 +271,7 @@ async def create_work_package(
         ...     project_id="...",
         ...     name="NCR-2026-001",
         ...     package_type="quality_impact",
-        ...     coq_category="nonconformance",
+        ...     coq_category="internal_failure",
         ...     cost_impact=15000.0,
         ...     cost_allocations=[
         ...         {"cost_element_id": "...", "amount": 10000.0},
@@ -283,9 +285,7 @@ async def create_work_package(
 
         service = WorkPackageService(context.session)
 
-        parsed_event_date = (
-            datetime.fromisoformat(event_date) if event_date else None
-        )
+        parsed_event_date = datetime.fromisoformat(event_date) if event_date else None
         parsed_control_date = (
             datetime.fromisoformat(control_date) if control_date else None
         )
@@ -598,7 +598,8 @@ async def get_work_package_allocations(
     name="get_coq_summary",
     description="Get Cost of Quality summary for a project. Only includes "
     "quality_impact-typed work packages. Returns total cost, "
-    "conformance/nonconformance breakdown, COQ ratio.",
+    "4-category breakdown (prevention, appraisal, internal_failure, "
+    "external_failure), COQ ratio.",
     permissions=["work-package-read"],
     category="work-packages",
     risk_level=RiskLevel.LOW,
@@ -618,8 +619,12 @@ async def get_coq_summary(
     Returns:
         Dictionary with COQ summary metrics:
         - total_cost: Total COQ cost
-        - conformance_cost: Conformance category cost
-        - nonconformance_cost: Nonconformance category cost
+        - conformance_cost: Prevention + Appraisal cost
+        - nonconformance_cost: Internal + External failure cost
+        - prevention_cost: Prevention category cost
+        - appraisal_cost: Appraisal category cost
+        - internal_failure_cost: Internal failure category cost
+        - external_failure_cost: External failure category cost
         - total_schedule_days: Total schedule impact days
         - impact_count: Number of quality impact work packages
         - coq_ratio: COQ cost as percentage of project budget
@@ -649,9 +654,15 @@ async def get_coq_summary(
             "total_cost": float(summary.total_cost),
             "conformance_cost": float(summary.conformance_cost),
             "nonconformance_cost": float(summary.nonconformance_cost),
+            "prevention_cost": float(summary.prevention_cost),
+            "appraisal_cost": float(summary.appraisal_cost),
+            "internal_failure_cost": float(summary.internal_failure_cost),
+            "external_failure_cost": float(summary.external_failure_cost),
             "total_schedule_days": summary.total_schedule_days,
             "impact_count": summary.impact_count,
-            "coq_ratio": float(summary.coq_ratio) if summary.coq_ratio is not None else None,
+            "coq_ratio": float(summary.coq_ratio)
+            if summary.coq_ratio is not None
+            else None,
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -724,7 +735,9 @@ async def get_coq_metrics(
             "qpi": float(metrics.qpi) if metrics.qpi is not None else None,
             "qpi_rating": metrics.qpi_rating,
             "total_ac": float(metrics.total_ac),
-            "coq_ratio": float(metrics.coq_ratio) if metrics.coq_ratio is not None else None,
+            "coq_ratio": float(metrics.coq_ratio)
+            if metrics.coq_ratio is not None
+            else None,
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:

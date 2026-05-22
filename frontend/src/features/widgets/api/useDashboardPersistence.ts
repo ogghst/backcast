@@ -35,7 +35,10 @@ const SAVE_DEBOUNCE_MS = 500;
  * - save: Function to immediately save the current dashboard (bypasses debounce)
  * - isSaving: Whether a save operation is currently in progress
  */
-export function useDashboardPersistence(projectId: string) {
+export function useDashboardPersistence(
+  projectId: string,
+  dashboardName?: string,
+) {
   // Reactive subscription to isDirty -- triggers re-render on change
   const isDirty = useDashboardCompositionStore((s) => s.isDirty);
   const activeDashboard = useDashboardCompositionStore((s) => s.activeDashboard);
@@ -103,14 +106,33 @@ export function useDashboardPersistence(projectId: string) {
     let cancelled = false;
 
     async function load() {
+      // Reset store so navigating between dashboard pages clears stale data
+      useDashboardCompositionStore.getState().resetDashboard();
       useDashboardCompositionStore.getState().setProjectId(projectId);
 
       try {
         const layouts = await layoutApi.list(projectId);
         if (cancelled) return;
 
-        if (layouts.length > 0) {
-          // Prefer the default layout, otherwise pick the first
+        if (dashboardName) {
+          // Scoped mode: find layout matching the dashboard name
+          const namedLayout = layouts.find((l) => l.name === dashboardName);
+          if (namedLayout) {
+            useDashboardCompositionStore.getState().loadFromBackend(namedLayout);
+          } else {
+            // Auto-clone from the matching template
+            const templates = await layoutApi.templates();
+            const template = templates.find((t) => t.name === dashboardName);
+            if (template) {
+              const cloned = await layoutApi.clone({
+                id: template.id,
+                data: { project_id: projectId, name: dashboardName },
+              });
+              useDashboardCompositionStore.getState().loadFromBackend(cloned);
+            }
+          }
+        } else if (layouts.length > 0) {
+          // Default mode: prefer the default layout, otherwise pick the first
           const defaultLayout = layouts.find((l) => l.is_default);
           const layout = defaultLayout ?? layouts[0];
           useDashboardCompositionStore.getState().loadFromBackend(layout);
@@ -128,8 +150,8 @@ export function useDashboardPersistence(projectId: string) {
     return () => {
       cancelled = true;
     };
-    // Only re-run when projectId changes
-  }, [projectId]);
+    // Re-run when projectId or dashboardName changes (switching between pages)
+  }, [projectId, dashboardName]);
 
   // ------------------------------------------------------------------
   // Debounced auto-save when isDirty changes

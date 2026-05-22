@@ -19,6 +19,7 @@ import { useWBEs } from "@/features/wbes/api/useWBEs";
 import { useCostElements } from "@/features/cost-elements/api/useCostElements";
 import {
   PACKAGE_TYPE_OPTIONS,
+  COQ_CATEGORY_OPTIONS,
 } from "../api/useWorkPackages";
 import type {
   WorkPackageCreate,
@@ -42,11 +43,6 @@ interface WorkPackageModalProps {
   projectId: string;
   currency?: string;
 }
-
-const COQ_CATEGORY_OPTIONS = [
-  { label: "Conformance", value: "conformance" },
-  { label: "Nonconformance", value: "nonconformance" },
-];
 
 export const WorkPackageModal = ({
   open,
@@ -123,7 +119,7 @@ export const WorkPackageModal = ({
         form.setFieldsValue({
           package_type: "quality_impact",
           event_date: asOf ? dayjs(asOf) : dayjs(),
-          coq_category: "nonconformance",
+          coq_category: "internal_failure",
           status: "open",
         });
       }
@@ -267,16 +263,16 @@ export const WorkPackageModal = ({
           <div />
         </div>
 
-        {/* Cost Impact - available for all package types */}
+        {/* Planned Cost - available for all package types */}
         <Form.Item
           name="cost_impact"
-          label="Cost Impact"
+          label="Planned Cost"
           rules={[
-            { required: true, message: "Please enter cost impact" },
+            { required: true, message: "Please enter planned cost" },
             {
               type: "number",
               min: 0.01,
-              message: "Cost impact must be greater than 0",
+              message: "Planned cost must be greater than 0",
             },
           ]}
         >

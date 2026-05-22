@@ -75,7 +75,7 @@ class WorkPackage(EntityBase, VersionableMixin):
 
     # Cost of Quality category (quality-specific, nullable for non-quality types)
     coq_category: Mapped[str | None] = mapped_column(
-        String(20), nullable=True, default=None
+        String(30), nullable=True, default=None
     )
 
     # Financial impact (declared/estimated cost for the package)

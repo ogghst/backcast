@@ -364,6 +364,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["work-packages", "allocations", id] as const,
     coqMetrics: (projectId: string) =>
       ["work-packages", "coqMetrics", projectId] as const,
+    coqTrend: (projectId: string, granularity?: string) =>
+      ["work-packages", "coqTrend", projectId, granularity] as const,
   },
 });
 

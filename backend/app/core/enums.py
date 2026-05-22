@@ -218,3 +218,32 @@ class WorkPackageStatus(str, Enum):
             WorkPackageStatus.CLOSED: "default",
         }
         return colors[self]
+
+
+class COQCategory(str, Enum):
+    """Cost of Quality categories per ASQ/ISO 9000 standard."""
+
+    PREVENTION = "prevention"
+    APPRAISAL = "appraisal"
+    INTERNAL_FAILURE = "internal_failure"
+    EXTERNAL_FAILURE = "external_failure"
+
+    @property
+    def label(self) -> str:
+        labels = {
+            COQCategory.PREVENTION: "Prevention",
+            COQCategory.APPRAISAL: "Appraisal",
+            COQCategory.INTERNAL_FAILURE: "Internal Failure",
+            COQCategory.EXTERNAL_FAILURE: "External Failure",
+        }
+        return labels[self]
+
+    @property
+    def color(self) -> str:
+        colors = {
+            COQCategory.PREVENTION: "blue",
+            COQCategory.APPRAISAL: "cyan",
+            COQCategory.INTERNAL_FAILURE: "orange",
+            COQCategory.EXTERNAL_FAILURE: "red",
+        }
+        return colors[self]

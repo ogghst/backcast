@@ -451,9 +451,7 @@ class DataSeeder:
                     created_count += 1
                     logger.info(f"Created Work Package: {wp_in.name}")
                 except Exception as e:
-                    logger.error(
-                        f"Failed to seed Work Package {item.get('name')}: {e}"
-                    )
+                    logger.error(f"Failed to seed Work Package {item.get('name')}: {e}")
                     skipped_count += 1
 
         logger.info(

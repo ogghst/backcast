@@ -13,6 +13,8 @@ from app.models.domain.work_package import WorkPackage
 from app.models.schemas.common import PaginatedResponse
 from app.models.schemas.work_package import (
     COQMetrics,
+    COQTrendGranularity,
+    COQTrendResponse,
     QualityCostAllocation,
     QualityCostAllocationRead,
     WorkPackageCreate,
@@ -44,7 +46,7 @@ async def read_work_packages(
     per_page: int = Query(20, ge=1, description="Items per page"),
     coq_category: str | None = Query(
         None,
-        pattern="^(conformance|nonconformance)$",
+        pattern="^(prevention|appraisal|internal_failure|external_failure)$",
         description="Filter by COQ category",
     ),
     package_type: str | None = Query(
@@ -172,6 +174,33 @@ async def get_coq_metrics(
     Only includes quality_impact-typed work packages.
     """
     return await service.get_coq_metrics(project_id=project_id, as_of=as_of)
+
+
+@router.get(
+    "/project/{project_id}/coq-trend",
+    response_model=COQTrendResponse,
+    operation_id="get_coq_trend",
+    summary="Get COQ trend time-series",
+    dependencies=[Depends(RoleChecker(required_permission="work-package-read"))],
+)
+async def get_coq_trend(
+    project_id: UUID,
+    granularity: COQTrendGranularity = Query(
+        COQTrendGranularity.MONTH, description="Time granularity"
+    ),
+    as_of: datetime | None = Query(
+        None, description="Point-in-time for historical query"
+    ),
+    service: WorkPackageService = Depends(get_work_package_service),
+) -> COQTrendResponse:
+    """Get COQ trend time-series for a project.
+
+    Returns Cost of Quality costs aggregated into time buckets (week or month),
+    broken down by the four COQ categories: prevention, appraisal,
+    internal_failure, external_failure.
+    Only includes quality_impact-typed work packages.
+    """
+    return await service.get_coq_trend(project_id, granularity, as_of)
 
 
 # Generic routes with path parameters

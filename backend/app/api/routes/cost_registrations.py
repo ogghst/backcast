@@ -97,9 +97,7 @@ async def read_cost_registrations(
         None,
         description="Time travel: get Cost Registrations as of this timestamp (ISO 8601)",
     ),
-    work_package_id: UUID | None = Query(
-        None, description="Filter by Work Package ID"
-    ),
+    work_package_id: UUID | None = Query(None, description="Filter by Work Package ID"),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
     """Retrieve cost registrations with server-side search, filtering, and sorting.

@@ -1,26 +1,23 @@
 import { useEffect, useRef } from "react";
 import { useParams, useBlocker } from "react-router-dom";
 import { Modal, Result, Skeleton, theme } from "antd";
-import { DashboardContextBus } from "../context/DashboardContextBus";
-import { DashboardGrid } from "../components/DashboardGrid";
-import { registerAllWidgets } from "../definitions/registerAll";
-import { useDashboardPersistence } from "../api/useDashboardPersistence";
+import { DashboardContextBus } from "@/features/widgets/context/DashboardContextBus";
+import { DashboardGrid } from "@/features/widgets/components/DashboardGrid";
+import { registerAllWidgets } from "@/features/widgets/definitions/registerAll";
+import { useDashboardPersistence } from "@/features/widgets/api/useDashboardPersistence";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
-import { DashboardErrorBoundary } from "./DashboardErrorBoundary";
+import { DashboardErrorBoundary } from "@/features/widgets/pages/DashboardErrorBoundary";
 
 // Register all widget types into the global registry.
 registerAllWidgets();
 
 /**
- * Hosting page for the composable widget dashboard.
+ * COQ Analysis page -- composable widget dashboard for Cost of Quality.
  *
- * Route: `/projects/:projectId/dashboard`
- * Provides the DashboardContextBus and renders the grid.
- * The grid manages the widget palette modal internally.
- *
- * Navigation guards prevent data loss when navigating away with unsaved changes.
+ * Route: `/projects/:projectId/coq-analysis`
+ * Clones DashboardPage structure, using the same persistence mechanism.
  */
-export function DashboardPage() {
+export function ProjectCOQAnalysis() {
   const { token } = theme.useToken();
   const { projectId } = useParams<{ projectId: string }>();
   const [modal, contextHolder] = Modal.useModal();
@@ -28,8 +25,11 @@ export function DashboardPage() {
   // Composition store for dirty state and edit mode
   const isDirty = useDashboardCompositionStore((s) => s.isDirty);
   const isEditing = useDashboardCompositionStore((s) => s.isEditing);
-  // Wire dashboard persistence -- scoped to "Cost Controller" for independence from COQ Analysis
-  const { save, isLoading } = useDashboardPersistence(projectId ?? "", "Cost Controller");
+  // Wire dashboard persistence -- scoped to "COQ Analysis" name, auto-clones from template
+  const { save, isLoading } = useDashboardPersistence(
+    projectId ?? "",
+    "COQ Analysis",
+  );
 
   // Browser-level navigation guard (refresh, close, back/forward buttons)
   useEffect(() => {

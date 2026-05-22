@@ -55,7 +55,7 @@ export const WorkPackageSummaryCard = ({
                   color: colors.textSecondary,
                 }}
               >
-                Total COQ
+                Planned COQ
               </span>
             }
             value={totalCost}

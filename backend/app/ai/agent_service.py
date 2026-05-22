@@ -1179,9 +1179,7 @@ class AgentService:
                         state.token_buffer[invocation_id_to_use] = []
                     state.token_buffer[invocation_id_to_use].append(content)
 
-    def _handle_chat_model_end(
-        self, state: StreamState, event: dict[str, Any]
-    ) -> None:
+    def _handle_chat_model_end(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_chat_model_end -- capture actual token usage and timing."""
         data = event.get("data", {})
         if state.llm_call_start is not None:
@@ -1226,16 +1224,12 @@ class AgentService:
 
         # Planning event
         if tool_name == TOOL_NAME_WRITE_TODOS:
-            plan = (
-                tool_input.get("plan") if isinstance(tool_input, dict) else None
-            )
+            plan = tool_input.get("plan") if isinstance(tool_input, dict) else None
             steps = None
             if isinstance(tool_input, dict):
                 raw_steps = tool_input.get("steps")
                 if isinstance(raw_steps, list):
-                    steps = [
-                        PlanningStep(text=str(s), done=False) for s in raw_steps
-                    ]
+                    steps = [PlanningStep(text=str(s), done=False) for s in raw_steps]
                     state.estimated_total_steps = len(steps)
             state.publish(
                 AgentEventType.PLANNING,
@@ -1261,9 +1255,7 @@ class AgentService:
                 else None
             )
             description = (
-                tool_input.get("description")
-                if isinstance(tool_input, dict)
-                else None
+                tool_input.get("description") if isinstance(tool_input, dict) else None
             )
             if subagent_type:
                 state.publish(
@@ -1325,12 +1317,9 @@ class AgentService:
                 invocation_number = self._subagent_invocation_counts[subagent_type]
 
                 target_invocation_id = (
-                    state.task_initiating_main_invocation_id
-                    or state.main_invocation_id
+                    state.task_initiating_main_invocation_id or state.main_invocation_id
                 )
-                state.subagent_messages.setdefault(
-                    target_invocation_id, []
-                ).append(
+                state.subagent_messages.setdefault(target_invocation_id, []).append(
                     {
                         "role": "assistant",
                         "content": subagent_content,
@@ -1418,9 +1407,7 @@ class AgentService:
             },
         )
 
-    def _handle_tool_error(
-        self, state: StreamState, event: dict[str, Any]
-    ) -> None:
+    def _handle_tool_error(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_tool_error -- record tool failure."""
         data = event.get("data", {})
         tool_name = event.get("name", "")
@@ -1553,10 +1540,8 @@ class AgentService:
                 for inv_id in list(state.token_buffer.keys()):
                     state.flush_tokens(inv_id)
 
-                state.briefing_persisted = (
-                    await self._persist_briefing_from_checkpoint(
-                        ctx.session_id, log_label="BRIEFING_PERSIST_STREAMING"
-                    )
+                state.briefing_persisted = await self._persist_briefing_from_checkpoint(
+                    ctx.session_id, log_label="BRIEFING_PERSIST_STREAMING"
                 )
 
                 break  # successful completion, exit retry loop

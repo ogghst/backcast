@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import WorkPackageStatus, WorkPackageType
+from app.core.enums import COQCategory, WorkPackageStatus, WorkPackageType
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -21,6 +21,9 @@ from app.models.domain.wbe import WBE
 from app.models.domain.work_package import WorkPackage
 from app.models.schemas.work_package import (
     COQMetrics,
+    COQTrendGranularity,
+    COQTrendPoint,
+    COQTrendResponse,
     QualityCostAllocation,
     QualityCostAllocationRead,
     WorkPackageCreate,
@@ -75,6 +78,10 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
 
         # Validate status
         self._validate_status(data.status)
+
+        # Validate coq_category if provided
+        if data.coq_category is not None:
+            self._validate_coq_category(data.coq_category)
 
         impact_data = data.model_dump(
             exclude_unset=True,
@@ -135,6 +142,10 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         # Validate status if being changed
         if data.status is not None:
             self._validate_status(data.status)
+
+        # Validate coq_category if being changed
+        if data.coq_category is not None:
+            self._validate_coq_category(data.coq_category)
 
         update_data = data.model_dump(
             exclude_unset=True,
@@ -388,10 +399,16 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         impact_count = total_row.impact_count
         total_schedule_days = int(total_row.total_schedule_days or 0)
 
-        conformance_cost = Decimal(str(cat_costs.get("conformance", Decimal("0"))))
-        nonconformance_cost = Decimal(
-            str(cat_costs.get("nonconformance", Decimal("0")))
+        prevention_cost = Decimal(str(cat_costs.get("prevention", Decimal("0"))))
+        appraisal_cost = Decimal(str(cat_costs.get("appraisal", Decimal("0"))))
+        internal_failure_cost = Decimal(
+            str(cat_costs.get("internal_failure", Decimal("0")))
         )
+        external_failure_cost = Decimal(
+            str(cat_costs.get("external_failure", Decimal("0")))
+        )
+        conformance_cost = prevention_cost + appraisal_cost
+        nonconformance_cost = internal_failure_cost + external_failure_cost
 
         # Compute COQ ratio: total COQ cost / project budget
         coq_ratio = await self._compute_coq_ratio(project_id, total_cost)
@@ -400,6 +417,10 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             total_cost=total_cost,
             conformance_cost=conformance_cost,
             nonconformance_cost=nonconformance_cost,
+            prevention_cost=prevention_cost,
+            appraisal_cost=appraisal_cost,
+            internal_failure_cost=internal_failure_cost,
+            external_failure_cost=external_failure_cost,
             total_schedule_days=total_schedule_days,
             impact_count=impact_count,
             coq_ratio=coq_ratio,
@@ -433,20 +454,19 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             WorkPackage.package_type == quality_type,
         ]
         if as_of is not None:
-            wp_subq = (
-                select(WorkPackage)
-                .where(
-                    WorkPackage.project_id == project_id,
-                    WorkPackage.package_type == quality_type,
-                )
+            wp_subq = select(WorkPackage).where(
+                WorkPackage.project_id == project_id,
+                WorkPackage.package_type == quality_type,
             )
             wp_subq = self._apply_bitemporal_filter(wp_subq, as_of)
             wp_subq = wp_subq.subquery()
         else:
-            wp_filters.extend([
-                func.upper(WorkPackage.valid_time).is_(None),
-                WorkPackage.deleted_at.is_(None),
-            ])
+            wp_filters.extend(
+                [
+                    func.upper(WorkPackage.valid_time).is_(None),
+                    WorkPackage.deleted_at.is_(None),
+                ]
+            )
 
         # Build base filters for CostRegistration
         cr_filters_current = [
@@ -457,24 +477,17 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         # 1. Total COQ: sum of CR.amount where work_package_id IS NOT NULL
         if as_of is not None:
             total_coq_stmt = select(
-                func.coalesce(
-                    func.sum(CostRegistration.amount), Decimal("0")
-                )
+                func.coalesce(func.sum(CostRegistration.amount), Decimal("0"))
             ).where(
                 CostRegistration.work_package_id == wp_subq.c.work_package_id,
                 *cr_filters_current,
             )
         else:
             total_coq_stmt = (
-                select(
-                    func.coalesce(
-                        func.sum(CostRegistration.amount), Decimal("0")
-                    )
-                )
+                select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
                 .join(
                     WorkPackage,
-                    CostRegistration.work_package_id
-                    == WorkPackage.work_package_id,
+                    CostRegistration.work_package_id == WorkPackage.work_package_id,
                 )
                 .where(
                     *wp_filters,
@@ -488,29 +501,24 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         # 2. CPQ: same but filtered by nonconformance
         if as_of is not None:
             cpq_stmt = select(
-                func.coalesce(
-                    func.sum(CostRegistration.amount), Decimal("0")
-                )
+                func.coalesce(func.sum(CostRegistration.amount), Decimal("0"))
             ).where(
                 CostRegistration.work_package_id == wp_subq.c.work_package_id,
-                wp_subq.c.coq_category == "nonconformance",
+                wp_subq.c.coq_category.in_(["internal_failure", "external_failure"]),
                 *cr_filters_current,
             )
         else:
             cpq_stmt = (
-                select(
-                    func.coalesce(
-                        func.sum(CostRegistration.amount), Decimal("0")
-                    )
-                )
+                select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
                 .join(
                     WorkPackage,
-                    CostRegistration.work_package_id
-                    == WorkPackage.work_package_id,
+                    CostRegistration.work_package_id == WorkPackage.work_package_id,
                 )
                 .where(
                     *wp_filters,
-                    WorkPackage.coq_category == "nonconformance",
+                    WorkPackage.coq_category.in_(
+                        ["internal_failure", "external_failure"]
+                    ),
                     CostRegistration.work_package_id.isnot(None),
                     *cr_filters_current,
                 )
@@ -521,9 +529,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         # 3. Total AC: sum of ALL CostRegistration amounts for cost elements
         #    in this project (via CostElement -> WBE -> project)
         total_ac_stmt = (
-            select(
-                func.coalesce(func.sum(CostRegistration.amount), Decimal("0"))
-            )
+            select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
             .join(
                 CostElement,
                 CostRegistration.cost_element_id == CostElement.cost_element_id,
@@ -545,9 +551,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
 
         # 4. CPQ% = CPQ / Total AC * 100
         if total_ac > 0:
-            cpq_percentage = (cpq / total_ac * Decimal("100")).quantize(
-                Decimal("0.01")
-            )
+            cpq_percentage = (cpq / total_ac * Decimal("100")).quantize(Decimal("0.01"))
         else:
             cpq_percentage = Decimal("0.00")
 
@@ -575,6 +579,167 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             qpi_rating=qpi_rating,
             total_ac=total_ac,
             coq_ratio=coq_ratio,
+        )
+
+    # --- COQ Trend ---
+
+    async def get_coq_trend(
+        self,
+        project_id: UUID,
+        granularity: COQTrendGranularity = COQTrendGranularity.MONTH,
+        as_of: datetime | None = None,
+    ) -> COQTrendResponse:
+        """Get COQ cost trend over time bucketed by granularity.
+
+        Uses date_trunc + group-by on time bucket and coq_category, then
+        assembles COQTrendPoints in Python for clarity and correctness.
+
+        Args:
+            project_id: Project root ID.
+            granularity: Time bucket size (week or month).
+            as_of: Optional timestamp for time-travel query.
+
+        Returns:
+            COQTrendResponse with time-series data points.
+        """
+        quality_type = WorkPackageType.QUALITY_IMPACT.value
+        trunc = "week" if granularity == COQTrendGranularity.WEEK else "month"
+
+        # Determine date range from work package event dates
+        range_stmt = select(
+            func.coalesce(func.min(WorkPackage.event_date), datetime.now()),
+            func.coalesce(func.max(WorkPackage.event_date), datetime.now()),
+        ).where(
+            WorkPackage.project_id == project_id,
+            WorkPackage.package_type == quality_type,
+            WorkPackage.event_date.isnot(None),
+            func.upper(WorkPackage.valid_time).is_(None),
+            WorkPackage.deleted_at.is_(None),
+        )
+        range_result = await self.session.execute(range_stmt)
+        start_date, end_date = range_result.one()
+        if as_of is not None and as_of < end_date:
+            end_date = as_of
+
+        # --- Actual costs (from CostRegistration) ---
+        bucket_expr = func.date_trunc(trunc, WorkPackage.event_date)
+        actual_stmt = (
+            select(
+                bucket_expr.label("bucket"),
+                WorkPackage.coq_category,
+                func.coalesce(func.sum(CostRegistration.amount), Decimal("0")).label(
+                    "cost"
+                ),
+            )
+            .join(
+                WorkPackage,
+                CostRegistration.work_package_id == WorkPackage.work_package_id,
+            )
+            .where(
+                WorkPackage.project_id == project_id,
+                WorkPackage.package_type == quality_type,
+                WorkPackage.event_date.isnot(None),
+                func.upper(WorkPackage.valid_time).is_(None),
+                WorkPackage.deleted_at.is_(None),
+                CostRegistration.work_package_id.isnot(None),
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+            )
+            .group_by(
+                bucket_expr,
+                WorkPackage.coq_category,
+            )
+            .order_by(bucket_expr)
+        )
+        actual_result = await self.session.execute(actual_stmt)
+        actual_rows = actual_result.all()
+
+        # --- Planned costs (from cost_impact) ---
+        planned_stmt = (
+            select(
+                bucket_expr.label("bucket"),
+                WorkPackage.coq_category,
+                func.coalesce(func.sum(WorkPackage.cost_impact), Decimal("0")).label(
+                    "cost"
+                ),
+            )
+            .where(
+                WorkPackage.project_id == project_id,
+                WorkPackage.package_type == quality_type,
+                WorkPackage.event_date.isnot(None),
+                func.upper(WorkPackage.valid_time).is_(None),
+                WorkPackage.deleted_at.is_(None),
+            )
+            .group_by(
+                bucket_expr,
+                WorkPackage.coq_category,
+            )
+            .order_by(bucket_expr)
+        )
+        planned_result = await self.session.execute(planned_stmt)
+        planned_rows = planned_result.all()
+
+        # Assemble into COQTrendPoints grouped by bucket
+        from collections import defaultdict
+
+        actual_buckets: dict[datetime, dict[str, Decimal]] = defaultdict(
+            lambda: {
+                "prevention": Decimal("0"),
+                "appraisal": Decimal("0"),
+                "internal_failure": Decimal("0"),
+                "external_failure": Decimal("0"),
+            }
+        )
+        for row in actual_rows:
+            cat = row.coq_category
+            if cat and cat in actual_buckets[row.bucket]:
+                actual_buckets[row.bucket][cat] = Decimal(str(row.cost))
+
+        planned_buckets: dict[datetime, dict[str, Decimal]] = defaultdict(
+            lambda: {
+                "prevention": Decimal("0"),
+                "appraisal": Decimal("0"),
+                "internal_failure": Decimal("0"),
+                "external_failure": Decimal("0"),
+            }
+        )
+        for row in planned_rows:
+            cat = row.coq_category
+            if cat and cat in planned_buckets[row.bucket]:
+                planned_buckets[row.bucket][cat] = Decimal(str(row.cost))
+
+        all_dates = sorted(set(actual_buckets.keys()) | set(planned_buckets.keys()))
+
+        points: list[COQTrendPoint] = []
+        for bucket_date in all_dates:
+            ac = actual_buckets[bucket_date]
+            pc = planned_buckets[bucket_date]
+            total_coq = sum(ac.values())
+            total_planned = sum(pc.values())
+            cpq = ac["internal_failure"] + ac["external_failure"]
+            points.append(
+                COQTrendPoint(
+                    date=bucket_date,
+                    planned_prevention=pc["prevention"],
+                    planned_appraisal=pc["appraisal"],
+                    planned_internal_failure=pc["internal_failure"],
+                    planned_external_failure=pc["external_failure"],
+                    total_planned=total_planned,
+                    prevention=ac["prevention"],
+                    appraisal=ac["appraisal"],
+                    internal_failure=ac["internal_failure"],
+                    external_failure=ac["external_failure"],
+                    total_coq=total_coq,
+                    cpq=cpq,
+                )
+            )
+
+        return COQTrendResponse(
+            granularity=granularity,
+            points=points,
+            start_date=start_date,
+            end_date=end_date,
+            total_points=len(points),
         )
 
     @staticmethod
@@ -606,17 +771,15 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             if cpq_percentage <= upper:
                 # Linear interpolation within this band
                 fraction = (cpq_percentage - prev_upper) / (upper - prev_upper)
-                return (qpi_at_lower + fraction * (qpi_at_upper - qpi_at_lower)).quantize(
-                    Decimal("0.01")
-                )
+                return (
+                    qpi_at_lower + fraction * (qpi_at_upper - qpi_at_lower)
+                ).quantize(Decimal("0.01"))
             prev_upper = upper
 
         # Above 4.0%: linear extrapolation from the last band
         # At 4.0% QPI=0.85, slope from 2.0-4.0% band
         excess = cpq_percentage - Decimal("4.0")
-        return (Decimal("0.85") - excess * Decimal("0.05")).quantize(
-            Decimal("0.01")
-        )
+        return (Decimal("0.85") - excess * Decimal("0.05")).quantize(Decimal("0.01"))
 
     @staticmethod
     def _qpi_rating(qpi: Decimal) -> str:
@@ -725,9 +888,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             actor_id=actor_id,
         )
 
-    async def compute_actual_cost(
-        self, work_package_id: UUID
-    ) -> Decimal | None:
+    async def compute_actual_cost(self, work_package_id: UUID) -> Decimal | None:
         """Compute actual cost from linked CostRegistration entries.
 
         Args:
@@ -781,6 +942,23 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             raise ValueError(
                 f"Invalid status '{status}'. "
                 f"Must be one of: {', '.join(sorted(valid_statuses))}"
+            )
+
+    @staticmethod
+    def _validate_coq_category(coq_category: str) -> None:
+        """Validate coq_category against the COQCategory enum.
+
+        Args:
+            coq_category: The COQ category value to validate.
+
+        Raises:
+            ValueError: If the coq_category is not a valid enum member.
+        """
+        valid_categories = {c.value for c in COQCategory}
+        if coq_category not in valid_categories:
+            raise ValueError(
+                f"Invalid coq_category '{coq_category}'. "
+                f"Must be one of: {', '.join(sorted(valid_categories))}"
             )
 
     async def _validate_project_exists(self, project_id: UUID) -> None:
@@ -877,6 +1055,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         existing_crs = existing_result.scalars().all()
 
         for cr in existing_crs:
+
             class CRSoftDeleteCommand(SoftDeleteCommand[CostRegistration]):  # type: ignore[type-var,unused-ignore]
                 def _root_field_name(self) -> str:
                     return "cost_registration_id"

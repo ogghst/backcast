@@ -49,6 +49,13 @@ export const PACKAGE_TYPE_OPTIONS = [
 
 export type PackageType = (typeof PACKAGE_TYPE_OPTIONS)[number]["value"];
 
+export const COQ_CATEGORY_OPTIONS = [
+  { label: "Prevention", value: "prevention" },
+  { label: "Appraisal", value: "appraisal" },
+  { label: "Internal Failure", value: "internal_failure" },
+  { label: "External Failure", value: "external_failure" },
+] as const;
+
 export interface WorkPackageRead {
   id: string;
   work_package_id: string;
@@ -102,6 +109,10 @@ export interface WorkPackageSummary {
   total_cost: string;
   conformance_cost: string;
   nonconformance_cost: string;
+  prevention_cost: string;
+  appraisal_cost: string;
+  internal_failure_cost: string;
+  external_failure_cost: string;
   total_schedule_days: number;
   impact_count: number;
   coq_ratio: string | null;
@@ -116,6 +127,31 @@ export interface COQMetrics {
   qpi_rating: string | null;
   total_ac: number;
   coq_ratio: number | null;
+}
+
+export interface COQTrendPoint {
+  date: string;
+  // Planned costs (from work package cost_impact)
+  planned_prevention: string;
+  planned_appraisal: string;
+  planned_internal_failure: string;
+  planned_external_failure: string;
+  total_planned: string;
+  // Actual costs (from cost registrations)
+  prevention: string;
+  appraisal: string;
+  internal_failure: string;
+  external_failure: string;
+  total_coq: string;
+  cpq: string;
+}
+
+export interface COQTrendResponse {
+  granularity: "week" | "month";
+  points: COQTrendPoint[];
+  start_date: string;
+  end_date: string;
+  total_points: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +350,37 @@ export const useCOQMetrics = (projectId: string) => {
         method: "GET",
         url: "/api/v1/work-packages/project/{project_id}/coq-metrics",
         path: { project_id: projectId },
+        errors: { 422: "Validation Error" },
+      });
+    },
+    enabled: !!projectId,
+  });
+};
+
+// ---------------------------------------------------------------------------
+// COQ Trend hook
+// ---------------------------------------------------------------------------
+
+/**
+ * Hook to get COQ trend data over time for a project.
+ */
+export const useCOQTrend = (
+  projectId: string,
+  granularity: "week" | "month" = "month",
+) => {
+  const { asOf } = useTimeMachineParams();
+
+  return useQuery<COQTrendResponse>({
+    queryKey: queryKeys.workPackages.coqTrend(projectId, granularity),
+    queryFn: async () => {
+      return await __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/work-packages/project/{project_id}/coq-trend",
+        path: { project_id: projectId },
+        query: {
+          granularity,
+          as_of: asOf || undefined,
+        },
         errors: { 422: "Validation Error" },
       });
     },
