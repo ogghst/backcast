@@ -23,10 +23,10 @@ from app.models.domain.department import Department
 from app.models.domain.forecast import Forecast
 from app.models.domain.progress_entry import ProgressEntry
 from app.models.domain.project import Project
-from app.models.domain.quality_event import QualityEvent
 from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
+from app.models.domain.work_package import WorkPackage
 from app.models.schemas.search import GlobalSearchResponse, SearchResultItem
 
 
@@ -244,12 +244,12 @@ _ENTITY_CONFIG: list[
         False,
     ),
     (
-        "quality_event",
-        QualityEvent,
-        "quality_event_id",
-        [],
+        "work_package",
+        WorkPackage,
+        "work_package_id",
+        ["name"],
         ["description"],
-        ["event_type", "root_cause", "resolution_notes"],
+        ["package_type", "coq_category"],
         False,
         False,
     ),

@@ -61,7 +61,7 @@ if HAS_DEEPSEEK:
             if rc:
                 msg_dict["reasoning_content"] = rc
             elif message.tool_calls:
-                logger.warning(
+                logger.debug(
                     "AIMessage with tool_calls but no reasoning_content — "
                     "DeepSeek thinking mode will reject this."
                 )
@@ -124,6 +124,7 @@ from app.ai.graph_params import (
     StreamState,
 )
 from app.ai.message_utils import extract_tool_output_content
+from app.ai.message_utils import is_transient_stream_error as _is_transient_stream_error
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.subagents import get_all_subagents
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
@@ -302,18 +303,6 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
 
     _user_role_cache[user_id] = (time.time() + _USER_ROLE_TTL, role)
     return role
-
-
-def _is_transient_stream_error(exc: Exception) -> bool:
-    """Check if a streaming error is transient and worth retrying."""
-    if isinstance(exc, (ConnectionResetError, OSError)):
-        return True
-    # httpcore/httpx errors — check by name to avoid hard imports
-    err_type = type(exc).__name__
-    err_module = type(exc).__module__
-    return (err_type == "ReadError" and "httpcore" in err_module) or (
-        err_type == "RemoteProtocolError" and "httpx" in err_module
-    )
 
 
 class AgentService:
@@ -1194,10 +1183,13 @@ class AgentService:
             state.llm_call_start = None
         state.token_accumulator.accumulate_from_event(data)
     def _handle_tool_start(self, state: StreamState, event: dict[str, Any]) -> None:
-        """Handle on_tool_start -- flush tokens, track tool invocation."""
+        """Handle on_tool_start -- discard intermediate reasoning, track tool invocation."""
         data = event.get("data", {})
-        # Flush tokens before tool execution to maintain ordering.
-        state.flush_tokens(state.main_invocation_id)
+        # Discard intermediate model reasoning before tool execution.
+        # The user only sees tool call notifications and the final response,
+        # not the model's thinking between tool calls.
+        state.token_buffer.pop(state.main_invocation_id, [])
+        state.main_agent_segments.pop(state.main_invocation_id, None)
         if state.current_invocation_id and state.current_subagent_name:
             state.flush_tokens(state.current_invocation_id)
 
@@ -1499,7 +1491,11 @@ class AgentService:
                         "briefing_data": existing_briefing,
                     },
                     config={
-                        "recursion_limit": ctx.recursion_limit,
+                        # Supervisor orchestrator uses nested subgraphs — each
+                        # tool call cycle costs ~5 graph steps internally.  The
+                        # recursion_limit must be higher than max_tool_iterations
+                        # to avoid premature GraphRecursionError.
+                        "recursion_limit": ctx.recursion_limit * 5,
                         "configurable": {"thread_id": str(ctx.session_id)},
                     },
                     version="v1",
