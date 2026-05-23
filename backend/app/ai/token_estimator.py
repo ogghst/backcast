@@ -123,29 +123,62 @@ class TokenUsageAccumulator:
     def accumulate_from_event(self, event_data: dict[str, Any]) -> None:
         """Extract and accumulate token usage from an on_chat_model_end event.
 
-        Checks LangChain usage_metadata first, then falls back to OpenAI
-        response_metadata format. Gracefully no-ops if neither is present.
+        Handles two formats:
+        - AIMessage object with usage_metadata attribute (direct LLM call)
+        - Dict from astream_events v1 with nested generations containing AIMessage
 
         Args:
-            event_data: Event dict from astream_events with 'output' field
-                containing an AIMessage with usage metadata.
+            event_data: Event dict from astream_events with 'output' field.
         """
         output = event_data.get("output")
         if output is None:
             return
 
-        # Try LangChain standard format first (usage_metadata)
-        usage_metadata = getattr(output, "usage_metadata", None)
+        # astream_events v1 returns output as a dict with nested generations
+        if isinstance(output, dict):
+            generations = output.get("generations", [])
+            if generations and isinstance(generations, list):
+                for gen_list in generations:
+                    if isinstance(gen_list, list):
+                        for gen in gen_list:
+                            msg = gen.get("message") if isinstance(gen, dict) else None
+                            if msg is not None and self._extract_from_message(msg):
+                                return
+            # Also check llm_output for aggregate usage
+            llm_output = output.get("llm_output")
+            if isinstance(llm_output, dict):
+                token_usage = llm_output.get("token_usage")
+                if isinstance(token_usage, dict):
+                    prompt = token_usage.get("prompt_tokens")
+                    completion = token_usage.get("completion_tokens")
+                    if isinstance(prompt, int) and isinstance(completion, int):
+                        self.prompt_tokens += prompt
+                        self.completion_tokens += completion
+                        return
+            return
+
+        # Direct AIMessage object
+        if self._extract_from_message(output):
+            return
+
+        logger.debug(
+            "[TOKEN_USAGE] No usage data in event output — "
+            "type=%s",
+            type(output).__name__,
+        )
+
+    def _extract_from_message(self, msg: Any) -> bool:
+        """Extract token usage from an AIMessage-like object. Returns True if found."""
+        usage_metadata = getattr(msg, "usage_metadata", None)
         if isinstance(usage_metadata, dict):
             input_tokens = usage_metadata.get("input_tokens")
             output_tokens = usage_metadata.get("output_tokens")
             if isinstance(input_tokens, int) and isinstance(output_tokens, int):
                 self.prompt_tokens += input_tokens
                 self.completion_tokens += output_tokens
-                return
+                return True
 
-        # Fallback to OpenAI format (response_metadata.token_usage)
-        response_metadata = getattr(output, "response_metadata", None)
+        response_metadata = getattr(msg, "response_metadata", None)
         if isinstance(response_metadata, dict):
             token_usage = response_metadata.get("token_usage")
             if isinstance(token_usage, dict):
@@ -154,6 +187,9 @@ class TokenUsageAccumulator:
                 if isinstance(prompt, int) and isinstance(completion, int):
                     self.prompt_tokens += prompt
                     self.completion_tokens += completion
+                    return True
+
+        return False
 
     def to_dict(self) -> dict[str, int]:
         """Return token usage as a dictionary.

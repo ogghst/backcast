@@ -446,6 +446,7 @@ class AgentService:
                     temperature=temp,
                     max_tokens=tokens,
                     stream_chunk_timeout=300,
+                    stream_usage=True,
                     **kwargs,
                 )
             return ChatOpenAI(
@@ -454,6 +455,7 @@ class AgentService:
                 temperature=temp,
                 max_tokens=tokens,
                 stream_chunk_timeout=300,
+                stream_usage=True,
                 **kwargs,
             )
 
@@ -1191,7 +1193,6 @@ class AgentService:
             )
             state.llm_call_start = None
         state.token_accumulator.accumulate_from_event(data)
-
     def _handle_tool_start(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_tool_start -- flush tokens, track tool invocation."""
         data = event.get("data", {})

@@ -396,6 +396,7 @@ class DashboardService:
             last_activity=last_activity or datetime.now(UTC),
             metrics=metrics,
             branch=project.branch,
+            currency=project.currency or "EUR",
         )
 
     async def _calculate_project_metrics(

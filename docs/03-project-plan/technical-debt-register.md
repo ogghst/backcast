@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-05-20
-**Total Open Items:** 5
-**Total Estimated Effort:** ~7.5 days
+**Last Updated:** 2026-05-23
+**Total Open Items:** 7
+**Total Estimated Effort:** ~9.5 days
 
 ---
 
@@ -162,6 +162,43 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 - **Status:** ✅ Resolved (2026-05-19) — Added `useTimeMachineParams()` to `useDashboardData` hook, updated query key to include temporal params, added `branch` and `as_of` params to backend endpoint and service. See archive.
 
+### [TD-109] Add trim_messages to Streaming Execution Path
+
+- **Source:** AI chat overhead analysis (May 2026) — agent session with 13 LLM calls for 9 tool calls, 149s execution time
+- **Description:** The main streaming execution path (`_process_stream_events` in `agent_service.py`) has no message trimming. Full conversation history is sent to the LLM on every call, causing exponential latency growth (2.7s → 26.6s across 13 calls). LangGraph's `trim_messages()` utility or tighter `SummarizationMiddleware` integration could bound context size.
+- **Impact:** LLM calls grow exponentially slower as conversation accumulates; DeepSeek costs scale with token count
+- **Estimated Effort:** 1 day
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P2 (Medium)
+- **Suggested Approach:** Investigate `trim_messages(strategy="last", max_tokens=...)` as a preprocessing step before each LLM call in the streaming path. Consider `SummarizationMiddleware` integration with the non-supervisor graph. Requires analysis of how trimming interacts with the briefing system and specialist isolation.
+
+---
+
+### [TD-110] Enable Parallel Tool Calls for Batch Operations
+
+- **Source:** AI chat overhead analysis (May 2026)
+- **Description:** `graph.py` sets `parallel_tool_calls=False` (line 128), forcing all tool calls to execute sequentially. For batch operations like creating multiple cost elements or WBEs, this causes multiple full supervisor→specialist→supervisor cycles. Enabling parallelism would reduce sequential LLM rounds.
+- **Impact:** Batch operations take 3-5x longer than necessary; recursion limit hit on comprehensive project creation
+- **Estimated Effort:** 4 hours
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P3 (Medium)
+- **Suggested Approach:** Investigate impact on `SequentialToolCallsMiddleware`, `RBACToolNode` permission checking, and `BackcastSecurityMiddleware`. These middlewares may rely on sequential execution order. Start by enabling parallelism only for read-only tools as a safe first step.
+
+---
+
+### [TD-111] Reduce Supervisor Intermediate Message Accumulation
+
+- **Source:** AI chat overhead analysis (May 2026) — `output_mode="last_message"` doesn't exist on `langchain.create_agent`
+- **Description:** The supervisor agent's intermediate messages (routing decisions, handoff tool calls) accumulate in parent state via `operator.add` on `messages`. This inflates context sent to the LLM on each iteration, contributing to exponential latency growth. The `output_mode="last_message"` parameter only exists in the `langgraph-supervisor` package (not installed).
+- **Impact:** Each supervisor cycle adds 2-3 intermediate messages to context; 4 empty supervisor turns wasted ~60s in the analyzed session
+- **Estimated Effort:** 1 day
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P2 (Medium)
+- **Suggested Approach:** Either (a) install `langgraph-supervisor` and refactor to use `create_supervisor()` with `output_mode="last_message"`, or (b) replace `operator.add` on messages with a custom reducer that keeps only the final AIMessage from each supervisor turn, discarding intermediate tool-call chatter.
+
 ---
 
 ### [TD-108] ~~Home Dashboard Card Shows Wrong Currency Symbol~~
@@ -177,9 +214,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 2 | ~2.5 days |
-| Medium (P2-P3) | 1 | ~2 days |
+| Medium (P2-P3) | 4 | ~4.5 days |
 | Low (P4+) | 1 | ~5 hours |
-| **Total** | **4** | **~6.5 days** |
+| **Total** | **7** | **~9.5 days** |
 
 ---
 

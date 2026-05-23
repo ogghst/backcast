@@ -74,6 +74,9 @@ class ProjectSpotlight(BaseModel):
     )
     metrics: ProjectMetrics = Field(..., description="Project metrics")
     branch: str = Field(..., description="Branch of last activity")
+    currency: str = Field(
+        "EUR", description="ISO 4217 currency code for the project"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

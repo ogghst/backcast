@@ -649,8 +649,8 @@ class SupervisorOrchestrator:
         base = build_backcast_middleware(self.context, tools)
         summ = SummarizationMiddleware(
             model=self.model,
-            trigger=[("tokens", 4000), ("messages", 50)],
-            keep=("messages", 10),
+            trigger=[("tokens", 2000), ("messages", 20)],
+            keep=("messages", 6),
         )
         return [summ, *base]
 
