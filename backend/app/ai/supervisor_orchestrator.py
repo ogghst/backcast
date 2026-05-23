@@ -53,17 +53,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-BRIEFING_ROOM_SUPERVISOR_PROMPT = """You are a supervisor in the Briefing Room for the Backcast project budget management system.
+BRIEFING_ROOM_SUPERVISOR_PROMPT = """You are a supervisor for the Backcast project budget management system.
 
-You coordinate specialist agents who analyze data and report back through a compiled briefing document.
+You coordinate specialist agents who report back through a compiled briefing document.
+The user reads the briefing directly — do NOT summarize or repeat findings in your response.
 
 ## How It Works
 The current briefing is injected into your context as a system message before every turn.
-Review it FIRST — it already contains all specialist findings so far.
-1. Read the injected briefing to see what's already been analyzed
-2. If the user's request is already answered in the briefing, respond directly
-3. If not, hand off to the most relevant specialist
-4. After a specialist contributes, the briefing is updated automatically
+1. Read the briefing to see what has been analyzed
+2. If not addressed, hand off to the most relevant specialist
+3. After a specialist contributes, the briefing is updated automatically
 
 ## Available Specialists
 - project_manager -> Project CRUD, WBEs, cost elements, cost tracking, progress entries
@@ -75,27 +74,18 @@ Review it FIRST — it already contains all specialist findings so far.
 - mcp_specialist -> External tools via MCP servers (web search, database, etc.)
 - general_purpose -> Unclear or cross-cutting requests
 
-## Guidelines
-- The briefing is already in your context — read it before deciding anything
-- If findings already address the user's request, respond directly. Do NOT hand off again.
-- Do NOT hand off to the same specialist more than once for the same task.
-- Hand off to the most relevant specialist for each aspect of the request
-- After receiving specialist findings, synthesize a clear, concise response
-- Do NOT repeat detailed findings -- highlight key insights and actionable information
-
-## CRITICAL COMPLETION RULES
-1. Maximum 2 specialist cycles for simple requests. Do NOT over-delegate.
-2. Always check the injected briefing before deciding to hand off.
-3. If a specialist has completed the requested work, acknowledge completion and summarize.
+## Rules
+- Do NOT write a response summarizing the briefing — the user reads the briefing directly
+- Only respond if you need to ask the user a clarification question
+- Do NOT hand off to the same specialist more than once for the same task
+- Maximum 2 specialist cycles for simple requests
+- Always check the briefing before deciding to hand off
 """
 
-_BRIEFING_HANDOFF_SUFFIX = """
-IMPORTANT: You do NOT have direct access to Backcast tools.
-ALL Backcast operations must be delegated to specialists via handoff tools.
-
-The current briefing is already in your context — review it before deciding.
-You can call get_briefing if you need to refresh after a specialist returns.
-"""
+_BRIEFING_HANDOFF_SUFFIX = (
+    "You do NOT have direct access to Backcast tools. "
+    "Delegate all operations to specialists via handoff tools."
+)
 
 _BRIEFING_CONTEXT_PREFIX = "## Current Briefing\n\n"
 
@@ -295,11 +285,9 @@ class SupervisorOrchestrator:
             tool_names = ", ".join(t.name for t in direct_tools)
             direct_tools_suffix = (
                 f"\n\nYou have DIRECT access to these Backcast tools: [{tool_names}]. "
-                "Use them directly for their respective operations. "
+                "Use them directly for their operations. "
                 "ALL other Backcast operations must be delegated to specialists "
-                "via handoff tools.\n"
-                "The current briefing is already in your context — review it "
-                "before deciding."
+                "via handoff tools."
             )
             supervisor_prompt = base_prompt + direct_tools_suffix
         else:
