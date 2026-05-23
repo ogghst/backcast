@@ -12,7 +12,38 @@ from typing import Any
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langgraph.types import Command
 
-__all__ = ["extract_final_ai_response", "extract_tool_output_content"]
+__all__ = [
+    "extract_final_ai_response",
+    "extract_tool_output_content",
+    "find_last_ai_reasoning_kwargs",
+    "is_transient_stream_error",
+]
+
+
+def find_last_ai_reasoning_kwargs(messages: list[BaseMessage]) -> dict[str, Any]:
+    """Find reasoning_content from the last AIMessage and return additional_kwargs.
+
+    Returns an empty dict if no reasoning_content is found. Used by handoff
+    tools to propagate DeepSeek thinking mode across synthetic messages.
+    """
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage):
+            rc = msg.additional_kwargs.get("reasoning_content")
+            if rc:
+                return {"additional_kwargs": {"reasoning_content": rc}}
+            return {}
+    return {}
+
+
+def is_transient_stream_error(exc: Exception) -> bool:
+    """Check if a streaming error is transient and worth retrying."""
+    if isinstance(exc, (ConnectionResetError, OSError)):
+        return True
+    err_type = type(exc).__name__
+    err_module = type(exc).__module__
+    return (err_type == "ReadError" and "httpcore" in err_module) or (
+        err_type == "RemoteProtocolError" and "httpx" in err_module
+    )
 
 
 def extract_final_ai_response(messages: list[BaseMessage]) -> str:

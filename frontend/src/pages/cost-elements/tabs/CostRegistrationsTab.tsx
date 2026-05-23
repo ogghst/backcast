@@ -1,10 +1,11 @@
-import { App, Button, Space, Input, Tag, Grid } from "antd";
+import { App, Button, Space, Input, Tag, Grid, Badge, Typography } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   HistoryOutlined,
   SearchOutlined,
+  PaperClipOutlined,
 } from "@ant-design/icons";
 import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
@@ -35,6 +36,8 @@ import { useWBE } from "@/features/wbes/api/useWBEs";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
 import { PACKAGE_TYPE_OPTIONS } from "@/features/work-package/api/useWorkPackages";
+
+const { Text } = Typography;
 
 interface CostRegistrationsTabProps {
   costElement: CostElementRead;
@@ -291,6 +294,22 @@ export const CostRegistrationsTab = ({
       responsive: ["lg"],
       ...getColumnSearchProps("vendor_reference"),
       render: (vendor) => vendor || "-",
+    },
+    {
+      title: "Files",
+      dataIndex: "attachment_count",
+      key: "attachment_count",
+      width: 70,
+      align: "center",
+      responsive: ["sm"],
+      render: (count: number) =>
+        count > 0 ? (
+          <Badge count={count} size="small" color="blue">
+            <PaperClipOutlined style={{ fontSize: 16 }} />
+          </Badge>
+        ) : (
+          <Text type="secondary">-</Text>
+        ),
     },
     {
       title: "Actions",

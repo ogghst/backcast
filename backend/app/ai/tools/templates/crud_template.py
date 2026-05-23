@@ -401,6 +401,60 @@ async def update_project(
         return {"error": str(e)}
 
 
+@ai_tool(
+    name="delete_project",
+    description="Soft delete a project. "
+    "The project is marked as deleted but remains in the database for audit.",
+    permissions=["project-delete"],
+    category="projects",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_project(
+    project_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a project.
+
+    Context: Provides database session and project service for deletion.
+
+    Args:
+        project_id: UUID of the project to delete
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with deletion confirmation
+
+    Raises:
+        ValueError: If project_id is invalid
+        KeyError: If project not found
+
+    Example:
+        >>> result = await delete_project("...")
+        >>> print(f"Deleted project: {result['id']}")
+    """
+    try:
+        from uuid import UUID
+
+        service = context.project_service
+
+        await service.delete_project(
+            project_id=UUID(project_id),
+            actor_id=UUID(context.user_id),
+        )
+
+        return {
+            "id": project_id,
+            "message": "Project deleted",
+        }
+    except ValueError:
+        return {"error": f"Invalid project ID: {project_id}"}
+    except KeyError:
+        return {"error": f"Project {project_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in delete_project: {e}")
+        return {"error": str(e)}
+
+
 # =============================================================================
 # WBE CRUD TOOLS
 # =============================================================================
@@ -732,6 +786,62 @@ async def update_wbe(
         return {"error": f"WBE {wbe_id} not found"}
     except Exception as e:
         logger.error(f"Error in update_wbe: {e}")
+        return {"error": str(e)}
+
+
+@ai_tool(
+    name="delete_wbe",
+    description="Soft delete a Work Breakdown Element (WBE). "
+    "Cascades the delete to all child WBEs recursively.",
+    permissions=["wbe-delete"],
+    category="wbe",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_wbe(
+    wbe_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a WBE and all its children.
+
+    Context: Provides database session and WBE service for deletion.
+
+    Args:
+        wbe_id: UUID of the WBE to delete
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with deletion confirmation
+
+    Raises:
+        ValueError: If wbe_id is invalid
+        KeyError: If WBE not found
+
+    Example:
+        >>> result = await delete_wbe("...")
+        >>> print(f"Deleted WBE: {result['id']}")
+    """
+    try:
+        from uuid import UUID
+
+        from app.services.wbe import WBEService
+
+        service = WBEService(context.session)
+
+        await service.delete_wbe(
+            wbe_id=UUID(wbe_id),
+            actor_id=UUID(context.user_id),
+        )
+
+        return {
+            "id": wbe_id,
+            "message": "WBE deleted (including all child WBEs)",
+        }
+    except ValueError:
+        return {"error": f"Invalid WBE ID: {wbe_id}"}
+    except KeyError:
+        return {"error": f"WBE {wbe_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in delete_wbe: {e}")
         return {"error": str(e)}
 
 

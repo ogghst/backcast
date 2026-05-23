@@ -637,7 +637,7 @@ async def list_cost_registrations(
         service = CostRegistrationService(context.session)
 
         # Call service method
-        registrations, total = await service.get_cost_registrations(
+        registrations, total, _wp_map = await service.get_cost_registrations(
             filters={"cost_element_id": UUID(cost_element_id)},
             skip=skip,
             limit=limit,

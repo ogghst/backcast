@@ -65,21 +65,21 @@ const MAX_LENGTH = 10000;
 const MOBILE_MAX_ROWS = 4;
 const DESKTOP_MAX_ROWS = 6;
 
-// Icon and color mapping for execution modes
-const MODE_CONFIG = {
+// Icon and color mapping for execution modes (uses theme tokens)
+const getModeConfig = (token: ReturnType<typeof theme.useToken>["token"]) => ({
   safe: {
     icon: SecurityScanOutlined,
-    color: "#52c41a",
-    bgColor: "#f6ffed",
-    border: "1px solid #b7eb8f",
+    color: token.colorSuccess,
+    bgColor: token.colorSuccessBg,
+    border: `1px solid ${token.colorSuccessBorder}`,
     label: "Safe Mode",
     description: "Low risk only",
   },
   standard: {
     icon: SafetyOutlined,
-    color: "#faad14",
-    bgColor: "#fffbe6",
-    border: "1px solid #ffe58f",
+    color: token.colorWarning,
+    bgColor: token.colorWarningBg,
+    border: `1px solid ${token.colorWarningBorder}`,
     label: "Standard Mode",
     description: "Approval needed",
   },
@@ -91,7 +91,7 @@ const MODE_CONFIG = {
     label: "Expert Mode",
     description: "All tools",
   },
-} as const;
+});
 
 // Get button styling based on connection state
 const getConnectionButtonStyle = (
@@ -102,7 +102,7 @@ const getConnectionButtonStyle = (
   // When streaming, always use danger/red style
   if (state === WSConnectionState.ERROR) {
     return {
-      background: canSend ? "#ff4d4f" : token.colorErrorBg,
+      background: canSend ? token.colorError : token.colorErrorBg,
       borderColor: token.colorError,
       boxShadow: canSend ? `0 4px 12px ${token.colorError}40` : "none",
     };
@@ -110,17 +110,17 @@ const getConnectionButtonStyle = (
 
   if (state === WSConnectionState.CONNECTING || state === WSConnectionState.CLOSING) {
     return {
-      background: canSend ? "#faad14" : token.colorWarningBg,
+      background: canSend ? token.colorWarning : token.colorWarningBg,
       borderColor: token.colorWarning,
-      boxShadow: canSend ? `0 4px 12px rgba(250, 173, 20, 0.4)` : "none",
+      boxShadow: canSend ? `0 4px 12px ${token.colorWarning}40` : "none",
       animation: "buttonPulse 1.5s ease-in-out infinite",
     };
   }
 
   if (state === WSConnectionState.CLOSED) {
     return {
-      background: canSend ? "#8c8c8c" : token.colorBgContainer,
-      borderColor: "#8c8c8c",
+      background: canSend ? token.colorTextDisabled : token.colorBgContainer,
+      borderColor: token.colorTextDisabled,
       boxShadow: "none",
     };
   }
@@ -153,6 +153,7 @@ export const MessageInput = ({
 
   const { token } = theme.useToken();
   const { spacing, typography } = useThemeTokens();
+  const MODE_CONFIG = getModeConfig(token);
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

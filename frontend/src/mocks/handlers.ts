@@ -341,6 +341,7 @@ export const handlers = [
           ev_status: "on_track",
         },
         branch: "main",
+        currency: "EUR",
       },
       recent_activity: {
         projects: [

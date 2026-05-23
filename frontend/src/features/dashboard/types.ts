@@ -4,6 +4,8 @@
  * Matches the backend API response from /api/v1/dashboard/recent-activity.
  */
 
+import { formatCompactCurrency } from "@/utils/formatters";
+
 export type ActivityType = "created" | "updated" | "deleted" | "merged";
 
 export type EntityType = "project" | "wbe" | "cost_element" | "change_order";
@@ -46,6 +48,7 @@ export interface ProjectSpotlightAPI {
   last_activity: string;
   metrics: ProjectMetricsAPI;
   branch: string;
+  currency?: string;
 }
 
 /** Matches DashboardData schema from backend */
@@ -78,12 +81,14 @@ export interface RecentActivity {
 export interface ProjectSpotlight {
   id: string;
   name: string;
-  /** Formatted currency string */
+  /** Formatted compact currency string */
   budget: string;
   evm_status: string;
   active_changes: number;
   last_activity: string;
   code: string;
+  /** ISO 4217 currency code */
+  currency: string;
 }
 
 export interface DashboardData {
@@ -106,22 +111,17 @@ export function transformActivityItem(apiItem: DashboardActivityAPI): ActivityIt
   };
 }
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
-
 export function transformProjectSpotlight(apiSpotlight: ProjectSpotlightAPI): ProjectSpotlight {
+  const currency = apiSpotlight.currency || "EUR";
   return {
     id: apiSpotlight.project_id,
     name: apiSpotlight.project_name,
     code: apiSpotlight.project_code,
-    budget: currencyFormatter.format(apiSpotlight.metrics.total_budget),
+    budget: formatCompactCurrency(apiSpotlight.metrics.total_budget, currency),
     evm_status: apiSpotlight.metrics.ev_status || "N/A",
     active_changes: apiSpotlight.metrics.active_change_orders,
     last_activity: apiSpotlight.last_activity,
+    currency,
   };
 }
 

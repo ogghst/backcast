@@ -35,11 +35,11 @@ from app.ai.briefing import BriefingDocument
 from app.ai.briefing_compiler import (
     compile_specialist_output,
     initialize_briefing,
-    parse_structured_findings,
+    parse_and_clean,
 )
 from app.ai.config import AgentConfig
 from app.ai.handoff_tools import create_all_handoff_tools
-from app.ai.message_utils import extract_final_ai_response
+from app.ai.message_utils import extract_final_ai_response, is_transient_stream_error
 from app.ai.subagent_compiler import (
     build_backcast_middleware,
     compile_subagents,
@@ -53,17 +53,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-BRIEFING_ROOM_SUPERVISOR_PROMPT = """You are a supervisor in the Briefing Room for the Backcast project budget management system.
+BRIEFING_ROOM_SUPERVISOR_PROMPT = """You are a supervisor for the Backcast project budget management system.
 
-You coordinate specialist agents who analyze data and report back through a compiled briefing document.
+You coordinate specialist agents who report back through a compiled briefing document.
+The user reads the briefing directly — do NOT summarize or repeat findings in your response.
 
 ## How It Works
 The current briefing is injected into your context as a system message before every turn.
-Review it FIRST — it already contains all specialist findings so far.
-1. Read the injected briefing to see what's already been analyzed
-2. If the user's request is already answered in the briefing, respond directly
-3. If not, hand off to the most relevant specialist
-4. After a specialist contributes, the briefing is updated automatically
+1. Read the briefing to see what has been analyzed
+2. If not addressed, hand off to the most relevant specialist
+3. After a specialist contributes, the briefing is updated automatically
 
 ## Available Specialists
 - project_manager -> Project CRUD, WBEs, cost elements, cost tracking, progress entries
@@ -75,60 +74,50 @@ Review it FIRST — it already contains all specialist findings so far.
 - mcp_specialist -> External tools via MCP servers (web search, database, etc.)
 - general_purpose -> Unclear or cross-cutting requests
 
-## Guidelines
-- The briefing is already in your context — read it before deciding anything
-- If findings already address the user's request, respond directly. Do NOT hand off again.
-- Do NOT hand off to the same specialist more than once for the same task.
-- Hand off to the most relevant specialist for each aspect of the request
-- After receiving specialist findings, synthesize a clear, concise response
-- Do NOT repeat detailed findings -- highlight key insights and actionable information
-
-## CRITICAL COMPLETION RULES
-1. Maximum 2 specialist cycles for simple requests. Do NOT over-delegate.
-2. Always check the injected briefing before deciding to hand off.
-3. If a specialist has completed the requested work, acknowledge completion and summarize.
+## Rules
+- Do NOT write a response summarizing the briefing — the user reads the briefing directly
+- Only respond if you need to ask the user a clarification question
+- Do NOT hand off to the same specialist more than once for the same task
+- Maximum 2 specialist cycles for simple requests
+- Always check the briefing before deciding to hand off
 """
 
-_BRIEFING_HANDOFF_SUFFIX = """
-IMPORTANT: You do NOT have direct access to Backcast tools.
-ALL Backcast operations must be delegated to specialists via handoff tools.
+_BRIEFING_HANDOFF_SUFFIX = (
+    "You do NOT have direct access to Backcast tools. "
+    "Delegate all operations to specialists via handoff tools."
+)
 
-The current briefing is already in your context — review it before deciding.
-You can call get_briefing if you need to refresh after a specialist returns.
+_BRIEFING_CONTEXT_PREFIX = "## Current Briefing\n\n"
+
+_BRIEFING_SUMMARY_PROMPT = """<role>
+Context Extraction Assistant
+</role>
+
+<primary_objective>
+Extract the most relevant context from the conversation history below.
+</primary_objective>
+
+<instructions>
+You are nearing the input token limit. Extract the most important information from the conversation history so it can replace the full history.
+
+Focus on:
+- The user's overall goal and current request
+- Key findings, decisions, and conclusions reached so far
+- Any artifacts created, files modified, or resources accessed (with paths)
+- Remaining tasks and next steps
+
+Format your response as plain paragraphs. Do NOT use markdown headers (##) or
+bullet-point outlines. Write natural prose that captures the essential context
+concisely.
+
+<messages>
+{messages}
+</messages>
 """
-
-_SCOPE_BOUNDARY = (
-    "\n\n## SCOPE BOUNDARY\n"
-    "Focus ONLY on tasks within your specialist domain. "
-    "Do NOT perform work that belongs to another specialist.\n\n"
-    "## OUTPUT FORMAT (MANDATORY)\n"
-    "After completing all tool calls, you MUST write a final response that summarizes "
-    "your analysis and conclusions in plain text. Do NOT leave your response empty.\n\n"
-    "Include these sections:\n"
-    "- **## Key Findings**: Bullet list of your most important discoveries\n"
-    "- **## Open Questions**: Questions that need answers from other specialists or the user\n"
-    "- **## Delegation Notes**: Context for any specialist who should continue this work "
-    "(include relevant IDs, names, partial results)\n\n"
-    "These sections help the supervisor coordinate follow-up work."
-)
-
-_BRIEFING_CONTEXT_PREFIX = (
-    "## Current Briefing\n"
-    "Below is the compiled briefing with all specialist findings so far. "
-    "Review this BEFORE deciding whether to delegate work or respond directly.\n\n"
-)
 
 
 def _briefing_update(doc: BriefingDocument) -> dict[str, Any]:
-    """Build the standard state update after briefing initialization.
-
-    Injects the current briefing as a SystemMessage so the supervisor
-    always sees specialist findings before deciding what to do.
-
-    The briefing is injected as a SystemMessage because the supervisor's agent
-    subgraph uses InjectedState which only sees its own state schema -- the
-    parent state keys aren't automatically visible.
-    """
+    """Build the standard state update after briefing initialization."""
     briefing_md = doc.to_markdown() if doc.sections else "No findings yet."
     return {
         "briefing_data": doc.model_dump(),
@@ -166,18 +155,11 @@ def _create_get_briefing_tool() -> BaseTool:
     def get_briefing(
         state: Annotated[dict[str, Any], InjectedState()],
     ) -> str:
-        # Fallback read -- the briefing is also injected as a SystemMessage by
-        # _briefing_update, so the supervisor already sees it. This tool exists
-        # for cases where the supervisor needs to re-read after a specialist
-        # returns and state has changed.
         briefing_data = state.get("briefing_data", {})
         if not briefing_data:
             return "No briefing available yet."
-        try:
-            doc = BriefingDocument.model_validate(briefing_data)
-            return doc.to_markdown()
-        except Exception:
-            return "No briefing available yet."
+        doc = BriefingDocument.from_state(briefing_data)
+        return doc.to_markdown()
 
     return get_briefing
 
@@ -303,11 +285,9 @@ class SupervisorOrchestrator:
             tool_names = ", ".join(t.name for t in direct_tools)
             direct_tools_suffix = (
                 f"\n\nYou have DIRECT access to these Backcast tools: [{tool_names}]. "
-                "Use them directly for their respective operations. "
+                "Use them directly for their operations. "
                 "ALL other Backcast operations must be delegated to specialists "
-                "via handoff tools.\n"
-                "The current briefing is already in your context — review it "
-                "before deciding."
+                "via handoff tools."
             )
             supervisor_prompt = base_prompt + direct_tools_suffix
         else:
@@ -360,23 +340,17 @@ class SupervisorOrchestrator:
             existing_briefing = state.get("briefing_data")
 
             if existing_briefing:
-                # Reuse existing briefing, update request to current question
-                try:
-                    doc = BriefingDocument.model_validate(existing_briefing)
+                doc = BriefingDocument.from_state(existing_briefing)
+                if doc.original_request != "(recovered)":
                     doc.original_request = user_request
                     logger.info(
                         "[SUPERVISOR] Reusing existing briefing with %d sections",
                         len(doc.sections),
                     )
                     return _briefing_update(doc)
-                except Exception:
-                    logger.debug(
-                        "[SUPERVISOR] Failed to validate existing briefing, creating new one"
-                    )
 
             # Create new briefing (first message or recovery)
-            briefing_data = initialize_briefing(user_request)
-            doc = BriefingDocument.model_validate(briefing_data)
+            doc = initialize_briefing(user_request)
             return _briefing_update(doc)
 
         # --- 7. Build parent graph ---
@@ -501,47 +475,36 @@ class SupervisorOrchestrator:
                 return Command(
                     update={
                         "active_agent": "supervisor",
-                        "supervisor_iterations": state.get("supervisor_iterations", 0)
-                        + 1,
+                        "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
                     },
                     goto=END,
                 )
 
-            briefing_markdown = ""
             task_desc = "Execute specialist task from briefing"
             rationale: str | None = None
             briefing_data_raw = state.get("briefing_data", {})
             if briefing_data_raw:
-                try:
-                    doc = BriefingDocument.model_validate(briefing_data_raw)
-                    briefing_markdown = doc.to_markdown()
-                    if doc.task_history:
-                        latest = doc.task_history[-1]
-                        task_desc = latest.description
-                        rationale = latest.rationale
-                except Exception:
-                    pass
+                doc = BriefingDocument.from_state(briefing_data_raw)
+                if doc.task_history:
+                    latest = doc.task_history[-1]
+                    task_desc = latest.description
+                    rationale = latest.rationale
 
             assignment_block = f"## Your Assignment\n\n{task_desc}"
             if rationale:
                 assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
 
+            briefing_markdown = doc.to_markdown() if briefing_data_raw else ""
+
             isolated_messages = [
                 HumanMessage(
-                    content=(
-                        f"{assignment_block}\n\n## Briefing\n\n"
-                        f"{briefing_markdown}{_SCOPE_BOUNDARY}"
-                    )
+                    content=f"{assignment_block}\n\n## Briefing\n\n{briefing_markdown}"
                 ),
             ]
 
             max_iterations = state.get("max_tool_iterations", 25)
             max_retries = settings.AI_SPECIALIST_MAX_RETRIES
             result = None
-
-            # Run the specialist in isolation with only the briefing as context.
-            # Retry transient network errors (e.g. API dropping connections).
-            from app.ai.agent_service import _is_transient_stream_error
 
             for _retry_attempt in range(max_retries + 1):
                 try:
@@ -556,7 +519,7 @@ class SupervisorOrchestrator:
                     )
                     break  # success
                 except Exception as exc:
-                    if _is_transient_stream_error(exc) and _retry_attempt < max_retries:
+                    if is_transient_stream_error(exc) and _retry_attempt < max_retries:
                         logger.warning(
                             "[SPECIALIST_RETRY] Specialist %s transient error "
                             "(attempt %d/%d), retrying in 2s: %s",
@@ -587,10 +550,7 @@ class SupervisorOrchestrator:
                         update={
                             "briefing_data": updated_data,
                             "active_agent": "supervisor",
-                            "supervisor_iterations": state.get(
-                                "supervisor_iterations", 0
-                            )
-                            + 1,
+                            "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
                             "tool_call_count": 0,
                         },
                         goto="supervisor",
@@ -598,21 +558,17 @@ class SupervisorOrchestrator:
 
             assert result is not None  # guaranteed: break on success, return on failure
             messages = result.get("messages", [])
-            # DeepSeek sometimes returns empty AIMessage after tool execution --
-            # the utility falls back to tool results.
             findings = extract_final_ai_response(messages)
 
-            parsed = parse_structured_findings(findings)
+            cleaned_findings, parsed = parse_and_clean(findings)
 
             updated_data = compile_specialist_output(
                 briefing_data=state.get("briefing_data", {}),
                 specialist_name=specialist_name,
                 task_description=task_desc,
-                specialist_output=findings,
+                specialist_output=cleaned_findings,
                 supervisor_rationale=rationale,
-                key_findings=parsed.get("key_findings"),
-                open_questions=parsed.get("open_questions"),
-                delegation_notes=parsed.get("delegation_notes"),
+                parsed_findings=parsed,
             )
 
             logger.info(
@@ -621,9 +577,6 @@ class SupervisorOrchestrator:
                 len(updated_data.get("sections", [])),
             )
 
-            # Note: No graph=Command.PARENT here because specialist_node IS a
-            # parent-graph node. Only the handoff tool (which runs inside the
-            # supervisor's create_agent subgraph) needs Command.PARENT.
             return Command(
                 update={
                     "briefing_data": updated_data,
@@ -649,8 +602,9 @@ class SupervisorOrchestrator:
         base = build_backcast_middleware(self.context, tools)
         summ = SummarizationMiddleware(
             model=self.model,
-            trigger=[("tokens", 4000), ("messages", 50)],
-            keep=("messages", 10),
+            trigger=[("tokens", 8000), ("messages", 40)],
+            summary_prompt=_BRIEFING_SUMMARY_PROMPT,
+            keep=("messages", 20),
         )
         return [summ, *base]
 

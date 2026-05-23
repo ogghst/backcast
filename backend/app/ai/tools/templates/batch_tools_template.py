@@ -39,8 +39,8 @@ BATCH_SIZE_LIMIT = 50
 @ai_tool(
     name="create_cost_elements",
     description="Batch create multiple cost elements under the same WBE. "
-    "All items share the parent wbe_id, cost_element_type_id, and optional schedule "
-    "dates/progression type. Each item provides its own code, name, budget_amount, and "
+    "All items share the parent wbe_id and optional schedule dates/progression type. "
+    "Each item provides its own code, name, budget_amount, cost_element_type_id, and "
     "optional description. Pre-validates all codes for duplicates before creating any. "
     "Maximum 50 items per batch.",
     permissions=["cost-element-create"],
@@ -49,7 +49,6 @@ BATCH_SIZE_LIMIT = 50
 )
 async def create_cost_elements(
     wbe_id: str,
-    cost_element_type_id: str,
     items: list[dict[str, Any]],
     start_date: str | None = None,
     end_date: str | None = None,
@@ -60,8 +59,7 @@ async def create_cost_elements(
 
     Args:
         wbe_id: UUID of the parent WBE
-        cost_element_type_id: UUID of the cost element type (shared by all items)
-        items: List of dicts, each with {code, name, budget_amount, description?}
+        items: List of dicts, each with {code, name, budget_amount, cost_element_type_id, description?}
         start_date: Optional shared schedule start date (ISO format)
         end_date: Optional shared schedule end date (ISO format)
         progression_type: Optional shared progression type (LINEAR, GAUSSIAN, LOGARITHMIC)
@@ -111,6 +109,13 @@ async def create_cost_elements(
                     },
                     context,
                 )
+            if not item.get("cost_element_type_id"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'cost_element_type_id'"
+                    },
+                    context,
+                )
 
         # Check for duplicate codes within the batch
         codes = [it["code"] for it in items]
@@ -155,7 +160,7 @@ async def create_cost_elements(
         for item in items:
             ce_data = CostElementCreate(
                 wbe_id=UUID(wbe_id),
-                cost_element_type_id=UUID(cost_element_type_id),
+                cost_element_type_id=UUID(item["cost_element_type_id"]),
                 code=item["code"],
                 name=item["name"],
                 budget_amount=item["budget_amount"],

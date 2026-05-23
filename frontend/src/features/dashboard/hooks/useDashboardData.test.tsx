@@ -67,7 +67,7 @@ describe("useDashboardData", () => {
     expect(result.current.data).toBeDefined();
     expect(result.current.data?.spotlight).toBeDefined();
     expect(result.current.data?.spotlight?.name).toBe("Dashboard Test Project");
-    expect(result.current.data?.spotlight?.budget).toBe("$500,000");
+    expect(result.current.data?.spotlight?.budget).toBe("€500.0K");
     expect(result.current.data?.recent_activity).toBeDefined();
     expect(result.current.data?.recent_activity.projects).toHaveLength(1);
     expect(result.current.data?.recent_activity.wbes).toHaveLength(1);
@@ -94,10 +94,11 @@ describe("useDashboardData", () => {
       id: "proj-dashboard-1",
       name: "Dashboard Test Project",
       code: "DASH-001",
-      budget: "$500,000",
+      budget: "€500.0K",
       evm_status: "on_track",
       active_changes: 2,
       last_activity: "2026-03-15T10:00:00Z",
+      currency: "EUR",
     });
 
     // Check activity transformation
@@ -284,8 +285,8 @@ describe("useDashboardData", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    // Budget should be formatted as currency with no decimal places
-    expect(result.current.data?.spotlight?.budget).toBe("$1,234,568");
+    // Budget should be formatted as compact currency with EUR symbol
+    expect(result.current.data?.spotlight?.budget).toBe("€1.2M");
   });
 
   /**

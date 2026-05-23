@@ -1,15 +1,18 @@
-import { Card, Progress, Statistic, Row, Col, Alert } from "antd";
+import { Card, Progress, Statistic, Row, Col, Alert, theme } from "antd";
 import type { CostElementRead } from "@/api/generated";
 import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
 import { useWBE } from "@/features/wbes/api/useWBEs";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol, formatCurrency } from "@/utils/formatters";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 interface BudgetTabProps {
   costElement: CostElementRead;
 }
 
 export const BudgetTab = ({ costElement }: BudgetTabProps) => {
+  const { token } = theme.useToken();
+  const { colors } = useThemeTokens();
   const { data: budgetStatus, isLoading } = useBudgetStatus(
     costElement.cost_element_id,
   );
@@ -35,17 +38,17 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
       : 0;
 
   // Determine status color
-  let statusColor = "#52c41a"; // green
+  let statusColor = colors.success;
   let statusText = "Healthy";
 
   if (percentage >= 100) {
-    statusColor = "#ff4d4f"; // red
+    statusColor = colors.error;
     statusText = "Exceeded";
   } else if (percentage >= 90) {
-    statusColor = "#faad14"; // orange
+    statusColor = colors.warning;
     statusText = "Warning";
   } else if (percentage >= 75) {
-    statusColor = "#1890ff"; // blue
+    statusColor = colors.primary;
     statusText = "Monitoring";
   }
 
@@ -59,7 +62,7 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
               value={budget}
               precision={2}
               prefix={currencySymbol}
-              styles={{ content: { color: "#1890ff" } }}
+              styles={{ content: { color: token.colorPrimary } }}
             />
           </Card>
         </Col>
@@ -71,7 +74,7 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
               precision={2}
               prefix={currencySymbol}
               styles={{
-                content: { color: percentage >= 100 ? "#ff4d4f" : "#52c41a" },
+                content: { color: percentage >= 100 ? token.colorError : token.colorSuccess },
               }}
             />
           </Card>
@@ -84,7 +87,7 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
               precision={2}
               prefix={currencySymbol}
               styles={{
-                content: { color: remaining < 0 ? "#ff4d4f" : "#52c41a" },
+                content: { color: remaining < 0 ? token.colorError : token.colorSuccess },
               }}
             />
           </Card>
@@ -108,7 +111,7 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
           strokeColor={statusColor}
           status={percentage >= 100 ? "exception" : undefined}
         />
-        <div style={{ marginTop: 8, color: "#666" }}>
+        <div style={{ marginTop: 8, color: token.colorTextTertiary }}>
           Status: <strong style={{ color: statusColor }}>{statusText}</strong>
         </div>
       </Card>

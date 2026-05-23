@@ -119,14 +119,11 @@ def _enrich_session_briefing(
     """Compile briefing markdown and specialist names from stored briefing_data."""
     if not session.briefing_data:
         return
-    try:
-        doc = BriefingDocument.model_validate(session.briefing_data)
-        session_public.briefing_markdown = doc.to_markdown()
-        session_public.briefing_specialists = [
-            sec.specialist_name for sec in doc.sections
-        ]
-    except Exception:
-        pass
+    doc = BriefingDocument.from_state(session.briefing_data)
+    session_public.briefing_markdown = doc.to_markdown()
+    session_public.briefing_specialists = [
+        sec.specialist_name for sec in doc.sections
+    ]
 
 
 class SessionIdHolder:

@@ -46,10 +46,10 @@ class WebSocketTestHelpers:
     """Helper class for WebSocket testing utilities."""
 
     @staticmethod
-    def create_valid_token(user_email: str) -> str:
+    def create_valid_token(user_id: UUID) -> str:
         """Create a valid JWT token for testing."""
         token_data = {
-            "sub": user_email,
+            "sub": str(user_id),
             "exp": datetime.utcnow() + timedelta(hours=1),
         }
         return jwt.encode(
@@ -59,10 +59,10 @@ class WebSocketTestHelpers:
         )
 
     @staticmethod
-    def create_expired_token(user_email: str) -> str:
+    def create_expired_token(user_id: UUID) -> str:
         """Create an expired JWT token for testing."""
         token_data = {
-            "sub": user_email,
+            "sub": str(user_id),
             "exp": datetime.utcnow() - timedelta(hours=1),
         }
         return jwt.encode(
@@ -131,26 +131,26 @@ def test_user_no_permission() -> User:
 @pytest.fixture
 def valid_token(test_user: User) -> str:
     """Create a valid JWT token for testing."""
-    return WebSocketTestHelpers.create_valid_token(test_user.email)
+    return WebSocketTestHelpers.create_valid_token(test_user.user_id)
 
 
 @pytest.fixture
 def expired_token(test_user: User) -> str:
     """Create an expired JWT token for testing."""
-    return WebSocketTestHelpers.create_expired_token(test_user.email)
+    return WebSocketTestHelpers.create_expired_token(test_user.user_id)
 
 
 @pytest.fixture
 def override_get_user(test_user: User) -> Generator[None, None, None]:
-    """Override user lookup for tests by patching UserService.get_by_email."""
+    """Override user lookup for tests by patching UserService.get_user."""
     from app.services.user import UserService
 
-    async def mock_get_by_email(self: Any, email: str) -> User | None:
-        if email == test_user.email:
+    async def mock_get_user(self: Any, user_id: UUID) -> User | None:
+        if user_id == test_user.user_id:
             return test_user
         return None
 
-    with patch.object(UserService, "get_by_email", new=mock_get_by_email):
+    with patch.object(UserService, "get_user", new=mock_get_user):
         yield
 
 
@@ -424,8 +424,14 @@ async def test_ws_lc_04_no_permission_rejects_connection(
     """T-WS-LC-04: No ai-chat permission should close connection with 1008."""
     from app.services.user import UserService
 
-    async def mock_get_by_email_no_perm(self: Any, email: str) -> User | None:
-        return test_user_no_permission
+    # Use the no-permission user's user_id in the token so auth resolves
+    # to test_user_no_permission, who lacks ai-chat permission.
+    token = WebSocketTestHelpers.create_valid_token(test_user_no_permission.user_id)
+
+    async def mock_get_user_no_perm(self: Any, user_id: UUID) -> User | None:
+        if user_id == test_user_no_permission.user_id:
+            return test_user_no_permission
+        return None
 
     mock_websocket = make_mock_websocket()
     mock_websocket.close = AsyncMock()
@@ -434,19 +440,19 @@ async def test_ws_lc_04_no_permission_rejects_connection(
     mock_session_ctx = make_mock_session_ctx(mock_db)
 
     with (
-        patch.object(UserService, "get_by_email", new=mock_get_by_email_no_perm),
+        patch.object(UserService, "get_user", new=mock_get_user_no_perm),
         patch(
             "app.core.rbac_unified.get_unified_rbac_service",
             return_value=MockDenyAIRBAC(),
         ),
         patch("app.db.session.async_session_maker", return_value=mock_session_ctx),
     ):
-        await chat_stream(websocket=mock_websocket, token=valid_token)
+        await chat_stream(websocket=mock_websocket, token=token)
 
     mock_websocket.close.assert_called_once()
     close_call = mock_websocket.close.call_args
     assert close_call[1]["code"] == 1008
-    assert "ai-chat" in close_call[1]["reason"].lower()
+    assert "insufficient permissions" in close_call[1]["reason"].lower()
 
 
 @pytest.mark.asyncio
@@ -939,28 +945,28 @@ async def test_ws_user_not_found(
     override_rbac: None,
 ) -> None:
     """Test WebSocket connection when user not found in database."""
+    from app.services.user import UserService
+
     mock_websocket = make_mock_websocket()
     mock_websocket.close = AsyncMock()
 
-    token = WebSocketTestHelpers.create_valid_token("nonexistent@example.com")
+    # Token with a valid UUID that doesn't match any user
+    nonexistent_user_id = uuid4()
+    token = WebSocketTestHelpers.create_valid_token(nonexistent_user_id)
 
     mock_db = AsyncMock(spec=AsyncSession)
     mock_session_ctx = make_mock_session_ctx(mock_db)
 
     with (
-        patch("app.services.user.UserService") as mock_user_service_class,
+        patch.object(UserService, "get_user", new=AsyncMock(return_value=None)),
         patch("app.db.session.async_session_maker", return_value=mock_session_ctx),
     ):
-        mock_user_service = AsyncMock()
-        mock_user_service.get_by_email = AsyncMock(return_value=None)
-        mock_user_service_class.return_value = mock_user_service
-
         await chat_stream(websocket=mock_websocket, token=token)
 
     mock_websocket.close.assert_called_once()
     close_call = mock_websocket.close.call_args
     assert close_call[1]["code"] == 1008
-    assert "not found" in close_call[1]["reason"].lower()
+    assert "user not found" in close_call[1]["reason"].lower()
 
 
 # =============================================================================

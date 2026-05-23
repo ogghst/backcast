@@ -15,6 +15,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.cost_element import CostElement
+
+
 @pytest.mark.asyncio
 async def test_create_cost_element_in_non_main_branch_no_default(
     client: AsyncClient,

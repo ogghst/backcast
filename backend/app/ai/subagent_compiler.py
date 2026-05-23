@@ -26,21 +26,20 @@ from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast project budget management system.
+_SPECIALIST_SCOPE_SUFFIX = (
+    "\n\n## SCOPE\n"
+    "Focus only on your specialist domain.\n\n"
+    "## OUTPUT FORMAT\n"
+    "After tool calls, write your findings with these sections:\n"
+    "- ## Key Findings: Most important discoveries\n"
+    "- ## Open Questions: Questions needing answers\n"
+    "- ## Delegation Notes: Context for follow-up work (IDs, partial results)\n"
+)
 
-You can help with:
-- Listing and viewing projects
-- Getting detailed project information
-- Earned value management calculations
-
-When providing information:
-- Be accurate and rely on the project data
-- Use three-letter codes for project status (e.g., "ACT" for active, "PLN" for planned)
-- Present data in clear, structured formats
-- Only use tools you have been explicitly enabled for the assistant
+DEFAULT_SYSTEM_PROMPT = """You are a Backcast project management assistant.
 
 When using tools:
-- Always use the exact field names expected by the tools
+- Use exact field names expected by the tools
 - For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
 - Use search to find projects by code or name
 """
@@ -134,6 +133,10 @@ def compile_subagents(
         system_prompt = cfg.get("system_prompt", "")
         allowed_tool_names = cfg.get("allowed_tools")
         schema = cfg.get("structured_output_schema")
+
+        # Append scope boundary and output format instructions to system prompt
+        # so they don't need to be injected per-invocation in the HumanMessage.
+        system_prompt = system_prompt.rstrip() + _SPECIALIST_SCOPE_SUFFIX
 
         # Resolve the tool-name list for this subagent
         if allowed_tool_names is None:

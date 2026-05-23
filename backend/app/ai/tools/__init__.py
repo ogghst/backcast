@@ -173,10 +173,12 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     crud_tools = [
         crud_template.create_project,
         crud_template.update_project,
+        crud_template.delete_project,
         crud_template.list_wbes,
         crud_template.get_wbe,
         crud_template.create_wbe,
         crud_template.update_wbe,
+        crud_template.delete_wbe,
     ]
     tools.extend(crud_tools)
 
@@ -203,6 +205,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         change_order_template.approve_change_order,
         change_order_template.reject_change_order,
         change_order_template.analyze_change_order_impact,
+        change_order_template.delete_change_order,
     ]
     tools.extend(change_order_tools)
 

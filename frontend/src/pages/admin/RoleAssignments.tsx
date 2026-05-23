@@ -8,20 +8,20 @@
 import { App, Button, Select, Space, Tag, theme } from "antd";
 import { useSearchParams } from "react-router-dom";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import dayjs from "dayjs";
 
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { Can } from "@/components/auth/Can";
-import { UsersService } from "@/api/generated";
 import {
   useRoleAssignments,
   useDeleteRoleAssignment,
 } from "@/features/admin/role-assignments/hooks/useRoleAssignments";
 import { AssignmentModal } from "@/features/admin/role-assignments/components/AssignmentModal";
 import { useRBACRoles } from "@/features/admin/rbac/hooks/useRBAC";
+import { useUsers } from "@/features/users/api/useUsers";
 import type { UserRoleAssignmentRead, ScopeType } from "@/api/types/roleAssignment";
 
 // ---------------------------------------------------------------------------
@@ -78,32 +78,8 @@ export const RoleAssignments: React.FC = () => {
     useRoleAssignments(queryParams);
   const { data: roles } = useRBACRoles();
 
-  // Fetch users for the filter dropdown (lightweight, admin-only page)
-  // Using the generated client directly since the list is small
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-
-  const fetchUsers = useCallback(async () => {
-    setUsersLoading(true);
-    try {
-      const result = await UsersService.getUsers(0, 1000);
-      setUsers(
-        result.map((u) => ({
-          id: u.user_id,
-          name: u.full_name || u.email,
-        })),
-      );
-    } catch {
-      // Silently handle — the dropdown will just be empty
-    } finally {
-      setUsersLoading(false);
-    }
-  }, []);
-
-  // Load users on mount
-  useEffect(() => {
-    void fetchUsers();
-  }, [fetchUsers]);
+  // Fetch users for the filter dropdown
+  const { data: usersData, isLoading: usersLoading } = useUsers(1000);
 
   // Mutations
   const { mutate: deleteAssignment } = useDeleteRoleAssignment();
@@ -152,11 +128,11 @@ export const RoleAssignments: React.FC = () => {
   // User options for the filter dropdown
   const userOptions = useMemo(
     () =>
-      users.map((u) => ({
-        value: u.id,
-        label: u.name,
+      (usersData || []).map((u) => ({
+        value: u.user_id,
+        label: u.full_name || u.email,
       })),
-    [users],
+    [usersData],
   );
 
   // ---- Columns ----

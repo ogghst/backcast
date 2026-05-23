@@ -711,6 +711,63 @@ async def analyze_change_order_impact(
         return {"error": str(e)}
 
 
+@ai_tool(
+    name="delete_change_order",
+    description="Soft delete a change order. "
+    "Only Draft or Rejected change orders can be deleted. "
+    "Active change orders in the approval workflow must be rejected first.",
+    permissions=["change-order-delete"],
+    category="change-orders",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_change_order(
+    change_order_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a change order (Draft or Rejected only).
+
+    Context: Provides database session and change order service for deletion.
+
+    Args:
+        change_order_id: UUID of the change order to delete
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with deletion confirmation
+
+    Raises:
+        ValueError: If change_order_id is invalid or CO is not in a deletable status
+        KeyError: If change order not found
+
+    Example:
+        >>> result = await delete_change_order("...")
+        >>> print(f"Deleted change order: {result['id']}")
+    """
+    try:
+        from uuid import UUID
+
+        from app.services.change_order_service import ChangeOrderService
+
+        service = ChangeOrderService(context.session)
+
+        await service.delete_change_order(
+            change_order_id=UUID(change_order_id),
+            actor_id=UUID(context.user_id),
+        )
+
+        return {
+            "id": change_order_id,
+            "message": "Change order deleted",
+        }
+    except ValueError:
+        return {"error": f"Invalid change order ID: {change_order_id}"}
+    except KeyError:
+        return {"error": f"Change order {change_order_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in delete_change_order: {e}")
+        return {"error": str(e)}
+
+
 # =============================================================================
 # TEMPLATE USAGE NOTES
 # =============================================================================

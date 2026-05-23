@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TD-108 Resolution Report</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --green: #3fb950;
+      --green-dim: #1a3a2a;
+      --blue: #58a6ff;
+      --blue-dim: #1a2a3a;
+      --orange: #d29922;
+      --red: #f85149;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .header .meta {
+      display: flex;
+      gap: 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge.resolved { background: var(--green-dim); color: var(--green); }
+    .badge.priority { background: var(--blue-dim); color: var(--blue); }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .section h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .section p { font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .section p:last-child { margin-bottom: 0; }
+    .root-cause {
+      border-left: 3px solid var(--orange);
+      padding-left: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    td code {
+      background: var(--bg);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .file-changed { color: var(--blue); }
+    .arrow { color: var(--text-muted); margin: 0 0.5rem; }
+    .check { color: var(--green); }
+    .fail { color: var(--red); }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat .value {
+      font-size: 1.75rem;
+      font-weight: 700;
+    }
+    .stat .label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 0.25rem;
+    }
+    .stat.green .value { color: var(--green); }
+    .stat.blue .value { color: var(--blue); }
+    .stat.orange .value { color: var(--orange); }
+    .timeline {
+      position: relative;
+      padding-left: 1.5rem;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .timeline-item {
+      position: relative;
+      padding-bottom: 1rem;
+      padding-left: 0.75rem;
+    }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -1.5rem;
+      top: 0.45rem;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      border: 2px solid var(--bg);
+    }
+    .timeline-item .time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .timeline-item .desc { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>TD-108 <span class="badge resolved">Resolved</span> <span class="badge priority">P4</span></h1>
+    <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Home Dashboard Card Shows Wrong Currency Symbol</p>
+    <div class="meta">
+      <span>Date: 2026-05-23</span>
+      <span>Effort: ~30 min</span>
+      <span>Files changed: 5</span>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat green">
+      <div class="value">5</div>
+      <div class="label">Files Modified</div>
+    </div>
+    <div class="stat blue">
+      <div class="value">84</div>
+      <div class="label">Backend Tests Pass</div>
+    </div>
+    <div class="stat orange">
+      <div class="value">0</div>
+      <div class="label">New Failures</div>
+    </div>
+  </div>
+
+  <div class="section root-cause">
+    <h2>Root Cause</h2>
+    <p>The <code>transformProjectSpotlight()</code> function in <code>frontend/src/features/dashboard/types.ts</code> used a hardcoded <code>Intl.NumberFormat("en-US", { currency: "USD" })</code> formatter. The backend <code>ProjectSpotlight</code> schema also did not include the project's <code>currency</code> field, so the frontend had no way to know which currency to use.</p>
+    <p style="margin-top: 0.5rem;">TD-104 fixed currency across 25+ components but missed this dashboard transformer because it used a local <code>currencyFormatter</code> instance instead of the shared <code>formatCompactCurrency</code> utility.</p>
+  </div>
+
+  <div class="section">
+    <h2>Fix Summary</h2>
+    <p><strong>Before:</strong> <code>$500,000</code> (hardcoded USD)</p>
+    <p><strong>After:</strong> <code>€500.0K</code> (reads from project.currency)</p>
+  </div>
+
+  <div class="section">
+    <h2>Files Changed</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>File</th>
+          <th>Change</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Backend Schema</td>
+          <td><code class="file-changed">backend/app/models/schemas/dashboard.py</code></td>
+          <td>Added <code>currency: str</code> field to <code>ProjectSpotlight</code></td>
+        </tr>
+        <tr>
+          <td>Backend Service</td>
+          <td><code class="file-changed">backend/app/services/dashboard_service.py</code></td>
+          <td>Pass <code>project.currency</code> when building spotlight</td>
+        </tr>
+        <tr>
+          <td>Frontend Types</td>
+          <td><code class="file-changed">frontend/src/features/dashboard/types.ts</code></td>
+          <td>Replace hardcoded <code>Intl.NumberFormat("USD")</code> with <code>formatCompactCurrency(value, currency)</code></td>
+        </tr>
+        <tr>
+          <td>Frontend Mocks</td>
+          <td><code class="file-changed">frontend/src/mocks/handlers.ts</code></td>
+          <td>Add <code>currency: "EUR"</code> to mock dashboard handler</td>
+        </tr>
+        <tr>
+          <td>Frontend Tests</td>
+          <td><code class="file-changed">frontend/src/features/dashboard/components/ProjectSpotlight.test.tsx</code></td>
+          <td>Update expectations from <code>$500,000</code> to <code>€500.0K</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Test Results</h2>
+    <table>
+      <thead>
+        <tr><th>Suite</th><th>Result</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Backend (dashboard)</td>
+          <td><span class="check">84 passed</span></td>
+          <td>All dashboard-related tests pass</td>
+        </tr>
+        <tr>
+          <td>Frontend (dashboard)</td>
+          <td><span class="check">31 passed</span> <span class="fail">11 pre-existing failures</span></td>
+          <td>ProjectSpotlight tests pass. useDashboardData failures are pre-existing (missing TimeMachineProvider from TD-107)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Execution Timeline</h2>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="time">Step 1</div>
+        <div class="desc">Identified TD-108 from register — clearest open item (1hr estimate, well-defined fix)</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">Step 2</div>
+        <div class="desc">Delegated to <code>frontend-developer</code> agent — found root cause in <code>transformProjectSpotlight</code> + missing backend field</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">Step 3</div>
+        <div class="desc">Agent fixed 5 files: backend schema + service, frontend types + mocks + tests</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">Step 4</div>
+        <div class="desc">Verified: 84 backend tests pass, 31 frontend dashboard tests pass, 0 new failures</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">Step 5</div>
+        <div class="desc">Updated technical debt register — TD-108 marked resolved, counts updated (5 → 4 open items)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="border-color: var(--green);">
+    <h2 style="color: var(--green);">Register Update</h2>
+    <p>TD-108 moved to resolved. Open items: <strong>5 → 4</strong>. Total estimated effort: <strong>~7.5 → ~6.5 days</strong>.</p>
+    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">
+      Remaining open: TD-093 (test coverage, P1), TD-094 (E2E change order tests, P1), TD-085 (astream_events v2, P2)
+    </p>
+  </div>
+
+</body>
+</html>
