@@ -26,6 +26,21 @@ from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
 
+_SPECIALIST_SCOPE_SUFFIX = (
+    "\n\n## SCOPE BOUNDARY\n"
+    "Focus ONLY on tasks within your specialist domain. "
+    "Do NOT perform work that belongs to another specialist.\n\n"
+    "## OUTPUT FORMAT (MANDATORY)\n"
+    "After completing all tool calls, you MUST write a final response that summarizes "
+    "your analysis and conclusions in plain text. Do NOT leave your response empty.\n\n"
+    "Include these sections:\n"
+    "- **## Key Findings**: Bullet list of your most important discoveries\n"
+    "- **## Open Questions**: Questions that need answers from other specialists or the user\n"
+    "- **## Delegation Notes**: Context for any specialist who should continue this work "
+    "(include relevant IDs, names, partial results)\n\n"
+    "These sections help the supervisor coordinate follow-up work."
+)
+
 DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast project budget management system.
 
 You can help with:
@@ -134,6 +149,10 @@ def compile_subagents(
         system_prompt = cfg.get("system_prompt", "")
         allowed_tool_names = cfg.get("allowed_tools")
         schema = cfg.get("structured_output_schema")
+
+        # Append scope boundary and output format instructions to system prompt
+        # so they don't need to be injected per-invocation in the HumanMessage.
+        system_prompt = system_prompt.rstrip() + _SPECIALIST_SCOPE_SUFFIX
 
         # Resolve the tool-name list for this subagent
         if allowed_tool_names is None:

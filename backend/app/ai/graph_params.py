@@ -191,10 +191,8 @@ class StreamState:
         if not isinstance(chain_output, dict) or "briefing_data" not in chain_output:
             return
         briefing_data = chain_output.get("briefing_data") or {}
-        try:
-            briefing_md = BriefingDocument.model_validate(briefing_data).to_markdown()
-        except Exception:
-            return
+        doc = BriefingDocument.from_state(briefing_data)
+        briefing_md = doc.to_markdown()
         if not briefing_md:
             return
         completed = chain_output.get("completed_specialists", set())

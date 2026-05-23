@@ -6,6 +6,8 @@ document. No AI framework dependencies — only Pydantic.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -21,9 +23,7 @@ class BriefingSection(BaseModel):
     """A single specialist's contribution to the briefing document."""
 
     specialist_name: str
-    task_description: str
     findings: str
-    supervisor_rationale: str | None = None
     key_findings: list[str] | None = None
     open_questions: list[str] | None = None
     delegation_notes: str | None = None
@@ -39,6 +39,14 @@ class BriefingDocument(BaseModel):
     sections: list[BriefingSection] = []
     supervisor_analysis: str | None = None
     task_history: list[TaskAssignment] = []
+
+    @classmethod
+    def from_state(cls, briefing_data: dict[str, Any]) -> BriefingDocument:
+        """Reconstruct from state dict with consistent fallback."""
+        try:
+            return cls.model_validate(briefing_data)
+        except Exception:
+            return cls(original_request="(recovered)")
 
     def add_task_assignment(self, assignment: TaskAssignment) -> None:
         self.task_history.append(assignment)
@@ -67,12 +75,7 @@ class BriefingDocument(BaseModel):
                 section_lines = [
                     "",
                     f"### {sec.specialist_name} (Iteration {idx})",
-                    f"Task: {sec.task_description}",
                 ]
-                if sec.supervisor_rationale:
-                    section_lines.append(
-                        f"Supervisor rationale: {sec.supervisor_rationale}"
-                    )
 
                 # Findings are already cleaned of structured sections at input time
                 # (in briefing_compiler.py), so we can render directly

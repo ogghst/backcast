@@ -17,6 +17,7 @@ from langgraph.prebuilt.tool_node import InjectedState
 from langgraph.types import Command
 
 from app.ai.briefing import BriefingDocument, TaskAssignment
+from app.ai.message_utils import find_last_ai_reasoning_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +71,7 @@ def create_handoff_tool(
 
         # Propagate reasoning_content from the last AIMessage (DeepSeek thinking
         # mode requires it on ALL assistant messages when enabled).
-        rc_kwargs: dict[str, Any] = {}
-        for msg in reversed(state.get("messages", [])):
-            if isinstance(msg, AIMessage):
-                rc = msg.additional_kwargs.get("reasoning_content")
-                if rc:
-                    rc_kwargs["additional_kwargs"] = {"reasoning_content": rc}
-                break
+        rc_kwargs = find_last_ai_reasoning_kwargs(state.get("messages", []))
 
         # This AIMessage is needed because Command(graph=Command.PARENT) only
         # propagates the `update` dict to the parent graph. The original AIMessage
@@ -98,10 +93,7 @@ def create_handoff_tool(
 
         # Deterministic briefing update with task assignment
         briefing_data = state.get("briefing_data", {})
-        try:
-            doc = BriefingDocument.model_validate(briefing_data)
-        except Exception:
-            doc = BriefingDocument(original_request="(recovered)")
+        doc = BriefingDocument.from_state(briefing_data)
         if analysis is not None:
             doc.supervisor_analysis = analysis
         doc.add_task_assignment(

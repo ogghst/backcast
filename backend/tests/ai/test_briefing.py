@@ -13,7 +13,7 @@ from app.ai.briefing import BriefingDocument, BriefingSection, TaskAssignment
 from app.ai.briefing_compiler import (
     compile_specialist_output,
     initialize_briefing,
-    parse_structured_findings,
+    parse_and_clean,
 )
 
 
@@ -23,13 +23,10 @@ class TestBriefingSection:
     def test_creation_with_defaults(self) -> None:
         section = BriefingSection(
             specialist_name="evm_analyst",
-            task_description="Analyze EVM metrics",
             findings="CPI: 0.95, SPI: 1.05",
         )
         assert section.specialist_name == "evm_analyst"
-        assert section.task_description == "Analyze EVM metrics"
         assert section.findings == "CPI: 0.95, SPI: 1.05"
-        assert section.supervisor_rationale is None
         assert section.key_findings is None
         assert section.open_questions is None
         assert section.delegation_notes is None
@@ -37,14 +34,11 @@ class TestBriefingSection:
     def test_with_enhanced_fields(self) -> None:
         section = BriefingSection(
             specialist_name="evm_analyst",
-            task_description="Analyze EVM",
             findings="CPI: 0.95",
-            supervisor_rationale="Need EVM analysis for project health",
             key_findings=["CPI below 1.0", "SPI above 1.0"],
             open_questions=["What is the target CPI?"],
             delegation_notes="Project PRJ-001 needs further analysis",
         )
-        assert section.supervisor_rationale == "Need EVM analysis for project health"
         assert section.key_findings == ["CPI below 1.0", "SPI above 1.0"]
         assert section.open_questions == ["What is the target CPI?"]
         assert section.delegation_notes == "Project PRJ-001 needs further analysis"
@@ -84,7 +78,6 @@ class TestBriefingDocument:
         doc.sections.append(
             BriefingSection(
                 specialist_name="project_manager",
-                task_description="Get project info",
                 findings="Project is 45% complete",
             )
         )
@@ -95,21 +88,9 @@ class TestBriefingDocument:
 
     def test_sections_append(self) -> None:
         doc = BriefingDocument(original_request="test")
-        doc.sections.append(
-            BriefingSection(
-                specialist_name="a",
-                task_description="t",
-                findings="f",
-            )
-        )
+        doc.sections.append(BriefingSection(specialist_name="a", findings="f"))
         assert len(doc.sections) == 1
-        doc.sections.append(
-            BriefingSection(
-                specialist_name="b",
-                task_description="t",
-                findings="f",
-            )
-        )
+        doc.sections.append(BriefingSection(specialist_name="b", findings="f"))
         assert len(doc.sections) == 2
 
     def test_supervisor_analysis_rendered(self) -> None:
@@ -140,34 +121,40 @@ class TestBriefingDocument:
         doc.sections.append(
             BriefingSection(
                 specialist_name="evm_analyst",
-                task_description="Run EVM",
                 findings="CPI: 0.95",
-                supervisor_rationale="Need cost analysis",
                 key_findings=["CPI below 1.0"],
                 open_questions=["What baseline?"],
                 delegation_notes="See project PRJ-001",
             )
         )
         md = doc.to_markdown()
-        assert "Supervisor rationale: Need cost analysis" in md
         assert "**Key Findings:**" in md
         assert "- CPI below 1.0" in md
         assert "**Open Questions:**" in md
         assert "- What baseline?" in md
         assert "**Delegation Notes:** See project PRJ-001" in md
 
+    def test_from_state_recovered(self) -> None:
+        doc = BriefingDocument.from_state({})
+        assert doc.original_request == "(recovered)"
+        assert doc.sections == []
+
+    def test_from_state_valid(self) -> None:
+        original = BriefingDocument(original_request="test")
+        doc = BriefingDocument.from_state(original.model_dump())
+        assert doc.original_request == "test"
+
 
 class TestInitializeBriefing:
     """Tests for initialize_briefing compiler function."""
 
     def test_creates_valid_briefing(self) -> None:
-        data = initialize_briefing("What's the status of PRJ-001?")
-        assert data["original_request"] == "What's the status of PRJ-001?"
-        assert data["sections"] == []
+        doc = initialize_briefing("What's the status of PRJ-001?")
+        assert doc.original_request == "What's the status of PRJ-001?"
+        assert doc.sections == []
 
-    def test_return_data_renders_to_markdown(self) -> None:
-        data = initialize_briefing("What's the status?")
-        doc = BriefingDocument.model_validate(data)
+    def test_return_renders_to_markdown(self) -> None:
+        doc = initialize_briefing("What's the status?")
         md = doc.to_markdown()
         assert "# Briefing Document" in md
         assert "What's the status?" in md
@@ -177,9 +164,9 @@ class TestCompileSpecialistOutput:
     """Tests for compile_specialist_output compiler function."""
 
     def test_appends_section(self) -> None:
-        initial_data = initialize_briefing("Status?")
+        doc = initialize_briefing("Status?")
         data = compile_specialist_output(
-            briefing_data=initial_data,
+            briefing_data=doc.model_dump(),
             specialist_name="project_manager",
             task_description="Get project info",
             specialist_output="Project is 45% complete",
@@ -189,7 +176,8 @@ class TestCompileSpecialistOutput:
         assert data["sections"][0]["findings"] == "Project is 45% complete"
 
     def test_preserves_existing_sections(self) -> None:
-        data = initialize_briefing("Status?")
+        doc = initialize_briefing("Status?")
+        data = doc.model_dump()
         data = compile_specialist_output(
             briefing_data=data,
             specialist_name="a",
@@ -216,44 +204,47 @@ class TestCompileSpecialistOutput:
         assert data["original_request"] == "(recovered)"
         assert data["sections"][0]["findings"] == "test output"
 
-    def test_with_enhanced_fields(self) -> None:
-        data = initialize_briefing("Test?")
+    def test_with_parsed_findings(self) -> None:
+        doc = initialize_briefing("Test?")
         data = compile_specialist_output(
-            briefing_data=data,
+            briefing_data=doc.model_dump(),
             specialist_name="evm_analyst",
             task_description="Run EVM",
             specialist_output="CPI: 0.95",
             supervisor_rationale="Cost analysis needed",
-            key_findings=["CPI below threshold"],
-            open_questions=["Which baseline?"],
-            delegation_notes="Project PRJ-001",
+            parsed_findings={
+                "key_findings": ["CPI below threshold"],
+                "open_questions": ["Which baseline?"],
+                "delegation_notes": "Project PRJ-001",
+            },
         )
         section = data["sections"][0]
-        assert section["supervisor_rationale"] == "Cost analysis needed"
         assert section["key_findings"] == ["CPI below threshold"]
         assert section["open_questions"] == ["Which baseline?"]
         assert section["delegation_notes"] == "Project PRJ-001"
 
 
-class TestParseStructuredFindings:
-    """Tests for parse_structured_findings deterministic parser."""
+class TestParseAndClean:
+    """Tests for parse_and_clean single-pass parser."""
 
     def test_extracts_key_findings(self) -> None:
         raw = "Some analysis text\n\n## Key Findings\n- CPI is 0.95\n- SPI is 1.05\n"
-        result = parse_structured_findings(raw)
-        assert result["key_findings"] == ["CPI is 0.95", "SPI is 1.05"]
-        assert result["open_questions"] is None
-        assert result["delegation_notes"] is None
+        cleaned, parsed = parse_and_clean(raw)
+        assert parsed["key_findings"] == ["CPI is 0.95", "SPI is 1.05"]
+        assert parsed["open_questions"] is None
+        assert parsed["delegation_notes"] is None
+        assert "## Key Findings" not in cleaned
+        assert "Some analysis text" in cleaned
 
     def test_extracts_open_questions(self) -> None:
         raw = "## Open Questions\n- What baseline?\n- Which version?\n"
-        result = parse_structured_findings(raw)
-        assert result["open_questions"] == ["What baseline?", "Which version?"]
+        cleaned, parsed = parse_and_clean(raw)
+        assert parsed["open_questions"] == ["What baseline?", "Which version?"]
 
     def test_extracts_delegation_notes(self) -> None:
         raw = "## Delegation Notes\nProject PRJ-001 needs scheduling review.\n"
-        result = parse_structured_findings(raw)
-        assert result["delegation_notes"] == "Project PRJ-001 needs scheduling review."
+        cleaned, parsed = parse_and_clean(raw)
+        assert parsed["delegation_notes"] == "Project PRJ-001 needs scheduling review."
 
     def test_extracts_all_sections(self) -> None:
         raw = (
@@ -265,27 +256,32 @@ class TestParseStructuredFindings:
             "## Delegation Notes\n"
             "Some notes here\n"
         )
-        result = parse_structured_findings(raw)
-        assert result["key_findings"] == ["Finding A"]
-        assert result["open_questions"] == ["Question B"]
-        assert result["delegation_notes"] == "Some notes here"
+        cleaned, parsed = parse_and_clean(raw)
+        assert parsed["key_findings"] == ["Finding A"]
+        assert parsed["open_questions"] == ["Question B"]
+        assert parsed["delegation_notes"] == "Some notes here"
+        assert "Analysis here" in cleaned
+        assert "## Key Findings" not in cleaned
+        assert "## Open Questions" not in cleaned
+        assert "## Delegation Notes" not in cleaned
 
     def test_returns_none_when_no_headers(self) -> None:
-        result = parse_structured_findings("Just plain text, no headers here.")
-        assert result["key_findings"] is None
-        assert result["open_questions"] is None
-        assert result["delegation_notes"] is None
+        cleaned, parsed = parse_and_clean("Just plain text, no headers here.")
+        assert parsed["key_findings"] is None
+        assert parsed["open_questions"] is None
+        assert parsed["delegation_notes"] is None
+        assert cleaned == "Just plain text, no headers here."
 
     def test_uses_asterisk_bullets(self) -> None:
         raw = "## Key Findings\n* Finding with asterisk\n"
-        result = parse_structured_findings(raw)
-        assert result["key_findings"] == ["Finding with asterisk"]
+        cleaned, parsed = parse_and_clean(raw)
+        assert parsed["key_findings"] == ["Finding with asterisk"]
 
     def test_empty_section_returns_none(self) -> None:
         raw = "## Key Findings\n\n## Open Questions\n- Q1\n"
-        result = parse_structured_findings(raw)
-        assert result["key_findings"] is None
-        assert result["open_questions"] == ["Q1"]
+        cleaned, parsed = parse_and_clean(raw)
+        assert parsed["key_findings"] is None
+        assert parsed["open_questions"] == ["Q1"]
 
 
 class TestGetBriefingTool:
@@ -305,16 +301,9 @@ class TestGetBriefingTool:
         result = tool.func(state={})
         assert result == "No briefing available yet."
 
-    def test_malformed_briefing_data(self) -> None:
-        tool = self._make_tool()
-        result = tool.func(
-            state={"briefing_data": {"original_request": 123, "sections": "not_a_list"}}
-        )
-        assert result == "No briefing available yet."
-
     def test_valid_briefing_data(self) -> None:
         tool = self._make_tool()
-        data = initialize_briefing("What's the status of PRJ-001?")
-        result = tool.func(state={"briefing_data": data})
+        doc = initialize_briefing("What's the status of PRJ-001?")
+        result = tool.func(state={"briefing_data": doc.model_dump()})
         assert "# Briefing Document" in result
         assert "What's the status of PRJ-001?" in result
