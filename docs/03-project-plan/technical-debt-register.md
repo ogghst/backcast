@@ -164,17 +164,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-108] Home Dashboard Card Shows Wrong Currency Symbol
+### [TD-108] ~~Home Dashboard Card Shows Wrong Currency Symbol~~
 
-- **Source:** E2E regression test (2026-05-20 core-regression)
-- **Description:** The home dashboard project card shows `$50,000` (dollar sign) for Demo Project 1, but the project currency is EUR. The project detail page correctly shows `€50.0K`. The dashboard card component likely doesn't pass the project currency to the `formatCurrency` / `formatCompactCurrency` functions.
-- **Impact:** Cosmetic — users see wrong currency symbol on the home page but correct values everywhere else
-- **Estimated Effort:** 1 hour
-- **Status:** Open
-- **Owner:** Frontend Developer
-- **Priority:** P4 (Low)
-- **Blocker:** No
-- **Suggested Approach:** Find the home dashboard project card component, pass project currency to the formatting function using `useProjectCurrency` hook (pattern established in TD-104).
+- **Status:** ✅ Resolved (2026-05-23) — Root cause: `transformProjectSpotlight` had hardcoded `Intl.NumberFormat("USD")`. Fixed by: (1) added `currency` field to backend `ProjectSpotlight` schema and service, (2) replaced hardcoded formatter with `formatCompactCurrency` in frontend transformer, (3) updated mock handlers and test expectations. See archive.
 
 ---
 
@@ -186,8 +178,8 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 |----------|-------|--------------|
 | High (P0-P1) | 2 | ~2.5 days |
 | Medium (P2-P3) | 1 | ~2 days |
-| Low (P4+) | 2 | 6 hours |
-| **Total** | **5** | **~7.5 days** |
+| Low (P4+) | 1 | ~5 hours |
+| **Total** | **4** | **~6.5 days** |
 
 ---
 

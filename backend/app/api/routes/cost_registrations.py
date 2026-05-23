@@ -18,6 +18,9 @@ from app.models.schemas.cost_registration import (
     CostRegistrationRead,
     CostRegistrationUpdate,
 )
+from app.services.cost_registration_attachment_service import (
+    CostRegistrationAttachmentService,
+)
 from app.services.cost_registration_service import (
     CostRegistrationService,
 )
@@ -133,6 +136,15 @@ async def read_cost_registrations(
         work_package_id=work_package_id,
     )
 
+    # Fetch attachment counts for all registrations in this page
+    cr_root_ids = [i.cost_registration_id for i in items]
+    attachment_service = CostRegistrationAttachmentService(service.session)
+    attachment_counts = (
+        await attachment_service.get_attachment_counts(cr_root_ids)
+        if cr_root_ids
+        else {}
+    )
+
     # Convert to Pydantic models with denormalized work package data
     items_out = []
     for i in items:
@@ -141,6 +153,7 @@ async def read_cost_registrations(
             name, pkg_type = wp_map[i.work_package_id]
             read.work_package_name = name
             read.work_package_type = pkg_type
+        read.attachment_count = attachment_counts.get(i.cost_registration_id, 0)
         items_out.append(read)
 
     # Return paginated response

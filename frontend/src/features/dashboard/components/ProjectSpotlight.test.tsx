@@ -57,10 +57,11 @@ describe("ProjectSpotlight", () => {
     id: "project-123",
     name: "Alpha Project",
     code: "PRJ-001",
-    budget: "$100,000",
+    budget: "€100.0K",
     evm_status: "on_track",
     active_changes: 3,
     last_activity: "2026-03-15T10:00:00Z",
+    currency: "EUR",
   };
 
   /**
@@ -87,7 +88,7 @@ describe("ProjectSpotlight", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("$100,000")).toBeInTheDocument();
+    expect(screen.getByText("€100.0K")).toBeInTheDocument();
     expect(screen.getByText("Budget")).toBeInTheDocument();
   });
 
@@ -192,7 +193,7 @@ describe("ProjectSpotlight", () => {
   it("formats large budget values correctly", () => {
     const projectWithLargeBudget: ProjectSpotlightType = {
       ...mockProject,
-      budget: "$1,234,567,890",
+      budget: "€1.2B",
     };
 
     render(
@@ -201,7 +202,7 @@ describe("ProjectSpotlight", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("$1,234,567,890")).toBeInTheDocument();
+    expect(screen.getByText("€1.2B")).toBeInTheDocument();
   });
 
   /**

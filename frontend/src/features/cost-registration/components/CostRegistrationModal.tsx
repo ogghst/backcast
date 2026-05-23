@@ -1,5 +1,11 @@
-import { useEffect, useMemo } from "react";
-import { App, Modal, Form, Input, InputNumber, DatePicker, Select } from "antd";
+import { useEffect, useMemo, useRef } from "react";
+import { App, Modal, Form, Input, InputNumber, DatePicker, Select, Button, Space, Typography, Tooltip, theme } from "antd";
+import {
+  DeleteOutlined,
+  DownloadOutlined,
+  PaperClipOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import type {
   CostRegistrationRead,
   CostRegistrationCreate,
@@ -11,9 +17,23 @@ import {
   useBudgetStatus,
   useProjectBudgetSettings,
 } from "../api/useCostRegistrations";
+import {
+  useCostRegistrationAttachments,
+  useUploadAttachment,
+  useDeleteAttachment,
+  downloadAttachment,
+} from "../api/useCostRegistrationAttachments";
 import { getCurrencySymbol } from "@/utils/formatters";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { useWorkPackages, PACKAGE_TYPE_OPTIONS } from "@/features/work-package/api/useWorkPackages";
+import { formatFileSize } from "@/features/ai/chat/api/attachmentUpload";
+import { toast } from "sonner";
+
+const { Text } = Typography;
+
+/** Max file size in bytes (10MB default, should match backend config). */
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 interface CostRegistrationModalProps {
   open: boolean;
@@ -56,6 +76,9 @@ export const CostRegistrationModal = ({
   const enforceBudget = projectBudgetSettings?.enforce_budget ?? false;
   const currency = useProjectCurrency(projectId);
   const currencySymbol = getCurrencySymbol(currency);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { token } = theme.useToken();
+  const { spacing, typography, borderRadius } = useThemeTokens();
 
   // Fetch open work packages for the project
   const { data: wpData, isLoading: wpLoading } = useWorkPackages({
@@ -71,6 +94,31 @@ export const CostRegistrationModal = ({
       value: wp.work_package_id,
     };
   });
+
+  // Attachment hooks (only for edit mode)
+  const costRegId = isEdit ? initialValues?.cost_registration_id ?? null : null;
+  const { data: attachments = [], isLoading: attachmentsLoading } =
+    useCostRegistrationAttachments(costRegId);
+  const uploadMutation = useUploadAttachment(costRegId ?? "");
+  const deleteMutation = useDeleteAttachment(costRegId ?? "");
+
+  const handleFileUpload = (file: File) => {
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast.error(`File too large. Maximum size: ${formatFileSize(MAX_FILE_SIZE_BYTES)}`);
+      return;
+    }
+    uploadMutation.mutate(file);
+  };
+
+  const handleDeleteAttachment = (attachmentId: string, filename: string) => {
+    modal.confirm({
+      title: "Delete Attachment",
+      content: `Are you sure you want to delete "${filename}"?`,
+      okText: "Delete",
+      okType: "danger",
+      onOk: () => deleteMutation.mutateAsync(attachmentId),
+    });
+  };
 
   const currencyFormatValue = useMemo(
     () => (value: string | number | undefined) => {
@@ -166,11 +214,11 @@ export const CostRegistrationModal = ({
                 <p>
                   Budget enforcement is enabled. This cost registration would exceed the cost element budget.
                 </p>
-                <div style={{ marginTop: 8, marginBottom: 8, padding: 8, background: "#fff1f0", borderRadius: 4, border: "1px solid #ffccc7" }}>
+                <div style={{ marginTop: spacing.sm, marginBottom: spacing.sm, padding: spacing.sm, backgroundColor: token.colorErrorBg, borderRadius: borderRadius.sm, border: `1px solid ${token.colorErrorBorder}` }}>
                   <p style={{ margin: 0 }}><strong>Cost Element Budget:</strong> {formatBudgetDisplay(costElementBudget)}</p>
                   <p style={{ margin: 0 }}><strong>Currently Used:</strong> {formatBudgetDisplay(effectiveCostElementUsed)}</p>
-                  <p style={{ margin: 0, color: "#cf1322" }}><strong>Projected Total:</strong> {formatBudgetDisplay(projectedCostElementSpend)}</p>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
+                  <p style={{ margin: 0, color: token.colorError }}><strong>Projected Total:</strong> {formatBudgetDisplay(projectedCostElementSpend)}</p>
+                  <p style={{ margin: 0, fontSize: typography.sizes.sm, color: token.colorTextTertiary }}>
                     Over budget by: {formatBudgetDisplay(projectedCostElementSpend - costElementBudget)}
                   </p>
                 </div>
@@ -190,12 +238,12 @@ export const CostRegistrationModal = ({
               </p>
               <div
                 style={{
-                  marginTop: 8,
-                  marginBottom: 8,
-                  padding: 8,
-                  background: "#fff1f0",
-                  borderRadius: 4,
-                  border: "1px solid #ffccc7",
+                  marginTop: spacing.sm,
+                  marginBottom: spacing.sm,
+                  padding: spacing.sm,
+                  backgroundColor: token.colorErrorBg,
+                  borderRadius: borderRadius.sm,
+                  border: `1px solid ${token.colorErrorBorder}`,
                 }}
               >
                 <p style={{ margin: 0 }}>
@@ -206,11 +254,11 @@ export const CostRegistrationModal = ({
                   <strong>Currently Used:</strong>{" "}
                   {formatBudgetDisplay(effectiveCostElementUsed)}
                 </p>
-                <p style={{ margin: 0, color: "#cf1322" }}>
+                <p style={{ margin: 0, color: token.colorError }}>
                   <strong>Projected Total:</strong>{" "}
                   {formatBudgetDisplay(projectedCostElementSpend)}
                 </p>
-                <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
+                <p style={{ margin: 0, fontSize: typography.sizes.sm, color: token.colorTextTertiary }}>
                   Over budget by:{" "}
                   {formatBudgetDisplay(projectedCostElementSpend - costElementBudget)}
                 </p>
@@ -238,12 +286,12 @@ export const CostRegistrationModal = ({
               </p>
               <div
                 style={{
-                  marginTop: 8,
-                  marginBottom: 8,
-                  padding: 8,
-                  background: "#fffbe6",
-                  borderRadius: 4,
-                  border: "1px solid #ffe58f",
+                  marginTop: spacing.sm,
+                  marginBottom: spacing.sm,
+                  padding: spacing.sm,
+                  backgroundColor: token.colorWarningBg,
+                  borderRadius: borderRadius.sm,
+                  border: `1px solid ${token.colorWarningBorder}`,
                 }}
               >
                 <p style={{ margin: 0 }}>
@@ -255,12 +303,12 @@ export const CostRegistrationModal = ({
                   {formatBudgetDisplay(effectiveCostElementUsed)}{" "}
                   ({((effectiveCostElementUsed / costElementBudget) * 100).toFixed(1)}%)
                 </p>
-                <p style={{ margin: 0, color: "#d46b08" }}>
+                <p style={{ margin: 0, color: token.colorWarning }}>
                   <strong>Projected Total:</strong>{" "}
                   {formatBudgetDisplay(projectedCostElementSpend)}{" "}
                   ({projectedPercentage.toFixed(1)}%)
                 </p>
-                <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
+                <p style={{ margin: 0, fontSize: typography.sizes.sm, color: token.colorTextTertiary }}>
                   <strong>Warning threshold:</strong> {warningThresholdPercent}% ({formatBudgetDisplay(costElementWarningLimit)})
                 </p>
               </div>
@@ -290,7 +338,7 @@ export const CostRegistrationModal = ({
       okText={isEdit ? "Save" : "Create"}
       confirmLoading={confirmLoading}
       destroyOnHidden
-      width={600}
+      width={650}
     >
       <Form form={form} layout="vertical" name="cost_registration_form">
         <Form.Item
@@ -404,6 +452,109 @@ export const CostRegistrationModal = ({
             <Input placeholder="Supplier name or reference" />
           </Form.Item>
         </div>
+
+        {/* Attachments section - visible in edit mode when cost registration exists */}
+        {isEdit && costRegId && (
+          <Form.Item label="Attachments">
+            <div style={{ marginBottom: spacing.sm }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                icon={<UploadOutlined />}
+                onClick={() => fileInputRef.current?.click()}
+                loading={uploadMutation.isPending}
+                size="small"
+              >
+                {uploadMutation.isPending ? `Uploading ${uploadMutation.variables?.name}...` : "Upload File"}
+              </Button>
+              <Text
+                type="secondary"
+                style={{ marginLeft: spacing.sm, fontSize: typography.sizes.sm }}
+              >
+                Max {formatFileSize(MAX_FILE_SIZE_BYTES)}
+              </Text>
+            </div>
+
+            {attachmentsLoading ? (
+              <Text type="secondary">Loading attachments...</Text>
+            ) : attachments.length === 0 ? (
+              <Text type="secondary">No attachments</Text>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: spacing.xs }}>
+                {attachments.map((att) => (
+                  <div
+                    key={att.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: `${spacing.xs}px ${spacing.sm}px`,
+                      backgroundColor: token.colorFillTertiary,
+                      borderRadius: borderRadius.sm,
+                      border: `1px solid ${token.colorBorderSecondary}`,
+                    }}
+                  >
+                    <Space size={spacing.xs}>
+                      <PaperClipOutlined />
+                      <Text
+                        ellipsis
+                        style={{ maxWidth: 250, cursor: "pointer" }}
+                        onClick={() =>
+                          downloadAttachment(costRegId, att.id, att.filename)
+                        }
+                      >
+                        {att.filename}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: typography.sizes.xs }}>
+                        ({formatFileSize(att.size)})
+                      </Text>
+                    </Space>
+                    <Space size={spacing.xs}>
+                      <Tooltip title="Download">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() =>
+                            downloadAttachment(costRegId, att.id, att.filename)
+                          }
+                        />
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          loading={deleteMutation.isPending}
+                          onClick={() =>
+                            handleDeleteAttachment(att.id, att.filename)
+                          }
+                        />
+                      </Tooltip>
+                    </Space>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Form.Item>
+        )}
+
+        {/* Show hint for create mode */}
+        {!isEdit && (
+          <Text type="secondary" style={{ fontSize: typography.sizes.sm }}>
+            <PaperClipOutlined style={{ marginRight: spacing.xs }} />
+            Attachments can be added after creating the cost registration.
+          </Text>
+        )}
       </Form>
     </Modal>
   );

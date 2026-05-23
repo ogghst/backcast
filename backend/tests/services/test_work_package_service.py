@@ -4,6 +4,9 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+
+# Pydantic ValidationError for schema-level validation tests
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import CreateVersionCommand
@@ -15,9 +18,6 @@ from app.models.schemas.work_package import (
     WorkPackageUpdate,
 )
 from app.services.work_package_service import WorkPackageService
-
-# Pydantic ValidationError for schema-level validation tests
-from pydantic import ValidationError
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ async def test_create_work_package(
         package_type="quality_impact",
         external_event_id="NCR-2026-0042",
         project_id=test_project.project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("5000.00"),
         schedule_impact_days=3,
     )
@@ -56,7 +56,7 @@ async def test_create_work_package(
     assert wp.package_type == "quality_impact"
     assert wp.external_event_id == "NCR-2026-0042"
     assert wp.project_id == test_project.project_id
-    assert wp.coq_category == "nonconformance"
+    assert wp.coq_category == "internal_failure"
     assert wp.cost_impact == Decimal("5000.00")
     assert wp.schedule_impact_days == 3
     assert wp.status == "open"
@@ -80,7 +80,7 @@ async def test_create_work_package_with_cost_allocations(
         package_type="quality_impact",
         external_event_id="NCR-2026-0099",
         project_id=project_id,
-        coq_category="conformance",
+        coq_category="prevention",
         cost_impact=Decimal("10000.00"),
         cost_allocations=[
             QualityCostAllocation(
@@ -126,7 +126,7 @@ async def test_update_work_package(
         package_type="quality_impact",
         external_event_id="NCR-2026-0050",
         project_id=test_project.project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("3000.00"),
     )
     wp = await service.create_work_package(create_data, actor_id=actor_id)
@@ -171,7 +171,7 @@ async def test_soft_delete_work_package(
         package_type="quality_impact",
         external_event_id="NCR-2026-0060",
         project_id=test_project.project_id,
-        coq_category="conformance",
+        coq_category="prevention",
         cost_impact=Decimal("2000.00"),
     )
     wp = await service.create_work_package(data, actor_id=actor_id)
@@ -187,7 +187,7 @@ async def test_soft_delete_work_package(
     assert deleted is None
 
     # Verify deleted_at is set via raw query
-    from sqlalchemy import select, func
+    from sqlalchemy import select
 
     stmt = select(WorkPackage).where(
         WorkPackage.work_package_id == root_id,
@@ -217,7 +217,7 @@ async def test_get_work_packages_by_project(
             package_type="quality_impact",
             external_event_id=f"NCR-2026-{i:04d}",
             project_id=project_id,
-            coq_category="nonconformance",
+            coq_category="internal_failure",
             cost_impact=Decimal("1000.00") * (i + 1),
         )
         await service.create_work_package(data, actor_id=actor_id)
@@ -245,48 +245,48 @@ async def test_get_work_packages_filter_by_coq_category(
     test_project,
     actor_id: tuple,
 ) -> None:
-    """Create conformance and nonconformance packages, verify filtering."""
+    """Create prevention and internal_failure packages, verify filtering."""
     service = WorkPackageService(db_session)
     project_id = test_project.project_id
 
-    # Create 2 nonconformance
+    # Create 2 internal_failure
     for i in range(2):
         data = WorkPackageCreate(
             name=f"NC-{i:04d}",
             package_type="quality_impact",
             external_event_id=f"NCR-NC-{i:04d}",
             project_id=project_id,
-            coq_category="nonconformance",
+            coq_category="internal_failure",
             cost_impact=Decimal("3000.00"),
         )
         await service.create_work_package(data, actor_id=actor_id)
 
-    # Create 3 conformance
+    # Create 3 prevention
     for i in range(3):
         data = WorkPackageCreate(
             name=f"CF-{i:04d}",
             package_type="quality_impact",
             external_event_id=f"NCR-CF-{i:04d}",
             project_id=project_id,
-            coq_category="conformance",
+            coq_category="prevention",
             cost_impact=Decimal("1500.00"),
         )
         await service.create_work_package(data, actor_id=actor_id)
     await db_session.flush()
 
-    # Filter nonconformance
+    # Filter internal_failure
     nc_wps, nc_total = await service.get_work_packages(
-        project_id, coq_category="nonconformance"
+        project_id, coq_category="internal_failure"
     )
     assert nc_total == 2
-    assert all(wp.coq_category == "nonconformance" for wp in nc_wps)
+    assert all(wp.coq_category == "internal_failure" for wp in nc_wps)
 
-    # Filter conformance
+    # Filter prevention
     cf_wps, cf_total = await service.get_work_packages(
-        project_id, coq_category="conformance"
+        project_id, coq_category="prevention"
     )
     assert cf_total == 3
-    assert all(wp.coq_category == "conformance" for wp in cf_wps)
+    assert all(wp.coq_category == "prevention" for wp in cf_wps)
 
 
 # --- Summary Tests ---
@@ -302,26 +302,26 @@ async def test_get_summary(
     service = WorkPackageService(db_session)
     project_id = test_project.project_id
 
-    # 2 nonconformance @ 5000 each = 10000
+    # 2 internal_failure @ 5000 each = 10000
     for i in range(2):
         data = WorkPackageCreate(
             name=f"SUM-NC-{i}",
             package_type="quality_impact",
             external_event_id=f"NCR-SUM-NC-{i}",
             project_id=project_id,
-            coq_category="nonconformance",
+            coq_category="internal_failure",
             cost_impact=Decimal("5000.00"),
             schedule_impact_days=3,
         )
         await service.create_work_package(data, actor_id=actor_id)
 
-    # 1 conformance @ 2000
+    # 1 prevention @ 2000
     data_cf = WorkPackageCreate(
         name="SUM-CF-0",
         package_type="quality_impact",
         external_event_id="NCR-SUM-CF-0",
         project_id=project_id,
-        coq_category="conformance",
+        coq_category="prevention",
         cost_impact=Decimal("2000.00"),
         schedule_impact_days=1,
     )
@@ -357,7 +357,7 @@ async def test_get_allocations(
         package_type="quality_impact",
         external_event_id="NCR-BD-001",
         project_id=project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("8000.00"),
         cost_allocations=[
             QualityCostAllocation(
@@ -403,7 +403,7 @@ async def test_upsert_allocations(
         package_type="quality_impact",
         external_event_id="NCR-UPS-001",
         project_id=project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("9000.00"),
         cost_allocations=[
             QualityCostAllocation(
@@ -464,7 +464,7 @@ async def test_compute_actual_cost(
         package_type="quality_impact",
         external_event_id="NCR-ACT-001",
         project_id=project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("10000.00"),
         cost_allocations=[
             QualityCostAllocation(
@@ -500,7 +500,7 @@ async def test_get_history(
         package_type="quality_impact",
         external_event_id="NCR-HIST-001",
         project_id=test_project.project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("1000.00"),
     )
     wp = await service.create_work_package(data, actor_id=actor_id)
@@ -546,13 +546,13 @@ async def test_get_coq_metrics(
     project_id = hierarchy["project"].project_id
     ce_id = hierarchy["cost_element"].cost_element_id
 
-    # 1. Create a nonconformance quality package with 3000 allocation
+    # 1. Create an internal_failure quality package with 3000 allocation
     nc_data = WorkPackageCreate(
         name="COQ-NC-01",
         package_type="quality_impact",
         external_event_id="NCR-COQ-NC-01",
         project_id=project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("5000.00"),
         cost_allocations=[
             QualityCostAllocation(
@@ -563,13 +563,13 @@ async def test_get_coq_metrics(
     await service.create_work_package(nc_data, actor_id=actor_id)
     await db_session.flush()
 
-    # 2. Create a conformance quality package with 2000 allocation
+    # 2. Create a prevention quality package with 2000 allocation
     cf_data = WorkPackageCreate(
         name="COQ-CF-01",
         package_type="quality_impact",
         external_event_id="NCR-COQ-CF-01",
         project_id=project_id,
-        coq_category="conformance",
+        coq_category="prevention",
         cost_impact=Decimal("3000.00"),
         cost_allocations=[
             QualityCostAllocation(
@@ -597,10 +597,10 @@ async def test_get_coq_metrics(
     # 4. Get COQ metrics
     metrics = await service.get_coq_metrics(project_id)
 
-    # Total COQ = nonconformance allocation (3000) + conformance allocation (2000)
+    # Total COQ = internal_failure allocation (3000) + prevention allocation (2000)
     assert metrics.total_coq == Decimal("5000.00")
 
-    # CPQ = nonconformance only = 3000
+    # CPQ = internal_failure only = 3000
     assert metrics.cpq == Decimal("3000.00")
 
     # Total AC = quality CRs (3000+2000) + regular CR (10000) = 15000
@@ -697,7 +697,7 @@ async def test_update_work_package_status_to_closed(
         package_type="quality_impact",
         external_event_id="NCR-STATUS-001",
         project_id=test_project.project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("1000.00"),
     )
     wp = await service.create_work_package(create_data, actor_id=actor_id)
@@ -744,7 +744,7 @@ async def test_get_work_packages_filter_by_type(
             package_type="quality_impact",
             external_event_id=f"NCR-QI-{i}",
             project_id=project_id,
-            coq_category="nonconformance",
+            coq_category="internal_failure",
             cost_impact=Decimal("3000.00"),
         )
         await service.create_work_package(data, actor_id=actor_id)
@@ -827,7 +827,7 @@ async def test_coq_metrics_filters_by_quality_type_only(
         package_type="quality_impact",
         external_event_id="NCR-COQ-ONLY",
         project_id=project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("5000.00"),
         cost_allocations=[
             QualityCostAllocation(
@@ -871,7 +871,7 @@ async def test_summary_excludes_non_quality_types(
         package_type="quality_impact",
         external_event_id="NCR-SUM-QI",
         project_id=project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("5000.00"),
     )
     await service.create_work_package(qi_data, actor_id=actor_id)
@@ -911,7 +911,7 @@ async def test_cost_registration_links_via_work_package_id(
         package_type="quality_impact",
         external_event_id="NCR-FK-001",
         project_id=project_id,
-        coq_category="nonconformance",
+        coq_category="internal_failure",
         cost_impact=Decimal("4000.00"),
         cost_allocations=[
             QualityCostAllocation(

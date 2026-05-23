@@ -1,4 +1,5 @@
 import {
+  theme,
   Card,
   Descriptions,
   Badge,
@@ -79,7 +80,11 @@ function getChangeType(mainValue: unknown, branchValue: unknown): ChangeType {
  * @param branchText - Modified text from branch
  * @returns React nodes with added/removed highlighting
  */
-function computeTextDiff(mainText: string, branchText: string): React.ReactNode {
+function computeTextDiff(
+  mainText: string,
+  branchText: string,
+  colors: { errorColor: string; errorBg: string; successColor: string; successBg: string }
+): React.ReactNode {
   const mainWords = mainText.split(/\s+/);
   const branchWords = branchText.split(/\s+/);
 
@@ -91,6 +96,21 @@ function computeTextDiff(mainText: string, branchText: string): React.ReactNode 
   // Build result maintaining word order from branch
   let mainIndex = 0;
   let branchIndex = 0;
+
+  const removedStyle: React.CSSProperties = {
+    textDecoration: "line-through",
+    color: colors.errorColor,
+    backgroundColor: colors.errorBg,
+    padding: "2px 4px",
+    borderRadius: "2px",
+  };
+
+  const addedStyle: React.CSSProperties = {
+    color: colors.successColor,
+    backgroundColor: colors.successBg,
+    padding: "2px 4px",
+    borderRadius: "2px",
+  };
 
   while (mainIndex < mainWords.length || branchIndex < branchWords.length) {
     const mainWord = mainWords[mainIndex];
@@ -107,7 +127,7 @@ function computeTextDiff(mainText: string, branchText: string): React.ReactNode 
     } else if (branchSet.has(mainWord)) {
       // Word was removed, appears later in branch
       elements.push(
-        <span key={`removed-${mainIndex}`} className="diff-removed" style={{ textDecoration: "line-through", color: "#ff4d4f", backgroundColor: "#fff1f0", padding: "2px 4px", borderRadius: "2px" }}>
+        <span key={`removed-${mainIndex}`} className="diff-removed" style={removedStyle}>
           {mainWord}{" "}
         </span>
       );
@@ -115,7 +135,7 @@ function computeTextDiff(mainText: string, branchText: string): React.ReactNode 
     } else if (mainSet.has(branchWord)) {
       // Word was added, appeared earlier in main
       elements.push(
-        <span key={`added-${branchIndex}`} className="diff-added" style={{ color: "#389e0d", backgroundColor: "#f6ffed", padding: "2px 4px", borderRadius: "2px" }}>
+        <span key={`added-${branchIndex}`} className="diff-added" style={addedStyle}>
           {branchWord}{" "}
         </span>
       );
@@ -124,7 +144,7 @@ function computeTextDiff(mainText: string, branchText: string): React.ReactNode 
       // Completely different words
       if (mainIndex < mainWords.length) {
         elements.push(
-          <span key={`removed-${mainIndex}`} className="diff-removed" style={{ textDecoration: "line-through", color: "#ff4d4f", backgroundColor: "#fff1f0", padding: "2px 4px", borderRadius: "2px" }}>
+          <span key={`removed-${mainIndex}`} className="diff-removed" style={removedStyle}>
             {mainWord}{" "}
           </span>
         );
@@ -132,7 +152,7 @@ function computeTextDiff(mainText: string, branchText: string): React.ReactNode 
       }
       if (branchIndex < branchWords.length) {
         elements.push(
-          <span key={`added-${branchIndex}`} className="diff-added" style={{ color: "#389e0d", backgroundColor: "#f6ffed", padding: "2px 4px", borderRadius: "2px" }}>
+          <span key={`added-${branchIndex}`} className="diff-added" style={addedStyle}>
             {branchWord}{" "}
           </span>
         );
@@ -202,6 +222,7 @@ export const SideBySideDiff = ({
   excludeFields = [],
   showUnchanged = false,
 }: SideBySideDiffProps) => {
+  const { token } = theme.useToken();
   const [filter, setFilter] = useState<FilterType>("all");
 
   /**
@@ -244,11 +265,11 @@ export const SideBySideDiff = ({
   const getBadge = (changeType: ChangeType) => {
     switch (changeType) {
       case "added":
-        return <Badge count="+" style={{ backgroundColor: "#52c41a" }} />;
+        return <Badge count="+" style={{ backgroundColor: token.colorSuccess }} />;
       case "modified":
-        return <Badge count="~" style={{ backgroundColor: "#fa8c16" }} />;
+        return <Badge count="~" style={{ backgroundColor: token.colorWarning }} />;
       case "removed":
-        return <Badge count="-" style={{ backgroundColor: "#ff4d4f" }} />;
+        return <Badge count="-" style={{ backgroundColor: token.colorError }} />;
       default:
         return null;
     }
@@ -275,7 +296,12 @@ export const SideBySideDiff = ({
     }
 
     if (shouldShowInlineDiff(change) && typeof change.mainValue === "string" && typeof change.branchValue === "string") {
-      return computeTextDiff(change.mainValue, change.branchValue);
+      return computeTextDiff(change.mainValue, change.branchValue, {
+        errorColor: token.colorError,
+        errorBg: token.colorErrorBg,
+        successColor: token.colorSuccess,
+        successBg: token.colorSuccessBg,
+      });
     }
 
     return <Text>{formatValue(value)}</Text>;
@@ -305,7 +331,7 @@ export const SideBySideDiff = ({
       key: "added",
       label: (
         <Space>
-          <Badge count={groupedChanges.added.length} style={{ backgroundColor: "#52c41a" }} />
+          <Badge count={groupedChanges.added.length} style={{ backgroundColor: token.colorSuccess }} />
           <Text strong>Added Fields</Text>
         </Space>
       ),
@@ -340,7 +366,7 @@ export const SideBySideDiff = ({
       key: "modified",
       label: (
         <Space>
-          <Badge count={groupedChanges.modified.length} style={{ backgroundColor: "#fa8c16" }} />
+          <Badge count={groupedChanges.modified.length} style={{ backgroundColor: token.colorWarning }} />
           <Text strong>Modified Fields</Text>
         </Space>
       ),
@@ -376,7 +402,7 @@ export const SideBySideDiff = ({
       key: "removed",
       label: (
         <Space>
-          <Badge count={groupedChanges.removed.length} style={{ backgroundColor: "#ff4d4f" }} />
+          <Badge count={groupedChanges.removed.length} style={{ backgroundColor: token.colorError }} />
           <Text strong>Removed Fields</Text>
         </Space>
       ),
@@ -411,7 +437,7 @@ export const SideBySideDiff = ({
       key: "unchanged",
       label: (
         <Space>
-          <Badge count={groupedChanges.unchanged.length} style={{ backgroundColor: "#8c8c8c" }} />
+          <Badge count={groupedChanges.unchanged.length} style={{ backgroundColor: token.colorTextSecondary }} />
           <Text strong>Unchanged Fields</Text>
         </Space>
       ),

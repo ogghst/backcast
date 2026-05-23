@@ -5,13 +5,12 @@ PostgreSQL TSTZRANGE values to display-ready format for API responses.
 Also tests the Pydantic validators that convert Range objects to strings.
 """
 
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
+from datetime import UTC, datetime
 
 from app.core.temporal import format_temporal_range_for_api
 from app.models.schemas.temporal_validators import (
-    convert_range_to_str,
     convert_range_to_iso,
+    convert_range_to_str,
 )
 
 
@@ -166,7 +165,7 @@ class TestConvertRangeToStr:
 
     def test_unbounded_range_object(self):
         """Range object with no upper bound produces unbounded range string."""
-        lower = datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc)
+        lower = datetime(2026, 1, 15, 10, 0, tzinfo=UTC)
         result = convert_range_to_str(FakeRange(lower, None))
 
         assert result == '["2026-01-15T10:00:00+00:00",)'
@@ -177,8 +176,8 @@ class TestConvertRangeToStr:
 
     def test_bounded_range_object(self):
         """Range object with upper bound preserves both bounds."""
-        lower = datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc)
-        upper = datetime(2026, 2, 15, 10, 0, tzinfo=timezone.utc)
+        lower = datetime(2026, 1, 15, 10, 0, tzinfo=UTC)
+        upper = datetime(2026, 2, 15, 10, 0, tzinfo=UTC)
         result = convert_range_to_str(FakeRange(lower, upper))
 
         assert result == '["2026-01-15T10:00:00+00:00","2026-02-15T10:00:00+00:00")'
@@ -197,8 +196,8 @@ class TestConvertRangeToIso:
 
     def test_bounded_range_object(self):
         """After fix, convert_range_to_iso preserves upper bound."""
-        lower = datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc)
-        upper = datetime(2026, 3, 1, 8, 30, tzinfo=timezone.utc)
+        lower = datetime(2026, 1, 15, 10, 0, tzinfo=UTC)
+        upper = datetime(2026, 3, 1, 8, 30, tzinfo=UTC)
         result = convert_range_to_iso(FakeRange(lower, upper))
 
         assert result == '["2026-01-15T10:00:00+00:00","2026-03-01T08:30:00+00:00")'
@@ -208,7 +207,7 @@ class TestConvertRangeToIso:
 
     def test_unbounded_range_object(self):
         """Unbounded range still shows is_currently_valid as True."""
-        lower = datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc)
+        lower = datetime(2026, 5, 20, 12, 0, tzinfo=UTC)
         result = convert_range_to_iso(FakeRange(lower, None))
 
         assert result == '["2026-05-20T12:00:00+00:00",)'

@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     OTEL_ENABLED: bool = False
     OTLP_ENDPOINT: str = "http://localhost:6006/v1/traces"
 
+    # Cost Registration Attachments
+    COST_REGISTRATION_MAX_ATTACHMENT_SIZE_MB: int = 10  # 10MB default
+
     # Telegram Notifications
     TELEGRAM_ENABLED: bool = False
     TELEGRAM_BOT_TOKEN: str = ""

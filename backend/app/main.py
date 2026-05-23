@@ -22,6 +22,7 @@ from app.api.routes import (
     change_orders,
     cost_element_types,
     cost_elements,
+    cost_registration_attachments,
     cost_registrations,
     dashboard,
     dashboard_layouts,
@@ -377,6 +378,11 @@ app.include_router(
     cost_registrations.router,
     prefix=f"{settings.API_V1_STR}/cost-registrations",
     tags=["Cost Registrations"],
+)
+app.include_router(
+    cost_registration_attachments.router,
+    prefix=f"{settings.API_V1_STR}/cost-registrations",
+    tags=["Cost Registration Attachments"],
 )
 app.include_router(
     change_orders.router,

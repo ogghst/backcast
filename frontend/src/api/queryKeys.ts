@@ -111,6 +111,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       [...queryKeys.costRegistrations.all, "aggregated", entityType, entityId, params] as const,
     cumulative: (entityType: string, entityId: string, params?: unknown) =>
       [...queryKeys.costRegistrations.all, "cumulative", entityType, entityId, params] as const,
+    attachments: (costRegistrationId: string) =>
+      [...queryKeys.costRegistrations.all, "attachments", costRegistrationId] as const,
   },
 
   // Progress Entries

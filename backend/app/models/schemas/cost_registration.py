@@ -87,6 +87,7 @@ class CostRegistrationRead(CostRegistrationBase):
     work_package_id: UUID | None = None
     work_package_name: str | None = None
     work_package_type: str | None = None
+    attachment_count: int = 0
     created_by: UUID
 
     @computed_field  # type: ignore[prop-decorator]

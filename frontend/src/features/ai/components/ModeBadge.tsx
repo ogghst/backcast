@@ -5,6 +5,8 @@
  * Color-coded badge showing current execution mode.
  */
 
+import { theme } from "antd";
+
 import type { ExecutionMode } from "../chat/types";
 
 interface ModeBadgeProps {
@@ -12,31 +14,31 @@ interface ModeBadgeProps {
 }
 
 /**
- * Color scheme for execution modes
+ * Color scheme for execution modes using antd theme tokens
  * - Safe: Green (restricted, secure)
  * - Standard: Blue (balanced, default)
  * - Expert: Orange (unrestricted, powerful)
  */
-const MODE_CONFIG = {
+const getModeConfig = (token: ReturnType<typeof theme.useToken>["token"]) => ({
   safe: {
     label: "Safe",
-    color: "#52c41a", // Ant Design green-6
-    bgColor: "#f6ffed", // Ant Design green-1
-    borderColor: "#b7eb8f", // Ant Design green-3
+    color: token.colorSuccess,
+    bgColor: token.colorSuccessBg,
+    borderColor: token.colorSuccessBorder,
   },
   standard: {
     label: "Standard",
-    color: "#1890ff", // Ant Design blue-6
-    bgColor: "#e6f7ff", // Ant Design blue-1
-    borderColor: "#91d5ff", // Ant Design blue-3
+    color: token.colorPrimary,
+    bgColor: token.colorPrimaryBg,
+    borderColor: token.colorPrimaryBorder,
   },
   expert: {
     label: "Expert",
-    color: "#fa8c16", // Ant Design orange-6
-    bgColor: "#fff7e6", // Ant Design orange-1
-    borderColor: "#ffd591", // Ant Design orange-3
+    color: token.colorWarning,
+    bgColor: token.colorWarningBg,
+    borderColor: token.colorWarningBorder,
   },
-} as const;
+});
 
 /**
  * Badge component showing the current execution mode
@@ -51,6 +53,8 @@ const MODE_CONFIG = {
  * ```
  */
 export const ModeBadge = ({ mode }: ModeBadgeProps) => {
+  const { token } = theme.useToken();
+  const MODE_CONFIG = getModeConfig(token);
   const config = MODE_CONFIG[mode];
 
   return (
