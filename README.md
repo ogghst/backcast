@@ -1,4 +1,4 @@
-<p align="center">
+**<p align="center">
   <img src="frontend/public/assets/images/backcast-logo.svg" alt="Backcast" width="400">
 </p>
 
@@ -288,3 +288,4 @@ See the [Onboarding Guide](docs/00-meta/onboarding.md) for development setup and
 ## License
 
 [MIT](LICENSE)
+**
