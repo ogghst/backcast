@@ -7,8 +7,8 @@ This template provides AI tools for work package management and Cost of Quality
 
 Work Packages in Backcast:
 - Work Packages are project-scoped cost grouping mechanisms with multiple types
-  (quality_impact, site_visit, production_phase, warranty_batch, commissioning)
-- They are VERSIONABLE but NOT BRANCHABLE — financial facts are global
+  configured through the system's package_types table.
+- They are VERSIONABLE but NOT BRANCHABLE -- financial facts are global
 - Quality Impact packages support COQ category tracking and cost allocations
 - COQ metrics complement standard EVM indicators (CPQ, CPIq, QPI)
 
@@ -53,8 +53,8 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="list_work_packages",
     description="List work packages for a project with optional filtering by "
-    "package type, COQ category, or status. Supports types: quality_impact, "
-    "site_visit, production_phase, warranty_batch, commissioning. "
+    "package type, COQ category, or status. Supports any active package type "
+    "configured in the system. "
     "Temporal context (as_of date) is enforced by the system.",
     permissions=["work-package-read"],
     category="work-packages",
@@ -75,8 +75,8 @@ async def list_work_packages(
 
     Args:
         project_id: UUID of the project to list work packages for
-        package_type: Optional filter by package type (quality_impact, site_visit,
-            production_phase, warranty_batch, commissioning)
+        package_type: Optional filter by package type (supports any active package type
+            configured in the system, e.g. quality_impact, site_visit, etc.)
         coq_category: Optional filter by COQ category (prevention, appraisal,
             internal_failure, external_failure)
         status: Optional filter by status (open, closed)
@@ -215,8 +215,8 @@ async def get_work_package(
 
 @ai_tool(
     name="create_work_package",
-    description="Create a new work package under a project. Supports types: "
-    "quality_impact, site_visit, production_phase, warranty_batch, commissioning. "
+    description="Create a new work package under a project. Supports any active "
+    "package type configured in the system. "
     "Quality impact packages can include COQ category and schedule impact. "
     "Optionally include cost allocations.",
     permissions=["work-package-create"],
@@ -245,8 +245,8 @@ async def create_work_package(
     Args:
         project_id: UUID of the parent project
         name: Work package name
-        package_type: Type of work package (quality_impact, site_visit,
-            production_phase, warranty_batch, commissioning)
+        package_type: Type of work package (supports any active package type
+            configured in the system)
         description: Optional description
         status: Status (open or closed, defaults to "open")
         external_event_id: Optional external reference identifier (e.g., QMS ID)
@@ -597,7 +597,7 @@ async def get_work_package_allocations(
 @ai_tool(
     name="get_coq_summary",
     description="Get Cost of Quality summary for a project. Only includes "
-    "quality_impact-typed work packages. Returns total cost, "
+    "work packages of quality-flagged types. Returns total cost, "
     "4-category breakdown (prevention, appraisal, internal_failure, "
     "external_failure), COQ ratio.",
     permissions=["work-package-read"],
@@ -677,7 +677,7 @@ async def get_coq_summary(
 @ai_tool(
     name="get_coq_metrics",
     description="Get Cost of Quality metrics complementing standard EVM indicators. "
-    "Includes CPQ, CPIq, QPI, and COQ ratio. Only includes quality_impact-typed "
+    "Includes CPQ, CPIq, QPI, and COQ ratio. Only includes quality-flagged "
     "work packages.",
     permissions=["work-package-read"],
     category="work-packages",

@@ -1,0 +1,43 @@
+[
+  {
+    "package_type_id": "a1b2c3d4-1111-4000-8000-000000000001",
+    "code": "quality_impact",
+    "name": "Quality Impact",
+    "color": "red",
+    "is_quality": true,
+    "description": "Cost of Quality impact tracking",
+    "control_date": "2026-01-01T00:00:00"
+  },
+  {
+    "package_type_id": "a1b2c3d4-1111-4000-8000-000000000002",
+    "code": "site_visit",
+    "name": "Site Visit",
+    "color": "blue",
+    "description": "Site visit work packages",
+    "control_date": "2026-01-01T00:00:00"
+  },
+  {
+    "package_type_id": "a1b2c3d4-1111-4000-8000-000000000003",
+    "code": "production_phase",
+    "name": "Production Phase",
+    "color": "green",
+    "description": "Production phase work packages",
+    "control_date": "2026-01-01T00:00:00"
+  },
+  {
+    "package_type_id": "a1b2c3d4-1111-4000-8000-000000000004",
+    "code": "warranty_batch",
+    "name": "Warranty Batch",
+    "color": "orange",
+    "description": "Warranty batch work packages",
+    "control_date": "2026-01-01T00:00:00"
+  },
+  {
+    "package_type_id": "a1b2c3d4-1111-4000-8000-000000000005",
+    "code": "commissioning",
+    "name": "Commissioning",
+    "color": "purple",
+    "description": "Commissioning work packages",
+    "control_date": "2026-01-01T00:00:00"
+  }
+]

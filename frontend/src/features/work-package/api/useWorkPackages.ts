@@ -17,6 +17,7 @@ import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { toast } from "sonner";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
+import { PackageTypesService } from "@/api/generated/services/PackageTypesService";
 import type { PaginatedResponse } from "@/types/api";
 import { queryKeys } from "@/api/queryKeys";
 
@@ -39,15 +40,7 @@ export interface QualityCostAllocationRead {
   wbe_code?: string;
 }
 
-export const PACKAGE_TYPE_OPTIONS = [
-  { label: "Quality Impact", value: "quality_impact" },
-  { label: "Site Visit", value: "site_visit" },
-  { label: "Production Phase", value: "production_phase" },
-  { label: "Warranty Batch", value: "warranty_batch" },
-  { label: "Commissioning", value: "commissioning" },
-] as const;
-
-export type PackageType = (typeof PACKAGE_TYPE_OPTIONS)[number]["value"];
+export type PackageType = string;
 
 export const COQ_CATEGORY_OPTIONS = [
   { label: "Prevention", value: "prevention" },
@@ -55,6 +48,38 @@ export const COQ_CATEGORY_OPTIONS = [
   { label: "Internal Failure", value: "internal_failure" },
   { label: "External Failure", value: "external_failure" },
 ] as const;
+
+export interface PackageTypeOption {
+  label: string;
+  value: string;
+  color: string;
+  is_quality: boolean;
+}
+
+/**
+ * Hook to fetch package types from the API.
+ * Returns normalized options suitable for Select/Segmented components.
+ */
+export const usePackageTypes = () => {
+  return useQuery<PackageTypeOption[]>({
+    queryKey: queryKeys.packageTypes.list,
+    queryFn: async () => {
+      const res = await PackageTypesService.getPackageTypes(1, 10000);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const items = Array.isArray(res) ? res : (res as any)?.items || [];
+      return items.map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pt: any) => ({
+          label: pt.name,
+          value: pt.code,
+          color: pt.color || "blue",
+          is_quality: pt.is_quality || false,
+        }),
+      );
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes — package types change rarely
+  });
+};
 
 export interface WorkPackageRead {
   id: string;

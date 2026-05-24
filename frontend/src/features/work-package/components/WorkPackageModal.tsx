@@ -18,8 +18,8 @@ import { getCurrencySymbol, formatCurrency } from "@/utils/formatters";
 import { useWBEs } from "@/features/wbes/api/useWBEs";
 import { useCostElements } from "@/features/cost-elements/api/useCostElements";
 import {
-  PACKAGE_TYPE_OPTIONS,
   COQ_CATEGORY_OPTIONS,
+  usePackageTypes,
 } from "../api/useWorkPackages";
 import type {
   WorkPackageCreate,
@@ -58,6 +58,7 @@ export const WorkPackageModal = ({
   const { spacing, colors, typography } = useThemeTokens();
   const isEdit = !!initialValues;
   const currencySymbol = getCurrencySymbol(currency);
+  const { data: packageTypeOptions } = usePackageTypes();
 
   // Breakdown rows state
   const [breakdownRows, setBreakdownRows] = useState<BreakdownRow[]>([]);
@@ -75,7 +76,7 @@ export const WorkPackageModal = ({
 
   // Watch package_type to conditionally show quality fields
   const selectedPackageType = Form.useWatch("package_type", form);
-  const isQualityType = selectedPackageType === "quality_impact";
+  const isQualityType = packageTypeOptions?.find(pt => pt.value === selectedPackageType)?.is_quality ?? false;
 
   // Currency formatter/parser for InputNumber
   const currencyFormatValue = useMemo(
@@ -117,7 +118,7 @@ export const WorkPackageModal = ({
       } else {
         form.resetFields();
         form.setFieldsValue({
-          package_type: "quality_impact",
+          package_type: packageTypeOptions?.[0]?.value || "",
           event_date: asOf ? dayjs(asOf) : dayjs(),
           coq_category: "internal_failure",
           status: "open",
@@ -125,7 +126,7 @@ export const WorkPackageModal = ({
       }
     }
     prevOpenRef.current = open;
-  }, [open, initialValues, form, asOf]);
+  }, [open, initialValues, form, asOf, packageTypeOptions]);
 
   const handleSubmit = async () => {
     try {
@@ -235,7 +236,11 @@ export const WorkPackageModal = ({
           >
             <Select
               placeholder="Select type"
-              options={[...PACKAGE_TYPE_OPTIONS]}
+              loading={!packageTypeOptions}
+              options={(packageTypeOptions || []).map((opt) => ({
+                label: opt.label,
+                value: opt.value,
+              }))}
             />
           </Form.Item>
         </div>

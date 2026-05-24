@@ -57,4 +57,5 @@ export interface DashboardLayoutRead {
 /** Schema for cloning a template layout. */
 export interface CloneTemplateRequest {
   project_id?: string | null;
+  name?: string | null;
 }

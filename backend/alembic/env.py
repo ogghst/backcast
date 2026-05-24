@@ -25,6 +25,7 @@ from app.models.domain import (  # noqa: F401
     department,
     forecast,
     mcp_server,
+    package_type,
     progress_entry,
     project,
     refresh_token,

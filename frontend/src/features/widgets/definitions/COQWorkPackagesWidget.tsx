@@ -5,6 +5,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useDashboardContext } from "../context/useDashboardContext";
 import {
   useWorkPackages,
+  usePackageTypes,
   COQ_CATEGORY_OPTIONS,
 } from "@/features/work-package/api/useWorkPackages";
 import type { WorkPackageRead } from "@/features/work-package/api/useWorkPackages";
@@ -35,10 +36,16 @@ const COQWorkPackagesComponent: FC<
 > = ({ config, instanceId, isEditing, onRemove, onConfigure, onFullscreen, widgetType, dashboardName }) => {
   const { token } = theme.useToken();
   const context = useDashboardContext();
+  const { data: packageTypeOptions } = usePackageTypes();
+
+  const qualityTypeFilter = packageTypeOptions
+    ?.filter(pt => pt.is_quality)
+    .map(pt => pt.value)
+    .join(",") || undefined;
 
   const { data, isLoading, error, refetch } = useWorkPackages({
     project_id: context.projectId,
-    package_type: "quality_impact",
+    package_type: qualityTypeFilter,
     page: 1,
     perPage: config.pageSize,
   });

@@ -2713,6 +2713,380 @@
         }
       }
     },
+    "/api/v1/package-types": {
+      "get": {
+        "tags": [
+          "Package Types"
+        ],
+        "summary": "Read Package Types",
+        "description": "Retrieve package types with server-side features.",
+        "operationId": "get_package_types",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (code, name)",
+              "title": "Search"
+            },
+            "description": "Search term (code, name)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Package Types"
+        ],
+        "summary": "Create Package Type",
+        "description": "Create a new package type.",
+        "operationId": "create_package_type",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageTypeCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypeRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/package-types/{package_type_id}": {
+      "get": {
+        "tags": [
+          "Package Types"
+        ],
+        "summary": "Read Package Type",
+        "description": "Get a specific package type by id.",
+        "operationId": "get_package_type",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "package_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Package Type Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypeRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Package Types"
+        ],
+        "summary": "Update Package Type",
+        "description": "Update a package type.",
+        "operationId": "update_package_type",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "package_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Package Type Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageTypeUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypeRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Package Types"
+        ],
+        "summary": "Delete Package Type",
+        "description": "Soft delete a package type.",
+        "operationId": "delete_package_type",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "package_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Package Type Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/package-types/{package_type_id}/history": {
+      "get": {
+        "tags": [
+          "Package Types"
+        ],
+        "summary": "Get Package Type History",
+        "description": "Get version history for a package type.",
+        "operationId": "get_package_type_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "package_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Package Type Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PackageTypeRead"
+                  },
+                  "title": "Response Get Package Type History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cost-elements": {
       "get": {
         "tags": [
@@ -5071,6 +5445,218 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations/{cost_registration_id}/attachments": {
+      "get": {
+        "tags": [
+          "Cost Registration Attachments"
+        ],
+        "summary": "List Attachments",
+        "description": "List all attachments for a cost registration.",
+        "operationId": "list_cost_registration_attachments",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Registration Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CostRegistrationAttachmentRead"
+                  },
+                  "title": "Response List Cost Registration Attachments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Cost Registration Attachments"
+        ],
+        "summary": "Upload Attachment",
+        "description": "Upload a file attachment to a cost registration.\n\nAll file types are allowed. Maximum file size is configurable via\nCOST_REGISTRATION_MAX_ATTACHMENT_SIZE_MB env variable (default 10MB).",
+        "operationId": "upload_cost_registration_attachment",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Registration Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_cost_registration_attachment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostRegistrationAttachmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations/{cost_registration_id}/attachments/{attachment_id}": {
+      "get": {
+        "tags": [
+          "Cost Registration Attachments"
+        ],
+        "summary": "Download Attachment",
+        "description": "Download an attachment (returns raw binary content).",
+        "operationId": "download_cost_registration_attachment",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Registration Id"
+            }
+          },
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attachment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Cost Registration Attachments"
+        ],
+        "summary": "Delete Attachment",
+        "description": "Delete an attachment from a cost registration.",
+        "operationId": "delete_cost_registration_attachment",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Registration Id"
+            }
+          },
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attachment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -8188,7 +8774,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^(conformance|nonconformance)$"
+                  "pattern": "^(prevention|appraisal|internal_failure|external_failure)$"
                 },
                 {
                   "type": "null"
@@ -8212,10 +8798,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by package type",
+              "description": "Filter by package type(s), comma-separated for multiple (e.g. 'quality_impact,site_visit')",
               "title": "Package Type"
             },
-            "description": "Filter by package type"
+            "description": "Filter by package type(s), comma-separated for multiple (e.g. 'quality_impact,site_visit')"
           },
           {
             "name": "status",
@@ -8442,6 +9028,85 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/COQMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/work-packages/project/{project_id}/coq-trend": {
+      "get": {
+        "tags": [
+          "Work Packages"
+        ],
+        "summary": "Get COQ trend time-series",
+        "description": "Get COQ trend time-series for a project.\n\nReturns Cost of Quality costs aggregated into time buckets (week or month),\nbroken down by the four COQ categories: prevention, appraisal,\ninternal_failure, external_failure.\nOnly includes quality_impact-typed work packages.",
+        "operationId": "get_coq_trend",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/COQTrendGranularity",
+              "description": "Time granularity",
+              "default": "month"
+            },
+            "description": "Time granularity"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Point-in-time for historical query",
+              "title": "As Of"
+            },
+            "description": "Point-in-time for historical query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/COQTrendResponse"
                 }
               }
             }
@@ -14141,6 +14806,21 @@
         ],
         "title": "Body_upload_ai_image"
       },
+      "Body_upload_cost_registration_attachment": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "File to attach (max size configurable)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_cost_registration_attachment"
+      },
       "BranchMode": {
         "type": "string",
         "enum": [
@@ -14323,6 +15003,134 @@
         ],
         "title": "COQMetrics",
         "description": "COQ metrics complementing standard EVM indicators."
+      },
+      "COQTrendGranularity": {
+        "type": "string",
+        "enum": [
+          "week",
+          "month"
+        ],
+        "title": "COQTrendGranularity",
+        "description": "Time granularity for COQ trend aggregation."
+      },
+      "COQTrendPoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date"
+          },
+          "planned_prevention": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Planned Prevention",
+            "default": "0"
+          },
+          "planned_appraisal": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Planned Appraisal",
+            "default": "0"
+          },
+          "planned_internal_failure": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Planned Internal Failure",
+            "default": "0"
+          },
+          "planned_external_failure": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Planned External Failure",
+            "default": "0"
+          },
+          "total_planned": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Planned",
+            "default": "0"
+          },
+          "prevention": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Prevention",
+            "default": "0"
+          },
+          "appraisal": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Appraisal",
+            "default": "0"
+          },
+          "internal_failure": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Internal Failure",
+            "default": "0"
+          },
+          "external_failure": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "External Failure",
+            "default": "0"
+          },
+          "total_coq": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Coq",
+            "default": "0"
+          },
+          "cpq": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cpq",
+            "default": "0"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "COQTrendPoint",
+        "description": "Single data point for COQ trend time-series."
+      },
+      "COQTrendResponse": {
+        "properties": {
+          "granularity": {
+            "$ref": "#/components/schemas/COQTrendGranularity"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/COQTrendPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Date"
+          },
+          "total_points": {
+            "type": "integer",
+            "title": "Total Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "granularity",
+          "points",
+          "start_date",
+          "end_date",
+          "total_points"
+        ],
+        "title": "COQTrendResponse",
+        "description": "COQ trend time-series response."
       },
       "ChangeOrderApproval": {
         "properties": {
@@ -15270,6 +16078,19 @@
             ],
             "title": "Project Id",
             "description": "Project scope for the cloned layout"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Name for the cloned layout (defaults to 'Copy of {template.name}')"
           }
         },
         "type": "object",
@@ -15852,6 +16673,48 @@
         "title": "CostElementUpdate",
         "description": "Properties that can be updated."
       },
+      "CostRegistrationAttachmentRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "cost_registration_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Registration Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "cost_registration_id",
+          "filename",
+          "content_type",
+          "size",
+          "created_at"
+        ],
+        "title": "CostRegistrationAttachmentRead",
+        "description": "Properties returned for an attachment."
+      },
       "CostRegistrationCreate": {
         "properties": {
           "amount": {
@@ -16136,6 +16999,11 @@
               }
             ],
             "title": "Work Package Type"
+          },
+          "attachment_count": {
+            "type": "integer",
+            "title": "Attachment Count",
+            "default": 0
           },
           "created_by": {
             "type": "string",
@@ -18902,6 +19770,209 @@
         "title": "NotificationResponse",
         "description": "Schema for Notification API responses."
       },
+      "PackageTypeCreate": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "color": {
+            "type": "string",
+            "maxLength": 30,
+            "title": "Color",
+            "default": "blue"
+          },
+          "is_quality": {
+            "type": "boolean",
+            "title": "Is Quality",
+            "description": "Whether this type contributes to COQ metrics",
+            "default": false
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "package_type_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Type Id",
+            "description": "Root Package Type ID (internal use only for seeding)"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for creation (valid_time start)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "PackageTypeCreate",
+        "description": "Properties required for creating a Package Type."
+      },
+      "PackageTypeRead": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "color": {
+            "type": "string",
+            "maxLength": 30,
+            "title": "Color",
+            "default": "blue"
+          },
+          "is_quality": {
+            "type": "boolean",
+            "title": "Is Quality",
+            "description": "Whether this type contributes to COQ metrics",
+            "default": false
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "package_type_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Package Type Id"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "id",
+          "package_type_id",
+          "created_by"
+        ],
+        "title": "PackageTypeRead",
+        "description": "Properties returned to client."
+      },
+      "PackageTypeUpdate": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "is_quality": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Quality"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "PackageTypeUpdate",
+        "description": "Properties that can be updated."
+      },
       "PaginatedResponse_NotificationResponse_": {
         "properties": {
           "items": {
@@ -19676,6 +20747,12 @@
             "type": "string",
             "title": "Branch",
             "description": "Branch of last activity"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "description": "ISO 4217 currency code for the project",
+            "default": "EUR"
           }
         },
         "type": "object",
@@ -22160,7 +23237,8 @@
           },
           "package_type": {
             "type": "string",
-            "pattern": "^(quality_impact|site_visit|production_phase|warranty_batch|commissioning)$",
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Package Type"
           },
           "project_id": {
@@ -22214,7 +23292,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^(conformance|nonconformance)$"
+                "pattern": "^(prevention|appraisal|internal_failure|external_failure)$"
               },
               {
                 "type": "null"
@@ -22299,7 +23377,8 @@
           },
           "package_type": {
             "type": "string",
-            "pattern": "^(quality_impact|site_visit|production_phase|warranty_batch|commissioning)$",
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Package Type"
           },
           "project_id": {
@@ -22353,7 +23432,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^(conformance|nonconformance)$"
+                "pattern": "^(prevention|appraisal|internal_failure|external_failure)$"
               },
               {
                 "type": "null"
@@ -22526,6 +23605,30 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Nonconformance Cost"
           },
+          "prevention_cost": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Prevention Cost",
+            "default": "0"
+          },
+          "appraisal_cost": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Appraisal Cost",
+            "default": "0"
+          },
+          "internal_failure_cost": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Internal Failure Cost",
+            "default": "0"
+          },
+          "external_failure_cost": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "External Failure Cost",
+            "default": "0"
+          },
           "total_schedule_days": {
             "type": "integer",
             "title": "Total Schedule Days"
@@ -22577,7 +23680,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^(quality_impact|site_visit|production_phase|warranty_batch|commissioning)$"
+                "maxLength": 100,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -22649,7 +23753,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^(conformance|nonconformance)$"
+                "pattern": "^(prevention|appraisal|internal_failure|external_failure)$"
               },
               {
                 "type": "null"

@@ -161,44 +161,6 @@ class ProjectRole(str, Enum):
         return color_map[self]
 
 
-class WorkPackageType(str, Enum):
-    """Work package type discriminator.
-
-    Closed enum -- adding new types requires a migration.
-    Each type may use a different subset of nullable columns.
-    """
-
-    QUALITY_IMPACT = "quality_impact"
-    SITE_VISIT = "site_visit"
-    PRODUCTION_PHASE = "production_phase"
-    WARRANTY_BATCH = "warranty_batch"
-    COMMISSIONING = "commissioning"
-
-    @property
-    def label(self) -> str:
-        """Human-readable label for this package type."""
-        labels = {
-            WorkPackageType.QUALITY_IMPACT: "Quality Impact",
-            WorkPackageType.SITE_VISIT: "Site Visit",
-            WorkPackageType.PRODUCTION_PHASE: "Production Phase",
-            WorkPackageType.WARRANTY_BATCH: "Warranty Batch",
-            WorkPackageType.COMMISSIONING: "Commissioning",
-        }
-        return labels[self]
-
-    @property
-    def color(self) -> str:
-        """Ant Design color name for UI rendering."""
-        colors = {
-            WorkPackageType.QUALITY_IMPACT: "red",
-            WorkPackageType.SITE_VISIT: "blue",
-            WorkPackageType.PRODUCTION_PHASE: "green",
-            WorkPackageType.WARRANTY_BATCH: "orange",
-            WorkPackageType.COMMISSIONING: "purple",
-        }
-        return colors[self]
-
-
 class WorkPackageStatus(str, Enum):
     """Work package lifecycle status.
 

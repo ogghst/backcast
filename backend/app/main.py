@@ -32,6 +32,7 @@ from app.api.routes import (
     gantt,
     mcp_servers,
     notifications,
+    package_types,
     progress_entries,
     project_budget_settings,
     projects,
@@ -368,6 +369,11 @@ app.include_router(
     cost_element_types.router,
     prefix=f"{settings.API_V1_STR}/cost-element-types",
     tags=["Cost Element Types"],
+)
+app.include_router(
+    package_types.router,
+    prefix=f"{settings.API_V1_STR}/package-types",
+    tags=["Package Types"],
 )
 app.include_router(
     cost_elements.router,

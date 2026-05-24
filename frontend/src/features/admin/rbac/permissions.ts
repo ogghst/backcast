@@ -58,6 +58,12 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "cost-element-type-update": { topic: "Cost Element Type", description: "Edit cost element types" },
   "cost-element-type-delete": { topic: "Cost Element Type", description: "Remove cost element types" },
 
+  // Package Type
+  "package-type-read": { topic: "Package Type", description: "View package types" },
+  "package-type-create": { topic: "Package Type", description: "Create package types" },
+  "package-type-update": { topic: "Package Type", description: "Edit package types" },
+  "package-type-delete": { topic: "Package Type", description: "Remove package types" },
+
   // Cost Element
   "cost-element-read": { topic: "Cost Element", description: "View cost elements" },
   "cost-element-create": { topic: "Cost Element", description: "Create cost elements" },
@@ -131,6 +137,7 @@ const TOPIC_ORDER: string[] = [
   "Project",
   "Work Breakdown",
   "Cost Element Type",
+  "Package Type",
   "Cost Element",
   "Cost Registration",
   "Change Order",

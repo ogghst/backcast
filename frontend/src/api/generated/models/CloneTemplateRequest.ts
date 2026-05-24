@@ -10,5 +10,9 @@ export type CloneTemplateRequest = {
      * Project scope for the cloned layout
      */
     project_id?: (string | null);
+    /**
+     * Name for the cloned layout (defaults to 'Copy of {template.name}')
+     */
+    name?: (string | null);
 };
 

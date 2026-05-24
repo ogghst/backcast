@@ -26,7 +26,7 @@ import {
 import { getCurrencySymbol } from "@/utils/formatters";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
-import { useWorkPackages, PACKAGE_TYPE_OPTIONS } from "@/features/work-package/api/useWorkPackages";
+import { useWorkPackages, usePackageTypes } from "@/features/work-package/api/useWorkPackages";
 import { formatFileSize } from "@/features/ai/chat/api/attachmentUpload";
 import { toast } from "sonner";
 
@@ -87,8 +87,11 @@ export const CostRegistrationModal = ({
     perPage: 100,
   });
 
+  // Fetch package types for label resolution
+  const { data: packageTypeOptions } = usePackageTypes();
+
   const workPackageOptions = (wpData?.items || []).map((wp) => {
-    const typeLabel = PACKAGE_TYPE_OPTIONS.find((o) => o.value === wp.package_type)?.label || wp.package_type;
+    const typeLabel = packageTypeOptions?.find((o) => o.value === wp.package_type)?.label || wp.package_type;
     return {
       label: `${wp.name} (${typeLabel})`,
       value: wp.work_package_id,

@@ -89,6 +89,15 @@ export const UserProfile: React.FC = () => {
       });
     }
 
+    if (can("package-type-read")) {
+      adminItems.push({
+        key: "/admin/package-types",
+        icon: <TagsOutlined />,
+        label: "Package Types",
+        onClick: () => navigate("/admin/package-types"),
+      });
+    }
+
     if (can("ai-config-read")) {
       adminItems.push({
         key: "/admin/ai-providers",

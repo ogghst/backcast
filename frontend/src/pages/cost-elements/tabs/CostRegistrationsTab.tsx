@@ -35,7 +35,7 @@ import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useWBE } from "@/features/wbes/api/useWBEs";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
-import { PACKAGE_TYPE_OPTIONS } from "@/features/work-package/api/useWorkPackages";
+import { usePackageTypes } from "@/features/work-package/api/useWorkPackages";
 
 const { Text } = Typography;
 
@@ -63,6 +63,7 @@ export const CostRegistrationsTab = ({
   const queryClient = useQueryClient();
   const { asOf } = useTimeMachineParams();
   const screens = Grid.useBreakpoint();
+  const { data: packageTypeOptions } = usePackageTypes();
   const isMobile = !screens.md;
 
   // Fetch WBE to get project_id for project-level budget validation
@@ -266,7 +267,7 @@ export const CostRegistrationsTab = ({
       ) => {
         if (!name) return "-";
         const typeLabel =
-          PACKAGE_TYPE_OPTIONS.find(
+          packageTypeOptions?.find(
             (o) => o.value === record.work_package_type,
           )?.label || record.work_package_type;
         return (

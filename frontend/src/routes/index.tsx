@@ -6,6 +6,7 @@ import Login from "@/pages/Login";
 import { UserList } from "@/pages/admin/UserList";
 import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
 import { CostElementTypeManagement } from "@/pages/admin/CostElementTypeManagement";
+import { PackageTypeManagement } from "@/pages/admin/PackageTypeManagement";
 import { AIProviderManagement } from "@/pages/admin/AIProviderManagement";
 import { AIAssistantManagement } from "@/pages/admin/AIAssistantManagement";
 import { MCPServerManagement } from "@/pages/admin/MCPServerManagement";
@@ -89,6 +90,10 @@ export const router = createBrowserRouter([
       {
         path: "/admin/cost-element-types",
         element: <CostElementTypeManagement />,
+      },
+      {
+        path: "/admin/package-types",
+        element: <PackageTypeManagement />,
       },
       {
         path: "/admin/ai-providers",
