@@ -20,7 +20,7 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ### [TD-095] ~~Migration Verification Tests for Unified RBAC~~
 
-- **Status:** ✅ Resolved (2026-05-19) — One-time data migration already ran; source data (User.role, ProjectMember) no longer exists. Migration is not re-runnable, so verification tests are moot. See archive.
+- **Status:** ✅ Resolved (2026-05-19, updated 2026-05-24) — Created `tests/integration/test_rbac_migration.py` with 17 tests using temporary tables to simulate old schema. Verifies: schema (4), global role migration (4), project member migration (3), downgrade logic (4), edge cases (2). Key finding: no unique constraint on `(user_id, scope_type, scope_id)` exists. See archive.
 
 ---
 
