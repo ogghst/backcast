@@ -665,7 +665,7 @@ class EVMService:
             self.pe_service.get_latest_progress_for_cost_elements(
                 valid_ids, as_of=control_date
             ),
-            self.f_service.get_forecasts_for_cost_elements(valid_ids, forecast_branch),
+            self.f_service.get_forecasts_for_cost_elements(valid_ids, forecast_branch, as_of=control_date),
         )
 
         # 3. Calculate metrics in memory
@@ -805,9 +805,18 @@ class EVMService:
         Raises:
             ValueError: If no valid cost elements found
         """
-        # Fetch ALL cost elements for ALL WBEs in ONE query
+        # Expand each WBE to include all descendants for hierarchical aggregation
+        expanded_wbe_ids = list(wbe_ids)
+        for wid in wbe_ids:
+            descendants = await self.wbe_service._get_all_descendants(
+                wid, branch, branch_mode
+            )
+            expanded_wbe_ids.extend(d.wbe_id for d in descendants)
+        expanded_wbe_ids = list(dict.fromkeys(expanded_wbe_ids))
+
+        # Fetch ALL cost elements for ALL WBEs (including descendants) in ONE query
         all_cost_elements, _ = await self.ce_service.get_cost_elements(
-            filters={"wbe_ids": wbe_ids},
+            filters={"wbe_ids": expanded_wbe_ids},
             branch=branch,
             branch_mode=branch_mode,
             as_of=None,
@@ -1382,6 +1391,7 @@ class EVMService:
             cost_element_id=cost_element_id,
             skip=0,
             limit=10000,  # Large limit to get all history
+            as_of=control_date,
         )
 
         # Build a map of date -> progress percentage for fast lookup
@@ -1865,9 +1875,15 @@ class EVMService:
         Raises:
             ValueError: If WBE not found
         """
-        # Get all cost elements for this WBE
+        # Collect this WBE + all descendant WBE IDs for hierarchical aggregation
+        descendants = await self.wbe_service._get_all_descendants(
+            wbe_id, branch, branch_mode
+        )
+        wbe_ids = [wbe_id] + [d.wbe_id for d in descendants]
+
+        # Get all cost elements for this WBE and its descendants
         cost_elements, _ = await self.ce_service.get_cost_elements(
-            filters={"wbe_id": wbe_id},
+            filters={"wbe_ids": wbe_ids},
             branch=branch,
             branch_mode=branch_mode,
             as_of=None,  # Get current versions

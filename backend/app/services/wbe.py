@@ -778,32 +778,58 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         )
 
     async def _get_all_descendants(
-        self, parent_wbe_id: UUID, branch: str = "main"
+        self,
+        parent_wbe_id: UUID,
+        branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGED,
     ) -> list[WBE]:
         """Recursively get all descendants of a WBE using recursive CTE.
 
         Args:
             parent_wbe_id: Root WBE ID to get descendants for
             branch: Branch name
+            branch_mode: ISOLATED (single branch) or MERGED (fall back to main)
 
         Returns:
             List of all descendant WBEs (ordered depth-first)
         """
+        if branch_mode == BranchMode.MERGED and branch != "main":
+            descendant_rows = await self._get_descendants_merged(
+                parent_wbe_id, branch
+            )
+        else:
+            descendant_rows = await self._get_descendants_isolated(
+                parent_wbe_id, branch
+            )
+
+        # Fetch full WBE objects for each descendant
+        descendant_list = []
+        for wbe_id in descendant_rows:
+            descendant = await self.get_as_of(
+                entity_id=wbe_id,
+                as_of=None,
+                branch=branch,
+                branch_mode=branch_mode,
+            )
+            if descendant:
+                descendant_list.append(descendant)
+
+        return descendant_list
+
+    async def _get_descendants_isolated(
+        self,
+        parent_wbe_id: UUID,
+        branch: str,
+    ) -> list[UUID]:
+        """Get descendant WBE IDs for ISOLATED mode or main branch."""
         from typing import Any, cast
 
-        from sqlalchemy import literal_column, select
-        from sqlalchemy.orm import aliased
+        from sqlalchemy import literal_column
 
-        # Build recursive CTE to get all descendants
-        # Base case: direct children
         wbe_cte = (
             select(
-                WBE.id,
                 WBE.wbe_id,
-                WBE.code,
-                WBE.name,
-                WBE.parent_wbe_id,
-                literal_column("1").label("depth"),  # Depth 1 = direct children
+                literal_column("1").label("depth"),
             )
             .where(
                 WBE.parent_wbe_id == parent_wbe_id,
@@ -814,15 +840,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             .cte(name="wbe_descendants", recursive=True)
         )
 
-        # Recursive case: children of children
         wbe_alias = aliased(WBE, name="wbe_child")
         wbe_cte = wbe_cte.union_all(
             select(
-                wbe_alias.id,
                 wbe_alias.wbe_id,
-                wbe_alias.code,
-                wbe_alias.name,
-                wbe_alias.parent_wbe_id,
                 (wbe_cte.c.depth + 1).label("depth"),
             ).where(
                 wbe_alias.parent_wbe_id == wbe_cte.c.wbe_id,
@@ -832,19 +853,69 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             )
         )
 
-        # Execute CTE query ordered by depth (parents before children)
-        descendants_stmt = select(wbe_cte).order_by(wbe_cte.c.depth.asc())
+        descendants_stmt = select(wbe_cte.c.wbe_id).order_by(
+            wbe_cte.c.depth.asc()
+        )
         descendants_result = await self.session.execute(descendants_stmt)
-        descendant_rows = descendants_result.all()
+        return [row.wbe_id for row in descendants_result.all()]
 
-        # Fetch full WBE objects for each descendant
-        descendant_list = []
-        for row in descendant_rows:
-            descendant = await self.get_as_of(row.wbe_id)
-            if descendant:
-                descendant_list.append(descendant)
+    async def _get_descendants_merged(
+        self, parent_wbe_id: UUID, branch: str
+    ) -> list[UUID]:
+        """Get descendant WBE IDs for MERGED mode on non-main branch.
 
-        return descendant_list
+        Uses raw SQL with LATERAL JOIN + DISTINCT ON to handle branch
+        priority (current branch > main) and deletion exclusion, following
+        the same pattern as get_breadcrumb.
+        """
+        raw_sql = text("""
+            WITH RECURSIVE wbe_descendants AS (
+                SELECT DISTINCT ON (wbe_id) wbe_id, 1 as depth
+                FROM wbes
+                WHERE parent_wbe_id = :parent_wbe_id
+                    AND branch IN (:current_branch, 'main')
+                    AND deleted_at IS NULL
+                    AND upper(valid_time) IS NULL
+                    AND NOT (
+                        branch = 'main'
+                        AND wbe_id IN (
+                            SELECT w.wbe_id FROM wbes w
+                            WHERE w.branch = :current_branch
+                              AND w.deleted_at IS NOT NULL
+                        )
+                    )
+                ORDER BY wbe_id, CASE WHEN branch = :current_branch THEN 0 ELSE 1 END
+
+                UNION ALL
+
+                SELECT child.wbe_id, wd.depth + 1
+                FROM wbe_descendants wd
+                INNER JOIN LATERAL (
+                    SELECT DISTINCT ON (wbe_id) wbe_id
+                    FROM wbes w
+                    WHERE w.parent_wbe_id = wd.wbe_id
+                        AND branch IN (:current_branch, 'main')
+                        AND w.deleted_at IS NULL
+                        AND upper(valid_time) IS NULL
+                        AND NOT (
+                            branch = 'main'
+                            AND wbe_id IN (
+                                SELECT ww.wbe_id FROM wbes ww
+                                WHERE ww.branch = :current_branch
+                                  AND ww.deleted_at IS NOT NULL
+                            )
+                        )
+                    ORDER BY wbe_id, CASE WHEN branch = :current_branch THEN 0 ELSE 1 END
+                ) child ON true
+            )
+            SELECT wbe_id FROM wbe_descendants ORDER BY depth ASC
+        """)
+
+        result = await self.session.execute(
+            raw_sql,
+            {"parent_wbe_id": str(parent_wbe_id), "current_branch": branch},
+        )
+        return [row.wbe_id for row in result.all()]
 
     async def get_children_count(self, wbe_id: UUID, branch: str = "main") -> int:
         """Get count of direct children for a WBE.
