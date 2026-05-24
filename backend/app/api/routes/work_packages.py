@@ -51,7 +51,7 @@ async def read_work_packages(
     ),
     package_type: str | None = Query(
         None,
-        description="Filter by package type",
+        description="Filter by package type(s), comma-separated for multiple (e.g. 'quality_impact,site_visit')",
     ),
     status: str | None = Query(
         None,
@@ -145,7 +145,7 @@ async def get_work_package_summary(
 
     Returns total cost, conformance/nonconformance breakdown,
     total schedule impact days, and COQ ratio against project budget.
-    Only includes quality_impact-typed work packages.
+    Only includes quality-flagged types work packages.
     """
     try:
         return await service.get_summary(project_id=project_id, as_of=as_of)
@@ -171,7 +171,7 @@ async def get_coq_metrics(
 
     Returns Cost of Quality metrics including CPQ, CPIq, QPI, and COQ ratio
     complementing standard EVM indicators.
-    Only includes quality_impact-typed work packages.
+    Only includes quality-flagged types work packages.
     """
     return await service.get_coq_metrics(project_id=project_id, as_of=as_of)
 
@@ -198,7 +198,7 @@ async def get_coq_trend(
     Returns Cost of Quality costs aggregated into time buckets (week or month),
     broken down by the four COQ categories: prevention, appraisal,
     internal_failure, external_failure.
-    Only includes quality_impact-typed work packages.
+    Only includes quality-flagged types work packages.
     """
     return await service.get_coq_trend(project_id, granularity, as_of)
 

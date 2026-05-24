@@ -456,6 +456,7 @@ class DashboardLayoutService:
         template_id: UUID,
         user_id: UUID,
         project_id: UUID | None = None,
+        name: str | None = None,
     ) -> DashboardLayout:
         """Clone a template layout for a user.
 
@@ -466,6 +467,7 @@ class DashboardLayoutService:
             template_id: UUID of the template to clone
             user_id: UUID of the new layout owner
             project_id: Optional project scope for the cloned layout
+            name: Optional name for the cloned layout
 
         Returns:
             Newly created DashboardLayout entity
@@ -478,7 +480,7 @@ class DashboardLayoutService:
             raise ValueError("Not a template layout")
 
         layout = DashboardLayout(
-            name=f"Copy of {template.name}",
+            name=name or f"Copy of {template.name}",
             description=template.description,
             user_id=user_id,
             project_id=project_id,

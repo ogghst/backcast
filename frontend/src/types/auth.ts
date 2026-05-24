@@ -55,6 +55,10 @@ export type Permission =
   | "ai-config-update"
   | "ai-config-delete"
   | "ai-chat"
+  | "package-type-read"
+  | "package-type-create"
+  | "package-type-update"
+  | "package-type-delete"
   | "dashboard-template-update";
 
 // Type alias for role strings

@@ -148,6 +148,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         crud_template,
         diagram_template,
         forecast_cost_progress_template,
+        package_type_template,
         user_management_template,
         work_package_template,
     )
@@ -292,6 +293,16 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         work_package_template.get_coq_metrics,
     ]
     tools.extend(work_package_tools)
+
+    # Add tools from package_type_template (Package Type CRUD)
+    package_type_tools = [
+        package_type_template.list_package_types,
+        package_type_template.get_package_type,
+        package_type_template.create_package_type,
+        package_type_template.update_package_type,
+        package_type_template.delete_package_type,
+    ]
+    tools.extend(package_type_tools)
 
     # Add batch tools for bulk operations
     batch_tools = [

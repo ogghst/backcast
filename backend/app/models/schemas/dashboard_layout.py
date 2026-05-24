@@ -62,3 +62,7 @@ class CloneTemplateRequest(BaseModel):
     project_id: UUID | None = Field(
         None, description="Project scope for the cloned layout"
     )
+    name: str | None = Field(
+        None, description="Name for the cloned layout (defaults to 'Copy of {template.name}')",
+        max_length=255,
+    )

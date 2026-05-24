@@ -43,7 +43,8 @@ class WorkPackageBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     package_type: str = Field(
         ...,
-        pattern="^(quality_impact|site_visit|production_phase|warranty_batch|commissioning)$",
+        min_length=1,
+        max_length=100,
     )
     project_id: UUID
     description: str | None = None
@@ -83,7 +84,8 @@ class WorkPackageUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     package_type: str | None = Field(
         None,
-        pattern="^(quality_impact|site_visit|production_phase|warranty_batch|commissioning)$",
+        min_length=1,
+        max_length=100,
     )
     project_id: UUID | None = None
     description: str | None = None

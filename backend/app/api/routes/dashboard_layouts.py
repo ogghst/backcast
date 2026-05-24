@@ -175,7 +175,10 @@ async def clone_dashboard_layout_template(
     """Clone a template dashboard layout for the current user."""
     try:
         layout = await service.clone_template(
-            layout_id, current_user.user_id, clone_in.project_id
+            layout_id,
+            current_user.user_id,
+            clone_in.project_id,
+            name=clone_in.name,
         )
     except ValueError as e:
         raise HTTPException(

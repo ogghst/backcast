@@ -40,6 +40,7 @@ export type CostRegistrationRead = {
     work_package_id?: (string | null);
     work_package_name?: (string | null);
     work_package_type?: (string | null);
+    attachment_count?: number;
     created_by: string;
     /**
      * Display-ready registration date data.

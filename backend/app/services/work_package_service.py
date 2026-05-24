@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import COQCategory, WorkPackageStatus, WorkPackageType
+from app.core.enums import COQCategory, WorkPackageStatus
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -36,7 +36,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
     """Service for WorkPackage management (versionable, not branchable).
 
     Work packages are project-scoped cost grouping mechanisms. They support
-    multiple types (quality_impact, site_visit, etc.) via STI.
+    multiple types configured through the package_types table.
     They are versionable (NOT branchable) -- financial facts are
     global across branches.
     """
@@ -73,11 +73,11 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         if control_date is None:
             control_date = getattr(data, "control_date", None)
 
-        # Validate package_type against enum
-        self._validate_package_type(data.package_type)
-
         # Validate status
         self._validate_status(data.status)
+
+        # Validate package_type against DB-driven type table
+        await self._validate_package_type(data.package_type)
 
         # Validate coq_category if provided
         if data.coq_category is not None:
@@ -103,7 +103,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         )
         wp = await cmd.execute(self.session)
 
-        # Create cost allocations if provided (only for quality_impact type)
+        # Create cost allocations if provided (for quality-flagged types)
         if data.cost_allocations:
             await self._create_cost_allocations(
                 work_package_id=wp.work_package_id,
@@ -135,13 +135,13 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         if control_date is None:
             control_date = getattr(data, "control_date", None)
 
-        # Validate package_type if being changed
-        if data.package_type is not None:
-            self._validate_package_type(data.package_type)
-
         # Validate status if being changed
         if data.status is not None:
             self._validate_status(data.status)
+
+        # Validate package_type if being changed
+        if data.package_type is not None:
+            await self._validate_package_type(data.package_type)
 
         # Validate coq_category if being changed
         if data.coq_category is not None:
@@ -273,7 +273,9 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             stmt = stmt.where(WorkPackage.coq_category == coq_category)
 
         if package_type is not None:
-            stmt = stmt.where(WorkPackage.package_type == package_type)
+            types = [t.strip() for t in package_type.split(",") if t.strip()]
+            if types:
+                stmt = stmt.where(WorkPackage.package_type.in_(types))
 
         if status is not None:
             stmt = stmt.where(WorkPackage.status == status)
@@ -310,7 +312,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
     ) -> WorkPackageSummary:
         """Get aggregated COQ summary for a project.
 
-        Only includes quality_impact-typed work packages (backward-compatible).
+        Only includes work packages of types flagged as quality-relevant.
         Uses SQL-level SUM/GROUP BY for efficiency.
 
         Args:
@@ -320,13 +322,13 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             WorkPackageSummary with cost breakdown and COQ ratio.
         """
-        quality_type = WorkPackageType.QUALITY_IMPACT.value
+        quality_codes = await self._get_quality_package_type_codes()
 
         if as_of is not None:
             # Use a subquery approach for time-travel
             inner_stmt = select(WorkPackage).where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type == quality_type,
+                WorkPackage.package_type.in_(quality_codes),
             )
             inner_stmt = self._apply_bitemporal_filter(inner_stmt, as_of)
             inner_subq = inner_stmt.subquery()
@@ -370,7 +372,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 ),
             ).where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type == quality_type,
+                WorkPackage.package_type.in_(quality_codes),
                 *current_filter,
             )
             total_result = await self.session.execute(total_stmt)
@@ -385,7 +387,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 )
                 .where(
                     WorkPackage.project_id == project_id,
-                    WorkPackage.package_type == quality_type,
+                    WorkPackage.package_type.in_(quality_codes),
                     *current_filter,
                 )
                 .group_by(WorkPackage.coq_category)
@@ -437,7 +439,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
 
         Computes Cost of Quality metrics including CPQ (Cost of Poor Quality),
         CPIq, QPI (Quality Performance Index), and COQ ratio.
-        Only includes quality_impact-typed work packages.
+        Only includes work packages of types flagged as quality-relevant.
 
         Args:
             project_id: Project root ID.
@@ -446,17 +448,17 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             COQMetrics with all computed indicators.
         """
-        quality_type = WorkPackageType.QUALITY_IMPACT.value
+        quality_codes = await self._get_quality_package_type_codes()
 
-        # Build base filters for WorkPackage (quality_impact type only)
+        # Build base filters for WorkPackage (quality-flagged types only)
         wp_filters = [
             WorkPackage.project_id == project_id,
-            WorkPackage.package_type == quality_type,
+            WorkPackage.package_type.in_(quality_codes),
         ]
         if as_of is not None:
             wp_subq = select(WorkPackage).where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type == quality_type,
+                WorkPackage.package_type.in_(quality_codes),
             )
             wp_subq = self._apply_bitemporal_filter(wp_subq, as_of)
             wp_subq = wp_subq.subquery()
@@ -602,7 +604,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             COQTrendResponse with time-series data points.
         """
-        quality_type = WorkPackageType.QUALITY_IMPACT.value
+        quality_codes = await self._get_quality_package_type_codes()
         trunc = "week" if granularity == COQTrendGranularity.WEEK else "month"
 
         # Determine date range from work package event dates
@@ -611,7 +613,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             func.coalesce(func.max(WorkPackage.event_date), datetime.now()),
         ).where(
             WorkPackage.project_id == project_id,
-            WorkPackage.package_type == quality_type,
+            WorkPackage.package_type.in_(quality_codes),
             WorkPackage.event_date.isnot(None),
             func.upper(WorkPackage.valid_time).is_(None),
             WorkPackage.deleted_at.is_(None),
@@ -637,7 +639,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             )
             .where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type == quality_type,
+                WorkPackage.package_type.in_(quality_codes),
                 WorkPackage.event_date.isnot(None),
                 func.upper(WorkPackage.valid_time).is_(None),
                 WorkPackage.deleted_at.is_(None),
@@ -665,7 +667,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             )
             .where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type == quality_type,
+                WorkPackage.package_type.in_(quality_codes),
                 WorkPackage.event_date.isnot(None),
                 func.upper(WorkPackage.valid_time).is_(None),
                 WorkPackage.deleted_at.is_(None),
@@ -910,22 +912,26 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
 
     # --- Internal helpers ---
 
-    @staticmethod
-    def _validate_package_type(package_type: str) -> None:
-        """Validate package_type against the closed enum.
+    async def _get_quality_package_type_codes(self) -> list[str]:
+        """Get codes of all package types flagged as quality-relevant.
 
-        Args:
-            package_type: The package type value to validate.
+        Queries active (current, non-deleted) PackageType versions where
+        is_quality is True. Returns a sentinel value if none exist to
+        produce empty result sets via IN clause.
 
-        Raises:
-            ValueError: If the package_type is not a valid enum member.
+        Returns:
+            List of package type codes marked as quality-relevant.
         """
-        valid_types = {t.value for t in WorkPackageType}
-        if package_type not in valid_types:
-            raise ValueError(
-                f"Invalid package_type '{package_type}'. "
-                f"Must be one of: {', '.join(sorted(valid_types))}"
-            )
+        from app.models.domain.package_type import PackageType as PackageTypeModel
+
+        stmt = select(PackageTypeModel.code).where(
+            func.upper(PackageTypeModel.valid_time).is_(None),
+            PackageTypeModel.deleted_at.is_(None),
+            PackageTypeModel.is_quality == True,  # noqa: E712
+        )
+        result = await self.session.execute(stmt)
+        codes = [row[0] for row in result.all()]
+        return codes if codes else ["__no_quality_types__"]
 
     @staticmethod
     def _validate_status(status: str) -> None:
@@ -959,6 +965,36 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             raise ValueError(
                 f"Invalid coq_category '{coq_category}'. "
                 f"Must be one of: {', '.join(sorted(valid_categories))}"
+            )
+
+    async def _validate_package_type(self, package_type: str) -> None:
+        """Validate package_type against active package types in the database.
+
+        Queries current (non-deleted) PackageType versions where code matches
+        the provided value.
+
+        Args:
+            package_type: The package type code to validate.
+
+        Raises:
+            ValueError: If no active package type with the given code exists.
+        """
+        from app.models.domain.package_type import PackageType as PackageTypeModel
+
+        stmt = (
+            select(PackageTypeModel.id)
+            .where(
+                PackageTypeModel.code == package_type,
+                func.upper(PackageTypeModel.valid_time).is_(None),
+                PackageTypeModel.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        if result.scalar_one_or_none() is None:
+            raise ValueError(
+                f"Invalid package_type '{package_type}'. "
+                f"No active package type with that code found."
             )
 
     async def _validate_project_exists(self, project_id: UUID) -> None:

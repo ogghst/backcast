@@ -16,7 +16,7 @@ export {
   useUpdateWorkPackage,
   useDeleteWorkPackage,
   useUpsertAllocations,
-  PACKAGE_TYPE_OPTIONS,
+  usePackageTypes,
 } from "./api/useWorkPackages";
 
 // Components

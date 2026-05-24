@@ -15,6 +15,7 @@ import {
   useUpdateDashboardLayout,
 } from "./useDashboardLayouts";
 import type {
+  CloneTemplateRequest,
   DashboardLayoutCreate,
   DashboardLayoutUpdate,
 } from "@/types/dashboard-layout";
@@ -126,7 +127,7 @@ export function useDashboardPersistence(
             if (template) {
               const cloned = await layoutApi.clone({
                 id: template.id,
-                data: { project_id: projectId, name: dashboardName },
+                data: { project_id: projectId, name: dashboardName } as CloneTemplateRequest,
               });
               useDashboardCompositionStore.getState().loadFromBackend(cloned);
             }

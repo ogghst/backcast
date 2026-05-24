@@ -31,5 +31,9 @@ export type ProjectSpotlight = {
      * Branch of last activity
      */
     branch: string;
+    /**
+     * ISO 4217 currency code for the project
+     */
+    currency?: string;
 };
 

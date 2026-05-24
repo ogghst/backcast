@@ -167,6 +167,51 @@ class DataSeeder:
             f"{skipped_count} skipped"
         )
 
+    async def seed_package_types(self, session: AsyncSession) -> None:
+        """Seed package types from package_types.json file.
+
+        Args:
+            session: Database session
+        """
+        from app.models.schemas.package_type import PackageTypeCreate
+        from app.services.package_type_service import PackageTypeService
+
+        logger.info("Starting package type seeding...")
+        pt_data = self.load_seed_file("package_types.json")
+
+        if not pt_data:
+            logger.info("No package type seed data found or file is empty")
+            return
+
+        pt_service = PackageTypeService(session)
+        created_count = 0
+        skipped_count = 0
+
+        # System actor
+        from uuid import uuid4
+
+        actor_id = uuid4()
+
+        with seed_operation():  # Allow explicit package_type_id from seed data
+            for idx, item in enumerate(pt_data):
+                try:
+                    pt_in = PackageTypeCreate(**item)
+
+                    # Create package type
+                    await pt_service.create(pt_in, actor_id)
+                    created_count += 1
+                    logger.info(f"Created Package Type: {pt_in.code}")
+
+                except Exception as e:
+                    logger.warning(
+                        f"Skipping Package Type {item.get('code', idx)}: {e}"
+                    )
+                    skipped_count += 1
+
+        logger.info(
+            f"Package Type seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
     async def seed_cost_element_types(self, session: AsyncSession) -> None:
         """Seed cost element types from cost_element_types.json file.
 
@@ -1557,6 +1602,9 @@ class DataSeeder:
 
             # Seed CO Workflow Config (required by change orders)
             await self.seed_co_workflow_config(session)
+
+            # Seed Package Types
+            await self.seed_package_types(session)
 
             # Seed Cost Element Types
             await self.seed_cost_element_types(session)

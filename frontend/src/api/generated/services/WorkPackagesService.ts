@@ -3,6 +3,8 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { COQMetrics } from '../models/COQMetrics';
+import type { COQTrendGranularity } from '../models/COQTrendGranularity';
+import type { COQTrendResponse } from '../models/COQTrendResponse';
 import type { QualityCostAllocation } from '../models/QualityCostAllocation';
 import type { QualityCostAllocationRead } from '../models/QualityCostAllocationRead';
 import type { WorkPackageCreate } from '../models/WorkPackageCreate';
@@ -22,7 +24,7 @@ export class WorkPackagesService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param coqCategory Filter by COQ category
-     * @param packageType Filter by package type
+     * @param packageType Filter by package type(s), comma-separated for multiple (e.g. 'quality_impact,site_visit')
      * @param status Filter by status
      * @param asOf Time travel: get packages as of this timestamp (ISO 8601)
      * @returns any Successful Response
@@ -130,6 +132,40 @@ export class WorkPackagesService {
                 'project_id': projectId,
             },
             query: {
+                'as_of': asOf,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get COQ trend time-series
+     * Get COQ trend time-series for a project.
+     *
+     * Returns Cost of Quality costs aggregated into time buckets (week or month),
+     * broken down by the four COQ categories: prevention, appraisal,
+     * internal_failure, external_failure.
+     * Only includes quality_impact-typed work packages.
+     * @param projectId
+     * @param granularity Time granularity
+     * @param asOf Point-in-time for historical query
+     * @returns COQTrendResponse Successful Response
+     * @throws ApiError
+     */
+    public static getCoqTrend(
+        projectId: string,
+        granularity: COQTrendGranularity = 'month',
+        asOf?: (string | null),
+    ): CancelablePromise<COQTrendResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/work-packages/project/{project_id}/coq-trend',
+            path: {
+                'project_id': projectId,
+            },
+            query: {
+                'granularity': granularity,
                 'as_of': asOf,
             },
             errors: {

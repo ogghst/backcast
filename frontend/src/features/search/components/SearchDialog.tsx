@@ -57,6 +57,8 @@ function getEntityRoute(result: SearchResultItem): string {
       return "/admin/departments";
     case "cost_element_type":
       return "/admin/cost-element-types";
+    case "package_type":
+      return "/admin/package-types";
     default:
       return "/";
   }

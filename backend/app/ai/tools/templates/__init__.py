@@ -15,6 +15,7 @@ from app.ai.tools.templates import (
     analysis_template,
     change_order_template,
     crud_template,
+    package_type_template,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "advanced_analysis_template",
     "change_order_template",
     "crud_template",
+    "package_type_template",
 ]

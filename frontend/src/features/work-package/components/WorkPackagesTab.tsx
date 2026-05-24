@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Table,
   Button,
@@ -6,7 +6,7 @@ import {
   Tag,
   Popconfirm,
   Tooltip,
-  Segmented,
+  Select,
 } from "antd";
 import {
   PlusOutlined,
@@ -32,13 +32,12 @@ import {
   useCreateWorkPackage,
   useUpdateWorkPackage,
   useDeleteWorkPackage,
-  PACKAGE_TYPE_OPTIONS,
+  usePackageTypes,
 } from "../api/useWorkPackages";
 import type {
   WorkPackageRead,
   WorkPackageCreate,
   WorkPackageUpdate,
-  PackageType,
 } from "../api/useWorkPackages";
 import { WorkPackageModal } from "./WorkPackageModal";
 import { WorkPackageSummaryCard } from "./WorkPackageSummaryCard";
@@ -49,26 +48,6 @@ const STATUS_COLORS: Record<string, string> = {
   closed: "default",
 };
 
-const PACKAGE_TYPE_COLORS: Record<string, string> = {
-  quality_impact: "orange",
-  site_visit: "cyan",
-  production_phase: "purple",
-  warranty_batch: "magenta",
-  commissioning: "geekblue",
-};
-
-const PACKAGE_TYPE_LABELS: Record<string, string> = Object.fromEntries(
-  PACKAGE_TYPE_OPTIONS.map((opt) => [opt.value, opt.label]),
-);
-
-const TYPE_FILTER_OPTIONS = [
-  { label: "All", value: "" },
-  ...PACKAGE_TYPE_OPTIONS.map((opt) => ({
-    label: opt.label,
-    value: opt.value,
-  })),
-];
-
 interface WorkPackagesTabProps {
   projectId: string;
 }
@@ -77,6 +56,18 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
   const { spacing, colors, borderRadius, typography } = useThemeTokens();
   const { can } = usePermission();
   const currency = useProjectCurrency(projectId);
+  const { data: packageTypeOptions } = usePackageTypes();
+
+  // Build dynamic lookup maps from API data
+  const { typeColors, typeLabels } = useMemo(() => {
+    const colors: Record<string, string> = {};
+    const labels: Record<string, string> = {};
+    (packageTypeOptions || []).forEach((pt) => {
+      colors[pt.value] = pt.color;
+      labels[pt.value] = pt.label;
+    });
+    return { typeColors: colors, typeLabels: labels };
+  }, [packageTypeOptions]);
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -88,12 +79,12 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
   const [breakdownDrawerOpen, setBreakdownDrawerOpen] = useState(false);
   const [breakdownPackage, setBreakdownPackage] =
     useState<WorkPackageRead | null>(null);
-  const [typeFilter, setTypeFilter] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
 
   // Query work packages
   const { data: packagesData, isLoading } = useWorkPackages({
     project_id: projectId,
-    package_type: typeFilter || undefined,
+    package_type: typeFilter.length > 0 ? typeFilter.join(",") : undefined,
     page,
     perPage,
   });
@@ -204,8 +195,8 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
       key: "package_type",
       width: 140,
       render: (ptype: PackageType) => (
-        <Tag color={PACKAGE_TYPE_COLORS[ptype] || "default"}>
-          {PACKAGE_TYPE_LABELS[ptype] || ptype}
+        <Tag color={typeColors[ptype] || "default"}>
+          {typeLabels[ptype] || ptype}
         </Tag>
       ),
     },
@@ -377,9 +368,11 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
   return (
     <div>
       {/* Summary Card — only for quality-related views */}
-      {(!typeFilter || typeFilter === "quality_impact") && (
-        <WorkPackageSummaryCard projectId={projectId} />
-      )}
+      {(typeFilter.length === 0 ||
+        typeFilter.some(
+          (code) =>
+            packageTypeOptions?.find((pt) => pt.value === code)?.is_quality,
+        )) && <WorkPackageSummaryCard projectId={projectId} />}
 
       {/* Action Bar */}
       <div
@@ -402,13 +395,20 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
 
       {/* Type Filter */}
       <div style={{ marginBottom: spacing.md }}>
-        <Segmented
-          options={TYPE_FILTER_OPTIONS}
+        <Select
+          mode="multiple"
+          placeholder="Filter by type"
           value={typeFilter}
-          onChange={(val) => {
-            setTypeFilter(val as string);
+          onChange={(values) => {
+            setTypeFilter(values);
             setPage(1);
           }}
+          options={(packageTypeOptions || []).map((opt) => ({
+            label: opt.label,
+            value: opt.value,
+          }))}
+          allowClear
+          style={{ minWidth: 200 }}
         />
       </div>
 
