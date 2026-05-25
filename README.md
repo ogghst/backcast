@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Run your projects through conversation.</strong><br>
-  WBEs, work packages, cost elements, forecasts, schedules, change orders, cost of quality —<br>the vocabulary you already use, driven by AI that has the same access as any real user.
+  <strong>Your project. Your team. Your AI agents that actually get work done.
+  </strong>
 </p>
 
 <p align="center">
@@ -14,33 +14,62 @@
 </p>
 
 ---
-
-**Try it now — no install:** [app.backcast.duckdns.org](https://app.backcast.duckdns.org) &nbsp;·&nbsp; `admin@backcast.org` / `adminadmin`
-
----
-
-Backcast won't replace your ERP. What it adds: a conversational layer where AI assistants can **do everything a human user can** — create WBEs and work packages, set up cost elements and schedules, register costs, manage change orders, run EVM analytics — while you watch, approve, or just ask questions.
-
-```
-"Create a project for ACME Corp, 12 WBEs, 3 cost elements each, 4.2M budget, March 2027."
-"Register this invoice on the electrical engineering cost element for Machine 7."
-"Open a change order to increase the mechanical work package budget by 15% and show me the EAC impact."
-```
-
-The AI acts. You decide how much it does on its own.
+Backcast lets you manage complex projects by simply talking in natural language. AI agents create Work Breakdown Elements (WBE), work packages, cost elements, record actual costs, handle change orders, and calculate EVM metrics — all with real user permissions.
 
 ---
 
-## What's inside
+## Try it right now (no installation)
 
-| | |
-|---|---|
-| 🤖 **AI Agents** | Multiple agents, each with its own LLM and permission scope — same RBAC as human users. Supports any OpenAI-compatible model: GPT-4o, Claude, Mistral, local models via Ollama, and more. Connects to external tools via MCP — web search, document repositories, corporate knowledge bases, or any MCP-compatible service. |
-| ⏳ **Time Machine** | Navigate to any date in your project history. Every change to budgets, schedules, and forecasts is versioned — go back, explore forward, compare timelines. |
-| 🔀 **Change Orders** | Branch your budget like a pull request. Modify work packages and cost elements in isolation, review the diff, merge when ready. Includes SLA tracking and approval workflows. |
-| 📊 **EVM Analytics** | ANSI/EIA-748 compliant — CPI, SPI, EAC, ETC, TCPI, Cost of Quality — at cost element, WBE, and project level. |
-| 🧩 **Dashboards** | 15+ drag-and-drop widgets. Share a live link instead of building a deck. |
-| 🔌 **REST API** | Every feature accessible via API. Connect BI tools, sync from legacy ERPs, build automations. |
+**[Live Demo →](https://app.backcast.duckdns.org)**
+
+- **Email:** `admin@backcast.org`
+- **Password:** `adminadmin`
+
+Jump in, create things, open change orders, travel through time. The demo is built to be tested hard.
+
+---
+
+## How it works in real life
+
+You talk naturally and the AI **takes action**:
+
+- “Create the ‘Renovation HQ 2027’ project with a 3-level WBS, €8.4M budget, starting in March.”
+- “Record the €142k invoice from supplier Alpha on the HVAC cost element of the Mechanical package.”
+- “Open a change order to shift the Electrical package by 3 months and increase the Mechanical budget by 18%. Show me the impact on EAC and TCPI.”
+- “Compare current status with the project state from 45 days ago using Time Machine.”
+
+You control how autonomous each agent is — from “do it and notify me” to “always propose first.”
+
+---
+
+## Key Features
+
+- **🤖 Smart AI Agents with real RBAC**  
+  Each agent can use different models (GPT-4o, Claude, Mistral, local Ollama…) and has precise permissions. Agents can collaborate and use external tools via MCP.
+
+- **⏳ Time Machine**  
+  The most powerful feature in Backcast.  
+  Every change to budget, schedule, forecast, work packages, and cost elements is **automatically versioned**. You can:
+  - Travel to **any past date** in the project
+  - See exactly how the project looked at that moment (budget, EVM metrics, forecast)
+  - Compare any two dates (e.g. today vs 60 days ago)
+  - Explore “what-if” scenarios without affecting real data
+  - Understand exactly when and why numbers changed (full audit trail)
+
+  It’s like having Git for your entire project — transparent, safe, and incredibly valuable during reviews, audits, or when justifying variances to clients or management.
+
+- **🔀 Change Orders as branches**  
+  Open a change order → work in isolation (just like a Git branch) → see full diff → approve and merge with proper workflow and SLA. Clean, traceable, and secure.
+
+- **📊 Serious Granular EVM**  
+  Fully ANSI/EIA-748 compliant. CPI, SPI, EAC, ETC, TCPI, and Cost of Quality calculated at cost element, work package, and project level.
+
+- **🧩 Flexible Dashboards**  
+  15+ drag & drop widgets. Build custom views and share live links.
+
+- **🔌 Full API**  
+  Everything is accessible via REST. Easy to integrate with your existing systems.
+
 
 ---
 
