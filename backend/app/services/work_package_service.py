@@ -607,10 +607,12 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         quality_codes = await self._get_quality_package_type_codes()
         trunc = "week" if granularity == COQTrendGranularity.WEEK else "month"
 
-        # Determine date range from work package event dates
-        range_stmt = select(
-            func.coalesce(func.min(WorkPackage.event_date), datetime.now()),
-            func.coalesce(func.max(WorkPackage.event_date), datetime.now()),
+        # Determine date range from both work package event dates and
+        # cost registration dates so actual costs appear even when
+        # event_date is not set on the work package.
+        wp_range = select(
+            func.min(WorkPackage.event_date),
+            func.max(WorkPackage.event_date),
         ).where(
             WorkPackage.project_id == project_id,
             WorkPackage.package_type.in_(quality_codes),
@@ -618,16 +620,45 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             func.upper(WorkPackage.valid_time).is_(None),
             WorkPackage.deleted_at.is_(None),
         )
-        range_result = await self.session.execute(range_stmt)
-        start_date, end_date = range_result.one()
+        wp_result = await self.session.execute(wp_range)
+        wp_min, wp_max = wp_result.one()
+
+        cr_range = select(
+            func.min(CostRegistration.registration_date),
+            func.max(CostRegistration.registration_date),
+        ).join(
+            WorkPackage,
+            CostRegistration.work_package_id == WorkPackage.work_package_id,
+        ).where(
+            WorkPackage.project_id == project_id,
+            WorkPackage.package_type.in_(quality_codes),
+            CostRegistration.registration_date.isnot(None),
+            CostRegistration.work_package_id.isnot(None),
+            func.upper(CostRegistration.valid_time).is_(None),
+            CostRegistration.deleted_at.is_(None),
+            func.upper(WorkPackage.valid_time).is_(None),
+            WorkPackage.deleted_at.is_(None),
+        )
+        cr_result = await self.session.execute(cr_range)
+        cr_min, cr_max = cr_result.one()
+
+        all_range_dates = [d for d in (wp_min, wp_max, cr_min, cr_max) if d is not None]
+        if all_range_dates:
+            start_date = min(all_range_dates)
+            end_date = max(all_range_dates)
+        else:
+            start_date = datetime.now()
+            end_date = datetime.now()
         if as_of is not None and as_of < end_date:
             end_date = as_of
 
         # --- Actual costs (from CostRegistration) ---
-        bucket_expr = func.date_trunc(trunc, WorkPackage.event_date)
+        # Bucket by registration_date so costs appear even when the
+        # linked work package has no event_date.
+        actual_bucket_expr = func.date_trunc(trunc, CostRegistration.registration_date)
         actual_stmt = (
             select(
-                bucket_expr.label("bucket"),
+                actual_bucket_expr.label("bucket"),
                 WorkPackage.coq_category,
                 func.coalesce(func.sum(CostRegistration.amount), Decimal("0")).label(
                     "cost"
@@ -640,26 +671,27 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             .where(
                 WorkPackage.project_id == project_id,
                 WorkPackage.package_type.in_(quality_codes),
-                WorkPackage.event_date.isnot(None),
+                CostRegistration.registration_date.isnot(None),
+                CostRegistration.work_package_id.isnot(None),
                 func.upper(WorkPackage.valid_time).is_(None),
                 WorkPackage.deleted_at.is_(None),
-                CostRegistration.work_package_id.isnot(None),
                 func.upper(CostRegistration.valid_time).is_(None),
                 CostRegistration.deleted_at.is_(None),
             )
             .group_by(
-                bucket_expr,
+                actual_bucket_expr,
                 WorkPackage.coq_category,
             )
-            .order_by(bucket_expr)
+            .order_by(actual_bucket_expr)
         )
         actual_result = await self.session.execute(actual_stmt)
         actual_rows = actual_result.all()
 
         # --- Planned costs (from cost_impact) ---
+        planned_bucket_expr = func.date_trunc(trunc, WorkPackage.event_date)
         planned_stmt = (
             select(
-                bucket_expr.label("bucket"),
+                planned_bucket_expr.label("bucket"),
                 WorkPackage.coq_category,
                 func.coalesce(func.sum(WorkPackage.cost_impact), Decimal("0")).label(
                     "cost"
@@ -673,10 +705,10 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 WorkPackage.deleted_at.is_(None),
             )
             .group_by(
-                bucket_expr,
+                planned_bucket_expr,
                 WorkPackage.coq_category,
             )
-            .order_by(bucket_expr)
+            .order_by(planned_bucket_expr)
         )
         planned_result = await self.session.execute(planned_stmt)
         planned_rows = planned_result.all()
