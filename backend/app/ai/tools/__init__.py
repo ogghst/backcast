@@ -141,7 +141,12 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         return _cached_tools
 
     # Import tool modules
-    from app.ai.tools import context_tools, project_tools, temporal_tools
+    from app.ai.tools import (
+        context_tools,
+        document_tools,
+        project_tools,
+        temporal_tools,
+    )
     from app.ai.tools.templates import (
         advanced_analysis_template,
         analysis_template,
@@ -306,6 +311,14 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         package_type_template.delete_package_type,
     ]
     tools.extend(package_type_tools)
+
+    # Add tools from document_tools (Document repository access)
+    document_tools_list = [
+        document_tools.search_documents,
+        document_tools.read_document,
+        document_tools.list_documents,
+    ]
+    tools.extend(document_tools_list)
 
     # Add batch tools for bulk operations
     batch_tools = [

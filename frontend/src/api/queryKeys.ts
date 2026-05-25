@@ -375,6 +375,31 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     all: ["package-types"] as const,
     list: ["package-types", "list"] as const,
   },
+
+  // Documents
+  documents: {
+    all: ["documents"] as const,
+    lists: () => ["documents", "list"] as const,
+    list: (projectId: string, params?: { folderId?: string; skip?: number; limit?: number }) =>
+      ["documents", "list", projectId, params] as const,
+    details: () => ["documents", "detail"] as const,
+    detail: (projectId: string, documentId: string) =>
+      ["documents", "detail", projectId, documentId] as const,
+    search: (projectId: string, query: string) =>
+      ["documents", "search", projectId, query] as const,
+    versions: (projectId: string, documentId: string) =>
+      ["documents", "versions", projectId, documentId] as const,
+    folders: (projectId: string) =>
+      ["documents", "folders", projectId] as const,
+    stats: (projectId: string) =>
+      ["documents", "stats", projectId] as const,
+    links: (projectId: string, documentId: string) =>
+      ["documents", "links", projectId, documentId] as const,
+    linkedDocuments: (projectId: string, entityType: string, entityId: string) =>
+      ["documents", "linked", projectId, entityType, entityId] as const,
+    previewUrl: (projectId: string, documentId: string) =>
+      ["documents", "preview-url", projectId, documentId] as const,
+  },
 });
 
 /**

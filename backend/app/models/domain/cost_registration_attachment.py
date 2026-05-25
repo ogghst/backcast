@@ -16,14 +16,19 @@ class CostRegistrationAttachment(SimpleEntityBase):
 
     Stores file metadata and content for documents attached to cost
     registrations (invoices, receipts, supporting documents).
-    Content is stored as raw bytes (BYTEA).
+
+    During migration from BYTEA to S3/RustFS storage:
+    - New uploads set storage_key and store content in S3.
+    - Existing rows have storage_key=NULL and content in BYTEA.
+    - Both paths are supported for backward compatibility.
 
     Attributes:
         cost_registration_id: Root ID of the parent cost registration.
         filename: Original filename of the uploaded file.
         content_type: MIME type of the file.
-        content: Raw file bytes.
+        content: Raw file bytes (BYTEA, legacy).
         size: File size in bytes.
+        storage_key: S3 object key when stored in RustFS, None for legacy BYTEA.
     """
 
     __tablename__ = "cost_registration_attachments"
@@ -40,6 +45,7 @@ class CostRegistrationAttachment(SimpleEntityBase):
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     def __repr__(self) -> str:
         return (

@@ -17,6 +17,7 @@ export const ProjectLayout: React.FC = () => {
     { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/evm-analysis` },
     { key: "coq-analysis", label: "COQ Analysis", path: `/projects/${projectId}/coq-analysis` },
     { key: "work-packages", label: "Work Packages", path: `/projects/${projectId}/work-packages` },
+    { key: "documents", label: "Documents", path: `/projects/${projectId}/documents` },
     { key: "chat", label: "AI Chat", path: `/projects/${projectId}/chat` },
     { key: "admin", label: "Admin", path: `/projects/${projectId}/admin` },
   ];

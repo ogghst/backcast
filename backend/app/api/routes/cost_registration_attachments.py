@@ -114,10 +114,13 @@ async def download_attachment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Attachment not found",
         )
+    file_content = await service.get_attachment_content(attachment)
     # Sanitize filename to prevent header injection (strip quotes, CR, LF)
-    safe_filename = attachment.filename.replace('"', '').replace('\r', '').replace('\n', '')
+    safe_filename = (
+        attachment.filename.replace('"', "").replace("\r", "").replace("\n", "")
+    )
     return Response(
-        content=attachment.content,
+        content=file_content,
         media_type=attachment.content_type,
         headers={
             "Content-Disposition": f'attachment; filename="{safe_filename}"',

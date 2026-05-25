@@ -62,6 +62,23 @@ class Settings(BaseSettings):
     # Cost Registration Attachments
     COST_REGISTRATION_MAX_ATTACHMENT_SIZE_MB: int = 10  # 10MB default
 
+    # RustFS / S3 Storage
+    RUSTFS_ENDPOINT_URL: str = "http://rustfs:9000"
+    RUSTFS_ACCESS_KEY: str = "rustfsadmin"
+    RUSTFS_SECRET_KEY: str = "rustfsadmin"
+    RUSTFS_BUCKET_NAME: str = "backcast-documents"
+    RUSTFS_PRESIGNED_URL_EXPIRY_SECONDS: int = 900  # 15 minutes
+
+    # Document Repository
+    DOCUMENT_MAX_FILE_SIZE_MB: int = 50
+    DOCUMENT_MAX_STORAGE_PER_PROJECT_MB: int = 10240  # 10 GB
+    DOCUMENT_ALLOWED_EXTENSIONS: list[str] = [
+        "pdf", "docx", "xlsx", "pptx", "txt", "csv", "md",
+        "png", "jpg", "jpeg", "gif", "webp", "svg",
+        "dwg", "dxf", "step", "igs",
+        "zip", "rar",
+    ]
+
     # Telegram Notifications
     TELEGRAM_ENABLED: bool = False
     TELEGRAM_BOT_TOKEN: str = ""

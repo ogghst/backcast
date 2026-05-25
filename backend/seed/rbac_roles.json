@@ -14,6 +14,9 @@
         "project-create",
         "project-update",
         "project-delete",
+        "project-documents-delete",
+        "project-documents-read",
+        "project-documents-write",
         "wbe-read",
         "wbe-create",
         "wbe-update",
@@ -98,6 +101,9 @@
         "project-read",
         "project-create",
         "project-update",
+        "project-documents-delete",
+        "project-documents-read",
+        "project-documents-write",
         "wbe-read",
         "wbe-create",
         "wbe-update",
@@ -162,6 +168,7 @@
     "ai-viewer": {
       "permissions": [
         "project-read",
+        "project-documents-read",
         "wbe-read",
         "cost-element-read",
         "cost-element-type-read",
@@ -184,6 +191,9 @@
         "project-read",
         "project-create",
         "project-update",
+        "project-documents-delete",
+        "project-documents-read",
+        "project-documents-write",
         "wbe-read",
         "wbe-create",
         "wbe-update",
@@ -229,6 +239,7 @@
     "ai-admin": {
       "permissions": [
         "project-read",
+        "project-documents-read",
         "user-read",
         "user-create",
         "user-update",
@@ -262,6 +273,95 @@
         "project-read",
         "cost-element-read",
         "forecast-read"
+      ]
+    },
+    "project_admin": {
+      "permissions": [
+        "change-order-create",
+        "change-order-delete",
+        "change-order-read",
+        "change-order-update",
+        "cost-element-create",
+        "cost-element-delete",
+        "cost-element-read",
+        "cost-element-update",
+        "forecast-create",
+        "forecast-delete",
+        "forecast-read",
+        "forecast-update",
+        "progress-entry-create",
+        "progress-entry-delete",
+        "progress-entry-read",
+        "progress-entry-update",
+        "project-delete",
+        "project-documents-delete",
+        "project-documents-read",
+        "project-documents-write",
+        "project-members-manage",
+        "project-read",
+        "project-update",
+        "wbe-create",
+        "wbe-delete",
+        "wbe-read",
+        "wbe-update"
+      ]
+    },
+    "project_manager": {
+      "permissions": [
+        "change-order-create",
+        "change-order-read",
+        "cost-element-create",
+        "cost-element-delete",
+        "cost-element-read",
+        "cost-element-update",
+        "forecast-create",
+        "forecast-delete",
+        "forecast-read",
+        "forecast-update",
+        "progress-entry-create",
+        "progress-entry-delete",
+        "progress-entry-read",
+        "progress-entry-update",
+        "project-documents-delete",
+        "project-documents-read",
+        "project-documents-write",
+        "project-read",
+        "project-update",
+        "wbe-create",
+        "wbe-delete",
+        "wbe-read",
+        "wbe-update"
+      ]
+    },
+    "project_editor": {
+      "permissions": [
+        "change-order-read",
+        "cost-element-create",
+        "cost-element-read",
+        "cost-element-update",
+        "forecast-create",
+        "forecast-read",
+        "forecast-update",
+        "progress-entry-create",
+        "progress-entry-read",
+        "progress-entry-update",
+        "project-documents-read",
+        "project-documents-write",
+        "project-read",
+        "project-update",
+        "wbe-read"
+      ]
+    },
+    "project_viewer": {
+      "permissions": [
+        "change-order-approve",
+        "change-order-read",
+        "cost-element-read",
+        "forecast-read",
+        "progress-entry-read",
+        "project-documents-read",
+        "project-read",
+        "wbe-read"
       ]
     }
   }

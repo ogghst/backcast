@@ -684,6 +684,10 @@ class AgentService:
         )
         history.insert(0, SystemMessage(content=system_prompt))
 
+        if assistant_config.model_id is None:
+            raise ValueError(
+                f"Agent '{assistant_config.name}' has no model_id configured"
+            )
         client_config, model_name, provider_type = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
@@ -938,6 +942,10 @@ class AgentService:
         )
         history.insert(0, SystemMessage(content=system_prompt))
 
+        if assistant_config.model_id is None:
+            raise ValueError(
+                f"Agent '{assistant_config.name}' has no model_id configured"
+            )
         client_config, model_name, provider_type = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )

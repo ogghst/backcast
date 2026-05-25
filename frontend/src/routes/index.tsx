@@ -45,6 +45,9 @@ import { ProjectAdminPage } from "@/pages/projects/ProjectAdminPage";
 import { DashboardPage } from "@/features/widgets/pages/DashboardPage";
 import { ChangeOrderConfigPage } from "@/features/change-orders/components/ChangeOrderConfigPage";
 import { ChangeOrderRedirect } from "@/features/change-orders/components/ChangeOrderRedirect";
+import { ProjectDocuments } from "@/pages/projects/ProjectDocuments";
+import { WBEDocuments } from "@/pages/wbes/WBEDocuments";
+import { CostElementDocuments } from "@/pages/cost-elements/CostElementDocuments";
 
 export const router = createBrowserRouter([
   {
@@ -178,6 +181,10 @@ export const router = createBrowserRouter([
             element: <ProjectWorkPackages />,
           },
           {
+            path: "documents",
+            element: <ProjectDocuments />,
+          },
+          {
             path: "chat",
             element: <ProjectChat />,
           },
@@ -210,6 +217,7 @@ export const router = createBrowserRouter([
           { index: true, element: <WBEOverview /> },
           { path: "evm-analysis", element: <WBEEVMAnalysis /> },
           { path: "cost-history", element: <WBECostHistory /> },
+          { path: "documents", element: <WBEDocuments /> },
           { path: "chat", element: <WBEChat /> },
         ],
       },
@@ -221,6 +229,7 @@ export const router = createBrowserRouter([
           { path: "cost-registrations", element: <CostElementCostRegistrations /> },
           { path: "cost-history", element: <CostElementCostHistory /> },
           { path: "evm-analysis", element: <CostElementEVMAnalysis /> },
+          { path: "documents", element: <CostElementDocuments /> },
           { path: "chat", element: <CostElementChat /> },
         ],
       },

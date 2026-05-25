@@ -8,6 +8,7 @@ full message history — the receiving agent sees everything discussed so far.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Annotated, Any
 
 from langchain.tools import InjectedToolCallId, tool
@@ -24,6 +25,15 @@ logger = logging.getLogger(__name__)
 # Metadata key set on handoff tool results so routing logic can detect
 # the target agent without parsing the tool name.
 METADATA_KEY_HANDOFF_DESTINATION = "__handoff_destination__"
+
+
+def _slugify(name: str) -> str:
+    """Convert an agent name to a valid tool name slug.
+
+    Replaces spaces and non-alphanumeric chars (except hyphens/underscores)
+    with underscores so the result matches ``^[a-zA-Z0-9_-]+$``.
+    """
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", name)
 
 
 def create_handoff_tool(
@@ -43,9 +53,9 @@ def create_handoff_tool(
             does. Used as the tool description for the LLM.
 
     Returns:
-        A BaseTool named ``handoff_to_{agent_name}``.
+        A BaseTool named ``handoff_to_{slugified_name}``.
     """
-    tool_name = f"handoff_to_{agent_name}"
+    tool_name = f"handoff_to_{_slugify(agent_name)}"
 
     @tool(tool_name, description=agent_description)
     def handoff_tool(

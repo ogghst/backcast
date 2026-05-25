@@ -306,10 +306,11 @@ class AIConfigService:
         self, config_in: AIAssistantConfigCreate
     ) -> AIAssistantConfig:
         """Create a new assistant configuration."""
-        # Verify model exists
-        model = await self.get_model(config_in.model_id)
-        if not model:
-            raise ValueError(f"Model {config_in.model_id} not found")
+        # Verify model exists (specialists may omit model_id)
+        if config_in.model_id is not None:
+            model = await self.get_model(config_in.model_id)
+            if not model:
+                raise ValueError(f"Model {config_in.model_id} not found")
 
         config = AIAssistantConfig(
             name=config_in.name,
