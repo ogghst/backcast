@@ -583,7 +583,7 @@ class SupervisorOrchestrator:
                     "active_agent": "supervisor",
                     "tool_call_count": result.get("tool_call_count", 0),
                     "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
-                    "completed_specialists": {specialist_name},
+                    "completed_specialists": state.get("completed_specialists", set()) | {specialist_name},
                 },
                 goto="supervisor",
             )

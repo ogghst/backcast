@@ -370,6 +370,7 @@ async def list_ai_tools() -> list[AIToolPublic]:
     )
     registry.discover_and_register("app.ai.tools.templates.batch_tools_template")
     registry.discover_and_register("app.ai.tools.templates.work_package_template")
+    registry.discover_and_register("app.ai.tools.templates.package_type_template")
 
     tools = get_all_tools()
 

@@ -53,9 +53,12 @@ def filter_tools_by_execution_mode(
                     f"Filtering out tool '{tool.name}' (risk={risk_level.value}) in SAFE mode"
                 )
         elif execution_mode == ExecutionMode.STANDARD:
-            # Standard mode: LOW and HIGH allowed. CRITICAL blocked.
-            # Include all tools - approval/blocking handled by InterruptNode
-            filtered_tools.append(tool)
+            if risk_level != RiskLevel.CRITICAL:
+                filtered_tools.append(tool)
+            else:
+                logger.debug(
+                    f"Filtering out tool '{tool.name}' (risk={risk_level.value}) in STANDARD mode"
+                )
         else:
             # Expert mode allows all tools
             filtered_tools.append(tool)

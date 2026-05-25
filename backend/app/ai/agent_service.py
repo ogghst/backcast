@@ -312,6 +312,7 @@ class AgentService:
         self.session = session
         self._config_service: AIConfigService | None = None
         self._subagent_invocation_counts: dict[str, int] = {}
+        self._interrupt_nodes: dict[UUID, InterruptNode] = {}
 
     @property
     def config_service(self) -> AIConfigService:
@@ -402,11 +403,12 @@ class AgentService:
             ChatOpenAI or ChatDeepSeek instance configured with the provided parameters
         """
         # Pop provider-specific params that aren't standard OpenAI client args
-        reasoning_effort = client_config.pop("reasoning_effort", None)
-        thinking_mode = client_config.pop("thinking_mode", None)
+        config = client_config.copy()
+        reasoning_effort = config.pop("reasoning_effort", None)
+        thinking_mode = config.pop("thinking_mode", None)
 
         # Build cache key
-        base_url = client_config.get("base_url", "")
+        base_url = config.get("base_url", "")
         base_url_hash = str(hash(base_url))
         temp = temperature or 0.0
         tokens = max_tokens or 2000
@@ -430,7 +432,7 @@ class AgentService:
             # Use ChatDeepSeek for DeepSeek models (native reasoning_content support)
             if HAS_DEEPSEEK and model_name.startswith("deepseek"):
                 return ChatDeepSeek(
-                    **client_config,
+                    **config,
                     model=model_name,
                     temperature=temp,
                     max_tokens=tokens,
@@ -439,7 +441,7 @@ class AgentService:
                     **kwargs,
                 )
             return ChatOpenAI(
-                **client_config,
+                **config,
                 model=model_name,
                 temperature=temp,
                 max_tokens=tokens,
@@ -2445,8 +2447,6 @@ class AgentService:
         else:
             # For other types, try string conversion
             return str(obj)
-
-    _interrupt_nodes: dict[UUID, "InterruptNode"] = {}
 
     def register_interrupt_node(
         self, session_id: UUID, interrupt_node: "InterruptNode"

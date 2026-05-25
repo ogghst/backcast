@@ -273,9 +273,9 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             stmt = stmt.where(WorkPackage.coq_category == coq_category)
 
         if package_type is not None:
-            types = [t.strip() for t in package_type.split(",") if t.strip()]
+            types = [t.strip().lower() for t in package_type.split(",") if t.strip()]
             if types:
-                stmt = stmt.where(WorkPackage.package_type.in_(types))
+                stmt = stmt.where(func.lower(WorkPackage.package_type).in_(types))
 
         if status is not None:
             stmt = stmt.where(WorkPackage.status == status)
@@ -328,7 +328,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             # Use a subquery approach for time-travel
             inner_stmt = select(WorkPackage).where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type.in_(quality_codes),
+                func.lower(WorkPackage.package_type).in_(quality_codes),
             )
             inner_stmt = self._apply_bitemporal_filter(inner_stmt, as_of)
             inner_subq = inner_stmt.subquery()
@@ -372,7 +372,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 ),
             ).where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type.in_(quality_codes),
+                func.lower(WorkPackage.package_type).in_(quality_codes),
                 *current_filter,
             )
             total_result = await self.session.execute(total_stmt)
@@ -387,7 +387,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 )
                 .where(
                     WorkPackage.project_id == project_id,
-                    WorkPackage.package_type.in_(quality_codes),
+                    func.lower(WorkPackage.package_type).in_(quality_codes),
                     *current_filter,
                 )
                 .group_by(WorkPackage.coq_category)
@@ -453,12 +453,12 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         # Build base filters for WorkPackage (quality-flagged types only)
         wp_filters = [
             WorkPackage.project_id == project_id,
-            WorkPackage.package_type.in_(quality_codes),
+            func.lower(WorkPackage.package_type).in_(quality_codes),
         ]
         if as_of is not None:
             wp_subq = select(WorkPackage).where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type.in_(quality_codes),
+                func.lower(WorkPackage.package_type).in_(quality_codes),
             )
             wp_subq = self._apply_bitemporal_filter(wp_subq, as_of)
             wp_subq = wp_subq.subquery()
@@ -471,10 +471,25 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             )
 
         # Build base filters for CostRegistration
-        cr_filters_current = [
-            func.upper(CostRegistration.valid_time).is_(None),
-            CostRegistration.deleted_at.is_(None),
-        ]
+        if as_of is not None:
+            from sqlalchemy import cast as sql_cast
+            from sqlalchemy import or_
+            from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            cr_filters_current: list[Any] = [
+                CostRegistration.valid_time.op("@>")(as_of_tstz),
+                func.lower(cast(Any, CostRegistration).valid_time) <= as_of_tstz,
+                or_(
+                    CostRegistration.deleted_at.is_(None),
+                    CostRegistration.deleted_at > as_of_tstz,
+                ),
+            ]
+        else:
+            cr_filters_current = [
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+            ]
 
         # 1. Total COQ: sum of CR.amount where work_package_id IS NOT NULL
         if as_of is not None:
@@ -530,24 +545,57 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
 
         # 3. Total AC: sum of ALL CostRegistration amounts for cost elements
         #    in this project (via CostElement -> WBE -> project)
-        total_ac_stmt = (
-            select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
-            .join(
-                CostElement,
-                CostRegistration.cost_element_id == CostElement.cost_element_id,
+        if as_of is not None:
+            from sqlalchemy import or_
+
+            wbe_ce_bitemporal = [
+                WBE.valid_time.op("@>")(as_of_tstz),
+                func.lower(cast(Any, WBE).valid_time) <= as_of_tstz,
+                or_(
+                    cast(Any, WBE).deleted_at.is_(None),
+                    cast(Any, WBE).deleted_at > as_of_tstz,
+                ),
+                CostElement.valid_time.op("@>")(as_of_tstz),
+                func.lower(cast(Any, CostElement).valid_time) <= as_of_tstz,
+                or_(
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    cast(Any, CostElement).deleted_at > as_of_tstz,
+                ),
+            ]
+            total_ac_stmt = (
+                select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    WBE.branch == "main",
+                    CostElement.branch == "main",
+                    *wbe_ce_bitemporal,
+                    *cr_filters_current,
+                )
             )
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-                CostElement.branch == "main",
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-                *cr_filters_current,
+        else:
+            total_ac_stmt = (
+                select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    WBE.branch == "main",
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    CostElement.branch == "main",
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    *cr_filters_current,
+                )
             )
-        )
         total_ac_result = await self.session.execute(total_ac_stmt)
         total_ac = Decimal(str(total_ac_result.scalar_one()))
 
@@ -613,11 +661,16 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             func.coalesce(func.max(WorkPackage.event_date), datetime.now()),
         ).where(
             WorkPackage.project_id == project_id,
-            WorkPackage.package_type.in_(quality_codes),
+            func.lower(WorkPackage.package_type).in_(quality_codes),
             WorkPackage.event_date.isnot(None),
-            func.upper(WorkPackage.valid_time).is_(None),
-            WorkPackage.deleted_at.is_(None),
         )
+        if as_of is not None:
+            range_stmt = self._apply_bitemporal_filter(range_stmt, as_of)
+        else:
+            range_stmt = range_stmt.where(
+                func.upper(WorkPackage.valid_time).is_(None),
+                WorkPackage.deleted_at.is_(None),
+            )
         range_result = await self.session.execute(range_stmt)
         start_date, end_date = range_result.one()
         if as_of is not None and as_of < end_date:
@@ -639,45 +692,63 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             )
             .where(
                 WorkPackage.project_id == project_id,
-                WorkPackage.package_type.in_(quality_codes),
+                func.lower(WorkPackage.package_type).in_(quality_codes),
                 WorkPackage.event_date.isnot(None),
+                CostRegistration.work_package_id.isnot(None),
+            )
+        )
+        if as_of is not None:
+            from sqlalchemy import cast as sql_cast
+            from sqlalchemy import or_
+            from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+            as_of_tstz_trend = sql_cast(as_of, TIMESTAMP(timezone=True))
+            actual_stmt = self._apply_bitemporal_filter(actual_stmt, as_of)
+            actual_stmt = actual_stmt.where(
+                CostRegistration.valid_time.op("@>")(as_of_tstz_trend),
+                func.lower(cast(Any, CostRegistration).valid_time) <= as_of_tstz_trend,
+                or_(
+                    CostRegistration.deleted_at.is_(None),
+                    CostRegistration.deleted_at > as_of_tstz_trend,
+                ),
+            )
+        else:
+            actual_stmt = actual_stmt.where(
                 func.upper(WorkPackage.valid_time).is_(None),
                 WorkPackage.deleted_at.is_(None),
-                CostRegistration.work_package_id.isnot(None),
                 func.upper(CostRegistration.valid_time).is_(None),
                 CostRegistration.deleted_at.is_(None),
             )
-            .group_by(
-                bucket_expr,
-                WorkPackage.coq_category,
-            )
-            .order_by(bucket_expr)
-        )
+        actual_stmt = actual_stmt.group_by(
+            bucket_expr,
+            WorkPackage.coq_category,
+        ).order_by(bucket_expr)
         actual_result = await self.session.execute(actual_stmt)
         actual_rows = actual_result.all()
 
         # --- Planned costs (from cost_impact) ---
-        planned_stmt = (
-            select(
-                bucket_expr.label("bucket"),
-                WorkPackage.coq_category,
-                func.coalesce(func.sum(WorkPackage.cost_impact), Decimal("0")).label(
-                    "cost"
-                ),
-            )
-            .where(
-                WorkPackage.project_id == project_id,
-                WorkPackage.package_type.in_(quality_codes),
-                WorkPackage.event_date.isnot(None),
+        planned_stmt = select(
+            bucket_expr.label("bucket"),
+            WorkPackage.coq_category,
+            func.coalesce(func.sum(WorkPackage.cost_impact), Decimal("0")).label(
+                "cost"
+            ),
+        ).where(
+            WorkPackage.project_id == project_id,
+            func.lower(WorkPackage.package_type).in_(quality_codes),
+            WorkPackage.event_date.isnot(None),
+        )
+        if as_of is not None:
+            planned_stmt = self._apply_bitemporal_filter(planned_stmt, as_of)
+        else:
+            planned_stmt = planned_stmt.where(
                 func.upper(WorkPackage.valid_time).is_(None),
                 WorkPackage.deleted_at.is_(None),
             )
-            .group_by(
-                bucket_expr,
-                WorkPackage.coq_category,
-            )
-            .order_by(bucket_expr)
-        )
+        planned_stmt = planned_stmt.group_by(
+            bucket_expr,
+            WorkPackage.coq_category,
+        ).order_by(bucket_expr)
         planned_result = await self.session.execute(planned_stmt)
         planned_rows = planned_result.all()
 
@@ -781,7 +852,10 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         # Above 4.0%: linear extrapolation from the last band
         # At 4.0% QPI=0.85, slope from 2.0-4.0% band
         excess = cpq_percentage - Decimal("4.0")
-        return (Decimal("0.85") - excess * Decimal("0.05")).quantize(Decimal("0.01"))
+        return max(
+            Decimal("0.0"),
+            (Decimal("0.85") - excess * Decimal("0.05")).quantize(Decimal("0.01")),
+        )
 
     @staticmethod
     def _qpi_rating(qpi: Decimal) -> str:
@@ -930,7 +1004,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             PackageTypeModel.is_quality == True,  # noqa: E712
         )
         result = await self.session.execute(stmt)
-        codes = [row[0] for row in result.all()]
+        codes = [row[0].lower() for row in result.all()]
         return codes if codes else ["__no_quality_types__"]
 
     @staticmethod
@@ -984,7 +1058,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         stmt = (
             select(PackageTypeModel.id)
             .where(
-                PackageTypeModel.code == package_type,
+                func.lower(PackageTypeModel.code) == package_type.lower(),
                 func.upper(PackageTypeModel.valid_time).is_(None),
                 PackageTypeModel.deleted_at.is_(None),
             )
@@ -1086,6 +1160,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         existing_stmt = select(CostRegistration).where(
             CostRegistration.work_package_id == work_package_id,
             CostRegistration.deleted_at.is_(None),
+            func.upper(CostRegistration.valid_time).is_(None),
         )
         existing_result = await self.session.execute(existing_stmt)
         existing_crs = existing_result.scalars().all()

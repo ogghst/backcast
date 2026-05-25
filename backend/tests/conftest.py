@@ -244,6 +244,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
                     "forecasts",
                     "wbes",
                     "cost_element_types",
+                    "package_types",
                     "projects",
                     "departments",
                     "users",

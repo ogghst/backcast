@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-05-23
-**Total Open Items:** 7
-**Total Estimated Effort:** ~9.5 days
+**Last Updated:** 2026-05-24
+**Total Open Items:** 14
+**Total Estimated Effort:** ~13.5 days
 
 ---
 
@@ -207,16 +207,130 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
+### [TD-112] Migration `dedup_dashboard_layouts` Breaks Test DB Setup
+
+- **Source:** Test suite run (2026-05-24) — 69 ERROR results across test suite
+- **Description:** The `dedup_dashboard_layouts` migration references the `dashboard_layouts` table before it's been created by its own migration. When Alembic runs migrations in order, this migration executes before the table-creating migration, causing `UndefinedTableError: relation "dashboard_layouts" does not exist` in every test that uses the `apply_migrations` fixture.
+- **Impact:** All integration and service tests that need a fresh DB fail at setup. Tests affected: `test_work_package_service` (22 tests), `test_evm_service` (26 tests), `test_evm_service_wbe_project` (11 tests), `test_impact_analysis_service` (3 tests), and various temporal tests — 69+ errors total.
+- **Estimated Effort:** 2 hours
+- **Status:** Done
+- **Owner:** Backend Developer
+- **Priority:** P1 (High)
+- **Suggested Approach:** Added `depends_on = "20260405_add_dashboard_layouts"` to the migration so Alembic ensures the table exists before the data migration runs.
+
+---
+
+### [TD-116] Work Package Service Tests Missing PackageType Seed Data
+
+- **Source:** Test suite run (2026-05-24) — 20 FAILED results in `tests/services/test_work_package_service.py`
+- **Description:** `_validate_package_type()` queries the DB for active `PackageType` records, but no test fixture seeds them. Every test that creates a work package fails with `ValueError: Invalid package_type 'quality_impact'. No active package type with that code found.` The DB-driven validation was added in the PackageType feature but tests still assume hardcoded type strings work without seed data.
+- **Impact:** All 20 work package service tests fail, blocking any regression testing for the work package domain
+- **Estimated Effort:** 1-2 hours
+- **Status:** ✅ Resolved (2026-05-25) — Added `seed_package_types` autouse fixture that reads `seed/package_types.json` and creates all 5 package types via `PackageTypeService`. Added `"package_types"` to conftest truncation list. 21/22 tests now pass; the remaining failure (`test_create_work_package_invalid_type_raises`) is a pre-existing test bug expecting Pydantic `ValidationError` on a plain `str` field.
+
+---
+
+### [TD-117] Agent Service Unit Tests Use Stale `_run_agent_graph` Signature
+
+- **Source:** Test suite run (2026-05-24) — 7 FAILED results in `tests/unit/services/test_agent_service.py`
+- **Description:** Tests call `AgentService._run_agent_graph(message=...)` but the method no longer accepts a `message` keyword argument — it was changed during the recent briefing/streaming refactor. All 7 tests fail with `TypeError: AgentService._run_agent_graph() got an unexpected keyword argument 'message'`.
+- **Impact:** All agent service unit tests are broken, preventing regression testing for event publishing, metrics, and error handling
+- **Estimated Effort:** 1 hour
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P1 (High)
+- **Suggested Approach:** Read current `_run_agent_graph()` signature and update all 7 test calls to match. Likely the param was renamed or absorbed into a params dataclass.
+
+---
+
+### [TD-113] BriefingDocument.from_state Recovers from Invalid Data Instead of Failing
+
+- **Source:** Test suite run (2026-05-24) — `test_briefing_room_orchestrator.py::TestCreateGetBriefingTool::test_returns_default_when_briefing_data_invalid`
+- **Description:** `BriefingDocument.from_state({"garbage": True})` returns a "recovered" briefing document instead of raising or returning a sentinel. The test expects `"No briefing available yet."` but gets `"# Briefing Document\n## Request\n(recovered)"`. The recovery logic is too lenient — arbitrary dict input produces a synthetic briefing rather than a clear error/default.
+- **Impact:** Test failure masks potential briefing corruption; AI agents may operate on fabricated briefing data when state is corrupted
+- **Estimated Effort:** 4 hours
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P2 (Medium)
+- **Suggested Approach:** Either (a) make `from_state` raise `ValidationError` on structurally invalid input and catch it at the call site to return the sentinel, or (b) add a `is_recovered` flag and have the get_briefing tool return the default message when the briefing is recovered rather than genuine.
+
+---
+
+### [TD-114] Performance Tests Missing Async Event Loop Fixture
+
+- **Source:** Test suite run (2026-05-24) — 5 FAILED results in `tests/performance/`
+- **Description:** Performance tests (`test_risk_check_overhead.py`, `test_tool_performance.py`) fail with `RuntimeError: no running event loop`. The tests use scoped sessions (`scoped_session`) that require an active asyncio event loop, but the test functions are not marked `async` or lack proper `@pytest.mark.asyncio` setup.
+- **Impact:** All performance benchmark tests are broken, preventing regression detection for tool execution and RBAC overhead
+- **Estimated Effort:** 4 hours
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P3 (Medium)
+- **Suggested Approach:** Add `@pytest.mark.asyncio` to test functions, or refactor to use sync wrappers that create their own event loop. Ensure benchmark fixtures work with async test functions.
+
+---
+
+### [TD-115] RBAC Singleton State Leaks Between Test Classes
+
+- **Source:** Test suite run (2026-05-24) — `test_rbac_unified.py::TestSingleton::test_get_unified_rbac_service_creates_singleton`
+- **Description:** The test passes in isolation but fails when run as part of the full suite. `get_unified_rbac_service()` returns a singleton whose state (permission cache, role assignments) persists across test classes. When a prior test modifies the singleton's cache, the singleton test observes stale state.
+- **Impact:** Flaky test failure; reduced confidence in RBAC test results; singleton pattern makes unit testing unreliable
+- **Estimated Effort:** 2 hours
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P3 (Medium)
+- **Suggested Approach:** Add a `reset()` or `_clear_cache()` method to `UnifiedRBACService` and call it in a `@pytest.fixture(autouse=True)` or `setUp` in affected test classes. Alternatively, patch `_instance = None` in the module between tests.
+
+---
+
+### [TD-118] WBE Test Assertion Doesn't Handle TSTZRANGE Format
+
+- **Source:** Test suite run (2026-05-24) — `tests/api/routes/wbes/test_wbes.py::test_create_wbe_with_control_date`
+- **Description:** Test asserts `data["valid_time"].startswith(control_date[:10])` but the API now returns `valid_time` as a PostgreSQL TSTZRANGE string like `'["2026-03-03T10:00:00+00:00",)'` which starts with `[`, not the date. The assertion fails because the response format changed to include the range wrapper.
+- **Impact:** False test failure masks actual WBE creation correctness
+- **Estimated Effort:** 15 minutes
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P2 (Medium)
+- **Suggested Approach:** Update assertion to extract the date from the TSTZRANGE string, e.g. `assert control_date[:10] in data["valid_time"]`, or parse the JSON range before asserting.
+
+---
+
+### [TD-119] Performance Tests Fail on Environment-Dependent Thresholds
+
+- **Source:** Test suite run (2026-05-24) — 12 FAILED results across `tests/performance/`
+- **Description:** Performance benchmark tests (agent latency, streaming throughput, tool execution p50/p99, EVM calculation, merge, risk check overhead) fail against fixed thresholds. Results are sensitive to machine load, CI runner specs, and whether a live LLM endpoint is available. The AI performance tests additionally require a configured LLM and fail without one.
+- **Impact:** Performance regression detection is non-functional; tests are noisy in CI
+- **Estimated Effort:** 2 hours
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P3 (Low)
+- **Suggested Approach:** Widen thresholds with generous margins for CI variance. Mark AI-dependent performance tests as `@pytest.mark.skipif` when no LLM endpoint is configured. Consider converting strict assertions to warnings or using `@pytest.mark.xfail(strict=False)` for inherently flaky benchmarks.
+
+---
+
+### [TD-120] AI Security & Concurrency Tests Require Live LLM Endpoint
+
+- **Source:** Test suite run (2026-05-24) — 3 FAILED results in `tests/integration/ai/test_temporal_security.py` (2) and `tests/integration/ai/tools/test_concurrent_tool_execution.py` (1)
+- **Description:** Prompt injection resistance tests and concurrent tool execution tests depend on a live LLM endpoint to validate behavior. Without one, these integration tests fail. The temporal security tests verify that the AI cannot bypass `as_of` and `branch_mode` constraints via prompt injection.
+- **Impact:** AI security regression tests are non-functional without LLM; prompt injection vulnerabilities could go undetected
+- **Estimated Effort:** 1 hour
+- **Status:** Open
+- **Owner:** Backend Developer
+- **Priority:** P3 (Medium)
+- **Suggested Approach:** Add `@pytest.mark.skipif` guards that check for a configured LLM endpoint. Ensure these tests run in CI with a test LLM provider, or add mock-based alternatives for core assertion logic.
+
+---
+
 ---
 
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 2 | ~2.5 days |
-| Medium (P2-P3) | 4 | ~4.5 days |
+| High (P0-P1) | 3 | ~2 days |
+| Medium (P2-P3) | 10 | ~10 days |
 | Low (P4+) | 1 | ~5 hours |
-| **Total** | **7** | **~9.5 days** |
+| **Total** | **14** | **~12 days** |
 
 ---
 
