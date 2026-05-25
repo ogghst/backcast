@@ -652,7 +652,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             COQTrendResponse with time-series data points.
         """
-        quality_codes = await self._get_quality_package_type_codes()
+        quality_codes = [c.lower() for c in await self._get_quality_package_type_codes()]
         trunc = "week" if granularity == COQTrendGranularity.WEEK else "month"
 
         # Determine date range from work package event dates
@@ -677,10 +677,10 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             end_date = as_of
 
         # --- Actual costs (from CostRegistration) ---
-        bucket_expr = func.date_trunc(trunc, WorkPackage.event_date)
+        actual_bucket_expr = func.date_trunc(trunc, CostRegistration.registration_date)
         actual_stmt = (
             select(
-                bucket_expr.label("bucket"),
+                actual_bucket_expr.label("bucket"),
                 WorkPackage.coq_category,
                 func.coalesce(func.sum(CostRegistration.amount), Decimal("0")).label(
                     "cost"
@@ -693,7 +693,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             .where(
                 WorkPackage.project_id == project_id,
                 func.lower(WorkPackage.package_type).in_(quality_codes),
-                WorkPackage.event_date.isnot(None),
+                CostRegistration.registration_date.isnot(None),
                 CostRegistration.work_package_id.isnot(None),
             )
         )
@@ -720,15 +720,16 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 CostRegistration.deleted_at.is_(None),
             )
         actual_stmt = actual_stmt.group_by(
-            bucket_expr,
+            actual_bucket_expr,
             WorkPackage.coq_category,
-        ).order_by(bucket_expr)
+        ).order_by(actual_bucket_expr)
         actual_result = await self.session.execute(actual_stmt)
         actual_rows = actual_result.all()
 
         # --- Planned costs (from cost_impact) ---
+        planned_bucket_expr = func.date_trunc(trunc, WorkPackage.event_date)
         planned_stmt = select(
-            bucket_expr.label("bucket"),
+            planned_bucket_expr.label("bucket"),
             WorkPackage.coq_category,
             func.coalesce(func.sum(WorkPackage.cost_impact), Decimal("0")).label(
                 "cost"
@@ -746,9 +747,9 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 WorkPackage.deleted_at.is_(None),
             )
         planned_stmt = planned_stmt.group_by(
-            bucket_expr,
+            planned_bucket_expr,
             WorkPackage.coq_category,
-        ).order_by(bucket_expr)
+        ).order_by(planned_bucket_expr)
         planned_result = await self.session.execute(planned_stmt)
         planned_rows = planned_result.all()
 
