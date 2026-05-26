@@ -1,9 +1,12 @@
 """Tests for WorkPackageService CRUD, queries, summaries, cost allocations, and type/status validation."""
 
+import json
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 
 # Pydantic ValidationError for schema-level validation tests
 from pydantic import ValidationError
@@ -12,11 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.cost_registration import CostRegistration
 from app.models.domain.work_package import WorkPackage
+from app.models.schemas.package_type import PackageTypeCreate
 from app.models.schemas.work_package import (
     QualityCostAllocation,
     WorkPackageCreate,
     WorkPackageUpdate,
 )
+from app.services.package_type_service import PackageTypeService
 from app.services.work_package_service import WorkPackageService
 
 
@@ -24,6 +29,20 @@ from app.services.work_package_service import WorkPackageService
 def actor_id() -> tuple:
     """Return a consistent actor_id for tests."""
     return uuid4()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def seed_package_types(db_session: AsyncSession) -> None:
+    """Seed PackageType rows required by _validate_package_type()."""
+    seed_path = Path(__file__).resolve().parent.parent.parent / "seed" / "package_types.json"
+    with open(seed_path) as f:
+        types_data = json.load(f)
+
+    service = PackageTypeService(db_session)
+    for item in types_data:
+        pt_in = PackageTypeCreate(**item)
+        await service.create(pt_in, actor_id=uuid4())
+    await db_session.flush()
 
 
 # --- CRUD Tests ---

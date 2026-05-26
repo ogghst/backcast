@@ -53,7 +53,7 @@ def test_all_template_modules_are_discovered() -> None:
     registry.discover_and_register("app.ai.tools.project_tools")
     registry.discover_and_register("app.ai.tools.templates.analysis_template")
     registry.discover_and_register("app.ai.tools.templates.change_order_template")
-    registry.discover_and_register("app.ai.tools.templates.crud_template")
+    registry.discover_and_register("app.ai.tools.templates.project_template")
     registry.discover_and_register("app.ai.tools.templates.cost_element_template")
     registry.discover_and_register("app.ai.tools.templates.user_management_template")
     registry.discover_and_register("app.ai.tools.templates.advanced_analysis_template")
@@ -68,26 +68,17 @@ def test_all_template_modules_are_discovered() -> None:
     assert "list_projects" in tool_names
     assert "get_project" in tool_names
 
-    # From crud_template (6 unique tools - excluding duplicates)
+    # From project_template (6 unique tools - excluding duplicates)
     assert "create_project" in tool_names
     assert "update_project" in tool_names
-    assert "list_wbes" in tool_names
-    assert "get_wbe" in tool_names
+    assert "find_wbes" in tool_names
     assert "create_wbe" in tool_names
 
-    # From analysis_template (8 tools)
-    assert "calculate_evm_metrics" in tool_names
-    assert "get_evm_performance_summary" in tool_names
-    assert "analyze_cost_variance" in tool_names
-    assert "analyze_schedule_variance" in tool_names
-    assert "generate_project_forecast" in tool_names
-    assert "compare_forecast_scenarios" in tool_names
-    assert "get_forecast_accuracy" in tool_names
-    assert "get_project_kpis" in tool_names
+    # From analysis_template (1 consolidated tool)
+    assert "get_project_analysis" in tool_names
 
-    # From change_order_template (9 tools)
-    assert "list_change_orders" in tool_names
-    assert "get_change_order" in tool_names
+    # From change_order_template (8 tools)
+    assert "find_change_orders" in tool_names
     assert "create_change_order" in tool_names
     assert "generate_change_order_draft" in tool_names
     assert "submit_change_order_for_approval" in tool_names
@@ -95,44 +86,34 @@ def test_all_template_modules_are_discovered() -> None:
     assert "reject_change_order" in tool_names
     assert "analyze_change_order_impact" in tool_names
 
-    # From cost_element_template (14 tools: 5 cost element + 3 schedule baseline + 5 cost element type + 1 legacy)
-    assert "list_cost_elements" in tool_names
-    assert "get_cost_element" in tool_names
+    # From cost_element_template (13 tools: find + CRUD CE, find + CRUD CE Type, batch CE)
+    assert "find_cost_elements" in tool_names
     assert "create_cost_element" in tool_names
     assert "update_cost_element" in tool_names
     assert "delete_cost_element" in tool_names
-    assert "get_schedule_baseline" in tool_names
-    assert "update_schedule_baseline" in tool_names
-    assert "delete_schedule_baseline" in tool_names
-    assert "list_cost_element_types" in tool_names
-    assert "get_cost_element_type" in tool_names
+    assert "find_cost_element_types" in tool_names
     assert "create_cost_element_type" in tool_names
     assert "update_cost_element_type" in tool_names
     assert "delete_cost_element_type" in tool_names
 
-    # From user_management_template (10 tools)
-    assert "list_users" in tool_names
-    assert "get_user" in tool_names
+    # From user_management_template (8 tools)
+    assert "find_users" in tool_names
     assert "create_user" in tool_names
     assert "update_user" in tool_names
     assert "delete_user" in tool_names
-    assert "list_departments" in tool_names
-    assert "get_department" in tool_names
+    assert "find_departments" in tool_names
     assert "create_department" in tool_names
     assert "update_department" in tool_names
     assert "delete_department" in tool_names
 
-    # From advanced_analysis_template (4 tools)
-    assert "assess_project_health" in tool_names
-    assert "detect_evm_anomalies" in tool_names
-    assert "analyze_forecast_trends" in tool_names
-    assert "generate_optimization_suggestions" in tool_names
+    # From advanced_analysis_template (1 consolidated tool)
+    assert "get_project_forecast" in tool_names
 
     # From diagram_template (1 tool)
     assert "generate_mermaid_diagram" in tool_names
 
-    # Total expected: ~54 tools (some duplicates removed)
-    assert len(tool_names) >= 43, f"Expected at least 43 tools, got {len(tool_names)}"
+    # Total expected: ~48 tools (some duplicates removed)
+    assert len(tool_names) >= 38, f"Expected at least 38 tools, got {len(tool_names)}"
 @pytest.mark.asyncio
 async def test_tools_endpoint_returns_all_templates(client: AsyncClient) -> None:
     """Test that the /tools endpoint returns tools from all template modules."""
@@ -158,9 +139,9 @@ async def test_tools_endpoint_returns_all_templates(client: AsyncClient) -> None
 
     # Check a sample from each module
     assert "list_projects" in tool_names, "Missing project_tools"
-    assert "calculate_evm_metrics" in tool_names, "Missing analysis_template"
+    assert "get_project_analysis" in tool_names, "Missing analysis_template"
     assert "create_change_order" in tool_names, "Missing change_order_template"
     assert "create_cost_element" in tool_names, "Missing cost_element_template"
-    assert "list_users" in tool_names, "Missing user_management_template"
-    assert "assess_project_health" in tool_names, "Missing advanced_analysis_template"
+    assert "find_users" in tool_names, "Missing user_management_template"
+    assert "get_project_forecast" in tool_names, "Missing advanced_analysis_template"
     assert "generate_mermaid_diagram" in tool_names, "Missing diagram_template"

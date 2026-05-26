@@ -54,7 +54,20 @@
       "update_wbes",
       "create_cost_registrations",
       "create_progress_entries",
-      "get_budget_status_batch"
+      "get_budget_status_batch",
+      "get_project_context",
+      "get_cost_element_summaries",
+      "create_work_package",
+      "delete_work_package",
+      "get_coq_metrics",
+      "get_coq_summary",
+      "get_work_package",
+      "get_work_package_allocations",
+      "list_work_packages",
+      "update_work_package",
+      "search_documents",
+      "read_document",
+      "list_documents"
     ],
     "structured_output_schema": null
   },

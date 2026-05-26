@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
 from app.models.domain.cost_registration_attachment import CostRegistrationAttachment
+from app.services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +16,9 @@ logger = logging.getLogger(__name__)
 class CostRegistrationAttachmentService:
     """Service for managing cost registration file attachments."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self._storage = StorageService()
 
     async def list_attachments(
         self, cost_registration_id: UUID
@@ -66,7 +68,9 @@ class CostRegistrationAttachmentService:
     ) -> CostRegistrationAttachment:
         """Add an attachment to a cost registration.
 
-        File content is stored as raw bytes (BYTEA).
+        Uploads file content to S3 via StorageService and stores a reference
+        via storage_key. The BYTEA content column is set to empty bytes
+        (new attachments do not duplicate data in PostgreSQL).
 
         Args:
             cost_registration_id: Root ID of the cost registration.
@@ -81,21 +85,73 @@ class CostRegistrationAttachmentService:
             cost_registration_id=cost_registration_id,
             filename=filename,
             content_type=content_type,
-            content=content,
+            content=b"",
             size=len(content),
         )
         self.db.add(attachment)
         await self.db.flush()
+
+        # Upload to S3 after flush so attachment.id is assigned
+        storage_key = f"attachments/{cost_registration_id}/{attachment.id}/{filename}"
+        await self._storage.upload_file(
+            key=storage_key,
+            content=content,
+            content_type=content_type,
+        )
+        attachment.storage_key = storage_key
+        await self.db.flush()
+
         logger.info(
-            "Attachment added: %s (%d bytes) for cost registration %s",
+            "Attachment added: %s (%d bytes) for cost registration %s [S3]",
             filename,
             len(content),
             cost_registration_id,
         )
         return attachment
 
+    async def get_attachment_content(
+        self,
+        attachment: CostRegistrationAttachment,
+    ) -> bytes:
+        """Retrieve attachment content from S3 or legacy BYTEA.
+
+        If storage_key is set, downloads from S3. Otherwise falls back to
+        the BYTEA content column for legacy attachments.
+
+        Args:
+            attachment: The attachment record.
+
+        Returns:
+            Raw file bytes.
+        """
+        if attachment.storage_key:
+            return await self._storage.download_file(attachment.storage_key)
+        return attachment.content
+
+    async def get_download_url(
+        self,
+        attachment: CostRegistrationAttachment,
+    ) -> str | None:
+        """Generate a presigned download URL if stored in S3.
+
+        Returns None for legacy BYTEA attachments (caller must use
+        get_attachment_content instead).
+
+        Args:
+            attachment: The attachment record.
+
+        Returns:
+            Presigned URL string, or None for legacy BYTEA attachments.
+        """
+        if attachment.storage_key:
+            return await self._storage.generate_presigned_url(attachment.storage_key)
+        return None
+
     async def delete_attachment(self, attachment_id: UUID) -> bool:
         """Delete an attachment by its PK.
+
+        Removes the object from S3 if storage_key is set, then deletes
+        the database row.
 
         Args:
             attachment_id: Primary key of the attachment.
@@ -103,6 +159,20 @@ class CostRegistrationAttachmentService:
         Returns:
             True if deleted, False if not found.
         """
+        # Fetch attachment to get storage_key before deleting
+        attachment = await self.get_attachment(attachment_id)
+        if attachment is None:
+            return False
+
+        if attachment.storage_key:
+            try:
+                await self._storage.delete_file(attachment.storage_key)
+            except Exception:
+                logger.warning(
+                    "Failed to delete S3 object '%s', proceeding with DB delete",
+                    attachment.storage_key,
+                )
+
         stmt = delete(CostRegistrationAttachment).where(
             CostRegistrationAttachment.id == attachment_id
         )

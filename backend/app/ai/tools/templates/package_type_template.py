@@ -37,58 +37,63 @@ logger = logging.getLogger(__name__)
 
 
 @ai_tool(
-    name="list_package_types",
-    description="List all available work package types. "
-    "Returns package types with their code, name, color, and description.",
+    name="find_package_types",
+    description="Find package types by ID or search.",
     permissions=["package-type-read"],
     category="package_types",
     risk_level=RiskLevel.LOW,
 )
-async def list_package_types(
-    skip: int = 0,
-    limit: int = 100,
+async def find_package_types(
+    package_type_id: str | None = None,
     search: str | None = None,
+    skip: int = 0,
+    limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List package types with optional search and pagination.
+    """Find package types by ID or search.
 
     Context: Provides database session and package type service for querying.
 
     Args:
+        package_type_id: UUID of a specific package type to retrieve (returns single)
+        search: Optional search term for code or name
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
-        search: Optional search term for code or name
         context: Injected tool execution context
 
     Returns:
-        Dictionary with:
-        - package_types: List of package type objects
-        - total: Total number of package types matching filters
-        - skip: Number of records skipped
-        - limit: Maximum records returned
+        Single package type dict if package_type_id provided, otherwise list result.
 
     Raises:
-        ValueError: If invalid filter parameters
-
-    Example:
-        >>> result = await list_package_types(search="quality", limit=10)
-        >>> print(f"Found {result['total']} package types")
-        >>> for pt in result['package_types']:
-        ...     print(f"- {pt['name']} ({pt['code']})")
+        ValueError: If package_type_id is not a valid UUID format
     """
     try:
         from app.services.package_type_service import PackageTypeService
 
         service = PackageTypeService(context.session)
 
-        # Call service method
+        # Single package type lookup
+        if package_type_id:
+            package_type = await service.get_by_id(UUID(package_type_id))
+
+            if not package_type:
+                return {"error": f"Package type {package_type_id} not found"}
+
+            return {
+                "id": str(package_type.package_type_id),
+                "code": package_type.code,
+                "name": package_type.name,
+                "color": package_type.color,
+                "description": package_type.description,
+            }
+
+        # List package types
         package_types, total = await service.get_package_types(
             search=search,
             skip=skip,
             limit=limit,
         )
 
-        # Convert to AI-friendly format
         return {
             "package_types": [
                 {
@@ -104,74 +109,16 @@ async def list_package_types(
             "skip": skip,
             "limit": limit,
         }
-    except Exception as e:
-        logger.error(f"Error in list_package_types: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
-    name="get_package_type",
-    description="Get detailed information about a specific package type by ID. "
-    "Returns full package type details including code, name, color, and description.",
-    permissions=["package-type-read"],
-    category="package_types",
-    risk_level=RiskLevel.LOW,
-)
-async def get_package_type(
-    package_type_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single package type by ID.
-
-    Context: Provides database session and package type service for retrieving data.
-
-    Args:
-        package_type_id: UUID of the package type to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with package type details or error if not found
-
-    Raises:
-        ValueError: If package_type_id is not a valid UUID format
-        KeyError: If package type is not found
-
-    Example:
-        >>> result = await get_package_type("123e4567-e89b-12d3-a456-426614174000")
-        >>> if "error" not in result:
-        ...     print(f"Package Type: {result['name']}")
-        ...     print(f"Code: {result['code']}")
-    """
-    try:
-        from app.services.package_type_service import PackageTypeService
-
-        service = PackageTypeService(context.session)
-
-        # Call service method
-        package_type = await service.get_by_id(UUID(package_type_id))
-
-        if not package_type:
-            return {"error": f"Package type {package_type_id} not found"}
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(package_type.package_type_id),
-            "code": package_type.code,
-            "name": package_type.name,
-            "color": package_type.color,
-            "description": package_type.description,
-        }
     except ValueError:
         return {"error": f"Invalid package type ID: {package_type_id}"}
     except Exception as e:
-        logger.error(f"Error in get_package_type: {e}")
+        logger.error(f"Error in find_package_types: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
     name="create_package_type",
-    description="Create a new package type with code, name, color, is_quality flag, and optional description. "
-    "Returns the created package type with all details.",
+    description="Create a new package type.",
     permissions=["package-type-create"],
     category="package_types",
     risk_level=RiskLevel.HIGH,
@@ -250,8 +197,7 @@ async def create_package_type(
 
 @ai_tool(
     name="update_package_type",
-    description="Update an existing package type with new information, including the is_quality flag. "
-    "Only updates fields that are provided.",
+    description="Update package type fields.",
     permissions=["package-type-update"],
     category="package_types",
     risk_level=RiskLevel.HIGH,
@@ -335,8 +281,7 @@ async def update_package_type(
 
 @ai_tool(
     name="delete_package_type",
-    description="Soft delete a package type. "
-    "The package type is marked as deleted but remains in the system for audit purposes.",
+    description="Delete a package type.",
     permissions=["package-type-delete"],
     category="package_types",
     risk_level=RiskLevel.CRITICAL,

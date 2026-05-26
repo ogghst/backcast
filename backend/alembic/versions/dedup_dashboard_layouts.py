@@ -19,7 +19,7 @@ from alembic import op
 revision = "dedup_dashboard_layouts"
 down_revision = None  # data migration, order doesn't matter
 branch_labels = None
-depends_on = None
+depends_on = "20260405_add_dashboard_layouts"
 
 
 def upgrade() -> None:

@@ -1,7 +1,7 @@
 """AI Tool Templates for various domain operations.
 
 This package contains template modules for AI tools:
-- crud_template: Project and WBE CRUD operations
+- project_template: Project and WBE CRUD operations
 - analysis_template: EVM and Forecasting analysis tools
 - advanced_analysis_template: Advanced project analysis and insights
 - change_order_template: Change order management tools
@@ -14,14 +14,14 @@ from app.ai.tools.templates import (
     advanced_analysis_template,
     analysis_template,
     change_order_template,
-    crud_template,
     package_type_template,
+    project_template,
 )
 
 __all__ = [
     "analysis_template",
     "advanced_analysis_template",
     "change_order_template",
-    "crud_template",
+    "project_template",
     "package_type_template",
 ]

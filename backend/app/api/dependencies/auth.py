@@ -2,20 +2,21 @@
 
 Provides dependency injection for current user authentication and authorization.
 
-UserIdentity is a lightweight dataclass that avoids a per-request DB lookup.
-The JWT sub claim carries the user_id (UUID string), so validating the token
-is sufficient to establish identity.
+UserIdentity is a lightweight dataclass. The JWT sub claim carries the
+user_id (UUID string). After token validation, the user's is_active status
+is checked against the database to reject deactivated accounts.
 
 RoleChecker and ProjectRoleChecker delegate to the unified RBAC system
 (UnifiedRBACService) for all permission checks.
 """
 
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any, cast
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.jwt_utils import validate_jwt_token
@@ -23,7 +24,9 @@ from app.core.rbac_unified import (
     get_unified_rbac_service,
     set_unified_rbac_session,
 )
+from app.core.temporal_queries import is_current_version
 from app.db.session import get_db
+from app.models.domain.user import User
 from app.models.domain.user_role_assignment import ScopeType
 from app.services.user import UserService
 
@@ -36,7 +39,7 @@ def get_user_service(session: AsyncSession = Depends(get_db)) -> UserService:
 
 @dataclass(frozen=True)
 class UserIdentity:
-    """Lightweight authenticated user identity -- no DB lookup needed.
+    """Lightweight authenticated user identity.
 
     Carries only the user_id extracted from the JWT sub claim.
     Routes that need the full User ORM object (e.g. /auth/me) must
@@ -48,8 +51,13 @@ class UserIdentity:
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
+    session: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserIdentity:
-    """Get current user identity from JWT token without DB lookup."""
+    """Get current user identity from JWT token.
+
+    Validates the JWT, then checks that the user is still active in the
+    database. Deactivated users with a valid token are rejected.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -71,6 +79,28 @@ async def get_current_user(
         user_id = UUID(jwt_result.subject)
     except ValueError:
         raise credentials_exception from None
+
+    # Verify user is still active in the database
+    stmt = (
+        select(User.is_active)
+        .where(
+            User.user_id == user_id,
+            is_current_version(
+                cast(Any, User).valid_time,
+                cast(Any, User).deleted_at,
+            ),
+        )
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    row = result.scalar_one_or_none()
+
+    if row is None or not row:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is deactivated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return UserIdentity(user_id=user_id)
 

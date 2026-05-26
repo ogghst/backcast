@@ -229,7 +229,7 @@ export const handlers = [
         system_prompt: "You analyze costs",
         temperature: 0.5,
         max_tokens: 1500,
-        allowed_tools: ["get_cost_element"],
+        allowed_tools: ["find_cost_elements"],
         is_active: true,
         created_at: "2026-03-08T00:00:00Z",
         updated_at: "2026-03-08T00:00:00Z",

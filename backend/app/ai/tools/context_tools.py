@@ -30,12 +30,7 @@ _MAX_COST_ELEMENTS = 10000
 
 @ai_tool(
     name="get_project_context",
-    description="Returns the current project context for the session. "
-    "This provides READ-ONLY information about the project: "
-    "project_id, project_name, project_code, user's role in the project. "
-    "NOTE: This is informational only. Project context is enforced at the system level. "
-    "The project scope is immutable for the session duration - to change projects, "
-    "the user must navigate to a different project chat URL.",
+    description="Read current project scope and user role.",
     permissions=[],  # No special permissions required
     category="context",
     risk_level=RiskLevel.LOW,
@@ -229,10 +224,7 @@ def _build_wbe_tree(
 
 @ai_tool(
     name="get_project_structure",
-    description="Returns the complete project hierarchy as a nested tree: "
-    "Project -> WBEs (nested by parent) -> Cost Elements. "
-    "Only available when a project context is active. "
-    "Use this to understand the full project structure at a glance.",
+    description="Read project WBE hierarchy as nested tree.",
     permissions=["project-read"],
     category="context",
     risk_level=RiskLevel.LOW,

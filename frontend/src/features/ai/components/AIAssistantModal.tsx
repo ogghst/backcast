@@ -32,14 +32,10 @@ export const AIAssistantModal = ({
   useEffect(() => {
     if (open) {
       if (initialValues) {
-        form.setFieldsValue({
+        const baseValues = {
           name: initialValues.name,
           description: initialValues.description,
-          model_id: initialValues.model_id,
           system_prompt: initialValues.system_prompt,
-          temperature: initialValues.temperature,
-          max_tokens: initialValues.max_tokens,
-          recursion_limit: initialValues.recursion_limit,
           default_role: initialValues.default_role,
           is_active: initialValues.is_active,
           agent_type: initialValues.agent_type,
@@ -49,7 +45,19 @@ export const AIAssistantModal = ({
             direct_tools: initialValues.delegation_config?.direct_tools || [],
             allowed_specialists: initialValues.delegation_config?.allowed_specialists || [],
           },
-        });
+        };
+        // Provider-related fields only for main agents
+        if (initialValues.agent_type === "main") {
+          form.setFieldsValue({
+            ...baseValues,
+            model_id: initialValues.model_id,
+            temperature: initialValues.temperature,
+            max_tokens: initialValues.max_tokens,
+            recursion_limit: initialValues.recursion_limit,
+          });
+        } else {
+          form.setFieldsValue(baseValues);
+        }
       } else {
         form.resetFields();
       }
@@ -65,6 +73,11 @@ export const AIAssistantModal = ({
         delete values.structured_output_schema;
       } else {
         delete values.delegation_config;
+        // Specialist agents inherit provider settings from main agent
+        delete values.model_id;
+        delete values.temperature;
+        delete values.max_tokens;
+        delete values.recursion_limit;
       }
       await onOk(values);
     } catch (error) {
@@ -128,19 +141,23 @@ export const AIAssistantModal = ({
           </Radio.Group>
         </Form.Item>
 
-        <Form.Item
-          name="model_id"
-          label="Model"
-          rules={[{ required: true, message: "Please select a model" }]}
-        >
-          <Select placeholder="Select a model">
-            {models.map((model) => (
-              <Select.Option key={model.id} value={model.id}>
-                {model.display_name} {model.provider_name ? `(${model.provider_name})` : ""}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
+        {agentType === "main" && (
+          <>
+            <Form.Item
+              name="model_id"
+              label="Model"
+              rules={[{ required: true, message: "Please select a model" }]}
+            >
+              <Select placeholder="Select a model">
+                {models.map((model) => (
+                  <Select.Option key={model.id} value={model.id}>
+                    {model.display_name} {model.provider_name ? `(${model.provider_name})` : ""}
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </>
+        )}
 
         <Form.Item
           name="system_prompt"
@@ -150,33 +167,37 @@ export const AIAssistantModal = ({
           <Input.TextArea rows={4} placeholder="You are a helpful assistant..." />
         </Form.Item>
 
-        <Form.Item
-          name="temperature"
-          label="Temperature"
-          initialValue={0.7}
-          rules={[{ type: "number", min: 0, max: 2, message: "Temperature must be between 0 and 2" }]}
-        >
-          <Slider min={0} max={2} step={0.1} marks={{ 0: "Precise", 1: "Balanced", 2: "Creative" }} />
-        </Form.Item>
+        {agentType === "main" && (
+          <>
+            <Form.Item
+              name="temperature"
+              label="Temperature"
+              initialValue={0.7}
+              rules={[{ type: "number", min: 0, max: 2, message: "Temperature must be between 0 and 2" }]}
+            >
+              <Slider min={0} max={2} step={0.1} marks={{ 0: "Precise", 1: "Balanced", 2: "Creative" }} />
+            </Form.Item>
 
-        <Form.Item
-          name="max_tokens"
-          label="Max Tokens"
-          initialValue={2048}
-          rules={[{ type: "number", min: 1, max: 200000, message: "Max tokens must be between 1 and 200000" }]}
-        >
-          <Slider min={1} max={200000} step={100} marks={{ 1: "1", 100000: "100K", 200000: "200K" }} />
-        </Form.Item>
+            <Form.Item
+              name="max_tokens"
+              label="Max Tokens"
+              initialValue={2048}
+              rules={[{ type: "number", min: 1, max: 200000, message: "Max tokens must be between 1 and 200000" }]}
+            >
+              <Slider min={1} max={200000} step={100} marks={{ 1: "1", 100000: "100K", 200000: "200K" }} />
+            </Form.Item>
 
-        <Form.Item
-          name="recursion_limit"
-          label="Recursion Limit"
-          initialValue={25}
-          tooltip="Maximum number of agent iterations (LangGraph default is 25)"
-          rules={[{ type: "number", min: 1, max: 100, message: "Recursion limit must be between 1 and 100" }]}
-        >
-          <Slider min={1} max={100} step={5} marks={{1: "1", 25: "25 (default)", 50: "50", 100: "100"}} />
-        </Form.Item>
+            <Form.Item
+              name="recursion_limit"
+              label="Recursion Limit"
+              initialValue={25}
+              tooltip="Maximum number of agent iterations (LangGraph default is 25)"
+              rules={[{ type: "number", min: 1, max: 100, message: "Recursion limit must be between 1 and 100" }]}
+            >
+              <Slider min={1} max={100} step={5} marks={{1: "1", 25: "25 (default)", 50: "50", 100: "100"}} />
+            </Form.Item>
+          </>
+        )}
 
         <Form.Item
           name="default_role"

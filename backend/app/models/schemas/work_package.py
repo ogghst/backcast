@@ -103,7 +103,7 @@ class WorkPackageUpdate(BaseModel):
     coq_category: str | None = Field(
         None, pattern="^(prevention|appraisal|internal_failure|external_failure)$"
     )
-    cost_impact: Decimal | None = Field(None, gt=0)
+    cost_impact: Decimal | None = Field(None, ge=0)
     schedule_impact_days: int | None = Field(None, ge=0)
 
     control_date: datetime | None = None

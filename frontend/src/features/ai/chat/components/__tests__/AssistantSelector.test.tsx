@@ -51,7 +51,7 @@ describe("AssistantSelector", () => {
         "create_wbe",
         "update_wbe",
         "list_wbes",
-        "get_cost_element",
+        "find_cost_elements",
         "register_cost",
         "register_progress",
         "get_forecast",

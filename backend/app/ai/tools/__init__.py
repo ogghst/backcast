@@ -53,9 +53,12 @@ def filter_tools_by_execution_mode(
                     f"Filtering out tool '{tool.name}' (risk={risk_level.value}) in SAFE mode"
                 )
         elif execution_mode == ExecutionMode.STANDARD:
-            # Standard mode: LOW and HIGH allowed. CRITICAL blocked.
-            # Include all tools - approval/blocking handled by InterruptNode
-            filtered_tools.append(tool)
+            if risk_level != RiskLevel.CRITICAL:
+                filtered_tools.append(tool)
+            else:
+                logger.debug(
+                    f"Filtering out tool '{tool.name}' (risk={risk_level.value}) in STANDARD mode"
+                )
         else:
             # Expert mode allows all tools
             filtered_tools.append(tool)
@@ -138,17 +141,21 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         return _cached_tools
 
     # Import tool modules
-    from app.ai.tools import context_tools, project_tools, temporal_tools
+    from app.ai.tools import (
+        context_tools,
+        document_tools,
+        project_tools,
+        temporal_tools,
+    )
     from app.ai.tools.templates import (
         advanced_analysis_template,
         analysis_template,
-        batch_tools_template,
         change_order_template,
         cost_element_template,
-        crud_template,
         diagram_template,
         forecast_cost_progress_template,
         package_type_template,
+        project_template,
         user_management_template,
         work_package_template,
     )
@@ -169,37 +176,29 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     ]
     tools.extend(context_tools_list)
 
-    # Add tools from crud_template (Project and WBE CRUD operations)
-    # Note: list_projects and get_project are duplicates, so we only add unique ones
-    crud_tools = [
-        crud_template.create_project,
-        crud_template.update_project,
-        crud_template.delete_project,
-        crud_template.list_wbes,
-        crud_template.get_wbe,
-        crud_template.create_wbe,
-        crud_template.update_wbe,
-        crud_template.delete_wbe,
+    # Add tools from project_template (Project and WBE CRUD operations)
+    project_template_tools = [
+        project_template.create_project,
+        project_template.update_project,
+        project_template.delete_project,
+        project_template.find_wbes,
+        project_template.create_wbe,
+        project_template.update_wbe,
+        project_template.delete_wbe,
+        project_template.batch_create_wbes,
+        project_template.batch_update_wbes,
     ]
-    tools.extend(crud_tools)
+    tools.extend(project_template_tools)
 
-    # Add tools from analysis_template (EVM and Forecasting)
+    # Add tools from analysis_template (EVM metrics and health assessment)
     analysis_tools = [
-        analysis_template.calculate_evm_metrics,
-        analysis_template.get_evm_performance_summary,
-        analysis_template.analyze_cost_variance,
-        analysis_template.analyze_schedule_variance,
-        analysis_template.generate_project_forecast,
-        analysis_template.compare_forecast_scenarios,
-        analysis_template.get_forecast_accuracy,
-        analysis_template.get_project_kpis,
+        analysis_template.get_project_analysis,
     ]
     tools.extend(analysis_tools)
 
     # Add tools from change_order_template (Change Order management)
     change_order_tools = [
-        change_order_template.list_change_orders,
-        change_order_template.get_change_order,
+        change_order_template.find_change_orders,
         change_order_template.create_change_order,
         change_order_template.generate_change_order_draft,
         change_order_template.submit_change_order_for_approval,
@@ -210,45 +209,40 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     ]
     tools.extend(change_order_tools)
 
-    # Add tools from cost_element_template (Cost Element, Schedule Baseline, Cost Element Type CRUD)
+    # Add tools from cost_element_template (Cost Element and Cost Element Type CRUD)
     cost_element_tools = [
-        cost_element_template.list_cost_elements,
-        cost_element_template.get_cost_element,
+        cost_element_template.find_cost_elements,
         cost_element_template.create_cost_element,
         cost_element_template.update_cost_element,
         cost_element_template.delete_cost_element,
-        cost_element_template.get_schedule_baseline,
-        cost_element_template.update_schedule_baseline,
-        cost_element_template.delete_schedule_baseline,
-        cost_element_template.list_cost_element_types,
-        cost_element_template.get_cost_element_type,
+        cost_element_template.find_cost_element_types,
         cost_element_template.create_cost_element_type,
         cost_element_template.update_cost_element_type,
         cost_element_template.delete_cost_element_type,
+        cost_element_template.batch_create_cost_elements,
+        cost_element_template.batch_update_cost_elements,
+        cost_element_template.batch_delete_cost_elements,
+        cost_element_template.get_budget_status_batch,
+        cost_element_template.get_cost_element_summaries,
     ]
     tools.extend(cost_element_tools)
 
     # Add tools from user_management_template (User and Department CRUD)
     user_management_tools = [
-        user_management_template.list_users,
-        user_management_template.get_user,
+        user_management_template.find_users,
         user_management_template.create_user,
         user_management_template.update_user,
         user_management_template.delete_user,
-        user_management_template.list_departments,
-        user_management_template.get_department,
+        user_management_template.find_departments,
         user_management_template.create_department,
         user_management_template.update_department,
         user_management_template.delete_department,
     ]
     tools.extend(user_management_tools)
 
-    # Add tools from advanced_analysis_template (Advanced analysis and insights)
+    # Add tools from advanced_analysis_template (Forecasting and anomaly detection)
     advanced_analysis_tools = [
-        advanced_analysis_template.assess_project_health,
-        advanced_analysis_template.detect_evm_anomalies,
-        advanced_analysis_template.analyze_forecast_trends,
-        advanced_analysis_template.generate_optimization_suggestions,
+        advanced_analysis_template.get_project_forecast,
     ]
     tools.extend(advanced_analysis_tools)
 
@@ -260,63 +254,44 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
 
     # Add tools from forecast_cost_progress_template (Forecast, Cost Registration, Progress Entry)
     forecast_cost_progress_tools = [
-        forecast_cost_progress_template.get_forecast,
         forecast_cost_progress_template.create_forecast,
         forecast_cost_progress_template.update_forecast,
-        forecast_cost_progress_template.compare_forecast_to_budget,
-        forecast_cost_progress_template.get_budget_status,
         forecast_cost_progress_template.create_cost_registration,
-        forecast_cost_progress_template.list_cost_registrations,
-        forecast_cost_progress_template.get_cost_registration,
         forecast_cost_progress_template.update_cost_registration,
         forecast_cost_progress_template.delete_cost_registration,
-        forecast_cost_progress_template.get_cost_trends,
-        forecast_cost_progress_template.get_cumulative_costs,
-        forecast_cost_progress_template.list_progress_entries,
-        forecast_cost_progress_template.get_latest_progress,
         forecast_cost_progress_template.create_progress_entry,
-        forecast_cost_progress_template.get_progress_entry,
-        forecast_cost_progress_template.get_progress_history,
-        forecast_cost_progress_template.get_cost_element_summary,
+        forecast_cost_progress_template.get_cost_element_details,
+        forecast_cost_progress_template.get_progress_data,
+        forecast_cost_progress_template.batch_create_cost_registrations,
+        forecast_cost_progress_template.batch_create_progress_entries,
     ]
     tools.extend(forecast_cost_progress_tools)
 
     # Add tools from work_package_template (Work Package CRUD and COQ)
     work_package_tools = [
-        work_package_template.list_work_packages,
-        work_package_template.get_work_package,
+        work_package_template.find_work_packages,
         work_package_template.create_work_package,
         work_package_template.update_work_package,
         work_package_template.delete_work_package,
-        work_package_template.get_work_package_allocations,
-        work_package_template.get_coq_summary,
-        work_package_template.get_coq_metrics,
+        work_package_template.get_coq_data,
     ]
     tools.extend(work_package_tools)
 
     # Add tools from package_type_template (Package Type CRUD)
     package_type_tools = [
-        package_type_template.list_package_types,
-        package_type_template.get_package_type,
+        package_type_template.find_package_types,
         package_type_template.create_package_type,
         package_type_template.update_package_type,
         package_type_template.delete_package_type,
     ]
     tools.extend(package_type_tools)
 
-    # Add batch tools for bulk operations
-    batch_tools = [
-        batch_tools_template.create_cost_elements,
-        batch_tools_template.create_wbes,
-        batch_tools_template.create_cost_registrations,
-        batch_tools_template.create_progress_entries,
-        batch_tools_template.update_cost_elements,
-        batch_tools_template.delete_cost_elements,
-        batch_tools_template.get_budget_status_batch,
-        batch_tools_template.get_cost_element_summaries,
-        batch_tools_template.update_wbes,
+    # Add tools from document_tools (Document repository access)
+    document_tools_list = [
+        document_tools.search_documents,
+        document_tools.read_document,
     ]
-    tools.extend(batch_tools)
+    tools.extend(document_tools_list)
 
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [tool for tool in tools if isinstance(tool, BaseTool)]
@@ -338,6 +313,4 @@ __all__ = [
     "filter_tools_by_execution_mode",
     "filter_tools_by_role",
     "ToolContext",
-    "list_projects",
-    "get_project",
 ]

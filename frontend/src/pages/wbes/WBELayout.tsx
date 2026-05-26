@@ -41,6 +41,7 @@ export const WBELayout: React.FC = () => {
     { key: "overview", label: "Overview", path: `/projects/${projectId}/wbes/${wbeId}` },
     { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/wbes/${wbeId}/evm-analysis` },
     { key: "cost-history", label: "Cost History", path: `/projects/${projectId}/wbes/${wbeId}/cost-history` },
+    { key: "documents", label: "Documents", path: `/projects/${projectId}/wbes/${wbeId}/documents` },
     { key: "chat", label: "AI Chat", path: `/projects/${projectId}/wbes/${wbeId}/chat` },
   ];
 

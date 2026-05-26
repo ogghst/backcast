@@ -27,6 +27,7 @@ from app.api.routes import (
     dashboard,
     dashboard_layouts,
     departments,
+    documents,
     evm,
     forecasts,
     gantt,
@@ -121,6 +122,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             message="Backcast server started successfully.",
         )
     )
+
+    # Initialize RustFS/S3 bucket (non-critical, graceful degradation)
+    try:
+        _t0 = _time.time()
+        from app.services.storage_service import StorageService
+
+        storage = StorageService()
+        await storage.ensure_bucket_exists()
+        logger.info("[STARTUP] storage_init OK %.0fms", (_time.time() - _t0) * 1000)
+    except Exception:
+        logger.warning("[STARTUP] storage_init FAILED", exc_info=True)
 
     # Initialize MCP client manager (non-critical, graceful degradation)
     try:
@@ -464,6 +476,11 @@ app.include_router(
     change_order_config.router,
     prefix=f"{settings.API_V1_STR}/change-order-config",
     tags=["Change Order Config"],
+)
+app.include_router(
+    documents.router,
+    prefix=settings.API_V1_STR,
+    tags=["Documents"],
 )
 app.include_router(
     notifications.router,

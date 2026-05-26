@@ -1,7 +1,7 @@
 """Subagent configurations for LangGraph.
 
 Defines specialized subagents for different domains, each mapped 1:1 to tool template packages:
-- project_manager: Projects, WBEs, cost elements, cost tracking, and progress entries (crud_template + cost_element_template + forecast_cost_progress_template)
+- project_manager: Projects, WBEs, cost elements, cost tracking, and progress entries (project_template + cost_element_template + forecast_cost_progress_template)
 - evm_analyst: EVM metrics and performance (analysis_template + advanced_analysis_template)
 - change_order_manager: Change order workflows (change_order_template)
 - user_admin: Users and departments (user_management_template)
@@ -59,34 +59,25 @@ EFFICIENCY RULES:
         "get_project",
         "create_project",
         "update_project",
-        "list_wbes",
-        "get_wbe",
+        "find_wbes",
         "create_wbe",
         "update_wbe",
-        "list_cost_elements",
-        "get_cost_element",
+        "find_cost_elements",
         "create_cost_element",
         "update_cost_element",
         "delete_cost_element",
-        "list_cost_element_types",
-        "get_cost_element_type",
+        "find_cost_element_types",
         "create_cost_element_type",
         "update_cost_element_type",
         "delete_cost_element_type",
-        "get_cost_element_summary",
-        "get_cost_registration",
+        "get_cost_element_details",
         "create_cost_registration",
         "update_cost_registration",
         "delete_cost_registration",
-        "list_cost_registrations",
-        "get_budget_status",
-        "get_cost_trends",
-        "get_cumulative_costs",
-        "list_progress_entries",
-        "get_progress_entry",
-        "get_latest_progress",
+        "batch_create_cost_registrations",
         "create_progress_entry",
-        "get_progress_history",
+        "get_progress_data",
+        "batch_create_progress_entries",
     ],
     "structured_output_schema": None,  # No structured output for project_manager (varied responses)
 }
@@ -274,17 +265,13 @@ Explain the impact of forecasts vs. budgets.""",
     "allowed_tools": [
         "get_temporal_context",
         "global_search",
-        "get_forecast",
         "create_forecast",
         "update_forecast",
-        "compare_forecast_to_budget",
+        "get_cost_element_details",
         "generate_project_forecast",
         "compare_forecast_scenarios",
         "get_forecast_accuracy",
         "analyze_forecast_trends",
-        "get_schedule_baseline",
-        "update_schedule_baseline",
-        "delete_schedule_baseline",
     ],
     "structured_output_schema": ForecastRead,  # Returns structured forecast data
 }

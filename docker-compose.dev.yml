@@ -51,6 +51,11 @@ services:
       RBAC_PROVIDER: database
       # Logging
       LOG_LEVEL: DEBUG
+      # RustFS / S3 Storage
+      RUSTFS_ENDPOINT_URL: http://rustfs:9000
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+      RUSTFS_BUCKET_NAME: ${RUSTFS_BUCKET_NAME:-backcast-documents}
     volumes:
       # Mount source code for hot-reload
       - ./backend:/app
@@ -122,6 +127,26 @@ services:
     networks:
       - dev_network
 
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: backcast_dev_rustfs
+    environment:
+      RUSTFS_ROOT_USER: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+    ports:
+      - "${RUSTFS_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - rustfs_dev_data:/data
+      - rustfs_dev_logs:/logs
+    networks:
+      - dev_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
   dev_network:
     driver: bridge
@@ -130,3 +155,5 @@ volumes:
   postgres_dev_data:
   backend_venv:
   frontend_node_modules:
+  rustfs_dev_data:
+  rustfs_dev_logs:

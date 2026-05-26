@@ -156,7 +156,7 @@ export const TOOL_REGISTRY = [
   { key: "create_wbe", label: "Create Work Breakdown Element", implemented: true },
   { key: "update_wbe", label: "Update Work Breakdown Element", implemented: false },
   { key: "list_wbes", label: "List Work Breakdown Elements", implemented: true },
-  { key: "get_cost_element", label: "Get Cost Element Details", implemented: true },
+  { key: "find_cost_elements", label: "Find Cost Elements", implemented: true },
   { key: "register_cost", label: "Register Cost", implemented: true },
   { key: "register_progress", label: "Register Progress", implemented: true },
   { key: "create_change_order", label: "Create Change Order", implemented: false },

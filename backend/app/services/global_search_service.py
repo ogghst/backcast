@@ -1,8 +1,12 @@
 """Global cross-entity search service.
 
-Searches across all 12 searchable entity types sequentially (SQLAlchemy AsyncSession
-does not support concurrent operations), applies tier-appropriate temporal/branch/
-permission filters, scores by relevance, and returns a flat ranked list.
+Searches across all 13 searchable entity types (12 versioned + documents) sequentially
+(SQLAlchemy AsyncSession does not support concurrent operations), applies
+tier-appropriate temporal/branch/permission filters, scores by relevance, and returns
+a flat ranked list.
+
+Documents use SimpleEntityBase (no temporal/branch columns) and are searched via
+a dedicated path that bypasses versioned-entity filters.
 """
 
 from datetime import datetime
@@ -20,6 +24,7 @@ from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.cost_registration import CostRegistration
 from app.models.domain.department import Department
+from app.models.domain.document import Document
 from app.models.domain.forecast import Forecast
 from app.models.domain.progress_entry import ProgressEntry
 from app.models.domain.project import Project
@@ -336,7 +341,7 @@ class GlobalSearchService:
             )
             wbe_ids.append(wbe_id)
 
-        # 3. Run all entity searches in parallel
+        # 3. Run all entity searches sequentially (async session limitation)
         search_term = f"%{query}%"
         query_lower = query.lower()
 
@@ -355,6 +360,17 @@ class GlobalSearchService:
                 limit=limit,
             )
             all_results_lists.append(results)
+
+        # Documents use SimpleEntityBase (no temporal/branch columns),
+        # so they need a separate search path.
+        doc_results = await self._search_documents(
+            search_term=search_term,
+            query_lower=query_lower,
+            accessible_project_ids=accessible_project_ids,
+            project_id=project_id,
+            limit=limit,
+        )
+        all_results_lists.append(doc_results)
 
         # 4. Merge, sort by score, take top limit
         all_results: list[SearchResultItem] = []
@@ -509,6 +525,69 @@ class GlobalSearchService:
                 relevance_score=score,
                 project_id=getattr(row, "project_id", None),
                 wbe_id=getattr(row, "wbe_id", None),
+            )
+            items.append(item)
+
+        return items
+
+    async def _search_documents(
+        self,
+        search_term: str,
+        query_lower: str,
+        accessible_project_ids: list[UUID],
+        project_id: UUID | None,
+        limit: int,
+    ) -> list[SearchResultItem]:
+        """Search documents by name, description, extension, and tags.
+
+        Documents are SimpleEntityBase entities (no temporal/branch columns),
+        so they bypass the versioned entity search path entirely.
+        """
+        if not accessible_project_ids:
+            return []
+
+        target_project_ids = accessible_project_ids
+        if project_id is not None:
+            if project_id not in accessible_project_ids:
+                return []
+            target_project_ids = [project_id]
+
+        stmt = select(Document).where(
+            Document.project_id.in_(
+                [str(pid) for pid in target_project_ids]
+            ),
+            or_(
+                Document.name.ilike(search_term),
+                Document.description.ilike(search_term),
+                Document.extension.ilike(search_term),
+            ),
+        ).limit(limit)
+
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+
+        items: list[SearchResultItem] = []
+        for row in rows:
+            score = _best_score(
+                row, query_lower,
+                primary_fields=["name", "extension"],
+                description_fields=["description"],
+                secondary_fields=[],
+            )
+            if score <= 0.0:
+                continue
+
+            item = SearchResultItem(
+                entity_type="document",
+                id=row.id,
+                root_id=row.id,
+                code=None,
+                name=row.name,
+                description=row.description,
+                status=None,
+                relevance_score=score,
+                project_id=str(row.project_id) if row.project_id else None,
+                wbe_id=None,
             )
             items.append(item)
 

@@ -184,7 +184,10 @@ class AIAssistantConfigBase(BaseModel):
 
     name: str = Field(..., max_length=255)
     description: str | None = Field(None, max_length=2000)
-    model_id: UUID
+    model_id: UUID | None = Field(
+        None,
+        description="Model to use. Required for main agents; specialists inherit from the main agent.",
+    )
     system_prompt: str | None = Field(None, max_length=10000)
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
@@ -221,6 +224,13 @@ class AIAssistantConfigBase(BaseModel):
         False,
         description="System agents cannot be deleted, only disabled",
     )
+
+    @model_validator(mode="after")
+    def validate_main_agent_model(self) -> Self:
+        """Require model_id for main agents; specialists may omit it."""
+        if self.agent_type == "main" and self.model_id is None:
+            raise ValueError("model_id is required for main agents")
+        return self
 
 
 class AIAssistantConfigCreate(AIAssistantConfigBase):

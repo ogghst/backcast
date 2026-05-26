@@ -1,20 +1,7 @@
-"""CRUD tool template for wrapping service methods.
+"""Project and WBE tool template for wrapping service methods.
 
-This template shows how to create AI tools that wrap existing service methods
-using the @ai_tool decorator. The key principle is:
-
-    @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
-
-This ensures:
-- Single source of truth for business logic
-- Consistent behavior across REST API and AI tools
-- Automatic RBAC enforcement
-- Centralized error handling
-
-NOTE: This is a TEMPLATE with simplified examples for documentation purposes.
-The examples use type: ignore comments to avoid MyPy errors because they are
-simplified patterns, not production-ready implementations. When creating actual
-tools, you should match the exact signatures of your service methods.
+This template provides AI tools that wrap existing service methods
+using the @ai_tool decorator for Project and WBE CRUD operations.
 
 Usage:
     1. Import the service methods you want to expose
@@ -44,182 +31,16 @@ from app.models.schemas.wbe import WBECreate, WBEUpdate
 
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE_LIMIT = 50
+
 # =============================================================================
 # PROJECT CRUD TOOLS
 # =============================================================================
 
 
 @ai_tool(
-    name="list_projects",
-    description="List all projects with optional search, filtering, and pagination. "
-    "Returns a list of projects with their IDs, names, codes, and metadata. "
-    "Temporal context (branch, as_of date) is enforced by the system.",
-    permissions=["project-read"],
-    category="projects",
-    risk_level=RiskLevel.LOW,
-)
-async def list_projects(
-    search: str | None = None,
-    status: str | None = None,
-    skip: int = 0,
-    limit: int = 100,
-    sort_field: str | None = None,
-    sort_order: str = "asc",
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """List and search projects.
-
-    Context: Provides database session and project service for querying projects.
-
-    Args:
-        search: Optional search term to filter projects by name or code
-        status: Optional status filter (e.g., "Active", "On Hold")
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
-        sort_field: Field to sort by (e.g., "name", "code")
-        sort_order: Sort order ("asc" or "desc")
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with:
-        - projects: List of project objects
-        - total: Total number of projects matching filters
-        - skip: Number of records skipped
-        - limit: Maximum records returned
-        - _temporal_context: Temporal context metadata (branch, as_of)
-
-    Raises:
-        ValueError: If invalid filter parameters are provided
-
-    Example:
-        >>> result = await list_projects(search="Alpha", limit=10)
-        >>> print(f"Found {result['total']} projects")
-        >>> for project in result['projects']:
-        ...     print(f"- {project['name']} ({project['code']})")
-    """
-    # Log temporal context for observability
-    log_temporal_context("list_projects", context)
-
-    try:
-        # Use ProjectService from context
-        service = context.project_service
-
-        # Call service method (business logic is in the service)
-        projects, total = await service.get_projects(
-            search=search,
-            skip=skip,
-            limit=limit,
-            sort_field=sort_field,
-            sort_order=sort_order,
-            branch=context.branch_name or "main",
-            as_of=context.as_of,
-        )
-
-        # Convert to AI-friendly format and add temporal metadata
-        result = {
-            "projects": [
-                {
-                    "id": str(p.project_id),
-                    "name": p.name,
-                    "code": p.code,
-                    "description": p.description,
-                    "status": p.status,
-                    "budget": float(p.budget) if p.budget else None,
-                }
-                for p in projects
-            ],
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-        }
-        return add_temporal_metadata(result, context)
-    except Exception as e:
-        logger.error(f"Error in list_projects: {e}")
-        error_result = {"error": str(e)}
-        return add_temporal_metadata(error_result, context)
-
-
-@ai_tool(
-    name="get_project",
-    description="Get detailed information about a specific project by ID. "
-    "Returns full project details including budget, status, and metadata. "
-    "Temporal context (branch, as_of date) is enforced by the system.",
-    permissions=["project-read"],
-    category="projects",
-    risk_level=RiskLevel.LOW,
-)
-async def get_project(
-    project_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single project by ID.
-
-    Context: Provides database session and project service for retrieving project data.
-
-    Args:
-        project_id: UUID of the project to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with project details or error if not found
-        Includes _temporal_context metadata
-
-    Raises:
-        ValueError: If project_id is not a valid UUID format
-        KeyError: If project is not found
-
-    Example:
-        >>> result = await get_project("123e4567-e89b-12d3-a456-426614174000")
-        >>> if "error" not in result:
-        ...     print(f"Project: {result['name']}")
-        ...     print(f"Budget: ${result['budget']}")
-    """
-    # Log temporal context for observability
-    log_temporal_context("get_project", context)
-
-    try:
-        from uuid import UUID
-
-        service = context.project_service
-
-        # Call service method
-        project = await service.get_as_of(
-            UUID(project_id),
-            branch=context.branch_name or "main",
-            as_of=context.as_of,
-        )
-
-        if not project:
-            not_found_result = {"error": f"Project {project_id} not found"}
-            return add_temporal_metadata(not_found_result, context)
-
-        # Convert to AI-friendly format and add temporal metadata
-        result: dict[str, str | float | None] = {
-            "id": str(project.project_id),
-            "name": project.name,
-            "code": project.code,
-            "description": project.description,
-            "status": project.status,
-            "budget": float(project.budget) if project.budget else None,
-            "start_date": project.start_date.isoformat()
-            if project.start_date
-            else None,
-            "end_date": project.end_date.isoformat() if project.end_date else None,
-        }
-        return add_temporal_metadata(result, context)
-    except ValueError:
-        error_result = {"error": f"Invalid project ID: {project_id}"}
-        return add_temporal_metadata(error_result, context)
-    except Exception as e:
-        logger.error(f"Error in get_project: {e}")
-        error_result = {"error": str(e)}
-        return add_temporal_metadata(error_result, context)
-
-
-@ai_tool(
     name="create_project",
-    description="Create a new project with the provided details. "
-    "Returns the created project with its assigned ID.",
+    description="Create a new project.",
     permissions=["project-create"],
     category="projects",
     risk_level=RiskLevel.HIGH,
@@ -312,10 +133,7 @@ async def create_project(
 
 @ai_tool(
     name="update_project",
-    description="Update an existing project with new information. "
-    "Only updates fields that are provided. "
-    "IMPORTANT: Provide all fields to update in a single call rather than "
-    "making multiple separate calls.",
+    description="Update project fields. Provide all changes in one call.",
     permissions=["project-update"],
     category="projects",
     risk_level=RiskLevel.HIGH,
@@ -403,8 +221,7 @@ async def update_project(
 
 @ai_tool(
     name="delete_project",
-    description="Soft delete a project. "
-    "The project is marked as deleted but remains in the database for audit.",
+    description="Soft-delete a project.",
     permissions=["project-delete"],
     category="projects",
     risk_level=RiskLevel.CRITICAL,
@@ -461,25 +278,26 @@ async def delete_project(
 
 
 @ai_tool(
-    name="list_wbes",
-    description="List all Work Breakdown Elements (WBEs) with optional filtering. "
-    "WBEs represent the hierarchical breakdown of project work.",
+    name="find_wbes",
+    description="Find WBEs by ID or search/filter.",
     permissions=["wbe-read"],
     category="wbe",
     risk_level=RiskLevel.LOW,
 )
-async def list_wbes(
+async def find_wbes(
+    wbe_id: str | None = None,
     project_id: str | None = None,
     search: str | None = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List WBEs with optional filtering.
+    """Find WBEs by ID or search/filter.
 
     Context: Provides database session and WBE service for querying WBEs.
 
     Args:
+        wbe_id: UUID of a specific WBE to retrieve (returns single WBE)
         project_id: Optional project ID to filter WBEs
         search: Optional search term
         skip: Number of records to skip
@@ -487,13 +305,13 @@ async def list_wbes(
         context: Injected tool execution context
 
     Returns:
-        Dictionary with WBE list and total count
+        Dictionary with WBE details (if wbe_id) or WBE list and total count
 
     Raises:
         ValueError: If invalid filter parameters
 
     Example:
-        >>> result = await list_wbes(project_id="...", limit=20)
+        >>> result = await find_wbes(project_id="...", limit=20)
         >>> print(f"Found {result['total']} WBEs")
     """
     try:
@@ -503,10 +321,37 @@ async def list_wbes(
 
         service = WBEService(context.session)
 
-        # Convert project_id to UUID if provided
+        # Single WBE lookup by ID
+        if wbe_id:
+            log_temporal_context("find_wbes", context)
+
+            wbe = await service.get_as_of(
+                UUID(wbe_id),
+                branch=context.branch_name or "main",
+                as_of=context.as_of,
+            )
+
+            if not wbe:
+                not_found_result = {"error": f"WBE {wbe_id} not found"}
+                return add_temporal_metadata(not_found_result, context)
+
+            result = {
+                "id": str(wbe.wbe_id),
+                "name": wbe.name,
+                "code": wbe.code,
+                "project_id": str(wbe.project_id),
+                "budget": float(wbe.budget)
+                if hasattr(wbe, "budget") and wbe.budget
+                else None,
+                "description": wbe.description
+                if hasattr(wbe, "description")
+                else None,
+            }
+            return add_temporal_metadata(result, context)
+
+        # List WBEs with optional filtering
         project_uuid = UUID(project_id) if project_id else None
 
-        # Call service method
         wbes, total = await service.get_wbes(
             project_id=project_uuid,
             search=search,
@@ -516,7 +361,6 @@ async def list_wbes(
             as_of=context.as_of,
         )
 
-        # Convert to AI-friendly format
         return {
             "wbes": [
                 {
@@ -534,85 +378,18 @@ async def list_wbes(
             "skip": skip,
             "limit": limit,
         }
-    except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
-    except Exception as e:
-        logger.error(f"Error in list_wbes: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
-    name="get_wbe",
-    description="Get detailed information about a specific Work Breakdown Element (WBE).",
-    permissions=["wbe-read"],
-    category="wbe",
-    risk_level=RiskLevel.LOW,
-)
-async def get_wbe(
-    wbe_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single WBE by ID.
-
-    Context: Provides database session and WBE service for retrieving WBE data.
-
-    Args:
-        wbe_id: UUID of the WBE to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with WBE details
-
-    Raises:
-        ValueError: If wbe_id is not a valid UUID format
-        KeyError: If WBE not found
-
-    Example:
-        >>> result = await get_wbe("123e4567-e89b-12d3-a456-426614174000")
-        >>> print(f"WBE: {result['name']} - Budget: ${result['budget']}")
-    """
-    try:
-        from uuid import UUID
-
-        from app.services.wbe import WBEService
-
-        service = WBEService(context.session)
-
-        # Call service method
-        wbe = await service.get_as_of(
-            UUID(wbe_id),
-            branch=context.branch_name or "main",
-            as_of=context.as_of,
-        )
-
-        if not wbe:
-            return {"error": f"WBE {wbe_id} not found"}
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(wbe.wbe_id),
-            "name": wbe.name,
-            "code": wbe.code,
-            "project_id": str(wbe.project_id),
-            "budget": float(wbe.budget)
-            if hasattr(wbe, "budget") and wbe.budget
-            else None,
-            "description": wbe.description if hasattr(wbe, "description") else None,
-        }
     except ValueError:
         return {"error": f"Invalid WBE ID: {wbe_id}"}
     except KeyError:
         return {"error": f"WBE {wbe_id} not found"}
     except Exception as e:
-        logger.error(f"Error in get_wbe: {e}")
+        logger.error(f"Error in find_wbes: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
     name="create_wbe",
-    description="Create a new Work Breakdown Element (WBE) under a project. "
-    "Budget is NOT set on WBEs directly — use create_cost_element after creating the WBE to allocate budget. "
-    "Optionally specify a parent_wbe_id to create it as a child of an existing WBE.",
+    description="Create WBE under a project. Budget is set via cost elements.",
     permissions=["wbe-create"],
     category="wbe",
     risk_level=RiskLevel.HIGH,
@@ -702,8 +479,7 @@ async def create_wbe(
 
 @ai_tool(
     name="update_wbe",
-    description="Update an existing Work Breakdown Element (WBE) with new information. "
-    "Only updates fields that are provided.",
+    description="Update WBE fields.",
     permissions=["wbe-update"],
     category="wbe",
     risk_level=RiskLevel.HIGH,
@@ -791,8 +567,7 @@ async def update_wbe(
 
 @ai_tool(
     name="delete_wbe",
-    description="Soft delete a Work Breakdown Element (WBE). "
-    "Cascades the delete to all child WBEs recursively.",
+    description="Soft-delete WBE and its children.",
     permissions=["wbe-delete"],
     category="wbe",
     risk_level=RiskLevel.CRITICAL,
@@ -843,6 +618,231 @@ async def delete_wbe(
     except Exception as e:
         logger.error(f"Error in delete_wbe: {e}")
         return {"error": str(e)}
+
+
+# =============================================================================
+# BATCH WBE TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_wbes",
+    description="Batch create multiple WBEs under the same project. "
+    "All items share the parent project_id. Each item provides its own name, code, "
+    "and optional description and parent_wbe_id. Pre-validates all codes for duplicates "
+    "before creating any. Maximum 50 items per batch.",
+    permissions=["wbe-create"],
+    category="wbe",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_wbes(
+    project_id: str,
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create WBEs under the same project.
+
+    Args:
+        project_id: UUID of the parent project
+        items: List of dicts, each with {name, code, description?, parent_wbe_id?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    log_temporal_context("batch_create_wbes", context)
+
+    try:
+        from uuid import UUID
+
+        from app.models.schemas.wbe import WBECreate
+        from app.services.wbe import WBEService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("code"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'code'"},
+                    context,
+                )
+            if not item.get("name"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'name'"},
+                    context,
+                )
+
+        # Check for duplicate codes within the batch
+        codes = [it["code"] for it in items]
+        if len(codes) != len(set(codes)):
+            dupes = {c for c in codes if codes.count(c) > 1}
+            return add_temporal_metadata(
+                {"error": f"Duplicate codes in batch: {dupes}"}, context
+            )
+
+        service = WBEService(context.session)
+        project_uuid = UUID(project_id)
+
+        # Pre-validate: check all codes against the database
+        for code in codes:
+            existing = await service.get_by_code(code, project_uuid)
+            if existing:
+                return add_temporal_metadata(
+                    {
+                        "error": f"A WBE with code '{code}' already exists in this project "
+                        f"(ID: {existing.wbe_id}, name: '{existing.name}'). "
+                        "Use a different code or update the existing WBE.",
+                        "existing_id": str(existing.wbe_id),
+                        "existing_code": code,
+                    },
+                    context,
+                )
+
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            wbe_data = WBECreate(
+                project_id=project_uuid,
+                name=item["name"],
+                code=item["code"],
+                description=item.get("description"),
+                parent_wbe_id=UUID(item["parent_wbe_id"])
+                if item.get("parent_wbe_id")
+                else None,
+                branch=branch,
+            )
+            wbe = await service.create_wbe(wbe_data, actor_id=actor_id)
+            results.append(
+                {
+                    "id": str(wbe.wbe_id),
+                    "name": wbe.name,
+                    "code": wbe.code,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} WBEs under project {project_id}",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_create_wbes: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="batch_update_wbes",
+    description="Batch update multiple WBEs. Each item must include wbe_id and any "
+    "fields to update (name, description, revenue_allocation). "
+    "Maximum 50 items per batch.",
+    permissions=["wbe-update"],
+    category="wbe",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_update_wbes(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch update WBEs.
+
+    Args:
+        items: List of dicts, each with {wbe_id, name?, description?, revenue_allocation?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with updated items list, total count, and message
+    """
+    log_temporal_context("batch_update_wbes", context)
+
+    try:
+        from decimal import Decimal
+        from uuid import UUID
+
+        from app.models.schemas.wbe import WBEUpdate
+        from app.services.wbe import WBEService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate wbe_id on each item
+        for i, item in enumerate(items):
+            if not item.get("wbe_id"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'wbe_id'"},
+                    context,
+                )
+
+        service = WBEService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            update_kwargs: dict[str, Any] = {"branch": branch}
+            if "name" in item and item["name"] is not None:
+                update_kwargs["name"] = item["name"]
+            if "description" in item and item["description"] is not None:
+                update_kwargs["description"] = item["description"]
+            if "revenue_allocation" in item and item["revenue_allocation"] is not None:
+                update_kwargs["revenue_allocation"] = Decimal(
+                    str(item["revenue_allocation"])
+                )
+
+            if len(update_kwargs) == 1:  # Only branch, no actual fields
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item with wbe_id '{item['wbe_id']}' has no fields to update"
+                    },
+                    context,
+                )
+
+            update_data = WBEUpdate(**update_kwargs)
+
+            wbe = await service.update_wbe(
+                wbe_id=UUID(item["wbe_id"]),
+                wbe_in=update_data,
+                actor_id=actor_id,
+            )
+            results.append(
+                {
+                    "id": str(wbe.wbe_id),
+                    "name": wbe.name,
+                    "code": wbe.code,
+                }
+            )
+
+        result = {
+            "updated": results,
+            "total": len(results),
+            "message": f"Updated {len(results)} WBEs",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata({"error": f"WBE not found: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_update_wbes: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
 
 
 # =============================================================================

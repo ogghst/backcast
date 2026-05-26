@@ -399,6 +399,19 @@ class SupervisorOrchestrator:
         (-> END). Enforces iteration cap and prevents redispatch
         to already-completed specialists.
         """
+        from app.ai.handoff_tools import _slugify
+
+        slug_map: dict[str, str] = {}
+        for name in specialist_names:
+            slug = _slugify(name)
+            if slug in slug_map:
+                logger.warning(
+                    "[SUPERVISOR] Slug collision: '%s' and '%s' both map to '%s'",
+                    slug_map[slug],
+                    name,
+                    slug,
+                )
+            slug_map[slug] = name
 
         def router(state: BackcastSupervisorState) -> str:
             iterations = state.get("supervisor_iterations", 0)
@@ -421,7 +434,9 @@ class SupervisorOrchestrator:
                 for tc in last_msg.tool_calls:
                     tool_name = tc.get("name", "")
                     if tool_name.startswith("handoff_to_"):
-                        spec_name = tool_name.removeprefix("handoff_to_")
+                        slug = tool_name.removeprefix("handoff_to_")
+                        # Map slug back to the actual specialist name
+                        spec_name = slug_map.get(slug, slug)
                         if spec_name in completed:
                             logger.warning(
                                 "[SUPERVISOR] Preventing redispatch to "
@@ -583,7 +598,7 @@ class SupervisorOrchestrator:
                     "active_agent": "supervisor",
                     "tool_call_count": result.get("tool_call_count", 0),
                     "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
-                    "completed_specialists": {specialist_name},
+                    "completed_specialists": state.get("completed_specialists", set()) | {specialist_name},
                 },
                 goto="supervisor",
             )
