@@ -864,6 +864,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 CostRegistration.description,
                 CostElement.name.label("cost_element_name"),
                 WBE.code.label("wbe_code"),
+                WBE.wbe_id.label("wbe_id"),
             )
             .join(
                 CostElement,
@@ -894,6 +895,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 description=row.description,
                 cost_element_name=row.cost_element_name,
                 wbe_code=row.wbe_code,
+                wbe_id=row.wbe_id,
             )
             for row in rows
         ]

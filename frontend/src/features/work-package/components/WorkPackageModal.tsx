@@ -20,6 +20,7 @@ import { useCostElements } from "@/features/cost-elements/api/useCostElements";
 import {
   COQ_CATEGORY_OPTIONS,
   usePackageTypes,
+  useWorkPackageAllocations,
 } from "../api/useWorkPackages";
 import type {
   WorkPackageCreate,
@@ -59,6 +60,12 @@ export const WorkPackageModal = ({
   const isEdit = !!initialValues;
   const currencySymbol = getCurrencySymbol(currency);
   const { data: packageTypeOptions } = usePackageTypes();
+
+  // Fetch existing allocations when editing
+  const workPackageId = initialValues?.work_package_id || null;
+  const { data: allocationsData } = useWorkPackageAllocations(
+    isEdit && workPackageId ? workPackageId : "",
+  );
 
   // Breakdown rows state
   const [breakdownRows, setBreakdownRows] = useState<BreakdownRow[]>([]);
@@ -127,6 +134,31 @@ export const WorkPackageModal = ({
     }
     prevOpenRef.current = open;
   }, [open, initialValues, form, asOf, packageTypeOptions]);
+
+  // Populate breakdown rows from existing allocations when data loads
+  useEffect(() => {
+    if (isEdit && allocationsData && allocationsData.length > 0 && breakdownRows.length === 0) {
+      const rows: BreakdownRow[] = allocationsData.map((alloc) => {
+        breakdownKeyCounter.current += 1;
+        return {
+          key: `row-${breakdownKeyCounter.current}`,
+          wbe_id: alloc.wbe_id || null,
+          cost_element_id: alloc.cost_element_id,
+          amount: Number(alloc.amount),
+        };
+      });
+      setBreakdownRows(rows);
+
+      const wbeMap: Record<string, string | null> = {};
+      rows.forEach((row) => {
+        if (row.wbe_id) {
+          wbeMap[row.key] = row.wbe_id;
+        }
+      });
+      setSelectedWbes(wbeMap);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- breakdownRows.length is intentionally excluded to prevent infinite re-trigger
+  }, [isEdit, allocationsData]);
 
   const handleSubmit = async () => {
     try {

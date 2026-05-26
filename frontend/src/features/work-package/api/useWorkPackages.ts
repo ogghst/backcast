@@ -38,6 +38,7 @@ export interface QualityCostAllocationRead {
   description?: string;
   cost_element_name?: string;
   wbe_code?: string;
+  wbe_id?: string;
 }
 
 export type PackageType = string;

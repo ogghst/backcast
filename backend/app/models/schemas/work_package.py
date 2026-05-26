@@ -32,6 +32,7 @@ class QualityCostAllocationRead(BaseModel):
     description: str | None = None
     cost_element_name: str | None = None
     wbe_code: str | None = None
+    wbe_id: UUID | None = None
 
 
 # --- WorkPackage schemas ---
