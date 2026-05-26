@@ -102,9 +102,9 @@ async def get_project_forecast(
         cpis = [float(p.cpi) for p in timeseries.points if p.cpi] if timeseries.points else []
         cpi_volatility = stdev(cpis) if len(cpis) > 1 else 0.1
 
-        if cpis and cpis[-1] > cpi:
+        if len(cpis) >= 2 and cpis[-2] > cpis[-1]:
             trend_direction = "improving"
-        elif cpis and cpis[-1] < cpi:
+        elif len(cpis) >= 2 and cpis[-2] < cpis[-1]:
             trend_direction = "declining"
         else:
             trend_direction = "stable"
@@ -213,7 +213,7 @@ def _detect_anomalies(points: list[Any]) -> list[dict[str, Any]]:
                 }
             )
 
-        if cpi_val and spi_val:
+        if cpi_val is not None and spi_val is not None:
             divergence = abs(cpi_val - spi_val)
             if divergence > 0.3:
                 anomalies.append(

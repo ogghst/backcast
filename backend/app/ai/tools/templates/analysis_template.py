@@ -267,8 +267,8 @@ async def _get_wbe_variance_breakdown(
     if not wbes:
         return []
 
-    wbe_ids = [wbe.id for wbe in wbes]
-    wbe_map = {wbe.id: wbe for wbe in wbes}
+    wbe_ids = [wbe.wbe_id for wbe in wbes]
+    wbe_map = {wbe.wbe_id: wbe for wbe in wbes}
 
     breakdown: list[dict[str, Any]] = []
     for wbe_id in wbe_ids:

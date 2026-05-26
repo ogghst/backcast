@@ -58,31 +58,33 @@ async def create_forecast(
     log_temporal_context("create_forecast", context)
 
     try:
-        from app.models.schemas.forecast import ForecastCreate
-        from app.services.forecast_service import ForecastService
+        from app.services.forecast_service import (
+            ForecastAlreadyExistsError,
+            ForecastService,
+        )
 
         service = ForecastService(context.session)
 
-        forecast_in = ForecastCreate(
-            eac_amount=Decimal(str(eac_amount)),
-            basis_of_estimate=basis_of_estimate,
-            branch=context.branch_name or "main",
-        )
-
-        forecast = await service.create_forecast(
-            forecast_in=forecast_in,
+        forecast = await service.create_for_cost_element(
+            cost_element_id=UUID(cost_element_id),
             actor_id=UUID(context.user_id),
             branch=context.branch_name or "main",
+            control_date=context.as_of,
+            eac_amount=Decimal(str(eac_amount)),
+            basis_of_estimate=basis_of_estimate,
         )
 
         result = {
             "id": str(forecast.forecast_id),
+            "cost_element_id": cost_element_id,
             "eac_amount": float(forecast.eac_amount) if forecast.eac_amount else None,
             "basis_of_estimate": forecast.basis_of_estimate,
             "branch": forecast.branch,
             "message": f"Forecast created for cost element {cost_element_id}",
         }
         return add_temporal_metadata(result, context)
+    except ForecastAlreadyExistsError as e:
+        return add_temporal_metadata({"error": str(e)}, context)
     except ValueError as e:
         return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
     except KeyError as e:

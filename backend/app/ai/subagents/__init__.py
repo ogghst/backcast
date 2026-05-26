@@ -105,20 +105,15 @@ You also provide:
 - Anomaly detection in EVM metrics
 - Optimization recommendations
 
-Always use the calculate_evm_metrics tool for accurate calculations.
+Use get_project_analysis for EVM metrics, KPIs, health assessments, and anomaly detection.
+Use get_project_forecast for performance trends, forecasts, and optimization recommendations.
 Provide clear explanations of what the metrics mean and actionable insights.
 Identify trends and potential risks early.""",
     "allowed_tools": [
         "get_temporal_context",
         "global_search",
-        "calculate_evm_metrics",
-        "get_evm_performance_summary",
-        "analyze_cost_variance",
-        "analyze_schedule_variance",
-        "get_project_kpis",
-        "assess_project_health",
-        "detect_evm_anomalies",
-        "generate_optimization_suggestions",
+        "get_project_analysis",
+        "get_project_forecast",
     ],
     "structured_output_schema": EVMMetricsRead,  # Returns structured EVM metrics
 }
@@ -141,7 +136,7 @@ You help with:
 TOOL USAGE GUIDELINES:
 - For creating change orders, always use `generate_change_order_draft` — it automatically generates the business code and runs AI impact analysis.
 - Minimize tool calls — trust the briefing document context. Do NOT re-search for projects or entities already described in the briefing.
-- After creating a change order, one `get_change_order` call is sufficient to confirm. Do not repeatedly check status.
+- After creating a change order, one `find_change_orders` call is sufficient to confirm. Do not repeatedly check status.
 
 HOW CHANGE ORDERS WORK IN BACKCAST:
 - Each change order creates an isolated branch (named BR-{code}, e.g. BR-CO-2026-001)
@@ -174,8 +169,7 @@ Ensure proper documentation and audit trails.""",
         "get_temporal_context",
         "set_temporal_context",
         "global_search",
-        "list_change_orders",
-        "get_change_order",
+        "find_change_orders",
         "generate_change_order_draft",
         "submit_change_order_for_approval",
         "approve_change_order",
@@ -204,13 +198,11 @@ Follow security best practices for user management.""",
     "allowed_tools": [
         "get_temporal_context",
         "global_search",
-        "list_users",
-        "get_user",
+        "find_users",
         "create_user",
         "update_user",
         "delete_user",
-        "list_departments",
-        "get_department",
+        "find_departments",
         "create_department",
         "update_department",
         "delete_department",
@@ -251,10 +243,7 @@ FORECAST_MANAGER_SUBAGENT: dict[str, Any] = {
 You help with:
 - Creating and updating project forecasts
 - Comparing forecasts to budgets
-- Generating project forecasts based on trends
-- Comparing forecast scenarios
-- Analyzing forecast accuracy
-- Forecast trend analysis
+- Generating project forecasts based on trends (get_project_forecast)
 - Schedule baseline management (retrieve, update, delete)
 
 For cost tracking and progress entry management, use the project_manager subagent.
@@ -268,10 +257,7 @@ Explain the impact of forecasts vs. budgets.""",
         "create_forecast",
         "update_forecast",
         "get_cost_element_details",
-        "generate_project_forecast",
-        "compare_forecast_scenarios",
-        "get_forecast_accuracy",
-        "analyze_forecast_trends",
+        "get_project_forecast",
     ],
     "structured_output_schema": ForecastRead,  # Returns structured forecast data
 }

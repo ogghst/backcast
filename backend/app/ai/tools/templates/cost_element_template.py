@@ -454,16 +454,19 @@ async def update_cost_element(
             )
 
             if baseline:
-                sb_update_data = ScheduleBaselineUpdate(
-                    start_date=datetime.fromisoformat(schedule_start_date)
-                    if schedule_start_date
-                    else None,
-                    end_date=datetime.fromisoformat(schedule_end_date)
-                    if schedule_end_date
-                    else None,
-                    progression_type=schedule_progression_type,
-                    branch=context.branch_name or "main",
-                )
+                sb_kwargs: dict[str, Any] = {
+                    "progression_type": schedule_progression_type,
+                    "branch": context.branch_name or "main",
+                }
+                if schedule_start_date:
+                    sb_kwargs["start_date"] = datetime.fromisoformat(
+                        schedule_start_date
+                    )
+                if schedule_end_date:
+                    sb_kwargs["end_date"] = datetime.fromisoformat(
+                        schedule_end_date
+                    )
+                sb_update_data = ScheduleBaselineUpdate(**sb_kwargs)
 
                 updated_baseline = await sb_service.update_schedule_baseline(
                     root_id=baseline.schedule_baseline_id,
