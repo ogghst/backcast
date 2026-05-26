@@ -41,7 +41,7 @@ import {
   downloadDocument,
 } from "../api/documentApi";
 import { DocumentVersionList } from "./DocumentVersionList";
-import { DocumentPreview, PREVIEWABLE_EXTENSIONS } from "./DocumentPreview";
+import { DocumentPreview, PreviewableExtensions } from "./DocumentPreview";
 import { FileTypeIcon } from "./FileTypeIcon";
 
 const { Text } = Typography;
@@ -236,7 +236,7 @@ export const DocumentDetailDrawer: React.FC<DocumentDetailDrawerProps> = ({
         </Space>
 
         {/* Inline preview */}
-        {PREVIEWABLE_EXTENSIONS.includes(document.extension.toLowerCase()) && (
+        {PreviewableExtensions.includes(document.extension.toLowerCase()) && (
           <DocumentPreview
             projectId={projectId}
             documentId={document.id}
