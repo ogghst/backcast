@@ -10,7 +10,7 @@ import time
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -308,11 +308,15 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
+    # Shared across all instances so interrupt nodes registered during
+    # execution (which may create a separate AgentService) are visible
+    # to the approval-handling instance.
+    _interrupt_nodes: ClassVar[dict[UUID, "InterruptNode"]] = {}
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self._config_service: AIConfigService | None = None
         self._subagent_invocation_counts: dict[str, int] = {}
-        self._interrupt_nodes: dict[UUID, InterruptNode] = {}
 
     @property
     def config_service(self) -> AIConfigService:
