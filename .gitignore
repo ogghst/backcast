@@ -81,6 +81,7 @@ network.json
 context_search_results.md
 backend/uploads/
 logs/
+e2e/
 
 #deploy backups
 deploy/backup*.gz
