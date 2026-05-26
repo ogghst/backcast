@@ -7,9 +7,11 @@ import {
 } from "@ant-design/icons";
 import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
+import { useQueryClient } from "@tanstack/react-query";
 import { createResourceHooks } from "@/hooks/useCrud";
 import { PackageTypesService } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
+import { queryKeys } from "@/api/queryKeys";
 import type {
   PackageTypeRead,
   PackageTypeCreate,
@@ -79,6 +81,7 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
 >("package_types", packageTypeApi as never);
 
 export const PackageTypeManagement = () => {
+  const queryClient = useQueryClient();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     PackageTypeRead,
     Record<string, never>
@@ -90,6 +93,10 @@ export const PackageTypeManagement = () => {
     null,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  const invalidatePackageTypesCache = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.packageTypes.list });
+  };
 
   // Fetch version history
   const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
@@ -104,6 +111,7 @@ export const PackageTypeManagement = () => {
   const { mutateAsync: createType } = useCreate({
     onSuccess: () => {
       refetch();
+      invalidatePackageTypesCache();
       setModalOpen(false);
     },
   });
@@ -111,12 +119,16 @@ export const PackageTypeManagement = () => {
   const { mutateAsync: updateType } = useUpdate({
     onSuccess: () => {
       refetch();
+      invalidatePackageTypesCache();
       setModalOpen(false);
     },
   });
 
   const { mutate: deleteType } = useDelete({
-    onSuccess: () => refetch(),
+    onSuccess: () => {
+      refetch();
+      invalidatePackageTypesCache();
+    },
   });
 
   const { modal } = App.useApp();
