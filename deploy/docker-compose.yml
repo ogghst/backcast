@@ -117,6 +117,10 @@ services:
       RUN_MIGRATIONS: "${RUN_MIGRATIONS:-true}"
       OTEL_ENABLED: "false"
       OTLP_ENDPOINT: http://localhost:6006/v1/traces
+      RUSTFS_ENDPOINT_URL: http://rustfs:9000
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+      RUSTFS_BUCKET_NAME: ${RUSTFS_BUCKET_NAME:-backcast-documents}
     env_file:
       - .env.production
     depends_on:
@@ -215,6 +219,26 @@ services:
           cpus: '0.1'
           memory: 64M
 
+  # RustFS S3-compatible Storage
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      RUSTFS_ROOT_USER: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+    volumes:
+      - rustfs_data:/data
+      - rustfs_logs:/logs
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 networks:
   traefik-public:
     external: true
@@ -227,3 +251,5 @@ volumes:
   traefik-letsencrypt:
   traefik-logs:
   backend-logs:
+  rustfs_data:
+  rustfs_logs:
