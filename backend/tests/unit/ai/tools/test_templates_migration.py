@@ -13,50 +13,50 @@ from langchain_core.tools import BaseTool
 from app.ai.tools.templates import (
     analysis_template,
     change_order_template,
-    crud_template,
+    project_template,
 )
 
 
-class TestCrudTemplateMigration:
-    """Test crud_template.py follows new @ai_tool pattern."""
+class TestProjectTemplateMigration:
+    """Test project_template.py follows new @ai_tool pattern."""
 
     @pytest.mark.parametrize(
         "tool_name",
         [
-            "list_projects",
-            "get_project",
             "create_project",
             "update_project",
-            "list_wbes",
-            "get_wbe",
+            "delete_project",
+            "find_wbes",
             "create_wbe",
+            "update_wbe",
+            "delete_wbe",
         ],
     )
     def test_tool_is_basetool(self, tool_name: str):
         """Test that all tools are LangChain BaseTool instances."""
-        tool = getattr(crud_template, tool_name)
+        tool = getattr(project_template, tool_name)
         assert isinstance(tool, BaseTool), f"{tool_name} should be a BaseTool instance"
 
     def test_tools_have_injected_context(self):
         """Test that tools use InjectedToolArg for context parameter."""
         # Check that the module has the correct imports
-        assert hasattr(crud_template, "InjectedToolArg"), (
+        assert hasattr(project_template, "InjectedToolArg"), (
             "Should import InjectedToolArg"
         )
-        assert hasattr(crud_template, "Annotated"), (
+        assert hasattr(project_template, "Annotated"), (
             "Should import Annotated from typing"
         )
 
     def test_tools_have_metadata(self):
         """Test that tools have _tool_metadata attached."""
         tools = [
-            crud_template.list_projects,
-            crud_template.get_project,
-            crud_template.create_project,
-            crud_template.update_project,
-            crud_template.list_wbes,
-            crud_template.get_wbe,
-            crud_template.create_wbe,
+            project_template.create_project,
+            project_template.update_project,
+            project_template.delete_project,
+            project_template.find_wbes,
+            project_template.create_wbe,
+            project_template.update_wbe,
+            project_template.delete_wbe,
         ]
 
         for tool in tools:
@@ -73,14 +73,7 @@ class TestAnalysisTemplateMigration:
     @pytest.mark.parametrize(
         "tool_name",
         [
-            "calculate_evm_metrics",
-            "get_evm_performance_summary",
-            "analyze_cost_variance",
-            "analyze_schedule_variance",
-            "generate_project_forecast",
-            "compare_forecast_scenarios",
-            "get_forecast_accuracy",
-            "get_project_kpis",
+            "get_project_analysis",
         ],
     )
     def test_tool_is_basetool(self, tool_name: str):
@@ -100,14 +93,7 @@ class TestAnalysisTemplateMigration:
     def test_tools_have_metadata(self):
         """Test that tools have _tool_metadata attached."""
         tools = [
-            analysis_template.calculate_evm_metrics,
-            analysis_template.get_evm_performance_summary,
-            analysis_template.analyze_cost_variance,
-            analysis_template.analyze_schedule_variance,
-            analysis_template.generate_project_forecast,
-            analysis_template.compare_forecast_scenarios,
-            analysis_template.get_forecast_accuracy,
-            analysis_template.get_project_kpis,
+            analysis_template.get_project_analysis,
         ]
 
         for tool in tools:
@@ -124,8 +110,7 @@ class TestChangeOrderTemplateMigration:
     @pytest.mark.parametrize(
         "tool_name",
         [
-            "list_change_orders",
-            "get_change_order",
+            "find_change_orders",
             "create_change_order",
             "generate_change_order_draft",
             "submit_change_order_for_approval",
@@ -151,8 +136,7 @@ class TestChangeOrderTemplateMigration:
     def test_tools_have_metadata(self):
         """Test that tools have _tool_metadata attached."""
         tools = [
-            change_order_template.list_change_orders,
-            change_order_template.get_change_order,
+            change_order_template.find_change_orders,
             change_order_template.create_change_order,
             change_order_template.generate_change_order_draft,
             change_order_template.submit_change_order_for_approval,
@@ -172,12 +156,12 @@ class TestChangeOrderTemplateMigration:
 class TestTemplateDocstrings:
     """Test that template tools have proper Google-style docstrings."""
 
-    def test_crud_tools_have_context_section(self):
-        """Test that CRUD tool docstrings have Context section."""
+    def test_project_tools_have_context_section(self):
+        """Test that project tool docstrings have Context section."""
         tools = [
-            crud_template.list_projects,
-            crud_template.get_project,
-            crud_template.create_project,
+            project_template.create_project,
+            project_template.update_project,
+            project_template.find_wbes,
         ]
 
         for tool in tools:
@@ -190,35 +174,27 @@ class TestTemplateDocstrings:
         """Test that all tools have permissions defined."""
         all_tools = [
             (
-                crud_template,
+                project_template,
                 [
-                    "list_projects",
-                    "get_project",
                     "create_project",
                     "update_project",
-                    "list_wbes",
-                    "get_wbe",
+                    "delete_project",
+                    "find_wbes",
                     "create_wbe",
+                    "update_wbe",
+                    "delete_wbe",
                 ],
             ),
             (
                 analysis_template,
                 [
-                    "calculate_evm_metrics",
-                    "get_evm_performance_summary",
-                    "analyze_cost_variance",
-                    "analyze_schedule_variance",
-                    "generate_project_forecast",
-                    "compare_forecast_scenarios",
-                    "get_forecast_accuracy",
-                    "get_project_kpis",
+                    "get_project_analysis",
                 ],
             ),
             (
                 change_order_template,
                 [
-                    "list_change_orders",
-                    "get_change_order",
+                    "find_change_orders",
                     "create_change_order",
                     "generate_change_order_draft",
                     "submit_change_order_for_approval",
@@ -244,10 +220,10 @@ class TestTemplateDocstrings:
 class TestTemplateImports:
     """Test that template files have correct imports."""
 
-    def test_crud_template_imports(self):
-        """Test that crud_template has required imports."""
-        assert hasattr(crud_template, "ai_tool"), "Should import ai_tool"
-        assert hasattr(crud_template, "ToolContext"), "Should import ToolContext"
+    def test_project_template_imports(self):
+        """Test that project_template has required imports."""
+        assert hasattr(project_template, "ai_tool"), "Should import ai_tool"
+        assert hasattr(project_template, "ToolContext"), "Should import ToolContext"
         # Note: BaseTool is not directly imported in templates; @ai_tool decorator handles it
 
     def test_analysis_template_imports(self):

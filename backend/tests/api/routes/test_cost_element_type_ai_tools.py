@@ -1,11 +1,10 @@
 """Test Cost Element Type AI tools.
 
-Tests the 5 Cost Element Type AI CRUD tools following TDD methodology:
-1. list_cost_element_types
-2. get_cost_element_type
-3. create_cost_element_type
-4. update_cost_element_type
-5. delete_cost_element_type
+Tests the Cost Element Type AI tools following TDD methodology:
+1. find_cost_element_types
+2. create_cost_element_type
+3. update_cost_element_type
+4. delete_cost_element_type
 """
 
 from collections.abc import Generator
@@ -21,8 +20,7 @@ from app.ai.tools.registry import get_registry
 from app.ai.tools.templates.cost_element_template import (
     create_cost_element_type,
     delete_cost_element_type,
-    get_cost_element_type,
-    list_cost_element_types,
+    find_cost_element_types,
     update_cost_element_type,
 )
 from app.ai.tools.types import RiskLevel, ToolContext
@@ -99,11 +97,10 @@ def test_cost_element_type_tools_are_discovered() -> None:
     tools = registry.get_all_metadata()
     tool_names = [tool.name for tool in tools]
 
-    # Verify all 5 Cost Element Type tools are present
-    assert "list_cost_element_types" in tool_names, (
-        "Missing list_cost_element_types tool"
+    # Verify Cost Element Type tools are present
+    assert "find_cost_element_types" in tool_names, (
+        "Missing find_cost_element_types tool"
     )
-    assert "get_cost_element_type" in tool_names, "Missing get_cost_element_type tool"
     assert "create_cost_element_type" in tool_names, (
         "Missing create_cost_element_type tool"
     )
@@ -122,21 +119,11 @@ def test_cost_element_type_tools_metadata() -> None:
     tools = registry.get_all_metadata()
     tools_dict = {tool.name: tool for tool in tools}
 
-    # Test list_cost_element_types metadata
-    list_tool = tools_dict.get("list_cost_element_types")
-    assert list_tool is not None
-    assert list_tool.category == "cost-element-types"
-    assert "cost-element-type-read" in list_tool.permissions
-    assert (
-        "department" in list_tool.description.lower()
-        or "filter" in list_tool.description.lower()
-    )
-
-    # Test get_cost_element_type metadata
-    get_tool = tools_dict.get("get_cost_element_type")
-    assert get_tool is not None
-    assert get_tool.category == "cost-element-types"
-    assert "cost-element-type-read" in get_tool.permissions
+    # Test find_cost_element_types metadata
+    find_tool = tools_dict.get("find_cost_element_types")
+    assert find_tool is not None
+    assert find_tool.category == "cost-element-types"
+    assert "cost-element-type-read" in find_tool.permissions
 
     # Test create_cost_element_type metadata
     create_tool = tools_dict.get("create_cost_element_type")
@@ -159,10 +146,10 @@ def test_cost_element_type_tools_metadata() -> None:
 # TOOL FUNCTIONALITY TESTS
 # =============================================================================
 @pytest.mark.asyncio
-async def test_list_cost_element_types_returns_dict_with_simple_types(
+async def test_find_cost_element_types_returns_list_with_simple_types(
     db_session: AsyncSession, test_department: Department
 ) -> None:
-    """Test that list_cost_element_types returns AI-friendly format (strings, not UUIDs)."""
+    """Test that find_cost_element_types list mode returns AI-friendly format."""
     # Create a test cost element type
     service = CostElementTypeService(db_session)
     type_data = CostElementTypeCreate(
@@ -182,7 +169,7 @@ async def test_list_cost_element_types_returns_dict_with_simple_types(
 
     # Call the tool via ainvoke (LangChain BaseTool pattern)
     with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
-        result = await list_cost_element_types.ainvoke(
+        result = await find_cost_element_types.ainvoke(
             {
                 "context": context,
             }
@@ -204,10 +191,10 @@ async def test_list_cost_element_types_returns_dict_with_simple_types(
         assert isinstance(cet["name"], str)
         assert isinstance(cet["department_id"], str)
 @pytest.mark.asyncio
-async def test_list_cost_element_types_with_department_filter(
+async def test_find_cost_element_types_with_department_filter(
     db_session: AsyncSession, test_department: Department
 ) -> None:
-    """Test that list_cost_element_types filters by department_id."""
+    """Test that find_cost_element_types filters by department_id."""
     # Create test cost element types
     service = CostElementTypeService(db_session)
     type_data = CostElementTypeCreate(
@@ -227,7 +214,7 @@ async def test_list_cost_element_types_with_department_filter(
 
     # Test filtering by department
     with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
-        result = await list_cost_element_types.ainvoke(
+        result = await find_cost_element_types.ainvoke(
             {
                 "department_id": str(test_department.department_id),
                 "context": context,
@@ -239,10 +226,10 @@ async def test_list_cost_element_types_with_department_filter(
     for cet in result["cost_element_types"]:
         assert cet["department_id"] == str(test_department.department_id)
 @pytest.mark.asyncio
-async def test_list_cost_element_types_with_search(
+async def test_find_cost_element_types_with_search(
     db_session: AsyncSession, test_department: Department
 ) -> None:
-    """Test that list_cost_element_types supports search functionality."""
+    """Test that find_cost_element_types supports search functionality."""
     # Create test cost element type
     service = CostElementTypeService(db_session)
     type_data = CostElementTypeCreate(
@@ -262,7 +249,7 @@ async def test_list_cost_element_types_with_search(
 
     # Test search
     with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
-        result = await list_cost_element_types.ainvoke(
+        result = await find_cost_element_types.ainvoke(
             {
                 "search": "Equip",
                 "context": context,
@@ -273,10 +260,10 @@ async def test_list_cost_element_types_with_search(
     # Should find the "Equipment" type
     assert any(cet["name"] == "Equipment" for cet in result["cost_element_types"])
 @pytest.mark.asyncio
-async def test_get_cost_element_type_returns_dict_with_simple_types(
+async def test_find_cost_element_type_by_id_returns_dict_with_simple_types(
     db_session: AsyncSession, test_department: Department
 ) -> None:
-    """Test that get_cost_element_type returns AI-friendly format."""
+    """Test that find_cost_element_types by ID returns AI-friendly format."""
     # Create a test cost element type
     service = CostElementTypeService(db_session)
     type_data = CostElementTypeCreate(
@@ -296,7 +283,7 @@ async def test_get_cost_element_type_returns_dict_with_simple_types(
 
     # Call the tool via ainvoke
     with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
-        result = await get_cost_element_type.ainvoke(
+        result = await find_cost_element_types.ainvoke(
             {
                 "cost_element_type_id": str(created_type.cost_element_type_id),
                 "context": context,
@@ -312,8 +299,8 @@ async def test_get_cost_element_type_returns_dict_with_simple_types(
     assert result["code"] == "SUB"
     assert result["name"] == "Subcontracting"
 @pytest.mark.asyncio
-async def test_get_cost_element_type_not_found_error(db_session: AsyncSession) -> None:
-    """Test that get_cost_element_type returns error for non-existent ID."""
+async def test_find_cost_element_type_by_id_not_found_error(db_session: AsyncSession) -> None:
+    """Test that find_cost_element_types by ID returns error for non-existent ID."""
     # Create tool context
     context = ToolContext(
         session=db_session,
@@ -324,7 +311,7 @@ async def test_get_cost_element_type_not_found_error(db_session: AsyncSession) -
     # Call with non-existent ID
     fake_id = str(uuid4())
     with patch(_GET_TOOL_SESSION_PATCH, return_value=db_session):
-        result = await get_cost_element_type.ainvoke(
+        result = await find_cost_element_types.ainvoke(
             {
                 "cost_element_type_id": fake_id,
                 "context": context,
@@ -535,22 +522,14 @@ class TestCostElementToolRiskLevels:
         "tool_name,expected_risk",
         [
             # Cost Element tools - LOW (read-only)
-            ("list_cost_elements", RiskLevel.LOW),
-            ("get_cost_element", RiskLevel.LOW),
+            ("find_cost_elements", RiskLevel.LOW),
             # Cost Element tools - HIGH (modify with validation)
             ("create_cost_element", RiskLevel.HIGH),
             ("update_cost_element", RiskLevel.HIGH),
             # Cost Element tools - CRITICAL (delete)
             ("delete_cost_element", RiskLevel.CRITICAL),
-            # Schedule Baseline tools - LOW (read-only)
-            ("get_schedule_baseline", RiskLevel.LOW),
-            # Schedule Baseline tools - HIGH (modify with validation)
-            ("update_schedule_baseline", RiskLevel.HIGH),
-            # Schedule Baseline tools - CRITICAL (delete)
-            ("delete_schedule_baseline", RiskLevel.CRITICAL),
             # Cost Element Type tools - LOW (read-only)
-            ("list_cost_element_types", RiskLevel.LOW),
-            ("get_cost_element_type", RiskLevel.LOW),
+            ("find_cost_element_types", RiskLevel.LOW),
             # Cost Element Type tools - HIGH (modify with validation)
             ("create_cost_element_type", RiskLevel.HIGH),
             ("update_cost_element_type", RiskLevel.HIGH),
@@ -592,8 +571,7 @@ class TestCostElementToolRiskLevels:
 
         # List of all cost element type tool functions that should have risk_level
         tool_names = [
-            "list_cost_element_types",
-            "get_cost_element_type",
+            "find_cost_element_types",
             "create_cost_element_type",
             "update_cost_element_type",
             "delete_cost_element_type",
@@ -623,8 +601,7 @@ async def test_cost_element_type_tools_endpoint_discovery(client: AsyncClient) -
     tool_names = [tool.get("name") for tool in tools]
 
     # Verify Cost Element Type tools are present
-    assert "list_cost_element_types" in tool_names
-    assert "get_cost_element_type" in tool_names
+    assert "find_cost_element_types" in tool_names
     assert "create_cost_element_type" in tool_names
     assert "update_cost_element_type" in tool_names
     assert "delete_cost_element_type" in tool_names

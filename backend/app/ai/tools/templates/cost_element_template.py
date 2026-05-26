@@ -1,6 +1,6 @@
-"""Cost Element and Schedule Baseline tool template for wrapping service methods.
+"""Cost Element and Cost Element Type tool template for wrapping service methods.
 
-This template shows how to create AI tools for cost element and schedule baseline management.
+This template provides AI tools for cost element and cost element type management.
 The key principle is:
 
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
@@ -17,19 +17,11 @@ Schedule Baselines in Backcast:
 - Each Cost Element has exactly one Schedule Baseline
 - Support different progression types (LINEAR, GAUSSIAN, LOGARITHMIC)
 
-Usage:
-    1. Import CostElementService and ScheduleBaselineService methods
-    2. Use @ai_tool decorator with proper permissions
-    3. Use ToolContext for dependency injection
-    4. Call service methods with context.session
-    5. Return results in AI-friendly format
-
 TEMPORAL CONTEXT PATTERN:
 For temporal tools (those that work with versioned entities):
 - Import temporal logging helpers: log_temporal_context, add_temporal_metadata
 - Call log_temporal_context() at tool start for observability
 - Call add_temporal_metadata() on return to include temporal context in results
-- Update tool descriptions to mention temporal context enforcement
 """
 
 import logging
@@ -50,35 +42,39 @@ from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
 
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE_LIMIT = 50
+
+
 # =============================================================================
-# COST ELEMENT CRUD TOOLS
+# COST ELEMENT TOOLS
 # =============================================================================
 
 
 @ai_tool(
-    name="list_cost_elements",
-    description="List all cost elements with optional filtering by WBE, type, "
-    "or search. Returns cost elements with their budget amounts and related data. "
-    "Temporal context (branch, as_of date) is enforced by the system.",
+    name="find_cost_elements",
+    description="Find cost elements by ID or search/filter.",
     permissions=["cost-element-read"],
     category="cost-elements",
     risk_level=RiskLevel.LOW,
 )
-async def list_cost_elements(
+async def find_cost_elements(
+    cost_element_id: str | None = None,
     wbe_id: str | None = None,
     cost_element_type_id: str | None = None,
     search: str | None = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 50,
     sort_field: str | None = None,
     sort_order: str = "asc",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List cost elements with optional filtering.
+    """Find cost elements by ID or search/filter.
 
-    Context: Provides database session and cost element service for querying cost elements.
+    If cost_element_id is provided, returns a single cost element with schedule
+    baseline data included. Otherwise returns a filtered list.
 
     Args:
+        cost_element_id: Optional UUID to fetch a single cost element
         wbe_id: Optional WBE ID to filter cost elements
         cost_element_type_id: Optional cost element type ID to filter
         search: Optional search term for code or name
@@ -89,38 +85,94 @@ async def list_cost_elements(
         context: Injected tool execution context
 
     Returns:
-        Dictionary with:
-        - cost_elements: List of cost element objects
-        - total: Total number of cost elements matching filters
-        - skip: Number of records skipped
-        - limit: Maximum records returned
-        - _temporal_context: Temporal context metadata (branch, as_of)
+        Dictionary with cost element details or list with pagination info
 
     Raises:
         ValueError: If invalid filter parameters are provided
-
-    Example:
-        >>> result = await list_cost_elements(wbe_id="...", limit=10)
-        >>> print(f"Found {result['total']} cost elements")
-        >>> for ce in result['cost_elements']:
-        ...     print(f"- {ce['name']}: ${ce['budget_amount']}")
     """
-    # Log temporal context for observability
-    log_temporal_context("list_cost_elements", context)
+    log_temporal_context("find_cost_elements", context)
 
     try:
         from app.services.cost_element_service import CostElementService
 
         service = CostElementService(context.session)
 
-        # Build filters dict
-        filters = {}
+        # Single CE lookup by ID
+        if cost_element_id:
+            cost_element = await service.get_by_id(
+                UUID(cost_element_id),
+                branch=context.branch_name or "main",
+            )
+
+            if not cost_element:
+                return add_temporal_metadata(
+                    {"error": f"Cost element {cost_element_id} not found"},
+                    context,
+                )
+
+            result: dict[str, Any] = {
+                "id": str(cost_element.cost_element_id),
+                "code": cost_element.code,
+                "name": cost_element.name,
+                "budget_amount": float(cost_element.budget_amount)
+                if cost_element.budget_amount
+                else None,
+                "description": cost_element.description,
+                "wbe_id": str(cost_element.wbe_id),
+                "wbe_name": getattr(cost_element, "wbe_name", None),
+                "cost_element_type_id": str(cost_element.cost_element_type_id),
+                "cost_element_type_name": getattr(
+                    cost_element, "cost_element_type_name", None
+                ),
+                "cost_element_type_code": getattr(
+                    cost_element, "cost_element_type_code", None
+                ),
+                "branch": cost_element.branch,
+                "schedule_baseline_id": str(cost_element.schedule_baseline_id)
+                if cost_element.schedule_baseline_id
+                else None,
+                "forecast_id": str(cost_element.forecast_id)
+                if cost_element.forecast_id
+                else None,
+            }
+
+            # Include schedule baseline data for single CE
+            try:
+                from app.services.schedule_baseline_service import (
+                    ScheduleBaselineService,
+                )
+
+                sb_service = ScheduleBaselineService(context.session)
+                baseline = await sb_service.get_for_cost_element(
+                    UUID(cost_element_id),
+                    branch=context.branch_name or "main",
+                )
+                if baseline:
+                    result["schedule_baseline"] = {
+                        "id": str(baseline.schedule_baseline_id),
+                        "name": baseline.name,
+                        "start_date": baseline.start_date.isoformat()
+                        if baseline.start_date
+                        else None,
+                        "end_date": baseline.end_date.isoformat()
+                        if baseline.end_date
+                        else None,
+                        "progression_type": baseline.progression_type,
+                        "description": baseline.description,
+                        "branch": baseline.branch,
+                    }
+            except Exception:
+                pass  # Non-fatal: schedule baseline is supplementary
+
+            return add_temporal_metadata(result, context)
+
+        # List mode with filters
+        filters: dict[str, Any] = {}
         if wbe_id:
             filters["wbe_id"] = UUID(wbe_id)
         if cost_element_type_id:
             filters["cost_element_type_id"] = UUID(cost_element_type_id)
 
-        # Call service method
         cost_elements, total = await service.get_cost_elements(
             filters=filters if filters else None,
             search=search,
@@ -132,7 +184,6 @@ async def list_cost_elements(
             as_of=context.as_of,
         )
 
-        # Convert to AI-friendly format and add temporal metadata
         result = {
             "cost_elements": [
                 {
@@ -162,100 +213,15 @@ async def list_cost_elements(
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
-        error_result = {"error": f"Invalid input: {e}"}
-        return add_temporal_metadata(error_result, context)
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
     except Exception as e:
-        logger.error(f"Error in list_cost_elements: {e}")
-        error_result = {"error": str(e)}
-        return add_temporal_metadata(error_result, context)
-
-
-@ai_tool(
-    name="get_cost_element",
-    description="Get detailed information about a specific cost element by ID. "
-    "Returns full cost element details including budget, type, and WBE information.",
-    permissions=["cost-element-read"],
-    category="cost-elements",
-    risk_level=RiskLevel.LOW,
-)
-async def get_cost_element(
-    cost_element_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single cost element by ID.
-
-    Context: Provides database session and cost element service for retrieving cost element data.
-
-    Args:
-        cost_element_id: UUID of the cost element to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with cost element details or error if not found
-
-    Raises:
-        ValueError: If cost_element_id is not a valid UUID format
-        KeyError: If cost element is not found
-
-    Example:
-        >>> result = await get_cost_element("123e4567-e89b-12d3-a456-426614174000")
-        >>> if "error" not in result:
-        ...     print(f"Cost Element: {result['name']}")
-        ...     print(f"Budget: ${result['budget_amount']}")
-    """
-    try:
-        from app.services.cost_element_service import CostElementService
-
-        service = CostElementService(context.session)
-
-        # Call service method
-        cost_element = await service.get_by_id(
-            UUID(cost_element_id),
-            branch=context.branch_name or "main",
-        )
-
-        if not cost_element:
-            return {"error": f"Cost element {cost_element_id} not found"}
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(cost_element.cost_element_id),
-            "code": cost_element.code,
-            "name": cost_element.name,
-            "budget_amount": float(cost_element.budget_amount)
-            if cost_element.budget_amount
-            else None,
-            "description": cost_element.description,
-            "wbe_id": str(cost_element.wbe_id),
-            "wbe_name": getattr(cost_element, "wbe_name", None),
-            "cost_element_type_id": str(cost_element.cost_element_type_id),
-            "cost_element_type_name": getattr(
-                cost_element, "cost_element_type_name", None
-            ),
-            "cost_element_type_code": getattr(
-                cost_element, "cost_element_type_code", None
-            ),
-            "branch": cost_element.branch,
-            "schedule_baseline_id": str(cost_element.schedule_baseline_id)
-            if cost_element.schedule_baseline_id
-            else None,
-            "forecast_id": str(cost_element.forecast_id)
-            if cost_element.forecast_id
-            else None,
-        }
-    except ValueError:
-        return {"error": f"Invalid cost element ID: {cost_element_id}"}
-    except Exception as e:
-        logger.error(f"Error in get_cost_element: {e}")
-        return {"error": str(e)}
+        logger.error(f"Error in find_cost_elements: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
 
 
 @ai_tool(
     name="create_cost_element",
-    description="Create a new cost element under a WBE with a specific type. "
-    "Automatically creates a schedule baseline and forecast for the cost element. "
-    "Use start_date and end_date to set the schedule baseline dates (should match the project's dates). "
-    "Supports LINEAR, GAUSSIAN, and LOGARITHMIC progression types.",
+    description="Create cost element with optional schedule baseline.",
     permissions=["cost-element-create"],
     category="cost-elements",
     risk_level=RiskLevel.HIGH,
@@ -274,8 +240,6 @@ async def create_cost_element(
 ) -> dict[str, Any]:
     """Create a new cost element.
 
-    Context: Provides database session and cost element service for creating cost elements.
-
     Args:
         wbe_id: UUID of the parent WBE
         cost_element_type_id: UUID of the cost element type
@@ -283,9 +247,9 @@ async def create_cost_element(
         name: Cost element name
         budget_amount: Budget amount for the cost element
         description: Optional description
-        start_date: Optional start date for the schedule baseline (ISO format, e.g. "2026-05-10")
-        end_date: Optional end date for the schedule baseline (ISO format, e.g. "2026-05-30")
-        progression_type: Optional progression type (LINEAR, GAUSSIAN, LOGARITHMIC). Defaults to LINEAR.
+        start_date: Optional start date for the schedule baseline (ISO format)
+        end_date: Optional end date for the schedule baseline (ISO format)
+        progression_type: Optional progression type (LINEAR, GAUSSIAN, LOGARITHMIC)
         context: Injected tool execution context
 
     Returns:
@@ -294,19 +258,6 @@ async def create_cost_element(
     Raises:
         ValueError: If invalid input or duplicate code
         KeyError: If parent WBE or type not found
-
-    Example:
-        >>> result = await create_cost_element(
-        ...     wbe_id="...",
-        ...     cost_element_type_id="...",
-        ...     code="CE-001",
-        ...     name="Mechanical Assembly",
-        ...     budget_amount=50000.00,
-        ...     start_date="2026-05-01",
-        ...     end_date="2026-09-30",
-        ...     progression_type="LINEAR"
-        ... )
-        >>> print(f"Created cost element with ID: {result['id']}")
     """
     try:
         from datetime import datetime
@@ -318,7 +269,7 @@ async def create_cost_element(
 
         service = CostElementService(context.session)
 
-        # Dedup check: prevent creating duplicate cost elements with same code in same WBE
+        # Dedup check: prevent duplicate code in same WBE
         from typing import cast
 
         dedup_stmt = (
@@ -408,8 +359,7 @@ async def create_cost_element(
 
 @ai_tool(
     name="update_cost_element",
-    description="Update an existing cost element with new information. "
-    "Only updates fields that are provided. Supports branch isolation.",
+    description="Update cost element and/or its schedule baseline.",
     permissions=["cost-element-update"],
     category="cost-elements",
     risk_level=RiskLevel.HIGH,
@@ -421,11 +371,15 @@ async def update_cost_element(
     budget_amount: float | None = None,
     description: str | None = None,
     cost_element_type_id: str | None = None,
+    schedule_start_date: str | None = None,
+    schedule_end_date: str | None = None,
+    schedule_progression_type: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Update an existing cost element.
+    """Update an existing cost element and optionally its schedule baseline.
 
-    Context: Provides database session and cost element service for updating cost elements.
+    Only updates fields that are provided. If schedule_* params are provided,
+    also updates the associated schedule baseline.
 
     Args:
         cost_element_id: UUID of the cost element to update
@@ -434,6 +388,9 @@ async def update_cost_element(
         budget_amount: New budget amount (optional)
         description: New description (optional)
         cost_element_type_id: New cost element type ID (optional)
+        schedule_start_date: New schedule start date ISO format (optional)
+        schedule_end_date: New schedule end date ISO format (optional)
+        schedule_progression_type: New progression type (optional)
         context: Injected tool execution context
 
     Returns:
@@ -442,14 +399,6 @@ async def update_cost_element(
     Raises:
         ValueError: If cost_element_id is invalid or no fields provided
         KeyError: If cost element not found
-
-    Example:
-        >>> result = await update_cost_element(
-        ...     cost_element_id="...",
-        ...     budget_amount=60000.00,
-        ...     name="Updated Name"
-        ... )
-        >>> print(f"Updated cost element budget to: ${result['budget_amount']}")
     """
     try:
         from app.services.cost_element_service import CostElementService
@@ -475,8 +424,7 @@ async def update_cost_element(
             actor_id=UUID(context.user_id),
         )
 
-        # Convert to AI-friendly format
-        return {
+        result: dict[str, Any] = {
             "id": str(cost_element.cost_element_id),
             "code": cost_element.code,
             "name": cost_element.name,
@@ -488,6 +436,62 @@ async def update_cost_element(
             "cost_element_type_id": str(cost_element.cost_element_type_id),
             "branch": cost_element.branch,
         }
+
+        # Optionally update schedule baseline
+        if any([schedule_start_date, schedule_end_date, schedule_progression_type]):
+            from datetime import datetime
+
+            from app.services.schedule_baseline_service import (
+                ScheduleBaselineService,
+            )
+
+            sb_service = ScheduleBaselineService(context.session)
+
+            # Get the current schedule baseline for this cost element
+            baseline = await sb_service.get_for_cost_element(
+                UUID(cost_element_id),
+                branch=context.branch_name or "main",
+            )
+
+            if baseline:
+                sb_update_data = ScheduleBaselineUpdate(
+                    start_date=datetime.fromisoformat(schedule_start_date)
+                    if schedule_start_date
+                    else None,
+                    end_date=datetime.fromisoformat(schedule_end_date)
+                    if schedule_end_date
+                    else None,
+                    progression_type=schedule_progression_type,
+                    branch=context.branch_name or "main",
+                )
+
+                updated_baseline = await sb_service.update_schedule_baseline(
+                    root_id=baseline.schedule_baseline_id,
+                    baseline_in=sb_update_data,
+                    actor_id=UUID(context.user_id),
+                    branch=context.branch_name or "main",
+                )
+
+                result["schedule_baseline"] = {
+                    "id": str(updated_baseline.schedule_baseline_id),
+                    "name": updated_baseline.name,
+                    "start_date": updated_baseline.start_date.isoformat()
+                    if updated_baseline.start_date
+                    else None,
+                    "end_date": updated_baseline.end_date.isoformat()
+                    if updated_baseline.end_date
+                    else None,
+                    "progression_type": updated_baseline.progression_type,
+                    "description": updated_baseline.description,
+                    "branch": updated_baseline.branch,
+                }
+            else:
+                result["schedule_baseline_warning"] = (
+                    "Schedule baseline not found for this cost element; "
+                    "schedule update skipped"
+                )
+
+        return result
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except KeyError:
@@ -499,8 +503,7 @@ async def update_cost_element(
 
 @ai_tool(
     name="delete_cost_element",
-    description="Soft delete a cost element. "
-    "Cascades the delete to the associated schedule baseline and forecast.",
+    description="Delete cost element (cascades to schedule baseline and forecast).",
     permissions=["cost-element-delete"],
     category="cost-elements",
     risk_level=RiskLevel.CRITICAL,
@@ -511,7 +514,7 @@ async def delete_cost_element(
 ) -> dict[str, Any]:
     """Soft delete a cost element.
 
-    Context: Provides database session and cost element service for deletion.
+    Cascades the delete to the associated schedule baseline and forecast.
 
     Args:
         cost_element_id: UUID of the cost element to delete
@@ -523,10 +526,6 @@ async def delete_cost_element(
     Raises:
         ValueError: If cost_element_id is invalid
         KeyError: If cost element not found
-
-    Example:
-        >>> result = await delete_cost_element("...")
-        >>> print(f"Deleted cost element: {result['id']}")
     """
     try:
         from app.services.cost_element_service import CostElementService
@@ -554,256 +553,34 @@ async def delete_cost_element(
 
 
 # =============================================================================
-# SCHEDULE BASELINE CRUD TOOLS
+# COST ELEMENT TYPE TOOLS
 # =============================================================================
 
 
 @ai_tool(
-    name="get_schedule_baseline",
-    description="Get the schedule baseline for a specific cost element. "
-    "Schedule baselines define the time-phased budget curve for EVM calculations.",
-    permissions=["schedule-baseline-read"],
-    category="schedule-baselines",
-    risk_level=RiskLevel.LOW,
-)
-async def get_schedule_baseline(
-    cost_element_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get schedule baseline for a cost element.
-
-    Context: Provides database session and schedule baseline service for retrieving baseline data.
-
-    Args:
-        cost_element_id: UUID of the cost element
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with schedule baseline details or error if not found
-
-    Raises:
-        ValueError: If cost_element_id is not a valid UUID format
-
-    Example:
-        >>> result = await get_schedule_baseline("...")
-        >>> if "error" not in result:
-        ...     print(f"Baseline: {result['name']}")
-        ...     print(f"Progression: {result['progression_type']}")
-    """
-    try:
-        from app.services.schedule_baseline_service import ScheduleBaselineService
-
-        service = ScheduleBaselineService(context.session)
-
-        # Call service method to get baseline for cost element
-        baseline = await service.get_for_cost_element(
-            UUID(cost_element_id), branch=context.branch_name or "main"
-        )
-
-        if not baseline:
-            return {
-                "error": f"Schedule baseline for cost element {cost_element_id} not found"
-            }
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(baseline.schedule_baseline_id),
-            "name": baseline.name,
-            "cost_element_id": str(baseline.cost_element_id)
-            if baseline.cost_element_id
-            else None,
-            "start_date": baseline.start_date.isoformat()
-            if baseline.start_date
-            else None,
-            "end_date": baseline.end_date.isoformat() if baseline.end_date else None,
-            "progression_type": baseline.progression_type,
-            "description": baseline.description,
-            "branch": baseline.branch,
-        }
-    except ValueError:
-        return {"error": f"Invalid cost element ID: {cost_element_id}"}
-    except Exception as e:
-        logger.error(f"Error in get_schedule_baseline: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
-    name="update_schedule_baseline",
-    description="Update an existing schedule baseline with new schedule information. "
-    "Supports different progression types for budget distribution.",
-    permissions=["schedule-baseline-update"],
-    category="schedule-baselines",
-    risk_level=RiskLevel.HIGH,
-)
-async def update_schedule_baseline(
-    schedule_baseline_id: str,
-    name: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    progression_type: str | None = None,
-    description: str | None = None,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Update an existing schedule baseline.
-
-    Context: Provides database session and schedule baseline service for updating baselines.
-
-    Args:
-        schedule_baseline_id: UUID of the schedule baseline to update
-        name: New name (optional)
-        start_date: New start date ISO format (optional)
-        end_date: New end date ISO format (optional)
-        progression_type: New progression type (LINEAR, GAUSSIAN, LOGARITHMIC)
-        description: New description (optional)
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with updated schedule baseline details
-
-    Raises:
-        ValueError: If schedule_baseline_id is invalid or date format is wrong
-        KeyError: If schedule baseline not found
-
-    Example:
-        >>> result = await update_schedule_baseline(
-        ...     schedule_baseline_id="...",
-        ...     progression_type="GAUSSIAN",
-        ...     end_date="2026-12-31T23:59:59"
-        ... )
-        >>> print(f"Updated baseline progression: {result['progression_type']}")
-    """
-    try:
-        from datetime import datetime
-
-        from app.services.schedule_baseline_service import ScheduleBaselineService
-
-        service = ScheduleBaselineService(context.session)
-
-        # Create update schema with only provided fields
-        update_data = ScheduleBaselineUpdate(
-            name=name,
-            start_date=datetime.fromisoformat(start_date) if start_date else None,
-            end_date=datetime.fromisoformat(end_date) if end_date else None,
-            progression_type=progression_type,
-            description=description,
-            branch=context.branch_name or "main",
-        )
-
-        # Call service method
-        baseline = await service.update_schedule_baseline(
-            root_id=UUID(schedule_baseline_id),
-            baseline_in=update_data,
-            actor_id=UUID(context.user_id),
-            branch=context.branch_name or "main",
-        )
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(baseline.schedule_baseline_id),
-            "name": baseline.name,
-            "cost_element_id": str(baseline.cost_element_id)
-            if baseline.cost_element_id
-            else None,
-            "start_date": baseline.start_date.isoformat()
-            if baseline.start_date
-            else None,
-            "end_date": baseline.end_date.isoformat() if baseline.end_date else None,
-            "progression_type": baseline.progression_type,
-            "description": baseline.description,
-            "branch": baseline.branch,
-        }
-    except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
-    except KeyError:
-        return {"error": f"Schedule baseline {schedule_baseline_id} not found"}
-    except Exception as e:
-        logger.error(f"Error in update_schedule_baseline: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
-    name="delete_schedule_baseline",
-    description="Soft delete a schedule baseline. "
-    "Note: This is usually called automatically when deleting the associated cost element.",
-    permissions=["schedule-baseline-delete"],
-    category="schedule-baselines",
-    risk_level=RiskLevel.CRITICAL,
-)
-async def delete_schedule_baseline(
-    schedule_baseline_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Soft delete a schedule baseline.
-
-    Context: Provides database session and schedule baseline service for deletion.
-
-    Args:
-        schedule_baseline_id: UUID of the schedule baseline to delete
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with deletion confirmation
-
-    Raises:
-        ValueError: If schedule_baseline_id is invalid
-        KeyError: If schedule baseline not found
-
-    Example:
-        >>> result = await delete_schedule_baseline("...")
-        >>> print(f"Deleted schedule baseline: {result['id']}")
-    """
-    try:
-        from app.services.schedule_baseline_service import ScheduleBaselineService
-
-        service = ScheduleBaselineService(context.session)
-
-        # Call service method
-        await service.soft_delete(
-            root_id=UUID(schedule_baseline_id),
-            actor_id=UUID(context.user_id),
-            branch=context.branch_name or "main",
-        )
-
-        return {
-            "id": schedule_baseline_id,
-            "message": "Schedule baseline deleted",
-        }
-    except ValueError:
-        return {"error": f"Invalid schedule baseline ID: {schedule_baseline_id}"}
-    except KeyError:
-        return {"error": f"Schedule baseline {schedule_baseline_id} not found"}
-    except Exception as e:
-        logger.error(f"Error in delete_schedule_baseline: {e}")
-        return {"error": str(e)}
-
-
-# =============================================================================
-# COST ELEMENT TYPE CRUD TOOLS
-# =============================================================================
-
-
-@ai_tool(
-    name="list_cost_element_types",
-    description="List all cost element types with optional department filter, "
-    "search and pagination. Returns types with their codes and departments.",
+    name="find_cost_element_types",
+    description="Find cost element types by ID or search/filter.",
     permissions=["cost-element-type-read"],
     category="cost-element-types",
     risk_level=RiskLevel.LOW,
 )
-async def list_cost_element_types(
+async def find_cost_element_types(
+    cost_element_type_id: str | None = None,
     department_id: str | None = None,
     search: str | None = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 50,
     sort_field: str | None = None,
     sort_order: str = "asc",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List cost element types with optional filtering.
+    """Find cost element types by ID or search/filter.
 
-    Context: Provides database session and cost element type service for querying types.
+    If cost_element_type_id is provided, returns a single type. Otherwise
+    returns a filtered list.
 
     Args:
+        cost_element_type_id: Optional UUID to fetch a single cost element type
         department_id: Optional department ID to filter cost element types
         search: Optional search term for code or name
         skip: Number of records to skip for pagination
@@ -813,36 +590,38 @@ async def list_cost_element_types(
         context: Injected tool execution context
 
     Returns:
-        Dictionary with:
-        - cost_element_types: List of cost element type objects
-        - total: Total number of types matching filters
-        - skip: Number of records skipped
-        - limit: Maximum records returned
+        Dictionary with cost element type details or list with pagination info
 
     Raises:
         ValueError: If invalid filter parameters
-
-    Example:
-        >>> result = await list_cost_element_types(
-        ...     department_id="...",
-        ...     search="Labor",
-        ...     limit=10
-        ... )
-        >>> print(f"Found {result['total']} cost element types")
-        >>> for cet in result['cost_element_types']:
-        ...     print(f"- {cet['name']} ({cet['code']})")
     """
     try:
         from app.services.cost_element_type_service import CostElementTypeService
 
         service = CostElementTypeService(context.session)
 
-        # Build filters dict
-        filters = {}
+        # Single type lookup by ID
+        if cost_element_type_id:
+            cost_element_type = await service.get_by_id(UUID(cost_element_type_id))
+
+            if not cost_element_type:
+                return {
+                    "error": f"Cost element type {cost_element_type_id} not found"
+                }
+
+            return {
+                "id": str(cost_element_type.cost_element_type_id),
+                "code": cost_element_type.code,
+                "name": cost_element_type.name,
+                "description": cost_element_type.description,
+                "department_id": str(cost_element_type.department_id),
+            }
+
+        # List mode with filters
+        filters: dict[str, Any] = {}
         if department_id:
             filters["department_id"] = UUID(department_id)
 
-        # Call service method
         types, total = await service.get_cost_element_types(
             filters=filters if filters else None,
             search=search,
@@ -852,7 +631,6 @@ async def list_cost_element_types(
             sort_order=sort_order,
         )
 
-        # Convert to AI-friendly format
         return {
             "cost_element_types": [
                 {
@@ -868,74 +646,16 @@ async def list_cost_element_types(
             "skip": skip,
             "limit": limit,
         }
-    except Exception as e:
-        logger.error(f"Error in list_cost_element_types: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
-    name="get_cost_element_type",
-    description="Get detailed information about a specific cost element type by ID. "
-    "Returns full type details including department information.",
-    permissions=["cost-element-type-read"],
-    category="cost-element-types",
-    risk_level=RiskLevel.LOW,
-)
-async def get_cost_element_type(
-    cost_element_type_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single cost element type by ID.
-
-    Context: Provides database session and cost element type service for retrieving type data.
-
-    Args:
-        cost_element_type_id: UUID of the cost element type to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with cost element type details or error if not found
-
-    Raises:
-        ValueError: If cost_element_type_id is not a valid UUID format
-        KeyError: If cost element type is not found
-
-    Example:
-        >>> result = await get_cost_element_type("123e4567-e89b-12d3-a456-426614174000")
-        >>> if "error" not in result:
-        ...     print(f"Cost Element Type: {result['name']}")
-        ...     print(f"Code: {result['code']}")
-    """
-    try:
-        from app.services.cost_element_type_service import CostElementTypeService
-
-        service = CostElementTypeService(context.session)
-
-        # Call service method
-        cost_element_type = await service.get_as_of(UUID(cost_element_type_id))
-
-        if not cost_element_type:
-            return {"error": f"Cost element type {cost_element_type_id} not found"}
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(cost_element_type.cost_element_type_id),
-            "code": cost_element_type.code,
-            "name": cost_element_type.name,
-            "description": cost_element_type.description,
-            "department_id": str(cost_element_type.department_id),
-        }
     except ValueError:
         return {"error": f"Invalid cost element type ID: {cost_element_type_id}"}
     except Exception as e:
-        logger.error(f"Error in get_cost_element_type: {e}")
+        logger.error(f"Error in find_cost_element_types: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
     name="create_cost_element_type",
-    description="Create a new cost element type under a department. "
-    "Cost element types are standardized cost categories owned by departments.",
+    description="Create cost element type under a department.",
     permissions=["cost-element-type-create"],
     category="cost-element-types",
     risk_level=RiskLevel.HIGH,
@@ -948,8 +668,6 @@ async def create_cost_element_type(
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new cost element type.
-
-    Context: Provides database session and cost element type service for creating types.
 
     Args:
         code: Unique cost element type code
@@ -964,15 +682,6 @@ async def create_cost_element_type(
     Raises:
         ValueError: If invalid input or duplicate code
         KeyError: If department not found
-
-    Example:
-        >>> result = await create_cost_element_type(
-        ...     code="LABOR",
-        ...     name="Labor",
-        ...     department_id="...",
-        ...     description="Labor costs"
-        ... )
-        >>> print(f"Created cost element type with ID: {result['id']}")
     """
     try:
         from app.services.cost_element_type_service import CostElementTypeService
@@ -1013,8 +722,7 @@ async def create_cost_element_type(
 
 @ai_tool(
     name="update_cost_element_type",
-    description="Update an existing cost element type with new information. "
-    "Only updates fields that are provided.",
+    description="Update cost element type.",
     permissions=["cost-element-type-update"],
     category="cost-element-types",
     risk_level=RiskLevel.HIGH,
@@ -1029,7 +737,7 @@ async def update_cost_element_type(
 ) -> dict[str, Any]:
     """Update an existing cost element type.
 
-    Context: Provides database session and cost element type service for updating types.
+    Only updates fields that are provided.
 
     Args:
         cost_element_type_id: UUID of the cost element type to update
@@ -1045,14 +753,6 @@ async def update_cost_element_type(
     Raises:
         ValueError: If cost_element_type_id is invalid or no fields provided
         KeyError: If cost element type not found
-
-    Example:
-        >>> result = await update_cost_element_type(
-        ...     cost_element_type_id="...",
-        ...     name="Updated Name",
-        ...     description="Updated description"
-        ... )
-        >>> print(f"Updated cost element type: {result['name']}")
     """
     try:
         from app.services.cost_element_type_service import CostElementTypeService
@@ -1060,7 +760,6 @@ async def update_cost_element_type(
         service = CostElementTypeService(context.session)
 
         # Build update data dict - only include non-None fields
-        # This prevents setting optional fields to None when not provided
         update_kwargs: dict[str, str | UUID] = {}
         if code is not None:
             update_kwargs["code"] = code
@@ -1101,8 +800,7 @@ async def update_cost_element_type(
 
 @ai_tool(
     name="delete_cost_element_type",
-    description="Soft delete a cost element type. "
-    "The type is marked as deleted but remains in the system for audit purposes.",
+    description="Delete cost element type.",
     permissions=["cost-element-type-delete"],
     category="cost-element-types",
     risk_level=RiskLevel.CRITICAL,
@@ -1112,8 +810,6 @@ async def delete_cost_element_type(
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Soft delete a cost element type.
-
-    Context: Provides database session and cost element type service for deletion.
 
     Args:
         cost_element_type_id: UUID of the cost element type to delete
@@ -1125,10 +821,6 @@ async def delete_cost_element_type(
     Raises:
         ValueError: If cost_element_type_id is invalid
         KeyError: If cost element type not found
-
-    Example:
-        >>> result = await delete_cost_element_type("...")
-        >>> print(f"Deleted cost element type: {result['id']}")
     """
     try:
         from app.services.cost_element_type_service import CostElementTypeService
@@ -1155,46 +847,547 @@ async def delete_cost_element_type(
 
 
 # =============================================================================
-# TEMPLATE USAGE NOTES
+# BATCH COST ELEMENT TOOLS
 # =============================================================================
 
-"""
-COST ELEMENT TOOL PATTERNS:
 
-1. CREATION FLOW:
-   - Cost Elements require wbe_id and cost_element_type_id
-   - Auto-creates Schedule Baseline (default schedule)
-   - Auto-creates Forecast (default forecast)
-   - All created in the same branch
+@ai_tool(
+    name="batch_create_cost_elements",
+    description="Batch create multiple cost elements under the same WBE. "
+    "All items share the parent wbe_id and optional schedule dates/progression type. "
+    "Each item provides its own code, name, budget_amount, cost_element_type_id, and "
+    "optional description. Pre-validates all codes for duplicates before creating any. "
+    "Maximum 50 items per batch.",
+    permissions=["cost-element-create"],
+    category="cost-elements",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_cost_elements(
+    wbe_id: str,
+    items: list[dict[str, Any]],
+    start_date: str | None = None,
+    end_date: str | None = None,
+    progression_type: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create cost elements under the same WBE.
 
-2. UPDATE FLOW:
-   - Supports branch isolation
-   - Can fork from main if updating in different branch
-   - Auto-creates new Schedule Baseline and Forecast for new branch
+    Args:
+        wbe_id: UUID of the parent WBE
+        items: List of dicts, each with {code, name, budget_amount, cost_element_type_id, description?}
+        start_date: Optional shared schedule start date (ISO format)
+        end_date: Optional shared schedule end date (ISO format)
+        progression_type: Optional shared progression type (LINEAR, GAUSSIAN, LOGARITHMIC)
+        context: Injected tool execution context
 
-3. DELETE FLOW:
-   - Soft delete (cascades to Schedule Baseline and Forecast)
-   - Maintains audit trail
-   - Branch-aware deletion
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    log_temporal_context("batch_create_cost_elements", context)
 
-4. SCHEDULE BASELINE RELATIONSHIP:
-   - 1:1 relationship with Cost Elements
-   - Use get_for_cost_element() to retrieve baseline
-   - Used in EVM Planned Value (PV) calculations
-   - Supports different progression types
+    try:
+        from datetime import datetime
+        from typing import cast
+        from uuid import UUID
 
-PERMISSIONS MODEL:
-   - cost-element-read: View cost elements
-   - cost-element-create: Create cost elements
-   - cost-element-update: Update cost elements
-   - cost-element-delete: Delete cost elements
-   - schedule-baseline-read: View schedule baselines
-   - schedule-baseline-update: Update schedule baselines
-   - schedule-baseline-delete: Delete schedule baselines
+        from sqlalchemy import func, select
 
-BEST PRACTICES:
-   - Always create cost elements under valid WBEs
-   - Verify cost element type exists before creation
-   - Use appropriate progression types for schedules
-   - Schedule baselines are auto-managed with cost elements
-"""
+        from app.models.domain.cost_element import CostElement as CostElementModel
+        from app.models.schemas.cost_element import CostElementCreate
+        from app.services.cost_element_service import CostElementService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("code"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'code'"},
+                    context,
+                )
+            if not item.get("name"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'name'"},
+                    context,
+                )
+            if item.get("budget_amount") is None:
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'budget_amount'"
+                    },
+                    context,
+                )
+            if not item.get("cost_element_type_id"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'cost_element_type_id'"
+                    },
+                    context,
+                )
+
+        # Check for duplicate codes within the batch
+        codes = [it["code"] for it in items]
+        if len(codes) != len(set(codes)):
+            dupes = {c for c in codes if codes.count(c) > 1}
+            return add_temporal_metadata(
+                {"error": f"Duplicate codes in batch: {dupes}"}, context
+            )
+
+        # Check for duplicates in the database (single query)
+        branch = context.branch_name or "main"
+        dedup_stmt = select(
+            CostElementModel.cost_element_id, CostElementModel.code
+        ).where(
+            CostElementModel.code.in_(codes),
+            CostElementModel.wbe_id == UUID(wbe_id),
+            CostElementModel.branch == branch,
+            func.upper(cast(Any, CostElementModel).valid_time).is_(None),
+            cast(Any, CostElementModel).deleted_at.is_(None),
+        )
+        dedup_result = await context.session.execute(dedup_stmt)
+        existing_rows = dedup_result.all()
+        if existing_rows:
+            existing_codes = {row.code for row in existing_rows}
+            return add_temporal_metadata(
+                {
+                    "error": f"Cost elements with codes already exist under this WBE: {existing_codes}. "
+                    "Use a different code or update the existing cost elements.",
+                    "existing_codes": list(existing_codes),
+                },
+                context,
+            )
+
+        # Parse shared schedule dates
+        schedule_start = datetime.fromisoformat(start_date) if start_date else None
+        schedule_end = datetime.fromisoformat(end_date) if end_date else None
+
+        service = CostElementService(context.session)
+        actor_id = UUID(context.user_id)
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            ce_data = CostElementCreate(
+                wbe_id=UUID(wbe_id),
+                cost_element_type_id=UUID(item["cost_element_type_id"]),
+                code=item["code"],
+                name=item["name"],
+                budget_amount=item["budget_amount"],
+                description=item.get("description"),
+                branch=branch,
+                schedule_start_date=schedule_start,
+                schedule_end_date=schedule_end,
+                schedule_progression_type=progression_type,
+            )
+            cost_element = await service.create_cost_element(
+                element_in=ce_data,
+                actor_id=actor_id,
+            )
+            results.append(
+                {
+                    "id": str(cost_element.cost_element_id),
+                    "code": cost_element.code,
+                    "name": cost_element.name,
+                    "budget_amount": float(cost_element.budget_amount)
+                    if cost_element.budget_amount
+                    else None,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} cost elements under WBE {wbe_id}",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata(
+            {"error": f"Parent entity not found: {e}"}, context
+        )
+    except Exception as e:
+        logger.error(f"Error in batch_create_cost_elements: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="batch_update_cost_elements",
+    description="Batch update multiple cost elements. Each item must include cost_element_id "
+    "and any fields to update (code, name, budget_amount, description, cost_element_type_id). "
+    "Maximum 50 items per batch.",
+    permissions=["cost-element-update"],
+    category="cost-elements",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_update_cost_elements(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch update cost elements.
+
+    Args:
+        items: List of dicts, each with {cost_element_id, code?, name?, budget_amount?, description?, cost_element_type_id?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with updated items list, total count, and message
+    """
+    log_temporal_context("batch_update_cost_elements", context)
+
+    try:
+        from uuid import UUID
+
+        from app.models.schemas.cost_element import CostElementUpdate
+        from app.services.cost_element_service import CostElementService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate cost_element_id on each item
+        for i, item in enumerate(items):
+            if not item.get("cost_element_id"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'cost_element_id'"
+                    },
+                    context,
+                )
+
+        service = CostElementService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            update_kwargs: dict[str, Any] = {"branch": branch}
+            if "code" in item and item["code"] is not None:
+                update_kwargs["code"] = item["code"]
+            if "name" in item and item["name"] is not None:
+                update_kwargs["name"] = item["name"]
+            if "budget_amount" in item and item["budget_amount"] is not None:
+                update_kwargs["budget_amount"] = item["budget_amount"]
+            if "description" in item and item["description"] is not None:
+                update_kwargs["description"] = item["description"]
+            if (
+                "cost_element_type_id" in item
+                and item["cost_element_type_id"] is not None
+            ):
+                update_kwargs["cost_element_type_id"] = UUID(
+                    item["cost_element_type_id"]
+                )
+
+            update_data = CostElementUpdate(**update_kwargs)
+
+            cost_element = await service.update(
+                cost_element_id=UUID(item["cost_element_id"]),
+                element_in=update_data,
+                actor_id=actor_id,
+            )
+            results.append(
+                {
+                    "id": str(cost_element.cost_element_id),
+                    "code": cost_element.code,
+                    "name": cost_element.name,
+                    "budget_amount": float(cost_element.budget_amount)
+                    if cost_element.budget_amount
+                    else None,
+                }
+            )
+
+        result = {
+            "updated": results,
+            "total": len(results),
+            "message": f"Updated {len(results)} cost elements",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata({"error": f"Cost element not found: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_update_cost_elements: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="batch_delete_cost_elements",
+    description="Batch soft delete multiple cost elements. "
+    "Cascades the delete to associated schedule baselines and forecasts. "
+    "This is a destructive operation requiring expert execution mode. "
+    "Maximum 50 items per batch.",
+    permissions=["cost-element-delete"],
+    category="cost-elements",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def batch_delete_cost_elements(
+    cost_element_ids: list[str],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch soft delete cost elements.
+
+    Args:
+        cost_element_ids: List of cost element UUIDs to delete
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with deleted IDs list, total count, and message
+    """
+    log_temporal_context("batch_delete_cost_elements", context)
+
+    try:
+        from uuid import UUID
+
+        from app.services.cost_element_service import CostElementService
+
+        if len(cost_element_ids) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not cost_element_ids:
+            return add_temporal_metadata(
+                {"error": "No cost element IDs provided"}, context
+            )
+
+        service = CostElementService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        deleted_ids: list[str] = []
+
+        for ce_id in cost_element_ids:
+            await service.soft_delete(
+                cost_element_id=UUID(ce_id),
+                actor_id=actor_id,
+                branch=branch,
+            )
+            deleted_ids.append(ce_id)
+
+        result = {
+            "deleted": deleted_ids,
+            "total": len(deleted_ids),
+            "message": f"Soft deleted {len(deleted_ids)} cost elements "
+            "(schedule baselines and forecasts also deleted)",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata({"error": f"Cost element not found: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_delete_cost_elements: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="get_budget_status_batch",
+    description="Get budget status for multiple cost elements in a single call. "
+    "Returns budget, used, remaining, and percentage for each cost element. "
+    "Maximum 50 items per batch.",
+    permissions=["cost-element-read"],
+    category="cost-registration",
+    risk_level=RiskLevel.LOW,
+)
+async def get_budget_status_batch(
+    cost_element_ids: list[str],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch get budget status for cost elements.
+
+    Args:
+        cost_element_ids: List of cost element UUIDs
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with budget statuses list and total count
+    """
+    log_temporal_context("get_budget_status_batch", context)
+
+    try:
+        from uuid import UUID
+
+        from app.services.cost_registration_service import CostRegistrationService
+
+        if len(cost_element_ids) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not cost_element_ids:
+            return add_temporal_metadata(
+                {"error": "No cost element IDs provided"}, context
+            )
+
+        service = CostRegistrationService(context.session)
+        branch = context.branch_name or "main"
+        statuses: list[dict[str, Any]] = []
+
+        for ce_id in cost_element_ids:
+            status = await service.get_budget_status(
+                cost_element_id=UUID(ce_id),
+                as_of=context.as_of,
+                branch=branch,
+            )
+            statuses.append(
+                {
+                    "cost_element_id": str(status.cost_element_id),
+                    "budget": float(status.budget),
+                    "used": float(status.used),
+                    "remaining": float(status.remaining),
+                    "percentage": float(status.percentage),
+                }
+            )
+
+        result = {
+            "statuses": statuses,
+            "total": len(statuses),
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata({"error": f"Cost element not found: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in get_budget_status_batch: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="get_cost_element_summaries",
+    description="Get comprehensive summaries for multiple cost elements in a single call. "
+    "Each summary includes forecast data, budget status, and latest progress. "
+    "Aggregates data from ForecastService, CostRegistrationService, and ProgressEntryService. "
+    "Maximum 50 items per batch.",
+    permissions=["forecast-read", "cost-registration-read", "progress-entry-read"],
+    category="summary",
+    risk_level=RiskLevel.LOW,
+)
+async def get_cost_element_summaries(
+    cost_element_ids: list[str],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch get comprehensive summaries for cost elements.
+
+    Args:
+        cost_element_ids: List of cost element UUIDs
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with summaries list and total count
+    """
+    log_temporal_context("get_cost_element_summaries", context)
+
+    try:
+        from uuid import UUID
+
+        from app.services.cost_registration_service import CostRegistrationService
+        from app.services.forecast_service import ForecastService
+        from app.services.progress_entry_service import ProgressEntryService
+
+        if len(cost_element_ids) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not cost_element_ids:
+            return add_temporal_metadata(
+                {"error": "No cost element IDs provided"}, context
+            )
+
+        forecast_service = ForecastService(context.session)
+        cost_service = CostRegistrationService(context.session)
+        progress_service = ProgressEntryService(context.session)
+        branch = context.branch_name or "main"
+
+        summaries: list[dict[str, Any]] = []
+
+        for ce_id in cost_element_ids:
+            try:
+                ce_uuid = UUID(ce_id)
+            except ValueError:
+                summaries.append({"cost_element_id": ce_id, "error": "Invalid UUID"})
+                continue
+
+            summary: dict[str, Any] = {"cost_element_id": ce_id}
+
+            # Get forecast data
+            try:
+                forecast = await forecast_service.get_for_cost_element(
+                    cost_element_id=ce_uuid,
+                    branch=branch,
+                )
+                if forecast:
+                    summary["forecast"] = {
+                        "id": str(forecast.forecast_id),
+                        "eac_amount": float(forecast.eac_amount)
+                        if forecast.eac_amount
+                        else None,
+                        "basis_of_estimate": forecast.basis_of_estimate,
+                        "branch": forecast.branch,
+                    }
+                else:
+                    summary["forecast"] = None
+            except Exception:
+                summary["forecast"] = None
+
+            # Get budget status
+            try:
+                budget_status = await cost_service.get_budget_status(
+                    cost_element_id=ce_uuid,
+                    as_of=context.as_of,
+                    branch=branch,
+                )
+                summary["budget_status"] = {
+                    "budget": float(budget_status.budget),
+                    "used": float(budget_status.used),
+                    "remaining": float(budget_status.remaining),
+                    "percentage": float(budget_status.percentage),
+                }
+            except Exception:
+                summary["budget_status"] = None
+
+            # Get latest progress
+            try:
+                progress = await progress_service.get_latest_progress(
+                    cost_element_id=ce_uuid,
+                    as_of=context.as_of,
+                )
+                if progress:
+                    summary["progress"] = {
+                        "progress_entry_id": str(progress.progress_entry_id),
+                        "progress_percentage": float(progress.progress_percentage)
+                        if progress.progress_percentage
+                        else None,
+                        "notes": progress.notes,
+                    }
+                else:
+                    summary["progress"] = None
+            except Exception:
+                summary["progress"] = None
+
+            summaries.append(summary)
+
+        result = {
+            "summaries": summaries,
+            "total": len(summaries),
+            "message": f"Retrieved summaries for {len(summaries)} cost elements",
+        }
+        return add_temporal_metadata(result, context)
+    except Exception as e:
+        logger.error(f"Error in get_cost_element_summaries: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)

@@ -360,7 +360,7 @@ async def list_ai_tools() -> list[AIToolPublic]:
     registry.discover_and_register("app.ai.tools.temporal_tools")
     registry.discover_and_register("app.ai.tools.templates.analysis_template")
     registry.discover_and_register("app.ai.tools.templates.change_order_template")
-    registry.discover_and_register("app.ai.tools.templates.crud_template")
+    registry.discover_and_register("app.ai.tools.templates.project_template")
     registry.discover_and_register("app.ai.tools.templates.cost_element_template")
     registry.discover_and_register("app.ai.tools.templates.user_management_template")
     registry.discover_and_register("app.ai.tools.templates.advanced_analysis_template")
@@ -368,7 +368,6 @@ async def list_ai_tools() -> list[AIToolPublic]:
     registry.discover_and_register(
         "app.ai.tools.templates.forecast_cost_progress_template"
     )
-    registry.discover_and_register("app.ai.tools.templates.batch_tools_template")
     registry.discover_and_register("app.ai.tools.templates.work_package_template")
     registry.discover_and_register("app.ai.tools.templates.package_type_template")
     registry.discover_and_register("app.ai.tools.document_tools")

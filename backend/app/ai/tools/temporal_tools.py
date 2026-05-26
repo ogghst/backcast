@@ -19,16 +19,7 @@ from app.services.branch_service import BranchService
 
 @ai_tool(
     name="get_temporal_context",
-    description="Returns the current temporal context for the session. "
-    "This provides READ-ONLY information about the temporal view: "
-    "as_of date (timestamp for time-travel queries, null = current time), "
-    "current_date (human-readable date: 'Sunday, June 15, 2025 at 12:30 PM'), "
-    "branch_name (the branch being queried), "
-    "branch_mode (how branch data is combined: 'merged' or 'isolated'). "
-    "The 'as_of' date represents YOUR CURRENT DATE as the AI agent - use this "
-    "to answer questions like 'what is the current day' or 'what month is it'. "
-    "NOTE: This is informational only. To change temporal context, "
-    "use the set_temporal_context tool.",
+    description="Read current temporal context (date, branch, mode).",
     permissions=[],  # No special permissions required
     category="temporal",
     risk_level=RiskLevel.LOW,
@@ -85,11 +76,7 @@ async def get_temporal_context(
 
 @ai_tool(
     name="set_temporal_context",
-    description="Change the temporal viewing context for this AI session. "
-    "Use this when the user asks to view data at a different point in time, "
-    "switch to a different branch/change order, or change the branch viewing mode. "
-    "Only the parameters you provide will change; unset parameters remain at their "
-    "current values. Changes take effect for all subsequent tool calls in this conversation.",
+    description="Change temporal context (date, branch, mode).",
     permissions=["temporal-write"],
     category="temporal",
     risk_level=RiskLevel.LOW,

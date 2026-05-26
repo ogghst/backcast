@@ -192,11 +192,12 @@ def ai_tool(
                     pass
                 raise
 
-        # Apply LangChain's @tool decorator with parse_docstring=True
-        # This enables automatic docstring parsing for parameter descriptions
-        # Note: LangChain's tool() decorator returns Any, but we know it's BaseTool
+        # Apply LangChain's @tool decorator with parse_docstring=False
+        # Parameter descriptions are NOT sent to the LLM to reduce token usage.
+        # Use the @ai_tool description parameter for the LLM-facing description.
+        # Keep function docstrings for developer documentation only.
         langchain_tool_instance: BaseTool = tool(
-            parse_docstring=True,
+            parse_docstring=False,
             description=tool_description,
         )(wrapped_with_context)
 

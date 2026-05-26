@@ -427,8 +427,6 @@ class TestToolFilteringByAssistantRole:
             "delete_cost_registration",
             "create_change_order",
             "update_change_order",
-            "update_schedule_baseline",
-            "delete_schedule_baseline",
             "create_progress_entry",
             "approve_change_order",
             "reject_change_order",
@@ -447,30 +445,23 @@ class TestToolFilteringByAssistantRole:
             "get_project_context",
             "get_project_structure",
             "get_temporal_context",
-            "list_wbes",
-            "get_wbe",
-            "list_cost_elements",
-            "get_cost_element",
-            "list_cost_element_types",
-            "get_cost_element_type",
-            "list_users",
-            "get_user",
-            "list_departments",
-            "get_department",
-            "list_change_orders",
-            "get_change_order",
-            "get_forecast",
-            "list_cost_registrations",
-            "get_cost_registration",
-            "get_budget_status",
-            "get_cost_trends",
-            "get_cumulative_costs",
-            "list_progress_entries",
-            "get_progress_entry",
-            "get_latest_progress",
-            "get_progress_history",
-            "get_schedule_baseline",
-            "get_cost_element_summary",
+            "find_wbes",
+            "find_cost_elements",
+            "find_cost_element_types",
+            "find_users",
+            "find_departments",
+            "find_change_orders",
+            "find_work_packages",
+            "find_package_types",
+            "get_project_analysis",
+            "get_project_forecast",
+            "get_cost_element_details",
+            "get_progress_data",
+            "get_cost_element_summaries",
+            "get_coq_data",
+            "search_documents",
+            "read_document",
+            "generate_mermaid_diagram",
         ]
         for tool_name in read_tools:
             assert tool_name in filtered_names, (
@@ -525,7 +516,6 @@ class TestToolFilteringByAssistantRole:
             "approve_change_order",
             "reject_change_order",
             "create_progress_entry",
-            "update_schedule_baseline",
         ]
         for tool_name in crud_tools:
             assert tool_name in filtered_names, (
@@ -561,7 +551,7 @@ class TestToolFilteringByAssistantRole:
         # Assert: read tools are still present
         assert "list_projects" in filtered_names
         assert "get_project" in filtered_names
-        assert "list_cost_elements" in filtered_names
+        assert "find_cost_elements" in filtered_names
 
     @pytest.mark.asyncio
     async def test_ai_admin_agent_gets_admin_tools(
@@ -588,18 +578,15 @@ class TestToolFilteringByAssistantRole:
 
         # Assert: admin tools ARE present
         admin_tools = [
-            "list_users",
-            "get_user",
+            "find_users",
             "create_user",
             "update_user",
             "delete_user",
-            "list_departments",
-            "get_department",
+            "find_departments",
             "create_department",
             "update_department",
             "delete_department",
-            "list_cost_element_types",
-            "get_cost_element_type",
+            "find_cost_element_types",
             "create_cost_element_type",
             "update_cost_element_type",
             "delete_cost_element_type",

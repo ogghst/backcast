@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="list_projects",
-    description="List all projects in the system with optional search, status filter, and pagination. Respects temporal context (as_of date, branch, branch_mode) for versioned queries.",
+    description="List projects with search, filter, and pagination.",
     permissions=["project-read"],
     category="projects",
     risk_level=RiskLevel.LOW,
@@ -165,7 +165,7 @@ async def list_projects(
 
 @ai_tool(
     name="get_project",
-    description="Get detailed information about a specific project by its ID. Respects temporal context (as_of date, branch, branch_mode) for versioned queries.",
+    description="Get project details by ID.",
     permissions=["project-read"],
     category="projects",
     risk_level=RiskLevel.LOW,
@@ -256,7 +256,7 @@ async def get_project(
 
 @ai_tool(
     name="global_search",
-    description="Search across all entity types (projects, WBEs, cost elements, change orders, etc.) for a given query. Returns a flat ranked list with entity type labels. Respects project scoping from session context.",
+    description="Search across all entity types.",
     permissions=["project-read"],
     category="search",
     risk_level=RiskLevel.LOW,

@@ -51,74 +51,92 @@ logger = logging.getLogger(__name__)
 
 
 @ai_tool(
-    name="list_work_packages",
-    description="List work packages for a project with optional filtering by "
-    "package type, COQ category, or status. Supports any active package type "
-    "configured in the system. "
-    "Temporal context (as_of date) is enforced by the system.",
+    name="find_work_packages",
+    description="Find work packages by ID or search/filter.",
     permissions=["work-package-read"],
     category="work-packages",
     risk_level=RiskLevel.LOW,
 )
-async def list_work_packages(
-    project_id: str,
+async def find_work_packages(
+    work_package_id: str | None = None,
+    project_id: str | None = None,
     package_type: str | None = None,
-    coq_category: str | None = None,
-    status: str | None = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List work packages for a project with optional filtering.
+    """Find work packages by ID or search/filter.
 
     Context: Provides database session and work package service for querying work packages.
 
     Args:
+        work_package_id: UUID of a specific work package to retrieve (returns single)
         project_id: UUID of the project to list work packages for
-        package_type: Optional filter by package type (supports any active package type
-            configured in the system, e.g. quality_impact, site_visit, etc.)
-        coq_category: Optional filter by COQ category (prevention, appraisal,
-            internal_failure, external_failure)
-        status: Optional filter by status (open, closed)
+        package_type: Optional filter by package type
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
         context: Injected tool execution context
 
     Returns:
-        Dictionary with:
-        - work_packages: List of work package objects
-        - total: Total number of work packages matching filters
-        - skip: Number of records skipped
-        - limit: Maximum records returned
-        - _temporal_context: Temporal context metadata (as_of)
+        Single work package dict if work_package_id provided, otherwise list result.
 
     Raises:
-        ValueError: If project_id is not a valid UUID format
-
-    Example:
-        >>> result = await list_work_packages(project_id="...", package_type="quality_impact")
-        >>> print(f"Found {result['total']} work packages")
-        >>> for wp in result['work_packages']:
-        ...     print(f"- {wp['name']}: {wp['package_type']}")
+        ValueError: If IDs are not valid UUID format
     """
-    log_temporal_context("list_work_packages", context)
+    log_temporal_context("find_work_packages", context)
 
     try:
         from app.services.work_package_service import WorkPackageService
 
         service = WorkPackageService(context.session)
 
+        # Single work package lookup
+        if work_package_id:
+            wp = await service.get_by_id(UUID(work_package_id))
+
+            if not wp:
+                return add_temporal_metadata(
+                    {"error": f"Work package {work_package_id} not found"}, context
+                )
+
+            actual_cost = await service.compute_actual_cost(UUID(work_package_id))
+
+            wp_result: dict[str, Any] = {
+                "work_package_id": str(wp.work_package_id),
+                "name": wp.name,
+                "package_type": wp.package_type,
+                "description": wp.description,
+                "status": wp.status,
+                "external_event_id": wp.external_event_id,
+                "event_date": wp.event_date.isoformat() if wp.event_date else None,
+                "coq_category": wp.coq_category,
+                "cost_impact": float(wp.cost_impact)
+                if wp.cost_impact is not None
+                else None,
+                "schedule_impact_days": wp.schedule_impact_days,
+                "project_id": str(wp.project_id),
+                "actual_cost": float(actual_cost) if actual_cost is not None else None,
+            }
+            return add_temporal_metadata(wp_result, context)
+
+        # List work packages
+        if not project_id:
+            return add_temporal_metadata(
+                {
+                    "error": "project_id is required when work_package_id is not provided"
+                },
+                context,
+            )
+
         work_packages, total = await service.get_work_packages(
             project_id=UUID(project_id),
             skip=skip,
             limit=limit,
-            coq_category=coq_category,
             package_type=package_type,
-            status=status,
             as_of=context.as_of,
         )
 
-        result = {
+        result: dict[str, Any] = {
             "work_packages": [
                 {
                     "work_package_id": str(wp.work_package_id),
@@ -129,7 +147,9 @@ async def list_work_packages(
                     "external_event_id": wp.external_event_id,
                     "event_date": wp.event_date.isoformat() if wp.event_date else None,
                     "coq_category": wp.coq_category,
-                    "cost_impact": float(wp.cost_impact) if wp.cost_impact is not None else None,
+                    "cost_impact": float(wp.cost_impact)
+                    if wp.cost_impact is not None
+                    else None,
                     "schedule_impact_days": wp.schedule_impact_days,
                     "project_id": str(wp.project_id),
                 }
@@ -144,81 +164,14 @@ async def list_work_packages(
         error_result = {"error": f"Invalid input: {e}"}
         return add_temporal_metadata(error_result, context)
     except Exception as e:
-        logger.error(f"Error in list_work_packages: {e}")
+        logger.error(f"Error in find_work_packages: {e}")
         error_result = {"error": str(e)}
         return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(
-    name="get_work_package",
-    description="Get detailed information about a specific work package by ID.",
-    permissions=["work-package-read"],
-    category="work-packages",
-    risk_level=RiskLevel.LOW,
-)
-async def get_work_package(
-    work_package_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single work package by ID with computed actual cost.
-
-    Context: Provides database session and work package service for retrieving work package data.
-
-    Args:
-        work_package_id: UUID of the work package to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with work package details including actual cost, or error if not found
-
-    Raises:
-        ValueError: If work_package_id is not a valid UUID format
-
-    Example:
-        >>> result = await get_work_package("123e4567-e89b-12d3-a456-426614174000")
-        >>> if "error" not in result:
-        ...     print(f"Work Package: {result['name']}")
-        ...     print(f"Actual Cost: ${result['actual_cost']}")
-    """
-    try:
-        from app.services.work_package_service import WorkPackageService
-
-        service = WorkPackageService(context.session)
-
-        wp = await service.get_by_id(UUID(work_package_id))
-
-        if not wp:
-            return {"error": f"Work package {work_package_id} not found"}
-
-        actual_cost = await service.compute_actual_cost(UUID(work_package_id))
-
-        return {
-            "work_package_id": str(wp.work_package_id),
-            "name": wp.name,
-            "package_type": wp.package_type,
-            "description": wp.description,
-            "status": wp.status,
-            "external_event_id": wp.external_event_id,
-            "event_date": wp.event_date.isoformat() if wp.event_date else None,
-            "coq_category": wp.coq_category,
-            "cost_impact": float(wp.cost_impact) if wp.cost_impact is not None else None,
-            "schedule_impact_days": wp.schedule_impact_days,
-            "project_id": str(wp.project_id),
-            "actual_cost": float(actual_cost) if actual_cost is not None else None,
-        }
-    except ValueError:
-        return {"error": f"Invalid work package ID: {work_package_id}"}
-    except Exception as e:
-        logger.error(f"Error in get_work_package: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
     name="create_work_package",
-    description="Create a new work package under a project. Supports any active "
-    "package type configured in the system. "
-    "Quality impact packages can include COQ category and schedule impact. "
-    "Optionally include cost allocations.",
+    description="Create work package under a project.",
     permissions=["work-package-create"],
     category="work-packages",
     risk_level=RiskLevel.HIGH,
@@ -331,7 +284,9 @@ async def create_work_package(
             "external_event_id": wp.external_event_id,
             "event_date": wp.event_date.isoformat() if wp.event_date else None,
             "coq_category": wp.coq_category,
-            "cost_impact": float(wp.cost_impact) if wp.cost_impact is not None else None,
+            "cost_impact": float(wp.cost_impact)
+            if wp.cost_impact is not None
+            else None,
             "schedule_impact_days": wp.schedule_impact_days,
             "project_id": str(wp.project_id),
             "message": "Work package created successfully",
@@ -345,7 +300,7 @@ async def create_work_package(
 
 @ai_tool(
     name="update_work_package",
-    description="Update an existing work package. Only updates fields that are provided.",
+    description="Update work package fields.",
     permissions=["work-package-update"],
     category="work-packages",
     risk_level=RiskLevel.HIGH,
@@ -461,7 +416,9 @@ async def update_work_package(
             "external_event_id": wp.external_event_id,
             "event_date": wp.event_date.isoformat() if wp.event_date else None,
             "coq_category": wp.coq_category,
-            "cost_impact": float(wp.cost_impact) if wp.cost_impact is not None else None,
+            "cost_impact": float(wp.cost_impact)
+            if wp.cost_impact is not None
+            else None,
             "schedule_impact_days": wp.schedule_impact_days,
             "project_id": str(wp.project_id),
             "message": "Work package updated successfully",
@@ -477,8 +434,7 @@ async def update_work_package(
 
 @ai_tool(
     name="delete_work_package",
-    description="Soft delete a work package. The package is marked as deleted "
-    "but remains for audit.",
+    description="Delete work package.",
     permissions=["work-package-delete"],
     category="work-packages",
     risk_level=RiskLevel.CRITICAL,
@@ -530,220 +486,112 @@ async def delete_work_package(
 
 
 @ai_tool(
-    name="get_work_package_allocations",
-    description="Get cost allocations (CostRegistration entries) for a work package. "
-    "Returns how costs are distributed across cost elements.",
+    name="get_coq_data",
+    description="Get Cost of Quality summary and metrics.",
     permissions=["work-package-read"],
     category="work-packages",
     risk_level=RiskLevel.LOW,
 )
-async def get_work_package_allocations(
-    work_package_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get cost allocations for a work package.
-
-    Context: Provides database session and work package service for retrieving allocation data.
-
-    Args:
-        work_package_id: UUID of the work package
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with list of cost allocations or error if not found
-
-    Raises:
-        ValueError: If work_package_id is not a valid UUID format
-
-    Example:
-        >>> result = await get_work_package_allocations("...")
-        >>> for alloc in result['allocations']:
-        ...     print(f"- {alloc['cost_element_name']}: ${alloc['amount']}")
-    """
-    try:
-        from app.services.work_package_service import WorkPackageService
-
-        service = WorkPackageService(context.session)
-
-        allocations = await service.get_allocations(UUID(work_package_id))
-
-        return {
-            "work_package_id": work_package_id,
-            "allocations": [
-                {
-                    "cost_registration_id": str(alloc.cost_registration_id),
-                    "cost_element_id": str(alloc.cost_element_id),
-                    "amount": float(alloc.amount),
-                    "description": alloc.description,
-                    "cost_element_name": alloc.cost_element_name,
-                    "wbe_code": alloc.wbe_code,
-                }
-                for alloc in allocations
-            ],
-            "total_allocations": len(allocations),
-        }
-    except ValueError:
-        return {"error": f"Invalid work package ID: {work_package_id}"}
-    except Exception as e:
-        logger.error(f"Error in get_work_package_allocations: {e}")
-        return {"error": str(e)}
-
-
-# =============================================================================
-# COQ QUERY TOOLS
-# =============================================================================
-
-
-@ai_tool(
-    name="get_coq_summary",
-    description="Get Cost of Quality summary for a project. Only includes "
-    "work packages of quality-flagged types. Returns total cost, "
-    "4-category breakdown (prevention, appraisal, internal_failure, "
-    "external_failure), COQ ratio.",
-    permissions=["work-package-read"],
-    category="work-packages",
-    risk_level=RiskLevel.LOW,
-)
-async def get_coq_summary(
+async def get_coq_data(
     project_id: str,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Get COQ summary for a project.
+    """Get Cost of Quality summary, metrics, and allocations for a project.
 
-    Context: Provides database session and work package service for COQ aggregation.
+    Context: Provides database session and work package service for COQ data.
 
     Args:
         project_id: UUID of the project
         context: Injected tool execution context
 
     Returns:
-        Dictionary with COQ summary metrics:
-        - total_cost: Total COQ cost
-        - conformance_cost: Prevention + Appraisal cost
-        - nonconformance_cost: Internal + External failure cost
-        - prevention_cost: Prevention category cost
-        - appraisal_cost: Appraisal category cost
-        - internal_failure_cost: Internal failure category cost
-        - external_failure_cost: External failure category cost
-        - total_schedule_days: Total schedule impact days
-        - impact_count: Number of quality impact work packages
-        - coq_ratio: COQ cost as percentage of project budget
-        - _temporal_context: Temporal context metadata (as_of)
+        Dictionary with coq_summary, coq_metrics, and allocations.
 
     Raises:
         ValueError: If project_id is not a valid UUID format
-
-    Example:
-        >>> result = await get_coq_summary(project_id="...")
-        >>> print(f"Total COQ: ${result['total_cost']}")
-        >>> print(f"COQ Ratio: {result['coq_ratio']}%")
     """
-    log_temporal_context("get_coq_summary", context)
+    log_temporal_context("get_coq_data", context)
 
     try:
         from app.services.work_package_service import WorkPackageService
 
         service = WorkPackageService(context.session)
 
+        # Fetch summary
         summary = await service.get_summary(
             project_id=UUID(project_id),
             as_of=context.as_of,
         )
 
-        result = {
-            "total_cost": float(summary.total_cost),
-            "conformance_cost": float(summary.conformance_cost),
-            "nonconformance_cost": float(summary.nonconformance_cost),
-            "prevention_cost": float(summary.prevention_cost),
-            "appraisal_cost": float(summary.appraisal_cost),
-            "internal_failure_cost": float(summary.internal_failure_cost),
-            "external_failure_cost": float(summary.external_failure_cost),
-            "total_schedule_days": summary.total_schedule_days,
-            "impact_count": summary.impact_count,
-            "coq_ratio": float(summary.coq_ratio)
-            if summary.coq_ratio is not None
-            else None,
-        }
-        return add_temporal_metadata(result, context)
-    except ValueError as e:
-        error_result = {"error": f"Invalid input: {e}"}
-        return add_temporal_metadata(error_result, context)
-    except Exception as e:
-        logger.error(f"Error in get_coq_summary: {e}")
-        error_result = {"error": str(e)}
-        return add_temporal_metadata(error_result, context)
-
-
-@ai_tool(
-    name="get_coq_metrics",
-    description="Get Cost of Quality metrics complementing standard EVM indicators. "
-    "Includes CPQ, CPIq, QPI, and COQ ratio. Only includes quality-flagged "
-    "work packages.",
-    permissions=["work-package-read"],
-    category="work-packages",
-    risk_level=RiskLevel.LOW,
-)
-async def get_coq_metrics(
-    project_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get COQ metrics for a project.
-
-    Context: Provides database session and work package service for COQ metric computation.
-
-    Args:
-        project_id: UUID of the project
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with COQ metrics:
-        - total_coq: Total Cost of Quality
-        - cpq: Cost of Poor Quality (nonconformance only)
-        - cpq_percentage: CPQ as percentage of total actual cost
-        - cpiq: CPQ / Actual Cost (quality's share of cost variance)
-        - qpi: Quality Performance Index (normalized from CPQ%)
-        - qpi_rating: Human-readable QPI rating
-        - total_ac: Total Actual Cost for the project
-        - coq_ratio: Total COQ as percentage of project budget
-        - _temporal_context: Temporal context metadata (as_of)
-
-    Raises:
-        ValueError: If project_id is not a valid UUID format
-
-    Example:
-        >>> result = await get_coq_metrics(project_id="...")
-        >>> print(f"QPI: {result['qpi']} ({result['qpi_rating']})")
-        >>> print(f"CPQ: ${result['cpq']} ({result['cpq_percentage']}%)")
-    """
-    log_temporal_context("get_coq_metrics", context)
-
-    try:
-        from app.services.work_package_service import WorkPackageService
-
-        service = WorkPackageService(context.session)
-
+        # Fetch metrics
         metrics = await service.get_coq_metrics(
             project_id=UUID(project_id),
             as_of=context.as_of,
         )
 
-        result = {
-            "total_coq": float(metrics.total_coq),
-            "cpq": float(metrics.cpq),
-            "cpq_percentage": float(metrics.cpq_percentage),
-            "cpiq": float(metrics.cpiq) if metrics.cpiq is not None else None,
-            "qpi": float(metrics.qpi) if metrics.qpi is not None else None,
-            "qpi_rating": metrics.qpi_rating,
-            "total_ac": float(metrics.total_ac),
-            "coq_ratio": float(metrics.coq_ratio)
-            if metrics.coq_ratio is not None
-            else None,
+        # Fetch allocations for all quality work packages
+        work_packages, _ = await service.get_work_packages(
+            project_id=UUID(project_id),
+            skip=0,
+            limit=1000,
+            as_of=context.as_of,
+        )
+
+        all_allocations: list[dict[str, Any]] = []
+        for wp in work_packages:
+            try:
+                wp_allocations = await service.get_allocations(
+                    UUID(str(wp.work_package_id))
+                )
+                all_allocations.extend(
+                    {
+                        "work_package_id": str(wp.work_package_id),
+                        "cost_registration_id": str(alloc.cost_registration_id),
+                        "cost_element_id": str(alloc.cost_element_id),
+                        "amount": float(alloc.amount),
+                        "description": alloc.description,
+                        "cost_element_name": alloc.cost_element_name,
+                        "wbe_code": alloc.wbe_code,
+                    }
+                    for alloc in wp_allocations
+                )
+            except Exception:
+                pass  # Skip allocations for packages that may not have any
+
+        result: dict[str, Any] = {
+            "coq_summary": {
+                "total_cost": float(summary.total_cost),
+                "conformance_cost": float(summary.conformance_cost),
+                "nonconformance_cost": float(summary.nonconformance_cost),
+                "prevention_cost": float(summary.prevention_cost),
+                "appraisal_cost": float(summary.appraisal_cost),
+                "internal_failure_cost": float(summary.internal_failure_cost),
+                "external_failure_cost": float(summary.external_failure_cost),
+                "total_schedule_days": summary.total_schedule_days,
+                "impact_count": summary.impact_count,
+                "coq_ratio": float(summary.coq_ratio)
+                if summary.coq_ratio is not None
+                else None,
+            },
+            "coq_metrics": {
+                "total_coq": float(metrics.total_coq),
+                "cpq": float(metrics.cpq),
+                "cpq_percentage": float(metrics.cpq_percentage),
+                "cpiq": float(metrics.cpiq) if metrics.cpiq is not None else None,
+                "qpi": float(metrics.qpi) if metrics.qpi is not None else None,
+                "qpi_rating": metrics.qpi_rating,
+                "total_ac": float(metrics.total_ac),
+                "coq_ratio": float(metrics.coq_ratio)
+                if metrics.coq_ratio is not None
+                else None,
+            },
+            "allocations": all_allocations,
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
         error_result = {"error": f"Invalid input: {e}"}
         return add_temporal_metadata(error_result, context)
     except Exception as e:
-        logger.error(f"Error in get_coq_metrics: {e}")
+        logger.error(f"Error in get_coq_data: {e}")
         error_result = {"error": str(e)}
         return add_temporal_metadata(error_result, context)

@@ -31,6 +31,8 @@ from app.models.schemas.wbe import WBECreate, WBEUpdate
 
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE_LIMIT = 50
+
 # =============================================================================
 # PROJECT CRUD TOOLS
 # =============================================================================
@@ -616,6 +618,231 @@ async def delete_wbe(
     except Exception as e:
         logger.error(f"Error in delete_wbe: {e}")
         return {"error": str(e)}
+
+
+# =============================================================================
+# BATCH WBE TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_wbes",
+    description="Batch create multiple WBEs under the same project. "
+    "All items share the parent project_id. Each item provides its own name, code, "
+    "and optional description and parent_wbe_id. Pre-validates all codes for duplicates "
+    "before creating any. Maximum 50 items per batch.",
+    permissions=["wbe-create"],
+    category="wbe",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_wbes(
+    project_id: str,
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create WBEs under the same project.
+
+    Args:
+        project_id: UUID of the parent project
+        items: List of dicts, each with {name, code, description?, parent_wbe_id?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    log_temporal_context("batch_create_wbes", context)
+
+    try:
+        from uuid import UUID
+
+        from app.models.schemas.wbe import WBECreate
+        from app.services.wbe import WBEService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("code"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'code'"},
+                    context,
+                )
+            if not item.get("name"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'name'"},
+                    context,
+                )
+
+        # Check for duplicate codes within the batch
+        codes = [it["code"] for it in items]
+        if len(codes) != len(set(codes)):
+            dupes = {c for c in codes if codes.count(c) > 1}
+            return add_temporal_metadata(
+                {"error": f"Duplicate codes in batch: {dupes}"}, context
+            )
+
+        service = WBEService(context.session)
+        project_uuid = UUID(project_id)
+
+        # Pre-validate: check all codes against the database
+        for code in codes:
+            existing = await service.get_by_code(code, project_uuid)
+            if existing:
+                return add_temporal_metadata(
+                    {
+                        "error": f"A WBE with code '{code}' already exists in this project "
+                        f"(ID: {existing.wbe_id}, name: '{existing.name}'). "
+                        "Use a different code or update the existing WBE.",
+                        "existing_id": str(existing.wbe_id),
+                        "existing_code": code,
+                    },
+                    context,
+                )
+
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            wbe_data = WBECreate(
+                project_id=project_uuid,
+                name=item["name"],
+                code=item["code"],
+                description=item.get("description"),
+                parent_wbe_id=UUID(item["parent_wbe_id"])
+                if item.get("parent_wbe_id")
+                else None,
+                branch=branch,
+            )
+            wbe = await service.create_wbe(wbe_data, actor_id=actor_id)
+            results.append(
+                {
+                    "id": str(wbe.wbe_id),
+                    "name": wbe.name,
+                    "code": wbe.code,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} WBEs under project {project_id}",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_create_wbes: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="batch_update_wbes",
+    description="Batch update multiple WBEs. Each item must include wbe_id and any "
+    "fields to update (name, description, revenue_allocation). "
+    "Maximum 50 items per batch.",
+    permissions=["wbe-update"],
+    category="wbe",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_update_wbes(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch update WBEs.
+
+    Args:
+        items: List of dicts, each with {wbe_id, name?, description?, revenue_allocation?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with updated items list, total count, and message
+    """
+    log_temporal_context("batch_update_wbes", context)
+
+    try:
+        from decimal import Decimal
+        from uuid import UUID
+
+        from app.models.schemas.wbe import WBEUpdate
+        from app.services.wbe import WBEService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate wbe_id on each item
+        for i, item in enumerate(items):
+            if not item.get("wbe_id"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'wbe_id'"},
+                    context,
+                )
+
+        service = WBEService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            update_kwargs: dict[str, Any] = {"branch": branch}
+            if "name" in item and item["name"] is not None:
+                update_kwargs["name"] = item["name"]
+            if "description" in item and item["description"] is not None:
+                update_kwargs["description"] = item["description"]
+            if "revenue_allocation" in item and item["revenue_allocation"] is not None:
+                update_kwargs["revenue_allocation"] = Decimal(
+                    str(item["revenue_allocation"])
+                )
+
+            if len(update_kwargs) == 1:  # Only branch, no actual fields
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item with wbe_id '{item['wbe_id']}' has no fields to update"
+                    },
+                    context,
+                )
+
+            update_data = WBEUpdate(**update_kwargs)
+
+            wbe = await service.update_wbe(
+                wbe_id=UUID(item["wbe_id"]),
+                wbe_in=update_data,
+                actor_id=actor_id,
+            )
+            results.append(
+                {
+                    "id": str(wbe.wbe_id),
+                    "name": wbe.name,
+                    "code": wbe.code,
+                }
+            )
+
+        result = {
+            "updated": results,
+            "total": len(results),
+            "message": f"Updated {len(results)} WBEs",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata({"error": f"WBE not found: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_update_wbes: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
 
 
 # =============================================================================

@@ -6,10 +6,10 @@ Tests follow TDD RED-GREEN-REFACTOR methodology:
 - REFACTOR: Code is improved while keeping tests green
 
 Test Structure:
-- Forecast Tools Tests (4 tools)
-- Cost Registration Tools Tests (5 tools)
-- Progress Entry Tools Tests (3 tools)
-- Summary Tool Tests (1 tool)
+- Forecast Tools Tests (create_forecast, update_forecast)
+- Cost Registration Tools Tests (create, update, delete)
+- Progress Entry Tools Tests (create_progress_entry)
+- Read Tools Tests (get_cost_element_details, get_progress_data)
 - Temporal Logging Tests
 - Error Handling Tests
 """
@@ -24,13 +24,10 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools.templates.forecast_cost_progress_template import (
-    compare_forecast_to_budget,
     create_forecast,
     create_progress_entry,
-    get_budget_status,
-    get_cost_element_summary,
-    get_forecast,
-    get_latest_progress,
+    get_cost_element_details,
+    get_progress_data,
     update_forecast,
 )
 from app.ai.tools.types import ToolContext
@@ -120,58 +117,68 @@ async def test_forecast(
 # =============================================================================
 
 
-class TestGetForecast:
-    """Tests for get_forecast tool."""
+class TestGetCostElementDetails:
+    """Tests for get_cost_element_details tool (consolidated read tool).
+
+    Replaces: get_forecast, compare_forecast_to_budget, get_budget_status,
+    get_cost_element_summary.
+    """
 
     @pytest.mark.asyncio
-    async def test_get_forecast_happy_path(
+    async def test_get_details_with_forecast(
         self, tool_context: ToolContext, test_forecast
     ):
-        """Test getting forecast for cost element returns correct data."""
+        """Test getting cost element details with forecast returns correct data."""
         # Arrange
         forecast, cost_element_id = test_forecast
 
         # Act
-        result = await get_forecast.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": str(cost_element_id), "context": tool_context}
         )
 
         # Assert
         assert "error" not in result
-        assert "id" in result
-        assert "eac_amount" in result
-        assert "basis_of_estimate" in result
-        assert "branch" in result
+        assert "forecast" in result
+        assert "budget_status" in result
+        assert "cost_registrations" in result
         assert "_temporal_context" in result
-        assert result["eac_amount"] == 105000.00
+
+        # Verify forecast data
+        assert result["forecast"] is not None
+        assert result["forecast"]["eac_amount"] == 105000.00
         assert (
-            result["basis_of_estimate"] == "Initial forecast based on historical data"
+            result["forecast"]["basis_of_estimate"]
+            == "Initial forecast based on historical data"
         )
-        assert result["branch"] == "main"
+        assert result["forecast"]["branch"] == "main"
 
     @pytest.mark.asyncio
-    async def test_get_forecast_not_found(self, tool_context: ToolContext):
-        """Test getting forecast for non-existent cost element returns error."""
+    async def test_get_details_not_found(self, tool_context: ToolContext):
+        """Test getting details for non-existent cost element returns error."""
         # Arrange
         cost_element_id = str(uuid4())
 
         # Act
-        result = await get_forecast.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
         # Assert
         assert "error" in result
-        assert "not found" in result["error"].lower()
+        assert (
+            "not found" in result["error"].lower()
+            or "invalid" in result["error"].lower()
+        )
 
     @pytest.mark.asyncio
-    async def test_get_forecast_invalid_uuid(self, tool_context: ToolContext):
-        """Test getting forecast with invalid UUID returns error."""
+    async def test_get_details_invalid_uuid(self, tool_context: ToolContext):
+        """Test getting details with invalid UUID returns error."""
         # Arrange
         cost_element_id = "invalid-uuid-format"
 
         # Act
-        result = await get_forecast.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
@@ -285,18 +292,22 @@ class TestUpdateForecast:
 
 
 class TestCompareForecastToBudget:
-    """Tests for compare_forecast_to_budget tool."""
+    """Tests for forecast-to-budget comparison via get_cost_element_details.
+
+    The consolidated get_cost_element_details tool returns budget_status
+    with variance, budget_amount, and eac_amount fields.
+    """
 
     @pytest.mark.asyncio
     async def test_compare_forecast_to_budget_variance(
         self, tool_context: ToolContext, test_forecast, test_cost_element
     ):
-        """Test comparing forecast to budget shows variance."""
+        """Test comparing forecast to budget shows variance in budget_status."""
         # Arrange
         forecast, cost_element_id = test_forecast
 
         # Act
-        result = await compare_forecast_to_budget.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {
                 "cost_element_id": str(cost_element_id),
                 "context": tool_context,
@@ -305,18 +316,20 @@ class TestCompareForecastToBudget:
 
         # Assert
         assert "error" not in result
-        assert "budget" in result
-        assert "forecast_eac" in result
-        assert "vac" in result  # Variance at Completion
-        assert "vac_percentage" in result
-        assert result["budget"] == 10000.00
-        assert result["forecast_eac"] == 105000.00
+        assert "budget_status" in result
+        budget_status = result["budget_status"]
+        assert "budget_amount" in budget_status
+        assert "eac_amount" in budget_status
+        assert "variance" in budget_status
+        assert "percentage_used" in budget_status
+        assert budget_status["budget_amount"] == 10000.00
+        assert budget_status["eac_amount"] == 105000.00
 
     @pytest.mark.asyncio
     async def test_compare_forecast_to_budget_no_forecast(
         self, tool_context: ToolContext, test_cost_element
     ):
-        """Test comparing forecast when no forecast exists returns error."""
+        """Test comparing when no forecast exists shows null forecast."""
         # Arrange - Delete existing forecast
         from app.services.forecast_service import ForecastService
 
@@ -335,16 +348,17 @@ class TestCompareForecastToBudget:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await compare_forecast_to_budget.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {
                 "cost_element_id": cost_element_id,
                 "context": tool_context,
             }
         )
 
-        # Assert
-        assert "error" in result
-        assert "not found" in result["error"].lower()
+        # Assert - Should still return data with null forecast
+        assert "error" not in result
+        assert result["forecast"] is None
+        assert "budget_status" in result
 
 
 # =============================================================================
@@ -353,7 +367,11 @@ class TestCompareForecastToBudget:
 
 
 class TestGetBudgetStatus:
-    """Tests for get_budget_status tool."""
+    """Tests for budget status via get_cost_element_details.
+
+    The consolidated tool returns budget_status with budget_amount,
+    used, remaining, variance, and percentage_used.
+    """
 
     @pytest.mark.asyncio
     async def test_get_budget_status_success(
@@ -364,18 +382,20 @@ class TestGetBudgetStatus:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await get_budget_status.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
         # Assert
         assert "error" not in result
-        assert "budget" in result
-        assert "used" in result
-        assert "remaining" in result
-        assert "percentage" in result
-        assert result["budget"] == 10000.00
-        assert result["used"] >= 0
+        assert "budget_status" in result
+        budget_status = result["budget_status"]
+        assert "budget_amount" in budget_status
+        assert "used" in budget_status
+        assert "remaining" in budget_status
+        assert "percentage_used" in budget_status
+        assert budget_status["budget_amount"] == 10000.00
+        assert budget_status["used"] >= 0
 
 
 # =============================================================================
@@ -384,7 +404,11 @@ class TestGetBudgetStatus:
 
 
 class TestGetLatestProgress:
-    """Tests for get_latest_progress tool."""
+    """Tests for get_progress_data tool (default: returns latest progress).
+
+    The consolidated get_progress_data tool returns latest_progress dict
+    and progress_entries list.
+    """
 
     @pytest.mark.asyncio
     async def test_get_latest_progress_success(
@@ -392,7 +416,7 @@ class TestGetLatestProgress:
         tool_context: ToolContext,
         test_cost_element,
     ):
-        """Test getting latest progress entry."""
+        """Test getting latest progress entry via get_progress_data."""
         # Arrange
         # Create a progress entry first
         from app.services.progress_entry_service import ProgressEntryService
@@ -412,16 +436,19 @@ class TestGetLatestProgress:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await get_latest_progress.ainvoke(
+        result = await get_progress_data.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
         # Assert
         assert "error" not in result
-        assert "progress_entry_id" in result
-        assert "progress_percentage" in result
-        assert "notes" in result
-        assert result["progress_percentage"] == 25.50
+        assert "latest_progress" in result
+        assert result["latest_progress"] is not None
+        latest = result["latest_progress"]
+        assert "progress_entry_id" in latest
+        assert "progress_percentage" in latest
+        assert "notes" in latest
+        assert latest["progress_percentage"] == 25.50
 
 
 # =============================================================================
@@ -430,16 +457,20 @@ class TestGetLatestProgress:
 
 
 class TestGetCostElementSummary:
-    """Tests for get_cost_element_summary tool."""
+    """Tests for consolidated get_cost_element_details tool.
+
+    The get_cost_element_details tool returns forecast, budget_status,
+    and cost_registrations. Progress is available via get_progress_data.
+    """
 
     @pytest.mark.asyncio
-    async def test_get_cost_element_summary_complete(
+    async def test_get_cost_element_details_complete(
         self,
         tool_context: ToolContext,
         test_cost_element,
         test_forecast,
     ):
-        """Test getting complete summary with forecast, costs, and progress."""
+        """Test getting complete details with forecast, costs, and progress."""
         # Arrange
         forecast, cost_element_id = test_forecast
         # Create progress entry
@@ -458,7 +489,7 @@ class TestGetCostElementSummary:
         await tool_context.session.commit()
 
         # Act
-        result = await get_cost_element_summary.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {
                 "cost_element_id": str(cost_element_id),
                 "context": tool_context,
@@ -467,10 +498,9 @@ class TestGetCostElementSummary:
 
         # Assert
         assert "error" not in result
-        assert "cost_element_id" in result
         assert "forecast" in result
         assert "budget_status" in result
-        assert "progress" in result
+        assert "cost_registrations" in result
 
 
 # =============================================================================
@@ -496,13 +526,13 @@ class TestTemporalLogging:
 
         # Act & Assert - Tool should execute without errors
         # (log_temporal_context is called at the start of each tool)
-        result = await get_forecast.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": str(cost_element_id), "context": tool_context}
         )
 
         # Verify tool executed successfully (logging didn't cause errors)
         assert "error" not in result, "Tool should execute successfully"
-        assert "id" in result, "Tool should return forecast data"
+        assert "forecast" in result, "Tool should return forecast data"
 
     @pytest.mark.asyncio
     async def test_temporal_metadata_added_to_results(
@@ -513,7 +543,7 @@ class TestTemporalLogging:
         forecast, cost_element_id = test_forecast
 
         # Act
-        result = await get_forecast.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": str(cost_element_id), "context": tool_context}
         )
 
@@ -539,7 +569,7 @@ class TestErrorHandling:
         cost_element_id = "not-a-uuid"
 
         # Act
-        result = await get_forecast.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
@@ -554,7 +584,7 @@ class TestErrorHandling:
         cost_element_id = ""
 
         # Act
-        result = await get_forecast.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
@@ -568,7 +598,7 @@ class TestErrorHandling:
         cost_element_id = "   "
 
         # Act
-        result = await get_forecast.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
@@ -729,15 +759,15 @@ class TestErrorHandling:
         assert "error" in result or "percentage" in result
 
     @pytest.mark.asyncio
-    async def test_get_budget_status_missing_cost_element(
+    async def test_get_details_missing_cost_element(
         self, tool_context: ToolContext
     ):
-        """Test getting budget status for non-existent cost element."""
+        """Test getting details for non-existent cost element."""
         # Arrange
         cost_element_id = str(uuid4())
 
         # Act
-        result = await get_budget_status.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
@@ -745,6 +775,7 @@ class TestErrorHandling:
         assert "error" in result
         assert (
             "not found" in result["error"].lower()
+            or "invalid" in result["error"].lower()
             or "no cost element" in result["error"].lower()
         )
 
@@ -769,10 +800,10 @@ class TestErrorHandling:
         assert "invalid" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_compare_forecast_to_budget_missing_forecast(
+    async def test_compare_missing_forecast(
         self, tool_context: ToolContext, test_cost_element
     ):
-        """Test comparing forecast when no forecast exists."""
+        """Test comparing when no forecast exists via get_cost_element_details."""
         # Arrange
         # Delete existing forecast
         from app.services.forecast_service import ForecastService
@@ -792,25 +823,22 @@ class TestErrorHandling:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await compare_forecast_to_budget.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {
                 "cost_element_id": cost_element_id,
                 "context": tool_context,
             }
         )
 
-        # Assert
-        assert "error" in result
-        assert (
-            "not found" in result["error"].lower()
-            or "no forecast" in result["error"].lower()
-        )
+        # Assert - Should succeed with null forecast
+        assert "error" not in result
+        assert result["forecast"] is None
 
     @pytest.mark.asyncio
-    async def test_get_cost_element_summary_missing_data(
+    async def test_get_details_missing_data(
         self, tool_context: ToolContext, test_cost_element
     ):
-        """Test getting summary when some data is missing."""
+        """Test getting details when some data is missing."""
         # Arrange
         # Delete forecast to test missing data handling
         from app.services.forecast_service import ForecastService
@@ -830,43 +858,41 @@ class TestErrorHandling:
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await get_cost_element_summary.ainvoke(
+        result = await get_cost_element_details.ainvoke(
             {
                 "cost_element_id": cost_element_id,
                 "context": tool_context,
             }
         )
 
-        # Assert - Should return partial data with missing fields as null/none
-        assert "error" in result or "cost_element_id" in result
+        # Assert - Should return partial data with forecast as null
+        assert "error" not in result or "cost_element_id" in result
         if "error" not in result:
-            # Should have budget status even without forecast/progress
+            # Should have budget status even without forecast
             assert "budget_status" in result
-            # Forecast and progress may be null/None when missing
+            # Forecast is null when missing
             assert result.get("forecast") is None or "eac_amount" in result.get(
                 "forecast", {}
             )
-            assert result.get(
-                "progress"
-            ) is None or "progress_percentage" in result.get("progress", {})
+            # Cost registrations is always present (may be empty list)
+            assert "cost_registrations" in result
 
     @pytest.mark.asyncio
-    async def test_get_latest_progress_no_progress_entries(
+    async def test_get_progress_data_no_progress_entries(
         self, tool_context: ToolContext, test_cost_element
     ):
-        """Test getting latest progress when no entries exist."""
+        """Test getting progress data when only the auto-created entry exists."""
         # Arrange
         cost_element_id = str(test_cost_element.cost_element_id)
 
         # Act
-        result = await get_latest_progress.ainvoke(
+        result = await get_progress_data.ainvoke(
             {"cost_element_id": cost_element_id, "context": tool_context}
         )
 
         # Assert
-        # Should either return error for no progress or return null/empty data
-        assert (
-            "error" in result
-            or "progress_entry_id" in result
-            or result.get("progress_entry_id") is None
-        )
+        # Cost element creation auto-creates an initial 0% progress entry,
+        # so latest_progress should have that entry (not None)
+        assert "error" not in result
+        assert "progress_entries" in result
+        assert "latest_progress" in result

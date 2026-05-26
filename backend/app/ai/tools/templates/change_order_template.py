@@ -48,26 +48,26 @@ logger = logging.getLogger(__name__)
 
 
 @ai_tool(
-    name="list_change_orders",
-    description="List all change orders with optional filtering by project, status, "
-    "or other criteria. Returns change orders with their approval status and impact. "
-    "Temporal context (branch, as_of date) is enforced by the system.",
+    name="find_change_orders",
+    description="Find change orders by ID or search/filter.",
     permissions=["change-order-read"],
     category="change-orders",
     risk_level=RiskLevel.LOW,
 )
-async def list_change_orders(
+async def find_change_orders(
+    change_order_id: str | None = None,
     project_id: str | None = None,
     status: str | None = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List change orders with optional filtering.
+    """Find change orders by ID or search/filter.
 
     Context: Provides database session and change order service for querying change orders.
 
     Args:
+        change_order_id: UUID of a specific change order to retrieve (returns single)
         project_id: Optional project ID to filter change orders
         status: Optional status filter (e.g., "Draft", "Pending", "Approved", "Rejected")
         skip: Number of records to skip for pagination
@@ -75,34 +75,61 @@ async def list_change_orders(
         context: Injected tool execution context
 
     Returns:
-        Dictionary with:
-        - change_orders: List of change order objects
-        - total: Total number of change orders matching filters
-        - skip: Number of records skipped
-        - limit: Maximum records returned
-        - _temporal_context: Temporal context metadata (branch, as_of)
+        Single change order dict if change_order_id provided, otherwise list result.
 
     Raises:
-        ValueError: If project_id is not a valid UUID format
-
-    Example:
-        >>> result = await list_change_orders(project_id="...", status="Pending")
-        >>> print(f"Found {result['total']} pending change orders")
-        >>> for co in result['change_orders']:
-        ...     print(f"- {co['title']}: {co['status']}")
+        ValueError: If IDs are not valid UUID format
     """
     # Log temporal context for observability
-    log_temporal_context("list_change_orders", context)
+    log_temporal_context("find_change_orders", context)
 
     try:
         from app.services.change_order_service import ChangeOrderService
 
         service = ChangeOrderService(context.session)
 
-        # Convert project_id to UUID if provided
-        project_uuid = UUID(project_id) if project_id else None
+        # Single change order lookup
+        if change_order_id:
+            change_order = await service.get_as_of(
+                UUID(change_order_id),
+                branch=context.branch_name or "main",
+                as_of=context.as_of,
+            )
 
-        # Build filters string from status if provided
+            if not change_order:
+                return add_temporal_metadata(
+                    {"error": f"Change order {change_order_id} not found"}, context
+                )
+
+            result = {
+                "id": str(change_order.change_order_id),
+                "project_id": str(change_order.project_id),
+                "title": change_order.title,
+                "description": change_order.description,
+                "status": change_order.status,
+                "approval_status": change_order.approval_status
+                if hasattr(change_order, "approval_status")
+                else None,
+                "budget_impact": float(change_order.budget_impact)
+                if hasattr(change_order, "budget_impact") and change_order.budget_impact
+                else 0.0,
+                "schedule_impact_days": change_order.schedule_impact_days
+                if hasattr(change_order, "schedule_impact_days")
+                else None,
+                "reason": change_order.reason
+                if hasattr(change_order, "reason")
+                else None,
+                "created_at": change_order.created_at.isoformat()
+                if hasattr(change_order, "created_at") and change_order.created_at
+                else None,
+                "updated_at": change_order.updated_at.isoformat()
+                if hasattr(change_order, "updated_at") and change_order.updated_at
+                else None,
+            }
+            return add_temporal_metadata(result, context)
+
+        # List change orders
+        project_uuid = UUID(project_id) if project_id else None
         filters = f"status:{status}" if status else None
 
         change_orders, total = await service.get_change_orders(
@@ -114,7 +141,6 @@ async def list_change_orders(
             as_of=context.as_of,
         )
 
-        # Convert to AI-friendly format and add temporal metadata
         result = {
             "change_orders": [
                 {
@@ -147,93 +173,14 @@ async def list_change_orders(
         error_result = {"error": f"Invalid input: {e}"}
         return add_temporal_metadata(error_result, context)
     except Exception as e:
-        logger.error(f"Error in list_change_orders: {e}")
+        logger.error(f"Error in find_change_orders: {e}")
         error_result = {"error": str(e)}
         return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(
-    name="get_change_order",
-    description="Get detailed information about a specific change order, including "
-    "impact analysis, approval history, and audit trail.",
-    permissions=["change-order-read"],
-    category="change-orders",
-    risk_level=RiskLevel.LOW,
-)
-async def get_change_order(
-    change_order_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single change order by ID.
-
-    Context: Provides database session and change order service for retrieving change order data.
-
-    Args:
-        change_order_id: UUID of the change order to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with change order details including impact analysis
-
-    Raises:
-        ValueError: If change_order_id is not a valid UUID format
-
-    Example:
-        >>> result = await get_change_order("123e4567-e89b-12d3-a456-426614174000")
-        >>> print(f"Change Order: {result['title']}")
-        >>> print(f"Budget Impact: ${result['budget_impact']}")
-        >>> print(f"Approval Status: {result['approval_status']}")
-    """
-    try:
-        from app.services.change_order_service import ChangeOrderService
-
-        service = ChangeOrderService(context.session)
-
-        # Call service method
-        change_order = await service.get_as_of(
-            UUID(change_order_id),
-            branch=context.branch_name or "main",
-            as_of=context.as_of,
-        )
-
-        if not change_order:
-            return {"error": f"Change order {change_order_id} not found"}
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(change_order.change_order_id),
-            "project_id": str(change_order.project_id),
-            "title": change_order.title,
-            "description": change_order.description,
-            "status": change_order.status,
-            "approval_status": change_order.approval_status
-            if hasattr(change_order, "approval_status")
-            else None,
-            "budget_impact": float(change_order.budget_impact)
-            if hasattr(change_order, "budget_impact") and change_order.budget_impact
-            else 0.0,
-            "schedule_impact_days": change_order.schedule_impact_days
-            if hasattr(change_order, "schedule_impact_days")
-            else None,
-            "reason": change_order.reason if hasattr(change_order, "reason") else None,
-            "created_at": change_order.created_at.isoformat()
-            if hasattr(change_order, "created_at") and change_order.created_at
-            else None,
-            "updated_at": change_order.updated_at.isoformat()
-            if hasattr(change_order, "updated_at") and change_order.updated_at
-            else None,
-        }
-    except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
-    except Exception as e:
-        logger.error(f"Error in get_change_order: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
     name="create_change_order",
-    description="Create a new change order with impact analysis. "
-    "The change order will be created in 'Draft' status and require approval workflow.",
+    description="Create a new change order.",
     permissions=["change-order-create"],
     category="change-orders",
     risk_level=RiskLevel.HIGH,
@@ -322,8 +269,7 @@ async def create_change_order(
 
 @ai_tool(
     name="generate_change_order_draft",
-    description="Generate a draft change order based on impact analysis. "
-    "Analyzes the impact and creates a comprehensive change order document.",
+    description="Generate draft CO from impact analysis.",
     permissions=["change-order-create"],
     category="change-orders",
     risk_level=RiskLevel.HIGH,
@@ -421,8 +367,7 @@ async def generate_change_order_draft(
 
 @ai_tool(
     name="submit_change_order_for_approval",
-    description="Submit a draft change order for approval. "
-    "Initiates the approval workflow and notifies stakeholders.",
+    description="Submit draft CO for approval.",
     permissions=["change-order-update"],
     category="change-orders",
     risk_level=RiskLevel.HIGH,
@@ -482,8 +427,7 @@ async def submit_change_order_for_approval(
 
 @ai_tool(
     name="approve_change_order",
-    description="Approve a change order. Requires manager or higher permissions. "
-    "Changes the status to 'Approved' and allows implementation to begin.",
+    description="Approve a pending change order.",
     permissions=["change-order-approve"],
     category="change-orders",
     risk_level=RiskLevel.HIGH,
@@ -551,8 +495,7 @@ async def approve_change_order(
 
 @ai_tool(
     name="reject_change_order",
-    description="Reject a change order. Requires manager or higher permissions. "
-    "Changes the status to 'Rejected' and documents the reason.",
+    description="Reject a pending change order.",
     permissions=["change-order-approve"],
     category="change-orders",
     risk_level=RiskLevel.HIGH,
@@ -626,8 +569,7 @@ async def reject_change_order(
 
 @ai_tool(
     name="analyze_change_order_impact",
-    description="Analyze the impact of a proposed change order on project budget, "
-    "schedule, and risk. Provides detailed impact assessment for decision making.",
+    description="Analyze CO impact on budget and schedule.",
     permissions=["change-order-read"],
     category="change-orders",
     risk_level=RiskLevel.LOW,
@@ -713,9 +655,7 @@ async def analyze_change_order_impact(
 
 @ai_tool(
     name="delete_change_order",
-    description="Soft delete a change order. "
-    "Only Draft or Rejected change orders can be deleted. "
-    "Active change orders in the approval workflow must be rejected first.",
+    description="Delete a change order (Draft or Rejected only).",
     permissions=["change-order-delete"],
     category="change-orders",
     risk_level=RiskLevel.CRITICAL,

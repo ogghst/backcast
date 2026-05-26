@@ -67,55 +67,66 @@ async def _resolve_user_role(session: Any, user_id: UUID) -> str:
 
 
 @ai_tool(
-    name="list_users",
-    description="List all users with pagination. "
-    "Returns users with their roles, departments, and activity status.",
+    name="find_users",
+    description="Find users by ID or search.",
     permissions=["user-read"],
     category="users",
     risk_level=RiskLevel.LOW,
 )
-async def list_users(
+async def find_users(
+    user_id: str | None = None,
+    search: str | None = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List users with pagination.
+    """Find users by ID or search.
 
     Context: Provides database session and user service for querying users.
 
     Args:
+        user_id: UUID of a specific user to retrieve (returns single)
+        search: Optional search term
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
         context: Injected tool execution context
 
     Returns:
-        Dictionary with:
-        - users: List of user objects
-        - total: Total number of users
-        - skip: Number of records skipped
-        - limit: Maximum records returned
+        Single user dict if user_id provided, otherwise list result.
 
     Raises:
-        ValueError: If invalid pagination parameters
-
-    Example:
-        >>> result = await list_users(skip=0, limit=10)
-        >>> print(f"Found {result['total']} users")
-        >>> for user in result['users']:
-        ...     print(f"- {user['full_name']} ({user['email']})")
+        ValueError: If user_id is not a valid UUID format
     """
     try:
         from app.services.user import UserService
 
         service = UserService(context.session)
 
-        # Call service method
-        users = await service.get_users(skip=skip, limit=limit)
+        # Single user lookup
+        if user_id:
+            user = await service.get_user(UUID(user_id))
 
-        # Get total count (service returns list, so we need to count)
+            if not user:
+                return {"error": f"User {user_id} not found"}
+
+            role = await _resolve_user_role(context.session, user.user_id)
+            return {
+                "id": str(user.user_id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "department": user.department,
+                "role": role,
+                "is_active": user.is_active,
+                "preferences": user.preferences if user.preferences else None,
+                "password_changed_at": user.password_changed_at.isoformat()
+                if user.password_changed_at
+                else None,
+            }
+
+        # List users
+        users = await service.get_users(skip=skip, limit=limit)
         total = len(users)
 
-        # Convert to AI-friendly format
         user_list = []
         for user in users:
             role = await _resolve_user_role(context.session, user.user_id)
@@ -137,80 +148,16 @@ async def list_users(
             "skip": skip,
             "limit": limit,
         }
-    except Exception as e:
-        logger.error(f"Error in list_users: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
-    name="get_user",
-    description="Get detailed information about a specific user by ID. "
-    "Returns full user details including role and preferences.",
-    permissions=["user-read"],
-    category="users",
-    risk_level=RiskLevel.LOW,
-)
-async def get_user(
-    user_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single user by ID.
-
-    Context: Provides database session and user service for retrieving user data.
-
-    Args:
-        user_id: UUID of the user to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with user details or error if not found
-
-    Raises:
-        ValueError: If user_id is not a valid UUID format
-        KeyError: If user is not found
-
-    Example:
-        >>> result = await get_user("123e4567-e89b-12d3-a456-426614174000")
-        >>> if "error" not in result:
-        ...     print(f"User: {result['full_name']}")
-        ...     print(f"Role: {result['role']}")
-    """
-    try:
-        from app.services.user import UserService
-
-        service = UserService(context.session)
-
-        # Call service method
-        user = await service.get_user(UUID(user_id))
-
-        if not user:
-            return {"error": f"User {user_id} not found"}
-
-        # Convert to AI-friendly format
-        role = await _resolve_user_role(context.session, user.user_id)
-        return {
-            "id": str(user.user_id),
-            "email": user.email,
-            "full_name": user.full_name,
-            "department": user.department,
-            "role": role,
-            "is_active": user.is_active,
-            "preferences": user.preferences if user.preferences else None,
-            "password_changed_at": user.password_changed_at.isoformat()
-            if user.password_changed_at
-            else None,
-        }
     except ValueError:
         return {"error": f"Invalid user ID: {user_id}"}
     except Exception as e:
-        logger.error(f"Error in get_user: {e}")
+        logger.error(f"Error in find_users: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
     name="create_user",
-    description="Create a new user with email, password, and role. "
-    "Password is automatically hashed. Returns the created user without password.",
+    description="Create a new user.",
     permissions=["user-create"],
     category="users",
     risk_level=RiskLevel.HIGH,
@@ -290,9 +237,7 @@ async def create_user(
 
 @ai_tool(
     name="update_user",
-    description="Update an existing user with new information. "
-    "Password can be updated and will be automatically hashed. "
-    "Note: User preferences cannot be updated via this tool - use the user preferences endpoint instead.",
+    description="Update user fields.",
     permissions=["user-update"],
     category="users",
     risk_level=RiskLevel.HIGH,
@@ -391,8 +336,7 @@ async def update_user(
 
 @ai_tool(
     name="delete_user",
-    description="Soft delete a user. "
-    "The user is marked as deleted but remains in the system for audit purposes.",
+    description="Delete a user.",
     permissions=["user-delete"],
     category="users",
     risk_level=RiskLevel.CRITICAL,
@@ -450,64 +394,66 @@ async def delete_user(
 
 
 @ai_tool(
-    name="list_departments",
-    description="List all departments with optional search and pagination. "
-    "Returns departments with their codes and manager information.",
+    name="find_departments",
+    description="Find departments by ID or search.",
     permissions=["department-read"],
     category="departments",
     risk_level=RiskLevel.LOW,
 )
-async def list_departments(
+async def find_departments(
+    department_id: str | None = None,
     search: str | None = None,
     skip: int = 0,
-    limit: int = 100,
-    sort_field: str | None = None,
-    sort_order: str = "asc",
+    limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List departments with optional filtering.
+    """Find departments by ID or search.
 
     Context: Provides database session and department service for querying departments.
 
     Args:
+        department_id: UUID of a specific department to retrieve (returns single)
         search: Optional search term for code or name
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
-        sort_field: Field to sort by (e.g., "name", "code")
-        sort_order: Sort order ("asc" or "desc")
         context: Injected tool execution context
 
     Returns:
-        Dictionary with:
-        - departments: List of department objects
-        - total: Total number of departments matching filters
-        - skip: Number of records skipped
-        - limit: Maximum records returned
+        Single department dict if department_id provided, otherwise list result.
 
     Raises:
-        ValueError: If invalid filter parameters
-
-    Example:
-        >>> result = await list_departments(search="Engineering", limit=10)
-        >>> print(f"Found {result['total']} departments")
-        >>> for dept in result['departments']:
-        ...     print(f"- {dept['name']} ({dept['code']})")
+        ValueError: If department_id is not a valid UUID format
     """
     try:
         from app.services.department import DepartmentService
 
         service = DepartmentService(context.session)
 
-        # Call service method
+        # Single department lookup
+        if department_id:
+            department = await service.get_as_of(UUID(department_id))
+
+            if not department:
+                return {"error": f"Department {department_id} not found"}
+
+            return {
+                "id": str(department.department_id),
+                "code": department.code,
+                "name": department.name,
+                "description": department.description,
+                "manager_id": str(department.manager_id)
+                if department.manager_id
+                else None,
+                "is_active": department.is_active,
+            }
+
+        # List departments
         departments, total = await service.get_departments(
             search=search,
             skip=skip,
             limit=limit,
-            sort_field=sort_field,
-            sort_order=sort_order,
         )
 
-        # Convert to AI-friendly format
         return {
             "departments": [
                 {
@@ -524,75 +470,16 @@ async def list_departments(
             "skip": skip,
             "limit": limit,
         }
-    except Exception as e:
-        logger.error(f"Error in list_departments: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
-    name="get_department",
-    description="Get detailed information about a specific department by ID. "
-    "Returns full department details including manager and status.",
-    permissions=["department-read"],
-    category="departments",
-    risk_level=RiskLevel.LOW,
-)
-async def get_department(
-    department_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Get a single department by ID.
-
-    Context: Provides database session and department service for retrieving department data.
-
-    Args:
-        department_id: UUID of the department to retrieve
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with department details or error if not found
-
-    Raises:
-        ValueError: If department_id is not a valid UUID format
-        KeyError: If department is not found
-
-    Example:
-        >>> result = await get_department("123e4567-e89b-12d3-a456-426614174000")
-        >>> if "error" not in result:
-        ...     print(f"Department: {result['name']}")
-        ...     print(f"Code: {result['code']}")
-    """
-    try:
-        from app.services.department import DepartmentService
-
-        service = DepartmentService(context.session)
-
-        # Call service method
-        department = await service.get_as_of(UUID(department_id))
-
-        if not department:
-            return {"error": f"Department {department_id} not found"}
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(department.department_id),
-            "code": department.code,
-            "name": department.name,
-            "description": department.description,
-            "manager_id": str(department.manager_id) if department.manager_id else None,
-            "is_active": department.is_active,
-        }
     except ValueError:
         return {"error": f"Invalid department ID: {department_id}"}
     except Exception as e:
-        logger.error(f"Error in get_department: {e}")
+        logger.error(f"Error in find_departments: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
     name="create_department",
-    description="Create a new department with code, name, and optional manager. "
-    "Returns the created department with all details.",
+    description="Create a new department.",
     permissions=["department-create"],
     category="departments",
     risk_level=RiskLevel.HIGH,
@@ -674,8 +561,7 @@ async def create_department(
 
 @ai_tool(
     name="update_department",
-    description="Update an existing department with new information. "
-    "Only updates fields that are provided.",
+    description="Update department fields.",
     permissions=["department-update"],
     category="departments",
     risk_level=RiskLevel.HIGH,
@@ -756,8 +642,7 @@ async def update_department(
 
 @ai_tool(
     name="delete_department",
-    description="Soft delete a department. "
-    "The department is marked as deleted but remains in the system for audit purposes.",
+    description="Delete a department.",
     permissions=["department-delete"],
     category="departments",
     risk_level=RiskLevel.CRITICAL,
