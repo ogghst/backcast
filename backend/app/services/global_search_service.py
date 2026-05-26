@@ -254,7 +254,7 @@ _ENTITY_CONFIG: list[
         "work_package_id",
         ["name"],
         ["description"],
-        ["package_type", "coq_category"],
+        ["coq_category"],
         False,
         False,
     ),

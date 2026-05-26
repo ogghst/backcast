@@ -42,11 +42,7 @@ class WorkPackageBase(BaseModel):
     """Shared properties for WorkPackage."""
 
     name: str = Field(..., min_length=1, max_length=255)
-    package_type: str = Field(
-        ...,
-        min_length=1,
-        max_length=100,
-    )
+    package_type_id: UUID
     project_id: UUID
     description: str | None = None
     status: str = Field(
@@ -83,11 +79,7 @@ class WorkPackageUpdate(BaseModel):
     """Properties that can be updated on a WorkPackage."""
 
     name: str | None = Field(None, min_length=1, max_length=255)
-    package_type: str | None = Field(
-        None,
-        min_length=1,
-        max_length=100,
-    )
+    package_type_id: UUID | None = None
     project_id: UUID | None = None
     description: str | None = None
     status: str | None = Field(None, pattern="^(open|closed)$")
@@ -123,6 +115,8 @@ class WorkPackageRead(TemporalComputedMixin, WorkPackageBase):
     valid_time: TemporalRange = None
     transaction_time: TemporalRange = None
     actual_cost: Decimal | None = None
+    package_type_code: str | None = None
+    package_type_name: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

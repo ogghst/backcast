@@ -855,38 +855,70 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         }
         wp_map: dict[UUID, tuple[str, str]] = {}
         if wp_ids:
+            from app.models.domain.package_type import (
+                PackageType as PackageTypeModel,
+            )
             from app.models.domain.work_package import WorkPackage
 
-            wp_name_stmt = select(
-                WorkPackage.work_package_id, WorkPackage.name, WorkPackage.package_type
-            ).where(
-                WorkPackage.work_package_id.in_(wp_ids),
-                func.upper(cast(Any, WorkPackage).valid_time).is_(None),
-                cast(Any, WorkPackage).deleted_at.is_(None),
+            wp_name_stmt = (
+                select(
+                    WorkPackage.work_package_id,
+                    WorkPackage.name,
+                    PackageTypeModel.code.label("package_type_code"),
+                )
+                .outerjoin(
+                    PackageTypeModel,
+                    WorkPackage.package_type_id == PackageTypeModel.package_type_id,
+                )
+                .where(
+                    WorkPackage.work_package_id.in_(wp_ids),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
+                    func.upper(cast(Any, PackageTypeModel).valid_time).is_(None),
+                    PackageTypeModel.deleted_at.is_(None),
+                )
             )
             wp_name_result = await self.session.execute(wp_name_stmt)
             for row in wp_name_result.all():
-                wp_map[row.work_package_id] = (row.name, row.package_type)
+                wp_map[row.work_package_id] = (
+                    row.name,
+                    row.package_type_code or "",
+                )
 
         return items, total, wp_map
 
     async def get_work_package_info(
         self, work_package_id: UUID | None
     ) -> tuple[str | None, str | None]:
-        """Get work package name and type for denormalized response."""
+        """Get work package name and type code for denormalized response."""
         if work_package_id is None:
             return None, None
+        from app.models.domain.package_type import (
+            PackageType as PackageTypeModel,
+        )
         from app.models.domain.work_package import WorkPackage
 
-        stmt = select(WorkPackage.name, WorkPackage.package_type).where(
-            WorkPackage.work_package_id == work_package_id,
-            func.upper(cast(Any, WorkPackage.valid_time)).is_(None),
-            cast(Any, WorkPackage).deleted_at.is_(None),
+        stmt = (
+            select(
+                WorkPackage.name,
+                PackageTypeModel.code.label("package_type_code"),
+            )
+            .outerjoin(
+                PackageTypeModel,
+                WorkPackage.package_type_id == PackageTypeModel.package_type_id,
+            )
+            .where(
+                WorkPackage.work_package_id == work_package_id,
+                func.upper(cast(Any, WorkPackage.valid_time)).is_(None),
+                cast(Any, WorkPackage).deleted_at.is_(None),
+                func.upper(cast(Any, PackageTypeModel).valid_time).is_(None),
+                PackageTypeModel.deleted_at.is_(None),
+            )
         )
         result = await self.session.execute(stmt.limit(1))
         row = result.first()
         if row:
-            return row.name, row.package_type
+            return row.name, row.package_type_code
         return None, None
 
     async def get_total_for_cost_element(

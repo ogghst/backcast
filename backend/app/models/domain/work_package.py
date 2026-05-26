@@ -4,20 +4,22 @@ Work Packages are a generalized concept for grouping cost registrations under
 a project. They support multiple types (quality_impact, site_visit, production_phase,
 warranty_batch, commissioning) with quality-specific fields remaining as nullable
 native columns for the quality_impact type.
-
-Uses Single Table Inheritance (STI) with a `package_type` discriminator column.
 """
 
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import DateTime, Numeric, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base.base import EntityBase
 from app.models.mixins import VersionableMixin
+
+if TYPE_CHECKING:
+    from app.models.domain.package_type import PackageType
 
 
 class WorkPackage(EntityBase, VersionableMixin):
@@ -34,7 +36,7 @@ class WorkPackage(EntityBase, VersionableMixin):
         work_package_id: Root ID for the WorkPackage aggregation.
         project_id: Root ID of the parent Backcast project.
         name: Human-readable label for the work package (required).
-        package_type: Discriminator -- closed enum value.
+        package_type_id: Root ID of the PackageType category.
         description: Optional description of the work package.
         status: Lifecycle state -- 'open' or 'closed'.
         external_event_id: External reference identifier (e.g., QMS ID, PO number, work order).
@@ -55,7 +57,13 @@ class WorkPackage(EntityBase, VersionableMixin):
     # New general fields
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    package_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    package_type_id: Mapped[UUID] = mapped_column(
+        PG_UUID,
+        nullable=False,
+        index=True,
+        # NOTE: No database-level ForeignKey constraint because package_type_id is
+        # a root ID that is not unique across versions. Integrity is enforced at application level.
+    )
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -88,6 +96,14 @@ class WorkPackage(EntityBase, VersionableMixin):
         SmallInteger, nullable=True
     )
 
+    # Relationships (view-only, no DB constraints)
+    package_type_ref: Mapped["PackageType"] = relationship(
+        "PackageType",
+        primaryjoin="WorkPackage.package_type_id == PackageType.package_type_id",
+        foreign_keys=[package_type_id],
+        viewonly=True,
+    )
+
     # Temporal fields inherited from VersionableMixin:
     # - valid_time: TSTZRANGE
     # - transaction_time: TSTZRANGE
@@ -100,7 +116,7 @@ class WorkPackage(EntityBase, VersionableMixin):
             f"<WorkPackage(id={self.id}, "
             f"work_package_id={self.work_package_id}, "
             f"name={self.name}, "
-            f"package_type={self.package_type}, "
+            f"package_type_id={self.package_type_id}, "
             f"project_id={self.project_id}, "
             f"status={self.status}, "
             f"cost_impact={self.cost_impact})>"

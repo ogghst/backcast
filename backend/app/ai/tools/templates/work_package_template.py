@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 async def find_work_packages(
     work_package_id: str | None = None,
     project_id: str | None = None,
-    package_type: str | None = None,
+    package_type_id: str | None = None,
     skip: int = 0,
     limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
@@ -72,7 +72,7 @@ async def find_work_packages(
     Args:
         work_package_id: UUID of a specific work package to retrieve (returns single)
         project_id: UUID of the project to list work packages for
-        package_type: Optional filter by package type
+        package_type_id: Optional filter by package type root ID
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
         context: Injected tool execution context
@@ -104,7 +104,9 @@ async def find_work_packages(
             wp_result: dict[str, Any] = {
                 "work_package_id": str(wp.work_package_id),
                 "name": wp.name,
-                "package_type": wp.package_type,
+                "package_type_id": str(wp.package_type_id),
+                "package_type_code": getattr(wp, "package_type_code", None),
+                "package_type_name": getattr(wp, "package_type_name", None),
                 "description": wp.description,
                 "status": wp.status,
                 "external_event_id": wp.external_event_id,
@@ -132,7 +134,7 @@ async def find_work_packages(
             project_id=UUID(project_id),
             skip=skip,
             limit=limit,
-            package_type=package_type,
+            package_type_id=UUID(package_type_id) if package_type_id else None,
             as_of=context.as_of,
         )
 
@@ -141,7 +143,9 @@ async def find_work_packages(
                 {
                     "work_package_id": str(wp.work_package_id),
                     "name": wp.name,
-                    "package_type": wp.package_type,
+                    "package_type_id": str(wp.package_type_id),
+                    "package_type_code": getattr(wp, "package_type_code", None),
+                    "package_type_name": getattr(wp, "package_type_name", None),
                     "description": wp.description,
                     "status": wp.status,
                     "external_event_id": wp.external_event_id,
@@ -179,7 +183,7 @@ async def find_work_packages(
 async def create_work_package(
     project_id: str,
     name: str,
-    package_type: str,
+    package_type_id: str,
     description: str | None = None,
     status: str = "open",
     external_event_id: str | None = None,
@@ -198,7 +202,7 @@ async def create_work_package(
     Args:
         project_id: UUID of the parent project
         name: Work package name
-        package_type: Type of work package (supports any active package type
+        package_type_id: UUID of the package type (references an active package type
             configured in the system)
         description: Optional description
         status: Status (open or closed, defaults to "open")
@@ -223,7 +227,7 @@ async def create_work_package(
         >>> result = await create_work_package(
         ...     project_id="...",
         ...     name="NCR-2026-001",
-        ...     package_type="quality_impact",
+        ...     package_type_id="...",
         ...     coq_category="internal_failure",
         ...     cost_impact=15000.0,
         ...     cost_allocations=[
@@ -257,7 +261,7 @@ async def create_work_package(
         wp_data = WorkPackageCreate(
             project_id=UUID(project_id),
             name=name,
-            package_type=package_type,
+            package_type_id=UUID(package_type_id),
             description=description,
             status=status,
             external_event_id=external_event_id,
@@ -278,7 +282,9 @@ async def create_work_package(
         return {
             "work_package_id": str(wp.work_package_id),
             "name": wp.name,
-            "package_type": wp.package_type,
+            "package_type_id": str(wp.package_type_id),
+            "package_type_code": getattr(wp, "package_type_code", None),
+            "package_type_name": getattr(wp, "package_type_name", None),
             "description": wp.description,
             "status": wp.status,
             "external_event_id": wp.external_event_id,
@@ -308,7 +314,7 @@ async def create_work_package(
 async def update_work_package(
     work_package_id: str,
     name: str | None = None,
-    package_type: str | None = None,
+    package_type_id: str | None = None,
     description: str | None = None,
     status: str | None = None,
     external_event_id: str | None = None,
@@ -327,7 +333,7 @@ async def update_work_package(
     Args:
         work_package_id: UUID of the work package to update
         name: New name (optional)
-        package_type: New package type (optional)
+        package_type_id: New package type root ID (optional)
         description: New description (optional)
         status: New status (optional)
         external_event_id: New external reference identifier (optional)
@@ -377,8 +383,8 @@ async def update_work_package(
         update_kwargs: dict[str, Any] = {}
         if name is not None:
             update_kwargs["name"] = name
-        if package_type is not None:
-            update_kwargs["package_type"] = package_type
+        if package_type_id is not None:
+            update_kwargs["package_type_id"] = UUID(package_type_id)
         if description is not None:
             update_kwargs["description"] = description
         if status is not None:
@@ -410,7 +416,9 @@ async def update_work_package(
         return {
             "work_package_id": str(wp.work_package_id),
             "name": wp.name,
-            "package_type": wp.package_type,
+            "package_type_id": str(wp.package_type_id),
+            "package_type_code": getattr(wp, "package_type_code", None),
+            "package_type_name": getattr(wp, "package_type_name", None),
             "description": wp.description,
             "status": wp.status,
             "external_event_id": wp.external_event_id,

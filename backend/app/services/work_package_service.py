@@ -77,7 +77,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         self._validate_status(data.status)
 
         # Validate package_type against DB-driven type table
-        await self._validate_package_type(data.package_type)
+        await self._validate_package_type_id(data.package_type_id)
 
         # Validate coq_category if provided
         if data.coq_category is not None:
@@ -112,7 +112,9 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 actor_id=actor_id,
             )
 
-        return wp
+        # Re-fetch with denormalized PackageType info
+        result = await self.get_by_id(wp.work_package_id)
+        return result if result else wp
 
     async def update_work_package(
         self,
@@ -139,9 +141,9 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         if data.status is not None:
             self._validate_status(data.status)
 
-        # Validate package_type if being changed
-        if data.package_type is not None:
-            await self._validate_package_type(data.package_type)
+        # Validate package_type_id if being changed
+        if data.package_type_id is not None:
+            await self._validate_package_type_id(data.package_type_id)
 
         # Validate coq_category if being changed
         if data.coq_category is not None:
@@ -183,7 +185,9 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 actor_id=actor_id,
             )
 
-        return wp
+        # Re-fetch with denormalized PackageType info
+        result = await self.get_by_id(wp.work_package_id)
+        return result if result else wp
 
     async def soft_delete(
         self,
@@ -214,16 +218,25 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
     # --- Query operations ---
 
     async def get_by_id(self, work_package_id: UUID) -> WorkPackage | None:
-        """Get current work package by root ID.
+        """Get current work package by root ID with denormalized PackageType info.
 
         Args:
             work_package_id: Root ID of the work package.
 
         Returns:
-            The current version, or None if not found.
+            The current version with package_type_code/name, or None if not found.
         """
+        pt_subq = self._get_package_type_subquery()
         stmt = (
-            select(WorkPackage)
+            select(
+                WorkPackage,
+                pt_subq.c.pt_code,
+                pt_subq.c.pt_name,
+            )
+            .outerjoin(
+                pt_subq,
+                WorkPackage.package_type_id == pt_subq.c.package_type_id,
+            )
             .where(
                 WorkPackage.work_package_id == work_package_id,
                 func.upper(WorkPackage.valid_time).is_(None),
@@ -233,7 +246,8 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        resolved = self._resolve_relations(result.all())
+        return resolved[0] if resolved else None
 
     async def get_work_packages(
         self,
@@ -241,9 +255,10 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         skip: int = 0,
         limit: int = 100,
         coq_category: str | None = None,
-        package_type: str | None = None,
+        package_type_id: UUID | None = None,
         status: str | None = None,
         as_of: datetime | None = None,
+        quality_only: bool = False,
     ) -> tuple[list[WorkPackage], int]:
         """Get work packages filtered by project with pagination.
 
@@ -252,15 +267,28 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             skip: Number of records to skip.
             limit: Maximum records to return.
             coq_category: Optional filter by COQ category (quality-specific).
-            package_type: Optional filter by package type.
+            package_type_id: Optional filter by package type root ID.
             status: Optional filter by status.
             as_of: Optional timestamp for time-travel query.
+            quality_only: If True, only return work packages of quality-flagged types.
 
         Returns:
             Tuple of (list of work packages, total count).
         """
-        stmt = select(WorkPackage).where(
-            WorkPackage.project_id == project_id,
+        pt_subq = self._get_package_type_subquery()
+        stmt = (
+            select(
+                WorkPackage,
+                pt_subq.c.pt_code,
+                pt_subq.c.pt_name,
+            )
+            .outerjoin(
+                pt_subq,
+                WorkPackage.package_type_id == pt_subq.c.package_type_id,
+            )
+            .where(
+                WorkPackage.project_id == project_id,
+            )
         )
 
         if as_of is not None:
@@ -272,10 +300,12 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         if coq_category is not None:
             stmt = stmt.where(WorkPackage.coq_category == coq_category)
 
-        if package_type is not None:
-            types = [t.strip().lower() for t in package_type.split(",") if t.strip()]
-            if types:
-                stmt = stmt.where(func.lower(WorkPackage.package_type).in_(types))
+        if package_type_id is not None:
+            stmt = stmt.where(WorkPackage.package_type_id == package_type_id)
+
+        if quality_only:
+            quality_ids = await self._get_quality_package_type_ids()
+            stmt = stmt.where(WorkPackage.package_type_id.in_(quality_ids))
 
         if status is not None:
             stmt = stmt.where(WorkPackage.status == status)
@@ -290,7 +320,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         stmt = stmt.offset(skip).limit(limit)
 
         result = await self.session.execute(stmt)
-        return list(result.scalars().all()), total
+        return self._resolve_relations(result.all()), total
 
     async def get_history(self, work_package_id: UUID) -> list[WorkPackage]:
         """Get full version history for a work package.
@@ -301,7 +331,53 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             All versions ordered by transaction time descending.
         """
-        return await super().get_history(work_package_id)
+        pt_subq = self._get_package_type_subquery()
+        stmt = (
+            select(
+                WorkPackage,
+                pt_subq.c.pt_code,
+                pt_subq.c.pt_name,
+            )
+            .outerjoin(
+                pt_subq,
+                WorkPackage.package_type_id == pt_subq.c.package_type_id,
+            )
+            .where(WorkPackage.work_package_id == work_package_id)
+            .order_by(WorkPackage.transaction_time.desc())
+        )
+        result = await self.session.execute(stmt)
+        return self._resolve_relations(result.all())
+
+    async def get_as_of_with_relations(
+        self, entity_id: UUID, as_of: datetime
+    ) -> WorkPackage | None:
+        """Time-travel query with denormalized PackageType info.
+
+        Args:
+            entity_id: Root ID of the work package.
+            as_of: Timestamp for point-in-time query.
+
+        Returns:
+            The work package version valid at as_of, or None if not found.
+        """
+        pt_subq = self._get_package_type_subquery()
+        stmt = (
+            select(
+                WorkPackage,
+                pt_subq.c.pt_code,
+                pt_subq.c.pt_name,
+            )
+            .outerjoin(
+                pt_subq,
+                WorkPackage.package_type_id == pt_subq.c.package_type_id,
+            )
+            .where(WorkPackage.work_package_id == entity_id)
+        )
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
+        stmt = stmt.order_by(WorkPackage.valid_time.desc()).limit(1)
+        result = await self.session.execute(stmt)
+        resolved = self._resolve_relations(result.all())
+        return resolved[0] if resolved else None
 
     # --- Summary ---
 
@@ -322,13 +398,13 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             WorkPackageSummary with cost breakdown and COQ ratio.
         """
-        quality_codes = await self._get_quality_package_type_codes()
+        quality_ids = await self._get_quality_package_type_ids()
 
         if as_of is not None:
             # Use a subquery approach for time-travel
             inner_stmt = select(WorkPackage).where(
                 WorkPackage.project_id == project_id,
-                func.lower(WorkPackage.package_type).in_(quality_codes),
+                WorkPackage.package_type_id.in_(quality_ids),
             )
             inner_stmt = self._apply_bitemporal_filter(inner_stmt, as_of)
             inner_subq = inner_stmt.subquery()
@@ -372,7 +448,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 ),
             ).where(
                 WorkPackage.project_id == project_id,
-                func.lower(WorkPackage.package_type).in_(quality_codes),
+                WorkPackage.package_type_id.in_(quality_ids),
                 *current_filter,
             )
             total_result = await self.session.execute(total_stmt)
@@ -387,7 +463,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 )
                 .where(
                     WorkPackage.project_id == project_id,
-                    func.lower(WorkPackage.package_type).in_(quality_codes),
+                    WorkPackage.package_type_id.in_(quality_ids),
                     *current_filter,
                 )
                 .group_by(WorkPackage.coq_category)
@@ -448,17 +524,17 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             COQMetrics with all computed indicators.
         """
-        quality_codes = await self._get_quality_package_type_codes()
+        quality_ids = await self._get_quality_package_type_ids()
 
         # Build base filters for WorkPackage (quality-flagged types only)
         wp_filters = [
             WorkPackage.project_id == project_id,
-            func.lower(WorkPackage.package_type).in_(quality_codes),
+            WorkPackage.package_type_id.in_(quality_ids),
         ]
         if as_of is not None:
             wp_subq = select(WorkPackage).where(
                 WorkPackage.project_id == project_id,
-                func.lower(WorkPackage.package_type).in_(quality_codes),
+                WorkPackage.package_type_id.in_(quality_ids),
             )
             wp_subq = self._apply_bitemporal_filter(wp_subq, as_of)
             wp_subq = wp_subq.subquery()
@@ -604,9 +680,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             COQTrendResponse with time-series data points.
         """
-        quality_codes = [
-            c.lower() for c in await self._get_quality_package_type_codes()
-        ]
+        quality_ids = await self._get_quality_package_type_ids()
         trunc = "week" if granularity == COQTrendGranularity.WEEK else "month"
 
         # Determine date range from both work package event dates and
@@ -617,7 +691,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             func.max(WorkPackage.event_date),
         ).where(
             WorkPackage.project_id == project_id,
-            func.lower(WorkPackage.package_type).in_(quality_codes),
+            WorkPackage.package_type_id.in_(quality_ids),
             WorkPackage.event_date.isnot(None),
             func.upper(WorkPackage.valid_time).is_(None),
             WorkPackage.deleted_at.is_(None),
@@ -636,7 +710,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             )
             .where(
                 WorkPackage.project_id == project_id,
-                func.lower(WorkPackage.package_type).in_(quality_codes),
+                WorkPackage.package_type_id.in_(quality_ids),
                 CostRegistration.registration_date.isnot(None),
                 CostRegistration.work_package_id.isnot(None),
                 func.upper(CostRegistration.valid_time).is_(None),
@@ -676,7 +750,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             )
             .where(
                 WorkPackage.project_id == project_id,
-                func.lower(WorkPackage.package_type).in_(quality_codes),
+                WorkPackage.package_type_id.in_(quality_ids),
                 CostRegistration.registration_date.isnot(None),
                 CostRegistration.work_package_id.isnot(None),
                 func.upper(WorkPackage.valid_time).is_(None),
@@ -705,7 +779,7 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
             )
             .where(
                 WorkPackage.project_id == project_id,
-                func.lower(WorkPackage.package_type).in_(quality_codes),
+                WorkPackage.package_type_id.in_(quality_ids),
                 WorkPackage.event_date.isnot(None),
                 func.upper(WorkPackage.valid_time).is_(None),
                 WorkPackage.deleted_at.is_(None),
@@ -952,26 +1026,72 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
 
     # --- Internal helpers ---
 
-    async def _get_quality_package_type_codes(self) -> list[str]:
-        """Get codes of all package types flagged as quality-relevant.
+    def _get_package_type_subquery(self) -> Any:
+        """Get subquery for current PackageType versions with code and name.
+
+        Returns:
+            SQLAlchemy subquery with package_type_id, pt_code, and pt_name columns.
+        """
+        from app.models.domain.package_type import PackageType as PackageTypeModel
+
+        pt_subq = (
+            select(
+                PackageTypeModel.package_type_id,
+                PackageTypeModel.code.label("pt_code"),
+                PackageTypeModel.name.label("pt_name"),
+            )
+            .where(
+                func.upper(PackageTypeModel.valid_time).is_(None),
+                PackageTypeModel.deleted_at.is_(None),
+            )
+            .subquery("pt_lookup_subq")
+        )
+        return pt_subq
+
+    def _resolve_relations(self, query_results: Any) -> list[WorkPackage]:
+        """Resolve denormalized PackageType fields from query results.
+
+        Args:
+            query_results: List of result tuples (WorkPackage, pt_code, pt_name).
+
+        Returns:
+            List of WorkPackage entities with denormalized fields populated.
+        """
+        resolved: list[WorkPackage] = []
+        for item in query_results:
+            if hasattr(item, "__iter__") and not isinstance(item, (str, bytes)):
+                item_list = list(item)
+                if len(item_list) >= 3:
+                    entity = item_list[0]
+                    entity.package_type_code = item_list[1]
+                    entity.package_type_name = item_list[2]
+                    resolved.append(entity)
+                else:
+                    resolved.append(item_list[0])
+            else:
+                resolved.append(item)
+        return resolved
+
+    async def _get_quality_package_type_ids(self) -> list[UUID]:
+        """Get root IDs of all package types flagged as quality-relevant.
 
         Queries active (current, non-deleted) PackageType versions where
         is_quality is True. Returns a sentinel value if none exist to
         produce empty result sets via IN clause.
 
         Returns:
-            List of package type codes marked as quality-relevant.
+            List of package type root IDs marked as quality-relevant.
         """
         from app.models.domain.package_type import PackageType as PackageTypeModel
 
-        stmt = select(PackageTypeModel.code).where(
+        stmt = select(PackageTypeModel.package_type_id).where(
             func.upper(PackageTypeModel.valid_time).is_(None),
             PackageTypeModel.deleted_at.is_(None),
             PackageTypeModel.is_quality == True,  # noqa: E712
         )
         result = await self.session.execute(stmt)
-        codes = [row[0] for row in result.all()]
-        return codes if codes else ["__no_quality_types__"]
+        ids = [row[0] for row in result.all()]
+        return ids if ids else [UUID("00000000-0000-0000-0000-000000000000")]
 
     @staticmethod
     def _validate_status(status: str) -> None:
@@ -1007,24 +1127,24 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
                 f"Must be one of: {', '.join(sorted(valid_categories))}"
             )
 
-    async def _validate_package_type(self, package_type: str) -> None:
-        """Validate package_type against active package types in the database.
+    async def _validate_package_type_id(self, package_type_id: UUID) -> None:
+        """Validate package_type_id against active package types in the database.
 
-        Queries current (non-deleted) PackageType versions where code matches
+        Queries current (non-deleted) PackageType versions where root ID matches
         the provided value.
 
         Args:
-            package_type: The package type code to validate.
+            package_type_id: The package type root ID to validate.
 
         Raises:
-            ValueError: If no active package type with the given code exists.
+            ValueError: If no active package type with the given ID exists.
         """
         from app.models.domain.package_type import PackageType as PackageTypeModel
 
         stmt = (
             select(PackageTypeModel.id)
             .where(
-                PackageTypeModel.code == package_type,
+                PackageTypeModel.package_type_id == package_type_id,
                 func.upper(PackageTypeModel.valid_time).is_(None),
                 PackageTypeModel.deleted_at.is_(None),
             )
@@ -1033,8 +1153,8 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         result = await self.session.execute(stmt)
         if result.scalar_one_or_none() is None:
             raise ValueError(
-                f"Invalid package_type '{package_type}'. "
-                f"No active package type with that code found."
+                f"Invalid package_type_id '{package_type_id}'. "
+                f"No active package type with that ID found."
             )
 
     async def _validate_project_exists(self, project_id: UUID) -> None:

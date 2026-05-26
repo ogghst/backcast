@@ -3,7 +3,7 @@
 import json
 from decimal import Decimal
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
@@ -61,7 +61,7 @@ async def test_create_work_package(
 
     data = WorkPackageCreate(
         name="NCR-2026-0042",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-2026-0042",
         project_id=test_project.project_id,
         coq_category="internal_failure",
@@ -74,7 +74,7 @@ async def test_create_work_package(
 
     assert wp.work_package_id == data.work_package_id
     assert wp.name == "NCR-2026-0042"
-    assert wp.package_type == "quality_impact"
+    assert wp.package_type_id == UUID("a1b2c3d4-1111-4000-8000-000000000001")
     assert wp.external_event_id == "NCR-2026-0042"
     assert wp.project_id == test_project.project_id
     assert wp.coq_category == "internal_failure"
@@ -98,7 +98,7 @@ async def test_create_work_package_with_cost_allocations(
 
     data = WorkPackageCreate(
         name="NCR-2026-0099",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-2026-0099",
         project_id=project_id,
         coq_category="prevention",
@@ -144,7 +144,7 @@ async def test_update_work_package(
 
     create_data = WorkPackageCreate(
         name="NCR-2026-0050",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-2026-0050",
         project_id=test_project.project_id,
         coq_category="internal_failure",
@@ -187,7 +187,7 @@ async def test_soft_delete_work_package(
 
     data = WorkPackageCreate(
         name="NCR-2026-0060",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-2026-0060",
         project_id=test_project.project_id,
         coq_category="prevention",
@@ -233,7 +233,7 @@ async def test_get_work_packages_by_project(
     for i in range(5):
         data = WorkPackageCreate(
             name=f"WP-{i:04d}",
-            package_type="quality_impact",
+            package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
             external_event_id=f"NCR-2026-{i:04d}",
             project_id=project_id,
             coq_category="internal_failure",
@@ -272,7 +272,7 @@ async def test_get_work_packages_filter_by_coq_category(
     for i in range(2):
         data = WorkPackageCreate(
             name=f"NC-{i:04d}",
-            package_type="quality_impact",
+            package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
             external_event_id=f"NCR-NC-{i:04d}",
             project_id=project_id,
             coq_category="internal_failure",
@@ -284,7 +284,7 @@ async def test_get_work_packages_filter_by_coq_category(
     for i in range(3):
         data = WorkPackageCreate(
             name=f"CF-{i:04d}",
-            package_type="quality_impact",
+            package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
             external_event_id=f"NCR-CF-{i:04d}",
             project_id=project_id,
             coq_category="prevention",
@@ -325,7 +325,7 @@ async def test_get_summary(
     for i in range(2):
         data = WorkPackageCreate(
             name=f"SUM-NC-{i}",
-            package_type="quality_impact",
+            package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
             external_event_id=f"NCR-SUM-NC-{i}",
             project_id=project_id,
             coq_category="internal_failure",
@@ -337,7 +337,7 @@ async def test_get_summary(
     # 1 prevention @ 2000
     data_cf = WorkPackageCreate(
         name="SUM-CF-0",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-SUM-CF-0",
         project_id=project_id,
         coq_category="prevention",
@@ -373,7 +373,7 @@ async def test_get_allocations(
 
     data = WorkPackageCreate(
         name="BD-001",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-BD-001",
         project_id=project_id,
         coq_category="internal_failure",
@@ -415,7 +415,7 @@ async def test_upsert_allocations(
     # Create with initial allocations
     data = WorkPackageCreate(
         name="UPS-001",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-UPS-001",
         project_id=project_id,
         coq_category="internal_failure",
@@ -470,7 +470,7 @@ async def test_compute_actual_cost(
 
     data = WorkPackageCreate(
         name="ACT-001",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-ACT-001",
         project_id=project_id,
         coq_category="internal_failure",
@@ -502,7 +502,7 @@ async def test_get_history(
 
     data = WorkPackageCreate(
         name="HIST-001",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-HIST-001",
         project_id=test_project.project_id,
         coq_category="internal_failure",
@@ -554,7 +554,7 @@ async def test_get_coq_metrics(
     # 1. Create an internal_failure quality package with 3000 allocation
     nc_data = WorkPackageCreate(
         name="COQ-NC-01",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-COQ-NC-01",
         project_id=project_id,
         coq_category="internal_failure",
@@ -569,7 +569,7 @@ async def test_get_coq_metrics(
     # 2. Create a prevention quality package with 2000 allocation
     cf_data = WorkPackageCreate(
         name="COQ-CF-01",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-COQ-CF-01",
         project_id=project_id,
         coq_category="prevention",
@@ -637,14 +637,16 @@ async def test_create_work_package_invalid_type_raises(
     test_project,
     actor_id: tuple,
 ) -> None:
-    """Invalid package_type raises ValidationError from Pydantic schema."""
-    with pytest.raises(ValidationError, match="package_type"):
-        WorkPackageCreate(
-            name="Invalid-Type",
-            package_type="invalid_type",
-            project_id=test_project.project_id,
-            cost_impact=Decimal("1000.00"),
-        )
+    """Non-existent package_type_id raises ValueError from service validation."""
+    service = WorkPackageService(db_session)
+    data = WorkPackageCreate(
+        name="Invalid-Type",
+        package_type_id=UUID("00000000-0000-0000-0000-999999999999"),
+        project_id=test_project.project_id,
+        cost_impact=Decimal("1000.00"),
+    )
+    with pytest.raises(ValueError, match="package_type_id"):
+        await service.create_work_package(data, actor_id=actor_id)
 
 
 @pytest.mark.asyncio
@@ -656,7 +658,7 @@ async def test_create_work_package_without_name_fails(
     """Creating a work package without a name raises ValidationError (T-003)."""
     with pytest.raises(ValidationError, match="name"):
         WorkPackageCreate(
-            package_type="quality_impact",
+            package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
             project_id=test_project.project_id,
             cost_impact=Decimal("1000.00"),
         )
@@ -673,7 +675,7 @@ async def test_create_work_package_default_status_open(
 
     data = WorkPackageCreate(
         name="Default-Status",
-        package_type="site_visit",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000002"),
         project_id=test_project.project_id,
         cost_impact=Decimal("1000.00"),
     )
@@ -695,7 +697,7 @@ async def test_update_work_package_status_to_closed(
 
     create_data = WorkPackageCreate(
         name="Status-Test",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-STATUS-001",
         project_id=test_project.project_id,
         coq_category="internal_failure",
@@ -742,7 +744,7 @@ async def test_get_work_packages_filter_by_type(
     for i in range(2):
         data = WorkPackageCreate(
             name=f"QI-{i}",
-            package_type="quality_impact",
+            package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
             external_event_id=f"NCR-QI-{i}",
             project_id=project_id,
             coq_category="internal_failure",
@@ -754,7 +756,7 @@ async def test_get_work_packages_filter_by_type(
     for i in range(3):
         data = WorkPackageCreate(
             name=f"SV-{i}",
-            package_type="site_visit",
+            package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000002"),
             project_id=project_id,
             cost_impact=Decimal("1500.00"),
         )
@@ -763,17 +765,17 @@ async def test_get_work_packages_filter_by_type(
 
     # Filter by quality_impact
     qi_wps, qi_total = await service.get_work_packages(
-        project_id, package_type="quality_impact"
+        project_id, package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001")
     )
     assert qi_total == 2
-    assert all(wp.package_type == "quality_impact" for wp in qi_wps)
+    assert all(wp.package_type_id == UUID("a1b2c3d4-1111-4000-8000-000000000001") for wp in qi_wps)
 
     # Filter by site_visit
     sv_wps, sv_total = await service.get_work_packages(
-        project_id, package_type="site_visit"
+        project_id, package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000002")
     )
     assert sv_total == 3
-    assert all(wp.package_type == "site_visit" for wp in sv_wps)
+    assert all(wp.package_type_id == UUID("a1b2c3d4-1111-4000-8000-000000000002") for wp in sv_wps)
 
 
 # --- NEW: Non-quality Package CRUD Tests ---
@@ -790,7 +792,7 @@ async def test_create_site_visit_no_quality_fields(
 
     data = WorkPackageCreate(
         name="Site Visit - Phase 1",
-        package_type="site_visit",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000002"),
         project_id=test_project.project_id,
         cost_impact=Decimal("2500.00"),
     )
@@ -800,7 +802,7 @@ async def test_create_site_visit_no_quality_fields(
 
     assert wp.work_package_id == data.work_package_id
     assert wp.name == "Site Visit - Phase 1"
-    assert wp.package_type == "site_visit"
+    assert wp.package_type_id == UUID("a1b2c3d4-1111-4000-8000-000000000002")
     assert wp.status == "open"
     assert wp.coq_category is None
     assert wp.schedule_impact_days is None
@@ -825,7 +827,7 @@ async def test_coq_metrics_filters_by_quality_type_only(
     # Create a quality_impact package with allocation
     qi_data = WorkPackageCreate(
         name="COQ-ONLY-QI",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-COQ-ONLY",
         project_id=project_id,
         coq_category="internal_failure",
@@ -840,7 +842,7 @@ async def test_coq_metrics_filters_by_quality_type_only(
     # Create a site_visit package (should be excluded from COQ)
     sv_data = WorkPackageCreate(
         name="COQ-SKIP-SV",
-        package_type="site_visit",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000002"),
         project_id=project_id,
         cost_impact=Decimal("9999.00"),
     )
@@ -867,7 +869,7 @@ async def test_summary_excludes_non_quality_types(
     # Create a quality_impact package
     qi_data = WorkPackageCreate(
         name="SUM-QI",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-SUM-QI",
         project_id=project_id,
         coq_category="internal_failure",
@@ -879,7 +881,7 @@ async def test_summary_excludes_non_quality_types(
     # Create a site_visit package
     sv_data = WorkPackageCreate(
         name="SUM-SV",
-        package_type="site_visit",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000002"),
         project_id=project_id,
         cost_impact=Decimal("9999.00"),
     )
@@ -907,7 +909,7 @@ async def test_cost_registration_links_via_work_package_id(
 
     data = WorkPackageCreate(
         name="FK-LINK-TEST",
-        package_type="quality_impact",
+        package_type_id=UUID("a1b2c3d4-1111-4000-8000-000000000001"),
         external_event_id="NCR-FK-001",
         project_id=project_id,
         coq_category="internal_failure",

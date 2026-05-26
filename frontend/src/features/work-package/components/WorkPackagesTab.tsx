@@ -58,15 +58,13 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
   const currency = useProjectCurrency(projectId);
   const { data: packageTypeOptions } = usePackageTypes();
 
-  // Build dynamic lookup maps from API data
-  const { typeColors, typeLabels } = useMemo(() => {
+  // Build dynamic color lookup from API data
+  const typeColors = useMemo(() => {
     const colors: Record<string, string> = {};
-    const labels: Record<string, string> = {};
     (packageTypeOptions || []).forEach((pt) => {
       colors[pt.value] = pt.color;
-      labels[pt.value] = pt.label;
     });
-    return { typeColors: colors, typeLabels: labels };
+    return colors;
   }, [packageTypeOptions]);
 
   const [page, setPage] = useState(1);
@@ -79,12 +77,12 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
   const [breakdownDrawerOpen, setBreakdownDrawerOpen] = useState(false);
   const [breakdownPackage, setBreakdownPackage] =
     useState<WorkPackageRead | null>(null);
-  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
   // Query work packages
   const { data: packagesData, isLoading } = useWorkPackages({
     project_id: projectId,
-    package_type: typeFilter.length > 0 ? typeFilter.join(",") : undefined,
+    package_type_id: typeFilter ?? undefined,
     page,
     perPage,
   });
@@ -191,12 +189,12 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
     },
     {
       title: "Type",
-      dataIndex: "package_type",
-      key: "package_type",
+      dataIndex: "package_type_id",
+      key: "package_type_id",
       width: 140,
-      render: (ptype: PackageType) => (
-        <Tag color={typeColors[ptype] || "default"}>
-          {typeLabels[ptype] || ptype}
+      render: (_: string, record: WorkPackageRead) => (
+        <Tag color={typeColors[record.package_type_id] || "default"}>
+          {record.package_type_name || record.package_type_code || "Unknown"}
         </Tag>
       ),
     },
@@ -368,11 +366,8 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
   return (
     <div>
       {/* Summary Card — only for quality-related views */}
-      {(typeFilter.length === 0 ||
-        typeFilter.some(
-          (code) =>
-            packageTypeOptions?.find((pt) => pt.value === code)?.is_quality,
-        )) && <WorkPackageSummaryCard projectId={projectId} />}
+      {(typeFilter === null ||
+        packageTypeOptions?.find((pt) => pt.value === typeFilter)?.is_quality) && <WorkPackageSummaryCard projectId={projectId} />}
 
       {/* Action Bar */}
       <div
@@ -396,11 +391,10 @@ export const WorkPackagesTab = ({ projectId }: WorkPackagesTabProps) => {
       {/* Type Filter */}
       <div style={{ marginBottom: spacing.md }}>
         <Select
-          mode="multiple"
           placeholder="Filter by type"
-          value={typeFilter}
-          onChange={(values) => {
-            setTypeFilter(values);
+          value={typeFilter ?? undefined}
+          onChange={(value) => {
+            setTypeFilter(value ?? null);
             setPage(1);
           }}
           options={(packageTypeOptions || []).map((opt) => ({

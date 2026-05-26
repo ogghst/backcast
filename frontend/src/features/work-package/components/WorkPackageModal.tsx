@@ -81,8 +81,8 @@ export const WorkPackageModal = ({
   // Track selected WBE per breakdown row to load cost elements
   const [selectedWbes, setSelectedWbes] = useState<Record<string, string | null>>({});
 
-  // Watch package_type to conditionally show quality fields
-  const selectedPackageType = Form.useWatch("package_type", form);
+  // Watch package_type_id to conditionally show quality fields
+  const selectedPackageType = Form.useWatch("package_type_id", form);
   const isQualityType = packageTypeOptions?.find(pt => pt.value === selectedPackageType)?.is_quality ?? false;
 
   // Currency formatter/parser for InputNumber
@@ -111,7 +111,7 @@ export const WorkPackageModal = ({
       if (initialValues) {
         form.setFieldsValue({
           name: initialValues.name,
-          package_type: initialValues.package_type,
+          package_type_id: initialValues.package_type_id,
           description: initialValues.description,
           status: initialValues.status,
           external_event_id: initialValues.external_event_id,
@@ -125,7 +125,7 @@ export const WorkPackageModal = ({
       } else {
         form.resetFields();
         form.setFieldsValue({
-          package_type: packageTypeOptions?.[0]?.value || "",
+          package_type_id: packageTypeOptions?.[0]?.value || "",
           event_date: asOf ? dayjs(asOf) : dayjs(),
           coq_category: "internal_failure",
           status: "open",
@@ -262,7 +262,7 @@ export const WorkPackageModal = ({
           </Form.Item>
 
           <Form.Item
-            name="package_type"
+            name="package_type_id"
             label="Package Type"
             rules={[{ required: true, message: "Please select a type" }]}
           >

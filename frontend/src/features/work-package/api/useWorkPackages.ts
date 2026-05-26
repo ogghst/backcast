@@ -41,8 +41,6 @@ export interface QualityCostAllocationRead {
   wbe_id?: string;
 }
 
-export type PackageType = string;
-
 export const COQ_CATEGORY_OPTIONS = [
   { label: "Prevention", value: "prevention" },
   { label: "Appraisal", value: "appraisal" },
@@ -72,7 +70,7 @@ export const usePackageTypes = () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (pt: any) => ({
           label: pt.name,
-          value: pt.code,
+          value: pt.package_type_id,
           color: pt.color || "blue",
           is_quality: pt.is_quality || false,
         }),
@@ -87,7 +85,9 @@ export interface WorkPackageRead {
   work_package_id: string;
   project_id: string;
   name: string;
-  package_type: PackageType;
+  package_type_id: string;
+  package_type_code: string | null;
+  package_type_name: string | null;
   description: string | null;
   status: "open" | "closed";
   external_event_id: string | null;
@@ -104,7 +104,7 @@ export interface WorkPackageCreate {
   work_package_id?: string;
   project_id: string;
   name: string;
-  package_type: PackageType;
+  package_type_id: string;
   description?: string | null;
   status?: "open" | "closed";
   external_event_id?: string | null;
@@ -118,7 +118,7 @@ export interface WorkPackageCreate {
 
 export interface WorkPackageUpdate {
   name?: string | null;
-  package_type?: PackageType | null;
+  package_type_id?: string | null;
   project_id?: string | null;
   description?: string | null;
   status?: "open" | "closed" | null;
@@ -187,7 +187,8 @@ export interface COQTrendResponse {
 interface WorkPackageListParams {
   project_id: string;
   coq_category?: string;
-  package_type?: string;
+  package_type_id?: string;
+  quality_only?: boolean;
   status?: string;
   page?: number;
   perPage?: number;
@@ -207,7 +208,8 @@ export const useWorkPackages = (params: WorkPackageListParams) => {
   return useQuery<PaginatedResponse<WorkPackageRead>>({
     queryKey: queryKeys.workPackages.list(params.project_id, {
       coq_category: params.coq_category,
-      package_type: params.package_type,
+      package_type_id: params.package_type_id,
+      quality_only: params.quality_only,
       status: params.status,
       page: params.page,
       perPage: params.perPage,
@@ -219,7 +221,8 @@ export const useWorkPackages = (params: WorkPackageListParams) => {
       const {
         project_id,
         coq_category,
-        package_type,
+        package_type_id,
+        quality_only,
         status,
         page = 1,
         perPage = 20,
@@ -233,7 +236,8 @@ export const useWorkPackages = (params: WorkPackageListParams) => {
           page,
           per_page: perPage,
           coq_category: coq_category || undefined,
-          package_type: package_type || undefined,
+          package_type_id: package_type_id || undefined,
+          quality_only: quality_only || undefined,
           status: status || undefined,
           as_of: params.asOf || tmAsOf || undefined,
           branch,

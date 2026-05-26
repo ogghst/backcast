@@ -49,9 +49,13 @@ async def read_work_packages(
         pattern="^(prevention|appraisal|internal_failure|external_failure)$",
         description="Filter by COQ category",
     ),
-    package_type: str | None = Query(
+    package_type_id: UUID | None = Query(
         None,
-        description="Filter by package type(s), comma-separated for multiple (e.g. 'quality_impact,site_visit')",
+        description="Filter by package type root ID",
+    ),
+    quality_only: bool = Query(
+        False,
+        description="When true, only return quality-flagged package types",
     ),
     status: str | None = Query(
         None,
@@ -75,7 +79,8 @@ async def read_work_packages(
         skip=skip,
         limit=per_page,
         coq_category=coq_category,
-        package_type=package_type,
+        package_type_id=package_type_id,
+        quality_only=quality_only,
         status=status,
         as_of=as_of,
     )
@@ -225,7 +230,7 @@ async def read_work_package(
     Supports time-travel queries via the as_of parameter.
     """
     if as_of is not None:
-        item = await service.get_as_of(
+        item = await service.get_as_of_with_relations(
             entity_id=work_package_id,
             as_of=as_of,
         )

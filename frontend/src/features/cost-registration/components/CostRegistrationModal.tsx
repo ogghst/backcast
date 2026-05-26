@@ -91,7 +91,7 @@ export const CostRegistrationModal = ({
   const { data: packageTypeOptions } = usePackageTypes();
 
   const workPackageOptions = (wpData?.items || []).map((wp) => {
-    const typeLabel = packageTypeOptions?.find((o) => o.value === wp.package_type)?.label || wp.package_type;
+    const typeLabel = packageTypeOptions?.find((o) => o.value === wp.package_type_id)?.label || wp.package_type_code || wp.package_type_name || "";
     return {
       label: `${wp.name} (${typeLabel})`,
       value: wp.work_package_id,
