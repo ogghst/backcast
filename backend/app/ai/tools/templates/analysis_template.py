@@ -164,7 +164,9 @@ async def get_project_analysis(
             "variance": {
                 "cost_variance_percentage": round(cv_pct, 1),
                 "cost_status": "Under Budget" if cv >= 0 else "Over Budget",
-                "schedule_status": "Ahead of Schedule" if sv >= 0 else "Behind Schedule",
+                "schedule_status": "Ahead of Schedule"
+                if sv >= 0
+                else "Behind Schedule",
                 "performance_status": _get_performance_status(cpi, spi),
             },
             "kpis": {
@@ -191,9 +193,7 @@ async def get_project_analysis(
         return add_temporal_metadata(error_result, context)
 
 
-def _calculate_budget_score(
-    cpi: float, cv: float, bac: float, evm_data: Any
-) -> float:
+def _calculate_budget_score(cpi: float, cv: float, bac: float, evm_data: Any) -> float:
     score = min(cpi * 100, 100)
     if cv < 0:
         variance_pct = abs(cv) / bac * 100 if bac > 0 else 0

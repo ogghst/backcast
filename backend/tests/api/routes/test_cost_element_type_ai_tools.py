@@ -54,8 +54,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
@@ -67,6 +71,8 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest_asyncio.fixture
 async def test_department(db_session: AsyncSession) -> Department:
     """Create a test department for cost element type tests."""
@@ -81,6 +87,8 @@ async def test_department(db_session: AsyncSession) -> Department:
         actor_id=mock_admin_user.user_id,
     )
     return department
+
+
 # =============================================================================
 # TOOL DISCOVERY TESTS
 # =============================================================================
@@ -110,6 +118,8 @@ def test_cost_element_type_tools_are_discovered() -> None:
     assert "delete_cost_element_type" in tool_names, (
         "Missing delete_cost_element_type tool"
     )
+
+
 def test_cost_element_type_tools_metadata() -> None:
     """Test that Cost Element Type tools have correct metadata."""
     registry = get_registry()
@@ -142,6 +152,8 @@ def test_cost_element_type_tools_metadata() -> None:
     assert delete_tool is not None
     assert delete_tool.category == "cost-element-types"
     assert "cost-element-type-delete" in delete_tool.permissions
+
+
 # =============================================================================
 # TOOL FUNCTIONALITY TESTS
 # =============================================================================
@@ -190,6 +202,8 @@ async def test_find_cost_element_types_returns_list_with_simple_types(
         assert isinstance(cet["code"], str)
         assert isinstance(cet["name"], str)
         assert isinstance(cet["department_id"], str)
+
+
 @pytest.mark.asyncio
 async def test_find_cost_element_types_with_department_filter(
     db_session: AsyncSession, test_department: Department
@@ -225,6 +239,8 @@ async def test_find_cost_element_types_with_department_filter(
     assert result["total"] >= 1
     for cet in result["cost_element_types"]:
         assert cet["department_id"] == str(test_department.department_id)
+
+
 @pytest.mark.asyncio
 async def test_find_cost_element_types_with_search(
     db_session: AsyncSession, test_department: Department
@@ -259,6 +275,8 @@ async def test_find_cost_element_types_with_search(
     assert "error" not in result
     # Should find the "Equipment" type
     assert any(cet["name"] == "Equipment" for cet in result["cost_element_types"])
+
+
 @pytest.mark.asyncio
 async def test_find_cost_element_type_by_id_returns_dict_with_simple_types(
     db_session: AsyncSession, test_department: Department
@@ -298,8 +316,12 @@ async def test_find_cost_element_type_by_id_returns_dict_with_simple_types(
     assert isinstance(result["department_id"], str)
     assert result["code"] == "SUB"
     assert result["name"] == "Subcontracting"
+
+
 @pytest.mark.asyncio
-async def test_find_cost_element_type_by_id_not_found_error(db_session: AsyncSession) -> None:
+async def test_find_cost_element_type_by_id_not_found_error(
+    db_session: AsyncSession,
+) -> None:
     """Test that find_cost_element_types by ID returns error for non-existent ID."""
     # Create tool context
     context = ToolContext(
@@ -321,6 +343,8 @@ async def test_find_cost_element_type_by_id_not_found_error(db_session: AsyncSes
     # Verify error response
     assert "error" in result
     assert "not found" in result["error"].lower()
+
+
 @pytest.mark.asyncio
 async def test_create_cost_element_type_success(
     db_session: AsyncSession, test_department: Department
@@ -353,6 +377,8 @@ async def test_create_cost_element_type_success(
     assert isinstance(result["department_id"], str)
     assert result["code"] == "TEST"
     assert result["name"] == "Test Type"
+
+
 @pytest.mark.asyncio
 async def test_create_cost_element_type_invalid_department_error(
     db_session: AsyncSession,
@@ -379,6 +405,8 @@ async def test_create_cost_element_type_invalid_department_error(
 
     # Verify error response
     assert "error" in result
+
+
 @pytest.mark.asyncio
 async def test_update_cost_element_type_success(
     db_session: AsyncSession, test_department: Department
@@ -417,6 +445,8 @@ async def test_update_cost_element_type_success(
     assert isinstance(result["id"], str)
     assert isinstance(result["name"], str)
     assert result["name"] == "Updated Name"
+
+
 @pytest.mark.asyncio
 async def test_update_cost_element_type_not_found_error(
     db_session: AsyncSession,
@@ -442,6 +472,8 @@ async def test_update_cost_element_type_not_found_error(
 
     # Verify error response
     assert "error" in result
+
+
 @pytest.mark.asyncio
 async def test_delete_cost_element_type_success(
     db_session: AsyncSession, test_department: Department
@@ -481,6 +513,8 @@ async def test_delete_cost_element_type_success(
     # Verify it was soft deleted (should not be found by get_by_id)
     deleted_type = await service.get_by_id(created_type.cost_element_type_id)
     assert deleted_type is None
+
+
 @pytest.mark.asyncio
 async def test_delete_cost_element_type_not_found_error(
     db_session: AsyncSession,
@@ -505,6 +539,8 @@ async def test_delete_cost_element_type_not_found_error(
 
     # Verify error response
     assert "error" in result
+
+
 # =============================================================================
 # RISK LEVEL TESTS
 # =============================================================================
@@ -586,6 +622,8 @@ class TestCostElementToolRiskLevels:
             assert isinstance(metadata.risk_level, RiskLevel), (
                 f"{tool_name} has invalid risk_level type"
             )
+
+
 # =============================================================================
 # INTEGRATION TEST
 # =============================================================================

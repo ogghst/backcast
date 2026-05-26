@@ -23,8 +23,12 @@ mock_admin_user = User(
     full_name="Admin User",
     hashed_password="hash",
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     app.dependency_overrides[get_current_user] = mock_get_current_user
@@ -34,6 +38,8 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 # --- Tests ---
 @pytest.mark.asyncio
 async def test_get_branches_empty(
@@ -56,6 +62,8 @@ async def test_get_branches_empty(
     assert data[0]["name"] == "main"
     assert data[0]["type"] == "main"
     assert data[0]["is_default"] is True
+
+
 @pytest.mark.asyncio
 async def test_get_branches_with_cos(
     client: AsyncClient, override_auth: None, db_session: AsyncSession

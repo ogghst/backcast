@@ -37,8 +37,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
@@ -49,6 +53,8 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest.mark.asyncio
 async def test_archive_implemented_change_order_success(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -109,6 +115,8 @@ async def test_archive_implemented_change_order_success(
     result = await db_session.execute(stmt)
     active_branch = result.scalar_one_or_none()
     assert active_branch is None, "Branch should be soft-deleted after archive"
+
+
 @pytest.mark.asyncio
 async def test_archive_rejected_change_order_success(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -159,6 +167,8 @@ async def test_archive_rejected_change_order_success(
     data = response.json()
     assert data["change_order_id"] == str(co_id)
     assert data["status"] == "rejected"
+
+
 @pytest.mark.asyncio
 async def test_archive_active_change_order_fails(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -199,6 +209,8 @@ async def test_archive_active_change_order_fails(
     data = response.json()
     assert "detail" in data
     assert "Cannot archive active" in data["detail"]
+
+
 @pytest.mark.asyncio
 async def test_archive_nonexistent_change_order_fails(
     client: AsyncClient, override_auth: None, db_session: AsyncSession

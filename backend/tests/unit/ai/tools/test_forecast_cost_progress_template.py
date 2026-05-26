@@ -762,9 +762,7 @@ class TestErrorHandling:
         assert "error" in result or "percentage" in result
 
     @pytest.mark.asyncio
-    async def test_get_details_missing_cost_element(
-        self, tool_context: ToolContext
-    ):
+    async def test_get_details_missing_cost_element(self, tool_context: ToolContext):
         """Test getting details for non-existent cost element."""
         # Arrange
         cost_element_id = str(uuid4())

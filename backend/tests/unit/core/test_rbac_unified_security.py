@@ -472,9 +472,7 @@ class TestCachePoisoningAndInvalidation:
         )
 
         # Verify write is denied before any change
-        assert (
-            self.service._check_permission_from_roles(["editor"], "write") is False
-        )
+        assert self.service._check_permission_from_roles(["editor"], "write") is False
 
         # Simulate role update: clear permissions cache for editor
         # (refresh_permissions_cache does this in production)
@@ -482,12 +480,8 @@ class TestCachePoisoningAndInvalidation:
             del self.service._permissions_cache["editor"]
 
         # Cache miss for editor permissions → _check_permission_from_roles returns False
-        assert (
-            self.service._check_permission_from_roles(["editor"], "read") is False
-        )
-        assert (
-            self.service._check_permission_from_roles(["editor"], "write") is False
-        )
+        assert self.service._check_permission_from_roles(["editor"], "read") is False
+        assert self.service._check_permission_from_roles(["editor"], "write") is False
 
     @pytest.mark.asyncio
     async def test_invalidation_prevents_stale_access(self) -> None:
@@ -501,10 +495,9 @@ class TestCachePoisoningAndInvalidation:
         )
 
         # Verify cached
-        assert (
-            self.service._get_cached_assignments(self.user_id, ScopeType.GLOBAL, None)
-            == ["editor"]
-        )
+        assert self.service._get_cached_assignments(
+            self.user_id, ScopeType.GLOBAL, None
+        ) == ["editor"]
 
         # Invalidate all assignments for this user
         self.service._invalidate_assignment_cache(self.user_id)
@@ -524,9 +517,7 @@ class TestCachePoisoningAndInvalidation:
         """
         project_id = uuid4()
 
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
         self.service._cache_assignments(
             self.user_id, ScopeType.PROJECT, project_id, ["editor"]
         )
@@ -537,10 +528,9 @@ class TestCachePoisoningAndInvalidation:
         )
 
         # Global cache must survive
-        assert (
-            self.service._get_cached_assignments(self.user_id, ScopeType.GLOBAL, None)
-            == ["admin"]
-        )
+        assert self.service._get_cached_assignments(
+            self.user_id, ScopeType.GLOBAL, None
+        ) == ["admin"]
         # Project cache must be gone
         assert (
             self.service._get_cached_assignments(
@@ -562,10 +552,9 @@ class TestCachePoisoningAndInvalidation:
         )
 
         # First read succeeds
-        assert (
-            self.service._get_cached_assignments(self.user_id, ScopeType.GLOBAL, None)
-            == ["editor"]
-        )
+        assert self.service._get_cached_assignments(
+            self.user_id, ScopeType.GLOBAL, None
+        ) == ["editor"]
 
         # Invalidate
         self.service._invalidate_assignment_cache(self.user_id)
@@ -815,9 +804,7 @@ class TestAdminBypassVerification:
         The has_permission method checks 'admin' in global_roles before
         any permission lookup, returning True immediately.
         """
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
         # No permissions cached for admin — bypasses the cache entirely
 
         with patch(
@@ -825,7 +812,10 @@ class TestAdminBypassVerification:
             return_value=MagicMock(),
         ):
             result = await self.service.has_permission(
-                self.user_id, "any-permission-that-does-not-exist", ScopeType.GLOBAL, None
+                self.user_id,
+                "any-permission-that-does-not-exist",
+                ScopeType.GLOBAL,
+                None,
             )
 
         assert result is True
@@ -837,9 +827,7 @@ class TestAdminBypassVerification:
         The has_authority_level method checks global roles for 'admin'
         after checking change_order assignments. Admin always passes.
         """
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
 
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -866,9 +854,7 @@ class TestAdminBypassVerification:
         """
         random_project = uuid4()
 
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["admin"])
 
         with patch(
             "app.core.rbac_unified.get_unified_rbac_session",
@@ -887,9 +873,7 @@ class TestAdminBypassVerification:
         The check is `"admin" in global_roles`, which is case-sensitive.
         Any variation in casing must not bypass.
         """
-        self.service._cache_assignments(
-            self.user_id, ScopeType.GLOBAL, None, ["Admin"]
-        )
+        self.service._cache_assignments(self.user_id, ScopeType.GLOBAL, None, ["Admin"])
         # Admin with capital A has no permissions cached
         self.service._cache_permissions("Admin", [])
 

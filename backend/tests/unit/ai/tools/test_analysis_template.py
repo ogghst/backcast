@@ -33,7 +33,7 @@ class TestAnalysisTemplateExisting:
         """Test that Analysis template functions have @ai_tool decorators."""
         from app.ai.tools.templates import analysis_template
 
-        func = getattr(analysis_template, "get_project_analysis")
+        func = analysis_template.get_project_analysis
         assert hasattr(func, "_is_ai_tool"), (
             "get_project_analysis missing @ai_tool decorator"
         )

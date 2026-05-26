@@ -29,8 +29,12 @@ mock_admin_user = User(
     full_name="Admin User",
     hashed_password="hash",
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth():
     app.dependency_overrides[get_current_user] = mock_get_current_user
@@ -40,6 +44,8 @@ def override_auth():
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 # --- Fixtures ---
 @pytest_asyncio.fixture
 async def test_project(client: AsyncClient) -> dict[str, Any]:
@@ -51,6 +57,8 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     response = await client.post("/api/v1/projects", json=project_data)
     assert response.status_code == 201
     return response.json()
+
+
 @pytest_asyncio.fixture
 async def test_change_order(
     client: AsyncClient, test_project: dict[str, Any]
@@ -68,6 +76,8 @@ async def test_change_order(
     response = await client.post("/api/v1/change-orders", json=co_data)
     assert response.status_code == 201
     return response.json()
+
+
 @pytest_asyncio.fixture
 async def test_wbes_on_main(
     client: AsyncClient, test_project: dict[str, Any]
@@ -103,6 +113,8 @@ async def test_wbes_on_main(
         created_wbes.append(resp.json())
 
     return created_wbes
+
+
 # --- Tests ---
 @pytest.mark.asyncio
 async def test_get_impact_success(
@@ -174,6 +186,8 @@ async def test_get_impact_success(
     time_series = data["time_series"]
     assert len(time_series) == 1
     assert time_series[0]["metric_name"] == "budget"
+
+
 @pytest.mark.asyncio
 async def test_get_impact_not_found(client: AsyncClient) -> None:
     """Test impact analysis with non-existent change order.
@@ -190,6 +204,8 @@ async def test_get_impact_not_found(client: AsyncClient) -> None:
 
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
+
+
 @pytest.mark.asyncio
 async def test_get_impact_missing_branch_param(
     client: AsyncClient,
@@ -206,6 +222,8 @@ async def test_get_impact_missing_branch_param(
     response = await client.get(f"/api/v1/change-orders/{co_id}/impact")
 
     assert response.status_code == 422
+
+
 @pytest.mark.asyncio
 async def test_get_impact_with_branch_modifications(
     client: AsyncClient,

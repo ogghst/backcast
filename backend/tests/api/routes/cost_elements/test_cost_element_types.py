@@ -26,8 +26,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     """Override authentication and RBAC for all tests."""
@@ -38,6 +42,8 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest.mark.asyncio
 async def test_create_cost_element_type(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -65,6 +71,8 @@ async def test_create_cost_element_type(
     assert data["name"] == "Test Type"
     assert "cost_element_type_id" in data
     assert data["department_id"] == dept_id
+
+
 @pytest.mark.asyncio
 async def test_get_cost_element_types(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -99,6 +107,8 @@ async def test_get_cost_element_types(
     # Note: DB might contain other types from other tests, so we check inclusion
     assert len(data) >= 3
     assert any(t["code"] == "TYPE-0" for t in data)
+
+
 @pytest.mark.asyncio
 async def test_get_cost_element_type_by_id(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -128,6 +138,8 @@ async def test_get_cost_element_type_by_id(
     data = response.json()
     assert data["name"] == "Specific Type"
     assert data["code"] == "specific-type"
+
+
 @pytest.mark.asyncio
 async def test_update_cost_element_type(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -160,6 +172,8 @@ async def test_update_cost_element_type(
     data = response.json()
     assert data["name"] == "Updated Name"
     assert data["code"] == "TYPE-UPD"
+
+
 @pytest.mark.asyncio
 async def test_delete_cost_element_type(
     client: AsyncClient, override_auth: None, db_session: AsyncSession

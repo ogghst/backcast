@@ -30,8 +30,12 @@ mock_admin_user = User(
     full_name="Admin User",
     hashed_password="hash",
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
@@ -42,6 +46,8 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest.mark.asyncio
 class TestWBERevenueAllocationAPI:
     """Test suite for WBE revenue allocation validation via API."""

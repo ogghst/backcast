@@ -44,8 +44,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
@@ -55,6 +59,8 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 # =============================================================================
 # TEST FIXTURES
 # =============================================================================
@@ -178,6 +184,8 @@ async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
         "total_budget": 600000,  # 100k + 200k + 300k
         "total_costs": 180000,  # 30k + 60k + 90k
     }
+
+
 @pytest_asyncio.fixture
 async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
     """Setup complete EVM data for Project testing.
@@ -288,6 +296,8 @@ async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
         "total_budget": 600000,  # 4 CEs × 150k
         "total_costs": 200000,  # 4 CEs × 50k
     }
+
+
 # =============================================================================
 # COST ELEMENT ENTITY TYPE TESTS (Currently Supported)
 # =============================================================================
@@ -420,6 +430,8 @@ async def setup_cost_element_evm_data(client: AsyncClient) -> dict[str, Any]:
         "total_costs": 100000,  # 40000 + 60000
         "latest_progress": 50.0,
     }
+
+
 class TestCostElementEntityEVM:
     """Test EVM metrics for Cost Element entity type (currently supported)."""
 
@@ -913,6 +925,8 @@ class TestCostElementEntityEVM:
 
         # EV should be calculated (BAC × 50%)
         assert float(data["ev"]) == 50000
+
+
 # =============================================================================
 # WBE ENTITY TYPE TESTS
 # =============================================================================
@@ -1025,6 +1039,8 @@ class TestWBEEntityEVM:
         # Verify warning
         assert data.get("warning") is not None
         assert "No cost elements found" in data["warning"]
+
+
 class TestProjectEntityEVM:
     """Test EVM metrics for Project entity type.
 
@@ -1073,6 +1089,8 @@ class TestProjectEntityEVM:
         # EV = sum of all child EVs (4 CEs × 150k × 60% = 360k)
         expected_ev = 360000
         assert float(data["ev"]) == expected_ev
+
+
 class TestEVMMultiEntityAggregation:
     """Test multi-entity EVM aggregation via batch endpoint."""
 
@@ -1294,6 +1312,8 @@ class TestEVMMultiEntityAggregation:
         # Verify aggregation (2 projects × 150k budget = 300k)
         expected_bac = 300000
         assert float(data["bac"]) == expected_bac
+
+
 # =============================================================================
 # TIME-TRAVEL TESTS
 # =============================================================================
@@ -1404,6 +1424,8 @@ class TestEVMTimeTravel:
         assert "points" in data
         assert isinstance(data["points"], list)
         assert data["granularity"] == "month"
+
+
 # =============================================================================
 # BRANCHING TESTS
 # =============================================================================
@@ -1512,6 +1534,8 @@ class TestEVMBranching:
         data = response.json()
 
         assert data["branch"] == "main"
+
+
 # =============================================================================
 # TIME-SERIES TESTS
 # =============================================================================
@@ -1664,6 +1688,8 @@ class TestEVMTimeSeries:
         assert "end_date" in data
         assert "total_points" in data
         assert data["granularity"] == "week"
+
+
 # =============================================================================
 # ERROR HANDLING TESTS
 # =============================================================================
@@ -1786,6 +1812,8 @@ class TestEVMErrorHandling:
         # Verify zero metrics
         assert float(data["bac"]) == 0
         assert data.get("warning") is not None
+
+
 # =============================================================================
 # EDGE CASES TESTS
 # =============================================================================

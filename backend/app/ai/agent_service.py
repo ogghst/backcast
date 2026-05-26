@@ -1192,6 +1192,7 @@ class AgentService:
             )
             state.llm_call_start = None
         state.token_accumulator.accumulate_from_event(data)
+
     def _handle_tool_start(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_tool_start -- discard intermediate reasoning, track tool invocation."""
         data = event.get("data", {})

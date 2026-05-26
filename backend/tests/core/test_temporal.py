@@ -158,10 +158,16 @@ class TestConvertRangeToStr:
         assert convert_range_to_str(None) is None
 
     def test_string_passthrough(self):
-        assert convert_range_to_str("2026-01-15T10:00:00+00:00") == "2026-01-15T10:00:00+00:00"
+        assert (
+            convert_range_to_str("2026-01-15T10:00:00+00:00")
+            == "2026-01-15T10:00:00+00:00"
+        )
 
     def test_range_string_passthrough(self):
-        assert convert_range_to_str('["2026-01-15T10:00:00+00:00",)') == '["2026-01-15T10:00:00+00:00",)'
+        assert (
+            convert_range_to_str('["2026-01-15T10:00:00+00:00",)')
+            == '["2026-01-15T10:00:00+00:00",)'
+        )
 
     def test_unbounded_range_object(self):
         """Range object with no upper bound produces unbounded range string."""

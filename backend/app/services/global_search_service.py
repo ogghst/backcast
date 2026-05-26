@@ -552,16 +552,18 @@ class GlobalSearchService:
                 return []
             target_project_ids = [project_id]
 
-        stmt = select(Document).where(
-            Document.project_id.in_(
-                [str(pid) for pid in target_project_ids]
-            ),
-            or_(
-                Document.name.ilike(search_term),
-                Document.description.ilike(search_term),
-                Document.extension.ilike(search_term),
-            ),
-        ).limit(limit)
+        stmt = (
+            select(Document)
+            .where(
+                Document.project_id.in_([str(pid) for pid in target_project_ids]),
+                or_(
+                    Document.name.ilike(search_term),
+                    Document.description.ilike(search_term),
+                    Document.extension.ilike(search_term),
+                ),
+            )
+            .limit(limit)
+        )
 
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
@@ -569,7 +571,8 @@ class GlobalSearchService:
         items: list[SearchResultItem] = []
         for row in rows:
             score = _best_score(
-                row, query_lower,
+                row,
+                query_lower,
                 primary_fields=["name", "extension"],
                 description_fields=["description"],
                 secondary_fields=[],

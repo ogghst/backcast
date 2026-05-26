@@ -343,9 +343,7 @@ async def find_wbes(
                 "budget": float(wbe.budget)
                 if hasattr(wbe, "budget") and wbe.budget
                 else None,
-                "description": wbe.description
-                if hasattr(wbe, "description")
-                else None,
+                "description": wbe.description if hasattr(wbe, "description") else None,
             }
             return add_temporal_metadata(result, context)
 

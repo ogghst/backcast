@@ -617,6 +617,10 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 stmt = stmt.where(
                     CostElement.cost_element_type_id == filters["cost_element_type_id"]
                 )
+            if "cost_element_id" in filters:
+                stmt = stmt.where(
+                    CostElement.cost_element_id == filters["cost_element_id"]
+                )
 
         # Apply search (across code and name)
         if search:

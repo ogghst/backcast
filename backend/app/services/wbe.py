@@ -794,9 +794,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             List of all descendant WBEs (ordered depth-first)
         """
         if branch_mode == BranchMode.MERGED and branch != "main":
-            descendant_rows = await self._get_descendants_merged(
-                parent_wbe_id, branch
-            )
+            descendant_rows = await self._get_descendants_merged(parent_wbe_id, branch)
         else:
             descendant_rows = await self._get_descendants_isolated(
                 parent_wbe_id, branch
@@ -853,9 +851,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             )
         )
 
-        descendants_stmt = select(wbe_cte.c.wbe_id).order_by(
-            wbe_cte.c.depth.asc()
-        )
+        descendants_stmt = select(wbe_cte.c.wbe_id).order_by(wbe_cte.c.depth.asc())
         descendants_result = await self.session.execute(descendants_stmt)
         return [row.wbe_id for row in descendants_result.all()]
 

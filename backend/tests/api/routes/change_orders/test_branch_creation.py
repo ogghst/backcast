@@ -23,8 +23,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
@@ -34,6 +38,8 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest.mark.asyncio
 async def test_create_project_on_branch(client: AsyncClient) -> None:
     """Test creating a project strictly on a specific branch and verifying isolation."""
@@ -57,6 +63,8 @@ async def test_create_project_on_branch(client: AsyncClient) -> None:
     # 3. Verify NOT found on 'main'
     get_main = await client.get(f"/api/v1/projects/{project_id}?branch=main")
     assert get_main.status_code == 404
+
+
 @pytest.mark.asyncio
 async def test_create_wbe_on_branch(client: AsyncClient) -> None:
     """Test creating a WBE strictly on a specific branch and verifying isolation."""

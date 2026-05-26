@@ -99,10 +99,21 @@ async def find_cost_elements(
 
         # Single CE lookup by ID
         if cost_element_id:
-            cost_element = await service.get_by_id(
-                UUID(cost_element_id),
-                branch=context.branch_name or "main",
-            )
+            if context.as_of is not None:
+                # Temporal query: use list-mode path for as_of consistency
+                cost_elements, _ = await service.get_cost_elements(
+                    filters={"cost_element_id": UUID(cost_element_id)},
+                    limit=1,
+                    branch=context.branch_name or "main",
+                    as_of=context.as_of,
+                )
+                cost_element = cost_elements[0] if cost_elements else None
+            else:
+                # Fast path: current version only
+                cost_element = await service.get_by_id(
+                    UUID(cost_element_id),
+                    branch=context.branch_name or "main",
+                )
 
             if not cost_element:
                 return add_temporal_metadata(
@@ -463,9 +474,7 @@ async def update_cost_element(
                         schedule_start_date
                     )
                 if schedule_end_date:
-                    sb_kwargs["end_date"] = datetime.fromisoformat(
-                        schedule_end_date
-                    )
+                    sb_kwargs["end_date"] = datetime.fromisoformat(schedule_end_date)
                 sb_update_data = ScheduleBaselineUpdate(**sb_kwargs)
 
                 updated_baseline = await sb_service.update_schedule_baseline(
@@ -608,9 +617,7 @@ async def find_cost_element_types(
             cost_element_type = await service.get_by_id(UUID(cost_element_type_id))
 
             if not cost_element_type:
-                return {
-                    "error": f"Cost element type {cost_element_type_id} not found"
-                }
+                return {"error": f"Cost element type {cost_element_type_id} not found"}
 
             return {
                 "id": str(cost_element_type.cost_element_type_id),

@@ -15,6 +15,18 @@ logger = logging.getLogger(__name__)
 _cached_tools: list[BaseTool] | None = None
 
 
+def invalidate_tool_cache() -> None:
+    """Clear the cached tool list so the next call rebuilds it from scratch.
+
+    Must be called when MCP tools are added, removed, or reconfigured at
+    runtime so that ``create_project_tools()`` returns a fresh list on
+    its next invocation.
+    """
+    global _cached_tools
+    _cached_tools = None
+    logger.debug("Tool cache invalidated")
+
+
 def filter_tools_by_execution_mode(
     tools: list[BaseTool],
     execution_mode: ExecutionMode,
@@ -312,5 +324,6 @@ __all__ = [
     "create_project_tools",
     "filter_tools_by_execution_mode",
     "filter_tools_by_role",
+    "invalidate_tool_cache",
     "ToolContext",
 ]

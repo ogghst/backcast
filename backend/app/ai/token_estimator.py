@@ -162,8 +162,7 @@ class TokenUsageAccumulator:
             return
 
         logger.debug(
-            "[TOKEN_USAGE] No usage data in event output — "
-            "type=%s",
+            "[TOKEN_USAGE] No usage data in event output — type=%s",
             type(output).__name__,
         )
 

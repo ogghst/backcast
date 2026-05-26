@@ -73,10 +73,25 @@ class Settings(BaseSettings):
     DOCUMENT_MAX_FILE_SIZE_MB: int = 50
     DOCUMENT_MAX_STORAGE_PER_PROJECT_MB: int = 10240  # 10 GB
     DOCUMENT_ALLOWED_EXTENSIONS: list[str] = [
-        "pdf", "docx", "xlsx", "pptx", "txt", "csv", "md",
-        "png", "jpg", "jpeg", "gif", "webp", "svg",
-        "dwg", "dxf", "step", "igs",
-        "zip", "rar",
+        "pdf",
+        "docx",
+        "xlsx",
+        "pptx",
+        "txt",
+        "csv",
+        "md",
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "webp",
+        "svg",
+        "dwg",
+        "dxf",
+        "step",
+        "igs",
+        "zip",
+        "rar",
     ]
 
     # Telegram Notifications

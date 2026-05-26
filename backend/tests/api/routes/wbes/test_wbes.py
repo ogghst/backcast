@@ -27,8 +27,12 @@ mock_admin_user = User(
     full_name="Admin User",
     hashed_password="hash",
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
@@ -39,6 +43,8 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest_asyncio.fixture
 async def test_project(client: AsyncClient) -> dict[str, Any]:
     """Create a test project for WBE tests."""
@@ -48,6 +54,8 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     }
     response = await client.post("/api/v1/projects", json=project_data)
     return cast(dict[str, Any], response.json())
+
+
 @pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_create_wbe(
@@ -76,6 +84,8 @@ async def test_create_wbe(
     assert data["project_id"] == test_project["project_id"]
     assert "id" in data
     assert "wbe_id" in data
+
+
 @pytest.mark.asyncio
 async def test_create_wbe_duplicate_code(
     client: AsyncClient,
@@ -100,6 +110,8 @@ async def test_create_wbe_duplicate_code(
     response2 = await client.post("/api/v1/wbes", json=wbe_data)
     assert response2.status_code == 400
     assert "already exists" in response2.json()["detail"]
+
+
 @pytest.mark.asyncio
 async def test_get_wbes_by_project(
     client: AsyncClient,
@@ -127,6 +139,8 @@ async def test_get_wbes_by_project(
     assert data["total"] == 3
     assert len(data["items"]) == 3
     assert all(w["project_id"] == test_project["project_id"] for w in data["items"])
+
+
 @pytest.mark.asyncio
 async def test_get_wbe_by_id(
     client: AsyncClient,
@@ -151,6 +165,8 @@ async def test_get_wbe_by_id(
     data = response.json()
     assert data["name"] == "Specific WBE"
     assert data["code"] == "2.0"
+
+
 @pytest.mark.asyncio
 async def test_update_wbe(
     client: AsyncClient,
@@ -180,6 +196,8 @@ async def test_update_wbe(
     # budget_allocation is computed from cost elements (0 if no cost elements)
     assert float(data["budget_allocation"]) == 0.0
     assert data["code"] == "3.0"  # Code should remain unchanged
+
+
 @pytest.mark.asyncio
 async def test_delete_wbe(
     client: AsyncClient,
@@ -210,6 +228,8 @@ async def test_delete_wbe(
     # Response is paginated: {"items": [...], "total": 0, "page": 1, "per_page": 20}
     wbes = wbes_data["items"]
     assert not any(w["code"] == "4.0" for w in wbes)
+
+
 @pytest.mark.asyncio
 async def test_get_wbe_history(
     client: AsyncClient,
@@ -241,6 +261,8 @@ async def test_get_wbe_history(
     assert len(history) >= 2
     assert any(h["name"] == "Updated History WBE" for h in history)
     assert any(h["name"] == "History WBE" for h in history)
+
+
 @pytest.mark.asyncio
 async def test_wbe_hierarchical_structure(
     client: AsyncClient,
@@ -273,6 +295,8 @@ async def test_wbe_hierarchical_structure(
     child_data_resp = child_response.json()
     assert child_data_resp["parent_wbe_id"] == parent_id
     assert child_data_resp["level"] == 2
+
+
 @pytest.mark.asyncio
 async def test_create_wbe_with_control_date(
     client: AsyncClient,
@@ -299,6 +323,8 @@ async def test_create_wbe_with_control_date(
     # Verify valid_time starts at control_date
     # valid_time is serialized as the lower bound ISO timestamp
     assert data["valid_time"].startswith(control_date[:10])
+
+
 @pytest.mark.asyncio
 async def test_update_wbe_with_control_date(
     client: AsyncClient,
@@ -329,6 +355,8 @@ async def test_update_wbe_with_control_date(
 
     # Verify new version has the updated name
     assert data["name"] == "Updated With Control Date"
+
+
 @pytest.mark.asyncio
 async def test_delete_wbe_with_control_date(
     client: AsyncClient,
@@ -370,6 +398,8 @@ async def test_delete_wbe_with_control_date(
         f"/api/v1/wbes/{wbe_id}", params={"as_of": after_date}
     )
     assert resp_after.status_code == 404
+
+
 @pytest.mark.asyncio
 async def test_wbe_level_inference(
     client: AsyncClient,
@@ -446,6 +476,8 @@ async def test_wbe_level_inference(
     moved_wbe = move_resp.json()
     assert moved_wbe["level"] == 2
     assert moved_wbe["parent_wbe_id"] == new_root_id
+
+
 @pytest.mark.asyncio
 async def test_get_wbes_param_filter(
     client: AsyncClient,

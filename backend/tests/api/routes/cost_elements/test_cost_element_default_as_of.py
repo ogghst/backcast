@@ -25,8 +25,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
@@ -36,6 +40,8 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest_asyncio.fixture
 async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
     # 1. Department
@@ -88,6 +94,8 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
         "project_id": proj_id,
         "wbe_id": wbe_id,
     }
+
+
 @pytest.mark.asyncio
 async def test_create_future_cost_element_and_query_default(
     client: AsyncClient, setup_dependencies: dict

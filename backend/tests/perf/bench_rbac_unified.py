@@ -23,8 +23,20 @@ from app.models.domain.user_role_assignment import ScopeType, UserRoleAssignment
 pytestmark = pytest.mark.performance
 
 _ROLE_DEFS: list[tuple[str, list[str]]] = [
-    ("admin", ["project-read", "project-write", "cost-element-read", "cost-element-write", "user-manage"]),
-    ("manager", ["project-read", "cost-element-read", "cost-element-write", "forecast-create"]),
+    (
+        "admin",
+        [
+            "project-read",
+            "project-write",
+            "cost-element-read",
+            "cost-element-write",
+            "user-manage",
+        ],
+    ),
+    (
+        "manager",
+        ["project-read", "cost-element-read", "cost-element-write", "forecast-create"],
+    ),
     ("viewer", ["project-read", "cost-element-read"]),
 ]
 _NUM_USERS = 10
@@ -58,7 +70,9 @@ async def bench_rbac_service(db_session: AsyncSession) -> UnifiedRBACService:
             )
             if existing.scalar_one_or_none() is None:
                 db_session.add(
-                    RBACRolePermission(id=uuid4(), role_id=role_map[name].id, permission=perm)
+                    RBACRolePermission(
+                        id=uuid4(), role_id=role_map[name].id, permission=perm
+                    )
                 )
     await db_session.flush()
 
@@ -69,9 +83,13 @@ async def bench_rbac_service(db_session: AsyncSession) -> UnifiedRBACService:
         user_ids.append(uid)
         db_session.add(
             User(
-                id=uuid4(), user_id=uid, email=f"bench-user-{i}@test.com",
-                full_name=f"Bench User {i}", is_active=True,
-                hashed_password="x", created_by=uuid4(),
+                id=uuid4(),
+                user_id=uid,
+                email=f"bench-user-{i}@test.com",
+                full_name=f"Bench User {i}",
+                is_active=True,
+                hashed_password="x",
+                created_by=uuid4(),
             )
         )
     await db_session.flush()
@@ -81,8 +99,11 @@ async def bench_rbac_service(db_session: AsyncSession) -> UnifiedRBACService:
         role_name = _ROLE_DEFS[i % len(_ROLE_DEFS)][0]
         db_session.add(
             UserRoleAssignment(
-                id=uuid4(), user_id=uid, role_id=role_map[role_name].id,
-                scope_type=ScopeType.GLOBAL, scope_id=None,
+                id=uuid4(),
+                user_id=uid,
+                role_id=role_map[role_name].id,
+                scope_type=ScopeType.GLOBAL,
+                scope_id=None,
                 granted_at=datetime.now(UTC),
             )
         )
@@ -107,9 +128,7 @@ async def test_cached_permission_check(
 ) -> None:
     """Cached has_permission() must complete in < 5 ms."""
     service = bench_rbac_service
-    result = await db_session.execute(
-        UserRoleAssignment.__table__.select().limit(1)
-    )
+    result = await db_session.execute(UserRoleAssignment.__table__.select().limit(1))
     row = result.first()
     assert row is not None
     user_id = row.user_id
@@ -136,9 +155,7 @@ async def test_cold_permission_check(
 ) -> None:
     """Cold (cache-miss) has_permission() must complete in < 50 ms."""
     service = bench_rbac_service
-    result = await db_session.execute(
-        UserRoleAssignment.__table__.select().limit(1)
-    )
+    result = await db_session.execute(UserRoleAssignment.__table__.select().limit(1))
     row = result.first()
     assert row is not None
     user_id = row.user_id
@@ -199,7 +216,10 @@ async def test_cache_invalidation_performance(
 
     # Populate cache with synthetic entries
     for _ in range(100):
-        service._assignment_cache[(uid, "project", uuid4())] = (["manager"], datetime.now(UTC))
+        service._assignment_cache[(uid, "project", uuid4())] = (
+            ["manager"],
+            datetime.now(UTC),
+        )
 
     # Single-scope invalidation
     start = time.perf_counter()
@@ -208,8 +228,14 @@ async def test_cache_invalidation_performance(
 
     # Re-populate for full-user invalidation
     for _ in range(100):
-        service._assignment_cache[(uid, "global", None)] = (["admin"], datetime.now(UTC))
-        service._assignment_cache[(uid, "project", uuid4())] = (["viewer"], datetime.now(UTC))
+        service._assignment_cache[(uid, "global", None)] = (
+            ["admin"],
+            datetime.now(UTC),
+        )
+        service._assignment_cache[(uid, "project", uuid4())] = (
+            ["viewer"],
+            datetime.now(UTC),
+        )
 
     start = time.perf_counter()
     service._invalidate_assignment_cache(uid)

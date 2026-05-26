@@ -490,7 +490,8 @@ class SupervisorOrchestrator:
                 return Command(
                     update={
                         "active_agent": "supervisor",
-                        "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
+                        "supervisor_iterations": state.get("supervisor_iterations", 0)
+                        + 1,
                     },
                     goto=END,
                 )
@@ -565,7 +566,10 @@ class SupervisorOrchestrator:
                         update={
                             "briefing_data": updated_data,
                             "active_agent": "supervisor",
-                            "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
+                            "supervisor_iterations": state.get(
+                                "supervisor_iterations", 0
+                            )
+                            + 1,
                             "tool_call_count": 0,
                         },
                         goto="supervisor",
@@ -598,7 +602,8 @@ class SupervisorOrchestrator:
                     "active_agent": "supervisor",
                     "tool_call_count": result.get("tool_call_count", 0),
                     "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
-                    "completed_specialists": state.get("completed_specialists", set()) | {specialist_name},
+                    "completed_specialists": state.get("completed_specialists", set())
+                    | {specialist_name},
                 },
                 goto="supervisor",
             )

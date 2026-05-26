@@ -23,9 +23,7 @@ from sqlalchemy import text
 @pytest.mark.migration
 async def test_rbac_roles_seeded(db_session):
     """Verify all expected roles were seeded into rbac_roles table."""
-    result = await db_session.execute(
-        text("SELECT name FROM rbac_roles ORDER BY name")
-    )
+    result = await db_session.execute(text("SELECT name FROM rbac_roles ORDER BY name"))
     role_names = {row[0] for row in result.all()}
 
     expected_roles = {
@@ -124,7 +122,8 @@ async def test_user_role_assignments_fk_to_rbac_roles(db_session):
 
 async def _setup_old_users_table(db_session):
     """Create a temp table simulating the old users table with a role column."""
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         CREATE TEMP TABLE _test_old_users (
             user_id UUID NOT NULL,
             role VARCHAR,
@@ -132,12 +131,14 @@ async def _setup_old_users_table(db_session):
             valid_time TSTZRANGE NOT NULL,
             transaction_time TSTZRANGE NOT NULL
         )
-    """))
+    """)
+    )
 
 
 async def _setup_old_project_members_table(db_session):
     """Create a temp table simulating the old project_members table."""
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         CREATE TEMP TABLE _test_old_project_members (
             user_id UUID NOT NULL,
             project_id UUID NOT NULL,
@@ -145,7 +146,8 @@ async def _setup_old_project_members_table(db_session):
             assigned_by UUID,
             assigned_at TIMESTAMPTZ
         )
-    """))
+    """)
+    )
 
 
 # -- Global role migration (User.role -> UserRoleAssignment) --
@@ -176,7 +178,8 @@ async def test_migration_global_from_users(db_session):
         {"uid_a": user_a, "uid_b": user_b},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         INSERT INTO user_role_assignments (
             id, user_id, role_id, scope_type, scope_id,
             metadata, granted_by, granted_at, expires_at,
@@ -210,7 +213,8 @@ async def test_migration_global_from_users(db_session):
               AND ura.scope_type = 'global'
               AND ura.scope_id IS NULL
         )
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -330,7 +334,8 @@ async def test_migration_skips_deleted_users(db_session):
         {"active": active_user, "deleted": deleted_user},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         INSERT INTO user_role_assignments (
             id, user_id, role_id, scope_type, scope_id,
             metadata, granted_by, granted_at, expires_at,
@@ -364,7 +369,8 @@ async def test_migration_skips_deleted_users(db_session):
               AND ura.scope_type = 'global'
               AND ura.scope_id IS NULL
         )
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -407,7 +413,8 @@ async def test_migration_skips_unknown_role(db_session):
         {"uid": user_id},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         INSERT INTO user_role_assignments (
             id, user_id, role_id, scope_type, scope_id,
             metadata, granted_by, granted_at, expires_at,
@@ -441,7 +448,8 @@ async def test_migration_skips_unknown_role(db_session):
               AND ura.scope_type = 'global'
               AND ura.scope_id IS NULL
         )
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -478,7 +486,8 @@ async def test_migration_project_from_project_members(db_session):
         {"uid": user_id, "pid": project_id, "by": assigned_by},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         INSERT INTO user_role_assignments (
             id, user_id, role_id, scope_type, scope_id,
             metadata, granted_by, granted_at, expires_at,
@@ -504,7 +513,8 @@ async def test_migration_project_from_project_members(db_session):
               AND ura.scope_type = 'project'
               AND ura.scope_id = pm.project_id
         )
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -606,7 +616,8 @@ async def test_migration_project_null_assigned_at(db_session):
         {"uid": user_id, "pid": project_id},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         INSERT INTO user_role_assignments (
             id, user_id, role_id, scope_type, scope_id,
             metadata, granted_by, granted_at, expires_at,
@@ -632,7 +643,8 @@ async def test_migration_project_null_assigned_at(db_session):
               AND ura.scope_type = 'project'
               AND ura.scope_id = pm.project_id
         )
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -677,11 +689,13 @@ async def test_downgrade_removes_project_migrated_data(db_session):
         {"uid": user_id, "rid": role_id, "pid": project_id, "by": uuid4()},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         DELETE FROM user_role_assignments
         WHERE scope_type = 'project'
           AND granted_by IS NOT NULL
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -719,12 +733,14 @@ async def test_downgrade_removes_global_migrated_data(db_session):
         {"uid": user_id, "rid": role_id},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         DELETE FROM user_role_assignments
         WHERE scope_type = 'global'
           AND scope_id IS NULL
           AND metadata IS NULL
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -782,17 +798,21 @@ async def test_downgrade_preserves_manual_assignments(db_session):
     )
 
     # Run both downgrade SQLs
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         DELETE FROM user_role_assignments
         WHERE scope_type = 'project'
           AND granted_by IS NOT NULL
-    """))
-    await db_session.execute(text("""
+    """)
+    )
+    await db_session.execute(
+        text("""
         DELETE FROM user_role_assignments
         WHERE scope_type = 'global'
           AND scope_id IS NULL
           AND metadata IS NULL
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -810,7 +830,9 @@ async def test_downgrade_preserves_manual_assignments(db_session):
         ),
         {"uid": user_project},
     )
-    assert result.scalar_one() == 1, "Manual project assignment should survive downgrade"
+    assert result.scalar_one() == 1, (
+        "Manual project assignment should survive downgrade"
+    )
 
 
 # -- Edge case tests --
@@ -836,7 +858,8 @@ async def test_migration_skips_null_role(db_session):
         {"uid": user_id},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         INSERT INTO user_role_assignments (
             id, user_id, role_id, scope_type, scope_id,
             metadata, granted_by, granted_at, expires_at,
@@ -870,7 +893,8 @@ async def test_migration_skips_null_role(db_session):
               AND ura.scope_type = 'global'
               AND ura.scope_id IS NULL
         )
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -915,7 +939,8 @@ async def test_migration_picks_latest_user_version(db_session):
         {"uid": user_id},
     )
 
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         INSERT INTO user_role_assignments (
             id, user_id, role_id, scope_type, scope_id,
             metadata, granted_by, granted_at, expires_at,
@@ -949,7 +974,8 @@ async def test_migration_picks_latest_user_version(db_session):
               AND ura.scope_type = 'global'
               AND ura.scope_id IS NULL
         )
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(
@@ -960,7 +986,9 @@ async def test_migration_picks_latest_user_version(db_session):
         {"uid": user_id},
     )
     role_name = result.scalar_one()
-    assert role_name == "admin", f"Expected 'admin' (current version), got '{role_name}'"
+    assert role_name == "admin", (
+        f"Expected 'admin' (current version), got '{role_name}'"
+    )
 
     await db_session.execute(text("DROP TABLE IF EXISTS _test_old_users"))
 
@@ -1001,11 +1029,13 @@ async def test_downgrade_imprecision_warning(db_session):
     )
 
     # Downgrade deletes ALL project assignments with granted_by IS NOT NULL
-    await db_session.execute(text("""
+    await db_session.execute(
+        text("""
         DELETE FROM user_role_assignments
         WHERE scope_type = 'project'
           AND granted_by IS NOT NULL
-    """))
+    """)
+    )
 
     result = await db_session.execute(
         text(

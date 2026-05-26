@@ -24,8 +24,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Any:
     app.dependency_overrides[get_current_user] = mock_get_current_user
@@ -35,6 +39,8 @@ def override_auth() -> Any:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest_asyncio.fixture
 async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
     """Setup dependencies: Project, WBE, Department, CostElementType."""
@@ -80,6 +86,8 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
         "project_id": proj_id,
         "wbe_id": wbe_id,
     }
+
+
 @pytest.mark.asyncio
 async def test_create_cost_element(
     client: AsyncClient, setup_dependencies: dict[str, Any]
@@ -100,6 +108,8 @@ async def test_create_cost_element(
     assert data["name"] == "Cost Element Test"
     assert "cost_element_id" in data
     assert data["branch"] == "main"
+
+
 @pytest.mark.asyncio
 async def test_create_cost_element_in_branch(
     client: AsyncClient, setup_dependencies: dict[str, Any]
@@ -119,6 +129,8 @@ async def test_create_cost_element_in_branch(
     assert response.status_code == 201
     data = response.json()
     assert data["branch"] == "feature-1"
+
+
 @pytest.mark.asyncio
 async def test_update_forks_branch(
     client: AsyncClient, setup_dependencies: dict[str, Any]
@@ -148,6 +160,8 @@ async def test_update_forks_branch(
     main_res = await client.get(f"/api/v1/cost-elements/{element_id}?branch=main")
     assert main_res.status_code == 200
     assert main_res.json()["name"] == "Original Element"
+
+
 @pytest.mark.asyncio
 async def test_list_filtering(
     client: AsyncClient, setup_dependencies: dict[str, Any]
@@ -170,6 +184,8 @@ async def test_list_filtering(
     res = await client.get(f"/api/v1/cost-elements?wbe_id={deps['wbe_id']}")
     assert res.status_code == 200
     assert len(res.json()["items"]) >= 1
+
+
 @pytest.mark.asyncio
 async def test_delete_cost_element_branch(
     client: AsyncClient, setup_dependencies: dict[str, Any]
@@ -193,6 +209,8 @@ async def test_delete_cost_element_branch(
     # Verify deleted in main
     get_res = await client.get(f"/api/v1/cost-elements/{element_id}?branch=main")
     assert get_res.status_code == 404
+
+
 @pytest.mark.asyncio
 async def test_get_history_filters_by_branch(
     client: AsyncClient, setup_dependencies: dict[str, Any]

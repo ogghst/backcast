@@ -604,7 +604,9 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         Returns:
             COQTrendResponse with time-series data points.
         """
-        quality_codes = [c.lower() for c in await self._get_quality_package_type_codes()]
+        quality_codes = [
+            c.lower() for c in await self._get_quality_package_type_codes()
+        ]
         trunc = "week" if granularity == COQTrendGranularity.WEEK else "month"
 
         # Determine date range from both work package event dates and
@@ -623,21 +625,25 @@ class WorkPackageService(TemporalService[WorkPackage]):  # type: ignore[type-var
         wp_result = await self.session.execute(wp_range)
         wp_min, wp_max = wp_result.one()
 
-        cr_range = select(
-            func.min(CostRegistration.registration_date),
-            func.max(CostRegistration.registration_date),
-        ).join(
-            WorkPackage,
-            CostRegistration.work_package_id == WorkPackage.work_package_id,
-        ).where(
-            WorkPackage.project_id == project_id,
-            func.lower(WorkPackage.package_type).in_(quality_codes),
-            CostRegistration.registration_date.isnot(None),
-            CostRegistration.work_package_id.isnot(None),
-            func.upper(CostRegistration.valid_time).is_(None),
-            CostRegistration.deleted_at.is_(None),
-            func.upper(WorkPackage.valid_time).is_(None),
-            WorkPackage.deleted_at.is_(None),
+        cr_range = (
+            select(
+                func.min(CostRegistration.registration_date),
+                func.max(CostRegistration.registration_date),
+            )
+            .join(
+                WorkPackage,
+                CostRegistration.work_package_id == WorkPackage.work_package_id,
+            )
+            .where(
+                WorkPackage.project_id == project_id,
+                func.lower(WorkPackage.package_type).in_(quality_codes),
+                CostRegistration.registration_date.isnot(None),
+                CostRegistration.work_package_id.isnot(None),
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+                func.upper(WorkPackage.valid_time).is_(None),
+                WorkPackage.deleted_at.is_(None),
+            )
         )
         cr_result = await self.session.execute(cr_range)
         cr_min, cr_max = cr_result.one()

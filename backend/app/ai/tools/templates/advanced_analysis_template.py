@@ -99,7 +99,11 @@ async def get_project_forecast(
             branch_mode=branch_mode,
         )
 
-        cpis = [float(p.cpi) for p in timeseries.points if p.cpi] if timeseries.points else []
+        cpis = (
+            [float(p.cpi) for p in timeseries.points if p.cpi]
+            if timeseries.points
+            else []
+        )
         cpi_volatility = stdev(cpis) if len(cpis) > 1 else 0.1
 
         if len(cpis) >= 2 and cpis[-2] > cpis[-1]:
@@ -124,9 +128,13 @@ async def get_project_forecast(
             confidence_level = "Low"
 
         optimistic_cpi = cpi + cpi_volatility
-        optimistic_eac = ac + (bac - ev) / optimistic_cpi if optimistic_cpi > 0 else bac * 1.5
+        optimistic_eac = (
+            ac + (bac - ev) / optimistic_cpi if optimistic_cpi > 0 else bac * 1.5
+        )
         pessimistic_cpi = max(cpi - cpi_volatility, 0.7)
-        pessimistic_eac = ac + (bac - ev) / pessimistic_cpi if pessimistic_cpi > 0 else bac * 2.0
+        pessimistic_eac = (
+            ac + (bac - ev) / pessimistic_cpi if pessimistic_cpi > 0 else bac * 2.0
+        )
 
         anomalies = _detect_anomalies(timeseries.points)
 
@@ -166,7 +174,9 @@ async def get_project_forecast(
         }
 
         if include_suggestions:
-            result["suggestions"] = _generate_suggestions(cpi, spi, vac, bac, eac, anomalies)
+            result["suggestions"] = _generate_suggestions(
+                cpi, spi, vac, bac, eac, anomalies
+            )
 
         if timeseries.points:
             result["analysis_period"] = {

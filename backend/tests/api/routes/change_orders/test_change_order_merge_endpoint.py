@@ -39,8 +39,12 @@ mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
@@ -51,6 +55,8 @@ def override_auth() -> Generator[None, None, None]:
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest.mark.asyncio
 async def test_merge_endpoint_returns_200(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -199,6 +205,8 @@ async def test_merge_endpoint_returns_200(
     assert merged_ce is not None, (
         f"No CostElement with 'Modified CostElement' found. Found: {[ce.name for ce in main_ces]}"
     )
+
+
 @pytest.mark.asyncio
 async def test_merge_endpoint_returns_404_for_invalid_co(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -223,6 +231,8 @@ async def test_merge_endpoint_returns_404_for_invalid_co(
     data = response.json()
     assert "detail" in data
     assert "not found" in data["detail"].lower()
+
+
 @pytest.mark.asyncio
 async def test_merge_endpoint_returns_409_for_conflicts(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
@@ -240,6 +250,8 @@ async def test_merge_endpoint_returns_409_for_conflicts(
     pytest.skip(
         "Conflict detection for concurrent modifications - test for future enhancement"
     )
+
+
 @pytest.mark.asyncio
 async def test_merge_endpoint_returns_400_for_locked_branch(
     client: AsyncClient, override_auth: None, db_session: AsyncSession

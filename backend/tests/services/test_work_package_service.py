@@ -34,7 +34,9 @@ def actor_id() -> tuple:
 @pytest_asyncio.fixture(autouse=True)
 async def seed_package_types(db_session: AsyncSession) -> None:
     """Seed PackageType rows required by _validate_package_type()."""
-    seed_path = Path(__file__).resolve().parent.parent.parent / "seed" / "package_types.json"
+    seed_path = (
+        Path(__file__).resolve().parent.parent.parent / "seed" / "package_types.json"
+    )
     with open(seed_path) as f:
         types_data = json.load(f)
 
@@ -159,9 +161,7 @@ async def test_update_work_package(
         cost_impact=Decimal("7000.00"),
         schedule_impact_days=5,
     )
-    updated = await service.update_work_package(
-        root_id, update_data, actor_id=actor_id
-    )
+    updated = await service.update_work_package(root_id, update_data, actor_id=actor_id)
     await db_session.flush()
 
     assert updated.work_package_id == root_id
@@ -379,12 +379,8 @@ async def test_get_allocations(
         coq_category="internal_failure",
         cost_impact=Decimal("8000.00"),
         cost_allocations=[
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("5000.00")
-            ),
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("3000.00")
-            ),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("5000.00")),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("3000.00")),
         ],
     )
 
@@ -425,9 +421,7 @@ async def test_upsert_allocations(
         coq_category="internal_failure",
         cost_impact=Decimal("9000.00"),
         cost_allocations=[
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("9000.00")
-            ),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("9000.00")),
         ],
     )
 
@@ -441,12 +435,8 @@ async def test_upsert_allocations(
 
     # Replace with new allocations
     new_allocations = [
-        QualityCostAllocation(
-            cost_element_id=ce_id, amount=Decimal("4000.00")
-        ),
-        QualityCostAllocation(
-            cost_element_id=ce_id, amount=Decimal("5000.00")
-        ),
+        QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("4000.00")),
+        QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("5000.00")),
     ]
     result = await service.upsert_allocations(
         work_package_id=wp.work_package_id,
@@ -486,12 +476,8 @@ async def test_compute_actual_cost(
         coq_category="internal_failure",
         cost_impact=Decimal("10000.00"),
         cost_allocations=[
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("3000.00")
-            ),
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("2000.00")
-            ),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("3000.00")),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("2000.00")),
         ],
     )
 
@@ -574,9 +560,7 @@ async def test_get_coq_metrics(
         coq_category="internal_failure",
         cost_impact=Decimal("5000.00"),
         cost_allocations=[
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("3000.00")
-            ),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("3000.00")),
         ],
     )
     await service.create_work_package(nc_data, actor_id=actor_id)
@@ -591,9 +575,7 @@ async def test_get_coq_metrics(
         coq_category="prevention",
         cost_impact=Decimal("3000.00"),
         cost_allocations=[
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("2000.00")
-            ),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("2000.00")),
         ],
     )
     await service.create_work_package(cf_data, actor_id=actor_id)
@@ -640,9 +622,9 @@ async def test_get_coq_metrics(
     # COQ ratio = total_coq / project_budget * 100
     # Project budget from test_entity_hierarchy = 50000 (CE budget)
     assert metrics.coq_ratio is not None
-    expected_ratio = (Decimal("5000.00") / Decimal("50000.00") * Decimal("100")).quantize(
-        Decimal("0.01")
-    )
+    expected_ratio = (
+        Decimal("5000.00") / Decimal("50000.00") * Decimal("100")
+    ).quantize(Decimal("0.01"))
     assert metrics.coq_ratio == expected_ratio
 
 
@@ -849,9 +831,7 @@ async def test_coq_metrics_filters_by_quality_type_only(
         coq_category="internal_failure",
         cost_impact=Decimal("5000.00"),
         cost_allocations=[
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("3000.00")
-            ),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("3000.00")),
         ],
     )
     await service.create_work_package(qi_data, actor_id=actor_id)
@@ -933,9 +913,7 @@ async def test_cost_registration_links_via_work_package_id(
         coq_category="internal_failure",
         cost_impact=Decimal("4000.00"),
         cost_allocations=[
-            QualityCostAllocation(
-                cost_element_id=ce_id, amount=Decimal("2000.00")
-            ),
+            QualityCostAllocation(cost_element_id=ce_id, amount=Decimal("2000.00")),
         ],
     )
 

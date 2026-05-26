@@ -24,8 +24,12 @@ mock_admin_user = User(
     full_name="Admin User",
     hashed_password="hash",
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth():
     app.dependency_overrides[get_current_user] = mock_get_current_user
@@ -35,6 +39,8 @@ def override_auth():
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 # --- Fixtures ---
 @pytest_asyncio.fixture
 async def test_project(client: AsyncClient) -> dict[str, Any]:
@@ -45,6 +51,8 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     response = await client.post("/api/v1/projects", json=project_data)
     assert response.status_code == 201
     return response.json()
+
+
 # --- Tests ---
 @pytest.mark.asyncio
 async def test_search_change_orders(
@@ -94,6 +102,8 @@ async def test_search_change_orders(
     )
     assert search_all.status_code == 200
     assert len(search_all.json()["items"]) == 2
+
+
 @pytest.mark.asyncio
 async def test_filter_change_orders(
     client: AsyncClient,
@@ -132,6 +142,8 @@ async def test_filter_change_orders(
     assert len(results) == 1
     assert results[0]["code"] == "CO-FILT-1"
     assert results[0]["status"] == "draft"
+
+
 @pytest.mark.asyncio
 async def test_merge_change_order(
     client: AsyncClient,
@@ -389,6 +401,8 @@ async def test_merge_change_order(
     )
     assert branch_versions_final[0].id == branch_v2_id
     assert branch_versions_final[0].title == "Modified on Branch"
+
+
 @pytest.mark.asyncio
 async def test_revert_change_order(
     client: AsyncClient,

@@ -14,14 +14,24 @@ from app.ai.tools.templates import (
     advanced_analysis_template,
     analysis_template,
     change_order_template,
+    cost_element_template,
+    diagram_template,
+    forecast_cost_progress_template,
     package_type_template,
     project_template,
+    user_management_template,
+    work_package_template,
 )
 
 __all__ = [
-    "analysis_template",
     "advanced_analysis_template",
+    "analysis_template",
     "change_order_template",
-    "project_template",
+    "cost_element_template",
+    "diagram_template",
+    "forecast_cost_progress_template",
     "package_type_template",
+    "project_template",
+    "user_management_template",
+    "work_package_template",
 ]

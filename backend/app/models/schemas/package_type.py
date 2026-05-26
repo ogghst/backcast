@@ -12,7 +12,9 @@ class PackageTypeBase(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
     name: str = Field(..., min_length=1, max_length=255)
     color: str = Field("blue", max_length=30)
-    is_quality: bool = Field(False, description="Whether this type contributes to COQ metrics")
+    is_quality: bool = Field(
+        False, description="Whether this type contributes to COQ metrics"
+    )
     description: str | None = None
 
 

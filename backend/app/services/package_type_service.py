@@ -61,7 +61,9 @@ class PackageTypeService(TemporalService[PackageType]):  # type: ignore[type-var
         control_date: datetime | None = None,
     ) -> None:
         """Soft delete package type."""
-        await super().soft_delete(package_type_id, actor_id=actor_id, control_date=control_date)
+        await super().soft_delete(
+            package_type_id, actor_id=actor_id, control_date=control_date
+        )
 
     async def get_by_id(self, package_type_id: UUID) -> PackageType | None:
         """Get current package type by root ID."""
@@ -131,9 +133,7 @@ class PackageTypeService(TemporalService[PackageType]):  # type: ignore[type-var
         result = await self.session.execute(stmt)
         return list(result.scalars().all()), total
 
-    async def list(
-        self, skip: int = 0, limit: int = 100000
-    ) -> list[PackageType]:
+    async def list(self, skip: int = 0, limit: int = 100000) -> list[PackageType]:
         """Legacy list method (backward compatibility)."""
         items, _ = await self.get_package_types(skip=skip, limit=limit)
         return items

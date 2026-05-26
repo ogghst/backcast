@@ -33,14 +33,20 @@ _mock_admin_user = User(
     hashed_password="hash",
     created_by=uuid4(),
 )
+
+
 def _mock_get_current_user() -> User:
     return _mock_admin_user
+
+
 async def _get_role_id(session: AsyncSession, role_name: str) -> str:
     """Look up a seeded RBAC role ID by name."""
     result = await session.execute(
         select(RBACRole.id).where(RBACRole.name == role_name)
     )
     return result.scalar_one()
+
+
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
@@ -50,6 +56,8 @@ def override_auth() -> Generator[None, None, None]:
     yield
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 @pytest.mark.asyncio
 async def test_project_role_checker_admin_bypass(
     client: AsyncClient,
@@ -68,6 +76,8 @@ async def test_project_role_checker_admin_bypass(
     # Should succeed (401 if auth fails, 403 if project access denied)
     # We expect it to not be 403 for admin
     assert response.status_code != 403
+
+
 @pytest.mark.asyncio
 async def test_project_role_checker_project_member_access(
     client: AsyncClient,
@@ -98,6 +108,8 @@ async def test_project_role_checker_project_member_access(
     # Should either succeed or fail with auth error, not 403
     # (403 means project access denied)
     assert response.status_code != 403
+
+
 @pytest.mark.asyncio
 async def test_project_role_checker_non_member_denied(
     client: AsyncClient,
@@ -121,6 +133,8 @@ async def test_project_role_checker_non_member_denied(
     # Currently returns 404 because /members endpoint is not yet implemented.
     # Once implemented with ProjectRoleChecker, should return 403.
     assert response.status_code in (401, 403, 404)
+
+
 @pytest.mark.asyncio
 async def test_project_role_checker_permission_levels(
     client: AsyncClient,

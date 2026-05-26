@@ -27,8 +27,12 @@ mock_admin_user = User(
     full_name="Admin User",
     hashed_password="hash",
 )
+
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
+
 @pytest.fixture(autouse=True)
 def override_auth():
     app.dependency_overrides[get_current_user] = mock_get_current_user
@@ -38,6 +42,8 @@ def override_auth():
 
     set_unified_rbac_service(UnifiedRBACService())
     app.dependency_overrides = {}
+
+
 # --- Fixtures ---
 @pytest_asyncio.fixture
 async def test_project(client: AsyncClient) -> dict[str, Any]:
@@ -49,6 +55,8 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     response = await client.post("/api/v1/projects", json=project_data)
     assert response.status_code == 201
     return response.json()
+
+
 @pytest_asyncio.fixture
 async def test_change_orders(
     client: AsyncClient,
@@ -72,6 +80,8 @@ async def test_change_orders(
         cos.append(response.json())
 
     return cos
+
+
 # --- Tests ---
 class TestChangeOrderStatsEndpoint:
     """Test GET /api/v1/change-orders/stats endpoint."""

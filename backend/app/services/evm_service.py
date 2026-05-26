@@ -665,7 +665,9 @@ class EVMService:
             self.pe_service.get_latest_progress_for_cost_elements(
                 valid_ids, as_of=control_date
             ),
-            self.f_service.get_forecasts_for_cost_elements(valid_ids, forecast_branch, as_of=control_date),
+            self.f_service.get_forecasts_for_cost_elements(
+                valid_ids, forecast_branch, as_of=control_date
+            ),
         )
 
         # 3. Calculate metrics in memory
