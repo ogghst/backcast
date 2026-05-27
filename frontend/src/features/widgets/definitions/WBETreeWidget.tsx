@@ -16,6 +16,8 @@ interface WBETreeConfig {
 const keyPrefixByType: Record<TreeNodeData["type"], string> = {
   project: "project",
   wbs_element: "wbs_element",
+  control_account: "ca",
+  work_package: "wp",
   cost_element: "ce",
 };
 
@@ -51,6 +53,12 @@ const WBETreeComponent: FC<WidgetComponentProps<WBETreeConfig>> = ({
         context.setCostElementId(node.cost_element_id);
       } else if (node.type === "wbs_element") {
         context.setWbeId(node.wbs_element_id);
+        context.setCostElementId(undefined);
+      } else if (node.type === "work_package") {
+        // Work packages are intermediate nodes - clear CE selection
+        context.setCostElementId(undefined);
+      } else if (node.type === "control_account") {
+        // Control accounts are intermediate nodes - clear CE selection
         context.setCostElementId(undefined);
       } else {
         // Project node - clear both

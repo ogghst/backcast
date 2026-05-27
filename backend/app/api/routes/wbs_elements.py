@@ -41,6 +41,9 @@ async def read_wbs_elements(
     parent_id: UUID | None = Query(
         None, description="Filter by parent WBS Element ID (use 'null' for root)"
     ),
+    root_only: bool = Query(
+        False, description="Return only root-level WBS elements (no parent)"
+    ),
     branch: str = Query("main", description="Branch name"),
     branch_mode: BranchMode = Query(
         BranchMode.MERGED,
@@ -84,6 +87,17 @@ async def read_wbs_elements(
         wbs_elements = await service.get_by_parent(
             project_id=project_id,
             parent_wbe_id=parent_id,
+            branch=branch,
+            branch_mode=branch_mode,
+            as_of=as_of,
+        )
+        return [WBSElementPublic.model_validate(w) for w in wbs_elements]
+
+    # Root-only mode: return only elements without a parent
+    if root_only:
+        wbs_elements = await service.get_by_parent(
+            project_id=project_id,
+            parent_wbe_id=None,
             branch=branch,
             branch_mode=branch_mode,
             as_of=as_of,

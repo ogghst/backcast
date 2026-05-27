@@ -9,7 +9,7 @@ import { WBSElementDetailCards as WBEDetailCards } from "@/components/explorer/W
 import { CostElementDetailCards } from "@/components/explorer/CostElementDetailCards";
 
 interface Selection {
-  type: "project" | "wbs_element" | "cost_element";
+  type: "project" | "wbs_element" | "control_account" | "work_package" | "cost_element";
   id: string;
   name: string;
 }
@@ -23,11 +23,12 @@ export const ProjectExplorer = () => {
 
   const handleSelect = useCallback((node: TreeNodeData) => {
     // Use the specific entity ID for better type safety
-    const entityId = node.type === "cost_element"
-      ? node.cost_element_id
-      : node.type === "wbs_element"
-        ? node.wbs_element_id
-        : node.id;
+    const entityId =
+      node.type === "cost_element" ? node.cost_element_id
+        : node.type === "wbs_element" ? node.wbs_element_id
+          : node.type === "control_account" ? node.control_account_id
+            : node.type === "work_package" ? node.work_package_id
+              : node.id;
     setSelection({ type: node.type, id: entityId || node.id, name: node.name });
   }, []);
 
@@ -36,9 +37,13 @@ export const ProjectExplorer = () => {
   const selectedKey = selection
     ? selection.type === "cost_element"
       ? `ce-${selection.id}`
-      : selection.type === "wbs_element"
-        ? `wbe-${selection.id}`
-        : `project-${selection.id}`
+      : selection.type === "work_package"
+        ? `wp-${selection.id}`
+        : selection.type === "control_account"
+          ? `ca-${selection.id}`
+          : selection.type === "wbs_element"
+            ? `wbe-${selection.id}`
+            : `project-${selection.id}`
     : undefined;
 
   return (
@@ -81,6 +86,10 @@ export const ProjectExplorer = () => {
               <ProjectDetailCards projectId={selection.id} />
             ) : selection.type === "wbs_element" ? (
               <WBEDetailCards wbsElementId={selection.id} />
+            ) : selection.type === "control_account" || selection.type === "work_package" ? (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+                <Empty description={`${selection.type === "control_account" ? "Control Account" : "Work Package"} detail view coming soon`} />
+              </div>
             ) : (
               <CostElementDetailCards costElementId={selection.id} />
             )}

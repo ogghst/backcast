@@ -23,6 +23,7 @@ import sys
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -42,6 +43,13 @@ SEED_USER = "00000000-0000-0000-0000-000000000001"
 # Tables that hold ANSI-748 seed data (truncated with --clean).
 # Order matters: children before parents to respect FK-like relationships.
 CLEANUP_ORDER = [
+    "change_order_audit_log",
+    "change_orders",
+    "co_config_audit_log",
+    "co_sla_rule_config",
+    "co_approval_rule_config",
+    "co_impact_level_config",
+    "co_workflow_config",
     "cost_registrations",
     "cost_events",
     "progress_entries",
@@ -251,6 +259,82 @@ TABLE_COLUMNS: dict[str, list[str]] = {
         "deleted_at",
         "deleted_by",
     ],
+    "co_workflow_config": [
+        "id",
+        "config_id",
+        "project_id",
+        "is_active",
+        "version",
+        "created_by",
+        "updated_by",
+        "impact_weights",
+        "score_boundaries",
+        "workflow_transitions",
+        "holiday_country_code",
+        "custom_fields",
+    ],
+    "co_impact_level_config": [
+        "id",
+        "config_id",
+        "level_name",
+        "level_order",
+        "threshold_amount",
+        "score_threshold_min",
+        "score_threshold_max",
+        "is_active",
+    ],
+    "co_approval_rule_config": [
+        "id",
+        "config_id",
+        "impact_level_name",
+        "required_authority_level",
+        "approver_role",
+    ],
+    "co_sla_rule_config": [
+        "id",
+        "config_id",
+        "impact_level_name",
+        "business_days",
+        "escalation_trigger_pct",
+    ],
+    "change_orders": [
+        "id",
+        "change_order_id",
+        "code",
+        "project_id",
+        "title",
+        "description",
+        "justification",
+        "effective_date",
+        "status",
+        "created_by",
+        "branch",
+        "parent_id",
+        "merge_from_branch",
+        "branch_name",
+        "impact_level",
+        "assigned_approver_id",
+        "sla_assigned_at",
+        "sla_due_date",
+        "sla_status",
+        "impact_analysis_status",
+        "impact_analysis_results",
+        "impact_score",
+        "config_snapshot",
+        "custom_field_values",
+        "deleted_at",
+        "deleted_by",
+    ],
+    "change_order_audit_log": [
+        "id",
+        "change_order_id",
+        "old_status",
+        "new_status",
+        "comment",
+        "changed_by",
+        "changed_at",
+        "control_date",
+    ],
 }
 
 # Ordered list of tables for insertion (matches dependency order).
@@ -268,6 +352,12 @@ INSERTION_ORDER = [
     "progress_entries",
     "cost_events",
     "cost_registrations",
+    "co_workflow_config",
+    "co_impact_level_config",
+    "co_approval_rule_config",
+    "co_sla_rule_config",
+    "change_orders",
+    "change_order_audit_log",
 ]
 
 # Column type classifications for asyncpg type coercion.
@@ -278,6 +368,11 @@ _DATETIME_COLS: set[str] = {
     "registration_date",
     "approved_date",
     "deleted_at",
+    "sla_assigned_at",
+    "sla_due_date",
+    "changed_at",
+    "control_date",
+    "effective_date",
 }
 
 _DECIMAL_COLS: set[str] = {
@@ -289,16 +384,24 @@ _DECIMAL_COLS: set[str] = {
     "estimated_impact",
     "progress_percentage",
     "quantity",
+    "threshold_amount",
+    "score_threshold_min",
+    "score_threshold_max",
+    "escalation_trigger_pct",
+    "impact_score",
 }
 
 _BOOL_COLS: set[str] = {
     "is_active",
     "is_quality",
-}
+}  # Note: booleans in JSON seed files are native, not strings
 
 _INT_COLS: set[str] = {
     "level",
     "schedule_impact_days",
+    "level_order",
+    "business_days",
+    "version",
 }
 
 # UUID columns are left as strings; asyncpg handles UUID string coercion natively.
@@ -324,6 +427,21 @@ _UUID_COLS: set[str] = {
     "deleted_by",
     "approved_by",
     "parent_id",
+    "config_id",
+    "change_order_id",
+    "assigned_approver_id",
+    "updated_by",
+    "changed_by",
+}
+
+_JSONB_COLS: set[str] = {
+    "impact_weights",
+    "score_boundaries",
+    "workflow_transitions",
+    "custom_fields",
+    "impact_analysis_results",
+    "config_snapshot",
+    "custom_field_values",
 }
 
 
@@ -348,6 +466,10 @@ async def insert_rows(
             # Convert string 'null' to actual None
             if val == "null":
                 val = None
+            # JSONB columns: serialize dict/list to JSON string for asyncpg
+            if col in _JSONB_COLS and val is not None:
+                if isinstance(val, (dict, list)):
+                    val = json.dumps(val)
             # Coerce string values to native Python types for asyncpg
             if isinstance(val, str):
                 # Datetime columns
@@ -392,7 +514,19 @@ async def seed(session: AsyncSession, clean: bool = False) -> None:
     }
 
     # ------------------------------------------------------------------
-    # 2. Demo project (single file, multiple sections)
+    # 2. Change Order workflow config (single record + child tables)
+    # ------------------------------------------------------------------
+    co_workflow = load_json("change_order_workflow.json")
+    co_config_row = co_workflow["config"]
+    co_config_rows = [co_config_row]
+
+    ref_data["co_workflow_config"] = co_config_rows
+    ref_data["co_impact_level_config"] = co_workflow["impact_levels"]
+    ref_data["co_approval_rule_config"] = co_workflow["approval_rules"]
+    ref_data["co_sla_rule_config"] = co_workflow["sla_rules"]
+
+    # ------------------------------------------------------------------
+    # 3. Demo project (single file, multiple sections)
     # ------------------------------------------------------------------
     demo = load_json("demo_project.json")
 
@@ -414,6 +548,8 @@ async def seed(session: AsyncSession, clean: bool = False) -> None:
         "progress_entries": "progress_entries",
         "cost_events": "cost_events",
         "cost_registrations": "cost_registrations",
+        "change_orders": "change_orders",
+        "change_order_audit_logs": "change_order_audit_log",
     }
 
     # Merge all data in insertion order

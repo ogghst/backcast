@@ -6,14 +6,18 @@ Versionable but NOT branchable (financial facts are global).
 
 from datetime import UTC, datetime
 from typing import Any
+from typing import cast as typing_cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
+from app.core.temporal_queries import is_current_version
 from app.db.session import get_db
 from app.models.domain.cost_element import CostElement
+from app.models.domain.cost_element_type import CostElementType
 from app.models.schemas.cost_element import (
     CostElementRead,
     CostElementUpdate,
@@ -60,6 +64,7 @@ async def read_cost_elements(
         description="Time travel: get Cost Elements as of this timestamp (ISO 8601)",
     ),
     service: CostElementService = Depends(get_cost_element_service),
+    session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Retrieve cost elements (EOCs) with server-side search, filtering, and sorting.
 
@@ -87,7 +92,35 @@ async def read_cost_elements(
         as_of=as_of,
     )
 
-    items_out = [CostElementRead.model_validate(i) for i in items]
+    # Batch-fetch CostElementType names for enrichment
+    type_ids = {i.cost_element_type_id for i in items if i.cost_element_type_id}
+    type_lookup: dict[UUID, tuple[str, str]] = {}
+    if type_ids:
+        result = await session.execute(
+            select(
+                CostElementType.cost_element_type_id,
+                CostElementType.code,
+                CostElementType.name,
+            ).where(
+                CostElementType.cost_element_type_id.in_(type_ids),
+                is_current_version(
+                    typing_cast(Any, CostElementType).valid_time,
+                    typing_cast(Any, CostElementType).deleted_at,
+                ),
+            )
+        )
+        type_lookup = {
+            row.cost_element_type_id: (row.code, row.name) for row in result.all()
+        }
+
+    items_out = []
+    for i in items:
+        read = CostElementRead.model_validate(i)
+        type_data = type_lookup.get(i.cost_element_type_id)
+        if type_data:
+            read.cost_element_type_code = type_data[0]
+            read.cost_element_type_name = type_data[1]
+        items_out.append(read)
 
     response = PaginatedResponse[CostElementRead](
         items=items_out,
@@ -112,11 +145,14 @@ async def read_cost_element(
         description="Time travel: get cost element state as of this timestamp (ISO 8601)",
     ),
     service: CostElementService = Depends(get_cost_element_service),
-) -> CostElement:
+    session: AsyncSession = Depends(get_db),
+) -> CostElementRead:
     """Get a specific cost element by root ID. Requires read permission.
 
     Supports time-travel queries via the as_of parameter.
     """
+    from app.models.schemas.cost_element import CostElementRead
+
     if as_of is None:
         as_of = datetime.now(tz=UTC)
 
@@ -127,7 +163,29 @@ async def read_cost_element(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cost Element not found" + (f" as of {as_of}" if as_of else ""),
         )
-    return item
+
+    read = CostElementRead.model_validate(item)
+
+    # Enrich with CostElementType name/code
+    if item.cost_element_type_id:
+        result = await session.execute(
+            select(
+                CostElementType.code,
+                CostElementType.name,
+            ).where(
+                CostElementType.cost_element_type_id == item.cost_element_type_id,
+                is_current_version(
+                    typing_cast(Any, CostElementType).valid_time,
+                    typing_cast(Any, CostElementType).deleted_at,
+                ),
+            )
+        )
+        row = result.first()
+        if row:
+            read.cost_element_type_code = row.code
+            read.cost_element_type_name = row.name
+
+    return read
 
 
 @router.put(
