@@ -94,7 +94,7 @@ export const CostEventTypeManagement = () => {
   );
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  const invalidatePackageTypesCache = () => {
+  const invalidateCache = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.costEventTypes.list });
   };
 
@@ -111,7 +111,7 @@ export const CostEventTypeManagement = () => {
   const { mutateAsync: createType } = useCreate({
     onSuccess: () => {
       refetch();
-      invalidatePackageTypesCache();
+      invalidateCache();
       setModalOpen(false);
     },
   });
@@ -119,7 +119,7 @@ export const CostEventTypeManagement = () => {
   const { mutateAsync: updateType } = useUpdate({
     onSuccess: () => {
       refetch();
-      invalidatePackageTypesCache();
+      invalidateCache();
       setModalOpen(false);
     },
   });
@@ -127,7 +127,7 @@ export const CostEventTypeManagement = () => {
   const { mutate: deleteType } = useDelete({
     onSuccess: () => {
       refetch();
-      invalidatePackageTypesCache();
+      invalidateCache();
     },
   });
 
@@ -234,7 +234,7 @@ export const CostEventTypeManagement = () => {
             }}
           >
             <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-              Package Types
+              Cost Event Types
             </div>
             <Can permission="package-type-create">
               <Button

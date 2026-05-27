@@ -112,8 +112,8 @@ export function transformGanttData(
     if (!nodeMap.has(item.wbs_element_id)) {
       const node: WbeNode = {
         wbsElementId: item.wbs_element_id,
-        wbeCode: item.wbs_element_code,
-        wbeName: item.wbs_element_name,
+        wbeCode: item.wbe_code,
+        wbeName: item.wbe_name,
         wbeLevel: item.wbe_level,
         parentWbsElementId: item.parent_wbs_element_id,
         items: [],
@@ -137,7 +137,7 @@ export function transformGanttData(
 
   // Sort roots and children by WBE code for consistent ordering
   const sortByCode = (a: WbeNode, b: WbeNode) =>
-    a.wbeCode.localeCompare(b.wbeCode, undefined, { numeric: true });
+    (a.wbeCode ?? "").localeCompare(b.wbeCode ?? "", undefined, { numeric: true });
 
   roots.sort(sortByCode);
   for (const node of nodeMap.values()) {
@@ -177,21 +177,21 @@ export function transformGanttData(
     // Add cost element items directly under this WBE first
     // so they appear right after the WBE header, before any child WBEs
     const sortedItems = [...node.items].sort((a, b) =>
-      a.cost_element_code.localeCompare(b.cost_element_code, undefined, {
+      (a.cost_element_code ?? "").localeCompare(b.cost_element_code ?? "", undefined, {
         numeric: true,
       }),
     );
 
     for (const item of sortedItems) {
       rows.push({
-        name: item.cost_element_name,
+        name: item.cost_element_name ?? item.wbe_name ?? "",
         level: node.wbeLevel + 1,
         costElementId: item.cost_element_id,
         startDate: item.start_date ? new Date(item.start_date) : null,
         endDate: item.end_date ? new Date(item.end_date) : null,
         progressionType: item.progression_type,
-        budgetAmount: item.budget_amount,
-        wbeCode: item.wbs_element_code,
+        budgetAmount: item.budget_amount ?? 0,
+        wbeCode: item.wbe_code ?? "",
         wbsElementId: item.wbs_element_id,
         isWbe: false,
         collapsed: false,

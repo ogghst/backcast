@@ -108,7 +108,7 @@ export const WBSElementList = ({ projectId }: WBEListProps) => {
         keyExtractor={(w) => w.wbs_element_id}
         title={
           <>
-            <NodeIndexOutlined /> Work Breakdown Elements
+            <NodeIndexOutlined /> WBS Elements
             {projectId && <Tag color="blue">Project: {projectId}</Tag>}
           </>
         }
@@ -122,13 +122,13 @@ export const WBSElementList = ({ projectId }: WBEListProps) => {
                 setModalOpen(true);
               }}
             >
-              Add WBE
+              Add WBS Element
             </Button>
           </Can>
         }
         searchValue={tableParams.search || ""}
         onSearch={handleSearch}
-        searchPlaceholder="Search WBEs..."
+        searchPlaceholder="Search WBS Elements..."
         sortOptions={SORT_OPTIONS}
         sortField={tableParams.sortField}
         sortOrder={tableParams.sortOrder}

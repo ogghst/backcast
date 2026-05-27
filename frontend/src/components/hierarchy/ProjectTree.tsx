@@ -172,7 +172,7 @@ export const ProjectTree = ({
     error: wbesError,
   } = useWBSElements({
     projectId,
-    parentWbsElementId: "null",
+    // Omit parentWbsElementId to fetch root-level WBEs (no parent filter)
   });
 
   useEffect(() => {

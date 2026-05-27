@@ -7,14 +7,18 @@ Versionable but NOT branchable (events are global facts).
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
+from typing import cast as typing_cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
+from app.core.temporal_queries import is_current_version
 from app.db.session import get_db
 from app.models.domain.cost_event import CostEvent
+from app.models.domain.cost_event_type import CostEventType
 from app.models.schemas.cost_event import (
     COQMetrics,
     COQTrendGranularity,
@@ -74,6 +78,7 @@ async def read_cost_events(
         description="Time travel: get events as of this timestamp (ISO 8601)",
     ),
     service: CostEventService = Depends(get_cost_event_service),
+    session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Retrieve cost events with filtering and pagination.
 
@@ -100,9 +105,34 @@ async def read_cost_events(
             as_of=as_of,
         )
 
+        # Batch-fetch CostEventType names for enrichment
+        type_ids = {i.cost_event_type_id for i in items if i.cost_event_type_id}
+        type_lookup: dict[UUID, tuple[str, str]] = {}
+        if type_ids:
+            result = await session.execute(
+                select(
+                    CostEventType.cost_event_type_id,
+                    CostEventType.code,
+                    CostEventType.name,
+                ).where(
+                    CostEventType.cost_event_type_id.in_(type_ids),
+                    is_current_version(
+                        typing_cast(Any, CostEventType).valid_time,
+                        typing_cast(Any, CostEventType).deleted_at,
+                    ),
+                )
+            )
+            type_lookup = {
+                row.cost_event_type_id: (row.code, row.name) for row in result.all()
+            }
+
         items_out = []
         for i in items:
             read = CostEventRead.model_validate(i)
+            type_data = type_lookup.get(i.cost_event_type_id)
+            if type_data:
+                read.cost_event_type_code = type_data[0]
+                read.cost_event_type_name = type_data[1]
             items_out.append(read)
 
         response = PaginatedResponse[CostEventRead](
@@ -234,7 +264,8 @@ async def read_cost_event(
         description="Time travel: get event state as of this timestamp (ISO 8601)",
     ),
     service: CostEventService = Depends(get_cost_event_service),
-) -> CostEvent:
+    session: AsyncSession = Depends(get_db),
+) -> CostEventRead:
     """Get a specific cost event by root ID. Requires read permission.
 
     Supports time-travel queries via the as_of parameter.
@@ -252,7 +283,29 @@ async def read_cost_event(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cost Event not found",
         )
-    return item
+
+    read = CostEventRead.model_validate(item)
+
+    # Enrich with CostEventType name/code
+    if item.cost_event_type_id:
+        result = await session.execute(
+            select(
+                CostEventType.code,
+                CostEventType.name,
+            ).where(
+                CostEventType.cost_event_type_id == item.cost_event_type_id,
+                is_current_version(
+                    typing_cast(Any, CostEventType).valid_time,
+                    typing_cast(Any, CostEventType).deleted_at,
+                ),
+            )
+        )
+        row = result.first()
+        if row:
+            read.cost_event_type_code = row.code
+            read.cost_event_type_name = row.name
+
+    return read
 
 
 @router.put(

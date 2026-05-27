@@ -80,11 +80,19 @@ export const useWBSElements = (params?: WBSElementListParams) => {
       const sortOrderRaw = params?.sorter?.order || params?.sortOrder;
       const sortOrder = sortOrderRaw === "descend" ? "desc" : "asc";
 
+      // Normalize parentWbsElementId: the string "null" must not be sent as a
+      // query parameter (it causes 422 from the backend).  Only forward a
+      // real ID; undefined/empty means "root level".
+      const parentId =
+        params?.parentWbsElementId && params.parentWbsElementId !== "null"
+          ? params.parentWbsElementId
+          : undefined;
+
       const response = await WbsElementsService.getWbsElements(
         current,
         pageSize,
         params?.projectId,
-        params?.parentWbsElementId,
+        parentId,
         branch || "main",
         mode as BranchMode | undefined,
         params?.search,

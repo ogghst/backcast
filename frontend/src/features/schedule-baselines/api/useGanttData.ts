@@ -13,15 +13,15 @@ import { queryKeys } from "@/api/queryKeys";
 
 /** Single item returned by the Gantt data API. */
 export interface GanttItem {
-  cost_element_id: string;
-  cost_element_code: string;
-  cost_element_name: string;
+  cost_element_id: string | null;
+  cost_element_code: string | null;
+  cost_element_name: string | null;
   wbs_element_id: string;
-  wbs_element_code: string;
-  wbs_element_name: string;
+  wbe_code: string;
+  wbe_name: string;
   wbe_level: number;
   parent_wbs_element_id: string | null;
-  budget_amount: number;
+  budget_amount: number | null;
   start_date: string | null;
   end_date: string | null;
   progression_type: string | null;

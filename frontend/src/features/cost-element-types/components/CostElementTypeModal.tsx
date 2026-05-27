@@ -105,7 +105,7 @@ export const CostElementTypeModal = ({
 
         <Form.Item
           name="organizational_unit_id"
-          label="Department"
+          label="Organizational Unit"
           rules={[{ required: true, message: "Please select a department" }]}
         >
           <Select

@@ -29,7 +29,7 @@ const DEFAULT_BADGE_COLOR = { bg: "rgba(150, 150, 150, 0.15)", text: "#888888" }
  *
  * Navigation strategy:
  * - Projects: Navigate to project detail page
- * - WBEs: Navigate to parent project page (WBEs are viewed within project context)
+ * - WBS Elements: Navigate to parent project page (WBS Elements are viewed within project context)
  * - Cost Elements: Navigate to cost element detail page
  * - Change Orders: Navigate to parent project page (change orders are viewed within project context)
  */

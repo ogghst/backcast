@@ -42,8 +42,8 @@ function aggregateToWBERows(items: GanttItem[]): TimelineRow[] {
     if (!existing) {
       groups.set(item.wbs_element_id, {
         wbsElementId: item.wbs_element_id,
-        code: item.wbs_element_code,
-        name: item.wbs_element_name,
+        code: item.wbe_code,
+        name: item.wbe_name,
         startDate: start,
         endDate: end,
       });
@@ -64,11 +64,11 @@ function aggregateToWBERows(items: GanttItem[]): TimelineRow[] {
  */
 function toItemRows(items: GanttItem[]): TimelineRow[] {
   return items
-    .filter((item) => item.start_date && item.end_date)
+    .filter((item) => item.cost_element_id && item.start_date && item.end_date)
     .map((item) => ({
-      wbsElementId: item.cost_element_id,
-      code: item.cost_element_code,
-      name: item.cost_element_name,
+      wbsElementId: item.cost_element_id!,
+      code: item.cost_element_code ?? "",
+      name: item.cost_element_name ?? "",
       startDate: new Date(item.start_date!),
       endDate: new Date(item.end_date!),
     }))

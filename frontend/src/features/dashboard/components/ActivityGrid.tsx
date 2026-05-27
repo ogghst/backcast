@@ -52,13 +52,13 @@ export function ActivityGrid({ recentActivity }: ActivityGridProps) {
         />
       </Col>
 
-      {/* WBEs Section */}
+      {/* WBS Elements Section */}
       <Col
         xs={24}
         md={12}
       >
         <ActivitySection
-          title="Recent WBEs"
+          title="Recent WBS Elements"
           icon={<ApartmentOutlined />}
           entityType="wbs_element"
           activities={recentActivity.wbes}

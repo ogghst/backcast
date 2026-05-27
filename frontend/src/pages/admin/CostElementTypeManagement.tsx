@@ -174,7 +174,7 @@ export const CostElementTypeManagement = () => {
       render: (code) => <Tag>{code}</Tag>,
     },
     {
-      title: "Department",
+      title: "Organizational Unit",
       dataIndex: "organizational_unit_id",
       key: "organizational_unit_id",
       render: (id) => departmentMap[id] || id,

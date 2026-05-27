@@ -100,13 +100,13 @@ export const WBSElementOverview = () => {
 
       {/* Child WBEs Section */}
       <Card
-        title="Child Work Breakdown Elements"
+        title="Child WBS Elements"
         extra={
           <Space>
             <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
             <Can permission="wbe-create">
               <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateChild}>
-                {isMobile ? undefined : "Add Child WBE"}
+                {isMobile ? undefined : "Add Child WBS Element"}
               </Button>
             </Can>
           </Space>

@@ -57,7 +57,7 @@ export const ProjectOverview = () => {
     refetch: refetchWBEs,
   } = useWBSElements({
     projectId: projectId,
-    parentWbsElementId: "null", // Explicitly ask for root WBEs
+    // Omit parentWbsElementId to fetch root-level WBEs (no parent filter)
   });
   const wbes = data?.items || [];
 
@@ -205,7 +205,7 @@ export const ProjectOverview = () => {
 
           {/* Root WBEs */}
           <Card
-            title="Root Work Breakdown Elements"
+            title="Root WBS Elements"
             style={{ marginBottom: token.marginLG }}
             extra={
               <Space>
@@ -216,7 +216,7 @@ export const ProjectOverview = () => {
                     icon={<PlusOutlined />}
                     onClick={handleCreate}
                   >
-                    {isMobile ? undefined : "Add Root WBE"}
+                    {isMobile ? undefined : "Add Root WBS Element"}
                   </Button>
                 </Can>
               </Space>

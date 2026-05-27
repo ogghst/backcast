@@ -112,7 +112,14 @@ export const CostElementLayout: React.FC = () => {
   }
 
   const displayTitle = costElement
-    ? `${costElement.cost_element_type_name || costElement.cost_element_type_code || costElement.cost_element_id}`
+    ? (() => {
+        const typeName = costElement.cost_element_type_name || costElement.cost_element_type_code;
+        const amount = costElement.amount ? Number(costElement.amount) : null;
+        if (typeName && amount !== null) {
+          return `${typeName} — ${amount.toLocaleString()}`;
+        }
+        return typeName || "Cost Element";
+      })()
     : "Cost Element";
 
   return (

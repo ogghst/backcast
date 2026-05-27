@@ -188,7 +188,6 @@ describe("ProjectStructure", () => {
     expect(screen.getByText("PRJ-001 - Test Project")).toBeInTheDocument();
     expect(useWBSElements).toHaveBeenCalledWith({
       projectId: "test-project-123",
-      parentWbsElementId: "null",
     });
   });
 
