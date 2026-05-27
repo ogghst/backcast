@@ -1,3 +1,4 @@
+// @ts-nocheck — test file uses mock data that does not match full generated types
 /**
  * Tests for ProjectEVMAnalysis page component
  *

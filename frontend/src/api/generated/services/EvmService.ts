@@ -2,10 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BranchMode } from '../models/BranchMode';
-import type { EntityType } from '../models/EntityType';
+import type { app__models__schemas__evm__EntityType } from '../models/app__models__schemas__evm__EntityType';
+import { BranchMode } from '../models/BranchMode';
 import type { EVMMetricsResponse } from '../models/EVMMetricsResponse';
-import type { EVMTimeSeriesGranularity } from '../models/EVMTimeSeriesGranularity';
+import { EVMTimeSeriesGranularity } from '../models/EVMTimeSeriesGranularity';
 import type { EVMTimeSeriesResponse } from '../models/EVMTimeSeriesResponse';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
@@ -48,11 +48,11 @@ export class EvmService {
      * @throws ApiError
      */
     public static getGenericEvmMetrics(
-        entityType: EntityType,
+        entityType: app__models__schemas__evm__EntityType,
         entityId: string,
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
     ): CancelablePromise<EVMMetricsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -103,12 +103,12 @@ export class EvmService {
      * @throws ApiError
      */
     public static getGenericEvmTimeseries(
-        entityType: EntityType,
+        entityType: app__models__schemas__evm__EntityType,
         entityId: string,
-        granularity: EVMTimeSeriesGranularity = 'week',
+        granularity: EVMTimeSeriesGranularity = EVMTimeSeriesGranularity.WEEK,
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
     ): CancelablePromise<EVMTimeSeriesResponse> {
         return __request(OpenAPI, {
             method: 'GET',

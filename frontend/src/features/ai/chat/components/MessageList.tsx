@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useMemo, useState, Fragment } from "react";
 import { List, Empty, Typography, Spin, theme } from "antd";
-import type { Theme } from "antd/es/config-provider/context";
+import type { GlobalToken } from "antd/es/theme/interface";
 import {
   UserOutlined,
   RobotOutlined,
@@ -17,7 +17,8 @@ import {
   DownOutlined,
   UpOutlined,
 } from "@ant-design/icons";
-import type { ChatMessage, SubagentStream, MainAgentStream, StreamingState, TokenUsage } from "../../types";
+import type { ChatMessage } from "../../types";
+import type { SubagentStream, MainAgentStream, StreamingState, TokenUsage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TokenUsageBar } from "./TokenUsageBar";
@@ -80,7 +81,7 @@ interface StreamingMessageProps {
   isStreaming: boolean;
   /** Whether the stream is complete (for main agent streams) */
   isComplete?: boolean;
-  token: Theme['token'];
+  token: GlobalToken;
   /** Whether to show a separator (when new text stream starts after tool execution) */
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
@@ -99,8 +100,6 @@ const StreamingMessage = ({
   token,
   showSeparator,
   isMobile = false,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  activeToolCalls = [],
 }: StreamingMessageProps) => {
   const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
@@ -255,7 +254,7 @@ const StreamingMessage = ({
  */
 interface SubagentMessageProps {
   subagent: SubagentStream;
-  token: Theme['token'];
+  token: GlobalToken;
   isMobile?: boolean;
   invocationNumber?: number;
 }
@@ -437,7 +436,7 @@ const SubagentMessage = ({
 interface PersistedSubagentMessageProps {
   subagentName: string;
   content: string;
-  token: Theme['token'];
+  token: GlobalToken;
   isMobile?: boolean;
   invocationNumber?: number;
 }
@@ -566,7 +565,7 @@ const getMessageIcon = (role: ChatMessage["role"]) => {
   }
 };
 
-const getMessageStyle = (role: ChatMessage["role"], token: Theme['token'], isMobile: boolean = false) => {
+const getMessageStyle = (role: ChatMessage["role"], token: GlobalToken, isMobile: boolean = false) => {
   switch (role) {
     case "user":
       return {

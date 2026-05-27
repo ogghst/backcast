@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ChangeOrderSummaryCard } from "./ChangeOrderSummaryCard";
 import type { ChangeOrderPublic } from "@/api/generated";
+import { ChangeOrderStatus } from "@/api/generated";
 import { useWorkflowInfo } from "../hooks/useWorkflowInfo";
 
 // Mock the workflow info hook
@@ -18,7 +19,7 @@ const mockChangeOrder: ChangeOrderPublic = {
   change_order_id: "BR-123",
   code: "CO-2026-001",
   title: "Test Change Order",
-  status: "draft",
+  status: ChangeOrderStatus.DRAFT,
   description: "Test description",
   justification: "Test justification",
   effective_date: "2026-01-15",
@@ -72,7 +73,7 @@ describe("ChangeOrderSummaryCard", () => {
 
     render(
       <ChangeOrderSummaryCard
-        changeOrder={{ ...mockChangeOrder, status: "Implemented", can_edit_status: false }}
+        changeOrder={{ ...mockChangeOrder, status: ChangeOrderStatus.IMPLEMENTED, can_edit_status: false }}
         onEdit={vi.fn()}
       />
     );

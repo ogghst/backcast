@@ -39,7 +39,8 @@ import { BriefingRailToggleTab } from "./BriefingRailToggleTab";
 import { BriefingPeekBar } from "./BriefingPeekBar";
 import { type BriefingState } from "./BriefingContent";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
-import type { ChatMessage, MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../../types";
+import type { ChatMessage } from "../../types";
+import type { MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../types";
 import type { WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
@@ -989,7 +990,7 @@ export const ChatInterface = ({
 
   // Mobile menu items for the overflow menu
   const mobileMenuItems = useMemo(() => {
-    const items = [
+    const items: Array<{ key: string; label?: string; icon?: React.ReactNode; disabled?: boolean } | { type: "divider"; key: string }> = [
       {
         key: "new-chat",
         label: "New Chat",

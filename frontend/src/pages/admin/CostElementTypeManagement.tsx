@@ -8,13 +8,13 @@ import {
 import { useState, useEffect } from "react";
 import type { ColumnType } from "antd/es/table";
 import { createResourceHooks } from "@/hooks/useCrud";
-import { CostElementTypesService, DepartmentsService } from "@/api/generated";
+import { CostElementTypesService, OrganizationalUnitsService } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import type {
   CostElementTypeRead,
   CostElementTypeCreate,
   CostElementTypeUpdate,
-  DepartmentRead,
+  OrganizationalUnitRead,
 } from "@/api/generated";
 import { CostElementTypeModal } from "@/features/cost-element-types/components/CostElementTypeModal";
 import { StandardTable } from "@/components/common/StandardTable";
@@ -40,7 +40,7 @@ const costElementTypeApi = {
     if (filters) {
       const filterParts: string[] = [];
       Object.entries(filters).forEach(([key, value]) => {
-        if (key === "department_id") return; // Handled as explicit param
+        if (key === "organizational_unit_id") return; // Handled as explicit param
         if (
           value &&
           (Array.isArray(value) ? value.length > 0 : value !== undefined)
@@ -52,7 +52,7 @@ const costElementTypeApi = {
       filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
     }
 
-    const deptId = filters?.department_id?.[0] as string | undefined;
+    const deptId = (filters?.organizational_unit_id as string[] | undefined)?.[0] as string | undefined;
     const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
 
     const res = await CostElementTypesService.getCostElementTypes(
@@ -87,7 +87,7 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
   CostElementTypeRead,
   CostElementTypeCreate,
   CostElementTypeUpdate
->("cost_element_types", costElementTypeApi);
+>("cost_element_types", costElementTypeApi as never);
 
 import { CostElementTypeFilters } from "@/types/filters";
 
@@ -104,12 +104,12 @@ export const CostElementTypeManagement = () => {
   );
 
   useEffect(() => {
-    DepartmentsService.getDepartments(1, 1000).then((res) => {
-      const depts: DepartmentRead[] = Array.isArray(res)
+    OrganizationalUnitsService.getOrganizationalUnits(1, 1000).then((res: unknown) => {
+      const depts: OrganizationalUnitRead[] = Array.isArray(res)
         ? res
-        : (res.items as DepartmentRead[]) || [];
+        : ((res as { items?: OrganizationalUnitRead[] }).items) || [];
       const map: Record<string, string> = {};
-      depts.forEach((d) => (map[d.department_id] = d.name));
+      depts.forEach((d) => (map[d.organizational_unit_id] = d.name));
       setDepartmentMap(map);
     });
   }, []);
@@ -175,8 +175,8 @@ export const CostElementTypeManagement = () => {
     },
     {
       title: "Department",
-      dataIndex: "department_id",
-      key: "department_id",
+      dataIndex: "organizational_unit_id",
+      key: "organizational_unit_id",
       render: (id) => departmentMap[id] || id,
     },
     {
@@ -228,7 +228,7 @@ export const CostElementTypeManagement = () => {
         tableParams={tableParams}
         onChange={handleTableChange}
         loading={isLoading}
-        dataSource={types || []}
+        dataSource={(types as CostElementTypeRead[]) || []}
         columns={columns}
         rowKey="cost_element_type_id"
         searchable={true}

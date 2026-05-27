@@ -1,7 +1,7 @@
-"""Project and WBE tool template for wrapping service methods.
+"""Project and WBS Element tool template for wrapping service methods.
 
 This template provides AI tools that wrap existing service methods
-using the @ai_tool decorator for Project and WBE CRUD operations.
+using the @ai_tool decorator for Project and WBS Element CRUD operations.
 
 Usage:
     1. Import the service methods you want to expose
@@ -27,7 +27,7 @@ from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
-from app.models.schemas.wbe import WBECreate, WBEUpdate
+from app.models.schemas.wbs_element import WBSElementCreate, WBSElementUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -273,84 +273,84 @@ async def delete_project(
 
 
 # =============================================================================
-# WBE CRUD TOOLS
+# WBS ELEMENT CRUD TOOLS
 # =============================================================================
 
 
 @ai_tool(
-    name="find_wbes",
-    description="Find WBEs by ID or search/filter.",
-    permissions=["wbe-read"],
-    category="wbe",
+    name="find_wbs_elements",
+    description="Find WBS Elements by ID or search/filter.",
+    permissions=["wbs-element-read"],
+    category="wbs-elements",
     risk_level=RiskLevel.LOW,
 )
-async def find_wbes(
-    wbe_id: str | None = None,
+async def find_wbs_elements(
+    wbs_element_id: str | None = None,
     project_id: str | None = None,
     search: str | None = None,
     skip: int = 0,
     limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Find WBEs by ID or search/filter.
+    """Find WBS Elements by ID or search/filter.
 
-    Context: Provides database session and WBE service for querying WBEs.
+    Context: Provides database session and WBS Element service for querying.
 
     Args:
-        wbe_id: UUID of a specific WBE to retrieve (returns single WBE)
-        project_id: Optional project ID to filter WBEs
+        wbs_element_id: UUID of a specific WBS Element to retrieve (returns single)
+        project_id: Optional project ID to filter WBS Elements
         search: Optional search term
         skip: Number of records to skip
         limit: Maximum records to return
         context: Injected tool execution context
 
     Returns:
-        Dictionary with WBE details (if wbe_id) or WBE list and total count
+        Dictionary with WBS Element details (if wbs_element_id) or list and total count
 
     Raises:
         ValueError: If invalid filter parameters
 
     Example:
-        >>> result = await find_wbes(project_id="...", limit=20)
-        >>> print(f"Found {result['total']} WBEs")
+        >>> result = await find_wbs_elements(project_id="...", limit=20)
+        >>> print(f"Found {result['total']} WBS Elements")
     """
     try:
         from uuid import UUID
 
-        from app.services.wbe import WBEService
+        from app.services.wbs_element_service import WBSElementService
 
-        service = WBEService(context.session)
+        service = WBSElementService(context.session)
 
-        # Single WBE lookup by ID
-        if wbe_id:
-            log_temporal_context("find_wbes", context)
+        # Single WBS Element lookup by ID
+        if wbs_element_id:
+            log_temporal_context("find_wbs_elements", context)
 
-            wbe = await service.get_as_of(
-                UUID(wbe_id),
+            wbs = await service.get_as_of(
+                UUID(wbs_element_id),
                 branch=context.branch_name or "main",
                 as_of=context.as_of,
             )
 
-            if not wbe:
-                not_found_result = {"error": f"WBE {wbe_id} not found"}
+            if not wbs:
+                not_found_result = {"error": f"WBS Element {wbs_element_id} not found"}
                 return add_temporal_metadata(not_found_result, context)
 
             result = {
-                "id": str(wbe.wbe_id),
-                "name": wbe.name,
-                "code": wbe.code,
-                "project_id": str(wbe.project_id),
-                "budget": float(wbe.budget)
-                if hasattr(wbe, "budget") and wbe.budget
+                "id": str(wbs.wbs_element_id),
+                "name": wbs.name,
+                "code": wbs.code,
+                "project_id": str(wbs.project_id),
+                "budget_allocation": float(wbs.budget_allocation)
+                if hasattr(wbs, "budget_allocation") and wbs.budget_allocation
                 else None,
-                "description": wbe.description if hasattr(wbe, "description") else None,
+                "description": wbs.description if hasattr(wbs, "description") else None,
             }
             return add_temporal_metadata(result, context)
 
-        # List WBEs with optional filtering
+        # List WBS Elements with optional filtering
         project_uuid = UUID(project_id) if project_id else None
 
-        wbes, total = await service.get_wbes(
+        wbs_elements, total = await service.get_wbs_elements(
             project_id=project_uuid,
             search=search,
             skip=skip,
@@ -360,171 +360,172 @@ async def find_wbes(
         )
 
         return {
-            "wbes": [
+            "wbs_elements": [
                 {
-                    "id": str(w.wbe_id),
+                    "id": str(w.wbs_element_id),
                     "name": w.name,
                     "code": w.code,
                     "project_id": str(w.project_id),
-                    "budget": float(w.budget)
-                    if hasattr(w, "budget") and w.budget
+                    "budget_allocation": float(w.budget_allocation)
+                    if hasattr(w, "budget_allocation") and w.budget_allocation
                     else None,
                 }
-                for w in wbes
+                for w in wbs_elements
             ],
             "total": total,
             "skip": skip,
             "limit": limit,
         }
     except ValueError:
-        return {"error": f"Invalid WBE ID: {wbe_id}"}
+        return {"error": f"Invalid WBS Element ID: {wbs_element_id}"}
     except KeyError:
-        return {"error": f"WBE {wbe_id} not found"}
+        return {"error": f"WBS Element {wbs_element_id} not found"}
     except Exception as e:
-        logger.error(f"Error in find_wbes: {e}")
+        logger.error(f"Error in find_wbs_elements: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
-    name="create_wbe",
-    description="Create WBE under a project. Budget is set via cost elements.",
-    permissions=["wbe-create"],
-    category="wbe",
+    name="create_wbs_element",
+    description="Create WBS Element under a project. Budget is computed from work packages.",
+    permissions=["wbs-element-create"],
+    category="wbs-elements",
     risk_level=RiskLevel.HIGH,
 )
-async def create_wbe(
+async def create_wbs_element(
     project_id: str,
     name: str,
     code: str,
     description: str | None = None,
-    parent_wbe_id: str | None = None,
+    parent_wbs_element_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Create a new WBE.
+    """Create a new WBS Element.
 
-    Context: Provides database session and WBE service for creating WBEs.
+    Context: Provides database session and WBS Element service for creating.
 
     Args:
         project_id: UUID of the parent project
-        name: WBE name
-        code: Unique WBE code
+        name: WBS Element name
+        code: Unique WBS Element code
         description: Optional description
-        parent_wbe_id: Optional UUID of the parent WBE to create as a child
+        parent_wbs_element_id: Optional UUID of the parent WBS Element to create as a child
         context: Injected tool execution context
 
     Returns:
-        Dictionary with created WBE details
+        Dictionary with created WBS Element details
 
     Raises:
         ValueError: If invalid input or duplicate code
 
     Example:
-        >>> result = await create_wbe(
+        >>> result = await create_wbs_element(
         ...     project_id="...",
         ...     name="Mechanical Assembly",
-        ...     code="WBE-001",
+        ...     code="1.2",
         ... )
-        >>> print(f"Created WBE with ID: {result['id']}")
+        >>> print(f"Created WBS Element with ID: {result['id']}")
     """
     try:
         from uuid import UUID
 
-        from app.services.wbe import WBEService
+        from app.services.wbs_element_service import WBSElementService
 
-        service = WBEService(context.session)
+        service = WBSElementService(context.session)
 
-        # Dedup check: prevent creating duplicate WBEs with same code in same project
+        # Dedup check: prevent creating duplicate WBS Elements with same code
         existing = await service.get_by_code(code, UUID(project_id))
         if existing:
             return {
-                "error": f"A WBE with code '{code}' already exists in this project "
-                f"(ID: {existing.wbe_id}, name: '{existing.name}'). "
-                "Use a different code or update the existing WBE.",
-                "existing_id": str(existing.wbe_id),
+                "error": f"A WBS Element with code '{code}' already exists in this project "
+                f"(ID: {existing.wbs_element_id}, name: '{existing.name}'). "
+                "Use a different code or update the existing WBS Element.",
+                "existing_id": str(existing.wbs_element_id),
                 "existing_name": existing.name,
             }
 
         # Create schema
-        wbe_data = WBECreate(
+        wbs_data = WBSElementCreate(
             project_id=UUID(project_id),
             name=name,
             code=code,
             description=description,
-            parent_wbe_id=UUID(parent_wbe_id) if parent_wbe_id else None,
+            parent_wbs_element_id=UUID(parent_wbs_element_id)
+            if parent_wbs_element_id
+            else None,
             branch=context.branch_name or "main",
         )
 
-        # Call service method (Use specialized create_wbe method)
-        wbe = await service.create_wbe(wbe_data, actor_id=UUID(context.user_id))
+        # Call service method
+        wbs = await service.create_wbe(wbs_data, actor_id=UUID(context.user_id))
 
         # Convert to AI-friendly format
         return {
-            "id": str(wbe.wbe_id),
-            "name": wbe.name,
-            "code": wbe.code,
-            "project_id": str(wbe.project_id),
-            "description": wbe.description if hasattr(wbe, "description") else None,
-            "parent_wbe_id": str(wbe.parent_wbe_id)
-            if hasattr(wbe, "parent_wbe_id") and wbe.parent_wbe_id
+            "id": str(wbs.wbs_element_id),
+            "name": wbs.name,
+            "code": wbs.code,
+            "project_id": str(wbs.project_id),
+            "description": wbs.description if hasattr(wbs, "description") else None,
+            "parent_wbs_element_id": str(wbs.parent_wbs_element_id)
+            if hasattr(wbs, "parent_wbs_element_id") and wbs.parent_wbs_element_id
             else None,
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except Exception as e:
-        logger.error(f"Error in create_wbe: {e}")
+        logger.error(f"Error in create_wbs_element: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
-    name="update_wbe",
-    description="Update WBE fields.",
-    permissions=["wbe-update"],
-    category="wbe",
+    name="update_wbs_element",
+    description="Update WBS Element fields.",
+    permissions=["wbs-element-update"],
+    category="wbs-elements",
     risk_level=RiskLevel.HIGH,
 )
-async def update_wbe(
-    wbe_id: str,
+async def update_wbs_element(
+    wbs_element_id: str,
     name: str | None = None,
     description: str | None = None,
     revenue_allocation: float | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Update an existing WBE.
+    """Update an existing WBS Element.
 
-    Context: Provides database session and WBE service for updating WBEs.
+    Context: Provides database session and WBS Element service for updating.
 
     Args:
-        wbe_id: UUID of the WBE to update
-        name: New WBE name (optional)
+        wbs_element_id: UUID of the WBS Element to update
+        name: New name (optional)
         description: New description (optional)
         revenue_allocation: New revenue allocation as a decimal value (optional)
         context: Injected tool execution context
 
     Returns:
-        Dictionary with updated WBE details
+        Dictionary with updated WBS Element details
 
     Raises:
-        ValueError: If wbe_id is invalid or no fields provided
-        KeyError: If WBE not found
+        ValueError: If wbs_element_id is invalid or no fields provided
+        KeyError: If WBS Element not found
 
     Example:
-        >>> result = await update_wbe(
-        ...     wbe_id="123e4567-e89b-12d3-a456-426614174000",
-        ...     name="Updated WBE Name",
+        >>> result = await update_wbs_element(
+        ...     wbs_element_id="123e4567-e89b-12d3-a456-426614174000",
+        ...     name="Updated Name",
         ...     revenue_allocation=0.35
         ... )
-        >>> print(f"Updated WBE: {result['name']}")
+        >>> print(f"Updated WBS Element: {result['name']}")
     """
     try:
         from decimal import Decimal
         from uuid import UUID
 
-        from app.services.wbe import WBEService
+        from app.services.wbs_element_service import WBSElementService
 
-        service = WBEService(context.session)
+        service = WBSElementService(context.session)
 
-        # Build update kwargs with only non-None values to prevent
-        # passing null values to the database which violates NOT NULL constraints
+        # Build update kwargs with only non-None values
         update_kwargs: dict[str, object] = {}
         if name is not None:
             update_kwargs["name"] = name
@@ -537,124 +538,126 @@ async def update_wbe(
             return {"error": "No fields provided for update"}
 
         # Create update schema with only provided fields
-        update_data = WBEUpdate(**update_kwargs, branch=context.branch_name or "main")
+        update_data = WBSElementUpdate(
+            **update_kwargs, branch=context.branch_name or "main"
+        )
 
         # Call service method
-        wbe = await service.update_wbe(
-            wbe_id=UUID(wbe_id),
+        wbs = await service.update_wbe(
+            wbe_id=UUID(wbs_element_id),
             wbe_in=update_data,
             actor_id=UUID(context.user_id),
         )
 
         # Convert to AI-friendly format
         return {
-            "id": str(wbe.wbe_id),
-            "name": wbe.name,
-            "code": wbe.code,
-            "project_id": str(wbe.project_id),
-            "description": wbe.description if hasattr(wbe, "description") else None,
+            "id": str(wbs.wbs_element_id),
+            "name": wbs.name,
+            "code": wbs.code,
+            "project_id": str(wbs.project_id),
+            "description": wbs.description if hasattr(wbs, "description") else None,
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except KeyError:
-        return {"error": f"WBE {wbe_id} not found"}
+        return {"error": f"WBS Element {wbs_element_id} not found"}
     except Exception as e:
-        logger.error(f"Error in update_wbe: {e}")
+        logger.error(f"Error in update_wbs_element: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
-    name="delete_wbe",
-    description="Soft-delete WBE and its children.",
-    permissions=["wbe-delete"],
-    category="wbe",
+    name="delete_wbs_element",
+    description="Soft-delete WBS Element and its children.",
+    permissions=["wbs-element-delete"],
+    category="wbs-elements",
     risk_level=RiskLevel.CRITICAL,
 )
-async def delete_wbe(
-    wbe_id: str,
+async def delete_wbs_element(
+    wbs_element_id: str,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Soft delete a WBE and all its children.
+    """Soft delete a WBS Element and all its children.
 
-    Context: Provides database session and WBE service for deletion.
+    Context: Provides database session and WBS Element service for deletion.
 
     Args:
-        wbe_id: UUID of the WBE to delete
+        wbs_element_id: UUID of the WBS Element to delete
         context: Injected tool execution context
 
     Returns:
         Dictionary with deletion confirmation
 
     Raises:
-        ValueError: If wbe_id is invalid
-        KeyError: If WBE not found
+        ValueError: If wbs_element_id is invalid
+        KeyError: If WBS Element not found
 
     Example:
-        >>> result = await delete_wbe("...")
-        >>> print(f"Deleted WBE: {result['id']}")
+        >>> result = await delete_wbs_element("...")
+        >>> print(f"Deleted WBS Element: {result['id']}")
     """
     try:
         from uuid import UUID
 
-        from app.services.wbe import WBEService
+        from app.services.wbs_element_service import WBSElementService
 
-        service = WBEService(context.session)
+        service = WBSElementService(context.session)
 
         await service.delete_wbe(
-            wbe_id=UUID(wbe_id),
+            wbe_id=UUID(wbs_element_id),
             actor_id=UUID(context.user_id),
         )
 
         return {
-            "id": wbe_id,
-            "message": "WBE deleted (including all child WBEs)",
+            "id": wbs_element_id,
+            "message": "WBS Element deleted (including all child elements)",
         }
     except ValueError:
-        return {"error": f"Invalid WBE ID: {wbe_id}"}
+        return {"error": f"Invalid WBS Element ID: {wbs_element_id}"}
     except KeyError:
-        return {"error": f"WBE {wbe_id} not found"}
+        return {"error": f"WBS Element {wbs_element_id} not found"}
     except Exception as e:
-        logger.error(f"Error in delete_wbe: {e}")
+        logger.error(f"Error in delete_wbs_element: {e}")
         return {"error": str(e)}
 
 
 # =============================================================================
-# BATCH WBE TOOLS
+# BATCH WBS ELEMENT TOOLS
 # =============================================================================
 
 
 @ai_tool(
-    name="batch_create_wbes",
-    description="Batch create multiple WBEs under the same project. "
+    name="batch_create_wbs_elements",
+    description="Batch create multiple WBS Elements under the same project. "
     "All items share the parent project_id. Each item provides its own name, code, "
-    "and optional description and parent_wbe_id. Pre-validates all codes for duplicates "
-    "before creating any. Maximum 50 items per batch.",
-    permissions=["wbe-create"],
-    category="wbe",
+    "and optional description and parent_wbs_element_id. Pre-validates all codes for "
+    "duplicates before creating any. Maximum 50 items per batch.",
+    permissions=["wbs-element-create"],
+    category="wbs-elements",
     risk_level=RiskLevel.HIGH,
 )
-async def batch_create_wbes(
+async def batch_create_wbs_elements(
     project_id: str,
     items: list[dict[str, Any]],
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Batch create WBEs under the same project.
+    """Batch create WBS Elements under the same project.
 
     Args:
         project_id: UUID of the parent project
-        items: List of dicts, each with {name, code, description?, parent_wbe_id?}
+        items: List of dicts, each with {name, code, description?, parent_wbs_element_id?}
         context: Injected tool execution context
 
     Returns:
         Dictionary with created items list, total count, and message
     """
-    log_temporal_context("batch_create_wbes", context)
+    log_temporal_context("batch_create_wbs_elements", context)
 
     try:
         from uuid import UUID
 
-        from app.models.schemas.wbe import WBECreate
-        from app.services.wbe import WBEService
+        from app.models.schemas.wbs_element import WBSElementCreate
+        from app.services.wbs_element_service import WBSElementService
 
         if len(items) > BATCH_SIZE_LIMIT:
             return add_temporal_metadata(
@@ -686,7 +689,7 @@ async def batch_create_wbes(
                 {"error": f"Duplicate codes in batch: {dupes}"}, context
             )
 
-        service = WBEService(context.session)
+        service = WBSElementService(context.session)
         project_uuid = UUID(project_id)
 
         # Pre-validate: check all codes against the database
@@ -695,10 +698,10 @@ async def batch_create_wbes(
             if existing:
                 return add_temporal_metadata(
                     {
-                        "error": f"A WBE with code '{code}' already exists in this project "
-                        f"(ID: {existing.wbe_id}, name: '{existing.name}'). "
-                        "Use a different code or update the existing WBE.",
-                        "existing_id": str(existing.wbe_id),
+                        "error": f"A WBS Element with code '{code}' already exists in this project "
+                        f"(ID: {existing.wbs_element_id}, name: '{existing.name}'). "
+                        "Use a different code or update the existing WBS Element.",
+                        "existing_id": str(existing.wbs_element_id),
                         "existing_code": code,
                     },
                     context,
@@ -709,68 +712,68 @@ async def batch_create_wbes(
         results: list[dict[str, Any]] = []
 
         for item in items:
-            wbe_data = WBECreate(
+            wbs_data = WBSElementCreate(
                 project_id=project_uuid,
                 name=item["name"],
                 code=item["code"],
                 description=item.get("description"),
-                parent_wbe_id=UUID(item["parent_wbe_id"])
-                if item.get("parent_wbe_id")
+                parent_wbs_element_id=UUID(item["parent_wbs_element_id"])
+                if item.get("parent_wbs_element_id")
                 else None,
                 branch=branch,
             )
-            wbe = await service.create_wbe(wbe_data, actor_id=actor_id)
+            wbs = await service.create_wbe(wbs_data, actor_id=actor_id)
             results.append(
                 {
-                    "id": str(wbe.wbe_id),
-                    "name": wbe.name,
-                    "code": wbe.code,
+                    "id": str(wbs.wbs_element_id),
+                    "name": wbs.name,
+                    "code": wbs.code,
                 }
             )
 
         result = {
             "created": results,
             "total": len(results),
-            "message": f"Created {len(results)} WBEs under project {project_id}",
+            "message": f"Created {len(results)} WBS Elements under project {project_id}",
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
         return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
     except Exception as e:
-        logger.error(f"Error in batch_create_wbes: {e}")
+        logger.error(f"Error in batch_create_wbs_elements: {e}")
         return add_temporal_metadata({"error": str(e)}, context)
 
 
 @ai_tool(
-    name="batch_update_wbes",
-    description="Batch update multiple WBEs. Each item must include wbe_id and any "
-    "fields to update (name, description, revenue_allocation). "
+    name="batch_update_wbs_elements",
+    description="Batch update multiple WBS Elements. Each item must include wbs_element_id "
+    "and any fields to update (name, description, revenue_allocation). "
     "Maximum 50 items per batch.",
-    permissions=["wbe-update"],
-    category="wbe",
+    permissions=["wbs-element-update"],
+    category="wbs-elements",
     risk_level=RiskLevel.HIGH,
 )
-async def batch_update_wbes(
+async def batch_update_wbs_elements(
     items: list[dict[str, Any]],
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Batch update WBEs.
+    """Batch update WBS Elements.
 
     Args:
-        items: List of dicts, each with {wbe_id, name?, description?, revenue_allocation?}
+        items: List of dicts, each with {wbs_element_id, name?, description?, revenue_allocation?}
         context: Injected tool execution context
 
     Returns:
         Dictionary with updated items list, total count, and message
     """
-    log_temporal_context("batch_update_wbes", context)
+    log_temporal_context("batch_update_wbs_elements", context)
 
     try:
         from decimal import Decimal
         from uuid import UUID
 
-        from app.models.schemas.wbe import WBEUpdate
-        from app.services.wbe import WBEService
+        from app.models.schemas.wbs_element import WBSElementUpdate
+        from app.services.wbs_element_service import WBSElementService
 
         if len(items) > BATCH_SIZE_LIMIT:
             return add_temporal_metadata(
@@ -781,15 +784,17 @@ async def batch_update_wbes(
         if not items:
             return add_temporal_metadata({"error": "No items provided"}, context)
 
-        # Validate wbe_id on each item
+        # Validate wbs_element_id on each item
         for i, item in enumerate(items):
-            if not item.get("wbe_id"):
+            if not item.get("wbs_element_id"):
                 return add_temporal_metadata(
-                    {"error": f"Item at index {i} is missing required field 'wbe_id'"},
+                    {
+                        "error": f"Item at index {i} is missing required field 'wbs_element_id'"
+                    },
                     context,
                 )
 
-        service = WBEService(context.session)
+        service = WBSElementService(context.session)
         actor_id = UUID(context.user_id)
         branch = context.branch_name or "main"
         results: list[dict[str, Any]] = []
@@ -808,38 +813,38 @@ async def batch_update_wbes(
             if len(update_kwargs) == 1:  # Only branch, no actual fields
                 return add_temporal_metadata(
                     {
-                        "error": f"Item with wbe_id '{item['wbe_id']}' has no fields to update"
+                        "error": f"Item with wbs_element_id '{item['wbs_element_id']}' has no fields to update"
                     },
                     context,
                 )
 
-            update_data = WBEUpdate(**update_kwargs)
+            update_data = WBSElementUpdate(**update_kwargs)
 
-            wbe = await service.update_wbe(
-                wbe_id=UUID(item["wbe_id"]),
+            wbs = await service.update_wbe(
+                wbe_id=UUID(item["wbs_element_id"]),
                 wbe_in=update_data,
                 actor_id=actor_id,
             )
             results.append(
                 {
-                    "id": str(wbe.wbe_id),
-                    "name": wbe.name,
-                    "code": wbe.code,
+                    "id": str(wbs.wbs_element_id),
+                    "name": wbs.name,
+                    "code": wbs.code,
                 }
             )
 
         result = {
             "updated": results,
             "total": len(results),
-            "message": f"Updated {len(results)} WBEs",
+            "message": f"Updated {len(results)} WBS Elements",
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
         return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
     except KeyError as e:
-        return add_temporal_metadata({"error": f"WBE not found: {e}"}, context)
+        return add_temporal_metadata({"error": f"WBS Element not found: {e}"}, context)
     except Exception as e:
-        logger.error(f"Error in batch_update_wbes: {e}")
+        logger.error(f"Error in batch_update_wbs_elements: {e}")
         return add_temporal_metadata({"error": str(e)}, context)
 
 

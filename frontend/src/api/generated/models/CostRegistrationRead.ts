@@ -37,9 +37,9 @@ export type CostRegistrationRead = {
     id: string;
     cost_registration_id: string;
     cost_element_id: string;
-    work_package_id?: (string | null);
-    work_package_name?: (string | null);
-    work_package_type?: (string | null);
+    cost_event_id?: (string | null);
+    cost_event_name?: (string | null);
+    cost_event_type?: (string | null);
     attachment_count?: number;
     created_by: string;
     /**

@@ -9,7 +9,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useAIProviders, useCreateAIProvider, useUpdateAIProvider, useDeleteAIProvider } from "../useAIProviders";
+import { useAIProviders, useAIProvider, useCreateAIProvider, useUpdateAIProvider, useDeleteAIProvider } from "../useAIProviders";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
@@ -60,7 +60,7 @@ const handlers = [
 
   // Create provider
   http.post(`${API_BASE}/ai/config/providers`, async ({ request }) => {
-    const data = await request.json();
+    const data = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({
       id: "3",
       provider_type: data.provider_type,
@@ -74,7 +74,7 @@ const handlers = [
 
   // Update provider
   http.put(`${API_BASE}/ai/config/providers/:id`, async ({ params, request }) => {
-    const data = await request.json();
+    const data = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({
       id: params.id,
       provider_type: data.provider_type || "openai",
@@ -183,7 +183,7 @@ describe("useAIProviders", () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(result.current.data?.name).toBe("New Provider");
-      expect(onSuccess).toHaveBeenCalled_once();
+      expect(onSuccess).toHaveBeenCalledOnce();
     });
   });
 
@@ -202,7 +202,7 @@ describe("useAIProviders", () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(result.current.data?.name).toBe("Updated Provider");
-      expect(onSuccess).toHaveBeenCalled_once();
+      expect(onSuccess).toHaveBeenCalledOnce();
     });
   });
 
@@ -217,7 +217,7 @@ describe("useAIProviders", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(onSuccess).toHaveBeenCalled_once();
+      expect(onSuccess).toHaveBeenCalledOnce();
     });
   });
 });

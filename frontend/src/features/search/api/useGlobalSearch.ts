@@ -31,7 +31,7 @@ export const useGlobalSearch = (params: GlobalSearchParams) => {
         query: {
           q: params.q,
           project_id: params.project_id || undefined,
-          wbe_id: params.wbe_id || undefined,
+          wbs_element_id: params.wbs_element_id || undefined,
           limit: params.limit ?? 50,
           branch,
           mode,

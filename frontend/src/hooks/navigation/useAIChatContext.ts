@@ -13,7 +13,7 @@ import { useMemo } from "react";
 import type { SessionContext } from "@/features/ai/types";
 
 export function useAIChatContext(): SessionContext {
-  const { projectId, wbeId, id: costElementId } = useParams();
+  const { projectId, wbsElementId, id: costElementId } = useParams();
 
   return useMemo(() => {
     // Cost element context (highest priority after WBE)
@@ -26,10 +26,10 @@ export function useAIChatContext(): SessionContext {
     }
 
     // Work Breakdown Element context
-    if (wbeId) {
+    if (wbsElementId) {
       return {
-        type: "wbe",
-        id: wbeId,
+        type: "wbs_element",
+        id: wbsElementId,
         project_id: projectId,
       };
     }
@@ -46,5 +46,5 @@ export function useAIChatContext(): SessionContext {
     return {
       type: "general",
     };
-  }, [projectId, wbeId, costElementId]);
+  }, [projectId, wbsElementId, costElementId]);
 }

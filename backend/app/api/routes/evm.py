@@ -90,9 +90,23 @@ async def get_evm_metrics(
     try:
         # Handle cost_element entity type (single entity calculation)
         if entity_type == EntityType.COST_ELEMENT:
-            # Calculate EVM metrics for cost element
+            # Cost elements are now children of work packages.
+            # Look up the parent work package to calculate EVM at that level.
+            from sqlalchemy import select
+
+            from app.models.domain.cost_element import CostElement
+
+            stmt = select(CostElement.work_package_id).where(
+                CostElement.cost_element_id == entity_id
+            )
+            result = await service.db.execute(stmt)
+            wp_id = result.scalar_one_or_none()
+            if wp_id is None:
+                raise ValueError(f"Cost Element with ID {entity_id} not found")
+
+            # Calculate EVM metrics for the owning work package
             metrics = await service.calculate_evm_metrics(
-                cost_element_id=entity_id,
+                work_package_id=wp_id,
                 control_date=control_date,
                 branch=branch,
                 branch_mode=branch_mode,
@@ -123,11 +137,43 @@ async def get_evm_metrics(
             # FastAPI will serialize the Pydantic model to JSON
             return response  # type: ignore[return-value]
 
+        # Handle WORK_PACKAGE entity type (single entity calculation)
+        elif entity_type == EntityType.WORK_PACKAGE:
+            metrics = await service.calculate_evm_metrics(
+                work_package_id=entity_id,
+                control_date=control_date,
+                branch=branch,
+                branch_mode=branch_mode,
+            )
+            from app.models.schemas.evm import EVMMetricsResponse
+
+            response = EVMMetricsResponse(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                bac=metrics.bac,
+                pv=metrics.pv,
+                ac=metrics.ac,
+                ev=metrics.ev,
+                cv=metrics.cv,
+                sv=metrics.sv,
+                cpi=metrics.cpi,
+                spi=metrics.spi,
+                eac=metrics.eac,
+                vac=metrics.vac,
+                etc=metrics.etc,
+                control_date=metrics.control_date,
+                branch=metrics.branch,
+                branch_mode=metrics.branch_mode,
+                progress_percentage=metrics.progress_percentage,
+                warning=metrics.warning,
+            )
+            return response  # type: ignore[return-value]
+
         # Handle WBE and Project entity types (batch aggregation)
-        elif entity_type in (EntityType.WBE, EntityType.PROJECT):
+        elif entity_type in (EntityType.WBS_ELEMENT, EntityType.PROJECT):
             # Validate entity exists before calculating metrics
-            if entity_type == EntityType.WBE:
-                wbe = await service.wbe_service.get_as_of(
+            if entity_type == EntityType.WBS_ELEMENT:
+                wbe = await service.wbs_service.get_as_of(
                     entity_id=entity_id,
                     as_of=control_date,
                     branch=branch,
@@ -278,8 +324,8 @@ async def get_evm_batch(
         # Validate entity_type
         if entity_type_str == EntityType.COST_ELEMENT:
             entity_type = EntityType.COST_ELEMENT
-        elif entity_type_str == EntityType.WBE:
-            entity_type = EntityType.WBE
+        elif entity_type_str == EntityType.WBS_ELEMENT:
+            entity_type = EntityType.WBS_ELEMENT
         elif entity_type_str == EntityType.PROJECT:
             entity_type = EntityType.PROJECT
         else:

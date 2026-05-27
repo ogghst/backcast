@@ -76,6 +76,9 @@ interface TimeMachineState {
 
   /** Clear all settings for a project */
   clearProjectSettings: (projectId: string) => void;
+
+  /** Clear all state (used in tests) */
+  clearAll: () => void;
 }
 
 /** Default settings for new projects */

@@ -132,10 +132,10 @@ vi.mock("@/components/common/StandardTable", () => ({
           {(dataSource || []).map((row, idx) => (
             <tr key={idx}>
               {columns.map((col) => (
-                <td key={col.key || col.dataIndex || idx}>
+                <td key={String(col.key || col.dataIndex || idx)}>
                   {col.render
-                    ? col.render((row as Record<string, unknown>)[col.dataIndex || ""], row)
-                    : (row as Record<string, unknown>)[col.dataIndex || ""]}
+                    ? col.render((row as Record<string, unknown>)[String(col.dataIndex || "")], row) as React.ReactNode
+                    : String((row as Record<string, unknown>)[String(col.dataIndex || "")] ?? "")}
                 </td>
               ))}
             </tr>
@@ -148,11 +148,11 @@ vi.mock("@/components/common/StandardTable", () => ({
 
 // Mock Ant Design App
 vi.mock("antd", async () => {
-  const actual = await vi.importActual("antd");
+  const actual = await vi.importActual<typeof import("antd")>("antd");
   return {
     ...actual,
     App: {
-      ...actual.App,
+      ...(typeof actual.App === "object" ? actual.App : {}),
       useApp: () => ({
         message: { success: vi.fn(), error: vi.fn() },
         modal: {

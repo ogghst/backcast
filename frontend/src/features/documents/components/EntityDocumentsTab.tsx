@@ -68,11 +68,11 @@ export const EntityDocumentsTab: React.FC<EntityDocumentsTabProps> = ({
           <div>
             <Space>
               <FileTypeIcon extension={record.extension} />
-              <LinkOutlined style={{ color: token.colorTextSecondary, fontSize: token.fontSizeXS }} />
+              <LinkOutlined style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }} />
               <Text>{name}</Text>
               <Tag
                 style={{
-                  fontSize: token.fontSizeXS,
+                  fontSize: token.fontSizeSM,
                   color: FILE_TYPE_COLORS[getFileTypeCategory(record.extension)] || FILE_TYPE_COLORS.default,
                   borderColor: FILE_TYPE_COLORS[getFileTypeCategory(record.extension)] || FILE_TYPE_COLORS.default,
                   background: "transparent",
@@ -82,7 +82,7 @@ export const EntityDocumentsTab: React.FC<EntityDocumentsTabProps> = ({
               </Tag>
             </Space>
             <div style={{ paddingLeft: token.paddingLG }}>
-              <Text type="secondary" style={{ fontSize: token.fontSizeXS }}>
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                 {location}
               </Text>
             </div>

@@ -73,7 +73,7 @@ export const ProgressEntryModal = ({
         progress_percentage: values.progress_percentage,
         control_date: asOf || null,
         notes: values.notes || null,
-        cost_element_id: costElementId,
+        work_package_id: costElementId,
       };
 
       await onOk(formattedValues);
@@ -128,7 +128,7 @@ export const ProgressEntryModal = ({
             step={0.01}
             precision={2}
             formatter={(value) => `${value}%`}
-            parser={(value) => parseFloat(value?.replace("%", "") || "0")}
+            parser={((value: string | undefined) => parseFloat(value?.replace("%", "") || "0")) as never}
             onChange={checkProgressDecrease}
           />
         </Form.Item>
@@ -162,8 +162,8 @@ export const ProgressEntryModal = ({
                 <strong>{latestProgress.progress_percentage}%</strong>
                 <span>
                   (
-                  {latestProgress.valid_time_formatted?.lower
-                    ? dayjs(latestProgress.valid_time_formatted.lower).format(
+                  {(latestProgress.valid_time_formatted?.lower as string | null)
+                    ? dayjs(latestProgress.valid_time_formatted?.lower as string).format(
                         "YYYY-MM-DD HH:mm",
                       )
                     : "-"}

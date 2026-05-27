@@ -193,12 +193,12 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         project_template.create_project,
         project_template.update_project,
         project_template.delete_project,
-        project_template.find_wbes,
-        project_template.create_wbe,
-        project_template.update_wbe,
-        project_template.delete_wbe,
-        project_template.batch_create_wbes,
-        project_template.batch_update_wbes,
+        project_template.find_wbs_elements,
+        project_template.create_wbs_element,
+        project_template.update_wbs_element,
+        project_template.delete_wbs_element,
+        project_template.batch_create_wbs_elements,
+        project_template.batch_update_wbs_elements,
     ]
     tools.extend(project_template_tools)
 
@@ -232,10 +232,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         cost_element_template.update_cost_element_type,
         cost_element_template.delete_cost_element_type,
         cost_element_template.batch_create_cost_elements,
-        cost_element_template.batch_update_cost_elements,
         cost_element_template.batch_delete_cost_elements,
-        cost_element_template.get_budget_status_batch,
-        cost_element_template.get_cost_element_summaries,
     ]
     tools.extend(cost_element_tools)
 
@@ -279,13 +276,13 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     ]
     tools.extend(forecast_cost_progress_tools)
 
-    # Add tools from work_package_template (Work Package CRUD and COQ)
+    # Add tools from work_package_template (Work Package CRUD and budget status)
     work_package_tools = [
         work_package_template.find_work_packages,
         work_package_template.create_work_package,
         work_package_template.update_work_package,
         work_package_template.delete_work_package,
-        work_package_template.get_coq_data,
+        work_package_template.get_work_package_budget_status,
     ]
     tools.extend(work_package_tools)
 

@@ -112,8 +112,8 @@ function WidgetErrorFallback({
   error,
   resetErrorBoundary,
 }: {
-  error: Error;
-  resetErrorBoundary: () => void;
+  error: unknown;
+  resetErrorBoundary: (...args: unknown[]) => void;
 }) {
   const { token } = theme.useToken();
 
@@ -135,7 +135,7 @@ function WidgetErrorFallback({
           color: token.colorTextSecondary,
         }}
       >
-        {error.message}
+        {error instanceof Error ? error.message : String(error)}
       </p>
       <Button size="small" type="link" onClick={resetErrorBoundary}>
         Retry
@@ -180,7 +180,7 @@ export function WidgetShell({
   const toolbarRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const deleteBtnRef = useRef<HTMLSpanElement>(null);
-  const confirmTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Click-outside dismissal for the floating toolbar (view mode only)
   useEffect(() => {
@@ -343,7 +343,7 @@ export function WidgetShell({
             <span
               style={{
                 fontSize: token.fontSizeSM,
-                fontWeight: token.fontWeightSemiBold,
+                fontWeight: 600,
                 color: token.colorPrimary,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -367,12 +367,12 @@ export function WidgetShell({
                   flexShrink: 0,
                   ...(isConfirmingRemove && {
                     background: token.colorErrorBg,
-                    fontWeight: token.fontWeightSemiBold,
+                    fontWeight: 600,
                   }),
                 }}
               >
                 {isConfirmingRemove && (
-                  <span style={{ fontSize: token.fontSizeXS, marginLeft: -2 }}>
+                  <span style={{ fontSize: token.fontSizeSM, marginLeft: -2 }}>
                     Sure?
                   </span>
                 )}
@@ -464,7 +464,7 @@ export function WidgetShell({
                 alignItems: "center",
                 gap: token.paddingXS,
                 fontSize: token.fontSizeSM,
-                fontWeight: token.fontWeightSemiBold,
+                fontWeight: 600,
                 whiteSpace: "nowrap",
               }}
             >

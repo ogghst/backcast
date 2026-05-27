@@ -77,12 +77,15 @@ afterEach(() => {
 // When canvas is cleaned up, the context becomes null but ECharts animation loop
 // may still be trying to access it
 const originalGetContext = HTMLCanvasElement.prototype.getContext;
+// @ts-expect-error — canvas mocking for test environment
 HTMLCanvasElement.prototype.getContext = function (contextType: string, ...args: never[]) {
   const context = originalGetContext.call(this, contextType, ...args);
 
   // For 2d context, wrap methods to handle null canvas gracefully
   if (contextType === '2d' && context) {
+    // @ts-expect-error — accessing 2d context methods on RenderingContext union
     const originalClearRect = context.clearRect;
+    // @ts-expect-error — assigning to RenderingContext union
     context.clearRect = function (...args: never[]) {
       try {
         return originalClearRect.call(this, ...args);
@@ -95,9 +98,12 @@ HTMLCanvasElement.prototype.getContext = function (contextType: string, ...args:
     // Wrap other canvas methods that might fail
     const canvasMethods = ['fillRect', 'strokeRect', 'fillText', 'strokeText', 'drawImage', 'beginPath', 'moveTo', 'lineTo', 'arc', 'rect'];
     canvasMethods.forEach(method => {
+      // @ts-expect-error — dynamic canvas method access
       if (typeof context[method] === 'function') {
+        // @ts-expect-error — dynamic canvas method access
         const original = context[method];
-        context[method] = function (...args: never[]) {
+        // @ts-expect-error — dynamic canvas method assignment
+        context[method] = function (this: unknown, ...args: never[]) {
           try {
             return original.call(this, ...args);
           } catch {

@@ -73,7 +73,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
       >
         <span
           style={{
-            fontSize: isMobile ? '10px' : token.fontSizeXS,
+            fontSize: isMobile ? '10px' : token.fontSizeSM,
             textTransform: 'uppercase',
             fontWeight: 600,
             color: colors.textSecondary,
@@ -88,7 +88,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
       {/* Syntax highlighted code */}
       <SyntaxHighlighter
         language={language}
-        style={syntaxTheme}
+        style={syntaxTheme as Record<string, React.CSSProperties>}
         customStyle={{
           margin: 0,
           borderRadius: 0,

@@ -253,7 +253,6 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
           {/* Message type filters */}
           <Space size="small" wrap style={{ width: "100%" }}>
             <Tag
-              clickable
               color={selectedType === null ? "blue" : "default"}
               onClick={() => setSelectedType(null)}
               style={{ cursor: "pointer", margin: 2 }}
@@ -263,7 +262,6 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
             {messageTypes.map((type) => (
               <Tag
                 key={type}
-                clickable
                 color={selectedType === type ? MESSAGE_TYPE_COLORS[type] || "blue" : "default"}
                 onClick={() => setSelectedType(selectedType === type ? null : type)}
                 style={{ cursor: "pointer", margin: 2 }}

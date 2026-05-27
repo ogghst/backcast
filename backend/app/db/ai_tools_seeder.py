@@ -19,12 +19,12 @@ from app.models.schemas.cost_element import CostElementCreate
 from app.models.schemas.cost_registration import CostRegistrationCreate
 from app.models.schemas.progress_entry import ProgressEntryCreate
 from app.models.schemas.project import ProjectCreate
-from app.models.schemas.wbe import WBECreate
+from app.models.schemas.wbs_element import WBSElementCreate
 from app.services.cost_element_service import CostElementService
 from app.services.cost_registration_service import CostRegistrationService
 from app.services.progress_entry_service import ProgressEntryService
 from app.services.project import ProjectService
-from app.services.wbe import WBEService
+from app.services.wbs_element_service import WBSElementService
 
 logger = logging.getLogger(__name__)
 
@@ -90,16 +90,16 @@ class AIToolsTestDataSeeder:
             logger.info(f"Created Project: {proj_in.code}")
 
     async def seed_wbes(self, session: AsyncSession, data: dict[str, Any]) -> None:
-        """Seed the WBE hierarchy.
+        """Seed the WBS Element hierarchy.
 
         Args:
             session: Database session
             data: Test data dictionary
         """
-        logger.info("Seeding WBE hierarchy...")
+        logger.info("Seeding WBS Element hierarchy...")
         wbe_data_list = data["wbes"]
 
-        wbe_service = WBEService(session)
+        wbs_element_service = WBSElementService(session)
         proj_service = ProjectService(session)
 
         from uuid import uuid4
@@ -110,7 +110,7 @@ class AIToolsTestDataSeeder:
         project = await proj_service.get_by_code(data["project"]["code"])
         if not project:
             raise ValueError(
-                f"Project {data['project']['code']} not found. WBEs require a parent project."
+                f"Project {data['project']['code']} not found. WBS Elements require a parent project."
             )
 
         actual_project_id = project.project_id
@@ -124,38 +124,53 @@ class AIToolsTestDataSeeder:
         with seed_operation():
             for wbe_data in wbe_data_list:
                 try:
-                    # Check if WBE already exists by code (use actual project ID)
-                    existing = await wbe_service.get_by_code(
+                    # Check if WBS Element already exists by code (use actual project ID)
+                    existing = await wbs_element_service.get_by_code(
                         wbe_data["code"], project_id=actual_project_id, branch="main"
                     )
                     if existing:
-                        logger.debug(f"WBE {wbe_data['code']} exists, skipping")
+                        logger.debug(f"WBS Element {wbe_data['code']} exists, skipping")
                         # Store the existing ID for parent references
-                        id_mapping[wbe_data["wbe_id"]] = existing.wbe_id
+                        # Map old JSON key to new schema field
+                        old_id_key = wbe_data.get("wbs_element_id") or wbe_data.get(
+                            "wbe_id", ""
+                        )
+                        id_mapping[str(old_id_key)] = existing.wbs_element_id
                         continue
 
                     # Generate new UUID and store mapping
                     new_id = uuid4()
-                    id_mapping[wbe_data["wbe_id"]] = new_id
+                    old_id_key = wbe_data.get("wbs_element_id") or wbe_data.get(
+                        "wbe_id", ""
+                    )
+                    id_mapping[str(old_id_key)] = new_id
 
-                    # Update data with new ID
-                    wbe_data["wbe_id"] = str(new_id)
+                    # Update data with new ID and remap old field names
+                    wbe_data["wbs_element_id"] = str(new_id)
+                    wbe_data.pop("wbe_id", None)
 
                     # Update project_id to the actual database ID
                     wbe_data["project_id"] = str(actual_project_id)
 
-                    # Update parent_wbe_id if it exists
-                    if wbe_data.get("parent_wbe_id"):
-                        wbe_data["parent_wbe_id"] = str(
+                    # Remap parent_wbe_id -> parent_wbs_element_id if it exists
+                    if wbe_data.get("parent_wbs_element_id"):
+                        wbe_data["parent_wbs_element_id"] = str(
+                            id_mapping[wbe_data["parent_wbs_element_id"]]
+                        )
+                    elif wbe_data.get("parent_wbe_id"):
+                        wbe_data["parent_wbs_element_id"] = str(
                             id_mapping[wbe_data["parent_wbe_id"]]
                         )
+                        wbe_data.pop("parent_wbe_id", None)
 
-                    wbe_in = WBECreate(**wbe_data)
-                    await wbe_service.create_wbe(wbe_in, actor_id)
-                    logger.info(f"Created WBE: {wbe_in.code}")
+                    wbs_element_in = WBSElementCreate(**wbe_data)
+                    await wbs_element_service.create_wbe(wbs_element_in, actor_id)
+                    logger.info(f"Created WBS Element: {wbs_element_in.code}")
 
                 except Exception as e:
-                    logger.error(f"Failed to seed WBE {wbe_data.get('code')}: {e}")
+                    logger.error(
+                        f"Failed to seed WBS Element {wbe_data.get('code')}: {e}"
+                    )
                     raise
 
     async def seed_cost_elements_and_forecasts(
@@ -174,14 +189,14 @@ class AIToolsTestDataSeeder:
         from sqlalchemy import select
 
         from app.models.domain.cost_element import CostElement
-        from app.services.wbe import WBEService
+        from app.services.wbs_element_service import WBSElementService
 
         actor_id = uuid4()
 
-        # Build a mapping of WBE codes to IDs
-        wbe_service = WBEService(session)
+        # Build a mapping of WBS Element codes to IDs
+        wbs_element_service = WBSElementService(session)
         proj_service = ProjectService(session)
-        wbe_code_to_id: dict[str, UUID] = {}
+        wbs_code_to_id: dict[str, UUID] = {}
 
         # Get the actual project ID from the database (by code)
         project = await proj_service.get_by_code(data["project"]["code"])
@@ -192,27 +207,31 @@ class AIToolsTestDataSeeder:
 
         actual_project_id = project.project_id
 
-        # Load all WBEs to build code->ID mapping (use actual project ID)
-        for wbe_data in data["wbes"]:
-            wbe = await wbe_service.get_by_code(
-                wbe_data["code"], actual_project_id, branch="main"
+        # Load all WBS Elements to build code->ID mapping (use actual project ID)
+        for wbs_data in data["wbes"]:
+            wbs_elem = await wbs_element_service.get_by_code(
+                wbs_data["code"], actual_project_id, branch="main"
             )
-            if wbe:
-                wbe_code_to_id[wbe_data["code"]] = wbe.wbe_id
-                logger.debug(f"Mapped WBE {wbe_data['code']} -> {wbe.wbe_id}")
+            if wbs_elem:
+                wbs_code_to_id[wbs_data["code"]] = wbs_elem.wbs_element_id
+                logger.debug(
+                    f"Mapped WBS Element {wbs_data['code']} -> {wbs_elem.wbs_element_id}"
+                )
             else:
-                logger.warning(f"WBE {wbe_data['code']} not found in database")
+                logger.warning(f"WBS Element {wbs_data['code']} not found in database")
 
         # Build a set of existing cost element codes
-        stmt = select(CostElement.code).where(CostElement.branch == "main")
+        # NOTE: CostElement no longer has code/branch columns (refactored to EOC).
+        # This seeder needs rework for the new WorkPackage-based model.
+        stmt = select(CostElement.code).where(CostElement.branch == "main")  # type: ignore[attr-defined]
         result = await session.execute(stmt)
         existing_codes = set(result.scalars().all())
 
         # Need to load fresh data for each iteration since we're modifying it
-        # Also load fresh WBE data since the WBE seeder modified it
+        # Also load fresh WBS Element data since the WBS Element seeder modified it
         original_data = self.load_test_data()
         ce_data_list = original_data["cost_elements"]
-        fresh_wbe_data_list = original_data["wbes"]  # Use fresh WBE data for ID mapping
+        fresh_wbs_data_list = original_data["wbes"]  # Use fresh WBS data for ID mapping
 
         ce_service = CostElementService(session)
 
@@ -234,32 +253,36 @@ class AIToolsTestDataSeeder:
                     ce_data["cost_element_id"]
                     ce_data["cost_element_id"] = str(new_ce_id)
 
-                    # Update WBE ID reference using the mapping
-                    # Look up the WBE by its original ID in the test data
-                    original_wbe_id = ce_data["wbe_id"]
-                    for wbe_data in fresh_wbe_data_list:
-                        if wbe_data["wbe_id"] == original_wbe_id:
-                            new_wbe_id = wbe_code_to_id.get(wbe_data["code"])
-                            if new_wbe_id:
-                                ce_data["wbe_id"] = str(new_wbe_id)
+                    # Update WBS Element ID reference using the mapping
+                    # Look up the WBS Element by its original ID in the test data
+                    original_wbs_id = ce_data.get("wbs_element_id") or ce_data.get(
+                        "wbe_id", ""
+                    )
+                    for wbs_data in fresh_wbs_data_list:
+                        wbs_id_key = wbs_data.get("wbs_element_id") or wbs_data.get(
+                            "wbe_id", ""
+                        )
+                        if str(wbs_id_key) == str(original_wbs_id):
+                            new_wbs_id = wbs_code_to_id.get(wbs_data["code"])
+                            if new_wbs_id:
+                                ce_data["work_package_id"] = str(new_wbs_id)
+                                ce_data.pop("wbe_id", None)
                                 logger.debug(
-                                    f"Mapped WBE ID for {ce_data['code']}: {original_wbe_id} -> {new_wbe_id}"
+                                    f"Mapped WBS Element ID for {ce_data['code']}: {original_wbs_id} -> {new_wbs_id}"
                                 )
                             else:
                                 logger.warning(
-                                    f"WBE {wbe_data['code']} not found in mapping"
+                                    f"WBS Element {wbs_data['code']} not found in mapping"
                                 )
                             break
                     else:
                         logger.warning(
-                            f"Could not find WBE with ID {original_wbe_id} in test data"
+                            f"Could not find WBS Element with ID {original_wbs_id} in test data"
                         )
 
                     ce_in = CostElementCreate(**ce_data)
-                    created_ce = await ce_service.create_cost_element(
-                        ce_in, actor_id, branch="main"
-                    )
-                    logger.info(f"Created Cost Element: {ce_in.code}")
+                    created_ce = await ce_service.create_cost_element(ce_in, actor_id)
+                    logger.info(f"Created Cost Element: {ce_in.cost_element_id}")
 
                     # Create forecast if provided
                     if forecast_data:
@@ -319,10 +342,11 @@ class AIToolsTestDataSeeder:
             await session.flush()
 
             # Update cost element with forecast_id
+            # NOTE: CostElement no longer has branch/forecast_id (refactored to EOC).
             stmt = (
                 update(CostElement)
                 .where(CostElement.cost_element_id == cost_element_id)
-                .where(CostElement.branch == "main")
+                .where(CostElement.branch == "main")  # type: ignore[attr-defined]
                 .values(forecast_id=forecast.forecast_id)
             )
             await session.execute(stmt)
@@ -355,14 +379,16 @@ class AIToolsTestDataSeeder:
 
         actor_id = uuid4()
 
-        # Build a mapping of cost element codes to IDs by querying the database
-        stmt = select(CostElement).where(CostElement.branch == "main")
+        # Build a mapping of cost element IDs by querying the database
+        # NOTE: CostElement no longer has branch/code (refactored to EOC).
+        stmt = select(CostElement).where(CostElement.branch == "main")  # type: ignore[attr-defined]
         result = await session.execute(stmt)
         cost_elements = result.scalars().all()
 
         # Build code -> ID mapping
         ce_code_to_id: dict[str, UUID] = {
-            ce.code: ce.cost_element_id for ce in cost_elements
+            getattr(ce, "code", str(ce.cost_element_id)): ce.cost_element_id
+            for ce in cost_elements
         }
 
         # Build original ID -> code mapping from test data
@@ -374,7 +400,8 @@ class AIToolsTestDataSeeder:
         # Get existing cost registrations to avoid duplicates
         # Build mapping of cost_element_id -> code
         ce_id_to_code_map: dict[UUID, str] = {
-            ce.cost_element_id: ce.code for ce in cost_elements
+            ce.cost_element_id: getattr(ce, "code", str(ce.cost_element_id))
+            for ce in cost_elements
         }
 
         # Query all cost registrations
@@ -461,14 +488,17 @@ class AIToolsTestDataSeeder:
 
         actor_id = uuid4()
 
-        # Build a mapping of cost element codes to IDs by querying the database
-        stmt = select(CostElement).where(CostElement.branch == "main")
+        # Build a mapping of cost element IDs by querying the database
+        # NOTE: CostElement no longer has branch/code (refactored to EOC).
+        # ProgressEntry now uses work_package_id instead of cost_element_id.
+        stmt = select(CostElement).where(CostElement.branch == "main")  # type: ignore[attr-defined]
         result = await session.execute(stmt)
         cost_elements = result.scalars().all()
 
         # Build code -> ID mapping
         ce_code_to_id: dict[str, UUID] = {
-            ce.code: ce.cost_element_id for ce in cost_elements
+            getattr(ce, "code", str(ce.cost_element_id)): ce.cost_element_id
+            for ce in cost_elements
         }
 
         # Build original ID -> code mapping from test data
@@ -480,19 +510,20 @@ class AIToolsTestDataSeeder:
         # Get existing progress entries to avoid duplicates
         # Build mapping of cost_element_id -> code
         ce_id_to_code_map: dict[UUID, str] = {
-            ce.cost_element_id: ce.code for ce in cost_elements
+            ce.cost_element_id: getattr(ce, "code", str(ce.cost_element_id))
+            for ce in cost_elements
         }
 
         # Query all progress entries
         stmt_pe = select(
-            ProgressEntry.cost_element_id,
+            ProgressEntry.work_package_id,
             ProgressEntry.progress_percentage,
             ProgressEntry.notes,
         )
         result_pe = await session.execute(stmt_pe)
-        existing_entries = {
+        existing_entries: set[tuple[str | None, float, str | None]] = {
             (
-                ce_id_to_code_map.get(e.cost_element_id, ""),
+                ce_id_to_code_map.get(e.work_package_id, ""),
                 float(e.progress_percentage),
                 e.notes,
             )
@@ -529,12 +560,15 @@ class AIToolsTestDataSeeder:
 
                     # Generate new UUID for the progress entry
                     pe_data["progress_entry_id"] = str(uuid4())
-                    pe_data["cost_element_id"] = str(cost_element_id)
+                    # Map old cost_element_id to work_package_id
+                    pe_data["work_package_id"] = pe_data.pop(
+                        "cost_element_id", str(cost_element_id)
+                    )
 
                     pe_in = ProgressEntryCreate(**pe_data)
                     await pe_service.create(actor_id=actor_id, progress_in=pe_in)
                     logger.info(
-                        f"Created Progress Entry: {pe_in.progress_percentage}% for {pe_in.cost_element_id}"
+                        f"Created Progress Entry: {pe_in.progress_percentage}% for {pe_in.work_package_id}"
                     )
 
                 except Exception as e:

@@ -15,6 +15,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Input, Button, theme, Popover, Tooltip } from "antd";
+import type { TextAreaRef } from "antd/es/input/TextArea";
 import {
   SendOutlined,
   StopOutlined,
@@ -35,7 +36,7 @@ type ExecutionMode = "safe" | "standard" | "expert";
 /**
  * Represents a file pending upload
  */
-interface PendingAttachment {
+export interface PendingAttachment {
   id: string;
   file: File;
   preview?: string; // URL for image preview
@@ -155,7 +156,7 @@ export const MessageInput = ({
   const { spacing, typography } = useThemeTokens();
   const MODE_CONFIG = getModeConfig(token);
   const [message, setMessage] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<TextAreaRef>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
 

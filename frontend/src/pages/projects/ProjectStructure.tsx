@@ -11,8 +11,8 @@ export const ProjectStructure = () => {
     (node: TreeNodeData) => {
       if (node.type === "project" && projectId) {
         navigate(`/projects/${projectId}`);
-      } else if (node.type === "wbe" && projectId) {
-        navigate(`/projects/${projectId}/wbes/${node.wbe_id}`);
+      } else if (node.type === "wbs_element" && projectId) {
+        navigate(`/projects/${projectId}/wbs-elements/${node.wbs_element_id}`);
       } else if (node.type === "cost_element") {
         navigate(`/cost-elements/${node.cost_element_id}`);
       }

@@ -1,211 +1,82 @@
-"""Cost Element Service - branchable entity management."""
+"""Cost Element Service - EOC (Element of Cost) under a Work Package.
 
-import builtins
-from collections.abc import Sequence
+Extends TemporalService (NOT BranchableService) for Cost Element operations.
+Cost Elements are versionable but NOT branchable -- financial facts are global.
+"""
+
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import cast as sql_cast
 from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.branching.service import BranchableService
-from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
+from app.core.versioning.commands import (
+    CreateVersionCommand,
+    SoftDeleteCommand,
+    UpdateVersionCommand,
+)
 from app.core.versioning.enums import BranchMode
+from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
-from app.models.domain.wbe import WBE
-from app.models.protocols import VersionableProtocol
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 
-# Import list as builtin_list to avoid shadowing by the list() method
-builtin_list = list
 
+class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var,unused-ignore]
+    """Service for Cost Element (EOC) entity operations.
 
-class CostElementService(BranchableService[CostElement]):  # type: ignore[type-var,unused-ignore]
-    """Service for Cost Element management (branchable + versionable)."""
+    Cost Elements are the leaf level of the budget hierarchy where:
+    - Budget amounts are allocated at the EOC level
+    - Actual costs are tracked via Cost Registrations
+    - Progress is measured via Progress Entries
 
-    def __init__(self, db: AsyncSession):
-        """Initialize service with database session.
+    Versionable but NOT branchable (cost data is global facts).
+    """
 
-        Args:
-            db: Async database session
-        """
-        super().__init__(CostElement, db)
-
-    async def create_root(
-        self,
-        root_id: UUID,
-        actor_id: UUID,
-        control_date: datetime | None = None,
-        branch: str = "main",
-        **data: Any,
-    ) -> CostElement:
-        """Create the initial version of a CostElement.
-
-        Override parent method to use 'cost_element_id' field instead of
-        the auto-generated field name.
-
-        Args:
-            root_id: Root UUID identifier for the CostElement
-            actor_id: User creating the CostElement
-            control_date: Optional control date for valid_time (defaults to now)
-            branch: Branch name (default: "main")
-            **data: Additional fields for the CostElement
-
-        Returns:
-            Created CostElement
-        """
-        data["cost_element_id"] = root_id
-
-        cmd = CreateVersionCommand(
-            entity_class=cast(type[VersionableProtocol], CostElement),
-            root_id=root_id,
-            actor_id=actor_id,
-            control_date=control_date,
-            branch=branch,
-            **data,
-        )
-        return cast(CostElement, await cmd.execute(self.session))
-
-    def _get_base_stmt(self) -> Any:
-        """Get base select statement with WBE name and CostElementType joins."""
-        from sqlalchemy.orm import aliased
-
-        WBEAlias = aliased(WBE, name="wbe_lookup")
-        TypeAlias = aliased(CostElementType, name="type_lookup")
-
-        # Subquery for current WBE versions
-        wbe_subq = (
-            select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
-            .distinct(WBEAlias.wbe_id)
-            .where(
-                func.upper(cast(Any, WBEAlias).valid_time).is_(None),
-                cast(Any, WBEAlias).deleted_at.is_(None),
-            )
-            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
-            .subquery("wbe_lookup_subq")
-        )
-
-        # Subquery for current CostElementType versions
-        type_subq = (
-            select(
-                TypeAlias.cost_element_type_id,
-                TypeAlias.name.label("type_name"),
-                TypeAlias.code.label("type_code"),
-            )
-            .where(
-                func.upper(cast(Any, TypeAlias).valid_time).is_(None),
-                cast(Any, TypeAlias).deleted_at.is_(None),
-            )
-            .subquery("type_lookup_subq")
-        )
-
-        return (
-            select(
-                CostElement,
-                wbe_subq.c.wbe_name,
-                type_subq.c.type_name,
-                type_subq.c.type_code,
-            )
-            .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
-            .outerjoin(
-                type_subq,
-                CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
-            )
-        )
-
-    async def _resolve_relations(
-        self, query_results: Sequence[Any]
-    ) -> builtin_list[CostElement]:
-        """Helper to resolve related names for a list of results."""
-        resolved = []
-        for item in query_results:
-            if hasattr(item, "__iter__") and not isinstance(item, (str, bytes)):
-                item_list = list(item)
-                if len(item_list) >= 4:
-                    # entity, wbe_name, type_name, type_code
-                    entity = item_list[0]
-                    entity.wbe_name = item_list[1]
-                    entity.cost_element_type_name = item_list[2]
-                    entity.cost_element_type_code = item_list[3]
-                    resolved.append(entity)
-                elif len(item_list) >= 2:
-                    # Fallback for backwards compatibility
-                    entity, wbe_name = item_list[0], item_list[1]
-                    entity.wbe_name = wbe_name
-                    resolved.append(entity)
-                else:
-                    resolved.append(item_list[0])
-            else:
-                resolved.append(item)
-        return resolved
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(CostElement, session)
 
     async def create_cost_element(
         self,
         element_in: CostElementCreate,
         actor_id: UUID,
-        branch: str | None = None,
     ) -> CostElement:
-        """Create new cost element using CreateVersionCommand.
+        """Create new cost element (EOC) under a Work Package.
 
-        Auto-creates:
-        - Default schedule baseline for the cost element
-        - Default forecast for the cost element
-        - Initial progress entry (0% progress) for the cost element
+        Args:
+            element_in: Creation data.
+            actor_id: User creating the element.
+
+        Returns:
+            Created CostElement entity.
+
+        Raises:
+            ValueError: If WorkPackage or CostElementType not found.
         """
         element_data = element_in.model_dump(exclude_unset=True)
-
-        # Extract control_date from schema if present (for seeding/time-travel)
         control_date = getattr(element_in, "control_date", None)
-
-        # Remove control_date and schedule fields from data to avoid
-        # passing non-column fields to CreateVersionCommand
         element_data.pop("control_date", None)
-        element_data.pop("schedule_start_date", None)
-        element_data.pop("schedule_end_date", None)
-        element_data.pop("schedule_progression_type", None)
 
-        # Use provided cost_element_id (for seeding) or generate new one
         root_id = element_in.cost_element_id or uuid4()
         element_data["cost_element_id"] = root_id
 
-        # Use schema branch if provided, otherwise use parameter (for backward compatibility)
-        target_branch = branch or "main"
-        if "branch" not in element_data or element_data["branch"] == "main":
-            element_data["branch"] = target_branch
+        # Validate WorkPackage existence
+        from app.models.domain.work_package import WorkPackage
 
-        # 1. Validate Parent WBE existence (Application-level Integrity)
-        wbe_exists = await self.session.execute(
-            select(WBE.id)
+        wp_exists = await self.session.execute(
+            select(WorkPackage.id)
             .where(
-                WBE.wbe_id == element_in.wbe_id,
-                WBE.branch == target_branch,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+                WorkPackage.work_package_id == element_in.work_package_id,
+                func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                cast(Any, WorkPackage).deleted_at.is_(None),
             )
             .limit(1)
         )
-        if not wbe_exists.scalar_one_or_none():
-            # Fallback to main branch for parent WBE
-            wbe_exists_main = await self.session.execute(
-                select(WBE.id)
-                .where(
-                    WBE.wbe_id == element_in.wbe_id,
-                    WBE.branch == "main",
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                )
-                .limit(1)
-            )
-            if not wbe_exists_main.scalar_one_or_none():
-                raise ValueError(
-                    f"Parent WBE {element_in.wbe_id} not found on branch {target_branch} or main"
-                )
+        if not wp_exists.scalar_one_or_none():
+            raise ValueError(f"Work Package {element_in.work_package_id} not found")
 
-        # 2. Validate Cost Element Type existence
+        # Validate CostElementType existence
         type_exists = await self.session.execute(
             select(CostElementType.id)
             .where(
@@ -220,555 +91,172 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 f"Cost Element Type {element_in.cost_element_type_id} not found"
             )
 
-        # Create the cost element
-        cmd = CreateVersionCommand(
-            entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
+        cmd = CreateVersionCommand(  # type: ignore[type-var]
+            entity_class=CostElement,
             root_id=root_id,
             actor_id=actor_id,
             control_date=control_date,
             **element_data,
         )
-        cost_element = await cmd.execute(self.session)
+        return await cmd.execute(self.session)
 
-        # Auto-create default schedule baseline
-        from app.services.schedule_baseline_service import ScheduleBaselineService
-
-        sb_service = ScheduleBaselineService(self.session)
-        baseline = await sb_service.ensure_exists(
-            cost_element_id=root_id,
-            actor_id=actor_id,
-            branch=target_branch,
-            control_date=control_date,
-            start_date=element_in.schedule_start_date,
-            end_date=element_in.schedule_end_date,
-            progression_type=element_in.schedule_progression_type,
-        )
-
-        # Update cost element with baseline reference
-        cost_element.schedule_baseline_id = baseline.schedule_baseline_id
-
-        # Auto-create default forecast
-        from app.services.forecast_service import ForecastService
-
-        forecast_service = ForecastService(self.session)
-        forecast = await forecast_service.ensure_exists(
-            cost_element_id=root_id,
-            actor_id=actor_id,
-            branch=target_branch,
-            budget_amount=cost_element.budget_amount,
-            control_date=control_date,
-        )
-
-        # Update cost element with forecast reference
-        cost_element.forecast_id = forecast.forecast_id
-
-        # Auto-create initial progress entry
-        from decimal import Decimal
-
-        from app.models.schemas.progress_entry import ProgressEntryCreate
-        from app.services.progress_entry_service import ProgressEntryService
-
-        progress_service = ProgressEntryService(self.session)
-        progress_create = ProgressEntryCreate(
-            cost_element_id=root_id,
-            progress_percentage=Decimal("0.00"),
-            notes="Initial progress entry",
-            control_date=control_date,
-        )
-        await progress_service.create(
-            actor_id=actor_id,
-            progress_in=progress_create,
-        )
-
-        await self.session.flush()
-
-        return cost_element
-
-    async def update(  # type: ignore[override]
+    async def update_cost_element(
         self,
         cost_element_id: UUID,
         element_in: CostElementUpdate,
         actor_id: UUID,
-        branch: str | None = None,
     ) -> CostElement:
-        # Extract control_date and branch from schema
-        control_date = element_in.control_date
+        """Update cost element (creates new version).
 
-        # Filter None values from update data
+        Args:
+            cost_element_id: Root ID to update.
+            element_in: Update data.
+            actor_id: User making the update.
+
+        Returns:
+            Updated CostElement entity.
+        """
         update_data = element_in.model_dump(exclude_unset=True)
-        update_data.pop("control_date", None)
+        control_date = update_data.pop("control_date", None)
 
-        # Use schema branch if provided, otherwise use parameter (for backward compatibility)
-        target_branch = update_data.pop("branch", None) or branch or "main"
-        update_data["branch"] = target_branch
-
-        # Check if version exists in target branch
-        # We need to manage the query manually to avoid TemporalService issues and handle branching
-        # Use ISOLATED mode to avoid falling back to parent branches
-        current = await self.get_by_id(
-            cost_element_id, branch=target_branch, branch_mode=BranchMode.ISOLATED
-        )
-
-        if current:
-            # Linear update in same branch: Close old, Open new
-
-            # Custom command class to handle multi-word entity name AND branch filtering
-            class CostElementUpdateCommand(UpdateVersionCommand[CostElement]):  # type: ignore[type-var,unused-ignore]
-                def __init__(
-                    self,
-                    entity_class: type[CostElement],
-                    root_id: UUID,
-                    actor_id: UUID,
-                    branch: str = "main",
-                    control_date: datetime | None = None,
-                    **updates: Any,
-                ) -> None:
-                    super().__init__(
-                        entity_class,
-                        root_id,
-                        actor_id,
-                        control_date=control_date,
-                        **updates,
-                    )
-                    self.branch = branch
-
-                def _root_field_name(self) -> str:
-                    return "cost_element_id"
-
-                async def _get_current(self, session: AsyncSession) -> Any | None:
-                    stmt = (
-                        select(self.entity_class)
-                        .where(
-                            getattr(self.entity_class, self._root_field_name())
-                            == self.root_id,
-                            self.entity_class.branch == self.branch,
-                            func.upper(cast(Any, self.entity_class).valid_time).is_(
-                                None
-                            ),
-                            cast(Any, self.entity_class).deleted_at.is_(None),
-                        )
-                        .order_by(cast(Any, self.entity_class).valid_time.desc())
-                        .limit(1)
-                    )
-                    result = await session.execute(stmt)
-                    return result.scalar_one_or_none()
-
-            cmd = CostElementUpdateCommand(
-                entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
-                root_id=cost_element_id,
-                actor_id=actor_id,
-                control_date=control_date,
-                # Branch is passed via update_data unpacking to match signature
-                **update_data,
+        # Validate CostElementType if changed
+        if element_in.cost_element_type_id is not None:
+            type_exists = await self.session.execute(
+                select(CostElementType.id)
+                .where(
+                    CostElementType.cost_element_type_id
+                    == element_in.cost_element_type_id,
+                    func.upper(cast(Any, CostElementType).valid_time).is_(None),
+                    cast(Any, CostElementType).deleted_at.is_(None),
+                )
+                .limit(1)
             )
-            return await cmd.execute(self.session)
-
-        else:
-            # Version not found in target branch -> Fork from main (or parent)
-            # This handles "Create Branch" scenario implicitly on update
-
-            # Try to find source in 'main' to fork from
-            # Note: In a real system we might want to let the caller specify the source branch
-            source_version = await self.get_by_id(cost_element_id, branch="main")
-            if not source_version:
-                # If not found in main either, we can't update a non-existent entity
+            if not type_exists.scalar_one_or_none():
                 raise ValueError(
-                    f"Cost Element {cost_element_id} not found in {branch} or main."
+                    f"Cost Element Type {element_in.cost_element_type_id} not found"
                 )
 
-            # Clone data from source
-            data = {
-                c.name: getattr(source_version, c.name)
-                for c in source_version.__table__.columns
-            }
+        class CostElementUpdateCommand(UpdateVersionCommand[CostElement]):  # type: ignore[type-var,unused-ignore]
+            def _root_field_name(self) -> str:
+                return "cost_element_id"
 
-            # Remove system/audit fields to let DB/Command handle them
-            system_fields = [
-                "valid_time",
-                "transaction_time",
-                "created_by",
-                "deleted_by",
-                "deleted_at",
-                "id",  # New version needs new ID
-                "schedule_baseline_id",  # Don't copy baseline ID - will create new one
-                "forecast_id",  # Don't copy forecast ID - will create new one
-            ]
-            for field in system_fields:
-                data.pop(field, None)
+        cmd = CostElementUpdateCommand(
+            entity_class=CostElement,
+            root_id=cost_element_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            **update_data,
+        )
+        return await cmd.execute(self.session)
 
-            # Apply updates
-            data.update(update_data)
-
-            # Set branching metadata
-            data["branch"] = target_branch
-            data["parent_id"] = source_version.id  # Link to parent version
-
-            # Create new version (Insert only, do not close parent)
-            create_cmd = CreateVersionCommand(
-                entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
-                root_id=cost_element_id,
-                actor_id=actor_id,
-                control_date=control_date,
-                **data,
-            )
-            new_element = await create_cmd.execute(self.session)
-
-            # Auto-create schedule baseline for the new branch
-            from app.services.schedule_baseline_service import ScheduleBaselineService
-
-            sb_service = ScheduleBaselineService(self.session)
-            baseline = await sb_service.ensure_exists(
-                cost_element_id=cost_element_id,
-                actor_id=actor_id,
-                branch=target_branch,
-                control_date=control_date,
-            )
-
-            # Update cost element with baseline reference
-            new_element.schedule_baseline_id = baseline.schedule_baseline_id
-
-            # Auto-create forecast for the new branch
-            from app.services.forecast_service import ForecastService
-
-            forecast_service = ForecastService(self.session)
-            forecast = await forecast_service.ensure_exists(
-                cost_element_id=cost_element_id,
-                actor_id=actor_id,
-                branch=target_branch,
-                budget_amount=new_element.budget_amount,
-                control_date=control_date,
-            )
-
-            # Update cost element with forecast reference
-            new_element.forecast_id = forecast.forecast_id
-
-            # Note: We do NOT create a progress entry for branched cost elements
-            # Progress entries are global facts (not branchable), so the existing
-            # progress entry from main branch applies to all branches.
-
-            await self.session.flush()
-
-            return new_element
-
-    async def soft_delete(  # type: ignore[override]
+    async def soft_delete_cost_element(
         self,
         cost_element_id: UUID,
         actor_id: UUID,
-        branch: str = "main",
         control_date: datetime | None = None,
     ) -> None:
-        """Soft delete cost element using BranchableService.soft_delete.
+        """Soft delete cost element.
 
-        Cascades the delete to the associated schedule baseline and forecast.
-
-        This uses the BranchableSoftDeleteCommand which is branch-aware.
+        Args:
+            cost_element_id: Root ID to delete.
+            actor_id: User performing deletion.
+            control_date: Optional control date.
         """
-        # Get the cost element to find its schedule baseline and forecast
-        cost_element = await self.get_by_id(cost_element_id, branch=branch)
 
-        if cost_element and cost_element.schedule_baseline_id:
-            # Cascade delete to schedule baseline
-            from app.services.schedule_baseline_service import ScheduleBaselineService
+        class CostElementSoftDeleteCommand(SoftDeleteCommand[CostElement]):  # type: ignore[type-var,unused-ignore]
+            def _root_field_name(self) -> str:
+                return "cost_element_id"
 
-            sb_service = ScheduleBaselineService(self.session)
-            await sb_service.soft_delete(
-                root_id=cost_element.schedule_baseline_id,
-                actor_id=actor_id,
-                branch=branch,
-                control_date=control_date,
-            )
-
-        if cost_element and cost_element.forecast_id:
-            # Cascade delete to forecast
-            from app.services.forecast_service import ForecastService
-
-            forecast_service = ForecastService(self.session)
-            await forecast_service.soft_delete(
-                forecast_id=cost_element.forecast_id,
-                actor_id=actor_id,
-                branch=branch,
-                control_date=control_date,
-            )
-
-        # Call parent method from BranchableService
-        await super().soft_delete(
+        cmd = CostElementSoftDeleteCommand(
+            entity_class=CostElement,
             root_id=cost_element_id,
             actor_id=actor_id,
-            branch=branch,
             control_date=control_date,
         )
-
-    async def get_by_id(
-        self,
-        cost_element_id: UUID,
-        branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGED,
-    ) -> CostElement | None:
-        """Get cost element by root ID and branch with WBE name."""
-        stmt = (
-            self._get_base_stmt()
-            .where(
-                CostElement.cost_element_id == cost_element_id,
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, CostElement).valid_time.desc())
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        resolved = await self._resolve_relations(result.all())
-
-        if resolved:
-            return resolved[0]
-
-        if branch_mode == BranchMode.MERGED and branch != "main":
-            stmt_main = (
-                self._get_base_stmt()
-                .where(
-                    CostElement.cost_element_id == cost_element_id,
-                    CostElement.branch == "main",
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
-                )
-                .order_by(cast(Any, CostElement).valid_time.desc())
-                .limit(1)
-            )
-            result_main = await self.session.execute(stmt_main)
-            resolved_main = await self._resolve_relations(result_main.all())
-            return resolved_main[0] if resolved_main else None
-
-        return None
+        await cmd.execute(self.session)
 
     async def get_cost_elements(
         self,
-        filters: dict[str, Any] | None = None,
-        branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGED,
+        work_package_id: UUID | None = None,
+        cost_element_type_id: UUID | None = None,
         skip: int = 0,
-        limit: int = 100000,
-        search: str | None = None,
-        filter_string: str | None = None,
-        sort_field: str | None = None,
-        sort_order: str = "asc",
+        limit: int = 100,
         as_of: datetime | None = None,
-    ) -> tuple[builtin_list[CostElement], int]:
-        """Get all cost elements with search, filtering, and sorting.
+    ) -> tuple[list[CostElement], int]:
+        """Get cost elements with optional filtering and pagination.
 
         Args:
-            filters: Legacy dict filters (for backward compatibility)
-            branch: Branch name to filter by (default: "main")
-            branch_mode: Branch resolution mode (default: MERGED)
-                - MERGED: Combine current branch with main (current branch takes precedence)
-                - ISOLATED: Only return entities from current branch
-            skip: Number of records to skip (for pagination)
-            limit: Maximum number of records to return
-            search: Search term to match against code and name (case-insensitive)
-            filter_string: Filter string in format "column:value;column:value1,value2"
-                          Example: "code:LAB;name:Phase"
-            sort_field: Field name to sort by (e.g., "name", "code", "budget_amount")
-            sort_order: Sort order, either "asc" or "desc" (default: "asc")
-            as_of: Optional timestamp for time-travel queries
+            work_package_id: Optional Work Package filter.
+            cost_element_type_id: Optional Cost Element Type filter.
+            skip: Records to skip.
+            limit: Maximum records.
+            as_of: Optional timestamp for time-travel.
 
         Returns:
-            Tuple of (list of cost elements with relations, total count matching filters)
-
-        Raises:
-            ValueError: If invalid filter field or sort field is provided
-
-        Examples:
-            >>> # Get cost elements for a specific WBE
-            >>> elements, total = await service.get_cost_elements(
-            ...     filters={"wbe_id": wbe_id},
-            ...     search="Mechanical",
-            ...     sort_field="budget_amount",
-            ...     sort_order="desc"
-            ... )
+            Tuple of (list of cost elements, total count).
         """
-        from sqlalchemy import and_, or_
+        stmt = select(CostElement)
 
-        from app.core.filtering import FilterParser
-
-        # Base query with WBE name and type joins
-        stmt = self._get_base_stmt()
-
-        # Apply branch mode filter （ISOLATED vs MERGE)
-        stmt = self._apply_branch_mode_filter(
-            stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
-        )
-
-        # Apply time-travel filter
-        if as_of:
+        if as_of is not None:
             stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            # Get current version (open upper bound) and not deleted
             stmt = stmt.where(
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                func.upper(CostElement.valid_time).is_(None),
+                CostElement.deleted_at.is_(None),
             )
 
-        # Apply legacy dict filters (for backward compatibility)
-        if filters:
-            if "wbe_ids" in filters:
-                stmt = stmt.where(CostElement.wbe_id.in_(filters["wbe_ids"]))
-            elif "wbe_id" in filters:
-                stmt = stmt.where(CostElement.wbe_id == filters["wbe_id"])
-            if "cost_element_type_id" in filters:
-                stmt = stmt.where(
-                    CostElement.cost_element_type_id == filters["cost_element_type_id"]
-                )
-            if "cost_element_id" in filters:
-                stmt = stmt.where(
-                    CostElement.cost_element_id == filters["cost_element_id"]
-                )
+        if work_package_id is not None:
+            stmt = stmt.where(CostElement.work_package_id == work_package_id)
 
-        # Apply search (across code and name)
-        if search:
-            search_term = f"%{search}%"
-            stmt = stmt.where(
-                or_(
-                    CostElement.code.ilike(search_term),
-                    CostElement.name.ilike(search_term),
-                )
-            )
+        if cost_element_type_id is not None:
+            stmt = stmt.where(CostElement.cost_element_type_id == cost_element_type_id)
 
-        # Apply new filter string format
-        if filter_string:
-            # Define allowed filterable fields for security
-            allowed_fields = ["code", "name"]
-
-            parsed_filters = FilterParser.parse_filters(filter_string)
-            filter_expressions = FilterParser.build_sqlalchemy_filters(
-                cast(Any, CostElement), parsed_filters, allowed_fields=allowed_fields
-            )
-            if filter_expressions:
-                stmt = stmt.where(and_(*filter_expressions))
-
-        # Get total count (before pagination)
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.session.execute(count_stmt)
         total = total_result.scalar_one()
 
-        # Apply sorting
-        if sort_field:
-            # Validate sort field exists on model
-            if not hasattr(CostElement, sort_field):
-                raise ValueError(f"Invalid sort field: {sort_field}")
-
-            column = getattr(CostElement, sort_field)
-            if sort_order.lower() == "desc":
-                stmt = stmt.order_by(column.desc())
-            else:
-                stmt = stmt.order_by(column.asc())
-        else:
-            # Default sort by valid_time descending
-            stmt = stmt.order_by(cast(Any, CostElement).valid_time.desc())
-
-        # Apply pagination
+        stmt = stmt.order_by(CostElement.valid_time.desc())
         stmt = stmt.offset(skip).limit(limit)
 
-        # Execute query
         result = await self.session.execute(stmt)
-        cost_elements = await self._resolve_relations(result.all())
+        return list(result.scalars().all()), total
 
-        return cost_elements, total
-
-    async def list(
+    async def get_by_id(
         self,
-        filters: dict[str, Any] | None = None,
-        branch: str = "main",
-        skip: int = 0,
-        limit: int = 100000,
-    ) -> builtin_list[CostElement]:
-        """Alias for get_cost_elements() to maintain backward compatibility.
-
-        Note: Returns only items, not total count. Use get_cost_elements() for pagination.
-        Uses ISOLATED mode (only current branch) for backward compatibility.
-        """
-        items, _ = await self.get_cost_elements(
-            filters=filters,
-            branch=branch,
-            branch_mode=BranchMode.ISOLATED,
-            skip=skip,
-            limit=limit,
-        )
-        return items
-
-    async def get_as_of_batch(
-        self,
-        entity_ids: builtin_list[UUID],
-        as_of: datetime | None = None,
-        branch: str = "main",
-        branch_mode: BranchMode | None = None,
-    ) -> dict[UUID, CostElement]:
-        """Bulk time-travel fetch: Get multiple entities at a specific timestamp.
+        cost_element_id: UUID,
+    ) -> CostElement | None:
+        """Get current cost element by root ID.
 
         Args:
-            entity_ids: List of root entity IDs (cost_element_id)
-            as_of: Timestamp to query (None = current versions)
-            branch: Branch name (default: main)
-            branch_mode: Resolution mode for branches （ISOLATED or MERGE)
+            cost_element_id: Root ID.
 
         Returns:
-            Dictionary mapping cost_element_id to CostElement (only found entities)
+            Current CostElement or None.
         """
-        if not entity_ids:
-            return {}
-
-        if branch_mode is None:
-            branch_mode = BranchMode.ISOLATED
-
         stmt = (
             select(CostElement)
-            .where(CostElement.cost_element_id.in_(entity_ids))
-            .where(CostElement.deleted_at.is_(None))
-        )
-
-        # Apply temporal filters
-        if as_of is not None:
-            stmt = self._apply_bitemporal_filter(stmt, as_of)
-        else:
-            stmt = stmt.where(func.upper(CostElement.valid_time).is_(None))
-
-        # Branch filtering with MERGED mode support
-        if branch_mode == BranchMode.MERGED and branch != "main":
-            import asyncio
-
-            branch_stmt = stmt.where(CostElement.branch == branch)
-            main_stmt = stmt.where(CostElement.branch == "main")
-
-            (branch_results, main_results) = await asyncio.gather(
-                self.session.execute(branch_stmt),
-                self.session.execute(main_stmt),
+            .where(
+                CostElement.cost_element_id == cost_element_id,
+                func.upper(CostElement.valid_time).is_(None),
+                CostElement.deleted_at.is_(None),
             )
-            branch_elements = {e.cost_element_id: e for e in branch_results.scalars()}
-            main_elements = {e.cost_element_id: e for e in main_results.scalars()}
+            .order_by(CostElement.valid_time.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
-            merged = main_elements.copy()
-            merged.update(branch_elements)
-            return merged
-        else:
-            stmt = stmt.where(CostElement.branch == branch)
-            rows = await self.session.execute(stmt)
-            return {e.cost_element_id: e for e in rows.scalars()}
-
-    async def get_history(
-        self, root_id: UUID, branch: str = "main"
-    ) -> builtins.list[CostElement]:
-        """Get all versions of a cost element with creator, WBE name, and type info.
+    async def get_history(self, root_id: UUID) -> list[CostElement]:
+        """Get all versions of a cost element with creator name.
 
         Args:
-            root_id: Root cost_element_id
-            branch: Branch to query history from (default: "main")
+            root_id: Root cost_element_id.
 
         Returns:
-            List of cost element versions in the specified branch, ordered by transaction_time descending
+            All versions ordered by transaction_time descending.
         """
-        from sqlalchemy.orm import aliased
-
         from app.models.domain.user import User
 
-        # User lookup subquery
         UserAlias = cast(Any, User)
         creator_subq = (
             select(UserAlias.user_id, UserAlias.full_name)
@@ -777,51 +265,17 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             .subquery("creator_lookup")
         )
 
-        # WBE lookup subquery
-        WBEAlias = aliased(WBE, name="wbe_history_lookup")
-        wbe_subq = (
-            select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
-            .distinct(WBEAlias.wbe_id)
-            .where(
-                func.upper(cast(Any, WBEAlias).valid_time).is_(None),
-                cast(Any, WBEAlias).deleted_at.is_(None),
-            )
-            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
-            .subquery("wbe_history_lookup_subq")
-        )
-
-        # CostElementType lookup subquery
-        TypeAlias = aliased(CostElementType, name="type_history_lookup")
-        type_subq = (
-            select(
-                TypeAlias.cost_element_type_id,
-                TypeAlias.name.label("type_name"),
-                TypeAlias.code.label("type_code"),
-            )
-            .where(
-                func.upper(cast(Any, TypeAlias).valid_time).is_(None),
-                cast(Any, TypeAlias).deleted_at.is_(None),
-            )
-            .subquery("type_history_lookup_subq")
-        )
-
         stmt = (
             select(
                 CostElement,
                 creator_subq.c.full_name.label("created_by_name"),
-                wbe_subq.c.wbe_name,
-                type_subq.c.type_name,
-                type_subq.c.type_code,
             )
-            .outerjoin(creator_subq, CostElement.created_by == creator_subq.c.user_id)
-            .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
             .outerjoin(
-                type_subq,
-                CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+                creator_subq,
+                CostElement.created_by == creator_subq.c.user_id,
             )
             .where(
                 CostElement.cost_element_id == root_id,
-                CostElement.branch == branch,
                 cast(Any, CostElement).deleted_at.is_(None),
             )
             .order_by(cast(Any, CostElement).transaction_time.desc())
@@ -830,11 +284,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         result = await self.session.execute(stmt)
         history = []
         for row in result.all():
-            entity, creator_name, wbe_name, type_name, type_code = row
-            entity.created_by_name = creator_name
-            entity.wbe_name = wbe_name
-            entity.cost_element_type_name = type_name
-            entity.cost_element_type_code = type_code
+            entity = row[0]
+            entity.created_by_name = row[1]
             history.append(entity)
 
         return history
@@ -844,273 +295,57 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         cost_element_id: UUID,
         as_of: datetime,
         branch: str = "main",
-        branch_mode: BranchMode = BranchMode.MERGED,
+        branch_mode: BranchMode | None = None,
     ) -> CostElement | None:
         """Get cost element as it was at specific timestamp.
 
-        Provides System Time Travel semantics for single-entity queries.
-        Includes parent_name and cost_element_type_name relations.
-        Uses ISOLATED mode by default (only searches in specified branch).
-        Use BranchMode.MERGED to fall back to main branch if not found.
-
         Args:
-            cost_element_id: The unique identifier of the cost element
-            as_of: Timestamp to query (historical state)
-            branch: Branch name to query (default: "main")
-            branch_mode: Resolution mode for branches
-                - None/ISOLATED: Only return from specified branch (default)
-                - MERGED: Fall back to main if not found on branch
+            cost_element_id: Root ID.
+            as_of: Timestamp for historical query.
+            branch: Not applicable for non-branchable entities.
+            branch_mode: Not applicable for non-branchable entities.
 
         Returns:
-            CostElement if found at the specified timestamp, None otherwise
-
-        Example:
-            >>> # Get cost element as of January 1st
-            >>> from datetime import datetime
-            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
-            >>> element = await service.get_cost_element_as_of(
-            ...     cost_element_id=uuid,
-            ...     as_of=as_of
-            ... )
+            CostElement at the specified timestamp, or None.
         """
-        from sqlalchemy.orm import aliased
-
-        WBEAlias = aliased(WBE, name="wbe_lookup")
-        TypeAlias = aliased(CostElementType, name="type_lookup")
-
-        # Subqueries for parent versions (as of specific time)
-        wbe_where_clauses = [cast(Any, WBEAlias).deleted_at.is_(None)]
-        if as_of:
-            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            wbe_where_clauses.append(
-                cast(Any, WBEAlias).valid_time.op("@>")(as_of_tstz)
-            )
-            wbe_where_clauses.append(
-                func.lower(cast(Any, WBEAlias).valid_time) <= as_of_tstz
-            )
-        else:
-            wbe_where_clauses.append(
-                func.upper(cast(Any, WBEAlias).valid_time).is_(None)
-            )
-
-        wbe_subq = (
-            select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
-            .distinct(WBEAlias.wbe_id)
-            .where(*wbe_where_clauses)
-            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
-            .subquery("wbe_lookup_subq")
+        stmt = select(CostElement).where(
+            CostElement.cost_element_id == cost_element_id,
         )
-
-        type_where_clauses = [cast(Any, TypeAlias).deleted_at.is_(None)]
-        if as_of:
-            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            type_where_clauses.append(
-                cast(Any, TypeAlias).valid_time.op("@>")(as_of_tstz)
-            )
-            type_where_clauses.append(
-                func.lower(cast(Any, TypeAlias).valid_time) <= as_of_tstz
-            )
-        else:
-            type_where_clauses.append(
-                func.upper(cast(Any, TypeAlias).valid_time).is_(None)
-            )
-
-        type_subq = (
-            select(
-                TypeAlias.cost_element_type_id,
-                TypeAlias.name.label("type_name"),
-                TypeAlias.code.label("type_code"),
-            )
-            .where(*type_where_clauses)
-            .subquery("type_lookup_subq")
-        )
-
-        # Build query with joins
-        # In MERGED mode, try current branch first, then fall back to main
-        # In ISOLATED mode, only try current branch
-        stmt = (
-            select(
-                CostElement,
-                wbe_subq.c.wbe_name,
-                type_subq.c.type_name,
-                type_subq.c.type_code,
-            )
-            .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
-            .outerjoin(
-                type_subq,
-                CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
-            )
-            .where(
-                CostElement.cost_element_id == cost_element_id,
-                CostElement.branch == branch,
-            )
-        )
-
-        # Apply time-travel filter
         stmt = self._apply_bitemporal_filter(stmt, as_of)
-
-        stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
-        resolved = await self._resolve_relations(result.all())
+        return result.scalar_one_or_none()
 
-        # If found, return it
-        if resolved:
-            return resolved[0]
-
-        # If not found and in MERGED mode, try main branch as fallback
-        if branch_mode == BranchMode.MERGED and branch != "main":
-            stmt = (
-                select(
-                    CostElement,
-                    wbe_subq.c.wbe_name,
-                    type_subq.c.type_name,
-                    type_subq.c.type_code,
-                )
-                .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
-                .outerjoin(
-                    type_subq,
-                    CostElement.cost_element_type_id
-                    == type_subq.c.cost_element_type_id,
-                )
-                .where(
-                    CostElement.cost_element_id == cost_element_id,
-                    CostElement.branch == "main",
-                )
-            )
-
-            # Apply time-travel filter
-            stmt = self._apply_bitemporal_filter(stmt, as_of)
-
-            stmt = stmt.limit(1)
-            result = await self.session.execute(stmt)
-            resolved = await self._resolve_relations(result.all())
-            return resolved[0] if resolved else None
-
-        return None
-
-    async def get_breadcrumb(self, cost_element_id: UUID) -> dict[str, Any]:
-        """Get breadcrumb trail for a Cost Element including project and WBE.
-
-        For cost elements, the hierarchy is: Project -> WBE -> Cost Element
-        This returns the project and WBE information for navigation.
-
-        Args:
-            cost_element_id: Cost Element ID
-
-        Returns:
-            Dict with 'project', 'wbe', and 'cost_element' keys
-
-        Raises:
-            ValueError: If Cost Element not found
-        """
-        from typing import Any, cast
-
-        from sqlalchemy import func
-
-        from app.models.domain.project import Project
-        from app.models.domain.wbe import WBE
-
-        # Get the current cost element
-        current_element = await self.get_by_id(cost_element_id)
-        if not current_element:
-            raise ValueError(f"Cost Element with id {cost_element_id} not found")
-
-        # Get the WBE first (cost element only has wbe_id)
-        wbe_stmt = (
-            select(WBE)
-            .where(
-                WBE.wbe_id == current_element.wbe_id,
-                WBE.branch == current_element.branch,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, WBE).valid_time.desc())
-            .limit(1)
-        )
-        wbe_result = await self.session.execute(wbe_stmt)
-        wbe = wbe_result.scalar_one_or_none()
-
-        if not wbe:
-            raise ValueError(f"WBE {current_element.wbe_id} not found")
-
-        # Get the project from the WBE
-        project_stmt = (
-            select(Project)
-            .where(
-                Project.project_id == wbe.project_id,
-                Project.branch == wbe.branch,
-                func.upper(cast(Any, Project).valid_time).is_(None),
-                cast(Any, Project).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, Project).valid_time.desc())
-            .limit(1)
-        )
-        project_result = await self.session.execute(project_stmt)
-        project = project_result.scalar_one_or_none()
-
-        if not project:
-            raise ValueError(f"Project {wbe.project_id} not found")
-
-        # Build breadcrumb response
-        return {
-            "project": {
-                "id": project.id,
-                "project_id": project.project_id,
-                "code": project.code,
-                "name": project.name,
-            },
-            "wbe": {
-                "id": wbe.id,
-                "wbe_id": wbe.wbe_id,
-                "code": wbe.code,
-                "name": wbe.name,
-            },
-            "cost_element": {
-                "id": current_element.id,
-                "cost_element_id": current_element.cost_element_id,
-                "code": current_element.code,
-                "name": current_element.name,
-            },
-        }
-
-    async def get_recently_updated(
+    async def get_as_of_batch(
         self,
-        user_id: UUID | None = None,
-        limit: int = 10,
+        entity_ids: list[UUID],
+        as_of: datetime | None = None,
         branch: str = "main",
-        eager_load_wbe_and_project: bool = False,
-    ) -> builtin_list[CostElement]:
-        """Get recently updated cost elements, optionally filtered by user.
+        branch_mode: BranchMode | None = None,
+    ) -> dict[UUID, CostElement]:
+        """Bulk time-travel fetch for multiple cost elements.
 
         Args:
-            user_id: Optional user ID to filter by (only cost elements updated by this user)
-            limit: Maximum number of cost elements to return
-            branch: Branch name to query (default: "main")
-            eager_load_wbe_and_project: If True, preload WBE and project relationships to avoid N+1 queries
+            entity_ids: List of root IDs.
+            as_of: Timestamp for time-travel (None = current).
+            branch: Not applicable.
+            branch_mode: Not applicable.
 
         Returns:
-            List of recently updated cost elements ordered by transaction_time descending
+            Dictionary mapping cost_element_id to CostElement.
         """
-        from sqlalchemy import desc
-        from sqlalchemy.orm import selectinload
+        if not entity_ids:
+            return {}
 
-        stmt = select(CostElement).where(CostElement.branch == branch)
-
-        if user_id:
-            stmt = stmt.where(cast(Any, CostElement).created_by == user_id)
-
-        # Get current versions (not deleted)
-        stmt = stmt.where(
-            func.upper(cast(Any, CostElement).valid_time).is_(None),
-            cast(Any, CostElement).deleted_at.is_(None),
+        stmt = (
+            select(CostElement)
+            .where(CostElement.cost_element_id.in_(entity_ids))
+            .where(CostElement.deleted_at.is_(None))
         )
 
-        # Eager load WBE and project relationships if requested (for dashboard optimization)
-        if eager_load_wbe_and_project:
-            stmt = stmt.options(selectinload(CostElement.wbe).selectinload(WBE.project))
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostElement.valid_time).is_(None))
 
-        # Order by transaction_time descending (most recent first)
-        stmt = stmt.order_by(desc(cast(Any, CostElement).transaction_time)).limit(limit)
-
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        rows = await self.session.execute(stmt)
+        return {e.cost_element_id: e for e in rows.scalars()}

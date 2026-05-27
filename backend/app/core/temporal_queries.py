@@ -137,7 +137,7 @@ def current_join_filter(
         SQLAlchemy WHERE clause with all current version filters combined
 
     Examples:
-        >>> from app.models.domain.wbe import WBE
+        >>> from app.models.domain.wbs_element import WBSElement
         >>> from app.models.domain.cost_element import CostElement
         >>> stmt = select(WBE, CostElement).where(
         ...     current_join_filter(

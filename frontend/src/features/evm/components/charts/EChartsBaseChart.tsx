@@ -144,7 +144,7 @@ export const EChartsBaseChart = React.forwardRef<
             });
 
             // Observe the chart container
-            const container = node.echartsElement?.parentElement;
+            const container = (node as unknown as { el: HTMLElement }).el?.parentElement;
             if (container) {
               resizeObserverRef.current.observe(container);
             }
@@ -271,7 +271,6 @@ export const EChartsBaseChart = React.forwardRef<
 
     // Common chart props
     const chartProps: EChartsReactProps = {
-      ref: chartRefCallback,
       option,
       style: containerStyle,
       className,
@@ -282,7 +281,7 @@ export const EChartsBaseChart = React.forwardRef<
       showLoading: false,
     };
 
-    return <ReactECharts {...chartProps} />;
+    return <ReactECharts ref={chartRefCallback} {...chartProps} />;
   },
 );
 

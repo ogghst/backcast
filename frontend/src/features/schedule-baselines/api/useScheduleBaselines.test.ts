@@ -64,6 +64,7 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
   describe("useCreateScheduleBaseline - POST", () => {
     it("should create schedule baseline with control_date from TimeMachine", async () => {
       const mockBaseline = {
+        id: "baseline-new-pk",
         schedule_baseline_id: "baseline-new",
         cost_element_id: "ce-123",
         name: "New Schedule",
@@ -76,14 +77,13 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       vi.mocked(
         ScheduleBaselinesService.createScheduleBaseline,
-      ).mockResolvedValue(mockBaseline);
+      ).mockResolvedValue(mockBaseline as unknown as never);
 
       const { result } = renderHook(() => useCreateScheduleBaseline(), {
         wrapper: createWrapper(),
       });
 
       const createData = {
-        cost_element_id: "ce-123",
         name: "New Schedule",
         start_date: "2026-01-01T00:00:00",
         end_date: "2026-04-01T00:00:00",
@@ -101,13 +101,13 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
           name: "New Schedule",
           branch: "main",
           control_date: undefined,
-          cost_element_id: "ce-123",
         }),
       );
     });
 
     it("should include custom branch in payload", async () => {
       const mockBaseline = {
+        id: "baseline-new-pk",
         schedule_baseline_id: "baseline-new",
         cost_element_id: "ce-123",
         name: "New Schedule",
@@ -120,14 +120,13 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       vi.mocked(
         ScheduleBaselinesService.createScheduleBaseline,
-      ).mockResolvedValue(mockBaseline);
+      ).mockResolvedValue(mockBaseline as unknown as never);
 
       const { result } = renderHook(() => useCreateScheduleBaseline(), {
         wrapper: createWrapper(),
       });
 
       result.current.mutate({
-        cost_element_id: "ce-123",
         name: "New Schedule",
         start_date: "2026-01-01T00:00:00",
         end_date: "2026-04-01T00:00:00",
@@ -149,6 +148,7 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
   describe("useUpdateScheduleBaseline - PUT", () => {
     it("should update schedule baseline with branch and control_date", async () => {
       const mockBaseline = {
+        id: "baseline-123-pk",
         schedule_baseline_id: "baseline-123",
         cost_element_id: "ce-123",
         name: "Updated Schedule",
@@ -161,7 +161,7 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       vi.mocked(
         ScheduleBaselinesService.updateScheduleBaseline,
-      ).mockResolvedValue(mockBaseline);
+      ).mockResolvedValue(mockBaseline as unknown as never);
 
       const { result } = renderHook(() => useUpdateScheduleBaseline(), {
         wrapper: createWrapper(),
@@ -192,6 +192,7 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
     it("should include custom branch in update payload", async () => {
       const mockBaseline = {
+        id: "baseline-123-pk",
         schedule_baseline_id: "baseline-123",
         cost_element_id: "ce-123",
         name: "Updated Schedule",
@@ -204,7 +205,7 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       vi.mocked(
         ScheduleBaselinesService.updateScheduleBaseline,
-      ).mockResolvedValue(mockBaseline);
+      ).mockResolvedValue(mockBaseline as unknown as never);
 
       const { result } = renderHook(() => useUpdateScheduleBaseline(), {
         wrapper: createWrapper(),

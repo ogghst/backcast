@@ -14,7 +14,7 @@ interface ProgressSummaryCardProps {
 }
 
 const formatProgressDate = (entry: ProgressEntryRead): string => {
-  const lower = entry.valid_time_formatted?.lower;
+  const lower = entry.valid_time_formatted?.lower as string | null | undefined;
   return lower ? formatDate(lower, { fallback: "-" }) : "-";
 };
 
@@ -69,7 +69,7 @@ export const ProgressSummaryCard: React.FC<ProgressSummaryCardProps> = ({
                   <br />
                   <Text
                     type="secondary"
-                    style={{ fontSize: token.fontSizeXS }}
+                    style={{ fontSize: token.fontSizeSM }}
                   >
                     {latestEntry.notes}
                   </Text>

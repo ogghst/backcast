@@ -29,14 +29,15 @@ import { queryKeys } from "@/api/queryKeys";
 /**
  * Cost Registration API parameters for filtering, pagination, and sorting.
  *
- * Filtering hierarchy: cost_element_id > wbe_id > project_id.
- * At least one of cost_element_id, wbe_id, or project_id should be provided
+ * Filtering hierarchy: cost_element_id > wbs_element_id > project_id.
+ * At least one of cost_element_id, wbs_element_id, or project_id should be provided
  * for scoped queries.
  */
 interface CostRegistrationListParams {
   cost_element_id?: string;
-  wbe_id?: string;
+  wbs_element_id?: string;
   project_id?: string;
+  work_package_id?: string;
   pagination?: { current?: number; pageSize?: number };
   filters?: Record<string, (string | number | boolean)[] | null>;
   search?: string;
@@ -51,8 +52,8 @@ interface CostRegistrationListParams {
 /**
  * Hook to fetch cost registrations with pagination.
  *
- * Supports filtering by cost_element_id, wbe_id, or project_id.
- * Filtering hierarchy: cost_element_id > wbe_id > project_id.
+ * Supports filtering by cost_element_id, wbs_element_id, or project_id.
+ * Filtering hierarchy: cost_element_id > wbs_element_id > project_id.
  *
  * @param params - Query parameters including at least one filter id, pagination, filters, search, sort
  * @returns TanStack Query result with paginated cost registrations
@@ -60,15 +61,16 @@ interface CostRegistrationListParams {
 export const useCostRegistrations = (params?: CostRegistrationListParams) => {
   const { asOf } = useTimeMachineParams();
   const filterId =
-    params?.cost_element_id || params?.wbe_id || params?.project_id || "";
+    params?.cost_element_id || params?.work_package_id || params?.wbs_element_id || params?.project_id || "";
 
   return useQuery<PaginatedResponse<CostRegistrationRead>>({
     queryKey: queryKeys.costRegistrations.list(filterId, { ...params, asOf }),
     queryFn: async () => {
       const {
         cost_element_id,
-        wbe_id,
+        wbs_element_id,
         project_id,
+        work_package_id,
         pagination,
         // filters,
         search,
@@ -76,9 +78,9 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
         sortOrder,
       } = params || {};
 
-      if (!cost_element_id && !wbe_id && !project_id) {
+      if (!cost_element_id && !work_package_id && !wbs_element_id && !project_id) {
         throw new Error(
-          "At least one of cost_element_id, wbe_id, or project_id is required",
+          "At least one of cost_element_id, work_package_id, wbs_element_id, or project_id is required",
         );
       }
 
@@ -86,7 +88,7 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
       const perPage = pagination?.pageSize || 20;
       const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
 
-      // Use __request to pass wbe_id and project_id which are not yet
+      // Use __request to pass wbs_element_id, work_package_id and project_id which are not yet
       // in the generated client.
       const result = await __request(OpenAPI, {
         method: "GET",
@@ -97,8 +99,9 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
           branch: "main",
           mode: "merged",
           cost_element_id: cost_element_id || undefined,
-          wbe_id: wbe_id || undefined,
+          wbs_element_id: wbs_element_id || undefined,
           project_id: project_id || undefined,
+          work_package_id: work_package_id || undefined,
           search: search || undefined,
           filters: undefined,
           sort_field: sortField || undefined,
@@ -120,7 +123,8 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
     },
     enabled:
       !!params?.cost_element_id ||
-      !!params?.wbe_id ||
+      !!params?.work_package_id ||
+      !!params?.wbs_element_id ||
       !!params?.project_id,
     ...params?.queryOptions,
   });
@@ -176,16 +180,16 @@ export const useProjectBudgetStatus = (projectId: string) => {
   });
 };
 
-export const useWBEBudgetStatus = (wbeId: string) => {
+export const useWBEBudgetStatus = (wbsElementId: string) => {
   const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
   const branch = tmBranch || "main";
 
   return useQuery({
-    queryKey: ["wbe-budget-status", wbeId, { branch, asOf, mode }] as const,
+    queryKey: ["wbe-budget-status", wbsElementId, { branch, asOf, mode }] as const,
     queryFn: async () => {
       return await __request(OpenAPI, {
         method: "GET",
-        url: `/api/v1/cost-registrations/wbe-budget-status/${wbeId}`,
+        url: `/api/v1/cost-registrations/wbe-budget-status/${wbsElementId}`,
         query: {
           branch,
           branch_mode: mode,
@@ -194,7 +198,7 @@ export const useWBEBudgetStatus = (wbeId: string) => {
         errors: { 404: "WBE not found", 422: "Validation Error" },
       });
     },
-    enabled: !!wbeId,
+    enabled: !!wbsElementId,
   });
 };
 
@@ -232,7 +236,7 @@ export const useCostRegistrationHistory = (costRegistrationId: string) => {
   });
 };
 
-type CostEntityType = "cost_element" | "wbe" | "project";
+type CostEntityType = "cost_element" | "wbs_element" | "project";
 
 /** Set the entity filter param corresponding to the entity type. */
 const applyEntityFilter = (
@@ -240,7 +244,7 @@ const applyEntityFilter = (
   entityType: CostEntityType,
   entityId: string,
 ) => {
-  const key = entityType === "cost_element" ? "cost_element_id" : entityType === "wbe" ? "wbe_id" : "project_id";
+  const key = entityType === "cost_element" ? "cost_element_id" : entityType === "wbs_element" ? "wbs_element_id" : "project_id";
   query[key] = entityId;
 };
 
@@ -334,7 +338,8 @@ export const useCreateCostRegistration = (
     },
     onSuccess: (...args) => {
       // Invalidate related queries
-      const costElementId = args[0].cost_element_id;
+      const result = args[0] as Record<string, string>;
+      const costElementId = result.cost_element_id;
       // Invalidate list for this cost element
       queryClient.invalidateQueries({
         queryKey: queryKeys.costRegistrations.list(costElementId),
@@ -352,7 +357,12 @@ export const useCreateCostRegistration = (
       queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
 
       toast.success("Cost registration created successfully");
-      mutationOptions?.onSuccess?.(...args);
+      mutationOptions?.onSuccess?.(
+        args[0] as CostRegistrationRead,
+        args[1] as CostRegistrationCreate,
+        args[2] as unknown as never,
+        args[3] as unknown as never,
+      );
     },
     onError: (error, ...args) => {
       // Check for budget exceeded error (422 from backend enforcement)

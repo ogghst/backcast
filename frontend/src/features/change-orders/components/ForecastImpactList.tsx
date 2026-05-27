@@ -1,23 +1,9 @@
 import { Card, Table, Tag, Typography, Empty, Space, Tooltip, theme } from "antd";
 import { InfoCircleOutlined, ArrowUpOutlined, ArrowDownOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
+import type { ForecastComparison } from "@/api/generated/models/ForecastComparison";
 
 const { Title, Text } = Typography;
-
-interface ForecastRead {
-  eac_amount: number;
-}
-
-interface ForecastComparison {
-  costElementId: string;
-  costElementCode: string;
-  costElementName: string;
-  budgetAmount: number;
-  mainEac?: number;
-  mainForecast?: ForecastRead;
-  changeEac?: number;
-  branchForecast?: ForecastRead;
-}
 
 interface ForecastImpactListProps {
   forecasts: ForecastComparison[];
@@ -95,7 +81,7 @@ export const ForecastImpactList = ({
         <div>
           <div style={{ fontWeight: 500 }}>{record.costElementCode}</div>
           <div style={{ fontSize: 12, color: "#8c8c8c" }}>{record.costElementName}</div>
-          <div style={{ fontSize: 11, color: token.colorTextTertiary }}>BAC: {formatCurrencyValue(record.budgetAmount, currency)}</div>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary }}>BAC: {formatCurrencyValue(Number(record.budgetAmount), currency)}</div>
         </div>
       ),
     },
@@ -114,11 +100,11 @@ export const ForecastImpactList = ({
       render: (_, record) => {
         const eac = record.mainForecast
           ? Number(record.mainForecast.eac_amount)
-          : (record.mainEac ?? null);
+          : (record.mainEac != null ? Number(record.mainEac) : null);
         if (eac === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
-        const vac = calculateVAC(record.budgetAmount, eac);
+        const vac = calculateVAC(Number(record.budgetAmount), eac);
         const status = getVACStatus(vac);
         return (
           <div>
@@ -145,11 +131,11 @@ export const ForecastImpactList = ({
       render: (_, record) => {
         const eac = record.branchForecast
           ? Number(record.branchForecast.eac_amount)
-          : (record.changeEac ?? null);
+          : (record.changeEac != null ? Number(record.changeEac) : null);
         if (eac === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
-        const vac = calculateVAC(record.budgetAmount, eac);
+        const vac = calculateVAC(Number(record.budgetAmount), eac);
         const status = getVACStatus(vac);
         return (
           <div>
@@ -169,10 +155,10 @@ export const ForecastImpactList = ({
       render: (_, record) => {
         const mainEAC = record.mainForecast
           ? Number(record.mainForecast.eac_amount)
-          : (record.mainEac ?? null);
+          : (record.mainEac != null ? Number(record.mainEac) : null);
         const branchEAC = record.branchForecast
           ? Number(record.branchForecast.eac_amount)
-          : (record.changeEac ?? null);
+          : (record.changeEac != null ? Number(record.changeEac) : null);
 
         if (mainEAC === null && branchEAC === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
@@ -229,17 +215,17 @@ export const ForecastImpactList = ({
       render: (_, record) => {
         const mainEAC = record.mainForecast
           ? Number(record.mainForecast.eac_amount)
-          : (record.mainEac ?? null);
+          : (record.mainEac != null ? Number(record.mainEac) : null);
         const branchEAC = record.branchForecast
           ? Number(record.branchForecast.eac_amount)
-          : (record.changeEac ?? null);
+          : (record.changeEac != null ? Number(record.changeEac) : null);
 
         if (mainEAC === null || branchEAC === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
 
-        const mainVAC = calculateVAC(record.budgetAmount, mainEAC);
-        const branchVAC = calculateVAC(record.budgetAmount, branchEAC);
+        const mainVAC = calculateVAC(Number(record.budgetAmount), mainEAC);
+        const branchVAC = calculateVAC(Number(record.budgetAmount), branchEAC);
         const mainStatus = getVACStatus(mainVAC);
         const branchStatus = getVACStatus(branchVAC);
 
@@ -268,11 +254,11 @@ export const ForecastImpactList = ({
 
   // Calculate summary statistics
   const totalMainEAC = activeForecasts.reduce((sum, f) => {
-    return sum + (f.mainForecast ? Number(f.mainForecast.eac_amount) : (f.mainEac ?? 0));
+    return sum + (f.mainForecast ? Number(f.mainForecast.eac_amount) : (f.mainEac != null ? Number(f.mainEac) : 0));
   }, 0);
 
   const totalBranchEAC = activeForecasts.reduce((sum, f) => {
-    return sum + (f.branchForecast ? Number(f.branchForecast.eac_amount) : (f.changeEac ?? 0));
+    return sum + (f.branchForecast ? Number(f.branchForecast.eac_amount) : (f.changeEac != null ? Number(f.changeEac) : 0));
   }, 0);
 
   const totalDelta = totalBranchEAC - totalMainEAC;

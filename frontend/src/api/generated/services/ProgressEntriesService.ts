@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BranchMode } from '../models/BranchMode';
+import { BranchMode } from '../models/BranchMode';
 import type { ProgressEntryCreate } from '../models/ProgressEntryCreate';
 import type { ProgressEntryRead } from '../models/ProgressEntryRead';
 import type { CancelablePromise } from '../core/CancelablePromise';
@@ -35,7 +35,7 @@ export class ProgressEntriesService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
         costElementId?: (string | null),
         wbeId?: (string | null),
         projectId?: (string | null),

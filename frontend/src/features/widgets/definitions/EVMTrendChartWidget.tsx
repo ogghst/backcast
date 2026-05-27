@@ -35,8 +35,8 @@ const EVMTrendChartComponent: FC<WidgetComponentProps<EVMTrendChartConfig>> = ({
   const entityId =
     entityType === EntityType.PROJECT
       ? context.projectId
-      : entityType === EntityType.WBE
-        ? context.wbeId
+      : entityType === EntityType.WBS_ELEMENT
+        ? context.wbsElementId
         : context.costElementId;
 
   const { data, isLoading, error, refetch } = useEVMTimeSeries(

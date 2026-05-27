@@ -3,7 +3,7 @@ import { Segmented, Typography, theme } from "antd";
 import { useState, useMemo } from "react";
 import type { FC } from "react";
 import { useDashboardContext } from "../context/useDashboardContext";
-import { useCOQTrend } from "@/features/work-package/api/useWorkPackages";
+import { useCOQTrend } from "@/features/cost-events/api/useCostEvents";
 import { EChartsBaseChart } from "@/features/evm/components/charts/EChartsBaseChart";
 import {
   useEChartsTheme,
@@ -59,7 +59,7 @@ const COQTrendChartComponent: FC<WidgetComponentProps<COQTrendChartConfig>> = ({
     if (!data?.points?.length) return { series: [] };
 
     const dates = data.points.map((p) => p.date);
-    const toNum = (v: string) => parseFloat(v) || 0;
+    const toNum = (v: string | undefined) => parseFloat(v ?? "0") || 0;
 
     const isPlanned = trendView === "planned";
 

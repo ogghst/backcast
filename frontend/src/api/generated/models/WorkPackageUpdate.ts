@@ -2,25 +2,22 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { QualityCostAllocation } from './QualityCostAllocation';
 /**
- * Properties that can be updated on a WorkPackage.
+ * Schema for updating an existing Work Package.
  */
 export type WorkPackageUpdate = {
     name?: (string | null);
-    package_type?: (string | null);
-    project_id?: (string | null);
+    code?: (string | null);
+    budget_amount?: (number | string | null);
     description?: (string | null);
     status?: (string | null);
     /**
-     * External reference identifier (e.g., QMS ID, PO number, work order)
+     * Branch name for update (defaults to current branch)
      */
-    external_event_id?: (string | null);
-    event_date?: (string | null);
-    coq_category?: (string | null);
-    cost_impact?: (number | string | null);
-    schedule_impact_days?: (number | null);
+    branch?: (string | null);
+    /**
+     * Optional control date for update (valid_time start)
+     */
     control_date?: (string | null);
-    cost_allocations?: (Array<QualityCostAllocation> | null);
 };
 

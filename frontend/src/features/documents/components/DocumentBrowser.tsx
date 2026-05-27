@@ -262,7 +262,7 @@ export const DocumentBrowser: React.FC<DocumentBrowserProps> = ({
                   {formatFileSize(doc.size_bytes)}
                 </Text>
                 {doc.current_version && (
-                  <Tag style={{ fontSize: token.fontSizeXS }}>
+                  <Tag style={{ fontSize: token.fontSizeSM }}>
                     v{doc.current_version.version_number}
                   </Tag>
                 )}
@@ -270,10 +270,10 @@ export const DocumentBrowser: React.FC<DocumentBrowserProps> = ({
               {doc.tags.length > 0 && (
                 <div>
                   {doc.tags.slice(0, 2).map((tag) => (
-                    <Tag key={tag} style={{ fontSize: token.fontSizeXS }}>{tag}</Tag>
+                    <Tag key={tag} style={{ fontSize: token.fontSizeSM }}>{tag}</Tag>
                   ))}
                   {doc.tags.length > 2 && (
-                    <Tag style={{ fontSize: token.fontSizeXS }}>+{doc.tags.length - 2}</Tag>
+                    <Tag style={{ fontSize: token.fontSizeSM }}>+{doc.tags.length - 2}</Tag>
                   )}
                 </div>
               )}

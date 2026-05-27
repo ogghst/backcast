@@ -17,7 +17,6 @@ import {
   CreateWithBranch,
 } from "@/features/cost-elements/api/useCostElements";
 import { useCostElementTypes } from "@/features/cost-elements/api/useCostElementTypes";
-import { useWBEs } from "@/features/wbes/api/useWBEs";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
 import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
@@ -28,19 +27,18 @@ import { formatCurrency } from "@/utils/formatters";
 import { CostElementFilters } from "@/types/filters";
 
 const SORT_OPTIONS: SortOption[] = [
-  { label: "Code", value: "code" },
-  { label: "Name", value: "name" },
-  { label: "Budget", value: "budget_amount" },
+  { label: "Type", value: "cost_element_type_id" },
+  { label: "Amount", value: "amount" },
 ];
 
 interface CostElementManagementProps {
-  wbeId?: string;
-  wbeName?: string;
+  workPackageId?: string;
+  workPackageName?: string;
 }
 
 export const CostElementManagement = ({
-  wbeId,
-  wbeName,
+  workPackageId,
+  workPackageName,
 }: CostElementManagementProps) => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
@@ -62,10 +60,9 @@ export const CostElementManagement = ({
         | Record<string, (string | number | boolean)[] | null>
         | undefined,
       search: tableParams.search,
-      branch,
-      wbe_id: wbeId,
+      work_package_id: workPackageId,
     }),
-    [tableParams, branch, wbeId],
+    [tableParams, workPackageId],
   );
 
   const { data, isLoading, refetch } = useCostElements(queryParams);
@@ -73,8 +70,6 @@ export const CostElementManagement = ({
   const total = data?.total || 0;
 
   const { data: types = [] } = useCostElementTypes();
-  const { data: wbesData } = useWBEs();
-  const wbes = wbesData?.items || [];
 
   const typeMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -148,64 +143,36 @@ export const CostElementManagement = ({
           );
         }}
       />
-      {!wbeId && (
-        <Select
-          placeholder="WBE"
-          allowClear
-          style={{ minWidth: 160 }}
-          options={wbes.map((w) => ({
-            label: w.code,
-            value: w.wbe_id,
-          }))}
-          value={tableParams.filters?.wbe_id?.[0] as string | undefined}
-          onChange={(val) => {
-            const newFilters = {
-              ...tableParams.filters,
-              wbe_id: val ? [val] : null,
-            };
-            handleTableChange(
-              tableParams.pagination!,
-              newFilters as Record<string, FilterValue | null>,
-              {} as SorterResult<CostElementRead>
-            );
-          }}
-        />
-      )}
     </>
   );
 
   const tableColumns: ColumnType<CostElementRead>[] = useMemo(() => {
     const cols: ColumnType<CostElementRead>[] = [
-      { title: "Code", dataIndex: "code", key: "code", width: 100, sorter: true },
-      { title: "Name", dataIndex: "name", key: "name", sorter: true },
       {
         title: "Type",
         key: "type",
-        width: 120,
+        width: 150,
         render: (_, record) => {
           const name = record.cost_element_type_name || typeMap[record.cost_element_type_id] || "-";
           return <Tag>{name}</Tag>;
         },
       },
       {
-        title: "Budget",
-        dataIndex: "budget_amount",
-        key: "budget_amount",
+        title: "Amount",
+        dataIndex: "amount",
+        key: "amount",
         width: 150,
         align: "right" as const,
         render: (val) => (val ? formatCurrency(val) : "-"),
         sorter: true,
       },
+      {
+        title: "Work Package",
+        key: "work_package",
+        width: 150,
+        render: (_, record) => record.work_package_name || record.work_package_code || "-",
+      },
     ];
-    if (!isMobile) {
-      cols.push({
-        title: "Branch",
-        dataIndex: "branch",
-        key: "branch",
-        width: 100,
-        render: (val) => (val ? <Tag>{val}</Tag> : "-"),
-      });
-    }
     cols.push({
       title: "",
       key: "actions",
@@ -224,7 +191,7 @@ export const CostElementManagement = ({
       ),
     });
     return cols;
-  }, [typeMap, isMobile, handleRowClick]);
+  }, [typeMap, handleRowClick]);
 
   return (
     <div>
@@ -239,7 +206,7 @@ export const CostElementManagement = ({
           />
         )}
         keyExtractor={(ce) => ce.cost_element_id}
-        title={wbeName ? `Cost Elements - ${wbeName}` : "Cost Elements"}
+        title={workPackageName ? `Cost Elements - ${workPackageName}` : "Cost Elements"}
         addContent={
           <Space>
             <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
@@ -288,7 +255,7 @@ export const CostElementManagement = ({
             await createCostElement({
               ...(values as CostElementCreate),
               branch: branch,
-              wbe_id: wbeId || (values as CostElementCreate).wbe_id,
+              work_package_id: workPackageId,
               control_date: null,
             } as CreateWithBranch);
           }
@@ -296,8 +263,8 @@ export const CostElementManagement = ({
         confirmLoading={isLoading}
         initialValues={selectedElement}
         currentBranch={branch}
-        wbeId={wbeId}
-        wbeName={wbeName || selectedElement?.wbe_name || undefined}
+        workPackageId={workPackageId}
+        workPackageName={workPackageName || selectedElement?.work_package_name || undefined}
       />
     </div>
   );

@@ -60,7 +60,7 @@ export function ActivityGrid({ recentActivity }: ActivityGridProps) {
         <ActivitySection
           title="Recent WBEs"
           icon={<ApartmentOutlined />}
-          entityType="wbe"
+          entityType="wbs_element"
           activities={recentActivity.wbes}
           maxItems={5}
           viewAllUrl="/admin/wbes"

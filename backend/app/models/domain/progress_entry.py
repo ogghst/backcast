@@ -1,6 +1,6 @@
-"""Progress Entry domain model - tracking work completion percentage for cost elements.
+"""Progress Entry domain model - tracking work completion percentage for work packages.
 
-Progress Entries track the percentage of work completed for cost elements over time.
+Progress Entries track the percentage of work completed for work packages over time.
 They are versionable (NOT branchable) - progress is a global fact across all branches.
 This allows change orders to compare branch budgets vs actual progress.
 """
@@ -21,9 +21,9 @@ if TYPE_CHECKING:
 
 
 class ProgressEntry(EntityBase, VersionableMixin):
-    """Progress Entry - work completion tracking for cost elements.
+    """Progress Entry - work completion tracking for work packages.
 
-    Progress Entries track the percentage of work completed for cost elements,
+    Progress Entries track the percentage of work completed for work packages,
     enabling Earned Value Management (EVM) calculations.
 
     Versionable but NOT branchable (progress is global facts, not project-specific).
@@ -31,7 +31,7 @@ class ProgressEntry(EntityBase, VersionableMixin):
 
     Attributes:
         progress_entry_id: Root ID for the Progress Entry aggregation.
-        cost_element_id: Reference to the cost element being tracked.
+        work_package_id: Reference to the work package being tracked.
         progress_percentage: Progress value (0.00 to 100.00).
         notes: Optional notes about progress (e.g., justification for decrease).
 
@@ -51,8 +51,8 @@ class ProgressEntry(EntityBase, VersionableMixin):
     # Root ID (stable identity across versions)
     progress_entry_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
-    # Foreign key to cost element
-    cost_element_id: Mapped[UUID] = mapped_column(
+    # Foreign key to work package
+    work_package_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         nullable=False,
         index=True,
@@ -80,6 +80,6 @@ class ProgressEntry(EntityBase, VersionableMixin):
         return (
             f"<ProgressEntry(id={self.id}, "
             f"progress_entry_id={self.progress_entry_id}, "
-            f"cost_element_id={self.cost_element_id}, "
+            f"work_package_id={self.work_package_id}, "
             f"progress_percentage={self.progress_percentage})>"
         )

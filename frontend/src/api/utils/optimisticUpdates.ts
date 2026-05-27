@@ -87,14 +87,14 @@ export async function handleListOptimisticUpdate<TData, TVariables>({
 
   const previousData = queryClient.getQueryData<TData[]>(queryKey);
 
-  queryClient.setQueryData<TData[]>(queryKey, (old = []) =>
-    old.map((item) => {
-      const id = (item as { id?: string; project_id?: string; wbe_id?: string }).id ||
-                  (item as { id?: string; project_id?: string; wbe_id?: string }).project_id ||
-                  (item as { id?: string; project_id?: string; wbe_id?: string }).wbe_id;
-      return id === itemId ? updateFn(item, undefined as unknown as TVariables) : item;
-    })
-  );
+  queryClient.setQueryData<TData[]>(queryKey, (old = []) => {
+    return old.map((item) => {
+      const id = (item as { id?: string; project_id?: string; wbs_element_id?: string }).id ||
+                  (item as { id?: string; project_id?: string; wbs_element_id?: string }).project_id ||
+                  (item as { id?: string; project_id?: string; wbs_element_id?: string }).wbs_element_id;
+      return id === itemId ? (updateFn as unknown as (item: TData, vars: TVariables) => TData)(item, undefined as unknown as TVariables) : item;
+    }) as TData[];
+  });
 
   return { previousData };
 }
@@ -117,9 +117,9 @@ export async function handleOptimisticDelete<TData>({
 
   queryClient.setQueryData<TData[]>(queryKey, (old = []) =>
     old.filter((item) => {
-      const id = (item as { id?: string; project_id?: string; wbe_id?: string }).id ||
-                  (item as { id?: string; project_id?: string; wbe_id?: string }).project_id ||
-                  (item as { id?: string; project_id?: string; wbe_id?: string }).wbe_id;
+      const id = (item as { id?: string; project_id?: string; wbs_element_id?: string }).id ||
+                  (item as { id?: string; project_id?: string; wbs_element_id?: string }).project_id ||
+                  (item as { id?: string; project_id?: string; wbs_element_id?: string }).wbs_element_id;
       return id !== itemId;
     })
   );

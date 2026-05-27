@@ -151,7 +151,7 @@ from app.models.domain.ai import (
 )
 from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
-from app.models.domain.wbe import WBE
+from app.models.domain.wbs_element import WBSElement
 from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
@@ -2088,10 +2088,10 @@ class AgentService:
 
             elif context_type == "wbe":
                 stmt = (
-                    select(WBE.name)
-                    .where(WBE.wbe_id == entity_uuid)
-                    .where(sa_func.upper(WBE.valid_time).is_(None))
-                    .where(WBE.deleted_at.is_(None))
+                    select(WBSElement.name)
+                    .where(WBSElement.wbs_element_id == entity_uuid)
+                    .where(sa_func.upper(WBSElement.valid_time).is_(None))
+                    .where(WBSElement.deleted_at.is_(None))
                     .limit(1)
                 )
                 result = await self.session.execute(stmt)
@@ -2118,8 +2118,14 @@ class AgentService:
                         pass
 
             elif context_type == "cost_element":
+                from app.models.domain.cost_element_type import CostElementType as CET
+
                 stmt = (
-                    select(CostElement.name)
+                    select(CET.name)
+                    .join(
+                        CostElement,
+                        CostElement.cost_element_type_id == CET.cost_element_type_id,
+                    )
                     .where(CostElement.cost_element_id == entity_uuid)
                     .where(sa_func.upper(CostElement.valid_time).is_(None))
                     .where(CostElement.deleted_at.is_(None))

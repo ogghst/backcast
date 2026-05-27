@@ -8,7 +8,7 @@ import {
 
 const { Text } = Typography;
 
-interface Version {
+export interface Version {
   id: string;
   valid_from: string;
   transaction_time: string;

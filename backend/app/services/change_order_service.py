@@ -25,17 +25,15 @@ from app.core.versioning.commands import (
 from app.core.versioning.enums import BranchMode
 from app.models.domain.branch import Branch
 from app.models.domain.change_order import ChangeOrder
-from app.models.domain.cost_element import CostElement
-from app.models.domain.wbe import WBE
+from app.models.domain.wbs_element import WBSElement
 from app.models.protocols import VersionableProtocol
 from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
 from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 from app.services.change_order_workflow_validation import ControlDateValidator
-from app.services.cost_element_service import CostElementService
 from app.services.custom_field_service import CustomFieldService
 from app.services.entity_discovery_service import EntityDiscoveryService
-from app.services.wbe import WBEService
+from app.services.wbs_element_service import WBSElementService
 
 if TYPE_CHECKING:
     from app.models.schemas.change_order import ChangeOrderPublic
@@ -880,18 +878,16 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # 2. Discover all entities in the source branch (including soft-deleted)
         discovery_service = EntityDiscoveryService(self.session)
         all_wbes = await discovery_service.discover_all_wbes(source_branch)
-        all_cost_elements = await discovery_service.discover_all_cost_elements(
-            source_branch
-        )
+        await discovery_service.discover_all_cost_elements(source_branch)
 
         # 3. Merge each entity type, handling soft-deletes specially
         # Merge WBEs
-        wbe_service = WBEService(self.session)
+        wbe_service = WBSElementService(self.session)
         for wbe in all_wbes:
             if wbe.deleted_at is not None:
                 # Soft-deleted on source - soft-delete on target too
                 await wbe_service.soft_delete(
-                    root_id=wbe.wbe_id,
+                    root_id=wbe.wbs_element_id,
                     actor_id=actor_id,
                     branch=target_branch,
                     control_date=control_date,
@@ -899,55 +895,55 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             else:
                 # Active on source - merge normally
                 await wbe_service.merge_branch(
-                    root_id=wbe.wbe_id,
+                    root_id=wbe.wbs_element_id,
                     actor_id=actor_id,
                     source_branch=source_branch,
                     target_branch=target_branch,
                     control_date=control_date,
                 )
 
-        # Merge CostElements
-        ce_service = CostElementService(self.session)
-        for ce in all_cost_elements:
-            if ce.deleted_at is not None:
-                # Soft-deleted on source - soft-delete on target too
-                await ce_service.soft_delete(
-                    cost_element_id=ce.cost_element_id,
-                    actor_id=actor_id,
-                    branch=target_branch,
-                    control_date=control_date,
-                )
-            else:
-                # Active on source - merge normally
-                await ce_service.merge_branch(
-                    root_id=ce.cost_element_id,
-                    actor_id=actor_id,
-                    source_branch=source_branch,
-                    target_branch=target_branch,
-                    control_date=control_date,
-                )
+        # CostElements are versionable but NOT branchable (financial facts are global).
+        # No merge needed - CostElements exist across all branches.
 
         # 4. Recalculate and update the Project's budget
         # Refresh current CO entity — attributes expired after merge operations above
         await self.session.refresh(current)
-        # Sum all active cost elements on the target branch for this project
-        from app.models.domain.cost_element import CostElement
-        from app.models.domain.wbe import WBE
+        # Sum all active work packages on the target branch for this project
+        from app.models.domain.control_account import ControlAccount
+        from app.models.domain.wbs_element import WBSElement
+        from app.models.domain.work_package import WorkPackage
 
         budget_stmt = (
-            select(func.sum(CostElement.budget_amount))
-            .select_from(CostElement)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            select(func.sum(WorkPackage.budget_amount))
+            .select_from(WorkPackage)
+            .join(
+                ControlAccount,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
+            .join(
+                WBSElement, ControlAccount.wbs_element_id == WBSElement.wbs_element_id
+            )
             .where(
-                WBE.project_id == current.project_id,
-                CostElement.branch == target_branch,
+                WBSElement.project_id == current.project_id,
                 is_current_version_on_branch(
-                    cast(Any, CostElement).valid_time,
-                    CostElement.branch,
+                    cast(Any, WBSElement).valid_time,
+                    WBSElement.branch,
                     target_branch,
-                    cast(Any, CostElement).deleted_at,
+                    cast(Any, WBSElement).deleted_at,
                 ),
-                cast(Any, CostElement).deleted_at.is_(None),
+                is_current_version_on_branch(
+                    cast(Any, ControlAccount).valid_time,
+                    ControlAccount.branch,
+                    target_branch,
+                    cast(Any, ControlAccount).deleted_at,
+                ),
+                is_current_version_on_branch(
+                    cast(Any, WorkPackage).valid_time,
+                    WorkPackage.branch,
+                    target_branch,
+                    cast(Any, WorkPackage).deleted_at,
+                ),
+                cast(Any, WorkPackage).deleted_at.is_(None),
             )
         )
         budget_result = await self.session.execute(budget_stmt)
@@ -2278,46 +2274,46 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             actor_id: User performing the fork
             control_date: Optional control date for temporal operations
         """
-        # Discover all WBEs on main branch for this project
+        # Discover all WBSElements on main branch for this project
         from typing import Any, cast
 
         from sqlalchemy import select as sql_select
 
         from app.core.branching.commands import CreateBranchCommand
 
-        wbe_stmt = sql_select(WBE).where(
-            WBE.project_id == project_id,
-            WBE.branch == "main",
+        wbe_stmt = sql_select(WBSElement).where(
+            WBSElement.project_id == project_id,
+            WBSElement.branch == "main",
             is_current_version_on_branch(
-                cast(Any, WBE).valid_time,
-                WBE.branch,
+                cast(Any, WBSElement).valid_time,
+                WBSElement.branch,
                 "main",
-                cast(Any, WBE).deleted_at,
+                cast(Any, WBSElement).deleted_at,
             ),
         )
         wbe_result = await self.session.execute(wbe_stmt)
         wbes = wbe_result.scalars().all()
 
-        # Fork each WBE to isolation branch
+        # Fork each WBSElement to isolation branch
         for wbe in wbes:
             # Check if already exists on isolation branch
-            existing_stmt = sql_select(WBE).where(
-                WBE.wbe_id == wbe.wbe_id,
-                WBE.branch == isolation_branch,
+            existing_stmt = sql_select(WBSElement).where(
+                WBSElement.wbs_element_id == wbe.wbs_element_id,
+                WBSElement.branch == isolation_branch,
                 is_current_version_on_branch(
-                    cast(Any, WBE).valid_time,
-                    WBE.branch,
+                    cast(Any, WBSElement).valid_time,
+                    WBSElement.branch,
                     isolation_branch,
-                    cast(Any, WBE).deleted_at,
+                    cast(Any, WBSElement).deleted_at,
                 ),
-                cast(Any, WBE).deleted_at.is_(None),
+                cast(Any, WBSElement).deleted_at.is_(None),
             )
             existing_result = await self.session.execute(existing_stmt)
             if existing_result.scalar_one_or_none() is None:
-                # Fork this WBE
+                # Fork this WBSElement
                 wbe_fork_cmd = CreateBranchCommand(
-                    entity_class=cast(Any, WBE),
-                    root_id=wbe.wbe_id,
+                    entity_class=cast(Any, WBSElement),
+                    root_id=wbe.wbs_element_id,
                     actor_id=actor_id,
                     new_branch=isolation_branch,
                     from_branch="main",
@@ -2325,48 +2321,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 )
                 await wbe_fork_cmd.execute(self.session)
 
-        # Discover all CostElements on main branch for WBEs in this project
-        ce_stmt = (
-            sql_select(CostElement)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                CostElement.branch == "main",
-                is_current_version_on_branch(
-                    cast(Any, CostElement).valid_time,
-                    CostElement.branch,
-                    "main",
-                    cast(Any, CostElement).deleted_at,
-                ),
-            )
-        )
-        ce_result = await self.session.execute(ce_stmt)
-        cost_elements = ce_result.scalars().all()
-
-        # Fork each CostElement to isolation branch
-        for ce in cost_elements:
-            # Check if already exists on isolation branch
-            existing_ce_stmt = sql_select(CostElement).where(
-                CostElement.cost_element_id == ce.cost_element_id,
-                CostElement.branch == isolation_branch,
-                is_current_version_on_branch(
-                    cast(Any, CostElement).valid_time,
-                    CostElement.branch,
-                    isolation_branch,
-                    cast(Any, CostElement).deleted_at,
-                ),
-            )
-            existing_ce_result = await self.session.execute(existing_ce_stmt)
-            if existing_ce_result.scalar_one_or_none() is None:
-                ce_fork_cmd = CreateBranchCommand(
-                    entity_class=cast(Any, CostElement),
-                    root_id=ce.cost_element_id,
-                    actor_id=actor_id,
-                    new_branch=isolation_branch,
-                    from_branch="main",
-                    control_date=control_date,
-                )
-                await ce_fork_cmd.execute(self.session)
+        # CostElements are versionable but NOT branchable (financial facts are global).
+        # No forking needed.
 
     async def _get_sla_days(self, impact_level: str | None) -> int:
         """Get the number of SLA business days for an impact level.
@@ -2503,27 +2459,18 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Discover active (non-deleted) entities in source branch
         discovery_service = EntityDiscoveryService(self.session)
         wbes = await discovery_service.discover_wbes(source_branch)
-        cost_elements = await discovery_service.discover_cost_elements(source_branch)
 
         # Check conflicts for WBEs
-        wbe_service = WBEService(self.session)
+        wbe_service = WBSElementService(self.session)
         for wbe in wbes:
             wbe_conflicts = await wbe_service._detect_merge_conflicts(
-                root_id=wbe.wbe_id,
+                root_id=wbe.wbs_element_id,
                 source_branch=source_branch,
                 target_branch=target_branch,
             )
             conflicts.extend(wbe_conflicts)
 
-        # Check conflicts for CostElements
-        ce_service = CostElementService(self.session)
-        for ce in cost_elements:
-            ce_conflicts = await ce_service._detect_merge_conflicts(
-                root_id=ce.cost_element_id,
-                source_branch=source_branch,
-                target_branch=target_branch,
-            )
-            conflicts.extend(ce_conflicts)
+        # CostElements are versionable but NOT branchable - no merge conflicts possible.
 
         return conflicts
 

@@ -41,12 +41,12 @@ describe("useAIChatContext", () => {
     expect(result.current.id).toBe("proj-123");
   });
 
-  it("should return wbe context when wbeId is present", () => {
+  it("should return wbe context when wbsElementId is present", () => {
     const { result } = renderHook(() => useAIChatContext(), {
-      wrapper: createWrapper("/projects/:projectId/wbes/:wbeId", ["/projects/proj-123/wbes/wbe-456"]),
+      wrapper: createWrapper("/projects/:projectId/wbs-elements/:wbsElementId", ["/projects/proj-123/wbs-elements/wbe-456"]),
     });
 
-    expect(result.current.type).toBe("wbe");
+    expect(result.current.type).toBe("wbs_element");
     expect(result.current.id).toBe("wbe-456");
     expect(result.current.project_id).toBe("proj-123");
   });
@@ -62,10 +62,10 @@ describe("useAIChatContext", () => {
 
   it("should prioritize wbe context over project context", () => {
     const { result } = renderHook(() => useAIChatContext(), {
-      wrapper: createWrapper("/projects/:projectId/wbes/:wbeId", ["/projects/proj-123/wbes/wbe-456"]),
+      wrapper: createWrapper("/projects/:projectId/wbs-elements/:wbsElementId", ["/projects/proj-123/wbs-elements/wbe-456"]),
     });
 
-    expect(result.current.type).toBe("wbe");
+    expect(result.current.type).toBe("wbs_element");
     expect(result.current.id).toBe("wbe-456");
     expect(result.current.project_id).toBe("proj-123");
   });

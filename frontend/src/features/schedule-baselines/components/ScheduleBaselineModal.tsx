@@ -21,7 +21,7 @@ import {
 import {
   useCreateCostElementScheduleBaseline,
   useUpdateCostElementScheduleBaseline,
-  type ScheduleBaselineRead,
+  type CostElementScheduleBaselineRead as ScheduleBaselineRead,
 } from "../api/useCostElementScheduleBaseline";
 import { ProgressionPreviewChart } from "./ProgressionPreviewChart";
 

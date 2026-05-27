@@ -70,8 +70,9 @@ export function buildGanttOptions(
     tooltip: {
       ...tooltipConfig,
       trigger: "item",
-      formatter: (params: { dataIndex: number; data: [number, number, number, GanttRow] }) => {
-        const row = params.data[3];
+      formatter: (params: unknown) => {
+        const p = params as { data: [number, number, number, GanttRow] };
+        const row = p.data[3];
         const start = row.startDate!;
         const end = row.endDate!;
         const durationDays = Math.ceil(
@@ -440,5 +441,5 @@ ${
         moveOnMouseMove: true,
       },
     ],
-  };
+  } as EChartsOption;
 }

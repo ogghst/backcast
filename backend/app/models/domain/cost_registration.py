@@ -62,8 +62,8 @@ class CostRegistration(EntityBase, VersionableMixin):
         # NOTE: No database-level ForeignKey constraint on root ID.
     )
 
-    # Optional link to a WorkPackage (when this CR is a cost allocation for a work package)
-    work_package_id: Mapped[UUID | None] = mapped_column(
+    # Optional link to a CostEvent (when this CR is a cost allocation for a cost event)
+    cost_event_id: Mapped[UUID | None] = mapped_column(
         PG_UUID, nullable=True, index=True
     )
 

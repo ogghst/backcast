@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BranchMode } from '../models/BranchMode';
+import { BranchMode } from '../models/BranchMode';
 import type { BranchPublic } from '../models/BranchPublic';
 import type { ProjectCreate } from '../models/ProjectCreate';
 import type { ProjectRead } from '../models/ProjectRead';
@@ -39,7 +39,7 @@ export class ProjectsService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),

@@ -3,7 +3,8 @@
  */
 
 // Workflow components
-export { WorkflowStepper, WORKFLOW_STEPS, getStepIndex, type WorkflowStepKey } from "./WorkflowStepper";
+export { WorkflowStepper } from "./WorkflowStepper";
+export { WORKFLOW_STEPS, getStepIndex, type WorkflowStepKey } from "./WorkflowConstants";
 export { BranchLockIndicator } from "./BranchLockIndicator";
 export { WorkflowButtons } from "./WorkflowButtons";
 export { WorkflowActions } from "./WorkflowActions";

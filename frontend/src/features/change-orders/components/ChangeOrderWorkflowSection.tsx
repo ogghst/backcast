@@ -55,7 +55,6 @@ export function ChangeOrderWorkflowSection({
   const status = changeOrder?.status;
   const branch_locked = changeOrder?.branch_locked;
   const available_transitions = changeOrder?.available_transitions;
-  const impact_analysis_status = changeOrder?.impact_analysis_status;
   const impact_level = changeOrder?.impact_level;
   const assigned_approver_id = changeOrder?.assigned_approver_id;
 
@@ -68,10 +67,9 @@ export function ChangeOrderWorkflowSection({
       (!available_transitions ||
         available_transitions.length === 0 ||
         !impact_level ||
-        !assigned_approver_id ||
-        impact_analysis_status === "in_progress")
+        !assigned_approver_id)
     );
-  }, [changeOrder, status, available_transitions, impact_level, assigned_approver_id, impact_analysis_status]);
+  }, [changeOrder, status, available_transitions, impact_level, assigned_approver_id]);
 
   // Hide in create mode
   if (!changeOrder) {
@@ -242,7 +240,7 @@ export function ChangeOrderWorkflowSection({
             changeOrder={changeOrder}
             visible={recoveryDialogVisible}
             onClose={() => setRecoveryDialogVisible(false)}
-            onSuccess={onActionSuccess}
+            onSuccess={onActionSuccess ?? (() => {})}
           />
         )}
       </>
@@ -264,7 +262,7 @@ export function ChangeOrderWorkflowSection({
           changeOrder={changeOrder}
           visible={recoveryDialogVisible}
           onClose={() => setRecoveryDialogVisible(false)}
-          onSuccess={onActionSuccess}
+          onSuccess={onActionSuccess ?? (() => {})}
         />
       )}
     </>

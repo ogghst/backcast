@@ -24,7 +24,7 @@ export const FieldItem = ({ label, children }: FieldItemProps) => {
           fontSize: token.fontSizeSM,
           display: "block",
           marginBottom: token.paddingXS,
-          fontWeight: token.fontWeightMedium,
+          fontWeight: 600,
         }}
       >
         {label}

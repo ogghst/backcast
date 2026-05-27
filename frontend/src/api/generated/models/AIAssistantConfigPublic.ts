@@ -9,7 +9,10 @@ import type { DelegationConfig } from './DelegationConfig';
 export type AIAssistantConfigPublic = {
     name: string;
     description?: (string | null);
-    model_id: string;
+    /**
+     * Model to use. Required for main agents; specialists inherit from the main agent.
+     */
+    model_id?: (string | null);
     system_prompt?: (string | null);
     temperature?: (number | null);
     max_tokens?: (number | null);

@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { ApprovalInfoPublic } from '../models/ApprovalInfoPublic';
-import type { BranchMode } from '../models/BranchMode';
+import { BranchMode } from '../models/BranchMode';
 import type { ChangeOrderApproval } from '../models/ChangeOrderApproval';
 import type { ChangeOrderCreate } from '../models/ChangeOrderCreate';
 import type { ChangeOrderPublic } from '../models/ChangeOrderPublic';
@@ -81,7 +81,7 @@ export class ChangeOrdersService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -190,7 +190,7 @@ export class ChangeOrdersService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -478,7 +478,7 @@ export class ChangeOrdersService {
     public static getChangeOrderImpact(
         changeOrderId: string,
         branchName: string,
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
         asOf?: (string | null),
     ): CancelablePromise<ImpactAnalysisResponse> {
         return __request(OpenAPI, {

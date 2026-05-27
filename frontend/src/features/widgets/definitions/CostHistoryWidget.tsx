@@ -31,8 +31,8 @@ const CostHistoryComponent: FC<WidgetComponentProps<CostHistoryConfig>> = ({
   const entityId =
     entityType === EntityType.PROJECT
       ? context.projectId
-      : entityType === EntityType.WBE
-        ? context.wbeId
+      : entityType === EntityType.WBS_ELEMENT
+        ? context.wbsElementId
         : context.costElementId;
 
   return (
@@ -52,7 +52,7 @@ const CostHistoryComponent: FC<WidgetComponentProps<CostHistoryConfig>> = ({
     >
       {entityId ? (
         <CostHistoryChart
-          entityType={entityType === EntityType.PROJECT ? "project" : entityType === EntityType.WBE ? "wbe" : "cost_element"}
+          entityType={entityType === EntityType.PROJECT ? "project" : entityType === EntityType.WBS_ELEMENT ? "wbs_element" : "cost_element"}
           entityId={entityId}
           headless
           height={250}

@@ -1,6 +1,5 @@
 import { Spin, theme } from "antd";
 import { BranchesOutlined } from "@ant-design/icons";
-import React from "react";
 import { useProjectBranches } from "@/features/projects/api/useProjects";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import type { BranchOption } from "./types";

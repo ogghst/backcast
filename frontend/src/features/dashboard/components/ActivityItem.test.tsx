@@ -256,7 +256,7 @@ describe("ActivityItem", () => {
   it("renders for different entity types", () => {
     const entityTypes: Array<ActivityItemType["entity_type"]> = [
       "project",
-      "wbe",
+      "wbs_element",
       "cost_element",
       "change_order",
     ];
@@ -280,7 +280,7 @@ describe("ActivityItem", () => {
   it("renders entities with project_id", () => {
     const activityWithProject: ActivityItemType = {
       ...mockActivity,
-      entity_type: "wbe",
+      entity_type: "wbs_element",
       project_id: "project-456",
     };
 

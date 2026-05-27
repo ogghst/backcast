@@ -43,15 +43,15 @@ vi.mock("@/features/projects/api/useProjects", () => ({
   }),
 }));
 
-vi.mock("@/features/wbes/api/useWBEs", () => ({
-  useWBEs: () => ({
+vi.mock("@/features/wbs-elements/api/useWBSElements", () => ({
+  useWBSElements: () => ({
     data: { items: [] },
     isLoading: false,
     refetch: vi.fn(),
   }),
-  useCreateWBE: () => ({ mutateAsync: vi.fn() }),
-  useUpdateWBE: () => ({ mutateAsync: vi.fn() }),
-  useDeleteWBE: () => ({ mutate: vi.fn() }),
+  useCreateWBSElement: () => ({ mutateAsync: vi.fn() }),
+  useUpdateWBSElement: () => ({ mutateAsync: vi.fn() }),
+  useDeleteWBSElement: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock("@/hooks/useEntityHistory", () => ({

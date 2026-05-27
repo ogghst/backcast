@@ -8,7 +8,7 @@
 
 // --- Enums ---
 
-export type EntityType = "wbe" | "cost_element" | "change_order" | "project";
+export type EntityType = "wbs_element" | "cost_element" | "change_order" | "project";
 
 // --- Folder ---
 
@@ -105,7 +105,7 @@ export interface StorageStatsPublic {
 export interface CostElementOutletContext {
   costElement: {
     cost_element_id: string;
-    wbe_id: string;
+    wbs_element_id: string;
     code: string;
     name: string;
     branch: string;

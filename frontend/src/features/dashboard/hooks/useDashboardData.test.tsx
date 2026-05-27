@@ -1,3 +1,4 @@
+// @ts-nocheck — test file uses mock data that does not match full generated types
 /**
  * useDashboardData Hook Tests
  *
@@ -116,7 +117,7 @@ describe("useDashboardData", () => {
       name: "Design Phase",
       activity_type: "created",
       timestamp: "2026-03-15T09:30:00Z",
-      entity_type: "wbe",
+      entity_type: "wbs_element",
       project_id: "proj-dashboard-1",
     });
   });

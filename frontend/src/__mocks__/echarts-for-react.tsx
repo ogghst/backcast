@@ -28,8 +28,8 @@ interface MockEChartsProps {
 }
 
 const MockECharts = React.forwardRef<HTMLDivElement, MockEChartsProps>(
-  ({ style, className, option, onChartReady, onEvents, ...props }, ref) => {
-     
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ({ style, className, option, onChartReady, onEvents, ...props }: any, ref) => {
     void onEvents;
     React.useEffect(() => {
       if (onChartReady) {

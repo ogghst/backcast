@@ -20,8 +20,8 @@ import type {
   WSSubscribeMessage,
   TokenUsage,
   FileAttachment,
-  SessionContext,
 } from "../types";
+import type { SessionContext } from "../../types";
 import {
   uploadMultipleFiles,
   type UploadError,
@@ -823,7 +823,7 @@ export const useStreamingChat = (
       const effectiveProjectId = projectIdRef.current ?? contextRef.current?.project_id;
 
       // Log context derivation for debugging
-      if (contextRef.current?.type === "wbe" || contextRef.current?.type === "cost_element") {
+      if (contextRef.current?.type === "wbs_element" || contextRef.current?.type === "cost_element") {
         console.log(
           `[AI Chat Context] Deriving project_id for ${contextRef.current.type}: ` +
           `projectId=${projectIdRef.current}, ` +
@@ -1072,7 +1072,7 @@ export const useStreamingChat = (
               branch_mode: branchMode,
               project_id: effectiveProjectId,
               context: contextRef.current,
-              execution_mode: executionMode,
+              execution_mode: executionMode!,
               attachments: attachments && attachments.length > 0 ? attachments : undefined,
               images: images && images.length > 0 ? images : undefined,
             };

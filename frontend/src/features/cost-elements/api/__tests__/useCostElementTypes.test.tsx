@@ -49,7 +49,7 @@ describe("useCostElementTypes", () => {
           code: "LAB",
           name: "Labor",
           description: "Labor costs",
-          department_id: "dept-1",
+          organizational_unit_id: "dept-1",
           created_by: "user-1",
         },
         {
@@ -58,7 +58,7 @@ describe("useCostElementTypes", () => {
           code: "MAT",
           name: "Material",
           description: "Material costs",
-          department_id: "dept-1",
+          organizational_unit_id: "dept-1",
           created_by: "user-1",
         },
       ],

@@ -11,7 +11,7 @@ backend_dir = Path(__file__).parent.parent
 sys.path.append(str(backend_dir))
 
 from app.core.logging import setup_logging  # noqa: E402
-from app.db.seeder import DataSeeder  # noqa: E402
+from app.db.ai_tools_seeder import AIToolsTestDataSeeder as DataSeeder  # noqa: E402
 from app.db.session import async_session_maker, engine  # noqa: E402
 
 logger = logging.getLogger(__name__)

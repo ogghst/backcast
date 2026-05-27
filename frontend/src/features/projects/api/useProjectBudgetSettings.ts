@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type UseMutationOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ProjectBudgetSettingsService,
@@ -83,12 +83,10 @@ export const useProjectBudgetSettings = (
  */
 export const useUpdateProjectBudgetSettings = (
   mutationOptions?: Omit<
-    ReturnType<
-      typeof useMutation<
-        ProjectBudgetSettingsRead,
-        Error,
-        { projectId: string; settings: ProjectBudgetSettingsCreate }
-      >
+    UseMutationOptions<
+      ProjectBudgetSettingsRead,
+      Error,
+      { projectId: string; settings: ProjectBudgetSettingsCreate }
     >,
     "mutationFn"
   >,
@@ -114,7 +112,7 @@ export const useUpdateProjectBudgetSettings = (
         queryKey: queryKeys.projects.detail(variables.projectId),
       });
       toast.success("Budget settings updated successfully");
-      mutationOptions?.onSuccess?.(data, variables, undefined);
+      mutationOptions?.onSuccess?.(data, variables, undefined, undefined as never);
     },
     onError: (error, variables) => {
       toast.error(
@@ -122,7 +120,7 @@ export const useUpdateProjectBudgetSettings = (
           error instanceof Error ? error.message : "Unknown error"
         }`,
       );
-      mutationOptions?.onError?.(error, variables, undefined);
+      mutationOptions?.onError?.(error, variables, undefined as never, undefined as never);
     },
   });
 };

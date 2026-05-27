@@ -120,10 +120,10 @@ export const FormCurrency = ({
           value ? `${prefix} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ""
         }
         parser={(value) => {
-          if (!value) return undefined as unknown as number;
+          if (!value) return "" as unknown as number;
           const cleaned = value.replace(new RegExp(`${prefix}\\s?|,`, "g"), "");
           const parsed = parseFloat(cleaned);
-          return isNaN(parsed) ? undefined : parsed;
+          return (isNaN(parsed) ? 0 : parsed) as number;
         }}
       />
     </Form.Item>

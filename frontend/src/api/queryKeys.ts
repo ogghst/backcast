@@ -31,12 +31,12 @@ import { QueryKey } from "@tanstack/react-query";
  * This provides type safety for the query key factory pattern
  */
 function createQueryKeys<T extends Record<string, unknown>>(
-  prefix: string,
+  _prefix: string,
   keys: T,
 ) {
   return keys;
 }
-import type { ProjectListParams } from "@/types";
+import type { ProjectListParams } from "@/features/projects/api/useProjects";
 
 /**
  * Hierarchical query key structure for type safety and autocomplete
@@ -44,7 +44,7 @@ import type { ProjectListParams } from "@/types";
 export const queryKeys = createQueryKeys("backcast-evs", {
   // Time Machine
   timeMachine: {
-    context: null as QueryKey,
+    context: null as unknown as QueryKey,
     params: (asOf?: string, branch?: string, mode?: string) =>
       ["time-machine", { asOf, branch, mode }] as const,
   },
@@ -68,32 +68,101 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     history: (projectId: string) => ["projects", projectId, "history"] as const,
   },
 
-  // Work Breakdown Elements
-  wbes: {
-    all: ["wbes"] as const,
-    lists: () => ["wbes", "list"] as const,
+  // WBS Elements (was: wbes)
+  wbsElements: {
+    all: ["wbs-elements"] as const,
+    lists: () => ["wbs-elements", "list"] as const,
     list: (projectId: string, params?: unknown) =>
-      ["wbes", "list", projectId, params] as const,
-    details: () => ["wbes", "detail"] as const,
-    detail: (id: string) => ["wbes", "detail", id] as const,
-    history: (wbeId: string) => ["wbes", wbeId, "history"] as const,
-    tree: (projectId: string) => ["wbes", "tree", projectId] as const,
-    breadcrumb: (wbeId: string, context?: unknown) =>
-      ["wbes", wbeId, "breadcrumb", context] as const,
+      ["wbs-elements", "list", projectId, params] as const,
+    details: () => ["wbs-elements", "detail"] as const,
+    detail: (id: string) => ["wbs-elements", "detail", id] as const,
+    history: (wbsElementId: string) => ["wbs-elements", wbsElementId, "history"] as const,
+    tree: (projectId: string) => ["wbs-elements", "tree", projectId] as const,
+    breadcrumb: (wbsElementId: string, context?: unknown) =>
+      ["wbs-elements", wbsElementId, "breadcrumb", context] as const,
   },
 
-  // Cost Elements
+  // Organizational Units (was: departments)
+  organizationalUnits: {
+    all: ["organizational-units"] as const,
+    list: ["organizational-units", "list"] as const,
+    detail: (id: string) => ["organizational-units", "detail", id] as const,
+  },
+
+  // Work Packages — PMI budget holder (was: cost-elements old role)
+  workPackages: {
+    all: ["work-packages"] as const,
+    lists: () => ["work-packages", "list"] as const,
+    list: (controlAccountId?: string, params?: unknown) =>
+      ["work-packages", "list", controlAccountId, params] as const,
+    details: () => ["work-packages", "detail"] as const,
+    detail: (id: string, context?: unknown) =>
+      ["work-packages", "detail", id, context] as const,
+    history: (id: string) => ["work-packages", "history", id] as const,
+    breadcrumb: (workPackageId: string) =>
+      ["work-packages", "breadcrumb", workPackageId] as const,
+    budgetStatus: (workPackageId: string, context?: unknown) =>
+      ["work-packages", "budget-status", workPackageId, context] as const,
+    evmMetrics: (workPackageId: string, context?: unknown) =>
+      ["work-packages", "evm", workPackageId, context] as const,
+  },
+
+  // Cost Elements — EOC line items under WorkPackage
   costElements: {
     all: ["cost-elements"] as const,
     lists: () => ["cost-elements", "list"] as const,
-    list: (params?: unknown) => ["cost-elements", "list", params] as const,
+    list: (workPackageId?: string, params?: unknown) =>
+      ["cost-elements", "list", workPackageId, params] as const,
     details: () => ["cost-elements", "detail"] as const,
     detail: (id: string, context?: unknown) =>
       ["cost-elements", "detail", id, context] as const,
     breadcrumb: (costElementId: string) =>
-      ["cost_element_breadcrumb", costElementId] as const,
-    evmMetrics: (costElementId: string, context?: unknown) =>
-      ["cost-elements", "evm", costElementId, context] as const,
+      ["cost-elements", "breadcrumb", costElementId] as const,
+  },
+
+  // Cost Events (was: work-packages old role)
+  costEvents: {
+    all: ["cost-events"] as const,
+    lists: () => ["cost-events", "list"] as const,
+    list: (projectId: string, params?: unknown) =>
+      ["cost-events", "list", projectId, params] as const,
+    details: () => ["cost-events", "detail"] as const,
+    detail: (id: string, context?: unknown) =>
+      ["cost-events", "detail", id, context] as const,
+    history: (id: string) => ["cost-events", "history", id] as const,
+    summary: (projectId: string) =>
+      ["cost-events", "summary", projectId] as const,
+    allocations: (id: string) =>
+      ["cost-events", "allocations", id] as const,
+    coqMetrics: (projectId: string) =>
+      ["cost-events", "coqMetrics", projectId] as const,
+    coqTrend: (projectId: string, granularity?: string) =>
+      ["cost-events", "coqTrend", projectId, granularity] as const,
+  },
+
+  // Cost Event Types (was: package-types)
+  costEventTypes: {
+    all: ["cost-event-types"] as const,
+    list: ["cost-event-types", "list"] as const,
+  },
+
+  // Control Accounts (new)
+  controlAccounts: {
+    all: ["control-accounts"] as const,
+    lists: () => ["control-accounts", "list"] as const,
+    list: (params?: unknown) =>
+      ["control-accounts", "list", params] as const,
+    details: () => ["control-accounts", "detail"] as const,
+    detail: (id: string, context?: unknown) =>
+      ["control-accounts", "detail", id, context] as const,
+    history: (id: string) => ["control-accounts", "history", id] as const,
+  },
+
+  // Cost Element Types
+  costElementTypes: {
+    all: ["cost-element-types"] as const,
+    list: ["cost-element-types", "list"] as const,
+    detail: (id: string) => ["cost-element-types", "detail", id] as const,
   },
 
   // Cost Registrations
@@ -175,8 +244,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["forecasts", "detail", id, context] as const,
     comparison: (id: string, branch?: string, context?: unknown) =>
       ["forecast_comparison", id, branch, context] as const,
-    byCostElement: (costElementId: string, branch?: string, context?: unknown) =>
-      ["cost-element-forecast", costElementId, branch, context] as const,
+    byWorkPackage: (workPackageId: string, branch?: string, context?: unknown) =>
+      ["work-package-forecast", workPackageId, branch, context] as const,
   },
 
   // Schedule Baselines
@@ -186,8 +255,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["schedule-baselines", "list", projectId, params] as const,
     detail: (id: string, context?: unknown) =>
       ["schedule-baselines", "detail", id, context] as const,
-    byCostElement: (costElementId: string, context?: unknown) =>
-      ["schedule-baselines", "cost-element", costElementId, context] as const,
+    byWorkPackage: (workPackageId: string, context?: unknown) =>
+      ["schedule-baselines", "work-package", workPackageId, context] as const,
     history: (id: string) => ["schedule-baselines", "history", id] as const,
     pv: (id: string, params: unknown) =>
       ["schedule-baselines", "pv", id, params] as const,
@@ -252,20 +321,6 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     details: () => ["users", "detail"] as const,
     detail: (id: string) => ["users", "detail", id] as const,
     me: ["users", "me"] as const,
-  },
-
-  // Departments
-  departments: {
-    all: ["departments"] as const,
-    list: ["departments", "list"] as const,
-    detail: (id: string) => ["departments", "detail", id] as const,
-  },
-
-  // Cost Element Types
-  costElementTypes: {
-    all: ["cost-element-types"] as const,
-    list: ["cost-element-types", "list"] as const,
-    detail: (id: string) => ["cost-element-types", "detail", id] as const,
   },
 
   // Test Resource (for testing useVersionedCrud factory)
@@ -348,32 +403,6 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     list: (params?: { page?: number; pageSize?: number; unreadOnly?: boolean }) =>
       ["notifications", "list", params] as const,
     unreadCount: ["notifications", "unread-count"] as const,
-  },
-
-  // Work Packages
-  workPackages: {
-    all: ["work-packages"] as const,
-    lists: () => ["work-packages", "list"] as const,
-    list: (projectId: string, filters?: Record<string, unknown>) =>
-      ["work-packages", "list", projectId, filters] as const,
-    details: () => ["work-packages", "detail"] as const,
-    detail: (id: string, filters?: Record<string, unknown>) =>
-      ["work-packages", "detail", id, filters] as const,
-    history: (id: string) => ["work-packages", "history", id] as const,
-    summary: (projectId: string) =>
-      ["work-packages", "summary", projectId] as const,
-    allocations: (id: string) =>
-      ["work-packages", "allocations", id] as const,
-    coqMetrics: (projectId: string) =>
-      ["work-packages", "coqMetrics", projectId] as const,
-    coqTrend: (projectId: string, granularity?: string) =>
-      ["work-packages", "coqTrend", projectId, granularity] as const,
-  },
-
-  // Package Types (admin-defined work package categories)
-  packageTypes: {
-    all: ["package-types"] as const,
-    list: ["package-types", "list"] as const,
   },
 
   // Documents

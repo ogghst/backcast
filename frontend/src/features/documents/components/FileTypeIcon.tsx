@@ -9,7 +9,7 @@ import {
   FileTextOutlined,
   CodeOutlined,
 } from "@ant-design/icons";
-import type { CustomIconComponentProps } from "@ant-design/icons/lib/components/Icon";
+import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
 
 /**
  * File type category and associated color for reuse in tags/badges.
@@ -76,7 +76,7 @@ export function getFileTypeCategory(extension: string): string {
   return EXTENSION_MAP[ext] || "default";
 }
 
-const ICON_MAP: Record<string, React.ComponentType<CustomIconComponentProps>> = {
+const ICON_MAP: Record<string, React.ComponentType<AntdIconProps>> = {
   pdf: FilePdfOutlined,
   word: FileWordOutlined,
   excel: FileExcelOutlined,
@@ -105,9 +105,11 @@ export const FileTypeIcon: React.FC<FileTypeIconProps> = ({
   style,
 }) => {
   const category = getFileTypeCategory(extension);
-  const IconComponent = ICON_MAP[category] || FileOutlined;
   const color = FILE_TYPE_COLORS[category] || FILE_TYPE_COLORS.default;
   const iconSize = SIZE_MAP[size];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const IconComponent = (ICON_MAP[category] || FileOutlined) as any;
 
   return <IconComponent style={{ color, fontSize: iconSize, ...style }} />;
 };

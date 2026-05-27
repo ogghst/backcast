@@ -4,9 +4,9 @@ import type {
   CostElementTypeRead,
   CostElementTypeCreate,
   CostElementTypeUpdate,
-  DepartmentRead,
+  OrganizationalUnitRead,
 } from "@/api/generated";
-import { DepartmentsService } from "@/api/generated";
+import { OrganizationalUnitsService } from "@/api/generated";
 
 interface CostElementTypeModalProps {
   open: boolean;
@@ -25,7 +25,7 @@ export const CostElementTypeModal = ({
 }: CostElementTypeModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
-  const [departments, setDepartments] = useState<DepartmentRead[]>([]);
+  const [departments, setDepartments] = useState<OrganizationalUnitRead[]>([]);
   const [loadingDepts, setLoadingDepts] = useState(false);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export const CostElementTypeModal = ({
         try {
           setLoadingDepts(true);
           // Fetch all departments (limit 100k for dropdown)
-          const res = await DepartmentsService.getDepartments(1, 100000);
+          const res = await OrganizationalUnitsService.getOrganizationalUnits(1, 100000);
           const items = Array.isArray(res) ? res : res.items || [];
           setDepartments(items);
         } catch (err) {
@@ -104,7 +104,7 @@ export const CostElementTypeModal = ({
         </Form.Item>
 
         <Form.Item
-          name="department_id"
+          name="organizational_unit_id"
           label="Department"
           rules={[{ required: true, message: "Please select a department" }]}
         >
@@ -117,7 +117,7 @@ export const CostElementTypeModal = ({
             }
             options={departments.map((d) => ({
               label: d.name,
-              value: d.department_id,
+              value: d.organizational_unit_id,
             }))}
           />
         </Form.Item>

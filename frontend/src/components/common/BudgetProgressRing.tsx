@@ -39,10 +39,10 @@ export const BudgetProgressRing: React.FC<BudgetProgressRingProps> = ({
           strokeColor={color}
           format={(p) => (
             <div>
-              <div style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightSemiBold }}>
+              <div style={{ fontSize: token.fontSizeLG, fontWeight: 600 }}>
                 {p}%
               </div>
-              <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
+              <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>
                 of budget
               </div>
             </div>

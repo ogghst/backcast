@@ -82,7 +82,7 @@ export const ProgressEntriesTab = ({
     {
       resource: "progress_entries",
       entityId: historyEntry?.progress_entry_id,
-      fetchFn: (id) => ProgressEntriesService.getProgressEntryHistory(id),
+      fetchFn: (id) => ProgressEntriesService.getProgressHistory(id),
       enabled: historyOpen,
     },
   );
@@ -91,8 +91,8 @@ export const ProgressEntriesTab = ({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.evmMetrics(
-          costElement.cost_element_id,
+        queryKey: queryKeys.workPackages.evmMetrics(
+          costElement.work_package_id,
         ),
       });
       setModalOpen(false);
@@ -158,7 +158,7 @@ export const ProgressEntriesTab = ({
       key: "valid_time",
       sorter: true,
       render: (_, record) => {
-        const lower = record.valid_time_formatted?.lower;
+        const lower = record.valid_time_formatted?.lower as string | null | undefined;
         return lower ? formatDate(lower) : "-";
       },
     },

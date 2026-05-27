@@ -1,12 +1,11 @@
 import { Space, Tooltip, theme, Empty } from "antd";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { useState } from "react";
-import { useCostElementEvmMetrics } from "@/features/cost-elements/api/useCostElements";
 import { EVMSummaryView } from "@/features/evm/components/EVMSummaryView";
 import { EVMAnalyzerModal } from "@/features/evm/components/EVMAnalyzerModal";
 import type { EVMMetricsResponse } from "@/features/evm/types";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
-import { useEVMTimeSeries } from "@/features/evm/api/useEVMMetrics";
+import { useEVMMetrics, useEVMTimeSeries } from "@/features/evm/api/useEVMMetrics";
 import { EntityType, EVMTimeSeriesGranularity } from "@/features/evm/types";
 
 interface ForecastComparisonCardProps {
@@ -24,9 +23,9 @@ export const ForecastComparisonCard = ({
     EVMTimeSeriesGranularity.WEEK,
   );
 
-  // Fetch EVM metrics from the new endpoint
+  // Fetch EVM metrics from the generic EVM endpoint
   const { data: evmMetrics, isLoading: evmLoading } =
-    useCostElementEvmMetrics(costElementId);
+    useEVMMetrics(EntityType.COST_ELEMENT, costElementId);
 
   const metrics = evmMetrics as EVMMetricsResponse | undefined;
 
@@ -36,8 +35,8 @@ export const ForecastComparisonCard = ({
     costElementId,
     granularity,
     {
-      enabled: isModalOpen, // Only fetch when modal is open
-    },
+      queryOptions: { enabled: isModalOpen }, // Only fetch when modal is open
+    } as Parameters<typeof useEVMTimeSeries>[3],
   );
 
   // Handle opening the modal

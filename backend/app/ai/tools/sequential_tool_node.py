@@ -66,7 +66,7 @@ class SequentialToolNode(ToolNode):
         # Construct ToolRuntime instances at the top level for each tool call
         tool_runtimes: list[Any] = []
         for call, cfg in zip(tool_calls, config_list, strict=False):
-            state = self._extract_state(input, cfg)
+            state = self._extract_state(input)
             tool_runtime = ToolRuntime(
                 state=state,
                 tool_call_id=call["id"],

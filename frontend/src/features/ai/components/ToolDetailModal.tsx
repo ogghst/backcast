@@ -24,7 +24,7 @@ export const ToolDetailModal = ({ tool, open, onClose }: ToolDetailModalProps) =
         <Space size="middle">
           <span>{tool.name}</span>
           {tool.category && <Tag color="blue">{tool.category}</Tag>}
-          <Tag variant="borderless">v{tool.version}</Tag>
+          <Tag variant="outlined">v{tool.version}</Tag>
         </Space>
       }
       open={open}

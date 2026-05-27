@@ -19,9 +19,9 @@ export type ProgressEntryCreate = {
      */
     progress_entry_id?: (string | null);
     /**
-     * ID of the cost element to track progress for
+     * ID of the work package to track progress for
      */
-    cost_element_id: string;
+    work_package_id: string;
     /**
      * Control date for the progress entry (when the progress was measured). Defaults to current time if not provided.
      */

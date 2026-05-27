@@ -4,9 +4,9 @@ import { SideBySideDiff } from "./SideBySideDiff";
 
 describe("SideBySideDiff Minimal", () => {
   it("should render without crashing", () => {
-    const mainData = { wbe_name: "Old Name" };
-    const branchData = { wbe_name: "New Name" };
-    const fieldLabels = { wbe_name: "WBE Name" };
+    const mainData = { wbs_element_name: "Old Name" };
+    const branchData = { wbs_element_name: "New Name" };
+    const fieldLabels = { wbs_element_name: "WBE Name" };
 
     const { container } = render(
       <SideBySideDiff

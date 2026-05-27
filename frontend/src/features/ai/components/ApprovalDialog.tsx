@@ -146,7 +146,7 @@ export const ApprovalDialog = ({
           {isCountingDown && displaySeconds !== null && (
             <Text
               type="secondary"
-              style={{ fontSize: token.fontSizeSM, fontWeight: token.fontWeightNormal }}
+              style={{ fontSize: token.fontSizeSM, fontWeight: 400 }}
             >
               Auto-expiring in {displaySeconds}s
             </Text>
@@ -154,7 +154,7 @@ export const ApprovalDialog = ({
           {isExpired && (
             <Text
               type="danger"
-              style={{ fontSize: token.fontSizeSM, fontWeight: token.fontWeightNormal }}
+              style={{ fontSize: token.fontSizeSM, fontWeight: 400 }}
             >
               Expired
             </Text>

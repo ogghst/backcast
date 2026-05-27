@@ -1,32 +1,19 @@
 /**
  * Design Token Type Declarations
  *
- * Extends Ant Design's theme types with custom design tokens.
- * This file augments the `GlobalToken` interface to include our custom tokens.
+ * Extends Ant Design's AliasToken interface with custom design tokens.
+ * We augment AliasToken (not GlobalToken) because GlobalToken is a type alias
+ * (AliasToken & ComponentTokenMap), and module augmentation only works with interfaces.
  *
- * Note: Due to Ant Design's ES module structure, we extend the interface here.
- * TypeScript may not always pick up these extensions when checking individual files.
+ * Since AliasToken is the base that feeds into GlobalToken, adding properties here
+ * makes them available on the token object returned by theme.useToken().
  */
 
-declare module "antd" {
-  export interface GlobalToken {
-    // === Spacing Scale ===
-    marginXS: number;
-    marginSM: number;
-    marginMD: number;
-    marginLG: number;
-    marginXL: number;
-    marginXXL: number;
-    paddingXS: number;
-    paddingSM: number;
-    paddingMD: number;
-    paddingLG: number;
-    paddingXL: number;
-
-    // === Typography Scale ===
+declare module "antd/es/theme/interface/alias" {
+  export interface AliasToken {
+    // === Typography Scale (custom) ===
     fontSizeXS: number;
     fontSizeSM: number;
-    fontSizeLG: number;
     fontSizeXL: number;
     fontSizeXXL: number;
     fontWeightNormal: number;
@@ -34,27 +21,11 @@ declare module "antd" {
     fontWeightSemiBold: number;
     fontWeightBold: number;
 
-    // === Status Colors ===
-    colorSuccess: string;
-    colorWarning: string;
-    colorError: string;
-    colorInfo: string;
-
-    // === Semantic Colors ===
-    colorTextSecondary: string;
-    colorTextTertiary: string;
-    colorBorderSecondary: string;
-
-    // === Chart Colors ===
+    // === Chart Colors (custom) ===
     colorChartPV: string;
     colorChartEV: string;
     colorChartAC: string;
     colorChartForecast: string;
     colorChartActual: string;
-
-    // === Border Radius Variants ===
-    borderRadiusSM: number;
-    borderRadiusLG: number;
-    borderRadiusXL: number;
   }
 }

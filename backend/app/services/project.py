@@ -20,10 +20,10 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
 )
 from app.core.versioning.enums import BranchMode
-from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
 from app.models.domain.user import User
-from app.models.domain.wbe import WBE
+from app.models.domain.wbs_element import WBSElement
+from app.models.domain.work_package import WorkPackage
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 
 if TYPE_CHECKING:
@@ -63,36 +63,50 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
     async def _compute_project_budget(
         self, project_id: UUID, branch: str = "main"
     ) -> Decimal:
-        """Compute project budget as sum of all cost element budgets.
+        """Compute project budget as sum of all work package budgets.
 
-        Joins WBE + CostElement to sum budget_amount across all WBEs
-        belonging to this project on the specified branch.
+        Joins WBSElement + ControlAccount + WorkPackage to sum budget_amount
+        across all WorkPackages belonging to this project on the specified branch.
 
         Args:
             project_id: Root project ID
             branch: Branch name (default: "main")
 
         Returns:
-            Sum of all cost element budgets in the project
+            Sum of all work package budgets in the project
         """
         from typing import cast
 
+        from app.models.domain.control_account import ControlAccount
+
         stmt = (
-            select(func.coalesce(func.sum(CostElement.budget_amount), Decimal("0")))
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            select(func.coalesce(func.sum(WorkPackage.budget_amount), Decimal("0")))
+            .join(
+                ControlAccount,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
+            .join(
+                WBSElement, ControlAccount.wbs_element_id == WBSElement.wbs_element_id
+            )
             .where(
-                WBE.project_id == project_id,
+                WBSElement.project_id == project_id,
                 is_current_version_on_branch(
-                    cast(Any, WBE).valid_time,
-                    WBE.branch,
+                    cast(Any, WBSElement).valid_time,
+                    WBSElement.branch,
                     branch,
-                    cast(Any, WBE).deleted_at,
+                    cast(Any, WBSElement).deleted_at,
                 ),
                 is_current_version_on_branch(
-                    cast(Any, CostElement).valid_time,
-                    CostElement.branch,
+                    cast(Any, ControlAccount).valid_time,
+                    ControlAccount.branch,
                     branch,
-                    cast(Any, CostElement).deleted_at,
+                    cast(Any, ControlAccount).deleted_at,
+                ),
+                is_current_version_on_branch(
+                    cast(Any, WorkPackage).valid_time,
+                    WorkPackage.branch,
+                    branch,
+                    cast(Any, WorkPackage).deleted_at,
                 ),
             )
         )
@@ -117,34 +131,49 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         """
         from typing import cast
 
+        from app.models.domain.control_account import ControlAccount
+
         if not projects:
             return projects
 
         # Batch query: compute budget for all projects at once
         stmt = (
             select(
-                WBE.project_id,
-                func.coalesce(func.sum(CostElement.budget_amount), Decimal("0")).label(
+                WBSElement.project_id,
+                func.coalesce(func.sum(WorkPackage.budget_amount), Decimal("0")).label(
                     "total_budget"
                 ),
             )
-            .join(CostElement, CostElement.wbe_id == WBE.wbe_id)
+            .join(
+                ControlAccount,
+                ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+            )
+            .join(
+                WorkPackage,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
             .where(
-                WBE.project_id.in_([p.project_id for p in projects]),
+                WBSElement.project_id.in_([p.project_id for p in projects]),
                 is_current_version_on_branch(
-                    cast(Any, WBE).valid_time,
-                    WBE.branch,
+                    cast(Any, WBSElement).valid_time,
+                    WBSElement.branch,
                     branch,
-                    cast(Any, WBE).deleted_at,
+                    cast(Any, WBSElement).deleted_at,
                 ),
                 is_current_version_on_branch(
-                    cast(Any, CostElement).valid_time,
-                    CostElement.branch,
+                    cast(Any, ControlAccount).valid_time,
+                    ControlAccount.branch,
                     branch,
-                    cast(Any, CostElement).deleted_at,
+                    cast(Any, ControlAccount).deleted_at,
+                ),
+                is_current_version_on_branch(
+                    cast(Any, WorkPackage).valid_time,
+                    WorkPackage.branch,
+                    branch,
+                    cast(Any, WorkPackage).deleted_at,
                 ),
             )
-            .group_by(WBE.project_id)
+            .group_by(WBSElement.project_id)
         )
 
         result = await self.session.execute(stmt)

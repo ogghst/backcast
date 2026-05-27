@@ -18,6 +18,7 @@ const CATEGORY_LABELS: Record<WidgetCategory, string> = {
   diagnostic: "Diagnostics",
   breakdown: "Breakdowns",
   action: "Actions",
+  settings: "Settings",
 };
 
 const CATEGORY_ORDER: WidgetCategory[] = [
@@ -26,6 +27,7 @@ const CATEGORY_ORDER: WidgetCategory[] = [
   "diagnostic",
   "breakdown",
   "action",
+  "settings",
 ];
 
 export interface WidgetPaletteProps {
@@ -139,8 +141,8 @@ export function WidgetPalette({ open, onClose }: WidgetPaletteProps) {
           <div key={group.category} style={{ marginBottom: token.paddingMD }}>
             <div
               style={{
-                fontSize: token.fontSizeXS,
-                fontWeight: token.fontWeightSemiBold,
+                fontSize: token.fontSizeSM,
+                fontWeight: 600,
                 color: token.colorTextSecondary,
                 marginBottom: token.paddingXS,
                 textTransform: "uppercase",
@@ -191,7 +193,7 @@ export function WidgetPalette({ open, onClose }: WidgetPaletteProps) {
                   </div>
                   <div
                     style={{
-                      fontSize: token.fontSizeXS,
+                      fontSize: token.fontSizeSM,
                       color: token.colorTextSecondary,
                       whiteSpace: "nowrap",
                       overflow: "hidden",

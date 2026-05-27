@@ -12,7 +12,7 @@ export type { DashboardContextValue };
  * @example
  * ```tsx
  * function MyWidget() {
- *   const { projectId, branch, wbeId } = useDashboardContext();
+ *   const { projectId, branch, wbsElementId } = useDashboardContext();
  *   // ...
  * }
  * ```

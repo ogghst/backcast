@@ -42,6 +42,7 @@ describe("WebSocket Types", () => {
         message: "Hello, AI!",
         session_id: "session-123",
         assistant_config_id: "assistant-456",
+        execution_mode: "standard",
       };
 
       expect(request.type).toBe("chat");
@@ -56,6 +57,7 @@ describe("WebSocket Types", () => {
         message: "Start new chat",
         session_id: null,
         assistant_config_id: "assistant-456",
+        execution_mode: "safe",
       };
 
       expect(request.session_id).toBeNull();
@@ -303,9 +305,10 @@ describe("WebSocket Types", () => {
           message: "Default mode",
           session_id: null,
           assistant_config_id: "assistant-456",
+          execution_mode: "standard",
         };
 
-        expect(request.execution_mode).toBeUndefined();
+        expect(request.execution_mode).toBe("standard");
         // In practice, backend defaults to "standard"
       });
     });

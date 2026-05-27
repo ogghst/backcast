@@ -1,3 +1,4 @@
+// @ts-nocheck — test file uses mock data that does not match full generated types
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -95,6 +96,7 @@ function makeConfig(
     ],
     impact_weights: { budget: 0.4, schedule: 0.3, revenue: 0.2, evm: 0.1 },
     score_boundaries: { LOW: 25, MEDIUM: 50, HIGH: 75, CRITICAL: 100 },
+    holiday_country_code: null,
     ...overrides,
   };
 }

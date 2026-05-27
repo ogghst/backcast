@@ -184,6 +184,7 @@ describe("AIProviderList", () => {
   });
 
   it("should toggle provider active status when switch clicked", async () => {
+    const user = userEvent.setup();
     render(<AIProviderList />, { wrapper });
 
     await waitFor(() => {

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { KPICards } from "./KPICards";
+import type { KPIScorecard } from "@/api/generated";
 
 describe("KPICards Component", () => {
   const mockKPIData: KPIScorecard = {

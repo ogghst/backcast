@@ -103,7 +103,7 @@ const ProjectHeaderComponent: FC<WidgetComponentProps<ProjectHeaderConfig>> = ({
                 {project.start_date && project.end_date && (
                   <Text
                     type="secondary"
-                    style={{ fontSize: token.fontSizeXS }}
+                    style={{ fontSize: token.fontSizeSM }}
                   >
                     –
                   </Text>

@@ -94,7 +94,7 @@ export const useCreateAIModel = (
   return useMutation({
     mutationFn: ({ providerId, data }: { providerId: string; data: AIModelCreate }) =>
       modelApi.create(providerId, data),
-    onSuccess: (data, variables) => {
+    onSuccess: (data, variables, ...args) => {
       // Invalidate models for this provider (both active and inactive)
       queryClient.invalidateQueries({
         queryKey: queryKeys.ai.models.list(variables.providerId, true),
@@ -110,7 +110,7 @@ export const useCreateAIModel = (
         queryKey: queryKeys.ai.models.list("all", false),
       });
       toast.success("AI model created successfully");
-      options?.onSuccess?.(data, variables, undefined);
+      options?.onSuccess?.(data, variables, ...args);
     },
     onError: (error, ...args) => {
       toast.error(`Error creating AI model: ${error.message}`);
@@ -138,7 +138,7 @@ export const useUpdateAIModel = (
   return useMutation({
     mutationFn: ({ providerId, modelId, data }) =>
       modelApi.update(providerId, modelId, data),
-    onSuccess: (data, variables) => {
+    onSuccess: (data, variables, ...args) => {
       // Invalidate models for this provider (both active and inactive)
       queryClient.invalidateQueries({
         queryKey: queryKeys.ai.models.list(variables.providerId, true),
@@ -154,7 +154,7 @@ export const useUpdateAIModel = (
         queryKey: queryKeys.ai.models.list("all", false),
       });
       toast.success("AI model updated successfully");
-      options?.onSuccess?.(data, variables, undefined);
+      options?.onSuccess?.(data, variables, ...args);
     },
     onError: (error, ...args) => {
       toast.error(`Error updating AI model: ${error.message}`);
@@ -178,7 +178,7 @@ export const useDeleteAIModel = (
   return useMutation({
     mutationFn: ({ providerId, modelId }: { providerId: string; modelId: string }) =>
       modelApi.delete(providerId, modelId),
-    onSuccess: (_, variables) => {
+    onSuccess: (_, variables, ...args) => {
       // Invalidate models for this provider (both active and inactive)
       queryClient.invalidateQueries({
         queryKey: queryKeys.ai.models.list(variables.providerId, true),
@@ -194,7 +194,7 @@ export const useDeleteAIModel = (
         queryKey: queryKeys.ai.models.list("all", false),
       });
       toast.success("AI model deleted successfully");
-      options?.onSuccess?.(_, variables, undefined);
+      options?.onSuccess?.(_, variables, ...args);
     },
     onError: (error, ...args) => {
       toast.error(`Error deleting AI model: ${error.message}`);

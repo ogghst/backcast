@@ -10,7 +10,7 @@ interface CostElementCardProps {
 }
 
 const formatCurrency = (val: number | null | undefined) =>
-  val ? `\u20AC${Number(val).toLocaleString()}` : "-";
+  val ? `€${Number(val).toLocaleString()}` : "-";
 
 export const CostElementCard = ({
   costElement,
@@ -20,14 +20,13 @@ export const CostElementCard = ({
   const navigate = useNavigate();
 
   const typeName =
-    costElement.cost_element_type_name ||
     typeNames[costElement.cost_element_type_id] ||
     "-";
 
   return (
     <EntityCard
-      title={costElement.name}
-      subtitle={costElement.code}
+      title={typeName}
+      subtitle={costElement.description || "EOC"}
       badge={<Tag>{typeName}</Tag>}
       onClick={() =>
         navigate(`/cost-elements/${costElement.cost_element_id}`)
@@ -43,22 +42,7 @@ export const CostElementCard = ({
           }}
         >
           <DollarOutlined />
-          <span>{formatCurrency(Number(costElement.budget_amount))}</span>
-        </div>
-      }
-      meta={
-        <div
-          style={{
-            display: "flex",
-            gap: token.marginSM,
-            flexWrap: "wrap",
-          }}
-        >
-          {costElement.branch && (
-            <Tag style={{ fontSize: token.fontSizeSM }}>
-              {costElement.branch}
-            </Tag>
-          )}
+          <span>{formatCurrency(Number(costElement.amount))}</span>
         </div>
       }
     />

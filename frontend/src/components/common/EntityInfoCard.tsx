@@ -38,7 +38,7 @@ export const EntityInfoCard: React.FC<EntityInfoCardProps> = ({
         <span
           style={{
             fontSize: token.fontSizeLG,
-            fontWeight: token.fontWeightSemiBold,
+            fontWeight: token.fontWeightStrong,
             color: token.colorText,
           }}
         >

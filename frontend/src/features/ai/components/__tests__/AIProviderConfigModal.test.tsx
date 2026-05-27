@@ -101,6 +101,7 @@ describe("AIProviderConfigModal", () => {
     onCancel: vi.fn(),
     providerId: "provider-1",
     providerName: "OpenAI",
+    providerType: "openai",
   };
 
   it("should render modal with provider name in title", () => {

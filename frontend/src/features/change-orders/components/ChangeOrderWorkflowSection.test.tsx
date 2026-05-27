@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ChangeOrderWorkflowSection } from "./ChangeOrderWorkflowSection";
 import type { ChangeOrderPublic } from "@/api/generated";
+import { ChangeOrderStatus } from "@/api/generated";
 
 // Mock the workflow hooks
 vi.mock("@/features/change-orders/hooks/useWorkflowActions", () => ({
@@ -56,7 +57,7 @@ const mockChangeOrder: ChangeOrderPublic = {
   change_order_id: "BR-123",
   code: "CO-2026-001",
   title: "Test Change Order",
-  status: "Draft",
+  status: ChangeOrderStatus.DRAFT,
   description: "Test description",
   justification: "Test justification",
   effective_date: "2026-01-15",
@@ -172,7 +173,7 @@ describe("ChangeOrderWorkflowSection", () => {
     // Arrange
     const { useWorkflowActions } = await import("@/features/change-orders/hooks/useWorkflowActions");
     const mockSubmit = vi.fn().mockResolvedValue({});
-    (useWorkflowActions as unknown).mockReturnValue({
+    (useWorkflowActions as ReturnType<typeof vi.fn>).mockReturnValue({
       submit: mockSubmit,
       approve: vi.fn(),
       reject: vi.fn(),

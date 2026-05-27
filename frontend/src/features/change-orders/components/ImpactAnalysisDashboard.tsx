@@ -47,7 +47,7 @@ export const ImpactAnalysisDashboard = ({
   } = useChangeOrder(changeOrderId, { enabled: !!changeOrderId });
 
   // Use the provided branchName prop, or fall back to the change order's branch_name
-  const actualBranchName = branchName || changeOrder?.branch_name;
+  const actualBranchName = branchName || (changeOrder?.branch_name ?? undefined);
 
   // Fetch impact analysis data (only when we have the branch name)
   const {

@@ -2,7 +2,7 @@ import { PieChartOutlined } from "@ant-design/icons";
 import { Typography, theme } from "antd";
 import type { FC } from "react";
 import { useDashboardContext } from "../context/useDashboardContext";
-import { useWorkPackageSummary } from "@/features/work-package/api/useWorkPackages";
+import { useCostEventSummary } from "@/features/cost-events/api/useCostEvents";
 import { useProject } from "@/features/projects/api/useProjects";
 import { WidgetShell } from "../components/WidgetShell";
 import { registerWidget, widgetTypeId } from "..";
@@ -27,7 +27,7 @@ const COQCategoryBreakdownComponent: FC<WidgetComponentProps<COQCategoryBreakdow
   const { token } = theme.useToken();
   const context = useDashboardContext();
 
-  const { data: summary, isLoading: summaryLoading, error: summaryError, refetch: refetchSummary } = useWorkPackageSummary(
+  const { data: summary, isLoading: summaryLoading, error: summaryError, refetch: refetchSummary } = useCostEventSummary(
     context.projectId,
   );
   const { data: project, isLoading: projectLoading } = useProject(context.projectId);
@@ -37,10 +37,10 @@ const COQCategoryBreakdownComponent: FC<WidgetComponentProps<COQCategoryBreakdow
 
   const categories = summary
     ? [
-        { name: "Prevention", value: parseFloat(summary.prevention_cost) || 0, color: token.colorPrimary },
-        { name: "Appraisal", value: parseFloat(summary.appraisal_cost) || 0, color: token.colorInfo },
-        { name: "Internal Failure", value: parseFloat(summary.internal_failure_cost) || 0, color: token.colorWarning },
-        { name: "External Failure", value: parseFloat(summary.external_failure_cost) || 0, color: token.colorError },
+        { name: "Prevention", value: parseFloat(summary.prevention_cost ?? "0") || 0, color: token.colorPrimary },
+        { name: "Appraisal", value: parseFloat(summary.appraisal_cost ?? "0") || 0, color: token.colorInfo },
+        { name: "Internal Failure", value: parseFloat(summary.internal_failure_cost ?? "0") || 0, color: token.colorWarning },
+        { name: "External Failure", value: parseFloat(summary.external_failure_cost ?? "0") || 0, color: token.colorError },
       ]
     : [] as { name: string; value: number; color: string }[];
 
@@ -117,7 +117,7 @@ const COQCategoryBreakdownComponent: FC<WidgetComponentProps<COQCategoryBreakdow
                   <Text strong style={{ fontSize: token.fontSizeLG, display: "block" }}>
                     {coqPercent}%
                   </Text>
-                  <Text type="secondary" style={{ fontSize: token.fontSizeXS }}>
+                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                     of {formatCompactCurrency(total)}
                   </Text>
                 </div>
@@ -127,7 +127,7 @@ const COQCategoryBreakdownComponent: FC<WidgetComponentProps<COQCategoryBreakdow
                   {categories.map((cat) => (
                     <div key={cat.name} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
-                      <Text style={{ fontSize: token.fontSizeXS }}>{cat.name}</Text>
+                      <Text style={{ fontSize: token.fontSizeSM }}>{cat.name}</Text>
                     </div>
                   ))}
                 </div>

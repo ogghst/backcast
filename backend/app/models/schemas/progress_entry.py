@@ -31,8 +31,8 @@ class ProgressEntryCreate(ProgressEntryBase):
         description="Root Progress Entry ID (internal use only for seeding)",
         exclude=True,  # Exclude from OpenAPI docs
     )
-    cost_element_id: UUID = Field(
-        ..., description="ID of the cost element to track progress for"
+    work_package_id: UUID = Field(
+        ..., description="ID of the work package to track progress for"
     )
     control_date: datetime | None = Field(
         None,
@@ -64,7 +64,7 @@ class ProgressEntryRead(ProgressEntryBase, TemporalComputedMixin):
 
     id: UUID
     progress_entry_id: UUID
-    cost_element_id: UUID
+    work_package_id: UUID
     created_by: UUID
     valid_time: TemporalRange
     transaction_time: TemporalRange

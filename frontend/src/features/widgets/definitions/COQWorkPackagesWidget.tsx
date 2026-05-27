@@ -4,10 +4,10 @@ import { type FC, useMemo } from "react";
 import type { ColumnsType } from "antd/es/table";
 import { useDashboardContext } from "../context/useDashboardContext";
 import {
-  useWorkPackages,
+  useCostEvents,
   COQ_CATEGORY_OPTIONS,
-} from "@/features/work-package/api/useWorkPackages";
-import type { WorkPackageRead } from "@/features/work-package/api/useWorkPackages";
+} from "@/features/cost-events/api/useCostEvents";
+import type { CostEventRead } from "@/api/generated/models/CostEventRead";
 import { formatCurrency } from "@/components/explorer/shared/formatters";
 import { WidgetShell } from "../components/WidgetShell";
 import { registerWidget, widgetTypeId } from "..";
@@ -36,7 +36,7 @@ const COQWorkPackagesComponent: FC<
   const { token } = theme.useToken();
   const context = useDashboardContext();
 
-  const { data, isLoading, error, refetch } = useWorkPackages({
+  const { data, isLoading, error, refetch } = useCostEvents({
     project_id: context.projectId,
     quality_only: true,
     page: 1,
@@ -45,7 +45,7 @@ const COQWorkPackagesComponent: FC<
 
   const items = data?.items ?? [];
 
-  const columns = useMemo<ColumnsType<WorkPackageRead>>(
+  const columns = useMemo<ColumnsType<CostEventRead>>(
     () => [
       {
         title: "Name",
@@ -129,7 +129,7 @@ const COQWorkPackagesComponent: FC<
       widgetType={widgetType}
       dashboardName={dashboardName}
     >
-      <Table<WorkPackageRead>
+      <Table<CostEventRead>
         columns={columns}
         dataSource={items}
         rowKey="id"

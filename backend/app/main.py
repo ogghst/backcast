@@ -20,20 +20,22 @@ from app.api.routes import (
     auth,
     change_order_config,
     change_orders,
+    control_accounts,
     cost_element_types,
     cost_elements,
+    cost_event_types,
+    cost_events,
     cost_registration_attachments,
     cost_registrations,
     dashboard,
     dashboard_layouts,
-    departments,
     documents,
     evm,
     forecasts,
     gantt,
     mcp_servers,
     notifications,
-    package_types,
+    organizational_units,
     progress_entries,
     project_budget_settings,
     projects,
@@ -42,7 +44,7 @@ from app.api.routes import (
     search,
     user_role_assignments,
     users,
-    wbes,
+    wbs_elements,
     work_packages,
 )
 from app.core.branching.exceptions import BranchLockedException
@@ -94,12 +96,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from app.core.config import settings as app_settings
 
         if app_settings.RBAC_PROVIDER == "database":
-            from app.db.seeder import DataSeeder
-
-            seeder = DataSeeder()
-            await seeder.seed_rbac_roles(session)
-            await seeder.seed_user_role_assignments(session)
-            await session.commit()
+            # NOTE: Old DataSeeder has been removed during ANSI-748 restructuring.
+            # RBAC seeding is now handled via seed JSON files in the seed/ directory.
+            pass
 
             from app.core.rbac_unified import (
                 get_unified_rbac_service,
@@ -111,6 +110,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 await unified_svc.refresh_permissions_cache()
 
     logger.info("[STARTUP] rbac_init OK %.0fms", (_time.time() - _t0) * 1000)
+
+    # Seed users and RBAC (idempotent, safe on every startup)
+    try:
+        _t0 = _time.time()
+        from app.db.seed_users_rbac import seed_users_and_rbac
+
+        async with async_session_maker() as session:
+            await seed_users_and_rbac(session)
+            await session.commit()
+        logger.info("[STARTUP] users_rbac_seed OK %.0fms", (_time.time() - _t0) * 1000)
+    except Exception:
+        logger.warning("[STARTUP] users_rbac_seed FAILED", exc_info=True)
 
     # Notify admins of system startup
     from app.core.notifications import notifier
@@ -353,9 +364,9 @@ async def root() -> dict[str, str]:
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["Users"])
 app.include_router(
-    departments.router,
-    prefix=f"{settings.API_V1_STR}/departments",
-    tags=["Departments"],
+    organizational_units.router,
+    prefix=f"{settings.API_V1_STR}/organizational-units",
+    tags=["Organizational Units"],
 )
 app.include_router(
     projects.router,
@@ -373,9 +384,14 @@ app.include_router(
     tags=["Project Budget Settings"],
 )
 app.include_router(
-    wbes.router,
-    prefix=f"{settings.API_V1_STR}/wbes",
-    tags=["WBEs"],
+    wbs_elements.router,
+    prefix=f"{settings.API_V1_STR}/wbs-elements",
+    tags=["WBS Elements"],
+)
+app.include_router(
+    control_accounts.router,
+    prefix=f"{settings.API_V1_STR}/control-accounts",
+    tags=["Control Accounts"],
 )
 app.include_router(
     cost_element_types.router,
@@ -383,14 +399,19 @@ app.include_router(
     tags=["Cost Element Types"],
 )
 app.include_router(
-    package_types.router,
-    prefix=f"{settings.API_V1_STR}/package-types",
-    tags=["Package Types"],
+    cost_event_types.router,
+    prefix=f"{settings.API_V1_STR}/cost-event-types",
+    tags=["Cost Event Types"],
 )
 app.include_router(
     cost_elements.router,
     prefix=f"{settings.API_V1_STR}/cost-elements",
     tags=["Cost Elements"],
+)
+app.include_router(
+    cost_events.router,
+    prefix=f"{settings.API_V1_STR}/cost-events",
+    tags=["Cost Events"],
 )
 app.include_router(
     cost_registrations.router,
@@ -425,7 +446,7 @@ app.include_router(
 app.include_router(
     work_packages.router,
     prefix=f"{settings.API_V1_STR}/work-packages",
-    tags=["Work Packages"],
+    tags=["Work Packages (PMI)"],
 )
 app.include_router(
     evm.router,

@@ -19,37 +19,14 @@ import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import type { PaginatedResponse } from "@/types/api";
 import { queryKeys } from "@/api/queryKeys";
 import { ScheduleBaselinesService } from "@/api/generated";
+import type { ScheduleBaselineRead as GeneratedScheduleBaselineRead } from "@/api/generated/models/ScheduleBaselineRead";
+import type { ScheduleBaselineCreate as GeneratedScheduleBaselineCreate } from "@/api/generated/models/ScheduleBaselineCreate";
+import type { ScheduleBaselineUpdate as GeneratedScheduleBaselineUpdate } from "@/api/generated/models/ScheduleBaselineUpdate";
 
-// Domain types for Schedule Baseline (matching backend schemas)
-export interface ScheduleBaselineRead {
-  id: string;
-  schedule_baseline_id: string;
-  cost_element_id: string;
-  name: string;
-  start_date: string; // ISO 8601 datetime
-  end_date: string; // ISO 8601 datetime
-  progression_type: "LINEAR" | "GAUSSIAN" | "LOGARITHMIC";
-  description?: string;
-  created_by: string;
-  branch: string;
-}
-
-export interface ScheduleBaselineCreate {
-  name: string;
-  start_date: string; // ISO 8601 datetime
-  end_date: string; // ISO 8601 datetime
-  progression_type?: "LINEAR" | "GAUSSIAN" | "LOGARITHMIC";
-  description?: string;
-  cost_element_id: string;
-}
-
-export interface ScheduleBaselineUpdate {
-  name?: string;
-  start_date?: string;
-  end_date?: string;
-  progression_type?: "LINEAR" | "GAUSSIAN" | "LOGARITHMIC";
-  description?: string;
-}
+// Re-export generated types for consumers
+export type ScheduleBaselineRead = GeneratedScheduleBaselineRead;
+export type ScheduleBaselineCreate = GeneratedScheduleBaselineCreate;
+export type ScheduleBaselineUpdate = GeneratedScheduleBaselineUpdate;
 
 // Planned Value calculation response
 export interface PlannedValueResponse {

@@ -2,16 +2,17 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { EVMSummaryConfigForm } from "./EVMSummaryConfigForm";
+import { EntityType } from "@/features/evm/types";
 
 function renderWithTheme(ui: React.ReactElement) {
   return render(<ConfigProvider>{ui}</ConfigProvider>);
 }
 
 describe("EVMSummaryConfigForm", () => {
-  it("renders Entity Type select with PROJECT/WBE/COST_ELEMENT options", () => {
+  it("renders Entity Type select with PROJECT/WBS_ELEMENT/COST_ELEMENT options", () => {
     const onChange = vi.fn();
     renderWithTheme(
-      <EVMSummaryConfigForm config={{ entityType: "PROJECT" }} onChange={onChange} />,
+      <EVMSummaryConfigForm config={{ entityType: EntityType.PROJECT }} onChange={onChange} />,
     );
 
     expect(screen.getByText("Entity Type")).toBeInTheDocument();
@@ -22,11 +23,11 @@ describe("EVMSummaryConfigForm", () => {
   it("shows correct initial value from config prop", () => {
     const onChange = vi.fn();
     renderWithTheme(
-      <EVMSummaryConfigForm config={{ entityType: "WBE" }} onChange={onChange} />,
+      <EVMSummaryConfigForm config={{ entityType: EntityType.WBS_ELEMENT }} onChange={onChange} />,
     );
 
     // Ant Design Select renders the selected value as visible text
-    expect(screen.getByText("WBE (Work Breakdown Element)")).toBeInTheDocument();
+    expect(screen.getByText("WBS Element")).toBeInTheDocument();
   });
 
   it("defaults to PROJECT when entityType is not provided", () => {
@@ -41,7 +42,7 @@ describe("EVMSummaryConfigForm", () => {
   it("calls onChange with correct partial update when selection changes", () => {
     const onChange = vi.fn();
     renderWithTheme(
-      <EVMSummaryConfigForm config={{ entityType: "PROJECT" }} onChange={onChange} />,
+      <EVMSummaryConfigForm config={{ entityType: EntityType.PROJECT }} onChange={onChange} />,
     );
 
     // Open the select dropdown by clicking on it
@@ -52,6 +53,6 @@ describe("EVMSummaryConfigForm", () => {
     const costElementOption = screen.getByText("Cost Element");
     fireEvent.click(costElementOption);
 
-    expect(onChange).toHaveBeenCalledWith({ entityType: "COST_ELEMENT" });
+    expect(onChange).toHaveBeenCalledWith({ entityType: EntityType.COST_ELEMENT });
   });
 });

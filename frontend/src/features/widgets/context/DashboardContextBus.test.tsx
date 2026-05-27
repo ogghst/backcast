@@ -28,7 +28,7 @@ function ContextReader() {
   return (
     <div>
       <span data-testid="project-id">{ctx.projectId}</span>
-      <span data-testid="wbe-id">{ctx.wbeId ?? "undefined"}</span>
+      <span data-testid="wbe-id">{ctx.wbsElementId ?? "undefined"}</span>
       <span data-testid="cost-element-id">
         {ctx.costElementId ?? "undefined"}
       </span>
@@ -44,7 +44,7 @@ function WbeIdSetter() {
   const ctx = useDashboardContext();
   return (
     <div>
-      <span data-testid="wbe-id">{ctx.wbeId ?? "undefined"}</span>
+      <span data-testid="wbe-id">{ctx.wbsElementId ?? "undefined"}</span>
       <button
         data-testid="set-wbe"
         onClick={() => ctx.setWbeId("wbe-123")}
@@ -158,7 +158,7 @@ describe("useDashboardContext", () => {
         <div>
           <span data-testid="captor-project-id">{ctx.projectId}</span>
           <span data-testid="captor-wbe-id">
-            {ctx.wbeId ?? "undefined"}
+            {ctx.wbsElementId ?? "undefined"}
           </span>
           <span data-testid="captor-ce-id">
             {ctx.costElementId ?? "undefined"}

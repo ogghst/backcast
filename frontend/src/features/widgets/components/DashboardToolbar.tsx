@@ -38,7 +38,7 @@ const { Text } = Typography;
  */
 export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
   const { token } = theme.useToken();
-  const { message: messageApi, contextHolder } = message.useMessage();
+  const [messageApi, contextHolder] = message.useMessage();
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
   // Fallback in case messageApi is undefined (shouldn't happen with proper hook usage)
@@ -102,7 +102,7 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
 
   // Handle template selection
   const handleTemplateSelect: MenuProps["onClick"] = useCallback(
-    (info) => {
+    (info: { key: string }) => {
       const templateId = info.key;
       const template = templates.find((t) => t.id === templateId);
       if (template) {
@@ -232,7 +232,6 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
                 menu={{
                   items: templateMenuItems,
                   onClick: handleTemplateSelect,
-                  loading: templatesLoading,
                 }}
                 trigger={["click"]}
                 disabled={templatesLoading || templates.length === 0}
@@ -324,7 +323,6 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
                 menu={{
                   items: templateMenuItems,
                   onClick: handleTemplateSelect,
-                  loading: templatesLoading,
                 }}
                 trigger={["click"]}
                 disabled={templatesLoading || templates.length === 0}

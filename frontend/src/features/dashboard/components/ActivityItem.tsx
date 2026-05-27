@@ -45,7 +45,7 @@ const getEntityUrl = (
   entityId: string,
   projectId?: string | null
 ): string => {
-  if ((entityType === "wbe" || entityType === "change_order") && projectId) {
+  if ((entityType === "wbs_element" || entityType === "change_order") && projectId) {
     return `/projects/${projectId}`;
   }
   const prefix = ENTITY_URL_MAP[entityType];

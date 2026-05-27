@@ -1,7 +1,7 @@
 """Forecast, Cost Registration, and Progress Entry tool template.
 
 This template provides AI tools for three service layers:
-1. Forecast Service - Branchable entity for cost element forecasts
+1. Forecast Service - Branchable entity for cost element (EOC) forecasts
 2. Cost Registration Service - Versionable entity for actual cost tracking
 3. Progress Entry Service - Versionable entity for work progress tracking
 
@@ -9,7 +9,7 @@ The key principle is:
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
 Service Layers:
-- Forecast: Estimate at Complete (EAC) for cost elements (branchable)
+- Forecast: Estimate at Complete (EAC) for cost elements / EOCs (branchable)
 - Cost Registration: Actual costs incurred against budget (versionable)
 - Progress Entry: Work completion percentage tracking (versionable)
 
@@ -365,13 +365,35 @@ async def create_progress_entry(
     log_temporal_context("create_progress_entry", context)
 
     try:
+        from typing import Any, cast
+
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
         from app.models.schemas.progress_entry import ProgressEntryCreate
         from app.services.progress_entry_service import ProgressEntryService
+
+        # Resolve work_package_id from cost_element_id
+        ce_stmt = (
+            select(CostElement.work_package_id)
+            .where(
+                CostElement.cost_element_id == UUID(cost_element_id),
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        ce_result = await context.session.execute(ce_stmt)
+        wp_id = ce_result.scalar_one_or_none()
+        if wp_id is None:
+            return add_temporal_metadata(
+                {"error": f"Cost element {cost_element_id} not found"}, context
+            )
 
         service = ProgressEntryService(context.session)
 
         progress_in = ProgressEntryCreate(
-            cost_element_id=UUID(cost_element_id),
+            work_package_id=wp_id,
             progress_percentage=Decimal(str(progress_percentage)),
             notes=notes,
         )
@@ -384,7 +406,7 @@ async def create_progress_entry(
 
         result = {
             "progress_entry_id": str(progress.progress_entry_id),
-            "cost_element_id": str(progress.cost_element_id),
+            "work_package_id": str(progress.work_package_id),
             "progress_percentage": float(progress.progress_percentage)
             if progress.progress_percentage
             else None,
@@ -428,8 +450,30 @@ async def get_cost_element_details(
     log_temporal_context("get_cost_element_details", context)
 
     try:
+        from typing import Any, cast
+
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
         from app.services.cost_registration_service import CostRegistrationService
         from app.services.forecast_service import ForecastService
+
+        # Resolve work_package_id from cost_element_id
+        ce_stmt = (
+            select(CostElement.work_package_id)
+            .where(
+                CostElement.cost_element_id == UUID(cost_element_id),
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        ce_result = await context.session.execute(ce_stmt)
+        wp_id = ce_result.scalar_one_or_none()
+        if wp_id is None:
+            return add_temporal_metadata(
+                {"error": f"Cost element {cost_element_id} not found"}, context
+            )
 
         forecast_service = ForecastService(context.session)
         cost_service = CostRegistrationService(context.session)
@@ -438,8 +482,8 @@ async def get_cost_element_details(
         # Get forecast data
         forecast_data = None
         try:
-            forecast = await forecast_service.get_for_cost_element(
-                cost_element_id=UUID(cost_element_id),
+            forecast = await forecast_service.get_for_work_package(
+                work_package_id=wp_id,
                 branch=branch,
             )
             if forecast:
@@ -459,7 +503,7 @@ async def get_cost_element_details(
 
         # Get budget status
         budget_status = await cost_service.get_budget_status(
-            cost_element_id=UUID(cost_element_id),
+            work_package_id=wp_id,
             as_of=context.as_of,
             branch=branch,
         )
@@ -573,7 +617,29 @@ async def get_progress_data(
     log_temporal_context("get_progress_data", context)
 
     try:
+        from typing import Any, cast
+
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
         from app.services.progress_entry_service import ProgressEntryService
+
+        # Resolve work_package_id from cost_element_id
+        ce_stmt = (
+            select(CostElement.work_package_id)
+            .where(
+                CostElement.cost_element_id == UUID(cost_element_id),
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        ce_result = await context.session.execute(ce_stmt)
+        wp_id = ce_result.scalar_one_or_none()
+        if wp_id is None:
+            return add_temporal_metadata(
+                {"error": f"Cost element {cost_element_id} not found"}, context
+            )
 
         service = ProgressEntryService(context.session)
 
@@ -592,7 +658,7 @@ async def get_progress_data(
 
             single_result: dict[str, Any] = {
                 "progress_entry_id": str(progress.progress_entry_id),
-                "cost_element_id": str(progress.cost_element_id),
+                "work_package_id": str(progress.work_package_id),
                 "progress_percentage": float(progress.progress_percentage)
                 if progress.progress_percentage
                 else None,
@@ -603,7 +669,7 @@ async def get_progress_data(
         # If history is requested, return full paginated history
         if include_history:
             progress_entries, total = await service.get_progress_history(
-                cost_element_id=UUID(cost_element_id),
+                work_package_id=wp_id,
                 skip=skip,
                 limit=limit,
                 as_of=context.as_of,
@@ -613,7 +679,7 @@ async def get_progress_data(
                 "progress_entries": [
                     {
                         "progress_entry_id": str(entry.progress_entry_id),
-                        "cost_element_id": str(entry.cost_element_id),
+                        "work_package_id": str(entry.work_package_id),
                         "progress_percentage": float(entry.progress_percentage)
                         if entry.progress_percentage
                         else None,
@@ -631,13 +697,13 @@ async def get_progress_data(
         latest_data = None
         try:
             progress = await service.get_latest_progress(
-                cost_element_id=UUID(cost_element_id),
+                work_package_id=wp_id,
                 as_of=context.as_of,
             )
             if progress:
                 latest_data = {
                     "progress_entry_id": str(progress.progress_entry_id),
-                    "cost_element_id": str(progress.cost_element_id),
+                    "work_package_id": str(progress.work_package_id),
                     "progress_percentage": float(progress.progress_percentage)
                     if progress.progress_percentage
                     else None,
@@ -647,7 +713,7 @@ async def get_progress_data(
             latest_data = None
 
         recent_entries, total = await service.get_progress_history(
-            cost_element_id=UUID(cost_element_id),
+            work_package_id=wp_id,
             skip=skip,
             limit=limit,
             as_of=context.as_of,
@@ -658,7 +724,7 @@ async def get_progress_data(
             "progress_entries": [
                 {
                     "progress_entry_id": str(entry.progress_entry_id),
-                    "cost_element_id": str(entry.cost_element_id),
+                    "work_package_id": str(entry.work_package_id),
                     "progress_percentage": float(entry.progress_percentage)
                     if entry.progress_percentage
                     else None,
@@ -845,7 +911,7 @@ async def batch_create_progress_entries(
 
         for item in items:
             progress_in = ProgressEntryCreate(
-                cost_element_id=UUID(item["cost_element_id"]),
+                work_package_id=UUID(item["work_package_id"]),
                 progress_percentage=_Decimal(str(item["progress_percentage"])),
                 notes=item.get("notes"),
             )
@@ -858,7 +924,7 @@ async def batch_create_progress_entries(
             results.append(
                 {
                     "progress_entry_id": str(progress.progress_entry_id),
-                    "cost_element_id": str(progress.cost_element_id),
+                    "work_package_id": str(progress.work_package_id),
                     "progress_percentage": float(progress.progress_percentage)
                     if progress.progress_percentage
                     else None,

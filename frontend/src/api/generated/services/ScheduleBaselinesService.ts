@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BranchMode } from '../models/BranchMode';
+import { BranchMode } from '../models/BranchMode';
 import type { ScheduleBaselineCreate } from '../models/ScheduleBaselineCreate';
 import type { ScheduleBaselineRead } from '../models/ScheduleBaselineRead';
 import type { ScheduleBaselineUpdate } from '../models/ScheduleBaselineUpdate';
@@ -29,7 +29,7 @@ export class ScheduleBaselinesService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
         asOf?: (string | null),
         costElementId?: (string | null),
     ): CancelablePromise<any> {

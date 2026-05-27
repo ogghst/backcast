@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { EVMCompactSCurve } from "../EVMCompactSCurve";
-import { EVMTimeSeriesResponse } from "../../types";
+import { EVMTimeSeriesResponse, EVMTimeSeriesGranularity } from "../../types";
 
 vi.mock("echarts-for-react", () => ({
   __esModule: true,
@@ -41,7 +41,7 @@ vi.mock("antd", async () => {
 });
 
 const mockTimeSeries: EVMTimeSeriesResponse = {
-  granularity: "week" as const,
+  granularity: EVMTimeSeriesGranularity.WEEK,
   points: [
     { date: "2025-01-06", pv: 200000, ev: 180000, ac: 190000, forecast: 185000, actual: 188000, cpi: 0.95, spi: 0.9 },
     { date: "2025-01-13", pv: 400000, ev: 360000, ac: 380000, forecast: 370000, actual: 375000, cpi: 0.95, spi: 0.9 },

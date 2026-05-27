@@ -49,7 +49,7 @@ export const ProjectCard = ({
       title={project.name}
       subtitle={project.code}
       badge={
-        <Tag color={statusColorMap[project.status] || "default"}>
+        <Tag color={statusColorMap[project.status ?? ""] || "default"}>
           {project.status}
         </Tag>
       }

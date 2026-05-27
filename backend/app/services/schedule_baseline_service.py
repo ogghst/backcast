@@ -1,6 +1,8 @@
 """Schedule Baseline Service - branchable entity management.
 
 Service for managing Schedule Baselines with full branching and versioning support.
+Schedule baselines are now associated with Work Packages (PMI budget holders)
+rather than Cost Elements. The WorkPackage model owns schedule_baseline_id.
 """
 
 from datetime import datetime
@@ -11,9 +13,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
-from app.core.versioning.commands import CreateVersionCommand, LinkCostElementCommand
-from app.models.domain.cost_element import CostElement
+from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.schedule_baseline import ScheduleBaseline
+from app.models.domain.work_package import WorkPackage
 from app.models.protocols import VersionableProtocol
 from app.models.schemas.schedule_baseline import (
     ScheduleBaselineCreate,
@@ -22,28 +24,28 @@ from app.models.schemas.schedule_baseline import (
 
 
 class BaselineAlreadyExistsError(Exception):
-    """Exception raised when attempting to create a duplicate schedule baseline for a cost element.
+    """Exception raised when attempting to create a duplicate schedule baseline for a work package.
 
-    Each cost element can have exactly one schedule baseline. This exception is raised when
-    attempting to create a second baseline for a cost element that already has one.
+    Each work package can have exactly one schedule baseline. This exception is raised when
+    attempting to create a second baseline for a work package that already has one.
 
     Attributes:
-        cost_element_id: The UUID of the cost element that already has a baseline
+        work_package_id: The UUID of the work package that already has a baseline
         branch: The branch where the duplicate was detected (default: "main")
     """
 
-    def __init__(self, cost_element_id: UUID, branch: str = "main") -> None:
-        """Initialize the exception with cost element ID and branch.
+    def __init__(self, work_package_id: UUID, branch: str = "main") -> None:
+        """Initialize the exception with work package ID and branch.
 
         Args:
-            cost_element_id: The UUID of the cost element with existing baseline
+            work_package_id: The UUID of the work package with existing baseline
             branch: The branch where the duplicate was detected
         """
-        self.cost_element_id = cost_element_id
+        self.work_package_id = work_package_id
         self.branch = branch
         super().__init__(
-            f"Schedule baseline already exists for cost element {cost_element_id} "
-            f"in branch '{branch}'. Each cost element can have exactly one baseline."
+            f"Schedule baseline already exists for work package {work_package_id} "
+            f"in branch '{branch}'. Each work package can have exactly one baseline."
         )
 
 
@@ -87,35 +89,6 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         """
         data["schedule_baseline_id"] = root_id
 
-        # 1. Validate Cost Element existence (Application-level Integrity)
-        if "cost_element_id" in data and data["cost_element_id"]:
-            ce_exists = await self.session.execute(
-                select(CostElement.id)
-                .where(
-                    CostElement.cost_element_id == data["cost_element_id"],
-                    CostElement.branch == branch,
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
-                )
-                .limit(1)
-            )
-            if not ce_exists.scalar_one_or_none():
-                # Fallback to main branch
-                ce_exists_main = await self.session.execute(
-                    select(CostElement.id)
-                    .where(
-                        CostElement.cost_element_id == data["cost_element_id"],
-                        CostElement.branch == "main",
-                        func.upper(cast(Any, CostElement).valid_time).is_(None),
-                        cast(Any, CostElement).deleted_at.is_(None),
-                    )
-                    .limit(1)
-                )
-                if not ce_exists_main.scalar_one_or_none():
-                    raise ValueError(
-                        f"Cost Element {data['cost_element_id']} not found on branch {branch} or main"
-                    )
-
         cmd = CreateVersionCommand(
             entity_class=cast(type[VersionableProtocol], ScheduleBaseline),
             root_id=root_id,
@@ -139,17 +112,16 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             create_schema: ScheduleBaselineCreate schema with entity data
             actor_id: User creating the baseline
             branch: Branch name (default: "main")
+            control_date: Optional control date
 
         Returns:
             Created ScheduleBaseline
         """
-        # Extract control_date from schema if present
         control_date = getattr(create_schema, "control_date", None)
         from uuid import uuid4
 
         root_id = create_schema.schedule_baseline_id or uuid4()
 
-        # Exclude fields handled explicitly
         exclude_fields = {"schedule_baseline_id", "branch", "control_date"}
         data = create_schema.model_dump(exclude_unset=True, exclude=exclude_fields)
 
@@ -196,18 +168,15 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             branch: The branch to update (default: "main")
             control_date: Optional control date for valid_time
         """
-        # Use control_date from method argument if provided, otherwise from schema
         if control_date is None:
             control_date = baseline_in.control_date
         branch = baseline_in.branch or "main"
 
-        # Dump update data and exclude metadata (not entity fields)
         update_data = baseline_in.model_dump(
             exclude_unset=True,
             exclude={"control_date", "branch"},
         )
 
-        # Custom command class to handle branch filtering
         from app.core.versioning.commands import UpdateVersionCommand
 
         class ScheduleBaselineUpdateCommand(UpdateVersionCommand[ScheduleBaseline]):  # type: ignore[type-var,unused-ignore]
@@ -273,41 +242,38 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             control_date=control_date,
         )
 
-    async def get_for_cost_element(
-        self, cost_element_id: UUID, branch: str = "main"
+    async def get_for_work_package(
+        self, work_package_id: UUID, branch: str = "main"
     ) -> ScheduleBaseline | None:
-        """Get the schedule baseline for a specific cost element.
+        """Get the schedule baseline for a specific work package.
 
-        Uses the inverted relationship (cost_elements.schedule_baseline_id)
-        to find the single baseline associated with the cost element.
+        Uses the inverted relationship (work_packages.schedule_baseline_id)
+        to find the single baseline associated with the work package.
 
         Args:
-            cost_element_id: The UUID of the cost element
+            work_package_id: The UUID of the work package
             branch: Branch name (default: "main")
 
         Returns:
             ScheduleBaseline if found, None otherwise
         """
-        # First, get the cost element's schedule_baseline_id
-        ce_stmt = select(CostElement.schedule_baseline_id).where(
-            CostElement.cost_element_id == cost_element_id,
-            CostElement.branch == branch,
-            func.upper(cast(Any, CostElement).valid_time).is_(None),
-            cast(Any, CostElement).deleted_at.is_(None),
+        wp_stmt = select(WorkPackage.schedule_baseline_id).where(
+            WorkPackage.work_package_id == work_package_id,
+            WorkPackage.branch == branch,
+            func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+            cast(Any, WorkPackage).deleted_at.is_(None),
         )
-        ce_result = await self.session.execute(ce_stmt)
-        schedule_baseline_id = ce_result.scalar_one_or_none()
+        wp_result = await self.session.execute(wp_stmt)
+        schedule_baseline_id = wp_result.scalar_one_or_none()
 
-        # If no baseline ID, return None
         if schedule_baseline_id is None:
             return None
 
-        # Get the baseline using the ID
         return await self.get_by_id(schedule_baseline_id, branch=branch)
 
     async def ensure_exists(
         self,
-        cost_element_id: UUID,
+        work_package_id: UUID,
         actor_id: UUID,
         branch: str = "main",
         control_date: datetime | None = None,
@@ -315,12 +281,12 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         end_date: datetime | None = None,
         progression_type: str | None = None,
     ) -> ScheduleBaseline:
-        """Ensure a schedule baseline exists for the cost element.
+        """Ensure a schedule baseline exists for the work package.
 
         Creates a default baseline if none exists, otherwise returns the existing one.
 
         Args:
-            cost_element_id: The UUID of the cost element
+            work_package_id: The UUID of the work package
             actor_id: User creating the baseline if needed
             branch: Branch name (default: "main")
             control_date: Optional control date for valid_time
@@ -331,12 +297,10 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         Returns:
             ScheduleBaseline (existing or newly created)
         """
-        # Check if baseline already exists
-        existing = await self.get_for_cost_element(cost_element_id, branch=branch)
+        existing = await self.get_for_work_package(work_package_id, branch=branch)
         if existing is not None:
             return existing
 
-        # Create default baseline
         from datetime import UTC, timedelta
         from uuid import uuid4
 
@@ -352,26 +316,30 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             actor_id=actor_id,
             control_date=control_date,
             branch=branch,
-            cost_element_id=cost_element_id,
             name="Default Schedule",
             start_date=effective_start,
             end_date=effective_end,
             progression_type=effective_progression,
         )
 
-        # Use Command to link cost element to baseline (RSC compliance)
-        link_cmd = LinkCostElementCommand(
-            cost_element_id=cost_element_id,
-            parent_type="schedule_baseline",
-            parent_id=baseline_id,
+        # Link work package to baseline via UpdateCommand
+        from app.core.branching.commands import UpdateCommand
+
+        update_cmd = UpdateCommand(
+            entity_class=WorkPackage,
+            root_id=work_package_id,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            updates={"schedule_baseline_id": baseline_id},
         )
-        await link_cmd.execute(self.session)
+        await update_cmd.execute(self.session)
 
         return baseline
 
-    async def create_for_cost_element(
+    async def create_for_work_package(
         self,
-        cost_element_id: UUID,
+        work_package_id: UUID,
         actor_id: UUID,
         name: str,
         start_date: datetime,
@@ -381,13 +349,13 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         branch: str = "main",
         control_date: datetime | None = None,
     ) -> ScheduleBaseline:
-        """Create a schedule baseline for a specific cost element.
+        """Create a schedule baseline for a specific work package.
 
-        Validates that no duplicate baseline exists for the cost element
+        Validates that no duplicate baseline exists for the work package
         in the specified branch before creating.
 
         Args:
-            cost_element_id: The UUID of the cost element
+            work_package_id: The UUID of the work package
             actor_id: User creating the baseline
             name: Baseline name
             start_date: Schedule start date
@@ -401,16 +369,14 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             Created ScheduleBaseline
 
         Raises:
-            BaselineAlreadyExistsError: If a baseline already exists for this cost element
+            BaselineAlreadyExistsError: If a baseline already exists for this work package
         """
-        # Check for existing baseline
-        existing = await self.get_for_cost_element(cost_element_id, branch=branch)
+        existing = await self.get_for_work_package(work_package_id, branch=branch)
         if existing is not None:
             raise BaselineAlreadyExistsError(
-                cost_element_id=cost_element_id, branch=branch
+                work_package_id=work_package_id, branch=branch
             )
 
-        # Create the baseline
         from uuid import uuid4
 
         baseline_id = uuid4()
@@ -419,7 +385,6 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             actor_id=actor_id,
             control_date=control_date,
             branch=branch,
-            cost_element_id=cost_element_id,
             name=name,
             start_date=start_date,
             end_date=end_date,
@@ -427,76 +392,81 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             description=description,
         )
 
-        # Use Command to link cost element to baseline (RSC compliance)
-        link_cmd = LinkCostElementCommand(
-            cost_element_id=cost_element_id,
-            parent_type="schedule_baseline",
-            parent_id=baseline_id,
+        # Link work package to baseline via UpdateCommand
+        from app.core.branching.commands import UpdateCommand
+
+        update_cmd = UpdateCommand(
+            entity_class=WorkPackage,
+            root_id=work_package_id,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            updates={"schedule_baseline_id": baseline_id},
         )
-        await link_cmd.execute(self.session)
+        await update_cmd.execute(self.session)
 
         return baseline
 
     def _get_base_stmt(self) -> Any:
-        """Get base select statement with Cost Element name join.
+        """Get base select statement with Work Package name join.
 
-        Returns a select statement that joins with CostElement to include
-        the cost element name in queries.
+        Returns a select statement that joins with WorkPackage to include
+        the work package name in queries. Uses the inverted relationship
+        where WorkPackage.schedule_baseline_id references ScheduleBaseline.
         """
-        # Subquery for current CostElement versions
-        ce_subq = (
+        wp_subq = (
             select(
-                CostElement.cost_element_id, CostElement.name.label("cost_element_name")
+                WorkPackage.work_package_id,
+                WorkPackage.schedule_baseline_id,
+                WorkPackage.name.label("work_package_name"),
             )
             .where(
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                cast(Any, WorkPackage).deleted_at.is_(None),
             )
             .subquery()
         )
 
-        return select(ScheduleBaseline, ce_subq.c.cost_element_name).join(
-            ce_subq, ScheduleBaseline.cost_element_id == ce_subq.c.cost_element_id
+        return select(ScheduleBaseline, wp_subq.c.work_package_name).join(
+            wp_subq,
+            wp_subq.c.schedule_baseline_id == ScheduleBaseline.schedule_baseline_id,
         )
 
-    async def get_baselines_for_cost_elements(
+    async def get_baselines_for_work_packages(
         self,
-        cost_element_ids: list[UUID],
+        work_package_ids: list[UUID],
         branch: str = "main",
         as_of: datetime | None = None,
     ) -> dict[UUID, ScheduleBaseline]:
-        """Get schedule baselines for multiple cost elements efficiently.
+        """Get schedule baselines for multiple work packages efficiently.
 
         Args:
-            cost_element_ids: List of cost element UUIDs
+            work_package_ids: List of work package UUIDs
             branch: Branch name (default: "main")
             as_of: Optional timestamp for time-travel query (None = current)
 
         Returns:
-            Dictionary mapping cost_element_id to ScheduleBaseline
+            Dictionary mapping work_package_id to ScheduleBaseline
         """
-        if not cost_element_ids:
+        if not work_package_ids:
             return {}
 
-        # Query via CostElement.schedule_baseline_id to ensure we get the linked baseline
-        # We need to join CostElement to filter by cost_element_id and get the baseline_id
         stmt = (
-            select(CostElement.cost_element_id, ScheduleBaseline)
+            select(WorkPackage.work_package_id, ScheduleBaseline)
             .join(
                 ScheduleBaseline,
-                CostElement.schedule_baseline_id
+                WorkPackage.schedule_baseline_id
                 == ScheduleBaseline.schedule_baseline_id,
             )
             .where(
-                CostElement.cost_element_id.in_(cost_element_ids),
-                CostElement.branch == branch,
-                CostElement.deleted_at.is_(None),
+                WorkPackage.work_package_id.in_(work_package_ids),
+                WorkPackage.branch == branch,
+                cast(Any, WorkPackage).deleted_at.is_(None),
                 ScheduleBaseline.branch == branch,
-                ScheduleBaseline.deleted_at.is_(None),
+                cast(Any, ScheduleBaseline).deleted_at.is_(None),
             )
         )
 
-        # Apply temporal filters for time-travel
         if as_of is not None:
             from sqlalchemy import cast as sql_cast
             from sqlalchemy import or_
@@ -504,31 +474,66 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
 
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             stmt = stmt.where(
-                CostElement.valid_time.op("@>")(as_of_tstz),
-                func.lower(CostElement.valid_time) <= as_of_tstz,
+                WorkPackage.valid_time.op("@>")(as_of_tstz),
+                func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 or_(
-                    CostElement.deleted_at.is_(None),
-                    CostElement.deleted_at > as_of_tstz,
+                    cast(Any, WorkPackage).deleted_at.is_(None),
+                    cast(Any, WorkPackage).deleted_at > as_of_tstz,
                 ),
                 ScheduleBaseline.valid_time.op("@>")(as_of_tstz),
                 func.lower(ScheduleBaseline.valid_time) <= as_of_tstz,
                 or_(
-                    ScheduleBaseline.deleted_at.is_(None),
-                    ScheduleBaseline.deleted_at > as_of_tstz,
+                    cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                    cast(Any, ScheduleBaseline).deleted_at > as_of_tstz,
                 ),
             )
         else:
             stmt = stmt.where(
-                func.upper(CostElement.valid_time).is_(None),
-                func.upper(ScheduleBaseline.valid_time).is_(None),
+                func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
             )
 
         result = await self.session.execute(stmt)
 
-        # Map cost_element_id -> ScheduleBaseline
         baselines = {}
         for row in result.all():
-            ce_id, baseline = row
-            baselines[ce_id] = baseline
+            wp_id, baseline = row
+            baselines[wp_id] = baseline
 
         return baselines
+
+    # --- Backward-compatible aliases ---
+
+    async def get_for_cost_element(
+        self, cost_element_id: UUID, branch: str = "main"
+    ) -> ScheduleBaseline | None:
+        """Backward-compatible alias for get_for_work_package().
+
+        Args:
+            cost_element_id: Treated as work_package_id for migration purposes.
+            branch: Branch name (default: "main")
+
+        Returns:
+            ScheduleBaseline if found, None otherwise
+        """
+        return await self.get_for_work_package(cost_element_id, branch=branch)
+
+    async def get_baselines_for_cost_elements(
+        self,
+        cost_element_ids: list[UUID],
+        branch: str = "main",
+        as_of: datetime | None = None,
+    ) -> dict[UUID, ScheduleBaseline]:
+        """Backward-compatible alias for get_baselines_for_work_packages().
+
+        Args:
+            cost_element_ids: Treated as work_package_ids for migration purposes.
+            branch: Branch name (default: "main")
+            as_of: Optional timestamp for time-travel query (None = current)
+
+        Returns:
+            Dictionary mapping work_package_id to ScheduleBaseline
+        """
+        return await self.get_baselines_for_work_packages(
+            cost_element_ids, branch=branch, as_of=as_of
+        )

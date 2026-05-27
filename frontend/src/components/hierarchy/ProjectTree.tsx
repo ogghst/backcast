@@ -3,9 +3,9 @@ import { Tree, Empty, Spin, Alert, Typography, theme } from "antd";
 import { FolderOutlined, AppstoreOutlined, PayCircleOutlined } from "@ant-design/icons";
 import type { DataNode, EventDataNode } from "antd/es/tree";
 import type { Key } from "react";
-import { useWBEs } from "@/features/wbes/api/useWBEs";
+import { useWBSElements } from "@/features/wbs-elements/api/useWBSElements";
 import { useProject } from "@/features/projects/api/useProjects";
-import type { WBERead } from "@/api/generated";
+import type { WBSElementRead } from "@/api/generated";
 import type { CostElementRead } from "@/api/generated";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
@@ -69,10 +69,10 @@ const formatDateRange = (
 
 export interface TreeNodeData {
   id: string;
-  type: "project" | "wbe" | "cost_element";
+  type: "project" | "wbs_element" | "cost_element";
   name: string;
   // Entity-specific IDs for better type safety
-  wbe_id?: string;
+  wbs_element_id?: string;
   cost_element_id?: string;
 }
 
@@ -170,9 +170,9 @@ export const ProjectTree = ({
     data: wbesData,
     isLoading: wbesLoading,
     error: wbesError,
-  } = useWBEs({
+  } = useWBSElements({
     projectId,
-    parentWbeId: "null",
+    parentWbsElementId: "null",
   });
 
   useEffect(() => {
@@ -186,13 +186,13 @@ export const ProjectTree = ({
         name: projectData.name,
       });
 
-      const wbeRoots: DataNode[] = wbesData.items.map((wbe: WBERead) => {
-        const key = `wbe-${wbe.wbe_id}`;
+      const wbeRoots: DataNode[] = wbesData.items.map((wbe: WBSElementRead) => {
+        const key = `wbe-${wbe.wbs_element_id}`;
         nodeMetaRef.current.set(key, {
-          id: wbe.wbe_id,
-          type: "wbe",
+          id: wbe.wbs_element_id,
+          type: "wbs_element",
           name: wbe.name,
-          wbe_id: wbe.wbe_id,
+          wbs_element_id: wbe.wbs_element_id,
         });
         return {
           key,
@@ -237,15 +237,15 @@ export const ProjectTree = ({
     async (treeNode: EventDataNode<DataNode>) => {
       const meta = nodeMetaRef.current.get(String(treeNode.key));
 
-      if (meta?.type !== "wbe") return;
+      if (meta?.type !== "wbs_element") return;
       if (treeNode.children && treeNode.children.length > 0) return;
 
       try {
         const projectCurrency = projectData?.currency || "EUR";
         const [childWBEsResponse, costElementsResponse] = await Promise.all([
           queryClient.fetchQuery({
-            queryKey: queryKeys.wbes.list(projectId, {
-              parentWbeId: meta.id,
+            queryKey: queryKeys.wbsElements.list(projectId, {
+              parentWbsElementId: meta.id,
               branch,
               mode,
               asOf,
@@ -254,10 +254,10 @@ export const ProjectTree = ({
             queryFn: () =>
               __request(OpenAPI, {
                 method: "GET",
-                url: "/api/v1/wbes",
+                url: "/api/v1/wbs-elements",
                 query: {
                   project_id: projectId,
-                  parent_wbe_id: meta.id,
+                  parent_wbs_element_id: meta.id,
                   branch: branch || "main",
                   mode,
                   as_of: asOf || undefined,
@@ -267,8 +267,8 @@ export const ProjectTree = ({
             staleTime: 0, // Always refetch to ensure we get the correct children for this parent
           }),
           queryClient.fetchQuery({
-            queryKey: queryKeys.costElements.list({
-              wbe_id: meta.id,
+            queryKey: queryKeys.costElements.list(undefined, {
+              wbs_element_id: meta.id,
               branch,
               mode,
               asOf,
@@ -279,7 +279,7 @@ export const ProjectTree = ({
                 method: "GET",
                 url: "/api/v1/cost-elements",
                 query: {
-                  wbe_id: meta.id,
+                  wbs_element_id: meta.id,
                   branch: branch || "main",
                   mode,
                   as_of: asOf || undefined,
@@ -289,7 +289,7 @@ export const ProjectTree = ({
           }),
         ]);
 
-        const childWBEs = extractItems(childWBEsResponse) as WBERead[];
+        const childWBEs = extractItems(childWBEsResponse) as WBSElementRead[];
         const costElements = extractItems(costElementsResponse) as CostElementRead[];
 
         // Fetch schedule baselines for cost elements when showDates is enabled
@@ -314,12 +314,12 @@ export const ProjectTree = ({
         }
 
         const childWBENodes: DataNode[] = childWBEs.map((wbe) => {
-          const key = `wbe-${wbe.wbe_id}`;
+          const key = `wbe-${wbe.wbs_element_id}`;
           nodeMetaRef.current.set(key, {
-            id: wbe.wbe_id,
-            type: "wbe",
+            id: wbe.wbs_element_id,
+            type: "wbs_element",
             name: wbe.name,
-            wbe_id: wbe.wbe_id,
+            wbs_element_id: wbe.wbs_element_id,
           });
           return {
             key,
@@ -341,7 +341,7 @@ export const ProjectTree = ({
           nodeMetaRef.current.set(key, {
             id: ce.cost_element_id,
             type: "cost_element",
-            name: ce.name,
+            name: ce.cost_element_type_name || ce.description || "Cost Element",
             cost_element_id: ce.cost_element_id,
           });
           const baseline = baselines[ce.cost_element_id];
@@ -352,8 +352,8 @@ export const ProjectTree = ({
             title: (
               <NodeTitle
                 icon={<PayCircleOutlined style={{ color: "var(--ant-color-success)" }} />}
-                name={ce.name}
-                budget={formatCurrency(ce.budget_amount, projectCurrency)}
+                name={ce.cost_element_type_name || ce.description || "Cost Element"}
+                budget={ce.amount ? formatCurrency(ce.amount, projectCurrency) : undefined}
                 dates={ceDates}
                 showBudget={showBudget}
                 showDates={showDates}

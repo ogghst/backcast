@@ -1,4 +1,8 @@
-"""Forecast Service - branchable entity management."""
+"""Forecast Service - branchable entity management.
+
+Forecasts are now associated with Work Packages (PMI budget holders)
+rather than Cost Elements. The WorkPackage model owns forecast_id.
+"""
 
 from __future__ import annotations
 
@@ -17,24 +21,24 @@ from app.core.temporal_queries import (
     is_current_version_on_branch,
 )
 from app.core.versioning.commands import CreateVersionCommand
-from app.models.domain.cost_element import CostElement
 from app.models.domain.forecast import Forecast
+from app.models.domain.work_package import WorkPackage
 from app.models.schemas.forecast import ForecastCreate, ForecastUpdate
 
 
 class ForecastAlreadyExistsError(Exception):
-    """Raised when attempting to create a duplicate forecast for a cost element.
+    """Raised when attempting to create a duplicate forecast for a work package.
 
     Attributes:
-        cost_element_id: The UUID of the cost element.
+        work_package_id: The UUID of the work package.
         branch: The branch name.
     """
 
-    def __init__(self, cost_element_id: str, branch: str) -> None:
-        self.cost_element_id = cost_element_id
+    def __init__(self, work_package_id: str, branch: str) -> None:
+        self.work_package_id = work_package_id
         self.branch = branch
         super().__init__(
-            f"Forecast already exists for cost_element {cost_element_id} on branch {branch}"
+            f"Forecast already exists for work package {work_package_id} on branch {branch}"
         )
 
 
@@ -93,16 +97,13 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
     ) -> Forecast:
         """Create new forecast using CreateVersionCommand."""
         forecast_data = forecast_in.model_dump(exclude_unset=True)
-        # Extract control_date from schema if not provided
         if control_date is None:
             control_date = getattr(forecast_in, "control_date", None)
         forecast_data.pop("control_date", None)
 
-        # Use provided forecast_id (for seeding) or generate new one
         root_id = forecast_in.forecast_id or uuid4()
         forecast_data["forecast_id"] = root_id
 
-        # Use schema branch if provided, otherwise use parameter
         if "branch" not in forecast_data or forecast_data["branch"] == "main":
             forecast_data["branch"] = branch or "main"
 
@@ -147,7 +148,6 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
 
         This uses the BranchableSoftDeleteCommand which is branch-aware.
         """
-        # Call parent method from BranchableService
         await super().soft_delete(
             root_id=forecast_id,
             actor_id=actor_id,
@@ -165,7 +165,7 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         """List forecasts with optional filters.
 
         Args:
-            filters: Dict of field filters (e.g., {"cost_element_id": uuid})
+            filters: Dict of field filters (e.g., {"work_package_id": uuid})
             branch: Branch name to query (default: "main")
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
@@ -173,7 +173,6 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         Returns:
             List of forecasts matching the criteria
         """
-        # Build base query for current versions on specified branch
         stmt = select(Forecast).where(
             is_current_version_on_branch(
                 cast(Any, Forecast).valid_time,
@@ -183,48 +182,38 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             ),
         )
 
-        # Apply filters if provided
-        # Note: cost_element_id filter removed since Forecast no longer has that field
-        # Use get_for_cost_element() instead to query via cost element
-
-        # Apply ordering (newest first by creation time)
         stmt = stmt.order_by(cast(Any, Forecast).transaction_time.desc())
-
-        # Apply pagination
         stmt = stmt.offset(skip).limit(limit)
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_for_cost_element(
-        self, cost_element_id: UUID, branch: str = "main"
+    async def get_for_work_package(
+        self, work_package_id: UUID, branch: str = "main"
     ) -> Forecast | None:
-        """Get the forecast associated with a cost element via cost_element.forecast_id.
+        """Get the forecast associated with a work package via work_package.forecast_id.
 
-        Uses the inverted FK pattern: queries via CostElement.forecast_id instead of
-        Forecast.cost_element_id (which no longer exists).
+        Uses the inverted FK pattern: queries via WorkPackage.forecast_id instead of
+        Forecast.work_package_id (which does not exist).
 
         Args:
-            cost_element_id: The UUID of the cost element
+            work_package_id: The UUID of the work package
             branch: Branch name to query (default: "main")
 
         Returns:
             Forecast if found, None otherwise
         """
-        # Query via cost_element.forecast_id (inverted FK pattern)
         stmt = (
             select(Forecast)
-            .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
+            .join(WorkPackage, WorkPackage.forecast_id == Forecast.forecast_id)
             .where(
-                CostElement.cost_element_id == cost_element_id,
-                CostElement.branch == branch,
+                WorkPackage.work_package_id == work_package_id,
+                WorkPackage.branch == branch,
                 Forecast.branch == branch,
-                # CRITICAL: Only match cost elements WITH a forecast
-                CostElement.forecast_id.is_not(None),
-                # "Current" filter (no as_of) - use temporal helper
+                WorkPackage.forecast_id.is_not(None),
                 current_join_filter(
                     (Forecast.valid_time, Forecast.deleted_at),
-                    (CostElement.valid_time, CostElement.deleted_at),
+                    (WorkPackage.valid_time, cast(Any, WorkPackage).deleted_at),
                 ),
             )
             .order_by(Forecast.valid_time.desc())
@@ -233,18 +222,18 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_for_cost_element(
+    async def create_for_work_package(
         self,
-        cost_element_id: UUID,
+        work_package_id: UUID,
         actor_id: UUID,
         branch: str = "main",
         control_date: datetime | None = None,
         **data: Any,
     ) -> Forecast:
-        """Create a forecast for a cost element, enforcing 1:1 relationship.
+        """Create a forecast for a work package, enforcing 1:1 relationship.
 
         Args:
-            cost_element_id: The UUID of the cost element
+            work_package_id: The UUID of the work package
             actor_id: User creating the forecast
             branch: Branch name (default: "main")
             control_date: Optional control date for valid_time
@@ -254,16 +243,14 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             Created Forecast
 
         Raises:
-            ForecastAlreadyExistsError: If a forecast already exists for this cost element
+            ForecastAlreadyExistsError: If a forecast already exists for this work package
         """
-        # Check for existing forecast
-        existing = await self.get_for_cost_element(cost_element_id, branch)
+        existing = await self.get_for_work_package(work_package_id, branch)
         if existing:
             raise ForecastAlreadyExistsError(
-                cost_element_id=str(cost_element_id), branch=branch
+                work_package_id=str(work_package_id), branch=branch
             )
 
-        # Create new forecast
         forecast_id = uuid4()
         data["forecast_id"] = forecast_id
         data["branch"] = branch
@@ -277,15 +264,18 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         )
         forecast = await cmd.execute(self.session)
 
-        # Use Command to link cost element to forecast (RSC compliance)
-        from app.core.versioning.commands import LinkCostElementCommand
+        # Link work package to forecast via UpdateCommand
+        from app.core.branching.commands import UpdateCommand
 
-        link_cmd = LinkCostElementCommand(
-            cost_element_id=cost_element_id,
-            parent_type="forecast",
-            parent_id=forecast_id,
+        update_cmd = UpdateCommand(
+            entity_class=WorkPackage,
+            root_id=work_package_id,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            updates={"forecast_id": forecast_id},
         )
-        await link_cmd.execute(self.session)
+        await update_cmd.execute(self.session)
 
         return forecast
 
@@ -297,12 +287,10 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         control_date: datetime | None = None,
     ) -> Forecast:
         """Update forecast using branch-aware UpdateCommand."""
-        # Extract control_date and branch from schema
         if control_date is None:
             control_date = forecast_in.control_date
         branch = forecast_in.branch or "main"
 
-        # Filter None values from update data
         update_data = forecast_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
         update_data.pop("branch", None)
@@ -321,16 +309,16 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
 
     async def ensure_exists(
         self,
-        cost_element_id: UUID,
+        work_package_id: UUID,
         actor_id: UUID,
         branch: str = "main",
         budget_amount: Decimal | None = None,
         control_date: datetime | None = None,
     ) -> Forecast:
-        """Ensure a forecast exists for the cost element, creating if necessary.
+        """Ensure a forecast exists for the work package, creating if necessary.
 
         Args:
-            cost_element_id: The UUID of the cost element
+            work_package_id: The UUID of the work package
             actor_id: User creating the forecast if needed
             branch: Branch name (default: "main")
             budget_amount: Optional budget amount for default forecast
@@ -339,15 +327,13 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         Returns:
             Existing or newly created Forecast
         """
-        # Check for existing forecast
-        existing = await self.get_for_cost_element(cost_element_id, branch)
+        existing = await self.get_for_work_package(work_package_id, branch)
         if existing:
             return existing
 
-        # Create default forecast
         eac_amount = budget_amount if budget_amount is not None else Decimal("0.00")
-        return await self.create_for_cost_element(
-            cost_element_id=cost_element_id,
+        return await self.create_for_work_package(
+            work_package_id=work_package_id,
             actor_id=actor_id,
             branch=branch,
             eac_amount=eac_amount,
@@ -355,80 +341,70 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             control_date=control_date,
         )
 
-    async def get_forecasts_for_cost_elements(
+    async def get_forecasts_for_work_packages(
         self,
-        cost_element_ids: builtins.list[UUID],
+        work_package_ids: builtins.list[UUID],
         branch: str = "main",
         as_of: datetime | None = None,
     ) -> dict[UUID, Forecast]:
-        """Get forecasts for multiple cost elements efficiently.
+        """Get forecasts for multiple work packages efficiently.
 
         Args:
-            cost_element_ids: List of cost element UUIDs
+            work_package_ids: List of work package UUIDs
             branch: Branch name (default: "main")
             as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
-            Dictionary mapping cost_element_id to Forecast
+            Dictionary mapping work_package_id to Forecast
         """
-        if not cost_element_ids:
+        if not work_package_ids:
             return {}
 
-        # Query via CostElement.forecast_id (inverted FK)
-        # Note: Forecasts are not branched separately - they follow the cost element
-        # So we filter by cost element branch but NOT forecast branch
-        # Use sql_cast for time-travel pattern
         if as_of is not None:
             from sqlalchemy import cast as sql_cast
             from sqlalchemy.dialects.postgresql import TIMESTAMP
 
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             stmt = (
-                select(CostElement.cost_element_id, Forecast)
-                .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
+                select(WorkPackage.work_package_id, Forecast)
+                .join(WorkPackage, WorkPackage.forecast_id == Forecast.forecast_id)
                 .where(
-                    CostElement.cost_element_id.in_(cost_element_ids),
-                    CostElement.branch == branch,
-                    # CRITICAL: Only match cost elements WITH a forecast
-                    CostElement.forecast_id.is_not(None),
-                    # Zombie protection: Entity visible if not deleted, or deleted AFTER as_of
+                    WorkPackage.work_package_id.in_(work_package_ids),
+                    WorkPackage.branch == branch,
+                    WorkPackage.forecast_id.is_not(None),
                     or_(
-                        Forecast.deleted_at.is_(None),
-                        Forecast.deleted_at > as_of,
+                        cast(Any, Forecast).deleted_at.is_(None),
+                        cast(Any, Forecast).deleted_at > as_of,
                     ),
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
                     ),
-                    # Time machine: Only include forecasts valid at as_of
                     Forecast.valid_time.op("@>")(as_of_tstz),
                     func.lower(Forecast.valid_time) <= as_of_tstz,
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
         else:
-            # No time filtering - get current forecasts
             stmt = (
-                select(CostElement.cost_element_id, Forecast)
-                .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
+                select(WorkPackage.work_package_id, Forecast)
+                .join(WorkPackage, WorkPackage.forecast_id == Forecast.forecast_id)
                 .where(
-                    CostElement.cost_element_id.in_(cost_element_ids),
-                    CostElement.branch == branch,
-                    # CRITICAL: Only match cost elements WITH a forecast
-                    CostElement.forecast_id.is_not(None),
-                    # "Current" filter (no as_of)
+                    WorkPackage.work_package_id.in_(work_package_ids),
+                    WorkPackage.branch == branch,
+                    WorkPackage.forecast_id.is_not(None),
                     is_current_version_on_branch(
                         Forecast.valid_time,
                         Forecast.branch,
                         branch,
-                        Forecast.deleted_at,
+                        cast(Any, Forecast).deleted_at,
                     ),
                     is_current_version_on_branch(
-                        cast(Any, CostElement).valid_time,
-                        CostElement.branch,
+                        cast(Any, WorkPackage).valid_time,
+                        WorkPackage.branch,
                         branch,
-                        cast(Any, CostElement).deleted_at,
+                        cast(Any, WorkPackage).deleted_at,
                     ),
                 )
             )
@@ -437,7 +413,43 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
 
         forecasts = {}
         for row in result.all():
-            ce_id, forecast = row
-            forecasts[ce_id] = forecast
+            wp_id, forecast = row
+            forecasts[wp_id] = forecast
 
         return forecasts
+
+    # --- Backward-compatible aliases ---
+
+    async def get_for_cost_element(
+        self, cost_element_id: UUID, branch: str = "main"
+    ) -> Forecast | None:
+        """Backward-compatible alias for get_for_work_package()."""
+        return await self.get_for_work_package(cost_element_id, branch)
+
+    async def create_for_cost_element(
+        self,
+        cost_element_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        control_date: datetime | None = None,
+        **data: Any,
+    ) -> Forecast:
+        """Backward-compatible alias for create_for_work_package()."""
+        return await self.create_for_work_package(
+            work_package_id=cost_element_id,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            **data,
+        )
+
+    async def get_forecasts_for_cost_elements(
+        self,
+        cost_element_ids: builtins.list[UUID],
+        branch: str = "main",
+        as_of: datetime | None = None,
+    ) -> dict[UUID, Forecast]:
+        """Backward-compatible alias for get_forecasts_for_work_packages()."""
+        return await self.get_forecasts_for_work_packages(
+            cost_element_ids, branch=branch, as_of=as_of
+        )

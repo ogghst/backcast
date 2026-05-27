@@ -57,44 +57,36 @@ export function MergeConfirmationContent({
         <Text strong>Impact Summary:</Text>
         <List
           size="small"
-          items={[
+          dataSource={[
             {
               key: "source-branch",
-              children: (
-                <Space>
-                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                  <Text>Branch to merge: <Text code>{sourceBranch}</Text></Text>
-                </Space>
-              ),
+              label: "Branch to merge",
+              value: sourceBranch,
             },
             {
               key: "target-branch",
-              children: (
-                <Space>
-                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                  <Text>Target branch: <Text code>{targetBranch}</Text></Text>
-                </Space>
-              ),
+              label: "Target branch",
+              value: targetBranch,
             },
             {
               key: "entity-count",
-              children: (
-                <Space>
-                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                  <Text>Entities to update: <Text strong>{entityCount}</Text></Text>
-                </Space>
-              ),
+              label: "Entities to update",
+              value: String(entityCount),
             },
             {
               key: "new-status",
-              children: (
-                <Space>
-                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                  <Text>New status: <Text strong>{targetStatus}</Text></Text>
-                </Space>
-              ),
+              label: "New status",
+              value: targetStatus,
             },
           ]}
+          renderItem={(item) => (
+            <List.Item>
+              <Space>
+                <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                <Text>{item.label}: <Text code>{item.value}</Text></Text>
+              </Space>
+            </List.Item>
+          )}
         />
       </div>
 
@@ -104,9 +96,9 @@ export function MergeConfirmationContent({
           <Text strong>Field Changes:</Text>
           <List
             size="small"
-            items={impactSummary.map((impact) => ({
-              key: `${impact.field}-${impact.target_value}-${impact.source_value}`,
-              children: (
+            dataSource={impactSummary}
+            renderItem={(impact) => (
+              <List.Item key={`${impact.field}-${impact.target_value}-${impact.source_value}`}>
                 <Space orientation="vertical" size={0} style={{ width: "100%" }}>
                   <Text type="secondary">{impact.field}:</Text>
                   <div style={{ paddingLeft: 16, fontSize: "12px" }}>
@@ -120,8 +112,8 @@ export function MergeConfirmationContent({
                     </div>
                   </div>
                 </Space>
-              ),
-            }))}
+              </List.Item>
+            )}
           />
         </div>
       )}

@@ -34,6 +34,10 @@ export type Permission =
   | "cost-element-create"
   | "cost-element-update"
   | "cost-element-delete"
+  | "work-package-read"
+  | "work-package-create"
+  | "work-package-update"
+  | "work-package-delete"
   | "cost-element-type-read"
   | "cost-element-type-create"
   | "cost-element-type-update"
@@ -59,7 +63,17 @@ export type Permission =
   | "package-type-create"
   | "package-type-update"
   | "package-type-delete"
-  | "dashboard-template-update";
+  | "dashboard-template-update"
+  | "role-assignment-read"
+  | "role-assignment-create"
+  | "role-assignment-update"
+  | "role-assignment-delete"
+  | "progress-entry-read"
+  | "progress-entry-create"
+  | "progress-entry-update"
+  | "progress-entry-delete"
+  | "project-budget-settings-read"
+  | "project-budget-settings-update";
 
 // Type alias for role strings
 export type Role = "admin" | "manager" | "viewer";

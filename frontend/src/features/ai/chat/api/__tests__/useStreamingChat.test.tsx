@@ -291,7 +291,6 @@ describe("useStreamingChat", () => {
     );
 
     await act(async () => {
-      // @ts-expect-error — deliberately omitting executionMode
       result.current.sendMessage("Hello");
     });
 

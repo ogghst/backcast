@@ -102,11 +102,11 @@ const CostRegistrationsComponent: FC<
     if (context.costElementId) {
       return { cost_element_id: context.costElementId };
     }
-    if (context.wbeId) {
-      return { wbe_id: context.wbeId };
+    if (context.wbsElementId) {
+      return { wbs_element_id: context.wbsElementId };
     }
     return { project_id: context.projectId };
-  }, [context.costElementId, context.wbeId, context.projectId]);
+  }, [context.costElementId, context.wbsElementId, context.projectId]);
 
   const { data, isLoading, error, refetch } = useCostRegistrations({
     ...queryParams,
@@ -127,7 +127,7 @@ const CostRegistrationsComponent: FC<
         pagination,
         filters,
         sortField: sortResult.field as string | undefined,
-        sortOrder: sortResult.order,
+        sortOrder: sortResult.order ? String(sortResult.order) : undefined,
       });
     },
     [],

@@ -73,7 +73,7 @@ export const DocumentFolderTree: React.FC<DocumentFolderTreeProps> = ({
           marginBottom: token.paddingSM,
         }}
       >
-        <span style={{ fontWeight: token.fontWeightStrong, fontSize: token.fontSizeSM }}>
+        <span style={{ fontWeight: 600, fontSize: token.fontSizeSM }}>
           Folders
         </span>
         <Button

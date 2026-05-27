@@ -1,7 +1,6 @@
 import React from "react";
-import { Card, Grid, Tag, Typography, theme, Flex, Row, Col } from "antd";
+import { Card, Grid, Typography, theme, Flex, Row, Col } from "antd";
 import { CostElementRead } from "@/api/generated";
-import { getBranchColor } from "@/utils/formatters";
 import { BudgetProgressRing } from "@/components/common/BudgetProgressRing";
 
 interface CostElementHeaderCardProps {
@@ -21,10 +20,12 @@ export const CostElementHeaderCard = ({
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
-  const costBudget = Number(costElement.budget_amount) || 0;
+  const costBudget = Number(costElement.amount) || 0;
   const costActual = Number(actualCosts) || 0;
 
   const ringSize = isMobile ? 120 : 160;
+
+  const title = costElement.cost_element_type_name || costElement.cost_element_type_code || costElement.cost_element_id;
 
   return (
     <Card
@@ -51,25 +52,12 @@ export const CostElementHeaderCard = ({
           level={3}
           style={{
             margin: 0,
-            fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
-            fontWeight: token.fontWeightSemiBold,
             color: token.colorText,
           }}
         >
-          {costElement.code} &mdash; {costElement.name}
+          {title}
         </Typography.Title>
-        <Tag
-          color={getBranchColor(costElement.branch)}
-          style={{
-            fontSize: token.fontSize,
-            padding: `${token.paddingXS}px ${token.paddingMD}px`,
-            borderRadius: token.borderRadius,
-            fontWeight: token.fontWeightMedium,
-            margin: 0,
-          }}
-        >
-          {costElement.branch || "main"}
-        </Tag>
+        {/* Branch tag removed - CostElement (EOC) no longer has branch */}
       </Flex>
 
       {costElement.description && (

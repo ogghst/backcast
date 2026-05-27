@@ -335,7 +335,7 @@ export function buildTimeSeriesOptions(
         formatter: xFormatter,
       },
     },
-    yAxis: yAxisConfig,
+    yAxis: yAxisConfig as EChartsOption["yAxis"],
     series: seriesConfig,
     dataZoom: showZoom
       ? [
@@ -701,7 +701,7 @@ export function buildPerformanceRadarOptions(
       },
       axisLine: { lineStyle: { color: colors.border } },
       splitLine: { lineStyle: { color: colors.border } },
-    },
+    } as EChartsOption["radar"],
     series: [
       {
         type: "radar" as const,
@@ -846,7 +846,7 @@ export function buildDonutOptions(
         },
       ],
     }),
-  };
+  } as EChartsOption;
 }
 
 /**

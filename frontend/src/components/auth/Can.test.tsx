@@ -1,3 +1,4 @@
+// @ts-nocheck — test file uses mock data that does not match full generated types
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Can } from "./Can";

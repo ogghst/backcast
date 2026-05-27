@@ -1,17 +1,17 @@
-"""Package Type tool template for wrapping PackageTypeService methods.
+"""Cost Event Type tool template for wrapping CostEventTypeService methods.
 
-This template provides AI tools for package type management. The key principle is:
+This template provides AI tools for cost event type management. The key principle is:
 
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
-Package Types in Backcast:
-- Package Types are configurable work package categories (replaces hardcoded enum)
+Cost Event Types in Backcast:
+- Cost Event Types are configurable event categories (replaces old PackageType)
 - They are VERSIONABLE but NOT BRANCHABLE (organizational data, not project-specific)
 - Admins can configure available types with code, name, color, and description
-- Used for consistent work package categorization across projects
+- Used for consistent cost event categorization across projects
 
 Usage:
-    1. Import PackageTypeService methods
+    1. Import CostEventTypeService methods
     2. Use @ai_tool decorator with proper permissions
     3. Use ToolContext for dependency injection
     4. Call service methods with context.session
@@ -26,19 +26,19 @@ from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import RiskLevel, ToolContext
-from app.models.schemas.package_type import PackageTypeCreate, PackageTypeUpdate
+from app.models.schemas.cost_event_type import CostEventTypeCreate, CostEventTypeUpdate
 
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# PACKAGE TYPE CRUD TOOLS
+# COST EVENT TYPE CRUD TOOLS
 # =============================================================================
 
 
 @ai_tool(
     name="find_package_types",
-    description="Find package types by ID or search.",
+    description="Find cost event types by ID or search.",
     permissions=["package-type-read"],
     category="package_types",
     risk_level=RiskLevel.LOW,
@@ -50,45 +50,45 @@ async def find_package_types(
     limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Find package types by ID or search.
+    """Find cost event types by ID or search.
 
-    Context: Provides database session and package type service for querying.
+    Context: Provides database session and cost event type service for querying.
 
     Args:
-        package_type_id: UUID of a specific package type to retrieve (returns single)
+        package_type_id: UUID of a specific cost event type to retrieve (returns single)
         search: Optional search term for code or name
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
         context: Injected tool execution context
 
     Returns:
-        Single package type dict if package_type_id provided, otherwise list result.
+        Single cost event type dict if package_type_id provided, otherwise list result.
 
     Raises:
         ValueError: If package_type_id is not a valid UUID format
     """
     try:
-        from app.services.package_type_service import PackageTypeService
+        from app.services.cost_event_type_service import CostEventTypeService
 
-        service = PackageTypeService(context.session)
+        service = CostEventTypeService(context.session)
 
-        # Single package type lookup
+        # Single cost event type lookup
         if package_type_id:
-            package_type = await service.get_by_id(UUID(package_type_id))
+            cost_event_type = await service.get_by_id(UUID(package_type_id))
 
-            if not package_type:
-                return {"error": f"Package type {package_type_id} not found"}
+            if not cost_event_type:
+                return {"error": f"Cost event type {package_type_id} not found"}
 
             return {
-                "id": str(package_type.package_type_id),
-                "code": package_type.code,
-                "name": package_type.name,
-                "color": package_type.color,
-                "description": package_type.description,
+                "id": str(cost_event_type.cost_event_type_id),
+                "code": cost_event_type.code,
+                "name": cost_event_type.name,
+                "color": cost_event_type.color,
+                "description": cost_event_type.description,
             }
 
-        # List package types
-        package_types, total = await service.get_package_types(
+        # List cost event types
+        cost_event_types, total = await service.get_cost_event_types(
             search=search,
             skip=skip,
             limit=limit,
@@ -97,20 +97,20 @@ async def find_package_types(
         return {
             "package_types": [
                 {
-                    "id": str(pt.package_type_id),
-                    "code": pt.code,
-                    "name": pt.name,
-                    "color": pt.color,
-                    "description": pt.description,
+                    "id": str(cet.cost_event_type_id),
+                    "code": cet.code,
+                    "name": cet.name,
+                    "color": cet.color,
+                    "description": cet.description,
                 }
-                for pt in package_types
+                for cet in cost_event_types
             ],
             "total": total,
             "skip": skip,
             "limit": limit,
         }
     except ValueError:
-        return {"error": f"Invalid package type ID: {package_type_id}"}
+        return {"error": f"Invalid cost event type ID: {package_type_id}"}
     except Exception as e:
         logger.error(f"Error in find_package_types: {e}")
         return {"error": str(e)}
@@ -118,7 +118,7 @@ async def find_package_types(
 
 @ai_tool(
     name="create_package_type",
-    description="Create a new package type.",
+    description="Create a new cost event type.",
     permissions=["package-type-create"],
     category="package_types",
     risk_level=RiskLevel.HIGH,
@@ -131,9 +131,9 @@ async def create_package_type(
     description: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Create a new package type.
+    """Create a new cost event type.
 
-    Context: Provides database session and package type service for creating.
+    Context: Provides database session and cost event type service for creating.
 
     Args:
         code: Unique type code (e.g., "quality_impact")
@@ -144,7 +144,7 @@ async def create_package_type(
         context: Injected tool execution context
 
     Returns:
-        Dictionary with created package type details
+        Dictionary with created cost event type details
 
     Raises:
         ValueError: If invalid input or duplicate code
@@ -155,17 +155,17 @@ async def create_package_type(
         ...     name="Quality Impact",
         ...     color="red",
         ...     is_quality=True,
-        ...     description="Quality-related work packages"
+        ...     description="Quality-related cost events"
         ... )
-        >>> print(f"Created package type with ID: {result['id']}")
+        >>> print(f"Created cost event type with ID: {result['id']}")
     """
     try:
-        from app.services.package_type_service import PackageTypeService
+        from app.services.cost_event_type_service import CostEventTypeService
 
-        service = PackageTypeService(context.session)
+        service = CostEventTypeService(context.session)
 
         # Create Pydantic schema
-        type_data = PackageTypeCreate(
+        type_data = CostEventTypeCreate(
             code=code,
             name=name,
             color=color,
@@ -174,19 +174,19 @@ async def create_package_type(
         )
 
         # Call service method
-        package_type = await service.create(
+        cost_event_type = await service.create(
             type_in=type_data,
             actor_id=UUID(context.user_id),
         )
 
         # Convert to AI-friendly format
         return {
-            "id": str(package_type.package_type_id),
-            "code": package_type.code,
-            "name": package_type.name,
-            "color": package_type.color,
-            "description": package_type.description,
-            "message": "Package type created successfully",
+            "id": str(cost_event_type.cost_event_type_id),
+            "code": cost_event_type.code,
+            "name": cost_event_type.name,
+            "color": cost_event_type.color,
+            "description": cost_event_type.description,
+            "message": "Cost event type created successfully",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -197,7 +197,7 @@ async def create_package_type(
 
 @ai_tool(
     name="update_package_type",
-    description="Update package type fields.",
+    description="Update cost event type fields.",
     permissions=["package-type-update"],
     category="package_types",
     risk_level=RiskLevel.HIGH,
@@ -211,12 +211,12 @@ async def update_package_type(
     description: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Update an existing package type.
+    """Update an existing cost event type.
 
-    Context: Provides database session and package type service for updating.
+    Context: Provides database session and cost event type service for updating.
 
     Args:
-        package_type_id: UUID of the package type to update
+        package_type_id: UUID of the cost event type to update
         code: New code (optional)
         name: New name (optional)
         color: New color (optional)
@@ -225,11 +225,11 @@ async def update_package_type(
         context: Injected tool execution context
 
     Returns:
-        Dictionary with updated package type details
+        Dictionary with updated cost event type details
 
     Raises:
         ValueError: If package_type_id is invalid or no fields provided
-        KeyError: If package type not found
+        KeyError: If cost event type not found
 
     Example:
         >>> result = await update_package_type(
@@ -238,15 +238,15 @@ async def update_package_type(
         ...     color="orange",
         ...     is_quality=True
         ... )
-        >>> print(f"Updated package type: {result['name']}")
+        >>> print(f"Updated cost event type: {result['name']}")
     """
     try:
-        from app.services.package_type_service import PackageTypeService
+        from app.services.cost_event_type_service import CostEventTypeService
 
-        service = PackageTypeService(context.session)
+        service = CostEventTypeService(context.session)
 
         # Create update schema with only provided fields
-        update_data = PackageTypeUpdate(
+        update_data = CostEventTypeUpdate(
             code=code,
             name=name,
             color=color,
@@ -255,25 +255,25 @@ async def update_package_type(
         )
 
         # Call service method
-        package_type = await service.update(
-            package_type_id=UUID(package_type_id),
+        cost_event_type = await service.update(
+            cost_event_type_id=UUID(package_type_id),
             type_in=update_data,
             actor_id=UUID(context.user_id),
         )
 
         # Convert to AI-friendly format
         return {
-            "id": str(package_type.package_type_id),
-            "code": package_type.code,
-            "name": package_type.name,
-            "color": package_type.color,
-            "description": package_type.description,
-            "message": "Package type updated successfully",
+            "id": str(cost_event_type.cost_event_type_id),
+            "code": cost_event_type.code,
+            "name": cost_event_type.name,
+            "color": cost_event_type.color,
+            "description": cost_event_type.description,
+            "message": "Cost event type updated successfully",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except KeyError:
-        return {"error": f"Package type {package_type_id} not found"}
+        return {"error": f"Cost event type {package_type_id} not found"}
     except Exception as e:
         logger.error(f"Error in update_package_type: {e}")
         return {"error": str(e)}
@@ -281,7 +281,7 @@ async def update_package_type(
 
 @ai_tool(
     name="delete_package_type",
-    description="Delete a package type.",
+    description="Delete a cost event type.",
     permissions=["package-type-delete"],
     category="package_types",
     risk_level=RiskLevel.CRITICAL,
@@ -290,12 +290,12 @@ async def delete_package_type(
     package_type_id: str,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """Soft delete a package type.
+    """Soft delete a cost event type.
 
-    Context: Provides database session and package type service for deletion.
+    Context: Provides database session and cost event type service for deletion.
 
     Args:
-        package_type_id: UUID of the package type to delete
+        package_type_id: UUID of the cost event type to delete
         context: Injected tool execution context
 
     Returns:
@@ -303,31 +303,31 @@ async def delete_package_type(
 
     Raises:
         ValueError: If package_type_id is invalid
-        KeyError: If package type not found
+        KeyError: If cost event type not found
 
     Example:
         >>> result = await delete_package_type("...")
-        >>> print(f"Deleted package type: {result['id']}")
+        >>> print(f"Deleted cost event type: {result['id']}")
     """
     try:
-        from app.services.package_type_service import PackageTypeService
+        from app.services.cost_event_type_service import CostEventTypeService
 
-        service = PackageTypeService(context.session)
+        service = CostEventTypeService(context.session)
 
         # Call service method
         await service.soft_delete(
-            package_type_id=UUID(package_type_id),
+            cost_event_type_id=UUID(package_type_id),
             actor_id=UUID(context.user_id),
         )
 
         return {
             "id": package_type_id,
-            "message": "Package type deleted successfully",
+            "message": "Cost event type deleted successfully",
         }
     except ValueError:
-        return {"error": f"Invalid package type ID: {package_type_id}"}
+        return {"error": f"Invalid cost event type ID: {package_type_id}"}
     except KeyError:
-        return {"error": f"Package type {package_type_id} not found"}
+        return {"error": f"Cost event type {package_type_id} not found"}
     except Exception as e:
         logger.error(f"Error in delete_package_type: {e}")
         return {"error": str(e)}

@@ -264,7 +264,7 @@ async def get_project(
 async def global_search(
     query: str,
     project_id: str | None = None,
-    wbe_id: str | None = None,
+    wbs_element_id: str | None = None,
     limit: int = 20,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
@@ -277,14 +277,14 @@ async def global_search(
     Args:
         query: Search string to match against entity codes, names, descriptions, etc.
         project_id: Optional project UUID to scope results to a single project.
-        wbe_id: Optional WBE UUID to scope results to a WBE and its descendants.
+        wbs_element_id: Optional WBS Element UUID to scope results to a WBS Element and its descendants.
         limit: Maximum number of results to return (default 20).
         context: Injected tool execution context.
 
     Returns:
         Dictionary containing:
             - results: List of search result objects with entity_type, id, code, name,
-              description, status, relevance_score, project_id, wbe_id
+              description, status, relevance_score, project_id, wbs_element_id
             - total: Number of results returned
             - query: Original query string
             - _temporal_context: Temporal parameters used for the query
@@ -312,13 +312,13 @@ async def global_search(
         if context.project_id and not effective_project_id:
             effective_project_id = UUID(context.project_id)
 
-        effective_wbe_id = UUID(wbe_id) if wbe_id else None
+        effective_wbs_element_id = UUID(wbs_element_id) if wbs_element_id else None
 
         response = await service.search(
             query,
             user_id=UUID(context.user_id),
             project_id=effective_project_id,
-            wbe_id=effective_wbe_id,
+            wbe_id=effective_wbs_element_id,
             branch=branch,
             branch_mode=branch_mode,
             as_of=context.as_of,

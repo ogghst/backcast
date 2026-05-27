@@ -22,7 +22,7 @@ export { useDashboardData } from "./hooks/useDashboardData";
 export type {
   ActivityType,
   EntityType,
-  ActivityItem,
+  ActivityItem as ActivityItemType,
   RecentActivity,
   ProjectSpotlight as ProjectSpotlightType,
   DashboardData,

@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { BranchMode } from './BranchMode';
-import type { EntityType } from './EntityType';
+import type { EntityType_Output } from './EntityType_Output';
 /**
  * Generic EVM metrics response for any entity type.
  *
@@ -30,7 +30,7 @@ export type EVMMetricsResponse = {
     /**
      * Entity type (cost_element, wbe, or project)
      */
-    entity_type: EntityType;
+    entity_type: EntityType_Output;
     /**
      * Entity ID (cost element, WBE, or project)
      */

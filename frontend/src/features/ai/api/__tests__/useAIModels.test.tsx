@@ -41,7 +41,7 @@ const handlers = [
 
   // Create model
   http.post(`${API_BASE}/ai/config/providers/:providerId/models`, async ({ request }) => {
-    const data = await request.json();
+    const data = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({
       id: "3",
       provider_id: "1",
@@ -159,7 +159,7 @@ describe("useAIModels", () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(result.current.data?.model_id).toBe("gpt-4-turbo");
-      expect(onSuccess).toHaveBeenCalled_once();
+      expect(onSuccess).toHaveBeenCalledOnce();
     });
   });
 });
@@ -216,15 +216,14 @@ describe("useAIProviderConfigs", () => {
       await waitFor(() => {
         result.current.mutate({
           providerId: "provider-1",
-          key: "api_key",
-          data: { value: "sk-new-key" },
+          data: { key: "api_key", value: "sk-new-key", is_encrypted: true },
         });
       });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(result.current.data?.is_encrypted).toBe(true);
-      expect(onSuccess).toHaveBeenCalled_once();
+      expect(onSuccess).toHaveBeenCalledOnce();
     });
   });
 
@@ -242,7 +241,7 @@ describe("useAIProviderConfigs", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(onSuccess).toHaveBeenCalled_once();
+      expect(onSuccess).toHaveBeenCalledOnce();
     });
   });
 });

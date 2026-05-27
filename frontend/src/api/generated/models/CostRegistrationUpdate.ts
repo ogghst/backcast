@@ -14,9 +14,9 @@ export type CostRegistrationUpdate = {
     invoice_number?: (string | null);
     vendor_reference?: (string | null);
     /**
-     * Optional work package to link this cost registration to
+     * Optional cost event to link this cost registration to
      */
-    work_package_id?: (string | null);
+    cost_event_id?: (string | null);
     /**
      * Optional control date for update (valid_time start)
      */

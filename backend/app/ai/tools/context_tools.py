@@ -24,8 +24,8 @@ from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_ses
 logger = logging.getLogger(__name__)
 
 # Reasonable limits for data fetching to prevent memory issues
-_MAX_WBES = 5000
-_MAX_COST_ELEMENTS = 10000
+_MAX_WBS_ELEMENTS = 5000
+_MAX_WORK_PACKAGES = 10000
 
 
 @ai_tool(
@@ -175,43 +175,44 @@ async def get_project_context(
         }
 
 
-def _build_wbe_tree(
-    wbes: list[Any],
-    cost_elements_by_wbe: dict[str, list[dict[str, Any]]],
+def _build_wbs_tree(
+    wbs_elements: list[Any],
+    work_packages_by_wbs: dict[str, list[dict[str, Any]]],
 ) -> list[dict[str, Any]]:
-    """Build nested WBE tree from flat list using parent_wbe_id.
+    """Build nested WBS Element tree from flat list using parent_wbs_element_id.
 
     Args:
-        wbes: Flat list of WBE ORM objects with wbe_id, code, name,
-              level, budget_allocation, and parent_wbe_id attributes.
-        cost_elements_by_wbe: Mapping of WBE ID strings to lists of
-              cost element dictionaries.
+        wbs_elements: Flat list of WBSElement ORM objects with wbs_element_id, code,
+              name, level, budget_allocation, and parent_wbs_element_id attributes.
+        work_packages_by_wbs: Mapping of WBS Element ID strings to lists of
+              work package dictionaries.
 
     Returns:
-        List of root WBE nodes, each potentially containing nested
-        children following the parent_wbe_id hierarchy.
+        List of root WBS nodes, each potentially containing nested
+        children following the parent_wbs_element_id hierarchy.
     """
-    wbe_map: dict[str, dict[str, Any]] = {}
+    wbs_map: dict[str, dict[str, Any]] = {}
     root_nodes: list[dict[str, Any]] = []
 
-    for wbe in wbes:
+    for wbs in wbs_elements:
         node: dict[str, Any] = {
-            "id": str(wbe.wbe_id),
-            "code": wbe.code,
-            "name": wbe.name,
-            "level": wbe.level,
+            "id": str(wbs.wbs_element_id),
+            "code": wbs.code,
+            "name": wbs.name,
+            "level": wbs.level,
             "budget_allocation": (
-                float(wbe.budget_allocation) if wbe.budget_allocation else None
+                float(wbs.budget_allocation) if wbs.budget_allocation else None
             ),
             "children": [],
-            "cost_elements": cost_elements_by_wbe.get(str(wbe.wbe_id), []),
+            "work_packages": work_packages_by_wbs.get(str(wbs.wbs_element_id), []),
         }
-        wbe_map[str(wbe.wbe_id)] = node
+        wbs_map[str(wbs.wbs_element_id)] = node
 
-    for wbe in wbes:
-        node = wbe_map[str(wbe.wbe_id)]
-        if wbe.parent_wbe_id:
-            parent = wbe_map.get(str(wbe.parent_wbe_id))
+    for wbs in wbs_elements:
+        node = wbs_map[str(wbs.wbs_element_id)]
+        parent_id = getattr(wbs, "parent_wbs_element_id", None)
+        if parent_id:
+            parent = wbs_map.get(str(parent_id))
             if parent:
                 parent["children"].append(node)
             else:
@@ -224,7 +225,7 @@ def _build_wbe_tree(
 
 @ai_tool(
     name="get_project_structure",
-    description="Read project WBE hierarchy as nested tree.",
+    description="Read project WBS hierarchy as nested tree.",
     permissions=["project-read"],
     category="context",
     risk_level=RiskLevel.LOW,
@@ -234,8 +235,8 @@ async def get_project_structure(
 ) -> dict[str, Any]:
     """Returns the complete project hierarchy as a nested tree.
 
-    Provides the full project structure with WBEs nested by parent-child
-    relationships and cost elements attached to each WBE. Only available
+    Provides the full project structure with WBS Elements nested by parent-child
+    relationships and work packages attached to each WBS Element. Only available
     in project-scoped chat.
 
     Args:
@@ -243,10 +244,10 @@ async def get_project_structure(
 
     Returns:
         Dictionary containing:
-            - project: Project info with nested wbes tree
-            Each WBE node has: id, code, name, level, budget_allocation,
-            children (nested WBEs), cost_elements (list with id, code,
-            name, budget_amount, type)
+            - project: Project info with nested wbs_elements tree
+            Each WBS node has: id, code, name, level, budget_allocation,
+            children (nested WBS Elements), work_packages (list with id, code,
+            name, budget_amount, status)
 
     Example:
         >>> await get_project_structure(context)
@@ -257,11 +258,11 @@ async def get_project_structure(
                 "name": "Automation Line 1",
                 "status": "ACT",
                 "budget": 1000000.0,
-                "wbes": [{
+                "wbs_elements": [{
                     "id": "...", "code": "1", "name": "Engineering",
                     "level": 1, "budget_allocation": 500000.0,
                     "children": [...],
-                    "cost_elements": [...]
+                    "work_packages": [...]
                 }]
             }
         }
@@ -269,8 +270,8 @@ async def get_project_structure(
     from uuid import UUID
 
     from app.core.versioning.enums import BranchMode
-    from app.services.cost_element_service import CostElementService
-    from app.services.wbe import WBEService
+    from app.services.wbs_element_service import WBSElementService
+    from app.services.work_package_service import WorkPackageService
 
     # Log context
     log_temporal_context("get_project_structure", context)
@@ -318,47 +319,75 @@ async def get_project_structure(
                 {"error": f"Project {context.project_id} not found"}, context
             )
 
-        # Fetch all WBEs and cost elements concurrently
-        wbe_service = WBEService(context.session)
-        ce_service = CostElementService(context.session)
+        # Fetch all WBS Elements and work packages concurrently
+        wbs_service = WBSElementService(context.session)
+        wp_service = WorkPackageService(context.session)
 
-        wbes_result, ces_result = await asyncio.gather(
-            wbe_service.get_wbes(
+        wbs_result, wp_result = await asyncio.gather(
+            wbs_service.get_wbs_elements(
                 project_id=project_uuid,
                 branch=branch,
                 branch_mode=branch_mode,
                 as_of=context.as_of,
-                limit=_MAX_WBES,
+                limit=_MAX_WBS_ELEMENTS,
             ),
-            ce_service.get_cost_elements(
+            wp_service.get_work_packages(
                 branch=branch,
                 branch_mode=branch_mode,
-                limit=_MAX_COST_ELEMENTS,
                 as_of=context.as_of,
+                limit=_MAX_WORK_PACKAGES,
             ),
         )
-        wbes, _ = wbes_result
-        all_ces, _ = ces_result
+        wbs_elements, _ = wbs_result
+        all_wps, _ = wp_result
 
-        wbe_ids = {str(w.wbe_id) for w in wbes}
-        cost_elements_by_wbe: dict[str, list[dict[str, Any]]] = {}
-        for ce in all_ces:
-            if str(ce.wbe_id) in wbe_ids:
-                ce_list = cost_elements_by_wbe.setdefault(str(ce.wbe_id), [])
-                ce_list.append(
+        # Build a mapping from control_account_id to wbs_element_id
+        # We need to resolve ControlAccount -> WBSElement for the tree
+        from typing import cast as typing_cast
+
+        from sqlalchemy import func as sql_func
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.control_account import ControlAccount
+
+        ca_stmt = sql_select(
+            ControlAccount.control_account_id,
+            ControlAccount.wbs_element_id,
+        ).where(
+            ControlAccount.branch == branch,
+            sql_func.upper(typing_cast(Any, ControlAccount).valid_time).is_(None),
+            typing_cast(Any, ControlAccount).deleted_at.is_(None),
+        )
+        ca_result = await context.session.execute(ca_stmt)
+        ca_to_wbs = {
+            str(row.control_account_id): str(row.wbs_element_id)
+            for row in ca_result.all()
+        }
+
+        wbs_ids = {str(w.wbs_element_id) for w in wbs_elements}
+        # Also include parent WBS IDs from control accounts
+        for wbs_id in ca_to_wbs.values():
+            wbs_ids.add(wbs_id)
+
+        work_packages_by_wbs: dict[str, list[dict[str, Any]]] = {}
+        for wp in all_wps:
+            ca_wbs_id = ca_to_wbs.get(str(wp.control_account_id))
+            if ca_wbs_id and ca_wbs_id in wbs_ids:
+                wp_list = work_packages_by_wbs.setdefault(wbs_id, [])
+                wp_list.append(
                     {
-                        "id": str(ce.cost_element_id),
-                        "code": ce.code,
-                        "name": ce.name,
+                        "id": str(wp.work_package_id),
+                        "code": wp.code,
+                        "name": wp.name,
                         "budget_amount": (
-                            float(ce.budget_amount) if ce.budget_amount else 0
+                            float(wp.budget_amount) if wp.budget_amount else 0
                         ),
-                        "type": getattr(ce, "cost_element_type_name", None),
+                        "status": wp.status,
                     }
                 )
 
         # Build tree
-        wbe_tree = _build_wbe_tree(wbes, cost_elements_by_wbe)
+        wbs_tree = _build_wbs_tree(wbs_elements, work_packages_by_wbs)
 
         result = {
             "project": {
@@ -367,7 +396,7 @@ async def get_project_structure(
                 "name": project.name,
                 "status": project.status,
                 "budget": float(project.budget) if project.budget else None,
-                "wbes": wbe_tree,
+                "wbs_elements": wbs_tree,
             },
         }
 

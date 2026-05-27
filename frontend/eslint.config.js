@@ -31,5 +31,14 @@ export default tseslint.config(
       "custom-rules/no-manual-query-keys": "error",
     },
   },
+  {
+    files: ["**/*.test.{ts,tsx}", "**/*.example.{ts,tsx}", "**/__tests__/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        { "ts-nocheck": "allow-with-description", minimumDescriptionLength: 10 },
+      ],
+    },
+  },
   storybook.configs["flat/recommended"]
 );

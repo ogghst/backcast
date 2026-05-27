@@ -54,10 +54,10 @@ const EVMEfficiencyGaugesComponent: FC<
               }
               format={() => (
                 <div>
-                  <div style={{ fontSize: token.fontSizeXL, fontWeight: token.fontWeightSemiBold }}>
+                  <div style={{ fontSize: token.fontSizeXL, fontWeight: 600 }}>
                     {metrics.cpi !== null ? metrics.cpi.toFixed(2) : "—"}
                   </div>
-                  <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
+                  <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>
                     CPI
                   </div>
                 </div>
@@ -81,10 +81,10 @@ const EVMEfficiencyGaugesComponent: FC<
               }
               format={() => (
                 <div>
-                  <div style={{ fontSize: token.fontSizeXL, fontWeight: token.fontWeightSemiBold }}>
+                  <div style={{ fontSize: token.fontSizeXL, fontWeight: 600 }}>
                     {metrics.spi !== null ? metrics.spi.toFixed(2) : "—"}
                   </div>
-                  <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
+                  <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>
                     SPI
                   </div>
                 </div>

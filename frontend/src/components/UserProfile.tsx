@@ -75,7 +75,7 @@ export const UserProfile: React.FC = () => {
       adminItems.push({
         key: "/admin/departments",
         icon: <TeamOutlined />,
-        label: "Departments",
+        label: "Organizational Units",
         onClick: () => navigate("/admin/departments"),
       });
     }
@@ -91,10 +91,10 @@ export const UserProfile: React.FC = () => {
 
     if (can("package-type-read")) {
       adminItems.push({
-        key: "/admin/package-types",
+        key: "/admin/cost-event-types",
         icon: <TagsOutlined />,
-        label: "Package Types",
-        onClick: () => navigate("/admin/package-types"),
+        label: "Cost Event Types",
+        onClick: () => navigate("/admin/cost-event-types"),
       });
     }
 
@@ -190,7 +190,7 @@ export const UserProfile: React.FC = () => {
       onClick: () => navigate("/profile"),
     },
     // Admin submenu section
-    ...(hasRole("admin") && getAdminItems().length > 0
+    ...(hasRole("admin") && (getAdminItems()?.length ?? 0) > 0
       ? [
           {
             type: "divider" as const,

@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BranchMode } from '../models/BranchMode';
+import { BranchMode } from '../models/BranchMode';
 import type { CostRegistrationCreate } from '../models/CostRegistrationCreate';
 import type { CostRegistrationRead } from '../models/CostRegistrationRead';
 import type { CostRegistrationUpdate } from '../models/CostRegistrationUpdate';
@@ -41,7 +41,7 @@ export class CostRegistrationsService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
         costElementId?: (string | null),
         wbeId?: (string | null),
         projectId?: (string | null),
@@ -162,7 +162,7 @@ export class CostRegistrationsService {
         projectId: string,
         branch: string = 'main',
         asOf?: (string | null),
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -198,7 +198,7 @@ export class CostRegistrationsService {
         wbeId: string,
         branch: string = 'main',
         asOf?: (string | null),
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',

@@ -186,7 +186,7 @@ export interface AIToolPublic {
  * Matches backend SessionContext schema
  */
 export interface SessionContext {
-  type: "general" | "project" | "wbe" | "cost_element";
+  type: "general" | "project" | "wbs_element" | "cost_element";
   id?: string;
   project_id?: string;
   name?: string;

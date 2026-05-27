@@ -181,7 +181,7 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
                   fontSize: typography.sizes.sm,
                   backgroundColor: token.colorFillTertiary,
                   padding: `0 ${spacing.xs}px`,
-                  borderRadius: borderRadius.xs,
+                  borderRadius: borderRadius.sm,
                   margin: `0 ${spacing.xs}px`
                 }}>
                   {tool.name}

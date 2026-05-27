@@ -362,7 +362,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         6: isMobile ? typography.sizes.xs : baseHeadingSizes[6],
       };
 
-      const Tag = `h${level}` as keyof JSX.IntrinsicElements;
+      const Tag = `h${level}` as keyof Pick<JSX.IntrinsicElements, 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'>;
       return (
         <Tag
           style={{
@@ -457,7 +457,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         remarkPlugins={[remarkGfm, remarkBreaks]}
         rehypePlugins={[[rehypeSanitize, customSchema]]}
         components={{
-          code: InlineCode,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          code: InlineCode as any,
           pre: CodeBlockRenderer,
           p: ParagraphRenderer,
           a: LinkRenderer,

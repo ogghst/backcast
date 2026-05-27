@@ -23,14 +23,14 @@ from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.cost_registration import CostRegistration
-from app.models.domain.department import Department
 from app.models.domain.document import Document
 from app.models.domain.forecast import Forecast
+from app.models.domain.organizational_unit import OrganizationalUnit
 from app.models.domain.progress_entry import ProgressEntry
 from app.models.domain.project import Project
 from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.user import User
-from app.models.domain.wbe import WBE
+from app.models.domain.wbs_element import WBSElement
 from app.models.domain.work_package import WorkPackage
 from app.models.schemas.search import GlobalSearchResponse, SearchResultItem
 
@@ -205,7 +205,16 @@ _ENTITY_CONFIG: list[
         True,
         False,
     ),
-    ("wbe", WBE, "wbe_id", ["code", "name"], ["description"], [], True, False),
+    (
+        "wbs_element",
+        WBSElement,
+        "wbs_element_id",
+        ["code", "name"],
+        ["description"],
+        [],
+        True,
+        False,
+    ),
     (
         "cost_element",
         CostElement,
@@ -271,8 +280,8 @@ _ENTITY_CONFIG: list[
     # Global entities (no project scoping)
     ("user", User, "user_id", ["email", "full_name"], [], [], False, True),
     (
-        "department",
-        Department,
+        "organizational_unit",
+        OrganizationalUnit,
         "department_id",
         ["code", "name"],
         ["description"],
@@ -321,7 +330,7 @@ class GlobalSearchService:
             query: Search string (at least 1 character).
             user_id: Authenticated user ID for RBAC scoping.
             project_id: Optional project root ID to scope results.
-            wbe_id: Optional WBE root ID to scope results (includes descendants).
+            wbe_id: Optional WBS Element root ID to scope results (includes descendants).
             branch: Branch name (default "main").
             branch_mode: ISOLATED or MERGED for branchable entities.
             as_of: Optional timestamp for time-travel queries.
@@ -333,7 +342,7 @@ class GlobalSearchService:
         # 1. Resolve accessible project IDs via RBAC
         accessible_project_ids = await self._get_accessible_projects(user_id)
 
-        # 2. If wbe_id provided, resolve descendant WBE IDs
+        # 2. If wbe_id provided, resolve descendant WBS Element IDs
         wbe_ids: list[UUID] | None = None
         if wbe_id is not None:
             wbe_ids = await self._resolve_wbe_descendants(
@@ -410,9 +419,9 @@ class GlobalSearchService:
         branch_mode: BranchMode,
         as_of: datetime | None,
     ) -> list[UUID]:
-        """Resolve all descendant WBE IDs for a given root WBE.
+        """Resolve all descendant WBS Element IDs for a given root WBS Element.
 
-        Uses iterative BFS via parent_wbe_id hierarchy.
+        Uses iterative BFS via parent_wbs_element_id hierarchy.
         Returns a list of descendant root IDs (not including root_wbe_id itself).
         """
         descendants: list[UUID] = []
@@ -422,11 +431,13 @@ class GlobalSearchService:
             parent_ids = queue
             queue = []
 
-            stmt = select(WBE.wbe_id).where(
-                WBE.parent_wbe_id.in_(parent_ids),
+            stmt = select(WBSElement.wbs_element_id).where(
+                WBSElement.parent_wbs_element_id.in_(parent_ids),
             )
-            stmt = self._apply_temporal_filter(stmt, WBE, as_of)
-            stmt = _apply_branch_mode_filter(stmt, WBE, "wbe_id", branch, branch_mode)
+            stmt = self._apply_temporal_filter(stmt, WBSElement, as_of)
+            stmt = _apply_branch_mode_filter(
+                stmt, WBSElement, "wbs_element_id", branch, branch_mode
+            )
             stmt = stmt.limit(500)
 
             result = await self.session.execute(stmt)
@@ -620,8 +631,8 @@ class GlobalSearchService:
 
         Strategy varies by how the entity links to a project:
         - Direct project_id column: filter directly.
-        - wbe_id column: join to WBE, filter WBE.project_id.
-        - cost_element_id column: join chain CE -> WBE -> project.
+        - wbs_element_id column: join to WBSElement, filter WBSElement.project_id.
+        - cost_element_id column: join chain CE -> WBSElement -> project.
         """
         # If accessible_project_ids is empty, user has no access
         if not accessible_project_ids:
@@ -638,37 +649,58 @@ class GlobalSearchService:
             stmt = stmt.where(entity_class.project_id.in_(target_project_ids))
             return stmt
 
-        # Entity has wbe_id -> join to WBE for project_id
-        if hasattr(entity_class, "wbe_id") and not hasattr(
+        # Entity has wbs_element_id -> join to WBSElement for project_id
+        if hasattr(entity_class, "wbs_element_id") and not hasattr(
             entity_class, "cost_element_id"
         ):
-            # WBE itself
+            # WBSElement itself
             if wbe_ids is not None:
-                stmt = stmt.where(entity_class.wbe_id.in_(wbe_ids))
+                stmt = stmt.where(entity_class.wbs_element_id.in_(wbe_ids))
             else:
                 wbe_subq = (
-                    select(WBE.wbe_id)
-                    .where(WBE.project_id.in_(target_project_ids))
+                    select(WBSElement.wbs_element_id)
+                    .where(WBSElement.project_id.in_(target_project_ids))
                     .correlate(entity_class)
                 )
-                stmt = stmt.where(entity_class.wbe_id.in_(wbe_subq))
+                stmt = stmt.where(entity_class.wbs_element_id.in_(wbe_subq))
             return stmt
 
-        # Entity has cost_element_id -> join chain CE -> WBE -> project
+        # Entity has cost_element_id -> join chain CE -> WP -> CA -> WBSElement -> project
         if hasattr(entity_class, "cost_element_id"):
             if wbe_ids is not None:
-                # If WBE-scoped, resolve CE IDs under those WBEs
+                # If WBSElement-scoped, resolve WP IDs under those WBSElements
+                from app.models.domain.control_account import ControlAccount
+                from app.models.domain.work_package import WorkPackage
+
+                wp_subq = (
+                    select(WorkPackage.work_package_id)
+                    .join(
+                        ControlAccount,
+                        WorkPackage.control_account_id
+                        == ControlAccount.control_account_id,
+                    )
+                    .where(ControlAccount.wbs_element_id.in_(wbe_ids))
+                )
                 ce_subq = select(CostElement.cost_element_id).where(
-                    CostElement.wbe_id.in_(wbe_ids)
+                    CostElement.work_package_id.in_(wp_subq)
                 )
                 stmt = stmt.where(entity_class.cost_element_id.in_(ce_subq))
             else:
-                # Full chain: CE -> WBE -> project
-                wbe_subq = select(WBE.wbe_id).where(
-                    WBE.project_id.in_(target_project_ids)
+                # Full chain: CE -> WP -> CA -> WBSElement -> project
+                from app.models.domain.control_account import ControlAccount
+                from app.models.domain.work_package import WorkPackage
+
+                wbe_subq = select(WBSElement.wbs_element_id).where(
+                    WBSElement.project_id.in_(target_project_ids)
+                )
+                ca_subq = select(ControlAccount.control_account_id).where(
+                    ControlAccount.wbs_element_id.in_(wbe_subq)
+                )
+                wp_subq = select(WorkPackage.work_package_id).where(
+                    WorkPackage.control_account_id.in_(ca_subq)
                 )
                 ce_subq = select(CostElement.cost_element_id).where(
-                    CostElement.wbe_id.in_(wbe_subq)
+                    CostElement.work_package_id.in_(wp_subq)
                 )
                 stmt = stmt.where(entity_class.cost_element_id.in_(ce_subq))
             return stmt

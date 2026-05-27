@@ -26,7 +26,7 @@ import {
 import { getCurrencySymbol } from "@/utils/formatters";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
-import { useWorkPackages, usePackageTypes } from "@/features/work-package/api/useWorkPackages";
+import { useCostEvents, useCostEventTypes } from "@/features/cost-events/api/useCostEvents";
 import { formatFileSize } from "@/features/ai/chat/api/attachmentUpload";
 import { toast } from "sonner";
 
@@ -81,20 +81,20 @@ export const CostRegistrationModal = ({
   const { spacing, typography, borderRadius } = useThemeTokens();
 
   // Fetch open work packages for the project
-  const { data: wpData, isLoading: wpLoading } = useWorkPackages({
+  const { data: wpData, isLoading: wpLoading } = useCostEvents({
     project_id: projectId,
     status: "open",
     perPage: 100,
   });
 
   // Fetch package types for label resolution
-  const { data: packageTypeOptions } = usePackageTypes();
+  const { data: packageTypeOptions } = useCostEventTypes();
 
   const workPackageOptions = (wpData?.items || []).map((wp) => {
-    const typeLabel = packageTypeOptions?.find((o) => o.value === wp.package_type_id)?.label || wp.package_type_code || wp.package_type_name || "";
+    const typeLabel = packageTypeOptions?.find((o) => o.value === wp.cost_event_type_id)?.label || wp.cost_event_type_code || wp.cost_event_type_name || "";
     return {
       label: `${wp.name} (${typeLabel})`,
-      value: wp.work_package_id,
+      value: wp.cost_event_id,
     };
   });
 
@@ -154,7 +154,7 @@ export const CostRegistrationModal = ({
           description: initialValues.description,
           invoice_number: initialValues.invoice_number,
           vendor_reference: initialValues.vendor_reference,
-          work_package_id: initialValues.work_package_id,
+          work_package_id: initialValues.cost_element_id,
         };
         form.setFieldsValue(formValues);
       } else {
@@ -172,7 +172,7 @@ export const CostRegistrationModal = ({
     const submissionValues = {
       ...values,
       registration_date: values.registration_date
-        ? values.registration_date.toISOString()
+        ? (values.registration_date as unknown as { toISOString: () => string }).toISOString()
         : undefined,
     };
 
@@ -366,12 +366,11 @@ export const CostRegistrationModal = ({
               if (!value) return "";
               return currencyFormatValue(value);
             }}
-            parser={(value) => {
-              if (!value) return undefined as unknown as number;
+            parser={((value: string | undefined) => {
+              if (!value) return 0;
               const cleaned = value.replace(currencyParseValue, "");
-              const parsed = parseFloat(cleaned);
-              return isNaN(parsed) ? undefined : parsed;
-            }}
+              return parseFloat(cleaned) || 0;
+            }) as never}
           />
         </Form.Item>
 

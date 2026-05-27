@@ -77,12 +77,12 @@ export const useSetAIProviderConfig = (
       providerId: string;
       data: AIProviderConfigCreate;
     }) => configApi.set(providerId, data),
-    onSuccess: (data, variables) => {
+    onSuccess: (data, variables, ...args) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.ai.providerConfigs.list(variables.providerId),
       });
       toast.success("Configuration updated successfully");
-      options?.onSuccess?.(data, variables, undefined);
+      options?.onSuccess?.(data, variables, ...args);
     },
     onError: (error, ...args) => {
       toast.error(`Error updating configuration: ${error.message}`);
@@ -106,12 +106,12 @@ export const useDeleteAIProviderConfig = (
   return useMutation({
     mutationFn: ({ providerId, key }: { providerId: string; key: string }) =>
       configApi.delete(providerId, key),
-    onSuccess: (_, variables) => {
+    onSuccess: (_, variables, ...args) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.ai.providerConfigs.list(variables.providerId),
       });
       toast.success("Configuration deleted successfully");
-      options?.onSuccess?.(_, variables, undefined);
+      options?.onSuccess?.(_, variables, ...args);
     },
     onError: (error, ...args) => {
       toast.error(`Error deleting configuration: ${error.message}`);

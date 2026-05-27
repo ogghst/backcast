@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BranchMode } from '../models/BranchMode';
+import { BranchMode } from '../models/BranchMode';
 import type { GanttDataResponse } from '../models/GanttDataResponse';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
@@ -24,7 +24,7 @@ export class GanttService {
     public static getProjectGanttData(
         projectId: string,
         branch: string = 'main',
-        branchMode: BranchMode = 'merged',
+        branchMode: BranchMode = BranchMode.MERGED,
         asOf?: (string | null),
     ): CancelablePromise<GanttDataResponse> {
         return __request(OpenAPI, {

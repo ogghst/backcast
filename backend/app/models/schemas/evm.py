@@ -14,13 +14,17 @@ class EntityType(str, Enum):
     """Entity type for EVM metrics.
 
     Defines the granularity level for EVM calculations:
-    - COST_ELEMENT: Individual cost element (leaf node)
-    - WBE: Work Breakdown Element (intermediate node)
+    - WBS_ELEMENT: WBS Element (intermediate node)
+    - CONTROL_ACCOUNT: Control Account (WBS x Org Unit intersection)
+    - WORK_PACKAGE: Work Package (PMI budget holder)
+    - COST_ELEMENT: Cost Element / EOC (leaf node)
     - PROJECT: Project level (root node)
     """
 
+    WBS_ELEMENT = "wbs_element"
+    CONTROL_ACCOUNT = "control_account"
+    WORK_PACKAGE = "work_package"
     COST_ELEMENT = "cost_element"
-    WBE = "wbe"
     PROJECT = "project"
 
 
@@ -107,7 +111,7 @@ class EVMMetricsRead(BaseModel):
     )
 
     # Metadata
-    cost_element_id: UUID = Field(..., description="Cost Element ID")
+    work_package_id: UUID = Field(..., description="Work Package ID")
     control_date: datetime = Field(
         ...,
         description="Control date for time-travel query (entities fetched at this valid_time)",

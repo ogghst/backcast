@@ -34,26 +34,14 @@ export const CostElementInfoCard = ({
           </Tag>
         </Descriptions.Item>
 
-        <Descriptions.Item label="WBE">
-          {costElement.wbe_name || "-"}
+        <Descriptions.Item label="Work Package">
+          {costElement.work_package_name || costElement.work_package_code || "-"}
         </Descriptions.Item>
 
         <Descriptions.Item label="Cost Element ID">
-          <Typography.Text code copyable style={{ fontSize: token.fontSizeXS }}>
+          <Typography.Text code copyable style={{ fontSize: token.fontSizeSM }}>
             {costElement.cost_element_id}
           </Typography.Text>
-        </Descriptions.Item>
-
-        <Descriptions.Item label="Branch">
-          <Tag
-            color={costElement.branch === "main" ? "blue" : "orange"}
-            style={{
-              padding: `${token.paddingXS}px ${token.paddingSM}px`,
-              borderRadius: token.borderRadiusSM,
-            }}
-          >
-            {costElement.branch}
-          </Tag>
         </Descriptions.Item>
 
         <Descriptions.Item label="Created By">

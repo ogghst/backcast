@@ -23,19 +23,21 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
 from sqlalchemy import cast as sql_cast
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.enums import BranchMode
 from app.models.domain.change_order import ChangeOrder
+from app.models.domain.control_account import ControlAccount
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_registration import CostRegistration
 from app.models.domain.forecast import Forecast
 from app.models.domain.project import Project
 from app.models.domain.schedule_baseline import ScheduleBaseline
-from app.models.domain.wbe import WBE
+from app.models.domain.wbs_element import WBSElement
+from app.models.domain.work_package import WorkPackage
 from app.models.schemas.evm import EntityType
 
 if TYPE_CHECKING:
@@ -271,161 +273,212 @@ class ImpactAnalysisService:
         project_id = change_order.project_id
 
         # Calculate KPIs from main branch with temporal filtering
+        # BAC is now on WorkPackage (budget holder), not CostElement (EOC).
+        # WorkPackage -> ControlAccount -> WBSElement for project hierarchy.
+        # CostElement is NOT branchable -- branch filtering is on WorkPackage.
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            main_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            main_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
                     ),
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
-            branch_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            branch_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
                     ),
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
-            main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
+            main_revenue_stmt = select(func.sum(WBSElement.revenue_allocation)).where(
+                WBSElement.project_id == project_id,
+                WBSElement.branch == "main",
                 or_(
-                    cast(Any, WBE).deleted_at.is_(None),
-                    cast(Any, WBE).deleted_at > as_of,
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    cast(Any, WBSElement).deleted_at > as_of,
                 ),
-                WBE.valid_time.op("@>")(as_of_tstz),
-                func.lower(WBE.valid_time) <= as_of_tstz,
+                WBSElement.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBSElement.valid_time) <= as_of_tstz,
             )
-            main_wbes_stmt = select(WBE).where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
+            main_wbes_stmt = select(WBSElement).where(
+                WBSElement.project_id == project_id,
+                WBSElement.branch == "main",
                 or_(
-                    cast(Any, WBE).deleted_at.is_(None),
-                    cast(Any, WBE).deleted_at > as_of,
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    cast(Any, WBSElement).deleted_at > as_of,
                 ),
-                WBE.valid_time.op("@>")(as_of_tstz),
-                func.lower(WBE.valid_time) <= as_of_tstz,
+                WBSElement.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBSElement.valid_time) <= as_of_tstz,
             )
-            branch_wbes_stmt = select(WBE).where(
-                WBE.project_id == project_id,
-                WBE.branch == branch_name,
+            branch_wbes_stmt = select(WBSElement).where(
+                WBSElement.project_id == project_id,
+                WBSElement.branch == branch_name,
                 or_(
-                    cast(Any, WBE).deleted_at.is_(None),
-                    cast(Any, WBE).deleted_at > as_of,
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    cast(Any, WBSElement).deleted_at > as_of,
                 ),
-                WBE.valid_time.op("@>")(as_of_tstz),
-                func.lower(WBE.valid_time) <= as_of_tstz,
+                WBSElement.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBSElement.valid_time) <= as_of_tstz,
             )
         else:
-            main_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            main_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                 )
             )
-            branch_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            branch_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                 )
             )
-            main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+            main_revenue_stmt = select(func.sum(WBSElement.revenue_allocation)).where(
+                WBSElement.project_id == project_id,
+                WBSElement.branch == "main",
+                func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                cast(Any, WBSElement).deleted_at.is_(None),
             )
-            main_wbes_stmt = select(WBE).where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+            main_wbes_stmt = select(WBSElement).where(
+                WBSElement.project_id == project_id,
+                WBSElement.branch == "main",
+                func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                cast(Any, WBSElement).deleted_at.is_(None),
             )
-            branch_wbes_stmt = select(WBE).where(
-                WBE.project_id == project_id,
-                WBE.branch == branch_name,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+            branch_wbes_stmt = select(WBSElement).where(
+                WBSElement.project_id == project_id,
+                WBSElement.branch == branch_name,
+                func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                cast(Any, WBSElement).deleted_at.is_(None),
             )
 
-        # Execute CE queries for BAC calculation
-        main_ces_result = await self._db.execute(main_ce_stmt)
-        main_ces = {ce.cost_element_id: ce for ce in main_ces_result.scalars().all()}
+        # Execute WorkPackage queries for BAC calculation
+        main_wps_result = await self._db.execute(main_wp_stmt)
+        main_wps = {wp.work_package_id: wp for wp in main_wps_result.scalars().all()}
 
-        branch_ces_result = await self._db.execute(branch_ce_stmt)
-        branch_ces = {
-            ce.cost_element_id: ce for ce in branch_ces_result.scalars().all()
+        branch_wps_result = await self._db.execute(branch_wp_stmt)
+        branch_wps = {
+            wp.work_package_id: wp for wp in branch_wps_result.scalars().all()
         }
 
         main_bac = sum(
-            (ce.budget_amount or Decimal("0") for ce in main_ces.values()), Decimal("0")
+            (wp.budget_amount or Decimal("0") for wp in main_wps.values()), Decimal("0")
         )
 
         # Calculate revenue from main branch
         main_revenue_result = await self._db.execute(main_revenue_stmt)
         main_revenue = main_revenue_result.scalar() or Decimal("0")
 
-        # Execute WBE queries
+        # Execute WBSElement queries
         main_wbes_result = await self._db.execute(main_wbes_stmt)
-        main_wbes = {wbe.wbe_id: wbe for wbe in main_wbes_result.scalars().all()}
+        main_wbes = {
+            wbe.wbs_element_id: wbe for wbe in main_wbes_result.scalars().all()
+        }
 
         branch_wbes_result = await self._db.execute(branch_wbes_stmt)
-        branch_wbes = {wbe.wbe_id: wbe for wbe in branch_wbes_result.scalars().all()}
+        branch_wbes = {
+            wbe.wbs_element_id: wbe for wbe in branch_wbes_result.scalars().all()
+        }
 
         # Step 3: Build merged view and calculate KPIs
         merged_bac = Decimal("0")
         merged_revenue = Decimal("0")
 
-        # Include all main CEs, using branch override if exists
-        for ce_id, main_ce in main_ces.items():
-            if ce_id in branch_ces:
-                merged_bac += branch_ces[ce_id].budget_amount or Decimal("0")
+        # Include all main WPs, using branch override if exists
+        for wp_id, main_wp in main_wps.items():
+            if wp_id in branch_wps:
+                merged_bac += branch_wps[wp_id].budget_amount or Decimal("0")
             else:
-                merged_bac += main_ce.budget_amount or Decimal("0")
+                merged_bac += main_wp.budget_amount or Decimal("0")
 
-        # Include CEs that exist only on branch
-        for ce_id, branch_ce in branch_ces.items():
-            if ce_id not in main_ces:
-                merged_bac += branch_ce.budget_amount or Decimal("0")
+        # Include WPs that exist only on branch
+        for wp_id, branch_wp in branch_wps.items():
+            if wp_id not in main_wps:
+                merged_bac += branch_wp.budget_amount or Decimal("0")
 
         # Calculate merged revenue from WBEs
         for wbe_id, main_wbe in main_wbes.items():
@@ -446,10 +499,9 @@ class ImpactAnalysisService:
         change_budget_total = change_bac
 
         # Calculate actual costs from CostRegistrations with temporal filtering
-        # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
-        # Without this filter, the join could match CostElements from any branch, causing
-        # incorrect cost aggregation and FK violations
-        # Also apply temporal filtering for WBE, CostElement, and CostRegistration
+        # CRITICAL: CostElement is NOT branchable (no branch field).
+        # Branch filtering is on WorkPackage: CostRegistration -> CostElement -> WorkPackage.
+        # Also apply temporal filtering for all entities in the join chain.
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             main_actual_costs_stmt = (
@@ -458,25 +510,47 @@ class ImpactAnalysisService:
                     CostElement,
                     CostRegistration.cost_element_id == CostElement.cost_element_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch
-                    == "main",  # ISOLATED: Only count costs against main branch CostElements
-                    # Zombie protection for WBE
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    # Zombie protection for WBSElement
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    # Time travel for WBE
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
+                    # Zombie protection for ControlAccount
+                    or_(
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
+                    ),
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    # Zombie protection for WorkPackage
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                     # Zombie protection for CostElement
                     or_(
                         cast(Any, CostElement).deleted_at.is_(None),
                         cast(Any, CostElement).deleted_at > as_of,
                     ),
-                    # Time travel for CostElement
                     CostElement.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostElement.valid_time) <= as_of_tstz,
                     # Zombie protection for CostRegistration
@@ -484,7 +558,6 @@ class ImpactAnalysisService:
                         CostRegistration.deleted_at.is_(None),
                         CostRegistration.deleted_at > as_of,
                     ),
-                    # Time travel for CostRegistration
                     CostRegistration.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostRegistration.valid_time) <= as_of_tstz,
                 )
@@ -497,13 +570,27 @@ class ImpactAnalysisService:
                     CostElement,
                     CostRegistration.cost_element_id == CostElement.cost_element_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch
-                    == "main",  # ISOLATED: Only count costs against main branch CostElements
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
                     cast(Any, CostElement).deleted_at.is_(None),
                     CostRegistration.deleted_at.is_(None),
@@ -689,38 +776,38 @@ class ImpactAnalysisService:
         """
         # Get current WBEs from main branch
         main_wbes_stmt = (
-            select(WBE)
+            select(WBSElement)
             .where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+                WBSElement.project_id == project_id,
+                WBSElement.branch == "main",
+                func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                cast(Any, WBSElement).deleted_at.is_(None),
             )
-            .order_by(cast(Any, WBE).valid_time.desc())
+            .order_by(cast(Any, WBSElement).valid_time.desc())
         )
         main_wbes_result = await self._db.execute(main_wbes_stmt)
         main_wbes = list(main_wbes_result.scalars().all())
 
         # Get WBEs from change branch (branch-specific entities only)
         branch_wbes_stmt = (
-            select(WBE)
+            select(WBSElement)
             .where(
-                WBE.project_id == project_id,
-                WBE.branch == branch_name,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+                WBSElement.project_id == project_id,
+                WBSElement.branch == branch_name,
+                func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                cast(Any, WBSElement).deleted_at.is_(None),
             )
-            .order_by(cast(Any, WBE).valid_time.desc())
+            .order_by(cast(Any, WBSElement).valid_time.desc())
         )
         branch_wbes_result = await self._db.execute(branch_wbes_stmt)
         branch_wbes = list(branch_wbes_result.scalars().all())
 
-        # MERGED MODE: Build merged WBE view (branch overrides main)
-        main_wbe_map = {wbe.wbe_id: wbe for wbe in main_wbes}
-        branch_wbe_map = {wbe.wbe_id: wbe for wbe in branch_wbes}
+        # MERGED MODE: Build merged WBSElement view (branch overrides main)
+        main_wbe_map = {wbe.wbs_element_id: wbe for wbe in main_wbes}
+        branch_wbe_map = {wbe.wbs_element_id: wbe for wbe in branch_wbes}
 
         # Merged view: start with main, overlay branch entities
-        merged_wbes: list[WBE] = []
+        merged_wbes: list[WBSElement] = []
         for wbe_id, main_wbe in main_wbe_map.items():
             if wbe_id in branch_wbe_map:
                 # Branch has override for this entity
@@ -737,12 +824,23 @@ class ImpactAnalysisService:
         # We will compare WBEs after gathering Cost Elements so we can aggregate budgets.
 
         # Get current Cost Elements from main branch
+        # CostElement is NOT branchable -- filter by WorkPackage.branch instead.
+        # Join chain: CostElement -> WorkPackage -> ControlAccount -> WBSElement
         main_ce_stmt = (
             select(CostElement)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .join(
+                WorkPackage, CostElement.work_package_id == WorkPackage.work_package_id
+            )
+            .join(
+                ControlAccount,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
+            .join(
+                WBSElement, ControlAccount.wbs_element_id == WBSElement.wbs_element_id
+            )
             .where(
-                WBE.project_id == project_id,
-                CostElement.branch == "main",
+                WBSElement.project_id == project_id,
+                WorkPackage.branch == "main",
                 func.upper(cast(Any, CostElement).valid_time).is_(None),
                 cast(Any, CostElement).deleted_at.is_(None),
             )
@@ -754,10 +852,19 @@ class ImpactAnalysisService:
         # Get Cost Elements from change branch (branch-specific only)
         branch_ce_stmt = (
             select(CostElement)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .join(
+                WorkPackage, CostElement.work_package_id == WorkPackage.work_package_id
+            )
+            .join(
+                ControlAccount,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
+            .join(
+                WBSElement, ControlAccount.wbs_element_id == WBSElement.wbs_element_id
+            )
             .where(
-                WBE.project_id == project_id,
-                CostElement.branch == branch_name,
+                WBSElement.project_id == project_id,
+                WorkPackage.branch == branch_name,
                 func.upper(cast(Any, CostElement).valid_time).is_(None),
                 cast(Any, CostElement).deleted_at.is_(None),
             )
@@ -786,14 +893,90 @@ class ImpactAnalysisService:
             main_cost_elements, merged_cost_elements
         )
 
-        # Aggregate Cost Element budgets by WBE root ID
+        # Aggregate Cost Element amounts by WBSElement root ID
+        # CostElement no longer has wbs_element_id or budget_amount.
+        # We need to map CE -> WorkPackage -> ControlAccount -> WBSElement.
+        # However, since we fetched CEs via WorkPackage joins, we can build the mapping
+        # from the WorkPackage data we already have.
+        # For simplicity, aggregate using WorkPackage.budget_amount directly per WBS.
+        main_wp_for_ce: dict[UUID, WorkPackage] = {}
+        branch_wp_for_ce: dict[UUID, WorkPackage] = {}
+        main_ca_for_wp: dict[UUID, ControlAccount] = {}
+        branch_ca_for_wp: dict[UUID, ControlAccount] = {}
+
+        # We need WorkPackage data to map CEs to WBSElements.
+        # Fetch main and branch WorkPackages for this project.
+        main_wps_for_ce_stmt = select(WorkPackage).where(
+            WorkPackage.branch == "main",
+            WorkPackage.work_package_id.in_(
+                {ce.work_package_id for ce in main_cost_elements}
+            ),
+            func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+            cast(Any, WorkPackage).deleted_at.is_(None),
+        )
+        main_wps_for_ce_result = await self._db.execute(main_wps_for_ce_stmt)
+        for wp in main_wps_for_ce_result.scalars().all():
+            main_wp_for_ce[wp.work_package_id] = wp
+
+        branch_wp_for_ce_stmt = select(WorkPackage).where(
+            WorkPackage.branch == branch_name,
+            WorkPackage.work_package_id.in_(
+                {ce.work_package_id for ce in branch_cost_elements}
+            ),
+            func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+            cast(Any, WorkPackage).deleted_at.is_(None),
+        )
+        branch_wps_for_ce_result = await self._db.execute(branch_wp_for_ce_stmt)
+        for wp in branch_wps_for_ce_result.scalars().all():
+            branch_wp_for_ce[wp.work_package_id] = wp
+
+        # Fetch ControlAccounts to map WP -> CA -> WBS
+        all_ca_ids = {wp.control_account_id for wp in main_wp_for_ce.values()} | {
+            wp.control_account_id for wp in branch_wp_for_ce.values()
+        }
+        if all_ca_ids:
+            ca_stmt = select(ControlAccount).where(
+                ControlAccount.control_account_id.in_(all_ca_ids),
+                func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                cast(Any, ControlAccount).deleted_at.is_(None),
+            )
+            ca_result = await self._db.execute(ca_stmt)
+            for ca in ca_result.scalars().all():
+                main_ca_for_wp[ca.control_account_id] = ca
+                branch_ca_for_wp[ca.control_account_id] = ca
+
+        # Build CE -> WBS mapping
+        def _get_wbs_id_for_ce(
+            ce: CostElement, wp_map: dict[UUID, WorkPackage]
+        ) -> UUID | None:
+            wp = wp_map.get(ce.work_package_id)
+            if not wp:
+                return None
+            ca = main_ca_for_wp.get(wp.control_account_id) or branch_ca_for_wp.get(
+                wp.control_account_id
+            )
+            if not ca:
+                return None
+            return ca.wbs_element_id
+
+        # Aggregate CE amounts by WBSElement using the new hierarchy
         main_wbe_budgets: dict[UUID, Decimal] = defaultdict(Decimal)
         for ce in main_cost_elements:
-            main_wbe_budgets[ce.wbe_id] += ce.budget_amount or Decimal("0")
+            wbs_id = _get_wbs_id_for_ce(ce, main_wp_for_ce)
+            if wbs_id:
+                main_wbe_budgets[wbs_id] += ce.amount or Decimal("0")
 
         merged_wbe_budgets: dict[UUID, Decimal] = defaultdict(Decimal)
         for ce in merged_cost_elements:
-            merged_wbe_budgets[ce.wbe_id] += ce.budget_amount or Decimal("0")
+            wp_map = (
+                branch_wp_for_ce
+                if ce.cost_element_id
+                in {bce.cost_element_id for bce in branch_cost_elements}
+                else main_wp_for_ce
+            )
+            wbs_id = _get_wbs_id_for_ce(ce, wp_map)
+            if wbs_id:
+                merged_wbe_budgets[wbs_id] += ce.amount or Decimal("0")
 
         # Compare WBEs: main vs merged view using aggregated Cost Element budgets
         wbe_changes = self._compare_wbe_lists(
@@ -801,8 +984,8 @@ class ImpactAnalysisService:
         )
 
         # Compare Cost Registrations (actual costs)
-        # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
-        # CRITICAL: Apply temporal filtering to all entities (WBE, CostElement, CostRegistration)
+        # CRITICAL: CostElement is NOT branchable. Branch filtering is on WorkPackage.
+        # Join chain: CostRegistration -> CostElement -> WorkPackage -> ControlAccount -> WBSElement
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             main_cr_stmt = (
@@ -811,25 +994,47 @@ class ImpactAnalysisService:
                     CostElement,
                     CostRegistration.cost_element_id == CostElement.cost_element_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch
-                    == "main",  # ISOLATED: Only match main branch CostElements
-                    # Zombie protection for WBE
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    # Zombie protection for WBSElement
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    # Time travel for WBE
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
+                    # Zombie protection for ControlAccount
+                    or_(
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
+                    ),
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    # Zombie protection for WorkPackage
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                     # Zombie protection for CostElement
                     or_(
                         cast(Any, CostElement).deleted_at.is_(None),
                         cast(Any, CostElement).deleted_at > as_of,
                     ),
-                    # Time travel for CostElement
                     CostElement.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostElement.valid_time) <= as_of_tstz,
                     # Zombie protection for CostRegistration
@@ -837,7 +1042,6 @@ class ImpactAnalysisService:
                         CostRegistration.deleted_at.is_(None),
                         CostRegistration.deleted_at > as_of,
                     ),
-                    # Time travel for CostRegistration
                     CostRegistration.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostRegistration.valid_time) <= as_of_tstz,
                 )
@@ -851,13 +1055,27 @@ class ImpactAnalysisService:
                     CostElement,
                     CostRegistration.cost_element_id == CostElement.cost_element_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch
-                    == "main",  # ISOLATED: Only match main branch CostElements
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
                     cast(Any, CostElement).deleted_at.is_(None),
                     CostRegistration.deleted_at.is_(None),
@@ -869,8 +1087,7 @@ class ImpactAnalysisService:
         main_cost_registrations = list(main_cr_result.scalars().all())
 
         # Get Cost Registrations linked to branch CostElements
-        # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
-        # CRITICAL: Apply temporal filtering to all entities (WBE, CostElement, CostRegistration)
+        # CRITICAL: CostElement is NOT branchable. Branch filtering is on WorkPackage.
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             branch_cr_stmt = (
@@ -879,24 +1096,47 @@ class ImpactAnalysisService:
                     CostElement,
                     CostRegistration.cost_element_id == CostElement.cost_element_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,  # Branch-specific CostElements
-                    # Zombie protection for WBE
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
+                    # Zombie protection for WBSElement
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    # Time travel for WBE
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
+                    # Zombie protection for ControlAccount
+                    or_(
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
+                    ),
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    # Zombie protection for WorkPackage
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                     # Zombie protection for CostElement
                     or_(
                         cast(Any, CostElement).deleted_at.is_(None),
                         cast(Any, CostElement).deleted_at > as_of,
                     ),
-                    # Time travel for CostElement
                     CostElement.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostElement.valid_time) <= as_of_tstz,
                     # Zombie protection for CostRegistration
@@ -904,7 +1144,6 @@ class ImpactAnalysisService:
                         CostRegistration.deleted_at.is_(None),
                         CostRegistration.deleted_at > as_of,
                     ),
-                    # Time travel for CostRegistration
                     CostRegistration.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostRegistration.valid_time) <= as_of_tstz,
                 )
@@ -918,12 +1157,27 @@ class ImpactAnalysisService:
                     CostElement,
                     CostRegistration.cost_element_id == CostElement.cost_element_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,  # Branch-specific CostElements
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
                     cast(Any, CostElement).deleted_at.is_(None),
                     CostRegistration.deleted_at.is_(None),
@@ -967,7 +1221,7 @@ class ImpactAnalysisService:
             main_cost_registrations, merged_cost_registrations
         )
 
-        # Aggregate cost deltas by WBE and Cost Element for enriched entity changes
+        # Aggregate cost deltas by WBSElement and Cost Element for enriched entity changes
         # Map of root_id -> total cost delta
         wbe_cost_deltas: dict[UUID, Decimal] = {}
         ce_cost_deltas: dict[UUID, Decimal] = {}
@@ -1001,19 +1255,29 @@ class ImpactAnalysisService:
                 ce_id = ref_cr.cost_element_id
                 ce_cost_deltas[ce_id] = ce_cost_deltas.get(ce_id, Decimal("0")) + delta
 
-                # We need to find the WBE for this CE to aggregate up
+                # We need to find the WBSElement for this CE to aggregate up
                 # Optimization: we have merged_cost_elements list
                 pass
 
-        # Map CE -> WBE for aggregation
+        # Map CE -> WBSElement for aggregation
         ce_to_wbe_map: dict[UUID, UUID] = {}
         for ce in merged_cost_elements:
-            ce_to_wbe_map[ce.cost_element_id] = ce.wbe_id
+            wbs_id = _get_wbs_id_for_ce(
+                ce,
+                branch_wp_for_ce
+                if ce.cost_element_id
+                in {bce.cost_element_id for bce in branch_cost_elements}
+                else main_wp_for_ce,
+            )
+            if wbs_id:
+                ce_to_wbe_map[ce.cost_element_id] = wbs_id
         for ce in main_cost_elements:
             if ce.cost_element_id not in ce_to_wbe_map:
-                ce_to_wbe_map[ce.cost_element_id] = ce.wbe_id
+                wbs_id = _get_wbs_id_for_ce(ce, main_wp_for_ce)
+                if wbs_id:
+                    ce_to_wbe_map[ce.cost_element_id] = wbs_id
 
-        # Aggregate CE cost deltas into WBE cost deltas
+        # Aggregate CE cost deltas into WBSElement cost deltas
         for ce_id, delta in ce_cost_deltas.items():
             _wbe_id: UUID | None = ce_to_wbe_map.get(ce_id)
             if _wbe_id:
@@ -1035,8 +1299,8 @@ class ImpactAnalysisService:
 
     def _compare_wbe_lists(
         self,
-        main_wbes: list[WBE],
-        change_wbes: list[WBE],
+        main_wbes: list[WBSElement],
+        change_wbes: list[WBSElement],
         main_budgets: dict[UUID, Decimal] | None = None,
         change_budgets: dict[UUID, Decimal] | None = None,
         cost_deltas: dict[UUID, Decimal] | None = None,
@@ -1054,8 +1318,8 @@ class ImpactAnalysisService:
             List of EntityChange objects
         """
         # Create lookup maps by root ID
-        main_wbe_map = {wbe.wbe_id: wbe for wbe in main_wbes}
-        change_wbe_map = {wbe.wbe_id: wbe for wbe in change_wbes}
+        main_wbe_map = {wbe.wbs_element_id: wbe for wbe in main_wbes}
+        change_wbe_map = {wbe.wbs_element_id: wbe for wbe in change_wbes}
 
         changes: list[EntityChange] = []
         all_root_ids = set(main_wbe_map.keys()) | set(change_wbe_map.keys())
@@ -1131,6 +1395,9 @@ class ImpactAnalysisService:
     ) -> list[EntityChange]:
         """Compare two lists of Cost Elements and identify changes.
 
+        CostElement is now an EOC (Element of Cost) with amount, not budget_amount.
+        The name field is no longer on CostElement; use description as fallback.
+
         Args:
             main_ces: Cost Elements from main branch
             change_ces: Cost Elements from change branch (merged view)
@@ -1154,17 +1421,14 @@ class ImpactAnalysisService:
 
             if main_ce is None:
                 # Added in change branch
-                assert (
-                    change_ce is not None
-                )  # Logically: root_id in union but not in main
+                assert change_ce is not None
 
-                # For added entities, show full value as delta
                 changes.append(
                     EntityChange(
                         id=int(root_id.int >> 96),
-                        name=change_ce.name,
+                        name=change_ce.description or f"EOC {str(root_id)[:8]}",
                         change_type="added",
-                        budget_delta=change_ce.budget_amount,
+                        budget_delta=change_ce.amount,
                         revenue_delta=None,
                         cost_delta=cost_delta,
                     )
@@ -1174,23 +1438,25 @@ class ImpactAnalysisService:
                 changes.append(
                     EntityChange(
                         id=int(root_id.int >> 96),
-                        name=main_ce.name,
+                        name=main_ce.description or f"EOC {str(root_id)[:8]}",
                         change_type="removed",
-                        budget_delta=-main_ce.budget_amount,
+                        budget_delta=-main_ce.amount,
                         revenue_delta=None,
                         cost_delta=cost_delta,
                     )
                 )
             else:
                 # Exists in both - check for modifications
-                budget_delta = change_ce.budget_amount - main_ce.budget_amount
-                if budget_delta != 0 or cost_delta:
+                amount_delta = change_ce.amount - main_ce.amount
+                if amount_delta != 0 or cost_delta:
                     changes.append(
                         EntityChange(
                             id=int(root_id.int >> 96),
-                            name=change_ce.name,
+                            name=change_ce.description
+                            or main_ce.description
+                            or f"EOC {str(root_id)[:8]}",
                             change_type="modified",
-                            budget_delta=budget_delta if budget_delta != 0 else None,
+                            budget_delta=amount_delta if amount_delta != 0 else None,
                             revenue_delta=None,
                             cost_delta=cost_delta,
                         )
@@ -1317,7 +1583,7 @@ class ImpactAnalysisService:
 
         Time Machine (as_of):
         - When as_of is provided, filters all temporal data (ProgressEntry, CostRegistration,
-          CostElement, ScheduleBaseline, WBE) to include only entities with valid_time
+          CostElement, ScheduleBaseline, WBSElement) to include only entities with valid_time
           starting before or at the as_of timestamp
         - When as_of is None, returns current state (no temporal filtering)
         - Edge case: as_of after current date behaves same as as_of=None (all current data)
@@ -1348,77 +1614,83 @@ class ImpactAnalysisService:
         # ========================================================================
         # STEP 1: Get project date range from schedule baselines
         # ========================================================================
-        # Query all schedule baselines for cost elements in this project (both branches)
-        # CRITICAL: We must join WBE with branch matching CostElement.branch to ensure
-        # we get the correct cost elements for each branch
+        # ScheduleBaseline is linked via WorkPackage.schedule_baseline_id.
+        # Join chain: ScheduleBaseline -> WorkPackage -> ControlAccount -> WBSElement.
+        # Branch filtering is on WorkPackage (branchable), not CostElement.
 
-        # Apply temporal filtering if as_of is specified
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             schedule_stmt = (
-                select(ScheduleBaseline, CostElement, WBE)
+                select(ScheduleBaseline, WorkPackage, WBSElement)
                 .join(
-                    CostElement,
+                    WorkPackage,
                     ScheduleBaseline.schedule_baseline_id
-                    == CostElement.schedule_baseline_id,
+                    == WorkPackage.schedule_baseline_id,
                 )
                 .join(
-                    WBE,
-                    and_(
-                        CostElement.wbe_id == WBE.wbe_id,
-                        WBE.branch == CostElement.branch,
-                    ),
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
                 )
                 .where(
-                    WBE.project_id == project_id,
-                    # ZOMBIE PROTECTION for ScheduleBaseline
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch.in_(["main", branch_name]),
                     or_(
                         cast(Any, ScheduleBaseline).deleted_at.is_(None),
                         cast(Any, ScheduleBaseline).deleted_at > as_of,
                     ),
-                    # Time machine: Only include schedules/WBEs/CostElements valid at as_of
                     ScheduleBaseline.valid_time.op("@>")(as_of_tstz),
                     func.lower(ScheduleBaseline.valid_time) <= as_of_tstz,
-                    # ZOMBIE PROTECTION for WBE
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
-                    # ZOMBIE PROTECTION for CostElement
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
                     ),
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
         else:
-            # No time filtering - get current schedules
             schedule_stmt = (
-                select(ScheduleBaseline, CostElement, WBE)
+                select(ScheduleBaseline, WorkPackage, WBSElement)
                 .join(
-                    CostElement,
+                    WorkPackage,
                     ScheduleBaseline.schedule_baseline_id
-                    == CostElement.schedule_baseline_id,
+                    == WorkPackage.schedule_baseline_id,
                 )
                 .join(
-                    WBE,
-                    and_(
-                        CostElement.wbe_id == WBE.wbe_id,
-                        WBE.branch == CostElement.branch,
-                    ),
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
                 )
                 .where(
-                    WBE.project_id == project_id,
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch.in_(["main", branch_name]),
                     ScheduleBaseline.deleted_at.is_(None),
                     func.upper(ScheduleBaseline.valid_time).is_(None),
-                    WBE.deleted_at.is_(None),
-                    func.upper(WBE.valid_time).is_(None),
-                    CostElement.deleted_at.is_(None),
-                    func.upper(CostElement.valid_time).is_(None),
+                    WBSElement.deleted_at.is_(None),
+                    func.upper(WBSElement.valid_time).is_(None),
+                    ControlAccount.deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    WorkPackage.deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
                 )
             )
 
@@ -1426,20 +1698,18 @@ class ImpactAnalysisService:
         schedules = schedule_result.all()
 
         if not schedules:
-            # Fallback: If no schedules exist, use simple WBE-based budget calculation
+            # Fallback: If no schedules exist, use simple WBSElement-based budget calculation
             # This handles projects that haven't set up schedule baselines yet
             return await self._generate_simple_budget_series(
                 project_id, branch_name, as_of
             )
 
-        # Separate by CostElement branch (not ScheduleBaseline.branch)
-        # ScheduleBaselines are shared across branches (they're in main), but CostElements
-        # determine which branch the schedule belongs to for comparison purposes
+        # Separate by WorkPackage branch
         main_schedules = [s for s in schedules if s[1].branch == "main"]
         change_schedules = [s for s in schedules if s[1].branch == branch_name]
 
         if not main_schedules:
-            # Fallback: If no main schedules exist, use simple WBE-based budget calculation
+            # Fallback: If no main schedules exist, use simple WBSElement-based budget calculation
             return await self._generate_simple_budget_series(
                 project_id, branch_name, as_of
             )
@@ -1488,149 +1758,195 @@ class ImpactAnalysisService:
         max_end = min(max_end, control_date)
 
         # ========================================================================
-        # STEP 2: Batch fetch all required data for EVM calculations
+        # STEP 2: Batch fetch CostElement data for AC/EV lookups
         # ========================================================================
-        # Get all cost element IDs for this project (both branches)
+        # CostElement is NOT branchable. Join through WorkPackage for branch filtering.
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            all_cost_elements_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            all_ce_stmt = (
+                select(CostElement, WorkPackage)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch.in_(["main", branch_name]),
-                    # ZOMBIE PROTECTION for CostElement
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch.in_(["main", branch_name]),
                     or_(
                         cast(Any, CostElement).deleted_at.is_(None),
                         cast(Any, CostElement).deleted_at > as_of,
                     ),
-                    # Time machine: Only include cost elements valid at as_of
                     CostElement.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostElement.valid_time) <= as_of_tstz,
                 )
             )
         else:
-            # No time filtering - get current cost elements
-            all_cost_elements_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            all_ce_stmt = (
+                select(CostElement, WorkPackage)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch.in_(["main", branch_name]),
-                    func.upper(CostElement.valid_time).is_(None),
-                    CostElement.deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch.in_(["main", branch_name]),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
                 )
             )
-        ce_result = await self._db.execute(all_cost_elements_stmt)
-        all_cost_elements = ce_result.scalars().all()
+        ce_result = await self._db.execute(all_ce_stmt)
+        ce_rows = ce_result.all()
 
-        # Build cost element lookup by (cost_element_id, branch)
-        ce_lookup: dict[tuple[UUID, str], CostElement] = {}
-        for ce in all_cost_elements:
-            ce_lookup[(ce.cost_element_id, ce.branch)] = ce
+        # Build CE -> WorkPackage branch mapping for lookups
+        ce_to_wp_branch: dict[UUID, str] = {}
+        for ce, wp in ce_rows:
+            ce_to_wp_branch[ce.cost_element_id] = wp.branch
 
         # ========================================================================
         # STEP 3: Batch fetch ProgressEntry data for EV calculation
         # ========================================================================
-        # ProgressEntry is NOT branchable - need to filter by CostElement.branch
-        # We need to join with CostElement to know which branch the progress applies to
+        # ProgressEntry references work_package_id, not cost_element_id.
+        # Join through WorkPackage for branch filtering.
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             progress_stmt = (
-                select(ProgressEntry, CostElement)
+                select(ProgressEntry, WorkPackage)
                 .join(
-                    CostElement,
-                    ProgressEntry.cost_element_id == CostElement.cost_element_id,
+                    WorkPackage,
+                    ProgressEntry.work_package_id == WorkPackage.work_package_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch.in_(["main", branch_name]),
-                    # ZOMBIE PROTECTION for ProgressEntry
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch.in_(["main", branch_name]),
                     or_(
                         ProgressEntry.deleted_at.is_(None),
                         ProgressEntry.deleted_at > as_of,
                     ),
-                    # Time machine: Only include progress entries valid at as_of
                     ProgressEntry.valid_time.op("@>")(as_of_tstz),
                     func.lower(ProgressEntry.valid_time) <= as_of_tstz,
                 )
             ).order_by(
-                CostElement.branch,
-                CostElement.cost_element_id,
+                WorkPackage.branch,
+                WorkPackage.work_package_id,
                 func.lower(ProgressEntry.valid_time).desc(),
             )
         else:
-            # No time filtering - get current progress entries
             progress_stmt = (
-                select(ProgressEntry, CostElement)
+                select(ProgressEntry, WorkPackage)
                 .join(
-                    CostElement,
-                    ProgressEntry.cost_element_id == CostElement.cost_element_id,
+                    WorkPackage,
+                    ProgressEntry.work_package_id == WorkPackage.work_package_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch.in_(["main", branch_name]),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch.in_(["main", branch_name]),
                     ProgressEntry.deleted_at.is_(None),
                     func.upper(ProgressEntry.valid_time).is_(None),
                 )
             ).order_by(
-                CostElement.branch,
-                CostElement.cost_element_id,
+                WorkPackage.branch,
+                WorkPackage.work_package_id,
                 func.lower(ProgressEntry.valid_time).desc(),
             )
 
         progress_result = await self._db.execute(progress_stmt)
         progress_rows = progress_result.all()
 
-        # Build progress lookup: (cost_element_id, branch) -> list of ProgressEntry
-        # Store ALL progress entries (not just latest) to enable date-based filtering
-        # during weekly aggregation, similar to how AC handles cost registrations.
+        # Build progress lookup: (work_package_id, branch) -> list of ProgressEntry
         progress_lookup: dict[tuple[UUID, str], list[ProgressEntry]] = defaultdict(list)
-        for pe, ce in progress_rows:
-            key = (ce.cost_element_id, ce.branch)
+        for pe, wp in progress_rows:
+            key = (pe.work_package_id, wp.branch)
             progress_lookup[key].append(pe)
 
         # ========================================================================
         # STEP 4: Batch fetch CostRegistration data for AC calculation
         # ========================================================================
-        # CostRegistration is NOT branchable - need to filter by CostElement.branch
-        # We fetch all registrations and will filter by CostElement.branch when aggregating
+        # CostRegistration -> CostElement -> WorkPackage for branch filtering.
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             cost_reg_stmt = (
-                select(CostRegistration, CostElement)
+                select(CostRegistration, CostElement, WorkPackage)
                 .join(
                     CostElement,
                     CostRegistration.cost_element_id == CostElement.cost_element_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch.in_(["main", branch_name]),
-                    # ZOMBIE PROTECTION for CostRegistration
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch.in_(["main", branch_name]),
                     or_(
                         CostRegistration.deleted_at.is_(None),
                         CostRegistration.deleted_at > as_of,
                     ),
-                    # Time machine: Only include cost registrations valid at as_of
                     CostRegistration.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostRegistration.valid_time) <= as_of_tstz,
                 )
             ).order_by(CostRegistration.registration_date)
         else:
-            # No time filtering - get current cost registrations
             cost_reg_stmt = (
-                select(CostRegistration, CostElement)
+                select(CostRegistration, CostElement, WorkPackage)
                 .join(
                     CostElement,
                     CostRegistration.cost_element_id == CostElement.cost_element_id,
                 )
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .join(
+                    WorkPackage,
+                    CostElement.work_package_id == WorkPackage.work_package_id,
+                )
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch.in_(["main", branch_name]),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch.in_(["main", branch_name]),
                     CostRegistration.deleted_at.is_(None),
                     func.upper(CostRegistration.valid_time).is_(None),
                 )
@@ -1639,12 +1955,12 @@ class ImpactAnalysisService:
         cost_reg_result = await self._db.execute(cost_reg_stmt)
         cost_reg_rows = cost_reg_result.all()
 
-        # Build cost registration lookup: (cost_element_id, branch) -> list of registrations
+        # Build cost reg lookup: (work_package_id, branch) -> list of CostRegistration
         cost_reg_lookup: dict[tuple[UUID, str], list[CostRegistration]] = defaultdict(
             list
         )
-        for cr, ce in cost_reg_rows:
-            cost_reg_lookup[(ce.cost_element_id, ce.branch)].append(cr)
+        for cr, _ce, wp in cost_reg_rows:
+            cost_reg_lookup[(_ce.work_package_id, wp.branch)].append(cr)
 
         # ========================================================================
         # STEP 5: Generate weekly intervals
@@ -1684,9 +2000,9 @@ class ImpactAnalysisService:
             if s[0].start_date is not None and s[0].end_date is not None
         ]
 
-        # Build WBE ID sets for MERGED mode logic
-        main_wbe_ids = {s[2].wbe_id for s in valid_main_schedules}
-        change_wbe_ids = {s[2].wbe_id for s in valid_change_schedules}
+        # Build WBSElement ID sets for MERGED mode logic
+        main_wbe_ids = {s[2].wbs_element_id for s in valid_main_schedules}
+        change_wbe_ids = {s[2].wbs_element_id for s in valid_change_schedules}
         only_in_main = main_wbe_ids - change_wbe_ids
 
         for period in weekly_periods:
@@ -1708,21 +2024,19 @@ class ImpactAnalysisService:
             # ------------------------------------------------------------
             # Calculate main branch metrics
             # ------------------------------------------------------------
-            for schedule, ce, _wbe in valid_main_schedules:
-                budget = ce.budget_amount or Decimal("0")
+            for schedule, wp, _wbe in valid_main_schedules:
+                budget = wp.budget_amount or Decimal("0")
                 if not (schedule.start_date and schedule.end_date):
                     continue
 
-                # Validate dates before calculating progress (start_date < end_date)
                 if schedule.start_date >= schedule.end_date:
                     logger.warning(
-                        f"Invalid date range for schedule baseline {ce.code}: "
+                        f"Invalid date range for schedule baseline {wp.code}: "
                         f"start_date={schedule.start_date}, end_date={schedule.end_date}"
                     )
                     continue
 
                 try:
-                    # Budget/PV: Use progression strategy
                     strategy = get_progression_strategy(schedule.progression_type)
                     progress = strategy.calculate_progress(
                         week_mid, schedule.start_date, schedule.end_date
@@ -1732,44 +2046,41 @@ class ImpactAnalysisService:
                     main_budget += budget_pv
                     main_pv += budget_pv
 
-                    # EV: Use progress entries (as of week_mid for historical accuracy)
+                    # EV: Use progress entries keyed by work_package_id
                     progress_entries = progress_lookup.get(
-                        (ce.cost_element_id, "main"), []
+                        (wp.work_package_id, "main"), []
                     )
                     progress_pct = self._get_progress_as_of(progress_entries, week_mid)
                     ev = budget * progress_pct / Decimal("100")
                     main_ev += ev
 
-                    # AC: Use cost registrations (cumulative up to week_mid)
+                    # AC: Use cost registrations keyed by work_package_id
                     registrations = cost_reg_lookup.get(
-                        (ce.cost_element_id, "main"), []
+                        (wp.work_package_id, "main"), []
                     )
                     for cr in registrations:
                         if cr.registration_date and cr.registration_date <= week_mid:
                             main_ac += cr.amount
 
                 except ValueError:
-                    # Skip invalid date ranges
                     pass
 
             # ------------------------------------------------------------
             # Calculate change branch metrics
             # ------------------------------------------------------------
-            for schedule, ce, _wbe in valid_change_schedules:
-                budget = ce.budget_amount or Decimal("0")
+            for schedule, wp, _wbe in valid_change_schedules:
+                budget = wp.budget_amount or Decimal("0")
                 if not (schedule.start_date and schedule.end_date):
                     continue
 
-                # Validate dates before calculating progress (start_date < end_date)
                 if schedule.start_date >= schedule.end_date:
                     logger.warning(
-                        f"Invalid date range for schedule baseline {ce.code}: "
+                        f"Invalid date range for schedule baseline {wp.code}: "
                         f"start_date={schedule.start_date}, end_date={schedule.end_date}"
                     )
                     continue
 
                 try:
-                    # Budget/PV: Use progression strategy
                     strategy = get_progression_strategy(schedule.progression_type)
                     progress = strategy.calculate_progress(
                         week_mid, schedule.start_date, schedule.end_date
@@ -1779,17 +2090,15 @@ class ImpactAnalysisService:
                     change_budget += budget_pv
                     change_pv += budget_pv
 
-                    # EV: Use progress entries (as of week_mid for historical accuracy)
                     progress_entries = progress_lookup.get(
-                        (ce.cost_element_id, branch_name), []
+                        (wp.work_package_id, branch_name), []
                     )
                     progress_pct = self._get_progress_as_of(progress_entries, week_mid)
                     ev = budget * progress_pct / Decimal("100")
                     change_ev += ev
 
-                    # AC: Use cost registrations
                     registrations = cost_reg_lookup.get(
-                        (ce.cost_element_id, branch_name), []
+                        (wp.work_package_id, branch_name), []
                     )
                     for cr in registrations:
                         if cr.registration_date and cr.registration_date <= week_mid:
@@ -1801,16 +2110,15 @@ class ImpactAnalysisService:
             # ------------------------------------------------------------
             # MERGED mode: Add unchanged WBEs from main to change
             # ------------------------------------------------------------
-            for schedule, ce, wbe in valid_main_schedules:
-                if wbe.wbe_id in only_in_main:
-                    budget = ce.budget_amount or Decimal("0")
+            for schedule, wp, wbe in valid_main_schedules:
+                if wbe.wbs_element_id in only_in_main:
+                    budget = wp.budget_amount or Decimal("0")
                     if not (schedule.start_date and schedule.end_date):
                         continue
 
-                    # Validate dates before calculating progress (start_date < end_date)
                     if schedule.start_date >= schedule.end_date:
                         logger.warning(
-                            f"Invalid date range for schedule baseline {ce.code}: "
+                            f"Invalid date range for schedule baseline {wp.code}: "
                             f"start_date={schedule.start_date}, end_date={schedule.end_date}"
                         )
                         continue
@@ -1825,9 +2133,8 @@ class ImpactAnalysisService:
                         change_budget += budget_pv
                         change_pv += budget_pv
 
-                        # EV: Use progress entries from main (as of week_mid)
                         progress_entries = progress_lookup.get(
-                            (ce.cost_element_id, "main"), []
+                            (wp.work_package_id, "main"), []
                         )
                         progress_pct = self._get_progress_as_of(
                             progress_entries, week_mid
@@ -1835,9 +2142,8 @@ class ImpactAnalysisService:
                         ev = budget * progress_pct / Decimal("100")
                         change_ev += ev
 
-                        # AC: Use cost registrations from main
                         registrations = cost_reg_lookup.get(
-                            (ce.cost_element_id, "main"), []
+                            (wp.work_package_id, "main"), []
                         )
                         for cr in registrations:
                             if (
@@ -1897,7 +2203,7 @@ class ImpactAnalysisService:
         """Generate simple budget-based time series when no schedules exist.
 
         Fallback method for projects without schedule baselines.
-        Calculates budget totals from CostElement budgets only.
+        Calculates budget totals from WorkPackage budgets (budget is on WP, not CE).
 
         Args:
             project_id: UUID of the project
@@ -1907,134 +2213,199 @@ class ImpactAnalysisService:
         Returns:
             List with single TimeSeriesData for budget metric
         """
-        # Get total budget from main branch
+        # Get total budget from main branch (WorkPackage.budget_amount)
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             main_budget_stmt = (
-                select(func.sum(CostElement.budget_amount))
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                select(func.sum(WorkPackage.budget_amount))
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
                     ),
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
         else:
             main_budget_stmt = (
-                select(func.sum(CostElement.budget_amount))
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                select(func.sum(WorkPackage.budget_amount))
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                 )
             )
         main_budget_result = await self._db.execute(main_budget_stmt)
         main_total = main_budget_result.scalar() or Decimal("0")
 
-        # Get total budget from change branch (merged view)
+        # Get WorkPackages from both branches for merged view
         if as_of is not None:
-            main_ces_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            main_wps_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
                     ),
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
-            branch_ces_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            branch_wps_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
                     ),
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
         else:
-            main_ces_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            main_wps_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                 )
             )
-            branch_ces_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            branch_wps_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                 )
             )
 
-        main_ces_result = await self._db.execute(main_ces_stmt)
-        main_ces = {ce.cost_element_id: ce for ce in main_ces_result.scalars().all()}
-        branch_ces_result = await self._db.execute(branch_ces_stmt)
-        branch_ces = {
-            ce.cost_element_id: ce for ce in branch_ces_result.scalars().all()
+        main_wps_result = await self._db.execute(main_wps_stmt)
+        main_wps = {wp.work_package_id: wp for wp in main_wps_result.scalars().all()}
+        branch_wps_result = await self._db.execute(branch_wps_stmt)
+        branch_wps = {
+            wp.work_package_id: wp for wp in branch_wps_result.scalars().all()
         }
 
         merged_total = Decimal("0")
-        for ce_id, main_ce in main_ces.items():
-            if ce_id in branch_ces:
-                merged_total += branch_ces[ce_id].budget_amount or Decimal("0")
+        for wp_id, main_wp in main_wps.items():
+            if wp_id in branch_wps:
+                merged_total += branch_wps[wp_id].budget_amount or Decimal("0")
             else:
-                merged_total += main_ce.budget_amount or Decimal("0")
+                merged_total += main_wp.budget_amount or Decimal("0")
 
-        for ce_id, branch_ce in branch_ces.items():
-            if ce_id not in main_ces:
-                merged_total += branch_ce.budget_amount or Decimal("0")
+        for wp_id, branch_wp in branch_wps.items():
+            if wp_id not in main_wps:
+                merged_total += branch_wp.budget_amount or Decimal("0")
 
         change_total = merged_total
 
-        # Return as a single time point (current week)
         current_week_start = datetime.now(UTC).date()
 
         budget_point = TimeSeriesPoint(
@@ -2237,110 +2608,141 @@ class ImpactAnalysisService:
             Dictionary with schedule_start_date, schedule_end_date, schedule_duration KPIMetrics
             Returns None for all fields if schedule baselines not found
         """
-        # Get all cost elements for the project (both branches)
-        # We need to find schedule baselines via cost elements
-
-        # Fetch cost elements from main branch with temporal filtering
+        # Get WorkPackages for the project (both branches) -- schedule_baseline_id is on WP
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            main_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            main_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
-                    # Zombie protection for WBE
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    # Time travel for WBE
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
-                    # Zombie protection for CostElement
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
                     ),
-                    # Time travel for CostElement
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
-            change_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            change_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,
-                    # Zombie protection for WBE
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
                     or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
+                        cast(Any, WBSElement).deleted_at.is_(None),
+                        cast(Any, WBSElement).deleted_at > as_of,
                     ),
-                    # Time travel for WBE
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
-                    # Zombie protection for CostElement
+                    WBSElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBSElement.valid_time) <= as_of_tstz,
                     or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
+                        cast(Any, ControlAccount).deleted_at.is_(None),
+                        cast(Any, ControlAccount).deleted_at > as_of,
                     ),
-                    # Time travel for CostElement
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    ControlAccount.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ControlAccount.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
                 )
             )
         else:
-            # Current version query
-            main_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            main_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                 )
             )
-            change_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            change_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
                 .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
+                    func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                    cast(Any, WBSElement).deleted_at.is_(None),
+                    func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                    cast(Any, ControlAccount).deleted_at.is_(None),
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
                 )
             )
-        main_ce_result = await self._db.execute(main_ce_stmt)
-        main_cost_elements = main_ce_result.scalars().all()
+        main_wp_result = await self._db.execute(main_wp_stmt)
+        main_work_packages = main_wp_result.scalars().all()
 
-        change_ce_result = await self._db.execute(change_ce_stmt)
-        change_cost_elements = change_ce_result.scalars().all()
+        change_wp_result = await self._db.execute(change_wp_stmt)
+        change_work_packages = change_wp_result.scalars().all()
 
-        # If no cost elements in either branch, return None
-        if not main_cost_elements and not change_cost_elements:
+        if not main_work_packages and not change_work_packages:
             return {
                 "schedule_start_date": None,
                 "schedule_end_date": None,
                 "schedule_duration": None,
             }
 
-        # Get schedule baselines from cost elements
+        # Get schedule baselines from WorkPackages
         main_baseline_ids = [
-            ce.schedule_baseline_id
-            for ce in main_cost_elements
-            if ce.schedule_baseline_id
+            wp.schedule_baseline_id
+            for wp in main_work_packages
+            if wp.schedule_baseline_id
         ]
         change_baseline_ids = [
-            ce.schedule_baseline_id
-            for ce in change_cost_elements
-            if ce.schedule_baseline_id
+            wp.schedule_baseline_id
+            for wp in change_work_packages
+            if wp.schedule_baseline_id
         ]
 
         # Fetch schedule baselines with temporal filtering
@@ -2640,13 +3042,10 @@ class ImpactAnalysisService:
         Builds a merged forecast view where branch forecasts override main forecasts,
         then compares main vs merged to identify changes.
 
-        Time Machine (as_of):
-        - When as_of is provided, filters all temporal data (CostElement, Forecast)
-          to include only entities with valid_time starting before or at the as_of timestamp
-        - When as_of is None, returns current state (no temporal filtering)
+        Forecasts are now linked via WorkPackage.forecast_id (not CostElement).
 
         Returns:
-            ForecastChanges with EAC comparisons for cost elements with forecast changes.
+            ForecastChanges with EAC comparisons for work packages with forecast changes.
             Only returns forecasts that have been added, modified, or removed.
         """
         from app.services.forecast_service import ForecastService
@@ -2654,123 +3053,144 @@ class ImpactAnalysisService:
         forecast_service = ForecastService(self._db)
 
         # ========================================
-        # STEP 1: Get cost elements using proper temporal filtering
+        # STEP 1: Get WorkPackages using proper temporal filtering
         # ========================================
-        # Use sql_cast for consistency with time-travel pattern
+        # Forecast is linked via WorkPackage.forecast_id.
+        # Join chain: WorkPackage -> ControlAccount -> WBSElement
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            main_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-                .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
-                    # Zombie protection: Entity visible if not deleted, or deleted AFTER as_of
-                    or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
-                    ),
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+            main_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
                 )
-                .order_by(cast(Any, CostElement).valid_time.desc())
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
+                .where(
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
+                )
+                .order_by(cast(Any, WorkPackage).valid_time.desc())
             )
-            change_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-                .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,
-                    # Zombie protection
-                    or_(
-                        cast(Any, CostElement).deleted_at.is_(None),
-                        cast(Any, CostElement).deleted_at > as_of,
-                    ),
-                    CostElement.valid_time.op("@>")(as_of_tstz),
-                    func.lower(CostElement.valid_time) <= as_of_tstz,
+            change_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
                 )
-                .order_by(cast(Any, CostElement).valid_time.desc())
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
+                .where(
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
+                    or_(
+                        cast(Any, WorkPackage).deleted_at.is_(None),
+                        cast(Any, WorkPackage).deleted_at > as_of,
+                    ),
+                    WorkPackage.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WorkPackage.valid_time) <= as_of_tstz,
+                )
+                .order_by(cast(Any, WorkPackage).valid_time.desc())
             )
         else:
-            # No time filtering - get current cost elements
-            main_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-                .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == "main",
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+            main_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
                 )
-                .order_by(cast(Any, CostElement).valid_time.desc())
-            )
-            change_ce_stmt = (
-                select(CostElement)
-                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-                .where(
-                    WBE.project_id == project_id,
-                    CostElement.branch == branch_name,
-                    func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None),
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
                 )
-                .order_by(cast(Any, CostElement).valid_time.desc())
+                .where(
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == "main",
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
+                )
+                .order_by(cast(Any, WorkPackage).valid_time.desc())
+            )
+            change_wp_stmt = (
+                select(WorkPackage)
+                .join(
+                    ControlAccount,
+                    WorkPackage.control_account_id == ControlAccount.control_account_id,
+                )
+                .join(
+                    WBSElement,
+                    ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+                )
+                .where(
+                    WBSElement.project_id == project_id,
+                    WorkPackage.branch == branch_name,
+                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                    cast(Any, WorkPackage).deleted_at.is_(None),
+                )
+                .order_by(cast(Any, WorkPackage).valid_time.desc())
             )
 
-        main_ce_result = await self._db.execute(main_ce_stmt)
-        main_cost_elements = main_ce_result.scalars().all()
+        main_wp_result = await self._db.execute(main_wp_stmt)
+        main_work_packages = main_wp_result.scalars().all()
 
-        change_ce_result = await self._db.execute(change_ce_stmt)
-        change_cost_elements = change_ce_result.scalars().all()
+        change_wp_result = await self._db.execute(change_wp_stmt)
+        change_work_packages = change_wp_result.scalars().all()
 
-        # If no cost elements in either branch, return None
-        if not main_cost_elements and not change_cost_elements:
+        if not main_work_packages and not change_work_packages:
             return None
 
         # ========================================
         # STEP 2: Get forecasts with as_of support
         # ========================================
-        main_ce_ids = [ce.cost_element_id for ce in main_cost_elements]
-        main_forecasts = await forecast_service.get_forecasts_for_cost_elements(
-            main_ce_ids, branch="main", as_of=as_of
+        main_wp_ids = [wp.work_package_id for wp in main_work_packages]
+        main_forecasts = await forecast_service.get_forecasts_for_work_packages(
+            main_wp_ids, branch="main", as_of=as_of
         )
 
-        change_ce_ids = [ce.cost_element_id for ce in change_cost_elements]
-        change_forecasts = await forecast_service.get_forecasts_for_cost_elements(
-            change_ce_ids, branch=branch_name, as_of=as_of
+        change_wp_ids = [wp.work_package_id for wp in change_work_packages]
+        change_forecasts = await forecast_service.get_forecasts_for_work_packages(
+            change_wp_ids, branch=branch_name, as_of=as_of
         )
 
         # ========================================
         # STEP 3: Build merged forecast view (MERGED MODE)
         # ========================================
-        # Key: Branch forecasts override main forecasts; main forecasts are inherited
         merged_forecasts: dict[UUID, Forecast] = {}
 
-        # First, add all main forecasts to merged view (base layer)
-        for ce_id, forecast in main_forecasts.items():
-            merged_forecasts[ce_id] = forecast
+        for wp_id, forecast in main_forecasts.items():
+            merged_forecasts[wp_id] = forecast
 
-        # Then, override with branch forecasts (branch takes precedence)
-        for ce_id, forecast in change_forecasts.items():
-            merged_forecasts[ce_id] = forecast
+        for wp_id, forecast in change_forecasts.items():
+            merged_forecasts[wp_id] = forecast
 
         # ========================================
         # STEP 4: Compare main vs merged view to identify changes
         # ========================================
-        main_ce_map = {ce.cost_element_id: ce for ce in main_cost_elements}
-        change_ce_map = {ce.cost_element_id: ce for ce in change_cost_elements}
+        main_wp_map = {wp.work_package_id: wp for wp in main_work_packages}
+        change_wp_map = {wp.work_package_id: wp for wp in change_work_packages}
 
         comparisons: list[ForecastComparison] = []
-        all_ce_ids = set(main_ce_map.keys()) | set(change_ce_map.keys())
+        all_wp_ids = set(main_wp_map.keys()) | set(change_wp_map.keys())
 
-        for ce_id in all_ce_ids:
-            ce = change_ce_map.get(ce_id) or main_ce_map.get(ce_id)
-            if not ce:
+        for wp_id in all_wp_ids:
+            wp = change_wp_map.get(wp_id) or main_wp_map.get(wp_id)
+            if not wp:
                 continue
 
-            main_fcast = main_forecasts.get(ce_id)
-            merged_fcast = merged_forecasts.get(ce_id)
+            main_fcast = main_forecasts.get(wp_id)
+            merged_fcast = merged_forecasts.get(wp_id)
 
-            # Determine change type
             is_added = main_fcast is None and merged_fcast is not None
             is_removed = main_fcast is not None and merged_fcast is None
             is_modified = (
@@ -2779,18 +3199,15 @@ class ImpactAnalysisService:
                 and main_fcast.eac_amount != merged_fcast.eac_amount
             )
 
-            # Only include if there's a change
             if is_added or is_removed or is_modified:
-                # Get actual branch forecast for frontend compatibility
-                # (may be None if removed, or the branch forecast otherwise)
-                branch_fcast_for_frontend = change_forecasts.get(ce_id)
+                branch_fcast_for_frontend = change_forecasts.get(wp_id)
 
                 comparisons.append(
                     ForecastComparison(
-                        cost_element_id=ce_id,
-                        cost_element_code=ce.code,
-                        cost_element_name=ce.name,
-                        budget_amount=ce.budget_amount,
+                        cost_element_id=wp_id,
+                        cost_element_code=wp.code,
+                        cost_element_name=wp.name,
+                        budget_amount=wp.budget_amount,
                         main_eac=main_fcast.eac_amount if main_fcast else None,
                         main_forecast=ForecastRead.model_validate(main_fcast)
                         if main_fcast

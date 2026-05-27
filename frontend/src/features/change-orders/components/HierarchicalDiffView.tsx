@@ -24,7 +24,7 @@ import {
   CaretDownOutlined,
   CaretRightOutlined,
 } from "@ant-design/icons";
-import type { DataNode, TreeProps } from "antd/es/tree";
+import type { DataNode } from "antd/es/tree";
 import type { ImpactAnalysisResponse, EntityChange, EntityChangeType } from "@/api/generated";
 
 const { Text } = Typography;
@@ -68,9 +68,9 @@ interface HierarchicalDiffViewProps {
   /**
    * Callback when an entity is clicked.
    * entityId: The entity ID (as number from EntityChange)
-   * entityType: Either 'wbe' or 'cost_element'
+   * entityType: Either 'wbs_element' or 'cost_element'
    */
-  onEntityClick?: (entityId: number, entityType: "wbe" | "cost_element") => void;
+  onEntityClick?: (entityId: number, entityType: "wbs_element" | "cost_element") => void;
   /**
    * Whether to show unchanged items.
    */
@@ -246,7 +246,7 @@ export const HierarchicalDiffView = ({
         ),
         children: [], // WBEs don't have cost elements as children in current data structure
         isLeaf: true,
-        data: { id: wbe.id, type: "wbe" as const },
+        data: { id: wbe.id, type: "wbs_element" as const },
       };
     });
 
@@ -339,9 +339,10 @@ export const HierarchicalDiffView = ({
   }, [defaultExpandedLevel, hierarchicalData]);
 
   // Handle tree selection (click on entity)
-  const handleSelect: TreeProps["onSelect"] = useCallback(
-    (selectedKeys, info) => {
-      const nodeData = info.node.data as { id: number; type: "wbe" | "cost_element" } | undefined;
+  const handleSelect = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (_selectedKeys: React.Key[], info: any) => {
+      const nodeData = info.node.data as { id: number; type: "wbs_element" | "cost_element" } | undefined;
 
       if (nodeData && onEntityClick) {
         onEntityClick(nodeData.id, nodeData.type);
