@@ -384,6 +384,36 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
 
         return elements, total
 
+    async def get_wbs_elements_for_projects(
+        self,
+        project_ids: list[UUID],
+        branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGED,
+    ) -> tuple[list[WBSElement], int]:
+        """Get WBS Elements for multiple projects in a single query.
+
+        Batch alternative to calling get_wbs_elements() N times.
+        """
+        if not project_ids:
+            return [], 0
+
+        stmt = self._get_base_stmt()
+        stmt = self._apply_branch_mode_filter(stmt, branch=branch, branch_mode=branch_mode)
+        stmt = stmt.where(
+            func.upper(cast(Any, WBSElement).valid_time).is_(None),
+            cast(Any, WBSElement).deleted_at.is_(None),
+        )
+        stmt = stmt.where(WBSElement.project_id.in_(project_ids))
+
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total = (await self.session.execute(count_stmt)).scalar_one()
+
+        result = await self.session.execute(stmt)
+        elements = await self._resolve_parent_names(result.all())
+        elements = await self._populate_computed_budgets(elements, branch=branch)
+
+        return elements, total
+
     # --- Backward-compatible alias methods for gradual migration ---
 
     async def get_wbes(

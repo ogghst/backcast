@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.enums import BranchMode
+from app.db.session import DB_CONCURRENCY_SEMAPHORE
 from app.models.domain.control_account import ControlAccount
 from app.models.domain.cost_element import CostElement
 from app.models.domain.forecast import Forecast
@@ -482,18 +483,21 @@ class EVMService:
 
         # Bulk fetch all related data in parallel
         forecast_branch = "main" if branch_mode == BranchMode.MERGED else branch
-        baselines_map, ac_map, progress_map, forecasts_map = await asyncio.gather(
-            self.sb_service.get_baselines_for_work_packages(
-                valid_ids, branch, as_of=control_date
-            ),
-            self._get_ac_batch(valid_ids, control_date),
-            self.pe_service.get_latest_progress_for_work_packages(
-                valid_ids, as_of=control_date
-            ),
-            self.f_service.get_forecasts_for_work_packages(
-                valid_ids, forecast_branch, as_of=control_date
-            ),
-        )
+        async with DB_CONCURRENCY_SEMAPHORE:
+            baselines_map, ac_map, progress_map, forecasts_map = (
+                await asyncio.gather(
+                    self.sb_service.get_baselines_for_work_packages(
+                        valid_ids, branch, as_of=control_date
+                    ),
+                    self._get_ac_batch(valid_ids, control_date),
+                    self.pe_service.get_latest_progress_for_work_packages(
+                        valid_ids, as_of=control_date
+                    ),
+                    self.f_service.get_forecasts_for_work_packages(
+                        valid_ids, forecast_branch, as_of=control_date
+                    ),
+                )
+            )
 
         results = []
         for wp_id in valid_ids:
@@ -856,28 +860,12 @@ class EVMService:
         branch_mode: BranchMode,
     ) -> EVMMetricsResponse:
         """Calculate EVM metrics for Projects by aggregating child WBS Elements."""
-        # Get WBS Elements for all projects
-        wbs_fetches = await asyncio.gather(
-            *[
-                self.wbs_service.get_wbs_elements(
-                    project_id=project_id,
-                    branch=branch,
-                    branch_mode=branch_mode,
-                    as_of=None,
-                    skip=0,
-                    limit=10000,
-                )
-                for project_id in project_ids
-            ]
+        wbs_elements, _ = await self.wbs_service.get_wbs_elements_for_projects(
+            project_ids=project_ids,
+            branch=branch,
+            branch_mode=branch_mode,
         )
-
-        all_wbs_ids: list[UUID] = []
-        seen: set[UUID] = set()
-        for wbs_elements, _ in wbs_fetches:
-            for wbs in wbs_elements:
-                if wbs.wbs_element_id not in seen:
-                    all_wbs_ids.append(wbs.wbs_element_id)
-                    seen.add(wbs.wbs_element_id)
+        all_wbs_ids = list(dict.fromkeys(w.wbs_element_id for w in wbs_elements))
 
         if not all_wbs_ids:
             return EVMMetricsResponse(
@@ -1425,13 +1413,16 @@ class EVMService:
             if all_ce_ids
             else self._empty_ce_cumulative_costs()
         )
-        ac_raw, progress_raw, baseline_map = await asyncio.gather(
-            ac_raw_task,
-            self.pe_service.get_progress_history_batch(work_package_ids, control_date),
-            self.sb_service.get_baselines_for_work_packages(
-                work_package_ids, branch, control_date
-            ),
-        )
+        async with DB_CONCURRENCY_SEMAPHORE:
+            ac_raw, progress_raw, baseline_map = await asyncio.gather(
+                ac_raw_task,
+                self.pe_service.get_progress_history_batch(
+                    work_package_ids, control_date
+                ),
+                self.sb_service.get_baselines_for_work_packages(
+                    work_package_ids, branch, control_date
+                ),
+            )
 
         result: dict[UUID, list[EVMTimeSeriesPoint]] = {}
 

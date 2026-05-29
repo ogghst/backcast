@@ -20,6 +20,7 @@ from app.ai.tools.temporal_logging import (
 )
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
+from app.db.session import DB_CONCURRENCY_SEMAPHORE
 
 logger = logging.getLogger(__name__)
 
@@ -323,21 +324,22 @@ async def get_project_structure(
         wbs_service = WBSElementService(context.session)
         wp_service = WorkPackageService(context.session)
 
-        wbs_result, wp_result = await asyncio.gather(
-            wbs_service.get_wbs_elements(
-                project_id=project_uuid,
-                branch=branch,
-                branch_mode=branch_mode,
-                as_of=context.as_of,
-                limit=_MAX_WBS_ELEMENTS,
-            ),
-            wp_service.get_work_packages(
-                branch=branch,
-                branch_mode=branch_mode,
-                as_of=context.as_of,
-                limit=_MAX_WORK_PACKAGES,
-            ),
-        )
+        async with DB_CONCURRENCY_SEMAPHORE:
+            wbs_result, wp_result = await asyncio.gather(
+                wbs_service.get_wbs_elements(
+                    project_id=project_uuid,
+                    branch=branch,
+                    branch_mode=branch_mode,
+                    as_of=context.as_of,
+                    limit=_MAX_WBS_ELEMENTS,
+                ),
+                wp_service.get_work_packages(
+                    branch=branch,
+                    branch_mode=branch_mode,
+                    as_of=context.as_of,
+                    limit=_MAX_WORK_PACKAGES,
+                ),
+            )
         wbs_elements, _ = wbs_result
         all_wps, _ = wp_result
 

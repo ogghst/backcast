@@ -15,14 +15,19 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Limit concurrent DB query operations across all requests.
+# Prevents connection pool exhaustion under high concurrency.
+# Size = total_pool_capacity (50) - expected concurrent sessions (20+) headroom.
+DB_CONCURRENCY_SEMAPHORE: asyncio.Semaphore = asyncio.Semaphore(10)
+
 engine = create_async_engine(
     str(settings.ASYNC_DATABASE_URI),
     echo=settings.LOG_LEVEL.upper() == "DEBUG",
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=20,
+    max_overflow=30,
     pool_recycle=300,
-    pool_timeout=10,
+    pool_timeout=30,
 )
 
 async_session_maker = async_sessionmaker(
