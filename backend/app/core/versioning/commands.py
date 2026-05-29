@@ -9,7 +9,7 @@ Note: Branching commands have been moved to app.core.branching.commands.
 
 import json
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 from uuid import UUID, uuid4
 
@@ -106,8 +106,11 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
             valid_upper = closing_timestamp
 
         # Guard: ensure valid_upper >= valid_lower to prevent inverted ranges
-        if valid_upper < valid_lower:
-            valid_upper = valid_lower
+        # CRITICAL: Must be strictly greater to avoid empty ranges [t, t)
+        # where PostgreSQL returns NULL for upper(), breaking unique constraints
+        # that filter on upper(valid_time) IS NULL
+        if valid_upper <= valid_lower:
+            valid_upper = valid_lower + timedelta(microseconds=1)
 
         # Always use the same timestamp for transaction_time upper bound
         tx_upper = closing_timestamp
@@ -185,6 +188,8 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
 
             # Check for overlap starting at control_date
             stmt_check = stmt_check.where(
+                func.lower(cast(Any, self.entity_class).valid_time) <= self.control_date,
+            ).where(
                 or_(
                     func.upper(cast(Any, self.entity_class).valid_time)
                     > self.control_date,
@@ -411,12 +416,25 @@ class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
         self.control_date = control_date or datetime.now(UTC)
 
     async def execute(self, session: AsyncSession) -> TVersionable:
-        """Mark current version as deleted."""
+        """Mark current version as deleted.
+
+        Closes the valid_time range to prevent overlap errors when a new entity
+        is created with the same root_id.
+        """
         current = await self._get_current(session)
         if not current:
             raise ValueError(f"No active version found for {self.root_id}")
 
-        current.deleted_at = self.control_date  # Use control_date
+        # Close the valid_time range so it no longer extends to infinity.
+        # Without this, the overlap check in CreateVersionCommand would see
+        # the soft-deleted version's [start, NULL) and reject the new entity.
+        await self._close_version(
+            session,
+            current,
+            close_at_valid_time=self.control_date,
+        )
+
+        current.deleted_at = self.control_date
         current.deleted_by = self.actor_id
         await session.flush()
         return current
