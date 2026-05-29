@@ -47,7 +47,9 @@ async def read_schedule_baselines(
         None,
         description="Time travel: get schedule baselines as of this timestamp (ISO 8601)",
     ),
-    cost_element_id: UUID | None = Query(None, description="Filter by Work Package ID (legacy param name)"),
+    cost_element_id: UUID | None = Query(
+        None, description="Filter by Work Package ID (legacy param name)"
+    ),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Retrieve schedule baselines with pagination.

@@ -152,9 +152,7 @@ async def read_work_packages(
                     ),
                 )
             )
-            ca_lookup = {
-                row.control_account_id: row.name for row in ca_result.all()
-            }
+            ca_lookup = {row.control_account_id: row.name for row in ca_result.all()}
 
         items_out = []
         for i in items:
@@ -251,13 +249,15 @@ async def read_work_package(
     # Enrich with ControlAccount name
     if item.control_account_id:
         ca_result = await session.execute(
-            select(ControlAccount.name).where(
+            select(ControlAccount.name)
+            .where(
                 ControlAccount.control_account_id == item.control_account_id,
                 is_current_version(
                     typing_cast(Any, ControlAccount).valid_time,
                     typing_cast(Any, ControlAccount).deleted_at,
                 ),
-            ).limit(1)
+            )
+            .limit(1)
         )
         ca_row = ca_result.first()
         if ca_row:
@@ -341,13 +341,15 @@ async def read_work_package_history(
     ca_name: str | None = None
     if ca_id:
         ca_result = await session.execute(
-            select(ControlAccount.name).where(
+            select(ControlAccount.name)
+            .where(
                 ControlAccount.control_account_id == ca_id,
                 is_current_version(
                     typing_cast(Any, ControlAccount).valid_time,
                     typing_cast(Any, ControlAccount).deleted_at,
                 ),
-            ).limit(1)
+            )
+            .limit(1)
         )
         ca_row = ca_result.first()
         if ca_row:

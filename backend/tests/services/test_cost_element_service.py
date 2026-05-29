@@ -249,3 +249,33 @@ async def test_get_as_of_batch(
     # Empty list returns empty dict
     empty = await service.get_as_of_batch(entity_ids=[])
     assert empty == {}
+
+
+@pytest.mark.asyncio
+async def test_update_cost_element_invalid_type_raises(
+    db: AsyncSession, actor_id: UUID, service: CostElementService
+) -> None:
+    """update_cost_element raises ValueError when changing to non-existent CostElementType."""
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    data = CostElementUpdate(cost_element_type_id=uuid4())
+    with pytest.raises(ValueError, match="Cost Element Type.*not found"):
+        await service.update_cost_element(h["ce"].cost_element_id, data, actor_id)
+
+
+@pytest.mark.asyncio
+async def test_get_as_of_batch_with_time_travel(
+    db: AsyncSession, actor_id: UUID, service: CostElementService
+) -> None:
+    """get_as_of_batch returns entities at a specific timestamp."""
+    from datetime import UTC, timedelta
+
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    future = datetime.now(UTC) + timedelta(days=365)
+    result = await service.get_as_of_batch(
+        entity_ids=[h["ce"].cost_element_id], as_of=future
+    )
+    assert h["ce"].cost_element_id in result

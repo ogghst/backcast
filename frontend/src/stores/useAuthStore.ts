@@ -152,8 +152,8 @@ export const useAuthStore = create<AuthState>()(
           tokenExpiresAt: state.tokenExpiresAt,
         }), // Persist token, user, refresh token, and token expiration
         onRehydrateStorage: () => (state) => {
-          // After rehydration, update permissions from user
-          if (state?.user) {
+          // Only authenticate if a persisted user exists AND the token hasn't expired
+          if (state?.user && state.tokenExpiresAt && state.tokenExpiresAt > Date.now()) {
             state.permissions = state.user.permissions || [];
             state.isAuthenticated = true;
           }

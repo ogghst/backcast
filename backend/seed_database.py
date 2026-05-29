@@ -23,7 +23,6 @@ import sys
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -580,12 +579,18 @@ async def seed(session: AsyncSession, clean: bool = False) -> None:
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed the Backcast database with ANSI-748 demo data")
-    parser.add_argument("--clean", action="store_true", help="Truncate ANSI-748 tables before seeding")
+    parser = argparse.ArgumentParser(
+        description="Seed the Backcast database with ANSI-748 demo data"
+    )
+    parser.add_argument(
+        "--clean", action="store_true", help="Truncate ANSI-748 tables before seeding"
+    )
     args = parser.parse_args()
 
     engine = create_async_engine(str(settings.ASYNC_DATABASE_URI), echo=False)
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     print("Connecting to database...")
     async with session_factory() as session:

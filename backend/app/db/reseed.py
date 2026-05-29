@@ -332,7 +332,7 @@ async def _seed_demo_project(session: AsyncSession) -> None:
         linked = 0
         for wp_id_str, sb_id_str in wp_sb_map.items():
             if sb_id_str is not None:
-                cmd = UpdateCommand(
+                cmd = UpdateCommand(  # type: ignore[type-var]
                     entity_class=WorkPackage,
                     root_id=UUID(wp_id_str),
                     actor_id=actor_id,
@@ -367,7 +367,7 @@ async def _seed_demo_project(session: AsyncSession) -> None:
         linked = 0
         for wp_id_str, fc_id_str in wp_fc_map.items():
             if fc_id_str is not None:
-                cmd = UpdateCommand(
+                cmd = UpdateCommand(  # type: ignore[type-var]
                     entity_class=WorkPackage,
                     root_id=UUID(wp_id_str),
                     actor_id=actor_id,
@@ -568,7 +568,11 @@ async def _seed_ai_specialist_configs(session: AsyncSession) -> None:
             await session.flush()
             seeded += 1
 
-    logger.info("Seeded %d AI specialist configs (skipped %d existing)", seeded, len(data) - seeded)
+    logger.info(
+        "Seeded %d AI specialist configs (skipped %d existing)",
+        seeded,
+        len(data) - seeded,
+    )
 
 
 async def reseed(skip_confirm: bool = False) -> None:

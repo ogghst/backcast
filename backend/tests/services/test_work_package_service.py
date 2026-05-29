@@ -281,3 +281,156 @@ async def test_get_as_of_batch(
     # Empty list returns empty dict
     empty = await service.get_as_of_batch(entity_ids=[])
     assert empty == {}
+
+
+@pytest.mark.asyncio
+async def test_create_work_package_with_schedule_auto_creation(
+    db: AsyncSession, actor_id: UUID, service: WorkPackageService
+) -> None:
+    """create_work_package auto-creates schedule baseline when start/end dates provided."""
+    from datetime import UTC, datetime, timedelta
+
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    now = datetime.now(UTC)
+    data = WorkPackageCreate(
+        control_account_id=h["ca"].control_account_id,
+        name="WP With Schedule",
+        code="WP-SCHED-001",
+        budget_amount=Decimal("60000"),
+        status="open",
+        schedule_start_date=now,
+        schedule_end_date=now + timedelta(days=90),
+        schedule_progression_type="LINEAR",
+    )
+    wp = await service.create_work_package(data, actor_id)
+    await db.flush()
+
+    assert wp.work_package_id is not None
+
+    # Verify schedule baseline was created and linked
+    from app.services.schedule_baseline_service import ScheduleBaselineService
+
+    sb_service = ScheduleBaselineService(db)
+    baseline = await sb_service.get_for_work_package(wp.work_package_id)
+    assert baseline is not None
+    assert baseline.progression_type == "LINEAR"
+
+
+@pytest.mark.asyncio
+async def test_get_work_packages_with_as_of_time_travel(
+    db: AsyncSession, actor_id: UUID, service: WorkPackageService
+) -> None:
+    """get_work_packages supports time-travel via as_of parameter."""
+    from datetime import UTC, datetime, timedelta
+
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    # Query with a future timestamp -- should still find the current version
+    as_of = datetime.now(UTC) + timedelta(hours=1)
+    items, total = await service.get_work_packages(as_of=as_of)
+    assert total >= 1
+    assert any(wp.work_package_id == h["wp"].work_package_id for wp in items)
+
+
+@pytest.mark.asyncio
+async def test_get_budget_status_fallback_to_main_branch(
+    db: AsyncSession, actor_id: UUID, service: WorkPackageService
+) -> None:
+    """get_budget_status falls back to main branch when not found on current branch."""
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    # Use a non-main branch -- the WP exists on main, so fallback should work
+    status = await service.get_budget_status(
+        h["wp"].work_package_id, branch="nonexistent-branch"
+    )
+    assert status["budget"] == Decimal("50000")
+
+
+@pytest.mark.asyncio
+async def test_get_budget_status_with_as_of_time_travel(
+    db: AsyncSession, actor_id: UUID, service: WorkPackageService
+) -> None:
+    """get_budget_status supports as_of time-travel."""
+    from datetime import UTC, datetime, timedelta
+
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    as_of = datetime.now(UTC) + timedelta(hours=1)
+    status = await service.get_budget_status(h["wp"].work_package_id, as_of=as_of)
+    assert status["budget"] == Decimal("50000")
+
+
+@pytest.mark.asyncio
+async def test_get_breadcrumb_missing_control_account(
+    db: AsyncSession, actor_id: UUID, service: WorkPackageService
+) -> None:
+    """get_breadcrumb raises ValueError when control account is deleted."""
+    from app.core.versioning.commands import SoftDeleteCommand
+    from app.models.domain.control_account import ControlAccount
+
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    # Soft-delete the control account to break the hierarchy
+    cmd = SoftDeleteCommand(  # type: ignore[type-var]
+        entity_class=ControlAccount,
+        root_id=h["ca"].control_account_id,
+        actor_id=actor_id,
+    )
+    await cmd.execute(db)
+    await db.commit()
+
+    with pytest.raises(ValueError, match="Control Account.*not found"):
+        await service.get_breadcrumb(h["wp"].work_package_id)
+
+
+@pytest.mark.asyncio
+async def test_get_breadcrumb_missing_wbs_element(
+    db: AsyncSession, actor_id: UUID, service: WorkPackageService
+) -> None:
+    """get_breadcrumb raises ValueError when WBS element is deleted."""
+    from app.core.versioning.commands import SoftDeleteCommand
+    from app.models.domain.wbs_element import WBSElement
+
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    cmd = SoftDeleteCommand(  # type: ignore[type-var]
+        entity_class=WBSElement,
+        root_id=h["wbs"].wbs_element_id,
+        actor_id=actor_id,
+    )
+    await cmd.execute(db)
+    await db.commit()
+
+    with pytest.raises(ValueError, match="WBS Element.*not found"):
+        await service.get_breadcrumb(h["wp"].work_package_id)
+
+
+@pytest.mark.asyncio
+async def test_get_breadcrumb_missing_project(
+    db: AsyncSession, actor_id: UUID, service: WorkPackageService
+) -> None:
+    """get_breadcrumb raises ValueError when project is deleted."""
+    from app.core.branching.commands import BranchableSoftDeleteCommand
+    from app.models.domain.project import Project
+
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    cmd = BranchableSoftDeleteCommand(  # type: ignore[type-var]
+        entity_class=Project,
+        root_id=h["project"].project_id,
+        actor_id=actor_id,
+        branch="main",
+    )
+    await cmd.execute(db)
+    await db.commit()
+
+    with pytest.raises(ValueError, match="Project.*not found"):
+        await service.get_breadcrumb(h["wp"].work_package_id)

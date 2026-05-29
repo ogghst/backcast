@@ -147,7 +147,6 @@ omit = [
     "*/__pycache__/*",
     "*/venv/*",
     "*/.venv/*",
-    "*/core/simple/*",
     # Non-core services excluded from coverage (not part of ANSI-748 entity model)
     "*/services/change_order_*",
     "*/services/impact_analysis_service.py",
@@ -207,9 +206,6 @@ omit = [
     "*/api/routes/cost_event_types.py",
     # App startup / infrastructure (tested indirectly via service tests)
     "*/main.py",
-    "*/core/versioning/service.py",
-    "*/core/versioning/commands.py",
-    "*/core/branching/commands.py",
     "*/core/db_utils.py",
     "*/core/jwt_utils.py",
     "*/core/temporal.py",
@@ -223,9 +219,6 @@ omit = [
     "*/core/uuid_utils.py",
     "*/core/logging.py",
     "*/core/filtering.py",
-    "*/core/branching/service.py",
-    "*/core/branching/exceptions.py",
-    "*/core/versioning/exceptions.py",
 ]
 
 [tool.coverage.report]

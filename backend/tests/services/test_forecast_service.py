@@ -276,3 +276,98 @@ async def test_backward_compat_aliases(db: AsyncSession, actor_id: UUID) -> None
     # get_forecasts_for_cost_elements alias
     batch = await service.get_forecasts_for_cost_elements([wp.work_package_id])
     assert wp.work_package_id in batch
+
+
+@pytest.mark.asyncio
+async def test_create_forecast_with_control_date(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """create_forecast uses control_date from schema when provided."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.schemas.forecast import ForecastCreate
+
+    service = ForecastService(db)
+    control_date = datetime.now(UTC) - timedelta(days=5)
+
+    forecast_in = ForecastCreate(
+        eac_amount=Decimal("100000.00"),
+        basis_of_estimate="With control_date",
+        control_date=control_date,
+    )
+    forecast = await service.create_forecast(forecast_in, actor_id)
+    assert forecast is not None
+    assert forecast.eac_amount == Decimal("100000.00")
+
+
+@pytest.mark.asyncio
+async def test_create_forecast_with_explicit_branch(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """create_forecast passes branch parameter correctly."""
+    from app.models.schemas.forecast import ForecastCreate
+
+    service = ForecastService(db)
+
+    forecast_in = ForecastCreate(
+        eac_amount=Decimal("55000.00"),
+        basis_of_estimate="Branch test",
+    )
+    forecast = await service.create_forecast(forecast_in, actor_id, branch="main")
+    assert forecast is not None
+    assert forecast.branch == "main"
+
+
+@pytest.mark.asyncio
+async def test_get_forecasts_for_work_packages_with_as_of(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_forecasts_for_work_packages supports time-travel via as_of."""
+    from datetime import UTC, datetime, timedelta
+
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    wp = hierarchy["wp"]
+    service = ForecastService(db)
+
+    forecast = await service.create_for_work_package(
+        work_package_id=wp.work_package_id,
+        actor_id=actor_id,
+        eac_amount=Decimal("80000.00"),
+        basis_of_estimate="AsOf test",
+    )
+
+    as_of = datetime.now(UTC) + timedelta(hours=1)
+    result = await service.get_forecasts_for_work_packages(
+        [wp.work_package_id], as_of=as_of
+    )
+    assert wp.work_package_id in result
+    assert result[wp.work_package_id].forecast_id == forecast.forecast_id
+
+
+@pytest.mark.asyncio
+async def test_soft_delete_forecast_with_branch_and_control_date(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """soft_delete passes branch and control_date to BranchableSoftDeleteCommand."""
+    from datetime import UTC, datetime
+
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    wp = hierarchy["wp"]
+    service = ForecastService(db)
+
+    forecast = await service.create_for_work_package(
+        work_package_id=wp.work_package_id,
+        actor_id=actor_id,
+        eac_amount=Decimal("50000.00"),
+        basis_of_estimate="Delete test",
+    )
+    await db.commit()
+
+    control_date = datetime.now(UTC)
+    await service.soft_delete(
+        forecast.forecast_id, actor_id, branch="main", control_date=control_date
+    )
+    await db.commit()
+
+    result = await service.get_by_id(forecast.forecast_id)
+    assert result is None

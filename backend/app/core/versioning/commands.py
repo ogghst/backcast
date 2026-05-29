@@ -188,7 +188,8 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
 
             # Check for overlap starting at control_date
             stmt_check = stmt_check.where(
-                func.lower(cast(Any, self.entity_class).valid_time) <= self.control_date,
+                func.lower(cast(Any, self.entity_class).valid_time)
+                <= self.control_date,
             ).where(
                 or_(
                     func.upper(cast(Any, self.entity_class).valid_time)

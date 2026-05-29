@@ -125,8 +125,13 @@ async def read_cost_elements(
                 WorkPackage.work_package_id,
                 WBSElement.project_id,
             )
-            .join(ControlAccount, WorkPackage.control_account_id == ControlAccount.control_account_id)
-            .join(WBSElement, ControlAccount.wbs_element_id == WBSElement.wbs_element_id)
+            .join(
+                ControlAccount,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
+            .join(
+                WBSElement, ControlAccount.wbs_element_id == WBSElement.wbs_element_id
+            )
             .where(WorkPackage.work_package_id.in_(wp_ids))
         )
         project_lookup = {
@@ -212,8 +217,14 @@ async def read_cost_element(
     if item.work_package_id:
         project_result = await session.execute(
             select(WBSElement.project_id)
-            .join(ControlAccount, ControlAccount.wbs_element_id == WBSElement.wbs_element_id)
-            .join(WorkPackage, WorkPackage.control_account_id == ControlAccount.control_account_id)
+            .join(
+                ControlAccount,
+                ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+            )
+            .join(
+                WorkPackage,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
             .where(WorkPackage.work_package_id == item.work_package_id)
             .limit(1)
         )

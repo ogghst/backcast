@@ -258,3 +258,159 @@ async def test_get_progress_history_batch_groups_by_wp(
 
     assert wp_id in grouped
     assert len(grouped[wp_id]) == 2
+
+
+@pytest.mark.asyncio
+async def test_create_without_actor_id_raises(db: AsyncSession, actor_id: UUID) -> None:
+    """create should raise ValueError when actor_id is None and not in fields."""
+    service = ProgressEntryService(db)
+
+    with pytest.raises(ValueError, match="actor_id is required"):
+        await service.create(
+            actor_id=None,  # type: ignore[arg-type]
+            work_package_id=uuid4(),
+            progress_percentage=Decimal("50.00"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_with_progress_in_schema(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """create should work with a Pydantic progress_in schema."""
+    from app.models.schemas.progress_entry import ProgressEntryCreate
+
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    service = ProgressEntryService(db)
+
+    schema = ProgressEntryCreate(
+        work_package_id=hierarchy["wp"].work_package_id,
+        progress_percentage=Decimal("33.00"),
+        notes="Schema-based creation",
+    )
+    entry = await service.create(actor_id=actor_id, progress_in=schema)
+
+    assert entry.progress_percentage == Decimal("33.00")
+
+
+@pytest.mark.asyncio
+async def test_create_with_empty_fields_raises(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """create should raise ValueError when no fields and no progress_in."""
+    service = ProgressEntryService(db)
+
+    with pytest.raises(ValueError, match="Either progress_in or fields must be provided"):
+        await service.create(actor_id=actor_id, progress_in=None)
+
+
+@pytest.mark.asyncio
+async def test_get_progress_history_by_wbs_element(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_progress_history should filter by wbs_element_id."""
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    wp_id = hierarchy["wp"].work_package_id
+    wbs_id = hierarchy["wbs"].wbs_element_id
+
+    await create_test_progress_entry(
+        db, actor_id, wp_id, progress_percentage=Decimal("55.00")
+    )
+
+    service = ProgressEntryService(db)
+    entries, total = await service.get_progress_history(wbs_element_id=wbs_id)
+
+    assert total >= 1
+    assert any(e.work_package_id == wp_id for e in entries)
+
+
+@pytest.mark.asyncio
+async def test_get_progress_history_batch_empty_input(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_progress_history_batch returns empty dict for empty input."""
+    service = ProgressEntryService(db)
+    result = await service.get_progress_history_batch([])
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_get_progress_entry_as_of(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_progress_entry_as_of returns entry at a specific timestamp."""
+    from datetime import UTC, datetime, timedelta
+
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    entry = await create_test_progress_entry(
+        db, actor_id, hierarchy["wp"].work_package_id, progress_percentage=Decimal("75.00")
+    )
+
+    service = ProgressEntryService(db)
+    as_of = datetime.now(UTC) + timedelta(hours=1)
+    found = await service.get_progress_entry_as_of(entry.progress_entry_id, as_of=as_of)
+    assert found is not None
+    assert found.progress_percentage == Decimal("75.00")
+
+
+@pytest.mark.asyncio
+async def test_get_latest_progress_for_work_packages_with_as_of(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_latest_progress_for_work_packages supports time-travel via as_of."""
+    from datetime import UTC, datetime, timedelta
+
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    wp_id = hierarchy["wp"].work_package_id
+
+    await create_test_progress_entry(
+        db, actor_id, wp_id, progress_percentage=Decimal("80.00")
+    )
+
+    service = ProgressEntryService(db)
+    as_of = datetime.now(UTC) + timedelta(hours=1)
+    result = await service.get_latest_progress_for_work_packages([wp_id], as_of=as_of)
+
+    assert wp_id in result
+    assert result[wp_id].progress_percentage == Decimal("80.00")
+
+
+@pytest.mark.asyncio
+async def test_get_latest_progress_with_as_of_time_travel(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_latest_progress supports time-travel via as_of."""
+    from datetime import UTC, datetime, timedelta
+
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    wp_id = hierarchy["wp"].work_package_id
+
+    await create_test_progress_entry(
+        db, actor_id, wp_id, progress_percentage=Decimal("90.00")
+    )
+
+    service = ProgressEntryService(db)
+    as_of = datetime.now(UTC) + timedelta(hours=1)
+    latest = await service.get_latest_progress(wp_id, as_of=as_of)
+
+    assert latest is not None
+    assert latest.progress_percentage == Decimal("90.00")
+
+
+@pytest.mark.asyncio
+async def test_backward_compat_alias_for_cost_elements(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_latest_progress_for_cost_elements delegates to get_latest_progress_for_work_packages."""
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    wp_id = hierarchy["wp"].work_package_id
+
+    await create_test_progress_entry(
+        db, actor_id, wp_id, progress_percentage=Decimal("45.00")
+    )
+
+    service = ProgressEntryService(db)
+    result = await service.get_latest_progress_for_cost_elements([wp_id])
+
+    assert wp_id in result
+    assert result[wp_id].progress_percentage == Decimal("45.00")

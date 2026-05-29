@@ -206,7 +206,7 @@ async def update_control_account(
         update_data = ca_in.model_dump(exclude_unset=True)
         branch = update_data.pop("branch", None) or "main"
         control_date = update_data.pop("control_date", None)
-        cmd = UpdateCommand(
+        cmd = UpdateCommand(  # type: ignore[type-var]
             entity_class=ControlAccount,
             root_id=control_account_id,
             actor_id=current_user.user_id,

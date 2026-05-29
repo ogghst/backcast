@@ -298,3 +298,89 @@ async def test_get_departments_alias_works(db: AsyncSession, actor_id) -> None:
     service = OrganizationalUnitService(db)
     results, total = await service.get_departments()
     assert total >= 1
+
+
+# ---------------------------------------------------------------------------
+# list_organizational_units with filter_string
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_organizational_units_with_filter_string(
+    db: AsyncSession, actor_id
+) -> None:
+    """list_organizational_units applies filter_string to code and name."""
+    await create_test_org_unit(db, actor_id, code="FILTER-OU", name="FilterTarget")
+    await db.commit()
+
+    service = OrganizationalUnitService(db)
+    results, total = await service.list_organizational_units(
+        filter_string="code:FILTER-OU"
+    )
+    assert total >= 1
+    assert any(u.code == "FILTER-OU" for u in results)
+
+
+# ---------------------------------------------------------------------------
+# list_organizational_units descending sort
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_organizational_units_desc_sort(
+    db: AsyncSession, actor_id
+) -> None:
+    """list_organizational_units supports desc sort order."""
+    await create_test_org_unit(db, actor_id, code="DESC-A", name="AAA Desc")
+    await create_test_org_unit(db, actor_id, code="DESC-Z", name="ZZZ Desc")
+    await db.commit()
+
+    service = OrganizationalUnitService(db)
+    results, _total = await service.list_organizational_units(
+        sort_field="name", sort_order="desc"
+    )
+    names = [u.name for u in results if u.name in ("AAA Desc", "ZZZ Desc")]
+    assert names == sorted(names, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# list_organizational_units default sort (no sort_field)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_organizational_units_default_sort(
+    db: AsyncSession, actor_id
+) -> None:
+    """list_organizational_units defaults to ascending name sort when no sort_field."""
+    await create_test_org_unit(db, actor_id, code="DSORT-OU")
+    await db.commit()
+
+    service = OrganizationalUnitService(db)
+    results, total = await service.list_organizational_units()
+    assert total >= 1
+    assert len(results) >= 1
+
+
+# ---------------------------------------------------------------------------
+# get_organizational_unit_as_of (time travel)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_organizational_unit_as_of(
+    db: AsyncSession, actor_id
+) -> None:
+    """get_organizational_unit_as_of returns the unit at a past timestamp."""
+    from datetime import UTC, datetime, timedelta
+
+    unit = await create_test_org_unit(db, actor_id, code="ASOF-OU")
+    await db.commit()
+
+    service = OrganizationalUnitService(db)
+    as_of = datetime.now(UTC) + timedelta(hours=1)
+    found = await service.get_organizational_unit_as_of(
+        unit.organizational_unit_id, as_of=as_of
+    )
+    assert found is not None
+    assert found.organizational_unit_id == unit.organizational_unit_id
