@@ -1,10 +1,11 @@
-import { Button, Select, Tag } from "antd";
+import { Button, Select, Space, Tag, Grid } from "antd";
 import {
   NodeIndexOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
+import type { ColumnType } from "antd/es/table";
 import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
 import { useTableParams } from "@/hooks/useTableParams";
 import {
@@ -18,6 +19,8 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { Can } from "@/components/auth/Can";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { WBSElementCard } from "@/features/wbs-elements/components/WBSElementCard";
+import { ViewModeToggle } from "@/components/common/ViewModeToggle";
+import { useViewMode } from "@/hooks/useViewMode";
 
 import {
   useWBSElements,
@@ -50,9 +53,25 @@ export const WBSElementList = ({ projectId }: WBEListProps) => {
   const wbes = data?.items || [];
   const total = data?.total || 0;
 
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const { viewMode, resolvedMode, cycleViewMode } = useViewMode("wbs-list", isMobile);
+
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedWBE, setSelectedWBE] = useState<WBSElementRead | null>(null);
+
+  const columns: ColumnType<WBSElementRead>[] = useMemo(() => [
+    { title: "Code", dataIndex: "code", key: "code", width: 100, sorter: (a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }) },
+    { title: "Name", dataIndex: "name", key: "name", sorter: (a, b) => a.name.localeCompare(b.name) },
+    { title: "Level", dataIndex: "level", key: "level", width: 80, render: (val: number) => `L${val}` },
+    { title: "Budget", dataIndex: "budget_allocation", key: "budget_allocation", width: 150, align: "right" as const, render: (val: string | number | null) => val ? `€${Number(val).toLocaleString()}` : "-", responsive: ["md"] },
+  ], []);
+
+  const handleRowClick = (wbe: WBSElementRead) => {
+    setSelectedWBE(wbe);
+    setHistoryOpen(true);
+  };
 
   // Fetch version history for selected WBE
   const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
@@ -113,18 +132,21 @@ export const WBSElementList = ({ projectId }: WBEListProps) => {
           </>
         }
         addContent={
-          <Can permission="wbe-create">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setSelectedWBE(null);
-                setModalOpen(true);
-              }}
-            >
-              Add WBS Element
-            </Button>
-          </Can>
+          <Space>
+            <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
+            <Can permission="wbs-element-create">
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setSelectedWBE(null);
+                  setModalOpen(true);
+                }}
+              >
+                Add WBS Element
+              </Button>
+            </Can>
+          </Space>
         }
         searchValue={tableParams.search || ""}
         onSearch={handleSearch}
@@ -164,6 +186,9 @@ export const WBSElementList = ({ projectId }: WBEListProps) => {
           pageSize: tableParams.pagination?.pageSize || 10,
         }}
         onPageChange={handleGridPageChange}
+        variant={resolvedMode}
+        columns={columns}
+        onRowClick={handleRowClick}
       />
 
       <WBSElementModal

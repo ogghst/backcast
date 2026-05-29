@@ -436,7 +436,7 @@ export const CostRegistrationsTab = ({
         confirmLoading={isLoading}
         initialValues={selectedRegistration}
         costElementId={costElement.cost_element_id}
-        projectId={""}
+        projectId={costElement.project_id ?? ""}
       />
 
       <VersionHistoryDrawer

@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import { BranchMode } from '../models/BranchMode';
+import type { BranchMode } from '../models/BranchMode';
 import type { GlobalSearchResponse } from '../models/GlobalSearchResponse';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
@@ -29,7 +29,7 @@ export class SearchService {
         projectId?: (string | null),
         wbeId?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
         limit: number = 50,
     ): CancelablePromise<GlobalSearchResponse> {

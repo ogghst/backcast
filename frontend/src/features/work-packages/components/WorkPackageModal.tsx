@@ -22,6 +22,8 @@ interface WorkPackageModalProps {
   confirmLoading: boolean;
   initialValues?: WorkPackageRead | null;
   currency?: string;
+  /** When provided, scopes the Control Account dropdown to CAs belonging to this WBS element. */
+  wbsElementId?: string;
 }
 
 export const WorkPackageModal = ({
@@ -31,16 +33,22 @@ export const WorkPackageModal = ({
   confirmLoading,
   initialValues,
   currency = "EUR",
+  wbsElementId,
 }: WorkPackageModalProps) => {
   const [form] = Form.useForm();
   const { asOf } = useTimeMachineParams();
   const { spacing } = useThemeTokens();
   const isEdit = !!initialValues;
 
-  // Control Account options
-  const { data: caData } = useControlAccounts();
+  // Control Account options — scoped to a specific WBS element when provided
+  const { data: caData } = useControlAccounts(
+    wbsElementId ? { wbs_element_id: wbsElementId } : undefined,
+  );
   const caOptions = (caData?.items || []).map((ca) => ({
-    label: ca.name || ca.control_account_id,
+    label:
+      ca.code && ca.name
+        ? `${ca.code} - ${ca.name}`
+        : ca.name || ca.code || "Unknown Control Account",
     value: ca.control_account_id,
   }));
 

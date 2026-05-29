@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import { BranchMode } from '../models/BranchMode';
+import type { BranchMode } from '../models/BranchMode';
 import type { ScheduleBaselineCreate } from '../models/ScheduleBaselineCreate';
 import type { ScheduleBaselineRead } from '../models/ScheduleBaselineRead';
 import type { ScheduleBaselineUpdate } from '../models/ScheduleBaselineUpdate';
@@ -21,7 +21,7 @@ export class ScheduleBaselinesService {
      * @param branch Branch to query
      * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: get schedule baselines as of this timestamp (ISO 8601)
-     * @param costElementId Filter by Cost Element ID
+     * @param costElementId Filter by Work Package ID (legacy param name)
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -29,7 +29,7 @@ export class ScheduleBaselinesService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
         costElementId?: (string | null),
     ): CancelablePromise<any> {

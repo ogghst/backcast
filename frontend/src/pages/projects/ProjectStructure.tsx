@@ -13,6 +13,10 @@ export const ProjectStructure = () => {
         navigate(`/projects/${projectId}`);
       } else if (node.type === "wbs_element" && projectId) {
         navigate(`/projects/${projectId}/wbs-elements/${node.wbs_element_id}`);
+      } else if (node.type === "control_account" && projectId) {
+        navigate(`/projects/${projectId}/control-accounts/${node.control_account_id}`);
+      } else if (node.type === "work_package" && projectId) {
+        navigate(`/projects/${projectId}/work-packages/${node.work_package_id}`);
       } else if (node.type === "cost_element") {
         navigate(`/cost-elements/${node.cost_element_id}`);
       }

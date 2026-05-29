@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import { BranchMode } from '../models/BranchMode';
+import type { BranchMode } from '../models/BranchMode';
 import type { ControlAccountCreate } from '../models/ControlAccountCreate';
 import type { ControlAccountRead } from '../models/ControlAccountRead';
 import type { ControlAccountUpdate } from '../models/ControlAccountUpdate';
@@ -36,7 +36,7 @@ export class ControlAccountsService {
         wbsElementId?: (string | null),
         organizationalUnitId?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -99,7 +99,7 @@ export class ControlAccountsService {
     public static getControlAccount(
         controlAccountId: string,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<ControlAccountRead> {
         return __request(OpenAPI, {

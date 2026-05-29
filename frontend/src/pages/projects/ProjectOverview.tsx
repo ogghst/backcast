@@ -210,7 +210,7 @@ export const ProjectOverview = () => {
             extra={
               <Space>
                 <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
-                <Can permission="wbe-create">
+                <Can permission="wbs-element-create">
                   <Button
                     type="primary"
                     icon={<PlusOutlined />}

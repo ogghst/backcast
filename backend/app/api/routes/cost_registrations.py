@@ -187,8 +187,6 @@ async def create_cost_registration(
     try:
         # First, we need to get the project_id for budget validation
         # This requires querying the CostElement and WBE
-        from typing import Any, cast
-
         from sqlalchemy import func, select
 
         from app.models.domain.cost_element import CostElement
@@ -196,8 +194,8 @@ async def create_cost_registration(
         # CostElement is versionable (not branchable), get current version
         ce_stmt = select(CostElement).where(
             CostElement.cost_element_id == registration_in.cost_element_id,
-            func.upper(cast(Any, CostElement).valid_time).is_(None),
-            cast(Any, CostElement).deleted_at.is_(None),
+            func.upper(CostElement.valid_time).is_(None),
+            CostElement.deleted_at.is_(None),
         )
         ce_result = await service.session.execute(ce_stmt.limit(1))
         cost_element = ce_result.scalar_one_or_none()
@@ -217,8 +215,8 @@ async def create_cost_registration(
             .where(
                 WorkPackage.work_package_id == cost_element.work_package_id,
                 WorkPackage.branch == branch,
-                func.upper(cast(Any, WorkPackage).valid_time).is_(None),
-                cast(Any, WorkPackage).deleted_at.is_(None),
+                func.upper(WorkPackage.valid_time).is_(None),
+                WorkPackage.deleted_at.is_(None),
             )
             .limit(1)
         )
@@ -231,8 +229,8 @@ async def create_cost_registration(
                 .where(
                     WorkPackage.work_package_id == cost_element.work_package_id,
                     WorkPackage.branch == "main",
-                    func.upper(cast(Any, WorkPackage).valid_time).is_(None),
-                    cast(Any, WorkPackage).deleted_at.is_(None),
+                    func.upper(WorkPackage.valid_time).is_(None),
+                    WorkPackage.deleted_at.is_(None),
                 )
                 .limit(1)
             )
@@ -248,8 +246,8 @@ async def create_cost_registration(
             select(ControlAccount.wbs_element_id)
             .where(
                 ControlAccount.control_account_id == wp_row.control_account_id,
-                func.upper(cast(Any, ControlAccount).valid_time).is_(None),
-                cast(Any, ControlAccount).deleted_at.is_(None),
+                func.upper(ControlAccount.valid_time).is_(None),
+                ControlAccount.deleted_at.is_(None),
             )
             .limit(1)
         )
@@ -263,8 +261,8 @@ async def create_cost_registration(
             select(WBSElement.project_id)
             .where(
                 WBSElement.wbs_element_id == wbs_element_id,
-                func.upper(cast(Any, WBSElement).valid_time).is_(None),
-                cast(Any, WBSElement).deleted_at.is_(None),
+                func.upper(WBSElement.valid_time).is_(None),
+                WBSElement.deleted_at.is_(None),
             )
             .limit(1)
         )
@@ -282,7 +280,7 @@ async def create_cost_registration(
 
         # Validate budget status (non-blocking)
         budget_warning = await service.validate_budget_status(
-            work_package_id=registration_in.cost_element_id,
+            work_package_id=wp_row.work_package_id,
             project_id=project_id,
             user_id=current_user.user_id,
             branch=branch,
@@ -354,8 +352,27 @@ async def get_budget_status(
         as_of = datetime.now(tz=UTC)
 
     try:
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
+
+        # Resolve cost_element_id to work_package_id
+        ce_stmt = select(CostElement.work_package_id).where(
+            CostElement.cost_element_id == cost_element_id,
+            func.upper(CostElement.valid_time).is_(None),
+            CostElement.deleted_at.is_(None),
+        )
+        ce_result = await service.session.execute(ce_stmt.limit(1))
+        wp_id = ce_result.scalar_one_or_none()
+
+        if wp_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Cost Element {cost_element_id} not found",
+            )
+
         budget_status = await service.get_budget_status(
-            cost_element_id, as_of=as_of, branch=branch
+            wp_id, as_of=as_of, branch=branch
         )
         return {
             "work_package_id": str(budget_status.work_package_id),

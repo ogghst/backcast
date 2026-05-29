@@ -399,7 +399,7 @@ async def delete_user(
 @ai_tool(
     name="find_departments",
     description="Find organizational units by ID or search.",
-    permissions=["department-read"],
+    permissions=["organizational-unit-read"],
     category="departments",
     risk_level=RiskLevel.LOW,
 )
@@ -481,7 +481,7 @@ async def find_departments(
 @ai_tool(
     name="create_department",
     description="Create a new organizational unit.",
-    permissions=["department-create"],
+    permissions=["organizational-unit-create"],
     category="departments",
     risk_level=RiskLevel.HIGH,
 )
@@ -564,7 +564,7 @@ async def create_department(
 @ai_tool(
     name="update_department",
     description="Update organizational unit fields.",
-    permissions=["department-update"],
+    permissions=["organizational-unit-update"],
     category="departments",
     risk_level=RiskLevel.HIGH,
 )
@@ -646,7 +646,7 @@ async def update_department(
 @ai_tool(
     name="delete_department",
     description="Delete an organizational unit.",
-    permissions=["department-delete"],
+    permissions=["organizational-unit-delete"],
     category="departments",
     risk_level=RiskLevel.CRITICAL,
 )
@@ -729,10 +729,10 @@ USER AND ORGANIZATIONAL UNIT TOOL PATTERNS:
    - user-delete: Delete users
 
    DEPARTMENTS:
-   - department-read: View organizational units
-   - department-create: Create organizational units
-   - department-update: Update organizational units
-   - department-delete: Delete organizational units
+   - organizational-unit-read: View organizational units
+   - organizational-unit-create: Create organizational units
+   - organizational-unit-update: Update organizational units
+   - organizational-unit-delete: Delete organizational units
 
 5. RBAC INTEGRATION:
    - User roles determine permissions

@@ -71,12 +71,12 @@ export const UserProfile: React.FC = () => {
       });
     }
 
-    if (can("department-read")) {
+    if (can("organizational-unit-read")) {
       adminItems.push({
-        key: "/admin/departments",
+        key: "/admin/organizational-units",
         icon: <TeamOutlined />,
         label: "Organizational Units",
-        onClick: () => navigate("/admin/departments"),
+        onClick: () => navigate("/admin/organizational-units"),
       });
     }
 

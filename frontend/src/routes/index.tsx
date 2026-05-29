@@ -52,10 +52,19 @@ import { WorkPackageOverview } from "@/pages/work-packages/WorkPackageOverview";
 import { WorkPackageCostRegistrations } from "@/pages/work-packages/WorkPackageCostRegistrations";
 import { WorkPackageCostHistory } from "@/pages/work-packages/WorkPackageCostHistory";
 import { WorkPackageEVMAnalysis } from "@/pages/work-packages/WorkPackageEVMAnalysis";
-import { WorkPackageForecasts } from "@/pages/work-packages/WorkPackageForecasts";
-import { WorkPackageScheduleBaselines } from "@/pages/work-packages/WorkPackageScheduleBaselines";
 import { WorkPackageDocuments } from "@/pages/work-packages/WorkPackageDocuments";
 import { WorkPackageChat } from "@/pages/work-packages/WorkPackageChat";
+import { ControlAccountLayout } from "@/pages/control-accounts/ControlAccountLayout";
+import { ControlAccountOverview } from "@/pages/control-accounts/ControlAccountOverview";
+
+const workPackageChildren = [
+  { index: true, element: <WorkPackageOverview /> },
+  { path: "cost-registrations", element: <WorkPackageCostRegistrations /> },
+  { path: "cost-history", element: <WorkPackageCostHistory /> },
+  { path: "evm-analysis", element: <WorkPackageEVMAnalysis /> },
+  { path: "documents", element: <WorkPackageDocuments /> },
+  { path: "chat", element: <WorkPackageChat /> },
+];
 
 export const router = createBrowserRouter([
   {
@@ -148,6 +157,11 @@ export const router = createBrowserRouter([
       },
 
       {
+        path: "/projects/:projectId/work-packages/:id",
+        element: <WorkPackageLayout />,
+        children: workPackageChildren,
+      },
+      {
         path: "/projects/:projectId",
         element: <ProjectLayout />,
         children: [
@@ -230,6 +244,13 @@ export const router = createBrowserRouter([
         ],
       },
       {
+        path: "/projects/:projectId/control-accounts/:controlAccountId",
+        element: <ControlAccountLayout />,
+        children: [
+          { index: true, element: <ControlAccountOverview /> },
+        ],
+      },
+      {
         path: "/cost-elements/:id",
         element: <CostElementLayout />,
         children: [
@@ -243,16 +264,7 @@ export const router = createBrowserRouter([
       {
         path: "/work-packages/:id",
         element: <WorkPackageLayout />,
-        children: [
-          { index: true, element: <WorkPackageOverview /> },
-          { path: "cost-registrations", element: <WorkPackageCostRegistrations /> },
-          { path: "cost-history", element: <WorkPackageCostHistory /> },
-          { path: "evm-analysis", element: <WorkPackageEVMAnalysis /> },
-          { path: "forecasts", element: <WorkPackageForecasts /> },
-          { path: "schedule-baselines", element: <WorkPackageScheduleBaselines /> },
-          { path: "documents", element: <WorkPackageDocuments /> },
-          { path: "chat", element: <WorkPackageChat /> },
-        ],
+        children: workPackageChildren,
       },
     ],
   },

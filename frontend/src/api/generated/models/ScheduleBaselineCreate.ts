@@ -5,8 +5,8 @@
 /**
  * Properties required for creating a Schedule Baseline.
  *
- * Note: cost_element_id is obtained from the URL path when creating
- * a baseline for a specific cost element, not from the request body.
+ * Note: work_package_id is obtained from the URL path when creating
+ * a baseline for a specific work package, not from the request body.
  */
 export type ScheduleBaselineCreate = {
     /**

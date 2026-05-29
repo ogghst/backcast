@@ -208,7 +208,7 @@ describe("useEVMTimeSeries", () => {
 
     server.use(
       http.get(
-        "/api/v1/cost-elements/:costElementId/evm/timeseries",
+        "/api/v1/evm/:entityType/:entityId/timeseries",
         ({ request }) => {
           const url = new URL(request.url);
           expect(url.searchParams.get("granularity")).toBe("week");
@@ -250,7 +250,7 @@ describe("useEVMTimeSeries", () => {
 
     server.use(
       http.get(
-        "/api/v1/cost-elements/:costElementId/evm/timeseries",
+        "/api/v1/evm/:entityType/:entityId/timeseries",
         ({ request }) => {
           const url = new URL(request.url);
           expect(url.searchParams.get("granularity")).toBe("day");
@@ -280,7 +280,7 @@ describe("useEVMTimeSeries", () => {
     // Arrange: Mock error response
     server.use(
       http.get(
-        "/api/v1/cost-elements/:costElementId/evm/timeseries",
+        "/api/v1/evm/:entityType/:entityId/timeseries",
         () => {
           return HttpResponse.json(
             { detail: "Entity not found" },

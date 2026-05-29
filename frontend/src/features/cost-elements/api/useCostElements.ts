@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import {
   CostElementsService,
+  WorkPackagesPmiService,
   type CostElementRead,
   type CostElementCreate,
   type CostElementUpdate,
@@ -134,18 +135,19 @@ export const useCreateCostElement = (
         ...rest,
         control_date: asOf || null,
       };
-      // CostElementsService no longer has createCostElement; use raw request
-      const res = await __request(OpenAPI, {
-        method: "POST",
-        url: "/api/v1/cost-elements",
-        body: payload,
-        mediaType: "application/json",
-      });
-      return res as CostElementRead;
+      // Use the work-packages endpoint for creating cost elements
+      const workPackageId = payload.work_package_id;
+      if (!workPackageId) {
+        throw new Error("work_package_id is required to create a cost element");
+      }
+      return await WorkPackagesPmiService.createWorkPackageCostElement(
+        workPackageId,
+        payload,
+      );
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.lists(),
+        queryKey: queryKeys.costElements.all,
       });
       toast.success("Created successfully");
       mutationOptions?.onSuccess?.(...args);

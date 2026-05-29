@@ -80,21 +80,21 @@ export const CostRegistrationModal = ({
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius } = useThemeTokens();
 
-  // Fetch open work packages for the project
-  const { data: wpData, isLoading: wpLoading } = useCostEvents({
+  // Fetch cost events for the project
+  const { data: ceData, isLoading: ceLoading } = useCostEvents({
     project_id: projectId,
     status: "open",
     perPage: 100,
   });
 
-  // Fetch package types for label resolution
-  const { data: packageTypeOptions } = useCostEventTypes();
+  // Fetch cost event types for label resolution
+  const { data: costEventTypeOptions } = useCostEventTypes();
 
-  const workPackageOptions = (wpData?.items || []).map((wp) => {
-    const typeLabel = packageTypeOptions?.find((o) => o.value === wp.cost_event_type_id)?.label || wp.cost_event_type_code || wp.cost_event_type_name || "";
+  const costEventOptions = (ceData?.items || []).map((ce) => {
+    const typeLabel = costEventTypeOptions?.find((o) => o.value === ce.cost_event_type_id)?.label || ce.cost_event_type_code || ce.cost_event_type_name || "";
     return {
-      label: `${wp.name} (${typeLabel})`,
-      value: wp.cost_event_id,
+      label: `${ce.name} (${typeLabel})`,
+      value: ce.cost_event_id,
     };
   });
 
@@ -154,7 +154,7 @@ export const CostRegistrationModal = ({
           description: initialValues.description,
           invoice_number: initialValues.invoice_number,
           vendor_reference: initialValues.vendor_reference,
-          work_package_id: initialValues.cost_element_id,
+          cost_event_id: initialValues.cost_event_id ?? undefined,
         };
         form.setFieldsValue(formValues);
       } else {
@@ -416,14 +416,14 @@ export const CostRegistrationModal = ({
           />
         </Form.Item>
 
-        <Form.Item name="work_package_id" label="Work Package (optional)">
+        <Form.Item name="cost_event_id" label="Cost Event (optional)">
           <Select
-            placeholder="Select work package"
+            placeholder="Select cost event"
             allowClear
             showSearch
             optionFilterProp="label"
-            options={workPackageOptions}
-            loading={wpLoading}
+            options={costEventOptions}
+            loading={ceLoading}
           />
         </Form.Item>
 

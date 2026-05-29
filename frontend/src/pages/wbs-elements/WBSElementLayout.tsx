@@ -139,7 +139,7 @@ export const WBSElementLayout: React.FC = () => {
           WBS Element Details
         </Typography.Title>
         <Space size={token.marginSM} wrap={isMobile}>
-          <Can permission="wbe-update">
+          <Can permission="wbs-element-update">
             <Button
               type="primary"
               icon={<EditOutlined />}
@@ -148,7 +148,7 @@ export const WBSElementLayout: React.FC = () => {
               {isMobile ? undefined : "Edit"}
             </Button>
           </Can>
-          <Can permission="wbe-read">
+          <Can permission="wbs-element-read">
             <Button
               icon={<HistoryOutlined />}
               onClick={openHistory}
@@ -156,7 +156,7 @@ export const WBSElementLayout: React.FC = () => {
               {isMobile ? undefined : "History"}
             </Button>
           </Can>
-          <Can permission="wbe-delete">
+          <Can permission="wbs-element-delete">
             <Button
               danger
               icon={<DeleteOutlined />}

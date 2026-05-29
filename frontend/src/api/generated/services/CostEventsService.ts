@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { COQMetrics } from '../models/COQMetrics';
-import { COQTrendGranularity } from '../models/COQTrendGranularity';
+import type { COQTrendGranularity } from '../models/COQTrendGranularity';
 import type { COQTrendResponse } from '../models/COQTrendResponse';
 import type { CostEventCreate } from '../models/CostEventCreate';
 import type { CostEventRead } from '../models/CostEventRead';
@@ -150,7 +150,7 @@ export class CostEventsService {
      */
     public static getCoqTrend(
         projectId: string,
-        granularity: COQTrendGranularity = COQTrendGranularity.MONTH,
+        granularity: COQTrendGranularity = 'month',
         asOf?: (string | null),
     ): CancelablePromise<COQTrendResponse> {
         return __request(OpenAPI, {

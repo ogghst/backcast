@@ -206,7 +206,6 @@ export const ProjectEditModal = ({
               <Form.Item
                 label="Start Date"
                 name="start_date"
-                rules={[{ required: true, message: "Please select a start date" }]}
                 style={{ width: "100%" }}
               >
                 <DatePicker
@@ -220,7 +219,6 @@ export const ProjectEditModal = ({
                 label="End Date"
                 name="end_date"
                 rules={[
-                  { required: true, message: "Please select an end date" },
                   ({ getFieldValue }) => ({
                     validator(_, value) {
                       const startDate = getFieldValue("start_date");

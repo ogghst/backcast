@@ -456,6 +456,121 @@ async def _seed_demo_project(session: AsyncSession) -> None:
         await seed_fn()
 
 
+async def _seed_ai_providers(session: AsyncSession) -> None:
+    """Seed AI providers, their configs, and models from JSON."""
+    from app.models.domain.ai import AIModel, AIProvider, AIProviderConfig
+
+    data = _load_json("ai_providers.json")
+
+    with seed_operation():
+        provider_count = 0
+        config_count = 0
+        model_count = 0
+
+        for provider_data in data:
+            configs = provider_data.pop("configs", [])
+            models = provider_data.pop("models", [])
+
+            provider = AIProvider(
+                id=UUID(provider_data.pop("id")),
+                **provider_data,
+            )
+            session.add(provider)
+            await session.flush()
+
+            for config_data in configs:
+                config = AIProviderConfig(
+                    id=UUID(config_data.pop("id")),
+                    provider_id=str(provider.id),
+                    **config_data,
+                )
+                session.add(config)
+                config_count += 1
+
+            for model_data in models:
+                model = AIModel(
+                    id=UUID(model_data.pop("id")),
+                    provider_id=str(provider.id),
+                    **model_data,
+                )
+                session.add(model)
+                model_count += 1
+
+            provider_count += 1
+            await session.flush()
+
+    logger.info(
+        "Seeded %d AI providers, %d configs, %d models",
+        provider_count,
+        config_count,
+        model_count,
+    )
+
+
+async def _seed_ai_assistant_configs(session: AsyncSession) -> None:
+    """Seed AI assistant configs (main agents) from JSON."""
+    from app.models.domain.ai import AIAssistantConfig
+
+    data = _load_json("ai_assistant_configs.json")
+
+    with seed_operation():
+        for assistant_data in data:
+            assistant_data["model_id"] = str(assistant_data["model_id"])
+            assistant = AIAssistantConfig(
+                id=UUID(assistant_data.pop("id")),
+                **assistant_data,
+            )
+            session.add(assistant)
+            await session.flush()
+
+    logger.info("Seeded %d AI assistant configs", len(data))
+
+
+async def _seed_mcp_servers(session: AsyncSession) -> None:
+    """Seed MCP server configurations from JSON."""
+    from app.models.domain.mcp_server import MCPServer
+
+    data = _load_json("mcp_servers.json")
+
+    with seed_operation():
+        for server_data in data:
+            server = MCPServer(**server_data)
+            session.add(server)
+            await session.flush()
+
+    logger.info("Seeded %d MCP servers", len(data))
+
+
+async def _seed_ai_specialist_configs(session: AsyncSession) -> None:
+    """Seed AI specialist configs from JSON (idempotent by name)."""
+    from sqlalchemy import select as sql_select
+
+    from app.models.domain.ai import AIAssistantConfig
+
+    data = _load_json("ai_specialist_configs.json")
+
+    with seed_operation():
+        seeded = 0
+        for specialist_data in data:
+            # Idempotent: skip if already exists
+            existing = await session.execute(
+                sql_select(AIAssistantConfig).where(
+                    AIAssistantConfig.name == specialist_data["name"],
+                    AIAssistantConfig.agent_type == "specialist",
+                )
+            )
+            if existing.scalar_one_or_none() is not None:
+                continue
+
+            specialist_data["model_id"] = str(specialist_data["model_id"])
+            specialist = AIAssistantConfig(**specialist_data)
+            session.add(specialist)
+            await session.flush()
+            seeded += 1
+
+    logger.info("Seeded %d AI specialist configs (skipped %d existing)", seeded, len(data) - seeded)
+
+
 async def reseed(skip_confirm: bool = False) -> None:
     """Run the full reseed: truncate then seed_all.
 
@@ -480,6 +595,18 @@ async def reseed(skip_confirm: bool = False) -> None:
             from app.db.seed_users_rbac import seed_users_and_rbac
 
             await seed_users_and_rbac(session)
+
+            print("  Seeding AI providers...")
+            await _seed_ai_providers(session)
+
+            print("  Seeding AI assistant configs...")
+            await _seed_ai_assistant_configs(session)
+
+            print("  Seeding AI specialist configs...")
+            await _seed_ai_specialist_configs(session)
+
+            print("  Seeding MCP servers...")
+            await _seed_mcp_servers(session)
 
             print("  Seeding organizational units...")
             await _seed_organizational_units(session)

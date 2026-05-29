@@ -215,7 +215,7 @@ export const OrganizationalUnitManagement = () => {
       key: "actions",
       render: (_, record) => (
         <Space>
-          <Can permission="department-read">
+          <Can permission="organizational-unit-read">
             <Button
               icon={<HistoryOutlined />}
               onClick={() => {
@@ -225,7 +225,7 @@ export const OrganizationalUnitManagement = () => {
               title="View History"
             />
           </Can>
-          <Can permission="department-update">
+          <Can permission="organizational-unit-update">
             <Button
               icon={<EditOutlined />}
               onClick={() => {
@@ -235,7 +235,7 @@ export const OrganizationalUnitManagement = () => {
               title="Edit Organizational Unit"
             />
           </Can>
-          <Can permission="department-delete">
+          <Can permission="organizational-unit-delete">
             <Button
               danger
               icon={<DeleteOutlined />}
@@ -271,7 +271,7 @@ export const OrganizationalUnitManagement = () => {
             <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
               Organizational Unit Management
             </div>
-            <Can permission="department-create">
+            <Can permission="organizational-unit-create">
               <Button
                 type="primary"
                 icon={<PlusOutlined />}

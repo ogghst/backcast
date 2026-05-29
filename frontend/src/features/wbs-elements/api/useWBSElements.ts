@@ -12,7 +12,6 @@ import {
   type WBSElementRead,
   type WBSElementCreate,
   type WBSElementUpdate,
-  BranchMode,
 } from "@/api/generated";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
@@ -35,6 +34,7 @@ export interface WBSElementListParams {
   };
   projectId?: string;
   parentWbsElementId?: string;
+  rootOnly?: boolean;
   branch?: string;
   search?: string;
   sortField?: string;
@@ -88,19 +88,31 @@ export const useWBSElements = (params?: WBSElementListParams) => {
           ? params.parentWbsElementId
           : undefined;
 
-      const response = await WbsElementsService.getWbsElements(
-        current,
-        pageSize,
-        params?.projectId,
-        parentId,
-        branch || "main",
-        mode as BranchMode | undefined,
-        params?.search,
-        filterString,
-        sortField as string,
-        sortOrder,
-        asOf || undefined,
-      );
+      // When parentId is set, rootOnly must be false; otherwise default to
+      // true so that callers get root-level elements without needing to opt in.
+      const rootOnly = parentId
+        ? false
+        : (params?.rootOnly ?? true);
+
+      const response = await __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/wbs-elements",
+        query: {
+          page: current,
+          per_page: pageSize,
+          project_id: params?.projectId,
+          parent_id: parentId,
+          root_only: rootOnly,
+          branch: branch || "main",
+          branch_mode: mode,
+          search: params?.search,
+          filters: filterString,
+          sort_field: sortField as string | undefined,
+          sort_order: sortOrder,
+          as_of: asOf || undefined,
+        },
+        errors: { 422: "Validation Error" },
+      });
 
       // Normalize response to always be PaginatedResponse
       if (Array.isArray(response)) {

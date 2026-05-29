@@ -34,11 +34,11 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "user-update": { topic: "User Management", description: "Edit existing users" },
   "user-delete": { topic: "User Management", description: "Remove users" },
 
-  // Department
-  "department-read": { topic: "Department", description: "View departments" },
-  "department-create": { topic: "Department", description: "Create departments" },
-  "department-update": { topic: "Department", description: "Edit departments" },
-  "department-delete": { topic: "Department", description: "Remove departments" },
+  // Organizational Unit
+  "organizational-unit-read": { topic: "Organizational Unit", description: "View organizational units" },
+  "organizational-unit-create": { topic: "Organizational Unit", description: "Create organizational units" },
+  "organizational-unit-update": { topic: "Organizational Unit", description: "Edit organizational units" },
+  "organizational-unit-delete": { topic: "Organizational Unit", description: "Remove organizational units" },
 
   // Project
   "project-read": { topic: "Project", description: "View projects" },
@@ -46,11 +46,17 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "project-update": { topic: "Project", description: "Edit projects" },
   "project-delete": { topic: "Project", description: "Remove projects" },
 
-  // Work Breakdown
-  "wbe-read": { topic: "Work Breakdown", description: "View work breakdown elements" },
-  "wbe-create": { topic: "Work Breakdown", description: "Create work breakdown elements" },
-  "wbe-update": { topic: "Work Breakdown", description: "Edit work breakdown elements" },
-  "wbe-delete": { topic: "Work Breakdown", description: "Remove work breakdown elements" },
+  // WBS Element
+  "wbs-element-read": { topic: "WBS Element", description: "View work breakdown structure elements" },
+  "wbs-element-create": { topic: "WBS Element", description: "Create work breakdown structure elements" },
+  "wbs-element-update": { topic: "WBS Element", description: "Edit work breakdown structure elements" },
+  "wbs-element-delete": { topic: "WBS Element", description: "Remove work breakdown structure elements" },
+
+  // Control Account
+  "control-account-read": { topic: "Control Account", description: "View control accounts" },
+  "control-account-create": { topic: "Control Account", description: "Create control accounts" },
+  "control-account-update": { topic: "Control Account", description: "Edit control accounts" },
+  "control-account-delete": { topic: "Control Account", description: "Remove control accounts" },
 
   // Cost Element Type
   "cost-element-type-read": { topic: "Cost Element Type", description: "View cost element types" },
@@ -75,6 +81,18 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "cost-registration-create": { topic: "Cost Registration", description: "Create cost registrations" },
   "cost-registration-update": { topic: "Cost Registration", description: "Edit cost registrations" },
   "cost-registration-delete": { topic: "Cost Registration", description: "Remove cost registrations" },
+
+  // Cost Event
+  "cost-event-read": { topic: "Cost Event", description: "View cost events" },
+  "cost-event-create": { topic: "Cost Event", description: "Create cost events" },
+  "cost-event-update": { topic: "Cost Event", description: "Edit cost events" },
+  "cost-event-delete": { topic: "Cost Event", description: "Remove cost events" },
+
+  // Cost Event Type
+  "cost-event-type-read": { topic: "Cost Event Type", description: "View cost event types" },
+  "cost-event-type-create": { topic: "Cost Event Type", description: "Create cost event types" },
+  "cost-event-type-update": { topic: "Cost Event Type", description: "Edit cost event types" },
+  "cost-event-type-delete": { topic: "Cost Event Type", description: "Remove cost event types" },
 
   // Change Order
   "change-order-read": { topic: "Change Order", description: "View change orders" },
@@ -102,13 +120,6 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "progress-entry-read": { topic: "Progress Entry", description: "View progress entries" },
   "progress-entry-create": { topic: "Progress Entry", description: "Create progress entries" },
 
-  // Quality Event
-  "quality-event-read": { topic: "Quality Event", description: "View quality events" },
-  "quality-event-create": { topic: "Quality Event", description: "Create quality events" },
-  "quality-event-update": { topic: "Quality Event", description: "Edit quality events" },
-  "quality-event-delete": { topic: "Quality Event", description: "Remove quality events" },
-  "quality-event-write": { topic: "Quality Event", description: "Record quality event data" },
-
   // EVM
   "evm-read": { topic: "EVM", description: "View earned value metrics" },
   "evm-create": { topic: "EVM", description: "Create EVM snapshots" },
@@ -128,27 +139,42 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   // Budget Settings
   "project-budget-settings-read": { topic: "Budget Settings", description: "View project budget settings" },
   "project-budget-settings-write": { topic: "Budget Settings", description: "Edit project budget settings" },
+
+  // Project Documents
+  "project-documents-read": { topic: "Project Documents", description: "View project documents" },
+  "project-documents-write": { topic: "Project Documents", description: "Upload and edit project documents" },
+  "project-documents-delete": { topic: "Project Documents", description: "Remove project documents" },
+
+  // MCP Server
+  "mcp-server-read": { topic: "MCP Server", description: "View MCP server configs" },
+  "mcp-server-create": { topic: "MCP Server", description: "Create MCP server configs" },
+  "mcp-server-update": { topic: "MCP Server", description: "Edit MCP server configs" },
+  "mcp-server-delete": { topic: "MCP Server", description: "Remove MCP server configs" },
 };
 
 /** Ordered topic names for consistent display. */
 const TOPIC_ORDER: string[] = [
   "User Management",
-  "Department",
+  "Organizational Unit",
   "Project",
-  "Work Breakdown",
+  "WBS Element",
+  "Control Account",
   "Cost Element Type",
   "Package Type",
   "Cost Element",
   "Cost Registration",
+  "Cost Event",
+  "Cost Event Type",
   "Change Order",
   "Forecast",
   "Schedule Baseline",
   "Progress Entry",
-  "Quality Event",
   "EVM",
   "AI Configuration",
   "Dashboard",
   "Budget Settings",
+  "Project Documents",
+  "MCP Server",
 ];
 
 /**
@@ -168,7 +194,6 @@ export function getActionLabel(permission: string): string {
     "dashboard-template-update": "Update",
     "project-budget-settings-read": "Read",
     "project-budget-settings-write": "Write",
-    "quality-event-write": "Write",
   };
 
   const special = specialActions[permission];

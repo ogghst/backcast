@@ -12,6 +12,7 @@ import {
   useUpdateWorkPackage,
   useDeleteWorkPackage,
 } from "@/features/work-packages/api/useWorkPackages";
+import { useControlAccount } from "@/features/control-accounts/api/useControlAccounts";
 import { WorkPackageUpdate } from "@/api/generated";
 import { WorkPackageModal } from "@/features/work-packages/components/WorkPackageModal";
 import { Can } from "@/components/auth/Can";
@@ -19,7 +20,7 @@ import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { PageNavigation } from "@/components/navigation";
 
 export const WorkPackageLayout: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, projectId } = useParams<{ id: string; projectId?: string }>();
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const queryClient = useQueryClient();
@@ -30,42 +31,36 @@ export const WorkPackageLayout: React.FC = () => {
     id!,
   );
 
+  const basePath = projectId
+    ? `/projects/${projectId}/work-packages/${id}`
+    : `/work-packages/${id}`;
+
   const navItems = [
-    { key: "overview", label: "Overview", path: `/work-packages/${id}` },
+    { key: "overview", label: "Overview", path: basePath },
     {
       key: "cost-registrations",
       label: "Cost Registrations",
-      path: `/work-packages/${id}/cost-registrations`,
+      path: `${basePath}/cost-registrations`,
     },
     {
       key: "cost-history",
       label: "Cost History",
-      path: `/work-packages/${id}/cost-history`,
+      path: `${basePath}/cost-history`,
     },
     {
       key: "evm-analysis",
       label: "EVM Analysis",
-      path: `/work-packages/${id}/evm-analysis`,
-    },
-    {
-      key: "forecasts",
-      label: "Forecasts",
-      path: `/work-packages/${id}/forecasts`,
-    },
-    {
-      key: "schedule-baselines",
-      label: "Schedule Baselines",
-      path: `/work-packages/${id}/schedule-baselines`,
+      path: `${basePath}/evm-analysis`,
     },
     {
       key: "documents",
       label: "Documents",
-      path: `/work-packages/${id}/documents`,
+      path: `${basePath}/documents`,
     },
     {
       key: "chat",
       label: "AI Chat",
-      path: `/work-packages/${id}/chat`,
+      path: `${basePath}/chat`,
     },
   ];
 
@@ -80,6 +75,11 @@ export const WorkPackageLayout: React.FC = () => {
     closeDelete,
   } = useEntityDetailActions<import("@/api/generated").WorkPackageRead>();
 
+  // Resolve wbs_element_id from the selected WP's control account for CA dropdown scoping
+  const { data: controlAccount } = useControlAccount(
+    selectedWP?.control_account_id ?? "",
+  );
+
   // Mutations
   const { mutateAsync: updateWorkPackage } = useUpdateWorkPackage({
     onSuccess: () => {
@@ -93,6 +93,8 @@ export const WorkPackageLayout: React.FC = () => {
   const { mutate: deleteWorkPackage } = useDeleteWorkPackage({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.workPackages.all });
+      closeDelete();
+      if (projectId) navigate(`/projects/${projectId}`); else navigate("/");
     },
   });
 
@@ -115,7 +117,7 @@ export const WorkPackageLayout: React.FC = () => {
           Work Package Not Found
         </Typography.Title>
         <p>The requested work package could not be found.</p>
-        <Button onClick={() => navigate(-1)}>Go Back</Button>
+        <Button onClick={() => { if (projectId) navigate(`/projects/${projectId}`); else navigate("/"); }}>Go Back</Button>
       </div>
     );
   }
@@ -181,6 +183,7 @@ export const WorkPackageLayout: React.FC = () => {
           }}
           confirmLoading={false}
           initialValues={selectedWP}
+          wbsElementId={controlAccount?.wbs_element_id}
         />
       )}
 
@@ -192,8 +195,6 @@ export const WorkPackageLayout: React.FC = () => {
         onOk={() => {
           if (workPackage) {
             deleteWorkPackage(workPackage.work_package_id);
-            closeDelete();
-            navigate(-1);
           }
         }}
         okText="Delete"

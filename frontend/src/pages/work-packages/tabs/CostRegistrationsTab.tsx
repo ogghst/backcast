@@ -1,7 +1,8 @@
-import { App, Button, Space, Input, Tag, Grid, Badge, Typography } from "antd";
+import { App, Button, Space, Input, Tag, Grid, Badge, Typography, Alert, Modal, theme, Empty, Spin } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
+  PlusOutlined,
   HistoryOutlined,
   SearchOutlined,
   PaperClipOutlined,
@@ -13,11 +14,13 @@ import { formatDate } from "@/utils/formatters";
 import {
   CostRegistrationsService,
   type CostRegistrationRead,
+  type CostRegistrationCreate,
 } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import type { WorkPackageRead } from "@/api/generated";
 import {
   useCostRegistrations,
+  useCreateCostRegistration,
   useUpdateCostRegistration,
   useDeleteCostRegistration,
 } from "@/features/cost-registration/api/useCostRegistrations";
@@ -31,9 +34,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 
+import { useParams } from "react-router-dom";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
+import { ViewModeToggle } from "@/components/common/ViewModeToggle";
+import { useViewMode } from "@/hooks/useViewMode";
+import { CostRegistrationCard } from "@/features/cost-registration/components/CostRegistrationCard";
 import { useCostEventTypes } from "@/features/cost-events/api/useCostEvents";
+import { WorkPackagesPmiService } from "@/api/generated";
+import type { CostElementRead } from "@/api/generated";
+import { useQuery } from "@tanstack/react-query";
 
 const { Text } = Typography;
 
@@ -54,6 +64,7 @@ interface CostRegistrationApiParams {
 export const CostRegistrationsTab = ({
   workPackage,
 }: CostRegistrationsTabProps) => {
+  const { projectId } = useParams<{ projectId: string }>();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     CostRegistrationRead,
     Record<string, FilterValue | null>
@@ -63,9 +74,26 @@ export const CostRegistrationsTab = ({
   const screens = Grid.useBreakpoint();
   const { data: packageTypeOptions } = useCostEventTypes();
   const isMobile = !screens.md;
+  const { token } = theme.useToken();
+  const { viewMode: crViewMode, resolvedMode: crResolvedMode, cycleViewMode: crCycleViewMode } = useViewMode("cost-registrations", isMobile);
+  const useCard = crResolvedMode === "card";
 
   const currency = useProjectCurrency(undefined);
   const currencySymbol = getCurrencySymbol(currency);
+
+  // Fetch cost elements for this work package
+  const { data: costElements = [], isLoading: costElementsLoading } = useQuery<
+    CostElementRead[]
+  >({
+    queryKey: queryKeys.costElements.list(workPackage.work_package_id),
+    queryFn: async () => {
+      const res = await WorkPackagesPmiService.getWorkPackageCostElements(
+        workPackage.work_package_id,
+      );
+      return (res as CostElementRead[]) || [];
+    },
+    enabled: !!workPackage.work_package_id,
+  });
 
   // Build query params - use work_package_id for aggregated view across all EOCs
   const queryParams: CostRegistrationApiParams = {
@@ -83,6 +111,10 @@ export const CostRegistrationsTab = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRegistration, setSelectedRegistration] =
     useState<CostRegistrationRead | null>(null);
+  const [selectedCostElementId, setSelectedCostElementId] = useState<
+    string | null
+  >(null);
+  const [costElementPickerOpen, setCostElementPickerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // History hook
@@ -94,6 +126,20 @@ export const CostRegistrationsTab = ({
       enabled: historyOpen,
     },
   );
+
+  const { mutateAsync: createCostRegistration } = useCreateCostRegistration({
+    onSuccess: () => {
+      refetch();
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.costRegistrations.budgetStatus(
+          workPackage.work_package_id,
+          { asOf },
+        ),
+      });
+      setModalOpen(false);
+      setSelectedCostElementId(null);
+    },
+  });
 
   const { mutateAsync: updateCostRegistration } = useUpdateCostRegistration({
     onSuccess: () => {
@@ -135,6 +181,27 @@ export const CostRegistrationsTab = ({
           costElementId: registration.cost_element_id,
         }),
     });
+  };
+
+  const handleAddCost = () => {
+    if (costElements.length === 0) return;
+
+    if (costElements.length === 1) {
+      // Only one cost element -- go straight to the modal
+      setSelectedRegistration(null);
+      setSelectedCostElementId(costElements[0].cost_element_id);
+      setModalOpen(true);
+    } else {
+      // Multiple cost elements -- show picker first
+      setCostElementPickerOpen(true);
+    }
+  };
+
+  const handleCostElementSelected = (costElementId: string) => {
+    setSelectedRegistration(null);
+    setSelectedCostElementId(costElementId);
+    setCostElementPickerOpen(false);
+    setModalOpen(true);
   };
 
   const getColumnSearchProps = (
@@ -317,6 +384,7 @@ export const CostRegistrationsTab = ({
               icon={<EditOutlined />}
               onClick={() => {
                 setSelectedRegistration(record);
+                setSelectedCostElementId(record.cost_element_id);
                 setModalOpen(true);
               }}
               title="Edit"
@@ -343,61 +411,140 @@ export const CostRegistrationsTab = ({
 
   return (
     <div>
-      <StandardTable<CostRegistrationRead>
-        tableParams={{
-          ...tableParams,
-          pagination: { ...tableParams.pagination, total },
-        }}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={costRegistrations}
-        columns={columns}
-        rowKey="id"
-        searchable={true}
-        searchPlaceholder="Search cost registrations..."
-        onSearch={handleSearch}
-        scroll={{ x: isMobile ? "max-content" : undefined }}
-        size={isMobile ? "small" : "middle"}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              width: "100%",
-            }}
-          >
-            <Space>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-                Cost Registrations
-              </div>
-              <Tag color="blue">
-                Total: {currencySymbol}
-                {totalCosts.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                })}
-              </Tag>
-            </Space>
-          </div>
-        }
-      />
+      {costElements.length === 0 && !costElementsLoading && (
+        <Alert
+          message="No Cost Elements"
+          description="Create cost elements first in the Work Package overview before adding cost registrations."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
-      {/* Edit-only modal -- creation must happen at the EOC level */}
-      {selectedRegistration && (
+      {/* Toolbar - shared between card and table views */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: token.marginMD }}>
+        <Space>
+          <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+            Cost Registrations
+          </div>
+          <Tag color="blue">
+            Total: {currencySymbol}
+            {totalCosts.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </Tag>
+        </Space>
+        <Space>
+          <ViewModeToggle viewMode={crViewMode} onCycleViewMode={crCycleViewMode} />
+          {costElements.length > 0 && (
+            <Can permission="cost-registration-create">
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddCost}>
+                Add Cost
+              </Button>
+            </Can>
+          )}
+        </Space>
+      </div>
+
+      {/* Card view */}
+      {useCard ? (
+        isLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>
+        ) : costRegistrations.length === 0 ? (
+          <Empty description="No cost registrations" />
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
+            {costRegistrations.map((cr) => (
+              <CostRegistrationCard
+                key={cr.id || cr.cost_registration_id}
+                registration={cr}
+                currencySymbol={currencySymbol}
+              />
+            ))}
+          </div>
+        )
+      ) : (
+        /* Table view */
+        <StandardTable<CostRegistrationRead>
+          tableParams={{
+            ...tableParams,
+            pagination: { ...tableParams.pagination, total },
+          }}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={costRegistrations}
+          columns={columns}
+          rowKey="id"
+          searchable={true}
+          searchPlaceholder="Search cost registrations..."
+          onSearch={handleSearch}
+          scroll={{ x: isMobile ? "max-content" : undefined }}
+          size={isMobile ? "small" : "middle"}
+        />
+      )}
+
+      {/* Cost element picker modal -- shown when multiple cost elements exist */}
+      <Modal
+        title="Select Cost Element"
+        open={costElementPickerOpen}
+        onCancel={() => setCostElementPickerOpen(false)}
+        footer={null}
+        width={480}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {costElements.map((ce) => (
+            <Button
+              key={ce.cost_element_id}
+              block
+              onClick={() => handleCostElementSelected(ce.cost_element_id)}
+              style={{ textAlign: "left", height: "auto", padding: "8px 16px" }}
+            >
+              <Space direction="vertical" size={0}>
+                <span>
+                  {ce.cost_element_type_name || "Unknown Type"}
+                </span>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {currencySymbol}
+                  {Number(ce.amount || 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                  {ce.description ? ` - ${ce.description}` : ""}
+                </Text>
+              </Space>
+            </Button>
+          ))}
+        </div>
+      </Modal>
+
+      {/* Create/Edit modal */}
+      {selectedCostElementId && (
         <CostRegistrationModal
           open={modalOpen}
-          onCancel={() => setModalOpen(false)}
+          onCancel={() => {
+            setModalOpen(false);
+            if (!selectedRegistration) {
+              setSelectedCostElementId(null);
+            }
+          }}
           onOk={async (values) => {
-            await updateCostRegistration({
-              id: selectedRegistration.cost_registration_id,
-              data: values,
-              costElementId: selectedRegistration.cost_element_id,
-            });
+            if (selectedRegistration) {
+              await updateCostRegistration({
+                id: selectedRegistration.cost_registration_id,
+                data: values,
+                costElementId: selectedCostElementId,
+              });
+            } else {
+              const { amount, ...rest } = values as CostRegistrationCreate;
+              const createData: Parameters<typeof createCostRegistration>[0] = {
+                cost_element_id: selectedCostElementId,
+                amount: amount ?? 0,
+                ...(rest && typeof rest === "object" ? rest : {}),
+              };
+              await createCostRegistration(createData);
+            }
           }}
           confirmLoading={isLoading}
           initialValues={selectedRegistration}
-          costElementId={selectedRegistration.cost_element_id}
-          projectId={""}
+          costElementId={selectedCostElementId}
+          projectId={projectId || ""}
         />
       )}
 

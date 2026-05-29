@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import { BranchMode } from '../models/BranchMode';
+import type { BranchMode } from '../models/BranchMode';
 import type { CostElementCreate } from '../models/CostElementCreate';
 import type { CostElementRead } from '../models/CostElementRead';
 import type { ScheduleBaselineCreate } from '../models/ScheduleBaselineCreate';
@@ -35,7 +35,7 @@ export class WorkPackagesPmiService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
@@ -90,7 +90,7 @@ export class WorkPackagesPmiService {
     public static getWorkPackage(
         workPackageId: string,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<WorkPackageRead> {
         return __request(OpenAPI, {
@@ -195,7 +195,7 @@ export class WorkPackagesPmiService {
     public static getWorkPackageBreadcrumb(
         workPackageId: string,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -454,7 +454,7 @@ export class WorkPackagesPmiService {
         workPackageId: string,
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',

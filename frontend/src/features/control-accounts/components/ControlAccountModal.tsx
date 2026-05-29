@@ -14,6 +14,8 @@ interface ControlAccountModalProps {
   onOk: (values: ControlAccountCreate | ControlAccountUpdate) => void;
   confirmLoading: boolean;
   initialValues?: ControlAccountRead | null;
+  /** Pre-fill form fields on create (does not trigger edit mode). */
+  defaultValues?: Partial<ControlAccountCreate>;
   projectId: string;
 }
 
@@ -23,6 +25,7 @@ export const ControlAccountModal = ({
   onOk,
   confirmLoading,
   initialValues,
+  defaultValues,
   projectId,
 }: ControlAccountModalProps) => {
   const [form] = Form.useForm();
@@ -32,7 +35,10 @@ export const ControlAccountModal = ({
   // WBS Element options for the project
   const { data: wbsData } = useWBSElements({ projectId });
   const wbsOptions = (wbsData?.items || []).map((wbs) => ({
-    label: wbs.name || wbs.wbs_element_id,
+    label:
+      wbs.code && wbs.name
+        ? `${wbs.code} - ${wbs.name}`
+        : wbs.name || wbs.code || "Unknown WBS Element",
     value: wbs.wbs_element_id,
   }));
 
@@ -55,10 +61,13 @@ export const ControlAccountModal = ({
         });
       } else {
         form.resetFields();
+        if (defaultValues) {
+          form.setFieldsValue(defaultValues);
+        }
       }
     }
     prevOpenRef.current = open;
-  }, [open, initialValues, form]);
+  }, [open, initialValues, defaultValues, form]);
 
   const handleSubmit = async () => {
     try {

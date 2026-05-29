@@ -213,24 +213,6 @@ export function useEVMTimeSeries(
       granularity,
     }),
     queryFn: async () => {
-      // For cost elements, use the cost-element-specific endpoint
-      if (entityType === "cost_element") {
-        return await __request(OpenAPI, {
-          method: "GET",
-          url: "/api/v1/cost-elements/{cost_element_id}/evm-history",
-          path: {
-            cost_element_id: entityId,
-          },
-          query: {
-            granularity,
-            control_date: controlDate || undefined,
-            branch,
-            branch_mode: tmMode,
-          },
-        });
-      }
-
-      // For WBE and Project entity types, use the generic endpoint
       return await __request(OpenAPI, {
         method: "GET",
         url: "/api/v1/evm/{entity_type}/{entity_id}/timeseries",

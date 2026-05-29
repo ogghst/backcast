@@ -63,6 +63,7 @@ class CostElementRead(CostElementBase, TemporalComputedMixin):
     work_package_code: str | None = None
     cost_element_type_name: str | None = None
     cost_element_type_code: str | None = None
+    project_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

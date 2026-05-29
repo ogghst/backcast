@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import { BranchMode } from '../models/BranchMode';
+import type { BranchMode } from '../models/BranchMode';
 import type { WBSElementCreate } from '../models/WBSElementCreate';
 import type { WBSElementRead } from '../models/WBSElementRead';
 import type { WBSElementUpdate } from '../models/WBSElementUpdate';
@@ -23,6 +23,7 @@ export class WbsElementsService {
      * @param perPage Items per page
      * @param projectId Filter by project ID
      * @param parentId Filter by parent WBS Element ID (use 'null' for root)
+     * @param rootOnly Return only root-level WBS elements (no parent)
      * @param branch Branch name
      * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param search Search term (code, name)
@@ -38,8 +39,9 @@ export class WbsElementsService {
         perPage: number = 20,
         projectId?: (string | null),
         parentId?: (string | null),
+        rootOnly: boolean = false,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -54,6 +56,7 @@ export class WbsElementsService {
                 'per_page': perPage,
                 'project_id': projectId,
                 'parent_id': parentId,
+                'root_only': rootOnly,
                 'branch': branch,
                 'branch_mode': branchMode,
                 'search': search,
@@ -103,7 +106,7 @@ export class WbsElementsService {
     public static getWbsTree(
         projectId: string,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<Array<WBSElementRead>> {
         return __request(OpenAPI, {
@@ -240,7 +243,7 @@ export class WbsElementsService {
     public static getWbsElementBreadcrumb(
         wbsElementId: string,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {

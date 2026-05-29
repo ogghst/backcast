@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
+import { ApiError } from "@/api/generated/core/ApiError";
 import { queryKeys } from "@/api/queryKeys";
 
 // ---------------------------------------------------------------------------
@@ -135,13 +136,6 @@ function transformConfigResponse(
 // Helper: build request config object
 // ---------------------------------------------------------------------------
 
-function getConfig(url: string) {
-  return {
-    method: "GET" as const,
-    url,
-  };
-}
-
 function putConfig(url: string, body: WorkflowConfigUpdateRequest) {
   return {
     method: "PUT" as const,
@@ -163,21 +157,34 @@ function deleteConfig(url: string) {
 
 /**
  * Fetch the global workflow configuration.
+ * Returns undefined when no global config exists (404 is a valid empty state).
  */
 export function useGlobalConfig(
   options?: Omit<
-    UseQueryOptions<WorkflowConfigResponse, Error>,
+    UseQueryOptions<WorkflowConfigResponse | undefined, Error>,
     "queryKey" | "queryFn"
   >,
 ) {
-  return useQuery<WorkflowConfigResponse, Error>({
+  return useQuery<WorkflowConfigResponse | undefined, Error>({
     queryKey: queryKeys.changeOrderConfig.global,
     queryFn: async () => {
-      const raw = await __request(
-        OpenAPI,
-        getConfig("/api/v1/change-order-config/global"),
-      );
-      return transformConfigResponse(raw as WorkflowConfigResponse);
+      try {
+        const raw = await __request(OpenAPI, {
+          method: "GET",
+          url: "/api/v1/change-order-config/global",
+          headers: { "X-Silent-Error": "true" },
+        });
+        return transformConfigResponse(raw as WorkflowConfigResponse);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          return undefined;
+        }
+        throw error;
+      }
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 404) return false;
+      return failureCount < 3;
     },
     ...options,
   });
@@ -185,25 +192,37 @@ export function useGlobalConfig(
 
 /**
  * Fetch project-level workflow configuration.
- * Returns 404 when the project uses global defaults.
+ * Returns undefined when the project uses global defaults (404 is a valid empty state).
  */
 export function useProjectConfig(
   projectId: string | undefined,
   options?: Omit<
-    UseQueryOptions<WorkflowConfigResponse, Error>,
+    UseQueryOptions<WorkflowConfigResponse | undefined, Error>,
     "queryKey" | "queryFn"
   >,
 ) {
-  return useQuery<WorkflowConfigResponse, Error>({
+  return useQuery<WorkflowConfigResponse | undefined, Error>({
     queryKey: queryKeys.changeOrderConfig.project(projectId!),
     queryFn: async () => {
-      const raw = await __request(
-        OpenAPI,
-        getConfig(`/api/v1/change-order-config/projects/${projectId}`),
-      );
-      return transformConfigResponse(raw as WorkflowConfigResponse);
+      try {
+        const raw = await __request(OpenAPI, {
+          method: "GET",
+          url: `/api/v1/change-order-config/projects/${projectId}`,
+          headers: { "X-Silent-Error": "true" },
+        });
+        return transformConfigResponse(raw as WorkflowConfigResponse);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          return undefined;
+        }
+        throw error;
+      }
     },
     enabled: !!projectId && (options?.enabled ?? true),
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 404) return false;
+      return failureCount < 3;
+    },
     ...options,
   });
 }

@@ -10,11 +10,11 @@ export const WorkPackageDocuments: React.FC = () => {
   const { data: workPackage, isLoading } = useWorkPackage(id!);
 
   if (isLoading) return <Spin />;
-  if (!id || !projectId) return null;
+  if (!id) return null;
 
   return (
     <EntityDocumentsTab
-      projectId={projectId}
+      projectId={projectId || ""}
       entityType="work_package"
       entityId={workPackage?.work_package_id || id}
     />

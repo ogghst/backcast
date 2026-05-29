@@ -16,8 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.core.temporal_queries import is_current_version
 from app.db.session import get_db
+from app.models.domain.control_account import ControlAccount
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
+from app.models.domain.wbs_element import WBSElement
+from app.models.domain.work_package import WorkPackage
 from app.models.schemas.cost_element import (
     CostElementRead,
     CostElementUpdate,
@@ -113,6 +116,23 @@ async def read_cost_elements(
             row.cost_element_type_id: (row.code, row.name) for row in result.all()
         }
 
+    # Batch-resolve project_id through: work_package -> control_account -> wbs_element
+    wp_ids = {i.work_package_id for i in items if i.work_package_id}
+    project_lookup: dict[UUID, UUID] = {}
+    if wp_ids:
+        project_result = await session.execute(
+            select(
+                WorkPackage.work_package_id,
+                WBSElement.project_id,
+            )
+            .join(ControlAccount, WorkPackage.control_account_id == ControlAccount.control_account_id)
+            .join(WBSElement, ControlAccount.wbs_element_id == WBSElement.wbs_element_id)
+            .where(WorkPackage.work_package_id.in_(wp_ids))
+        )
+        project_lookup = {
+            row.work_package_id: row.project_id for row in project_result.all()
+        }
+
     items_out = []
     for i in items:
         read = CostElementRead.model_validate(i)
@@ -120,6 +140,9 @@ async def read_cost_elements(
         if type_data:
             read.cost_element_type_code = type_data[0]
             read.cost_element_type_name = type_data[1]
+        pid = project_lookup.get(i.work_package_id)
+        if pid:
+            read.project_id = pid
         items_out.append(read)
 
     response = PaginatedResponse[CostElementRead](
@@ -184,6 +207,19 @@ async def read_cost_element(
         if row:
             read.cost_element_type_code = row.code
             read.cost_element_type_name = row.name
+
+    # Enrich with project_id through: work_package -> control_account -> wbs_element
+    if item.work_package_id:
+        project_result = await session.execute(
+            select(WBSElement.project_id)
+            .join(ControlAccount, ControlAccount.wbs_element_id == WBSElement.wbs_element_id)
+            .join(WorkPackage, WorkPackage.control_account_id == ControlAccount.control_account_id)
+            .where(WorkPackage.work_package_id == item.work_package_id)
+            .limit(1)
+        )
+        pid = project_result.scalar_one_or_none()
+        if pid:
+            read.project_id = pid
 
     return read
 

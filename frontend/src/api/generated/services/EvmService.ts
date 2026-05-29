@@ -3,9 +3,9 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { app__models__schemas__evm__EntityType } from '../models/app__models__schemas__evm__EntityType';
-import { BranchMode } from '../models/BranchMode';
+import type { BranchMode } from '../models/BranchMode';
 import type { EVMMetricsResponse } from '../models/EVMMetricsResponse';
-import { EVMTimeSeriesGranularity } from '../models/EVMTimeSeriesGranularity';
+import type { EVMTimeSeriesGranularity } from '../models/EVMTimeSeriesGranularity';
 import type { EVMTimeSeriesResponse } from '../models/EVMTimeSeriesResponse';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
@@ -52,7 +52,7 @@ export class EvmService {
         entityId: string,
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<EVMMetricsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -105,10 +105,10 @@ export class EvmService {
     public static getGenericEvmTimeseries(
         entityType: app__models__schemas__evm__EntityType,
         entityId: string,
-        granularity: EVMTimeSeriesGranularity = EVMTimeSeriesGranularity.WEEK,
+        granularity: EVMTimeSeriesGranularity = 'week',
         controlDate?: (string | null),
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
     ): CancelablePromise<EVMTimeSeriesResponse> {
         return __request(OpenAPI, {
             method: 'GET',

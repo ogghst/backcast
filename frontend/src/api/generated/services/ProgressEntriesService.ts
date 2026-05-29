@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import { BranchMode } from '../models/BranchMode';
+import type { BranchMode } from '../models/BranchMode';
 import type { ProgressEntryCreate } from '../models/ProgressEntryCreate';
 import type { ProgressEntryRead } from '../models/ProgressEntryRead';
 import type { CancelablePromise } from '../core/CancelablePromise';
@@ -35,7 +35,7 @@ export class ProgressEntriesService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
-        branchMode: BranchMode = BranchMode.MERGED,
+        branchMode: BranchMode = 'merged',
         costElementId?: (string | null),
         wbeId?: (string | null),
         projectId?: (string | null),
@@ -119,7 +119,8 @@ export class ProgressEntriesService {
      * Read Latest Progress
      * Retrieve the latest progress entry for a cost element.
      *
-     * Returns the most recent progress entry based on valid_time.
+     * Returns the most recent progress entry for the work package that owns
+     * the specified cost element, based on valid_time.
      * Supports time-travel queries via the as_of parameter.
      *
      * Returns None if no progress has been reported for the cost element.
@@ -150,8 +151,8 @@ export class ProgressEntriesService {
      * Read Progress History
      * Retrieve progress history for a cost element.
      *
-     * Returns all progress entries for the specified cost element,
-     * ordered by valid_time descending (most recent first).
+     * Returns all progress entries for the work package that owns the
+     * specified cost element, ordered by valid_time descending (most recent first).
      *
      * Useful for generating progress charts and historical analysis.
      * @param costElementId

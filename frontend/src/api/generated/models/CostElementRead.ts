@@ -27,6 +27,7 @@ export type CostElementRead = {
     work_package_code?: (string | null);
     cost_element_type_name?: (string | null);
     cost_element_type_code?: (string | null);
+    project_id?: (string | null);
     /**
      * Display-ready valid_time temporal data.
      *

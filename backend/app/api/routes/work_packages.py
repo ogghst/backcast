@@ -4,19 +4,23 @@ Work Packages are the lowest management level under Control Accounts where
 budget is allocated, work is scheduled, and progress is measured.
 """
 
-from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
+from typing import cast as typing_cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
+from app.core.temporal_queries import is_current_version
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
+from app.models.domain.control_account import ControlAccount
 from app.models.domain.cost_element import CostElement
+from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.work_package import WorkPackage
 from app.models.schemas.cost_element import CostElementCreate, CostElementRead
 from app.models.schemas.schedule_baseline import (
@@ -101,6 +105,7 @@ async def read_work_packages(
         description="Time travel: get work packages as of this timestamp (ISO 8601)",
     ),
     service: WorkPackageService = Depends(get_work_package_service),
+    session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Retrieve work packages with filtering and pagination.
 
@@ -131,7 +136,33 @@ async def read_work_packages(
             as_of=as_of,
         )
 
-        items_out = [WorkPackagePublic.model_validate(i) for i in items]
+        # Batch-fetch ControlAccount names for enrichment
+        ca_ids = {i.control_account_id for i in items if i.control_account_id}
+        ca_lookup: dict[UUID, str] = {}
+        if ca_ids:
+            ca_result = await session.execute(
+                select(
+                    ControlAccount.control_account_id,
+                    ControlAccount.name,
+                ).where(
+                    ControlAccount.control_account_id.in_(ca_ids),
+                    is_current_version(
+                        typing_cast(Any, ControlAccount).valid_time,
+                        typing_cast(Any, ControlAccount).deleted_at,
+                    ),
+                )
+            )
+            ca_lookup = {
+                row.control_account_id: row.name for row in ca_result.all()
+            }
+
+        items_out = []
+        for i in items:
+            read = WorkPackagePublic.model_validate(i)
+            ca_name = ca_lookup.get(i.control_account_id)
+            if ca_name:
+                read.control_account_name = ca_name
+            items_out.append(read)
 
         response = PaginatedResponse[WorkPackagePublic](
             items=items_out,
@@ -193,7 +224,8 @@ async def read_work_package(
         description="Time travel: get work package state as of this timestamp (ISO 8601)",
     ),
     service: WorkPackageService = Depends(get_work_package_service),
-) -> WorkPackage:
+    session: AsyncSession = Depends(get_db),
+) -> WorkPackagePublic:
     """Get a specific work package by root ID. Requires read permission.
 
     Supports time-travel queries via the as_of parameter.
@@ -213,7 +245,25 @@ async def read_work_package(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Work Package not found",
         )
-    return item
+
+    result = WorkPackagePublic.model_validate(item)
+
+    # Enrich with ControlAccount name
+    if item.control_account_id:
+        ca_result = await session.execute(
+            select(ControlAccount.name).where(
+                ControlAccount.control_account_id == item.control_account_id,
+                is_current_version(
+                    typing_cast(Any, ControlAccount).valid_time,
+                    typing_cast(Any, ControlAccount).deleted_at,
+                ),
+            ).limit(1)
+        )
+        ca_row = ca_result.first()
+        if ca_row:
+            result.control_account_name = ca_row.name
+
+    return result
 
 
 @router.put(
@@ -276,7 +326,8 @@ async def delete_work_package(
 async def read_work_package_history(
     work_package_id: UUID,
     service: WorkPackageService = Depends(get_work_package_service),
-) -> Sequence[WorkPackage]:
+    session: AsyncSession = Depends(get_db),
+) -> list[WorkPackagePublic]:
     """Get version history for a work package. Requires read permission."""
     history = await service.get_history(work_package_id)
     if not history:
@@ -284,7 +335,32 @@ async def read_work_package_history(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No history found for this Work Package",
         )
-    return history
+
+    # Enrich with ControlAccount name (same CA for all history entries)
+    ca_id = history[0].control_account_id if history else None
+    ca_name: str | None = None
+    if ca_id:
+        ca_result = await session.execute(
+            select(ControlAccount.name).where(
+                ControlAccount.control_account_id == ca_id,
+                is_current_version(
+                    typing_cast(Any, ControlAccount).valid_time,
+                    typing_cast(Any, ControlAccount).deleted_at,
+                ),
+            ).limit(1)
+        )
+        ca_row = ca_result.first()
+        if ca_row:
+            ca_name = ca_row.name
+
+    items_out = []
+    for entry in history:
+        read = WorkPackagePublic.model_validate(entry)
+        if ca_name:
+            read.control_account_name = ca_name
+        items_out.append(read)
+
+    return items_out
 
 
 @router.get(
@@ -688,13 +764,45 @@ async def read_work_package_evm(
 async def read_work_package_cost_elements(
     work_package_id: UUID,
     ce_service: CostElementService = Depends(get_cost_element_service),
+    session: AsyncSession = Depends(get_db),
 ) -> list[CostElementRead]:
     """List all cost elements (EOCs) under this work package.
 
     Requires cost-element-read permission.
     """
     items, _total = await ce_service.get_cost_elements(work_package_id=work_package_id)
-    return [CostElementRead.model_validate(i) for i in items]
+
+    # Batch-fetch CostElementType names for enrichment
+    type_ids = {i.cost_element_type_id for i in items if i.cost_element_type_id}
+    type_lookup: dict[UUID, tuple[str, str]] = {}
+    if type_ids:
+        result = await session.execute(
+            select(
+                CostElementType.cost_element_type_id,
+                CostElementType.code,
+                CostElementType.name,
+            ).where(
+                CostElementType.cost_element_type_id.in_(type_ids),
+                is_current_version(
+                    typing_cast(Any, CostElementType).valid_time,
+                    typing_cast(Any, CostElementType).deleted_at,
+                ),
+            )
+        )
+        type_lookup = {
+            row.cost_element_type_id: (row.code, row.name) for row in result.all()
+        }
+
+    items_out = []
+    for i in items:
+        read = CostElementRead.model_validate(i)
+        type_data = type_lookup.get(i.cost_element_type_id)
+        if type_data:
+            read.cost_element_type_code = type_data[0]
+            read.cost_element_type_name = type_data[1]
+        items_out.append(read)
+
+    return items_out
 
 
 @router.post(

@@ -166,6 +166,8 @@ export const ProjectTree = ({
   const { branch, mode, asOf } = useTimeMachineParams();
 
   const [treeData, setTreeData] = useState<DataNode[]>([]);
+  const [expandedKeys, setExpandedKeys] = useState<Key[]>([]);
+  const initialLoadDone = useRef(false);
   /** Map from tree node key to TreeNodeData, avoids storing non-standard props on DataNode */
   const nodeMetaRef = useRef(new Map<string, TreeNodeData>());
 
@@ -199,7 +201,7 @@ export const ProjectTree = ({
                 project_id: projectId,
                 root_only: true,
                 branch: branch || "main",
-                mode,
+                branch_mode: mode,
                 as_of: asOf || undefined,
                 per_page: 100,
               },
@@ -262,6 +264,10 @@ export const ProjectTree = ({
         };
 
         setTreeData([projectRoot]);
+        if (!initialLoadDone.current) {
+          setExpandedKeys([projectKey]);
+          initialLoadDone.current = true;
+        }
       } catch (error) {
         console.error("Error loading root WBS elements:", error);
       }
@@ -302,7 +308,7 @@ export const ProjectTree = ({
                     project_id: projectId,
                     parent_id: meta.wbs_element_id,
                     branch: branch || "main",
-                    mode,
+                    branch_mode: mode,
                     as_of: asOf || undefined,
                     per_page: 100,
                   },
@@ -323,7 +329,7 @@ export const ProjectTree = ({
                   query: {
                     wbs_element_id: meta.wbs_element_id,
                     branch: branch || "main",
-                    mode,
+                    branch_mode: mode,
                     as_of: asOf || undefined,
                     per_page: 100,
                   },
@@ -402,7 +408,7 @@ export const ProjectTree = ({
                 query: {
                   control_account_id: meta.control_account_id,
                   branch: branch || "main",
-                  mode,
+                  branch_mode: mode,
                   as_of: asOf || undefined,
                   per_page: 100,
                 },
@@ -487,7 +493,7 @@ export const ProjectTree = ({
                 query: {
                   work_package_id: meta.work_package_id,
                   branch: branch || "main",
-                  mode,
+                  branch_mode: mode,
                   as_of: asOf || undefined,
                   per_page: 100,
                 },
@@ -574,7 +580,8 @@ export const ProjectTree = ({
     <Tree
       treeData={treeData}
       showLine
-      defaultExpandAll
+      expandedKeys={expandedKeys}
+      onExpand={(keys) => setExpandedKeys(keys)}
       loadData={onLoadData}
       onSelect={handleSelect}
       selectedKeys={selectedKey ? [selectedKey] : undefined}

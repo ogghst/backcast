@@ -1822,6 +1822,18 @@
             "description": "Filter by parent WBS Element ID (use 'null' for root)"
           },
           {
+            "name": "root_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Return only root-level WBS elements (no parent)",
+              "default": false,
+              "title": "Root Only"
+            },
+            "description": "Return only root-level WBS elements (no parent)"
+          },
+          {
             "name": "branch",
             "in": "query",
             "required": false,
@@ -8411,10 +8423,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by Cost Element ID",
+              "description": "Filter by Work Package ID (legacy param name)",
               "title": "Cost Element Id"
             },
-            "description": "Filter by Cost Element ID"
+            "description": "Filter by Work Package ID (legacy param name)"
           }
         ],
         "responses": {
@@ -9120,7 +9132,7 @@
           "Progress Entries"
         ],
         "summary": "Read Latest Progress",
-        "description": "Retrieve the latest progress entry for a cost element.\n\nReturns the most recent progress entry based on valid_time.\nSupports time-travel queries via the as_of parameter.\n\nReturns None if no progress has been reported for the cost element.",
+        "description": "Retrieve the latest progress entry for a cost element.\n\nReturns the most recent progress entry for the work package that owns\nthe specified cost element, based on valid_time.\nSupports time-travel queries via the as_of parameter.\n\nReturns None if no progress has been reported for the cost element.",
         "operationId": "get_latest_progress",
         "security": [
           {
@@ -9196,7 +9208,7 @@
           "Progress Entries"
         ],
         "summary": "Read Progress History",
-        "description": "Retrieve progress history for a cost element.\n\nReturns all progress entries for the specified cost element,\nordered by valid_time descending (most recent first).\n\nUseful for generating progress charts and historical analysis.",
+        "description": "Retrieve progress history for a cost element.\n\nReturns all progress entries for the work package that owns the\nspecified cost element, ordered by valid_time descending (most recent first).\n\nUseful for generating progress charts and historical analysis.",
         "operationId": "get_progress_history",
         "security": [
           {
@@ -19156,6 +19168,18 @@
             ],
             "title": "Cost Element Type Code"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "valid_time_formatted": {
             "additionalProperties": {
               "anyOf": [
@@ -25258,7 +25282,7 @@
           "end_date"
         ],
         "title": "ScheduleBaselineCreate",
-        "description": "Properties required for creating a Schedule Baseline.\n\nNote: cost_element_id is obtained from the URL path when creating\na baseline for a specific cost element, not from the request body."
+        "description": "Properties required for creating a Schedule Baseline.\n\nNote: work_package_id is obtained from the URL path when creating\na baseline for a specific work package, not from the request body."
       },
       "ScheduleBaselineRead": {
         "properties": {
@@ -25309,18 +25333,6 @@
             "format": "uuid",
             "title": "Schedule Baseline Id"
           },
-          "cost_element_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cost Element Id"
-          },
           "created_by": {
             "type": "string",
             "format": "uuid",
@@ -25330,7 +25342,7 @@
             "type": "string",
             "title": "Branch"
           },
-          "cost_element_code": {
+          "work_package_name": {
             "anyOf": [
               {
                 "type": "string"
@@ -25339,18 +25351,7 @@
                 "type": "null"
               }
             ],
-            "title": "Cost Element Code"
-          },
-          "cost_element_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cost Element Name"
+            "title": "Work Package Name"
           }
         },
         "type": "object",
