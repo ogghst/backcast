@@ -379,6 +379,9 @@ class GlobalSearchService:
             accessible_project_ids=accessible_project_ids,
             project_id=project_id,
             wbe_ids=wbe_ids,
+            as_of=as_of,
+            branch=branch,
+            branch_mode=branch_mode,
             limit=limit,
         )
         all_results_lists.append(doc_results)
@@ -510,6 +513,9 @@ class GlobalSearchService:
                 accessible_project_ids,
                 project_id,
                 wbe_ids,
+                as_of,
+                branch,
+                branch_mode,
             )
 
         # Limit rows fetched per entity type
@@ -550,6 +556,9 @@ class GlobalSearchService:
         accessible_project_ids: list[UUID],
         project_id: UUID | None,
         wbe_ids: list[UUID] | None,
+        as_of: datetime | None,
+        branch: str,
+        branch_mode: BranchMode,
         limit: int,
     ) -> list[SearchResultItem]:
         """Search documents by name, description, extension, and tags.
@@ -570,6 +579,14 @@ class GlobalSearchService:
         if wbe_ids is not None:
             wbe_project_subq = select(WBSElement.project_id).where(
                 WBSElement.wbs_element_id.in_(wbe_ids)
+            )
+            wbe_project_subq = self._apply_scope_filters(
+                wbe_project_subq,
+                WBSElement,
+                "wbs_element_id",
+                as_of,
+                branch,
+                branch_mode,
             )
             wbe_proj_result = await self.session.execute(wbe_project_subq)
             wbe_project_ids = [row[0] for row in wbe_proj_result.all()]
@@ -634,6 +651,23 @@ class GlobalSearchService:
             return _apply_bitemporal_filter(stmt, entity_class, as_of)
         return _apply_current_filter(stmt, entity_class)
 
+    def _apply_scope_filters(
+        self,
+        stmt: Any,
+        entity_class: type[Any],
+        root_field: str,
+        as_of: datetime | None,
+        branch: str,
+        branch_mode: BranchMode,
+    ) -> Any:
+        """Apply temporal and branch filters to an intermediate entity subquery."""
+        stmt = self._apply_temporal_filter(stmt, entity_class, as_of)
+        if hasattr(entity_class, "branch"):
+            stmt = _apply_branch_mode_filter(
+                stmt, entity_class, root_field, branch, branch_mode
+            )
+        return stmt
+
     def _apply_project_scope(
         self,
         stmt: Any,
@@ -642,6 +676,9 @@ class GlobalSearchService:
         accessible_project_ids: list[UUID],
         project_id: UUID | None,
         wbe_ids: list[UUID] | None,
+        as_of: datetime | None,
+        branch: str,
+        branch_mode: BranchMode,
     ) -> Any:
         """Apply RBAC project scoping to the query.
 
@@ -675,6 +712,14 @@ class GlobalSearchService:
                 wbe_project_subq = select(WBSElement.project_id).where(
                     WBSElement.wbs_element_id.in_(wbe_ids)
                 )
+                wbe_project_subq = self._apply_scope_filters(
+                    wbe_project_subq,
+                    WBSElement,
+                    "wbs_element_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 stmt = stmt.where(entity_class.project_id.in_(wbe_project_subq))
             else:
                 stmt = stmt.where(entity_class.project_id.in_(target_project_ids))
@@ -684,7 +729,6 @@ class GlobalSearchService:
         if hasattr(entity_class, "wbs_element_id") and not hasattr(
             entity_class, "cost_element_id"
         ):
-            # WBSElement itself
             if wbe_ids is not None:
                 stmt = stmt.where(entity_class.wbs_element_id.in_(wbe_ids))
             else:
@@ -693,24 +737,52 @@ class GlobalSearchService:
                     .where(WBSElement.project_id.in_(target_project_ids))
                     .correlate(entity_class)
                 )
+                wbe_subq = self._apply_scope_filters(
+                    wbe_subq,
+                    WBSElement,
+                    "wbs_element_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 stmt = stmt.where(entity_class.wbs_element_id.in_(wbe_subq))
             return stmt
 
         # Entity has cost_element_id -> join chain CE -> WP -> CA -> WBSElement -> project
         if hasattr(entity_class, "cost_element_id"):
             if wbe_ids is not None:
-                # If WBSElement-scoped, resolve WP IDs under those WBSElements
-                wp_subq = (
-                    select(WorkPackage.work_package_id)
-                    .join(
-                        ControlAccount,
-                        WorkPackage.control_account_id
-                        == ControlAccount.control_account_id,
-                    )
-                    .where(ControlAccount.wbs_element_id.in_(wbe_ids))
+                ca_subq = select(ControlAccount.control_account_id).where(
+                    ControlAccount.wbs_element_id.in_(wbe_ids)
+                )
+                ca_subq = self._apply_scope_filters(
+                    ca_subq,
+                    ControlAccount,
+                    "control_account_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
+                wp_subq = select(WorkPackage.work_package_id).where(
+                    WorkPackage.control_account_id.in_(ca_subq)
+                )
+                wp_subq = self._apply_scope_filters(
+                    wp_subq,
+                    WorkPackage,
+                    "work_package_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
                 ce_subq = select(CostElement.cost_element_id).where(
                     CostElement.work_package_id.in_(wp_subq)
+                )
+                ce_subq = self._apply_scope_filters(
+                    ce_subq,
+                    CostElement,
+                    "cost_element_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
                 stmt = stmt.where(entity_class.cost_element_id.in_(ce_subq))
             else:
@@ -718,14 +790,46 @@ class GlobalSearchService:
                 wbe_subq = select(WBSElement.wbs_element_id).where(
                     WBSElement.project_id.in_(target_project_ids)
                 )
+                wbe_subq = self._apply_scope_filters(
+                    wbe_subq,
+                    WBSElement,
+                    "wbs_element_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 ca_subq = select(ControlAccount.control_account_id).where(
                     ControlAccount.wbs_element_id.in_(wbe_subq)
+                )
+                ca_subq = self._apply_scope_filters(
+                    ca_subq,
+                    ControlAccount,
+                    "control_account_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
                 wp_subq = select(WorkPackage.work_package_id).where(
                     WorkPackage.control_account_id.in_(ca_subq)
                 )
+                wp_subq = self._apply_scope_filters(
+                    wp_subq,
+                    WorkPackage,
+                    "work_package_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 ce_subq = select(CostElement.cost_element_id).where(
                     CostElement.work_package_id.in_(wp_subq)
+                )
+                ce_subq = self._apply_scope_filters(
+                    ce_subq,
+                    CostElement,
+                    "cost_element_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
                 stmt = stmt.where(entity_class.cost_element_id.in_(ce_subq))
             return stmt
@@ -736,13 +840,37 @@ class GlobalSearchService:
                 ca_subq = select(ControlAccount.control_account_id).where(
                     ControlAccount.wbs_element_id.in_(wbe_ids)
                 )
+                ca_subq = self._apply_scope_filters(
+                    ca_subq,
+                    ControlAccount,
+                    "control_account_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 stmt = stmt.where(entity_class.control_account_id.in_(ca_subq))
             else:
                 wbe_subq = select(WBSElement.wbs_element_id).where(
                     WBSElement.project_id.in_(target_project_ids)
                 )
+                wbe_subq = self._apply_scope_filters(
+                    wbe_subq,
+                    WBSElement,
+                    "wbs_element_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 ca_subq = select(ControlAccount.control_account_id).where(
                     ControlAccount.wbs_element_id.in_(wbe_subq)
+                )
+                ca_subq = self._apply_scope_filters(
+                    ca_subq,
+                    ControlAccount,
+                    "control_account_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
                 stmt = stmt.where(entity_class.control_account_id.in_(ca_subq))
             return stmt
@@ -755,19 +883,59 @@ class GlobalSearchService:
                 ca_subq = select(ControlAccount.control_account_id).where(
                     ControlAccount.wbs_element_id.in_(wbe_ids)
                 )
+                ca_subq = self._apply_scope_filters(
+                    ca_subq,
+                    ControlAccount,
+                    "control_account_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 wp_subq = select(WorkPackage.work_package_id).where(
                     WorkPackage.control_account_id.in_(ca_subq)
+                )
+                wp_subq = self._apply_scope_filters(
+                    wp_subq,
+                    WorkPackage,
+                    "work_package_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
                 stmt = stmt.where(entity_class.work_package_id.in_(wp_subq))
             else:
                 wbe_subq = select(WBSElement.wbs_element_id).where(
                     WBSElement.project_id.in_(target_project_ids)
                 )
+                wbe_subq = self._apply_scope_filters(
+                    wbe_subq,
+                    WBSElement,
+                    "wbs_element_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 ca_subq = select(ControlAccount.control_account_id).where(
                     ControlAccount.wbs_element_id.in_(wbe_subq)
                 )
+                ca_subq = self._apply_scope_filters(
+                    ca_subq,
+                    ControlAccount,
+                    "control_account_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 wp_subq = select(WorkPackage.work_package_id).where(
                     WorkPackage.control_account_id.in_(ca_subq)
+                )
+                wp_subq = self._apply_scope_filters(
+                    wp_subq,
+                    WorkPackage,
+                    "work_package_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
                 stmt = stmt.where(entity_class.work_package_id.in_(wp_subq))
             return stmt
@@ -781,18 +949,58 @@ class GlobalSearchService:
                 ca_subq = select(ControlAccount.control_account_id).where(
                     ControlAccount.wbs_element_id.in_(wbe_ids)
                 )
+                ca_subq = self._apply_scope_filters(
+                    ca_subq,
+                    ControlAccount,
+                    "control_account_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 wp_subq = select(WorkPackage.work_package_id).where(
                     WorkPackage.control_account_id.in_(ca_subq)
+                )
+                wp_subq = self._apply_scope_filters(
+                    wp_subq,
+                    WorkPackage,
+                    "work_package_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
             else:
                 wbe_subq = select(WBSElement.wbs_element_id).where(
                     WBSElement.project_id.in_(target_project_ids)
                 )
+                wbe_subq = self._apply_scope_filters(
+                    wbe_subq,
+                    WBSElement,
+                    "wbs_element_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 ca_subq = select(ControlAccount.control_account_id).where(
                     ControlAccount.wbs_element_id.in_(wbe_subq)
                 )
+                ca_subq = self._apply_scope_filters(
+                    ca_subq,
+                    ControlAccount,
+                    "control_account_id",
+                    as_of,
+                    branch,
+                    branch_mode,
+                )
                 wp_subq = select(WorkPackage.work_package_id).where(
                     WorkPackage.control_account_id.in_(ca_subq)
+                )
+                wp_subq = self._apply_scope_filters(
+                    wp_subq,
+                    WorkPackage,
+                    "work_package_id",
+                    as_of,
+                    branch,
+                    branch_mode,
                 )
 
             # Get distinct root_field values from accessible WorkPackages
