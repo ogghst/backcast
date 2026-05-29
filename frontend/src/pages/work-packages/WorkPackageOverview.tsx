@@ -1,11 +1,35 @@
 import { useParams } from "react-router-dom";
-import { Space, Card, Descriptions, Typography, theme, Row, Col, Statistic, Progress, Alert, Button, Table, Tag, Grid } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, CalendarOutlined, LineChartOutlined } from "@ant-design/icons";
+import {
+  Card,
+  Descriptions,
+  Typography,
+  theme,
+  Row,
+  Col,
+  Statistic,
+  Progress,
+  Alert,
+  Button,
+  Table,
+  Tag,
+  Grid,
+  Space,
+  Flex,
+  Divider,
+} from "antd";
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  CalendarOutlined,
+  LineChartOutlined,
+  DollarOutlined,
+  PieChartOutlined,
+} from "@ant-design/icons";
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useViewMode } from "@/hooks/useViewMode";
 import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
-import { useWorkPackage } from "@/features/work-packages/api/useWorkPackages";
-import { useWorkPackageBudgetStatus } from "@/features/work-packages/api/useWorkPackages";
+import { useWorkPackage, useWorkPackageBudgetStatus } from "@/features/work-packages/api/useWorkPackages";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { formatCurrency, formatTemporalRange, getCurrencySymbol } from "@/utils/formatters";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -34,10 +58,19 @@ import { App } from "antd";
 
 const { Text } = Typography;
 
+const PROGRESSION_LABELS: Record<string, string> = {
+  LINEAR: "Linear",
+  GAUSSIAN: "Gaussian (S-Curve)",
+  LOGARITHMIC: "Logarithmic",
+};
+
 export const WorkPackageOverview = () => {
   const { id } = useParams<{ id: string }>();
   const { token } = theme.useToken();
-  const { colors } = useThemeTokens();
+  const { colors, spacing } = useThemeTokens();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+
   const { data: workPackage, isLoading } = useWorkPackage(id!);
   const { data: budgetStatus, isLoading: budgetLoading } = useWorkPackageBudgetStatus(id!);
   const queryClient = useQueryClient();
@@ -56,13 +89,9 @@ export const WorkPackageOverview = () => {
     enabled: !!id,
   });
 
-  // Cost element creation modal state
+  // Modal states
   const [ceModalOpen, setCeModalOpen] = useState(false);
-
-  // Schedule baseline modal state
   const [sbModalOpen, setSbModalOpen] = useState(false);
-
-  // Forecast modal state
   const [fcModalOpen, setFcModalOpen] = useState(false);
 
   // Schedule baseline and forecast data
@@ -73,8 +102,6 @@ export const WorkPackageOverview = () => {
   const { mutate: deleteScheduleBaseline } = useDeleteWorkPackageScheduleBaseline();
 
   // View mode for cost elements
-  const screens = Grid.useBreakpoint();
-  const isMobile = !screens.md;
   const { viewMode: ceViewMode, resolvedMode: ceResolvedMode, cycleViewMode: ceCycleViewMode } = useViewMode("cost-elements", isMobile);
 
   // Build typeNames map for CostElementCard
@@ -148,12 +175,6 @@ export const WorkPackageOverview = () => {
     }
   };
 
-  const PROGRESSION_LABELS: Record<string, string> = {
-    LINEAR: "Linear",
-    GAUSSIAN: "Gaussian (S-Curve)",
-    LOGARITHMIC: "Logarithmic",
-  };
-
   if (isLoading || !workPackage) return null;
 
   const budget = budgetStatus?.budget
@@ -217,6 +238,7 @@ export const WorkPackageOverview = () => {
       dataIndex: "description",
       key: "description",
       ellipsis: true,
+      responsive: ["md" as const],
       render: (desc: string | null) => desc || "-",
     },
     {
@@ -238,11 +260,14 @@ export const WorkPackageOverview = () => {
     },
   ];
 
+  // Responsive column config for Descriptions
+  const descColumns = { xs: 1, sm: 2 };
+
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      {/* Basic Info */}
-      <Card title="Work Package Details" size="small">
-        <Descriptions column={2} bordered size="small">
+    <div style={{ display: "flex", flexDirection: "column", gap: spacing.lg }}>
+      {/* Section 1: Work Package Details */}
+      <Card size="small">
+        <Descriptions column={descColumns} bordered size="small">
           <Descriptions.Item label="Code">
             <Text strong>{workPackage.code}</Text>
           </Descriptions.Item>
@@ -272,178 +297,271 @@ export const WorkPackageOverview = () => {
         </Descriptions>
       </Card>
 
-      {/* Schedule Baseline */}
-      <Card
-        title={
-          <Space>
-            <CalendarOutlined />
-            <span>Schedule Baseline</span>
-          </Space>
-        }
-        size="small"
-        extra={
-          <Space>
-            {scheduleBaseline ? (
-              <>
-                <Can permission="schedule-baseline-update">
-                  <Button
-                    size="small"
-                    icon={<EditOutlined />}
-                    onClick={() => setSbModalOpen(true)}
-                  >
-                    {isMobile ? undefined : "Edit"}
-                  </Button>
-                </Can>
-                <Can permission="schedule-baseline-delete">
-                  <Button
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={handleDeleteScheduleBaseline}
-                  >
-                    {isMobile ? undefined : "Delete"}
-                  </Button>
-                </Can>
-              </>
-            ) : (
-              <Can permission="schedule-baseline-create">
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => setSbModalOpen(true)}
-                >
-                  {isMobile ? undefined : "Add Baseline"}
-                </Button>
-              </Can>
-            )}
-          </Space>
-        }
-      >
-        {scheduleBaseline ? (
-          <Descriptions column={2} size="small">
-            <Descriptions.Item label="Name">
-              <Text strong>{scheduleBaseline.name}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Progression">
-              <Tag color="blue">
-                {PROGRESSION_LABELS[scheduleBaseline.progression_type || "LINEAR"] || scheduleBaseline.progression_type}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Start Date">
-              {formatDate(scheduleBaseline.start_date)}
-            </Descriptions.Item>
-            <Descriptions.Item label="End Date">
-              {formatDate(scheduleBaseline.end_date)}
-            </Descriptions.Item>
-            {scheduleBaseline.description && (
-              <Descriptions.Item label="Description" span={2}>
-                {scheduleBaseline.description}
-              </Descriptions.Item>
-            )}
-          </Descriptions>
-        ) : (
-          <Text type="secondary">
-            No schedule baseline defined. Add one to enable Planned Value calculations and EVM analysis.
-          </Text>
-        )}
-      </Card>
-
-      {/* Forecast */}
-      <Card
-        title={
-          <Space>
-            <LineChartOutlined />
-            <span>Forecast</span>
-          </Space>
-        }
-        size="small"
-        extra={
-          <Space>
-            {forecast ? (
-              <>
-                <Can permission="forecast-update">
-                  <Button
-                    size="small"
-                    icon={<EditOutlined />}
-                    onClick={() => setFcModalOpen(true)}
-                  >
-                    {isMobile ? undefined : "Edit"}
-                  </Button>
-                </Can>
-                <Can permission="forecast-delete">
-                  <Button
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={handleDeleteForecast}
-                  >
-                    {isMobile ? undefined : "Delete"}
-                  </Button>
-                </Can>
-              </>
-            ) : (
-              <Can permission="forecast-create">
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => setFcModalOpen(true)}
-                >
-                  {isMobile ? undefined : "Add Forecast"}
-                </Button>
-              </Can>
-            )}
-          </Space>
-        }
-      >
-        {forecast ? (
-          <Descriptions column={2} size="small">
-            <Descriptions.Item label="Estimate at Complete (EAC)">
-              <Text strong>
-                {formatCurrency(Number(forecast.eac_amount || 0), currency)}
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Variance at Complete (VAC)">
-              <Text
-                strong
-                style={{
-                  color:
-                    Number(workPackage?.budget_amount || 0) -
-                      Number(forecast.eac_amount || 0) >=
-                    0
-                      ? token.colorSuccess
-                      : token.colorError,
-                }}
-              >
-                {formatCurrency(
-                  Number(workPackage?.budget_amount || 0) -
-                    Number(forecast.eac_amount || 0),
-                  currency,
+      {/* Section 2: Schedule Baseline + Forecast side-by-side on desktop */}
+      <Row gutter={[spacing.lg, spacing.lg]}>
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <CalendarOutlined />
+                <span>Schedule Baseline</span>
+              </Space>
+            }
+            size="small"
+            extra={
+              <Space>
+                {scheduleBaseline ? (
+                  <>
+                    <Can permission="schedule-baseline-update">
+                      <Button
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => setSbModalOpen(true)}
+                      >
+                        {isMobile ? undefined : "Edit"}
+                      </Button>
+                    </Can>
+                    <Can permission="schedule-baseline-delete">
+                      <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={handleDeleteScheduleBaseline}
+                      >
+                        {isMobile ? undefined : "Delete"}
+                      </Button>
+                    </Can>
+                  </>
+                ) : (
+                  <Can permission="schedule-baseline-create">
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<PlusOutlined />}
+                      onClick={() => setSbModalOpen(true)}
+                    >
+                      {isMobile ? undefined : "Add Baseline"}
+                    </Button>
+                  </Can>
                 )}
+              </Space>
+            }
+          >
+            {scheduleBaseline ? (
+              <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+                <Descriptions.Item label="Name">
+                  <Text strong>{scheduleBaseline.name}</Text>
+                </Descriptions.Item>
+                <Descriptions.Item label="Progression">
+                  <Tag color="blue">
+                    {PROGRESSION_LABELS[scheduleBaseline.progression_type || "LINEAR"] || scheduleBaseline.progression_type}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="Start Date">
+                  {formatDate(scheduleBaseline.start_date)}
+                </Descriptions.Item>
+                <Descriptions.Item label="End Date">
+                  {formatDate(scheduleBaseline.end_date)}
+                </Descriptions.Item>
+                {scheduleBaseline.description && (
+                  <Descriptions.Item label="Description" span={2}>
+                    {scheduleBaseline.description}
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+            ) : (
+              <Text type="secondary">
+                No schedule baseline defined. Add one to enable Planned Value calculations and EVM analysis.
               </Text>
-            </Descriptions.Item>
-            {forecast.basis_of_estimate && (
-              <Descriptions.Item label="Basis of Estimate" span={2}>
-                <Typography.Paragraph
-                  ellipsis={{ rows: 3, expandable: true, symbol: "more" }}
-                  style={{ margin: 0 }}
-                >
-                  {forecast.basis_of_estimate}
-                </Typography.Paragraph>
-              </Descriptions.Item>
             )}
-          </Descriptions>
-        ) : (
-          <Text type="secondary">
-            No forecast defined. Add one to track Estimate at Complete (EAC) and Variance at Complete (VAC).
-          </Text>
-        )}
-      </Card>
+          </Card>
+        </Col>
 
-      {/* Cost Elements (EOC) */}
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <LineChartOutlined />
+                <span>Forecast</span>
+              </Space>
+            }
+            size="small"
+            extra={
+              <Space>
+                {forecast ? (
+                  <>
+                    <Can permission="forecast-update">
+                      <Button
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => setFcModalOpen(true)}
+                      >
+                        {isMobile ? undefined : "Edit"}
+                      </Button>
+                    </Can>
+                    <Can permission="forecast-delete">
+                      <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={handleDeleteForecast}
+                      >
+                        {isMobile ? undefined : "Delete"}
+                      </Button>
+                    </Can>
+                  </>
+                ) : (
+                  <Can permission="forecast-create">
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<PlusOutlined />}
+                      onClick={() => setFcModalOpen(true)}
+                    >
+                      {isMobile ? undefined : "Add Forecast"}
+                    </Button>
+                  </Can>
+                )}
+              </Space>
+            }
+          >
+            {forecast ? (
+              <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+                <Descriptions.Item label="Estimate at Complete (EAC)">
+                  <Text strong>
+                    {formatCurrency(Number(forecast.eac_amount || 0), currency)}
+                  </Text>
+                </Descriptions.Item>
+                <Descriptions.Item label="Variance at Complete (VAC)">
+                  <Text
+                    strong
+                    style={{
+                      color:
+                        Number(workPackage?.budget_amount || 0) -
+                          Number(forecast.eac_amount || 0) >=
+                        0
+                          ? token.colorSuccess
+                          : token.colorError,
+                    }}
+                  >
+                    {formatCurrency(
+                      Number(workPackage?.budget_amount || 0) -
+                        Number(forecast.eac_amount || 0),
+                      currency,
+                    )}
+                  </Text>
+                </Descriptions.Item>
+                {forecast.basis_of_estimate && (
+                  <Descriptions.Item label="Basis of Estimate" span={2}>
+                    <Typography.Paragraph
+                      ellipsis={{ rows: 3, expandable: true, symbol: "more" }}
+                      style={{ margin: 0 }}
+                    >
+                      {forecast.basis_of_estimate}
+                    </Typography.Paragraph>
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+            ) : (
+              <Text type="secondary">
+                No forecast defined. Add one to track Estimate at Complete (EAC) and Variance at Complete (VAC).
+              </Text>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Section 3: Budget Summary */}
+      {!budgetLoading && (
+        <>
+          <Card size="small">
+            <Flex justify="space-between" align="center" style={{ marginBottom: spacing.md }}>
+              <Space>
+                <DollarOutlined style={{ color: token.colorPrimary }} />
+                <Text strong style={{ fontSize: token.fontSizeLG }}>Budget Summary</Text>
+              </Space>
+              <Tag color={percentage >= 100 ? "red" : percentage >= 90 ? "orange" : "blue"}>
+                {statusText}
+              </Tag>
+            </Flex>
+
+            <Row gutter={[spacing.md, spacing.md]}>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Budget"
+                  value={budget}
+                  precision={2}
+                  prefix={currencySymbol}
+                  valueStyle={{ color: token.colorPrimary, fontSize: isMobile ? token.fontSizeLG : undefined }}
+                />
+              </Col>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Used"
+                  value={used}
+                  precision={2}
+                  prefix={currencySymbol}
+                  valueStyle={{
+                    color: percentage >= 100 ? token.colorError : token.colorSuccess,
+                    fontSize: isMobile ? token.fontSizeLG : undefined,
+                  }}
+                />
+              </Col>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Remaining"
+                  value={remaining}
+                  precision={2}
+                  prefix={currencySymbol}
+                  valueStyle={{
+                    color: remaining < 0 ? token.colorError : token.colorSuccess,
+                    fontSize: isMobile ? token.fontSizeLG : undefined,
+                  }}
+                />
+              </Col>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Used %"
+                  value={percentage}
+                  precision={1}
+                  suffix="%"
+                  valueStyle={{ color: statusColor, fontSize: isMobile ? token.fontSizeLG : undefined }}
+                />
+              </Col>
+            </Row>
+
+            <Divider style={{ margin: `${spacing.md} 0` }} />
+
+            <Progress
+              percent={Math.min(percentage, 100)}
+              strokeColor={statusColor}
+              status={percentage >= 100 ? "exception" : undefined}
+            />
+          </Card>
+
+          {(percentage >= 100 || (percentage >= 90 && percentage < 100)) && (
+            <Alert
+              message={percentage >= 100 ? "Budget Exceeded" : "Budget Warning"}
+              description={
+                percentage >= 100
+                  ? `This work package has exceeded its budget by ${formatCurrency(Math.abs(remaining), currency)}.`
+                  : `This work package has used ${percentage.toFixed(1)}% of its budget. Consider reviewing before adding more costs.`
+              }
+              type="warning"
+              showIcon
+            />
+          )}
+        </>
+      )}
+
+      {/* Section 4: Cost Elements (EOC) */}
       <Card
-        title="Cost Elements"
+        title={
+          <Space>
+            <PieChartOutlined />
+            <span>Cost Elements</span>
+          </Space>
+        }
         size="small"
         extra={
           <Space>
@@ -455,7 +573,7 @@ export const WorkPackageOverview = () => {
                 icon={<PlusOutlined />}
                 onClick={() => setCeModalOpen(true)}
               >
-                Add Cost Element
+                {isMobile ? undefined : "Add Cost Element"}
               </Button>
             </Can>
           </Space>
@@ -463,10 +581,12 @@ export const WorkPackageOverview = () => {
       >
         {(() => {
           const useCeCard = ceResolvedMode === "card";
+          if (costElements.length === 0) {
+            return <Text type="secondary">No cost elements defined. Add cost elements to track detailed budget allocations.</Text>;
+          }
           if (useCeCard) {
-            if (costElements.length === 0) return <Text type="secondary">No cost elements defined. Add cost elements to track detailed budget allocations.</Text>;
             return (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(280px, 1fr))`, gap: spacing.md }}>
                 {costElements.map((ce) => (
                   <CostElementCard
                     key={ce.cost_element_id}
@@ -476,10 +596,6 @@ export const WorkPackageOverview = () => {
                 ))}
               </div>
             );
-          }
-          // Table view
-          if (costElements.length === 0) {
-            return <Text type="secondary">No cost elements defined. Add cost elements to track detailed budget allocations.</Text>;
           }
           return (
             <Table
@@ -493,91 +609,7 @@ export const WorkPackageOverview = () => {
         })()}
       </Card>
 
-      {/* Budget Summary */}
-      {!budgetLoading && (
-        <>
-          <Row gutter={[16, 16]}>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Budget"
-                  value={budget}
-                  precision={2}
-                  prefix={currencySymbol}
-                  styles={{ content: { color: token.colorPrimary } }}
-                />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Used"
-                  value={used}
-                  precision={2}
-                  prefix={currencySymbol}
-                  styles={{
-                    content: { color: percentage >= 100 ? token.colorError : token.colorSuccess },
-                  }}
-                />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Remaining"
-                  value={remaining}
-                  precision={2}
-                  prefix={currencySymbol}
-                  styles={{
-                    content: { color: remaining < 0 ? token.colorError : token.colorSuccess },
-                  }}
-                />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Used %"
-                  value={percentage}
-                  precision={1}
-                  suffix="%"
-                  styles={{ content: { color: statusColor } }}
-                />
-              </Card>
-            </Col>
-          </Row>
-
-          <Card title="Budget Progress" size="small">
-            <Progress
-              percent={Math.min(percentage, 100)}
-              strokeColor={statusColor}
-              status={percentage >= 100 ? "exception" : undefined}
-            />
-            <div style={{ marginTop: 8, color: token.colorTextTertiary }}>
-              Status: <strong style={{ color: statusColor }}>{statusText}</strong>
-            </div>
-          </Card>
-
-          {percentage >= 100 && (
-            <Alert
-              message="Budget Exceeded"
-              description={`This work package has exceeded its budget by ${formatCurrency(Math.abs(remaining), currency)}.`}
-              type="warning"
-              showIcon
-            />
-          )}
-          {percentage >= 90 && percentage < 100 && (
-            <Alert
-              message="Budget Warning"
-              description={`This work package has used ${percentage.toFixed(1)}% of its budget. Consider reviewing before adding more costs.`}
-              type="warning"
-              showIcon
-            />
-          )}
-        </>
-      )}
-
-      {/* Cost Element Creation Modal */}
+      {/* Modals */}
       <CostElementModal
         open={ceModalOpen}
         onCancel={() => setCeModalOpen(false)}
@@ -595,7 +627,6 @@ export const WorkPackageOverview = () => {
         currency={currency}
       />
 
-      {/* Schedule Baseline Modal */}
       <WorkPackageScheduleBaselineModal
         visible={sbModalOpen}
         onClose={() => setSbModalOpen(false)}
@@ -603,7 +634,6 @@ export const WorkPackageOverview = () => {
         baseline={scheduleBaseline}
       />
 
-      {/* Forecast Modal */}
       <ForecastModal
         open={fcModalOpen}
         onCancel={() => setFcModalOpen(false)}
@@ -630,6 +660,6 @@ export const WorkPackageOverview = () => {
             : undefined
         }
       />
-    </Space>
+    </div>
   );
 };
