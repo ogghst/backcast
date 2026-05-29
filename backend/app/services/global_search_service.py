@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.enums import BranchMode
 from app.models.domain.change_order import ChangeOrder
+from app.models.domain.control_account import ControlAccount
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.cost_registration import CostRegistration
@@ -222,7 +223,7 @@ _ENTITY_CONFIG: list[
         ["code", "name"],
         ["description"],
         [],
-        True,
+        False,
         False,
     ),
     (
@@ -264,7 +265,7 @@ _ENTITY_CONFIG: list[
         ["name"],
         ["description"],
         ["coq_category"],
-        False,
+        True,
         False,
     ),
     (
@@ -377,6 +378,7 @@ class GlobalSearchService:
             query_lower=query_lower,
             accessible_project_ids=accessible_project_ids,
             project_id=project_id,
+            wbe_ids=wbe_ids,
             limit=limit,
         )
         all_results_lists.append(doc_results)
@@ -535,7 +537,7 @@ class GlobalSearchService:
                 status=getattr(row, "status", None),
                 relevance_score=score,
                 project_id=getattr(row, "project_id", None),
-                wbe_id=getattr(row, "wbe_id", None),
+                wbs_element_id=getattr(row, "wbs_element_id", None),
             )
             items.append(item)
 
@@ -547,6 +549,7 @@ class GlobalSearchService:
         query_lower: str,
         accessible_project_ids: list[UUID],
         project_id: UUID | None,
+        wbe_ids: list[UUID] | None,
         limit: int,
     ) -> list[SearchResultItem]:
         """Search documents by name, description, extension, and tags.
@@ -562,6 +565,19 @@ class GlobalSearchService:
             if project_id not in accessible_project_ids:
                 return []
             target_project_ids = [project_id]
+
+        # When wbe_ids provided, restrict to projects containing those WBS elements
+        if wbe_ids is not None:
+            wbe_project_subq = select(WBSElement.project_id).where(
+                WBSElement.wbs_element_id.in_(wbe_ids)
+            )
+            wbe_proj_result = await self.session.execute(wbe_project_subq)
+            wbe_project_ids = [row[0] for row in wbe_proj_result.all()]
+            target_project_ids = [
+                pid for pid in target_project_ids if pid in wbe_project_ids
+            ]
+            if not target_project_ids:
+                return []
 
         stmt = (
             select(Document)
@@ -601,7 +617,7 @@ class GlobalSearchService:
                 status=None,
                 relevance_score=score,
                 project_id=str(row.project_id) if row.project_id else None,
-                wbe_id=None,
+                wbs_element_id=None,
             )
             items.append(item)
 
@@ -630,9 +646,17 @@ class GlobalSearchService:
         """Apply RBAC project scoping to the query.
 
         Strategy varies by how the entity links to a project:
-        - Direct project_id column: filter directly.
-        - wbs_element_id column: join to WBSElement, filter WBSElement.project_id.
-        - cost_element_id column: join chain CE -> WBSElement -> project.
+        - Direct project_id column: filter directly (resolves project from wbe_ids
+          when provided, otherwise uses target_project_ids).
+        - wbs_element_id column: join to WBSElement, filter by wbe_ids or
+          WBSElement.project_id.
+        - cost_element_id column: join chain CE -> WP -> CA -> WBSElement -> project.
+        - control_account_id column: join chain CA -> WBSElement -> project.
+        - work_package_id column: join chain WP -> CA -> WBSElement -> project.
+        - Reverse FK via WorkPackage: entities like ScheduleBaseline and Forecast that
+          have no direct project link but are referenced by WorkPackage FK columns.
+          Resolves accessible WP IDs via WP -> CA -> WBS -> project, then filters
+          by the FK column matching root_field.
         """
         # If accessible_project_ids is empty, user has no access
         if not accessible_project_ids:
@@ -646,7 +670,14 @@ class GlobalSearchService:
 
         # Entity has direct project_id
         if hasattr(entity_class, "project_id"):
-            stmt = stmt.where(entity_class.project_id.in_(target_project_ids))
+            if wbe_ids is not None:
+                # Resolve project IDs that contain the specified WBS elements
+                wbe_project_subq = select(WBSElement.project_id).where(
+                    WBSElement.wbs_element_id.in_(wbe_ids)
+                )
+                stmt = stmt.where(entity_class.project_id.in_(wbe_project_subq))
+            else:
+                stmt = stmt.where(entity_class.project_id.in_(target_project_ids))
             return stmt
 
         # Entity has wbs_element_id -> join to WBSElement for project_id
@@ -669,9 +700,6 @@ class GlobalSearchService:
         if hasattr(entity_class, "cost_element_id"):
             if wbe_ids is not None:
                 # If WBSElement-scoped, resolve WP IDs under those WBSElements
-                from app.models.domain.control_account import ControlAccount
-                from app.models.domain.work_package import WorkPackage
-
                 wp_subq = (
                     select(WorkPackage.work_package_id)
                     .join(
@@ -687,9 +715,6 @@ class GlobalSearchService:
                 stmt = stmt.where(entity_class.cost_element_id.in_(ce_subq))
             else:
                 # Full chain: CE -> WP -> CA -> WBSElement -> project
-                from app.models.domain.control_account import ControlAccount
-                from app.models.domain.work_package import WorkPackage
-
                 wbe_subq = select(WBSElement.wbs_element_id).where(
                     WBSElement.project_id.in_(target_project_ids)
                 )
@@ -703,6 +728,80 @@ class GlobalSearchService:
                     CostElement.work_package_id.in_(wp_subq)
                 )
                 stmt = stmt.where(entity_class.cost_element_id.in_(ce_subq))
+            return stmt
+
+        # Entity has control_account_id -> join chain CA -> WBSElement -> project
+        if hasattr(entity_class, "control_account_id"):
+            if wbe_ids is not None:
+                ca_subq = select(ControlAccount.control_account_id).where(
+                    ControlAccount.wbs_element_id.in_(wbe_ids)
+                )
+                stmt = stmt.where(entity_class.control_account_id.in_(ca_subq))
+            else:
+                wbe_subq = select(WBSElement.wbs_element_id).where(
+                    WBSElement.project_id.in_(target_project_ids)
+                )
+                ca_subq = select(ControlAccount.control_account_id).where(
+                    ControlAccount.wbs_element_id.in_(wbe_subq)
+                )
+                stmt = stmt.where(entity_class.control_account_id.in_(ca_subq))
+            return stmt
+
+        # Entity has work_package_id -> join chain WP -> CA -> WBSElement -> project
+        if hasattr(entity_class, "work_package_id") and not hasattr(
+            entity_class, "cost_element_id"
+        ):
+            if wbe_ids is not None:
+                ca_subq = select(ControlAccount.control_account_id).where(
+                    ControlAccount.wbs_element_id.in_(wbe_ids)
+                )
+                wp_subq = select(WorkPackage.work_package_id).where(
+                    WorkPackage.control_account_id.in_(ca_subq)
+                )
+                stmt = stmt.where(entity_class.work_package_id.in_(wp_subq))
+            else:
+                wbe_subq = select(WBSElement.wbs_element_id).where(
+                    WBSElement.project_id.in_(target_project_ids)
+                )
+                ca_subq = select(ControlAccount.control_account_id).where(
+                    ControlAccount.wbs_element_id.in_(wbe_subq)
+                )
+                wp_subq = select(WorkPackage.work_package_id).where(
+                    WorkPackage.control_account_id.in_(ca_subq)
+                )
+                stmt = stmt.where(entity_class.work_package_id.in_(wp_subq))
+            return stmt
+
+        # Entities linked to project only through a reverse FK on WorkPackage
+        # (e.g. ScheduleBaseline via WorkPackage.schedule_baseline_id,
+        #  Forecast via WorkPackage.forecast_id).
+        # Check if WorkPackage has a column matching this entity's root_field.
+        if hasattr(WorkPackage, root_field):
+            if wbe_ids is not None:
+                ca_subq = select(ControlAccount.control_account_id).where(
+                    ControlAccount.wbs_element_id.in_(wbe_ids)
+                )
+                wp_subq = select(WorkPackage.work_package_id).where(
+                    WorkPackage.control_account_id.in_(ca_subq)
+                )
+            else:
+                wbe_subq = select(WBSElement.wbs_element_id).where(
+                    WBSElement.project_id.in_(target_project_ids)
+                )
+                ca_subq = select(ControlAccount.control_account_id).where(
+                    ControlAccount.wbs_element_id.in_(wbe_subq)
+                )
+                wp_subq = select(WorkPackage.work_package_id).where(
+                    WorkPackage.control_account_id.in_(ca_subq)
+                )
+
+            # Get distinct root_field values from accessible WorkPackages
+            wp_fk_subq = (
+                select(getattr(WorkPackage, root_field))
+                .where(WorkPackage.work_package_id.in_(wp_subq))
+                .where(getattr(WorkPackage, root_field).is_not(None))
+            )
+            stmt = stmt.where(getattr(entity_class, root_field).in_(wp_fk_subq))
             return stmt
 
         return stmt
