@@ -195,6 +195,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         sort_field: str | None = None,
         sort_order: str = "asc",
         as_of: datetime | None = None,
+        accessible_project_ids: set[UUID] | None = None,
     ) -> tuple[list[Project], int]:
         """Get all projects with pagination, search, and filters.
 
@@ -211,6 +212,9 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             sort_field: Field name to sort by (e.g., "name", "code")
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
             as_of: Optional timestamp for time-travel queries
+            accessible_project_ids: Optional set of project root IDs the user
+                can access. When provided, only those projects are returned.
+                Omit or pass None to skip RBAC filtering.
 
         Returns:
             Tuple of (list of projects, total count matching filters)
@@ -271,6 +275,10 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
                     cast(Any, Project).deleted_at,
                 ),
             )
+
+        # Apply RBAC access filter at DB level (before count and pagination)
+        if accessible_project_ids is not None:
+            stmt = stmt.where(Project.project_id.in_(accessible_project_ids))
 
         # Apply search (across code and name)
         if search:
