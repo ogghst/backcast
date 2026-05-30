@@ -209,7 +209,7 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
         items={collapseItems}
         size="small"
         style={{ backgroundColor: token.colorBgContainer }}
-        defaultActiveKey={Object.keys(categorizedTools)}
+        defaultActiveKey={[]}
       />
       
       <ToolDetailModal
