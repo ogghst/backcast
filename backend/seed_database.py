@@ -179,7 +179,6 @@ TABLE_COLUMNS: dict[str, list[str]] = {
         "cost_element_id",
         "work_package_id",
         "cost_element_type_id",
-        "amount",
         "description",
         "created_by",
         "deleted_at",

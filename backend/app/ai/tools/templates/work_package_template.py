@@ -186,6 +186,8 @@ async def create_work_package(
     start_date: str | None = None,
     end_date: str | None = None,
     progression_type: str | None = None,
+    eac_amount: float | None = None,
+    basis_of_estimate: str | None = None,
     control_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
@@ -203,6 +205,8 @@ async def create_work_package(
         start_date: Optional start date for the schedule baseline (ISO format)
         end_date: Optional end date for the schedule baseline (ISO format)
         progression_type: Optional progression type (LINEAR, GAUSSIAN, LOGARITHMIC)
+        eac_amount: Optional EAC amount for auto-created forecast (defaults to budget_amount)
+        basis_of_estimate: Optional basis of estimate for forecast (defaults to "Initial forecast")
         control_date: Optional control date for valid_time start (ISO format)
         context: Injected tool execution context
 
@@ -244,6 +248,8 @@ async def create_work_package(
             schedule_start_date=schedule_start,
             schedule_end_date=schedule_end,
             schedule_progression_type=progression_type,
+            eac_amount=Decimal(str(eac_amount)) if eac_amount is not None else None,
+            basis_of_estimate=basis_of_estimate,
         )
 
         wp = await service.create_work_package(
@@ -266,6 +272,7 @@ async def create_work_package(
             "schedule_baseline_id": str(wp.schedule_baseline_id)
             if wp.schedule_baseline_id
             else None,
+            "forecast_id": str(wp.forecast_id) if wp.forecast_id else None,
             "message": "Work package created successfully",
         }
     except ValueError as e:
@@ -289,12 +296,18 @@ async def update_work_package(
     budget_amount: float | None = None,
     description: str | None = None,
     status: str | None = None,
+    schedule_start_date: str | None = None,
+    schedule_end_date: str | None = None,
+    schedule_progression_type: str | None = None,
+    eac_amount: float | None = None,
+    basis_of_estimate: str | None = None,
     control_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Update an existing work package.
 
     Context: Provides database session and work package service for updating work packages.
+    Schedule baseline and forecast fields are propagated to their respective entities.
 
     Args:
         work_package_id: UUID of the work package to update
@@ -303,6 +316,11 @@ async def update_work_package(
         budget_amount: New budget amount (optional)
         description: New description (optional)
         status: New status (optional)
+        schedule_start_date: New schedule start date in ISO format (optional)
+        schedule_end_date: New schedule end date in ISO format (optional)
+        schedule_progression_type: New progression type (optional)
+        eac_amount: New EAC amount for the forecast (optional)
+        basis_of_estimate: New basis of estimate for the forecast (optional)
         control_date: Control date for valid_time start in ISO format (optional)
         context: Injected tool execution context
 
@@ -343,6 +361,22 @@ async def update_work_package(
             update_kwargs["status"] = status
         if parsed_control_date is not None:
             update_kwargs["control_date"] = parsed_control_date
+        # Schedule baseline update params
+        if schedule_start_date is not None:
+            update_kwargs["schedule_start_date"] = datetime.fromisoformat(
+                schedule_start_date
+            )
+        if schedule_end_date is not None:
+            update_kwargs["schedule_end_date"] = datetime.fromisoformat(
+                schedule_end_date
+            )
+        if schedule_progression_type is not None:
+            update_kwargs["schedule_progression_type"] = schedule_progression_type
+        # Forecast update params
+        if eac_amount is not None:
+            update_kwargs["eac_amount"] = Decimal(str(eac_amount))
+        if basis_of_estimate is not None:
+            update_kwargs["basis_of_estimate"] = basis_of_estimate
         update_kwargs["branch"] = context.branch_name or "main"
 
         update_data = WorkPackageUpdate(**update_kwargs)
@@ -365,6 +399,10 @@ async def update_work_package(
             "status": wp.status,
             "control_account_id": str(wp.control_account_id),
             "branch": wp.branch,
+            "schedule_baseline_id": str(wp.schedule_baseline_id)
+            if wp.schedule_baseline_id
+            else None,
+            "forecast_id": str(wp.forecast_id) if wp.forecast_id else None,
             "message": "Work package updated successfully",
         }
     except ValueError as e:

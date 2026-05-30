@@ -54,6 +54,15 @@ class WorkPackageCreate(WorkPackageBase):
         None,
         description="Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)",
     )
+    # Forecast creation params (auto-created with defaults if not provided)
+    eac_amount: Decimal | None = Field(
+        None,
+        description="Optional EAC amount for auto-created forecast (defaults to budget_amount)",
+    )
+    basis_of_estimate: str | None = Field(
+        None,
+        description="Optional basis of estimate for auto-created forecast (defaults to 'Initial forecast')",
+    )
 
 
 class WorkPackageUpdate(BaseModel):
@@ -70,6 +79,15 @@ class WorkPackageUpdate(BaseModel):
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"
     )
+    # Schedule baseline update params
+    schedule_name: str | None = Field(None, max_length=255)
+    schedule_start_date: datetime | None = None
+    schedule_end_date: datetime | None = None
+    schedule_progression_type: str | None = None
+    schedule_description: str | None = None
+    # Forecast update params
+    eac_amount: Decimal | None = Field(None, ge=0, decimal_places=2)
+    basis_of_estimate: str | None = Field(None, max_length=5000)
 
 
 class WorkPackageRead(WorkPackageBase, TemporalComputedMixin):

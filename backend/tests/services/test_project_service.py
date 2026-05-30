@@ -263,9 +263,7 @@ async def test_get_recently_updated_returns_projects(
 
 
 @pytest.mark.asyncio
-async def test_get_projects_with_filter_string(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_projects_with_filter_string(db: AsyncSession, actor_id) -> None:
     """get_projects applies filter_string to status, code, name."""
     await create_test_project(db, actor_id, code="FLT-001", status="active")
     await db.commit()
@@ -277,9 +275,7 @@ async def test_get_projects_with_filter_string(
 
 
 @pytest.mark.asyncio
-async def test_get_projects_with_as_of_time_travel(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_projects_with_as_of_time_travel(db: AsyncSession, actor_id) -> None:
     """get_projects supports time-travel via as_of parameter."""
     from datetime import UTC, datetime, timedelta
 
@@ -293,18 +289,14 @@ async def test_get_projects_with_as_of_time_travel(
 
 
 @pytest.mark.asyncio
-async def test_get_projects_with_desc_sort(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_projects_with_desc_sort(db: AsyncSession, actor_id) -> None:
     """get_projects supports desc sort order."""
     await create_test_project(db, actor_id, name="ZZZ Desc", code="DESC-Z")
     await create_test_project(db, actor_id, name="AAA Desc", code="DESC-A")
     await db.commit()
 
     service = ProjectService(db)
-    results, _total = await service.get_projects(
-        sort_field="name", sort_order="desc"
-    )
+    results, _total = await service.get_projects(sort_field="name", sort_order="desc")
     names = [p.name for p in results if p.name in ("ZZZ Desc", "AAA Desc")]
     assert names == sorted(names, reverse=True)
 
@@ -326,9 +318,7 @@ async def test_get_projects_invalid_sort_field_no_desc_attr_raises(
 
 
 @pytest.mark.asyncio
-async def test_get_project_as_of_returns_project(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_project_as_of_returns_project(db: AsyncSession, actor_id) -> None:
     """get_project_as_of returns project at a specific timestamp."""
     from datetime import UTC, datetime, timedelta
 
@@ -384,9 +374,7 @@ async def test_get_recently_updated_no_results_for_unknown_user(
 
 
 @pytest.mark.asyncio
-async def test_get_project_branches_returns_main(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_project_branches_returns_main(db: AsyncSession, actor_id) -> None:
     """get_project_branches always includes the main branch."""
     project = await create_test_project(db, actor_id, code="BRANCH-001")
     await db.commit()

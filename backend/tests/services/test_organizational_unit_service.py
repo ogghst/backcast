@@ -327,9 +327,7 @@ async def test_list_organizational_units_with_filter_string(
 
 
 @pytest.mark.asyncio
-async def test_list_organizational_units_desc_sort(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_list_organizational_units_desc_sort(db: AsyncSession, actor_id) -> None:
     """list_organizational_units supports desc sort order."""
     await create_test_org_unit(db, actor_id, code="DESC-A", name="AAA Desc")
     await create_test_org_unit(db, actor_id, code="DESC-Z", name="ZZZ Desc")
@@ -368,9 +366,7 @@ async def test_list_organizational_units_default_sort(
 
 
 @pytest.mark.asyncio
-async def test_get_organizational_unit_as_of(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_organizational_unit_as_of(db: AsyncSession, actor_id) -> None:
     """get_organizational_unit_as_of returns the unit at a past timestamp."""
     from datetime import UTC, datetime, timedelta
 

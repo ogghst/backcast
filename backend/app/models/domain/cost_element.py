@@ -1,17 +1,15 @@
 """Cost Element domain model - EOC (Element of Cost) under a Work Package.
 
-Cost Elements are the leaf level of the budget hierarchy where actual costs
-are tracked. Each Cost Element represents an instance of a Cost Element Type
-allocated to a Work Package.
+Cost Elements are categorization entities linking a Work Package to a Cost
+Element Type. Budget is managed at the WorkPackage.budget_amount level (BAC).
 
 Versionable but NOT branchable (financial facts are global across branches).
 """
 
-from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DECIMAL, Text
+from sqlalchemy import Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,10 +24,11 @@ if TYPE_CHECKING:
 class CostElement(EntityBase, VersionableMixin):
     """Cost Element - EOC (Element of Cost) under a Work Package.
 
-    Cost Elements are the leaf level of the project hierarchy where:
-    - Budgets are allocated at the EOC level
-    - Actual costs are tracked via Cost Registrations
-    - Progress is measured via Progress Entries
+    Cost Elements are categorization entities linking a Work Package to a
+    Cost Element Type. Budget is held on WorkPackage.budget_amount (the BAC
+    in ANSI-748/EVM), not on CostElement.
+
+    Actual costs are tracked via Cost Registrations against Cost Elements.
 
     Versionable but NOT branchable (cost data is global facts across branches).
 
@@ -37,7 +36,6 @@ class CostElement(EntityBase, VersionableMixin):
         cost_element_id: Root ID for the Cost Element aggregation.
         work_package_id: Parent Work Package root ID.
         cost_element_type_id: Reference to standardized cost type.
-        amount: Allocated amount for this cost element.
         description: Optional description.
 
     Satisfies: VersionableProtocol
@@ -63,9 +61,6 @@ class CostElement(EntityBase, VersionableMixin):
         # NOTE: No database-level ForeignKey constraint because cost_element_type_id is
         # a root ID that is not unique across versions. Integrity is enforced at application level.
     )
-
-    # Financial
-    amount: Mapped[Decimal] = mapped_column(DECIMAL(15, 2), default=0, nullable=False)
 
     # Metadata
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -96,5 +91,5 @@ class CostElement(EntityBase, VersionableMixin):
     def __repr__(self) -> str:
         return (
             f"<CostElement(id={self.id}, cost_element_id={self.cost_element_id}, "
-            f"work_package_id={self.work_package_id}, amount={self.amount})>"
+            f"work_package_id={self.work_package_id})>"
         )

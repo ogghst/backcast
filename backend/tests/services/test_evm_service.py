@@ -719,7 +719,10 @@ async def test_calculate_evm_metrics_from_data_no_baseline(
 
     # Get the actual WP entity
     wp_entity = await service.wp_service.get_as_of(
-        entity_id=wp.work_package_id, as_of=now, branch="main", branch_mode=BranchMode.MERGED
+        entity_id=wp.work_package_id,
+        as_of=now,
+        branch="main",
+        branch_mode=BranchMode.MERGED,
     )
     assert wp_entity is not None
 
@@ -748,7 +751,9 @@ async def test_calculate_evm_metrics_from_data_with_forecast(
     """_calculate_evm_metrics_from_data with forecast => EAC, VAC, ETC, cpi_forecast."""
     from unittest.mock import MagicMock
 
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("100000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("100000")
+    )
     wp = hierarchy["wp"]
     await create_test_progress_entry(
         db, actor_id, wp.work_package_id, progress_percentage=Decimal("50.00")
@@ -759,7 +764,10 @@ async def test_calculate_evm_metrics_from_data_with_forecast(
     now = datetime.now(UTC)
 
     wp_entity = await service.wp_service.get_as_of(
-        entity_id=wp.work_package_id, as_of=now, branch="main", branch_mode=BranchMode.MERGED
+        entity_id=wp.work_package_id,
+        as_of=now,
+        branch="main",
+        branch_mode=BranchMode.MERGED,
     )
     assert wp_entity is not None
 
@@ -792,7 +800,9 @@ async def test_calculate_evm_metrics_from_data_null_eac(
     """_calculate_evm_metrics_from_data with forecast but eac_amount=None."""
     from unittest.mock import MagicMock
 
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     await db.commit()
 
@@ -800,7 +810,10 @@ async def test_calculate_evm_metrics_from_data_null_eac(
     now = datetime.now(UTC)
 
     wp_entity = await service.wp_service.get_as_of(
-        entity_id=wp.work_package_id, as_of=now, branch="main", branch_mode=BranchMode.MERGED
+        entity_id=wp.work_package_id,
+        as_of=now,
+        branch="main",
+        branch_mode=BranchMode.MERGED,
     )
     assert wp_entity is not None
 
@@ -830,7 +843,9 @@ async def test_calculate_evm_metrics_from_data_zero_eac(
     """_calculate_evm_metrics_from_data with eac=0 => no cpi_forecast."""
     from unittest.mock import MagicMock
 
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     await db.commit()
 
@@ -838,7 +853,10 @@ async def test_calculate_evm_metrics_from_data_zero_eac(
     now = datetime.now(UTC)
 
     wp_entity = await service.wp_service.get_as_of(
-        entity_id=wp.work_package_id, as_of=now, branch="main", branch_mode=BranchMode.MERGED
+        entity_id=wp.work_package_id,
+        as_of=now,
+        branch="main",
+        branch_mode=BranchMode.MERGED,
     )
     assert wp_entity is not None
 
@@ -868,7 +886,9 @@ async def test_calculate_evm_metrics_from_data_invalid_baseline_dates(
     """_calculate_evm_metrics_from_data with invalid baseline dates => PV=0."""
     from unittest.mock import MagicMock
 
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     await db.commit()
 
@@ -876,7 +896,10 @@ async def test_calculate_evm_metrics_from_data_invalid_baseline_dates(
     now = datetime.now(UTC)
 
     wp_entity = await service.wp_service.get_as_of(
-        entity_id=wp.work_package_id, as_of=now, branch="main", branch_mode=BranchMode.MERGED
+        entity_id=wp.work_package_id,
+        as_of=now,
+        branch="main",
+        branch_mode=BranchMode.MERGED,
     )
     assert wp_entity is not None
 
@@ -957,21 +980,23 @@ async def test_get_ac_batch_empty_ids() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_ac_batch_with_data(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_ac_batch_with_data(db: AsyncSession, actor_id: UUID) -> None:
     """_get_ac_batch sums costs across CEs for multiple work packages."""
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("100000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("100000")
+    )
     wp = hierarchy["wp"]
     ce = hierarchy["ce"]
-    await create_test_cost_registration(db, actor_id, ce.cost_element_id, amount=Decimal("3000"))
-    await create_test_cost_registration(db, actor_id, ce.cost_element_id, amount=Decimal("2000"))
+    await create_test_cost_registration(
+        db, actor_id, ce.cost_element_id, amount=Decimal("3000")
+    )
+    await create_test_cost_registration(
+        db, actor_id, ce.cost_element_id, amount=Decimal("2000")
+    )
     await db.commit()
 
     service = EVMService(db)
-    result = await service._get_ac_batch(
-        [wp.work_package_id], datetime.now(UTC)
-    )
+    result = await service._get_ac_batch([wp.work_package_id], datetime.now(UTC))
 
     assert result[wp.work_package_id] == Decimal("5000")
 
@@ -982,9 +1007,7 @@ async def test_get_ac_batch_with_data(
 
 
 @pytest.mark.asyncio
-async def test_get_bac_as_of_nonexistent_wp(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_bac_as_of_nonexistent_wp(db: AsyncSession, actor_id: UUID) -> None:
     """_get_bac_as_of returns None for nonexistent WP."""
     service = EVMService(db)
     result = await service._get_bac_as_of(
@@ -1010,11 +1033,11 @@ async def test_get_pv_as_of_no_schedule_baseline(
 
 
 @pytest.mark.asyncio
-async def test_get_pv_as_of_baseline_deleted(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_pv_as_of_baseline_deleted(db: AsyncSession, actor_id: UUID) -> None:
     """_get_pv_as_of returns 0 when baseline entity is not found."""
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     await db.commit()
 
@@ -1038,9 +1061,7 @@ async def test_get_pv_as_of_baseline_deleted(
 
 
 @pytest.mark.asyncio
-async def test_get_eac_as_of_no_forecast(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_eac_as_of_no_forecast(db: AsyncSession, actor_id: UUID) -> None:
     """_get_eac_as_of returns None when WP has no forecast."""
     hierarchy = await create_full_hierarchy(db, actor_id)
     wp = hierarchy["wp"]
@@ -1107,9 +1128,7 @@ async def test_calculate_evm_metrics_batch_unsupported_type(
 
 
 @pytest.mark.asyncio
-async def test_resolve_wp_ids_for_wbs_empty(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_resolve_wp_ids_for_wbs_empty(db: AsyncSession, actor_id: UUID) -> None:
     """_resolve_work_package_ids_for_wbs returns empty for nonexistent WBS."""
     service = EVMService(db)
     result = await service._resolve_work_package_ids_for_wbs(
@@ -1119,14 +1138,10 @@ async def test_resolve_wp_ids_for_wbs_empty(
 
 
 @pytest.mark.asyncio
-async def test_resolve_wp_ids_for_ca_empty(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_resolve_wp_ids_for_ca_empty(db: AsyncSession, actor_id: UUID) -> None:
     """_resolve_work_package_ids_for_ca returns empty for nonexistent CA."""
     service = EVMService(db)
-    result = await service._resolve_work_package_ids_for_ca(
-        [uuid4()], "main"
-    )
+    result = await service._resolve_work_package_ids_for_ca([uuid4()], "main")
     assert result == []
 
 
@@ -1262,7 +1277,10 @@ async def test_calculate_project_evm_metrics_no_wbs(
 async def test_convert_to_response(db: AsyncSession, actor_id: UUID) -> None:
     """_convert_to_response maps EVMMetricsRead to EVMMetricsResponse."""
     hierarchy = await _setup_wp_with_data(
-        db, actor_id, budget=Decimal("50000"), progress_pct=Decimal("25.00"),
+        db,
+        actor_id,
+        budget=Decimal("50000"),
+        progress_pct=Decimal("25.00"),
     )
     wp = hierarchy["wp"]
     service = EVMService(db)
@@ -1300,7 +1318,9 @@ async def test_get_ev_as_of_date_with_progress(
     db: AsyncSession, actor_id: UUID
 ) -> None:
     """_get_ev_as_of_date returns correct EV with progress."""
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("100000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("100000")
+    )
     wp = hierarchy["wp"]
     await create_test_progress_entry(
         db, actor_id, wp.work_package_id, progress_percentage=Decimal("40.00")
@@ -1320,12 +1340,13 @@ async def test_get_ev_as_of_date_with_progress(
 
 
 @pytest.mark.asyncio
-async def test_get_evm_timeseries_wbs_element(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_evm_timeseries_wbs_element(db: AsyncSession, actor_id: UUID) -> None:
     """get_evm_timeseries for WBS Element aggregates child WPs."""
     hierarchy = await _setup_wp_with_data(
-        db, actor_id, budget=Decimal("50000"), progress_pct=Decimal("50.00"),
+        db,
+        actor_id,
+        budget=Decimal("50000"),
+        progress_pct=Decimal("50.00"),
     )
     wbs = hierarchy["wbs"]
     service = EVMService(db)
@@ -1346,7 +1367,10 @@ async def test_get_evm_timeseries_control_account(
 ) -> None:
     """get_evm_timeseries for Control Account aggregates child WPs."""
     hierarchy = await _setup_wp_with_data(
-        db, actor_id, budget=Decimal("50000"), progress_pct=Decimal("50.00"),
+        db,
+        actor_id,
+        budget=Decimal("50000"),
+        progress_pct=Decimal("50.00"),
     )
     ca = hierarchy["ca"]
     service = EVMService(db)
@@ -1362,12 +1386,13 @@ async def test_get_evm_timeseries_control_account(
 
 
 @pytest.mark.asyncio
-async def test_get_evm_timeseries_project(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_evm_timeseries_project(db: AsyncSession, actor_id: UUID) -> None:
     """get_evm_timeseries for Project aggregates all WPs."""
     hierarchy = await _setup_wp_with_data(
-        db, actor_id, budget=Decimal("50000"), progress_pct=Decimal("50.00"),
+        db,
+        actor_id,
+        budget=Decimal("50000"),
+        progress_pct=Decimal("50.00"),
         cost_amounts=[Decimal("10000")],
     )
     project = hierarchy["project"]
@@ -1404,10 +1429,14 @@ async def test_get_evm_timeseries_wp_no_baseline_with_cost(
     db: AsyncSession, actor_id: UUID
 ) -> None:
     """get_evm_timeseries for WP with no baseline but with cost data generates points."""
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     ce = hierarchy["ce"]
-    await create_test_cost_registration(db, actor_id, ce.cost_element_id, amount=Decimal("5000"))
+    await create_test_cost_registration(
+        db, actor_id, ce.cost_element_id, amount=Decimal("5000")
+    )
     await db.commit()
 
     service = EVMService(db)
@@ -1476,27 +1505,59 @@ async def test_aggregate_timeseries_multiple() -> None:
     ts1 = EVMTimeSeriesResponse(
         granularity=EVMTimeSeriesGranularity.WEEK,
         points=[
-            EVMTimeSeriesPoint(date=d1, pv=Decimal("100"), ev=Decimal("50"),
-                               ac=Decimal("60"), forecast=Decimal("100"),
-                               actual=Decimal("60"), cpi=None, spi=None),
-            EVMTimeSeriesPoint(date=d2, pv=Decimal("200"), ev=Decimal("100"),
-                               ac=Decimal("120"), forecast=Decimal("200"),
-                               actual=Decimal("120"), cpi=None, spi=None),
+            EVMTimeSeriesPoint(
+                date=d1,
+                pv=Decimal("100"),
+                ev=Decimal("50"),
+                ac=Decimal("60"),
+                forecast=Decimal("100"),
+                actual=Decimal("60"),
+                cpi=None,
+                spi=None,
+            ),
+            EVMTimeSeriesPoint(
+                date=d2,
+                pv=Decimal("200"),
+                ev=Decimal("100"),
+                ac=Decimal("120"),
+                forecast=Decimal("200"),
+                actual=Decimal("120"),
+                cpi=None,
+                spi=None,
+            ),
         ],
-        start_date=d1, end_date=d2, total_points=2,
+        start_date=d1,
+        end_date=d2,
+        total_points=2,
     )
 
     ts2 = EVMTimeSeriesResponse(
         granularity=EVMTimeSeriesGranularity.WEEK,
         points=[
-            EVMTimeSeriesPoint(date=d1, pv=Decimal("50"), ev=Decimal("25"),
-                               ac=Decimal("30"), forecast=Decimal("50"),
-                               actual=Decimal("30"), cpi=None, spi=None),
-            EVMTimeSeriesPoint(date=d2, pv=Decimal("100"), ev=Decimal("50"),
-                               ac=Decimal("60"), forecast=Decimal("100"),
-                               actual=Decimal("60"), cpi=None, spi=None),
+            EVMTimeSeriesPoint(
+                date=d1,
+                pv=Decimal("50"),
+                ev=Decimal("25"),
+                ac=Decimal("30"),
+                forecast=Decimal("50"),
+                actual=Decimal("30"),
+                cpi=None,
+                spi=None,
+            ),
+            EVMTimeSeriesPoint(
+                date=d2,
+                pv=Decimal("100"),
+                ev=Decimal("50"),
+                ac=Decimal("60"),
+                forecast=Decimal("100"),
+                actual=Decimal("60"),
+                cpi=None,
+                spi=None,
+            ),
         ],
-        start_date=d1, end_date=d2, total_points=2,
+        start_date=d1,
+        end_date=d2,
+        total_points=2,
     )
 
     dates = [d1, d2]
@@ -1553,7 +1614,10 @@ async def test_generate_timeseries_points_batch_with_data(
 ) -> None:
     """_generate_timeseries_points_batch generates points for multiple WPs."""
     hierarchy = await _setup_wp_with_data(
-        db, actor_id, budget=Decimal("50000"), progress_pct=Decimal("50.00"),
+        db,
+        actor_id,
+        budget=Decimal("50000"),
+        progress_pct=Decimal("50.00"),
         cost_amounts=[Decimal("5000")],
     )
     wp = hierarchy["wp"]
@@ -1600,9 +1664,7 @@ async def test_generate_timeseries_points_batch_no_baseline_no_data(
 
 
 @pytest.mark.asyncio
-async def test_aggregate_wp_timeseries_empty(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_aggregate_wp_timeseries_empty(db: AsyncSession, actor_id: UUID) -> None:
     """_aggregate_wp_timeseries returns empty when all WPs have no data."""
     hierarchy = await create_full_hierarchy(db, actor_id)
     wp = hierarchy["wp"]
@@ -1652,7 +1714,9 @@ async def test_generate_date_intervals_month_december() -> None:
     service = EVMService.__new__(EVMService)
     start = datetime(2026, 12, 1, tzinfo=UTC)
     end = datetime(2027, 2, 1, tzinfo=UTC)
-    result = service._generate_date_intervals(start, end, EVMTimeSeriesGranularity.MONTH)
+    result = service._generate_date_intervals(
+        start, end, EVMTimeSeriesGranularity.MONTH
+    )
     dates_str = [d.isoformat() for d in result]
     assert any("2027-01" in d for d in dates_str)
 
@@ -1776,21 +1840,39 @@ async def test_aggregate_evm_metrics_with_warnings() -> None:
         EVMMetricsResponse(
             entity_type=EntityType.WORK_PACKAGE,
             entity_id=uuid4(),
-            bac=100000, pv=50000, ac=30000, ev=40000,
-            cv=10000, sv=-10000, cpi=1.33, spi=0.8,
-            eac=80000, vac=20000, etc=50000,
+            bac=100000,
+            pv=50000,
+            ac=30000,
+            ev=40000,
+            cv=10000,
+            sv=-10000,
+            cpi=1.33,
+            spi=0.8,
+            eac=80000,
+            vac=20000,
+            etc=50000,
             control_date=datetime.now(UTC),
-            branch="main", branch_mode=BranchMode.MERGED,
+            branch="main",
+            branch_mode=BranchMode.MERGED,
             warning="No progress",
         ),
         EVMMetricsResponse(
             entity_type=EntityType.WORK_PACKAGE,
             entity_id=uuid4(),
-            bac=200000, pv=100000, ac=80000, ev=60000,
-            cv=-20000, sv=-40000, cpi=0.75, spi=0.6,
-            eac=250000, vac=-50000, etc=170000,
+            bac=200000,
+            pv=100000,
+            ac=80000,
+            ev=60000,
+            cv=-20000,
+            sv=-40000,
+            cpi=0.75,
+            spi=0.6,
+            eac=250000,
+            vac=-50000,
+            etc=170000,
             control_date=datetime.now(UTC),
-            branch="main", branch_mode=BranchMode.MERGED,
+            branch="main",
+            branch_mode=BranchMode.MERGED,
             warning="Baseline missing",
         ),
     ]
@@ -1810,20 +1892,38 @@ async def test_aggregate_evm_metrics_all_none_eac() -> None:
         EVMMetricsResponse(
             entity_type=EntityType.WORK_PACKAGE,
             entity_id=uuid4(),
-            bac=100000, pv=50000, ac=30000, ev=40000,
-            cv=10000, sv=-10000, cpi=1.33, spi=0.8,
-            eac=None, vac=None, etc=None,
+            bac=100000,
+            pv=50000,
+            ac=30000,
+            ev=40000,
+            cv=10000,
+            sv=-10000,
+            cpi=1.33,
+            spi=0.8,
+            eac=None,
+            vac=None,
+            etc=None,
             control_date=datetime.now(UTC),
-            branch="main", branch_mode=BranchMode.MERGED,
+            branch="main",
+            branch_mode=BranchMode.MERGED,
         ),
         EVMMetricsResponse(
             entity_type=EntityType.WORK_PACKAGE,
             entity_id=uuid4(),
-            bac=200000, pv=100000, ac=80000, ev=60000,
-            cv=-20000, sv=-40000, cpi=0.75, spi=0.6,
-            eac=None, vac=None, etc=None,
+            bac=200000,
+            pv=100000,
+            ac=80000,
+            ev=60000,
+            cv=-20000,
+            sv=-40000,
+            cpi=0.75,
+            spi=0.6,
+            eac=None,
+            vac=None,
+            etc=None,
             control_date=datetime.now(UTC),
-            branch="main", branch_mode=BranchMode.MERGED,
+            branch="main",
+            branch_mode=BranchMode.MERGED,
         ),
     ]
 
@@ -1838,9 +1938,7 @@ async def test_aggregate_evm_metrics_all_none_eac() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_ac_as_of_no_costs(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_ac_as_of_no_costs(db: AsyncSession, actor_id: UUID) -> None:
     """_get_ac_as_of returns 0 when no cost registrations exist."""
     hierarchy = await create_full_hierarchy(db, actor_id)
     wp = hierarchy["wp"]
@@ -1860,7 +1958,8 @@ async def test_get_ac_as_of_no_costs(
 async def test_cpi_forecast_calculated(db: AsyncSession, actor_id: UUID) -> None:
     """calculate_evm_metrics calculates cpi_forecast = BAC / EAC."""
     hierarchy = await _setup_wp_with_data(
-        db, actor_id,
+        db,
+        actor_id,
         budget=Decimal("100000"),
         eac=Decimal("125000"),
         progress_pct=Decimal("50.00"),
@@ -1928,7 +2027,9 @@ async def test_get_pv_as_of_baseline_not_found_after_wp(
     db: AsyncSession, actor_id: UUID
 ) -> None:
     """_get_pv_as_of returns 0 when WP found but baseline deleted."""
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     await db.commit()
 
@@ -1962,7 +2063,9 @@ async def test_generate_timeseries_points_no_baseline_with_progress(
     db: AsyncSession, actor_id: UUID
 ) -> None:
     """_generate_timeseries_points generates points from EV data without baseline."""
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     await create_test_progress_entry(
         db, actor_id, wp.work_package_id, progress_percentage=Decimal("30.00")
@@ -1996,7 +2099,10 @@ async def test_get_evm_timeseries_wp_control_date_past_end(
 ) -> None:
     """get_evm_timeseries WP with control_date past baseline end extends range."""
     hierarchy = await _setup_wp_with_data(
-        db, actor_id, budget=Decimal("50000"), progress_pct=Decimal("50.00"),
+        db,
+        actor_id,
+        budget=Decimal("50000"),
+        progress_pct=Decimal("50.00"),
     )
     wp = hierarchy["wp"]
     await db.commit()
@@ -2025,7 +2131,9 @@ async def test_generate_timeseries_points_batch_no_baseline_with_progress(
     db: AsyncSession, actor_id: UUID
 ) -> None:
     """_generate_timeseries_points_batch generates points for WP with progress but no baseline."""
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     await create_test_progress_entry(
         db, actor_id, wp.work_package_id, progress_percentage=Decimal("40.00")
@@ -2063,7 +2171,10 @@ async def test_aggregate_wp_timeseries_with_data(
 ) -> None:
     """_aggregate_wp_timeseries aggregates data from multiple WPs."""
     hierarchy = await _setup_wp_with_data(
-        db, actor_id, budget=Decimal("50000"), progress_pct=Decimal("50.00"),
+        db,
+        actor_id,
+        budget=Decimal("50000"),
+        progress_pct=Decimal("50.00"),
         cost_amounts=[Decimal("5000")],
     )
     wp = hierarchy["wp"]
@@ -2094,7 +2205,12 @@ async def test_get_project_evm_timeseries_has_wbs_no_wps(
     service = EVMService(db)
     from tests.factories import create_test_project, create_test_wbs_element
 
-    project = await create_test_project(db, actor_id, start_date=datetime(2026, 1, 1, tzinfo=UTC), end_date=datetime(2026, 12, 31, tzinfo=UTC))
+    project = await create_test_project(
+        db,
+        actor_id,
+        start_date=datetime(2026, 1, 1, tzinfo=UTC),
+        end_date=datetime(2026, 12, 31, tzinfo=UTC),
+    )
     await create_test_wbs_element(db, actor_id, project.project_id)
     await db.commit()
 
@@ -2126,9 +2242,13 @@ async def test_gather_timeseries_filters_runtime_errors(
         points=[
             EVMTimeSeriesPoint(
                 date=datetime(2026, 1, 1, tzinfo=UTC),
-                pv=Decimal("100"), ev=Decimal("50"),
-                ac=Decimal("60"), forecast=Decimal("100"),
-                actual=Decimal("60"), cpi=None, spi=None,
+                pv=Decimal("100"),
+                ev=Decimal("50"),
+                ac=Decimal("60"),
+                forecast=Decimal("100"),
+                actual=Decimal("60"),
+                cpi=None,
+                spi=None,
             )
         ],
         start_date=datetime(2026, 1, 1, tzinfo=UTC),
@@ -2161,7 +2281,9 @@ async def test_batch_calculate_work_package_metrics_no_ces(
     db: AsyncSession, actor_id: UUID
 ) -> None:
     """_batch_calculate_work_package_metrics with WP that has no cost elements."""
-    hierarchy = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("50000"))
+    hierarchy = await create_full_hierarchy(
+        db, actor_id, budget_amount=Decimal("50000")
+    )
     wp = hierarchy["wp"]
     # Delete the cost element to create a WP with no CEs
     from sqlalchemy import update as sql_update

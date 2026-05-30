@@ -174,7 +174,7 @@ export const CostEventModal = ({
         cost_allocations:
           breakdownRows.length > 0
             ? breakdownRows
-                .filter((row) => row.amount > 0 && row.cost_element_id)
+                .filter((row) => row.cost_element_id)
                 .map((row) => ({
                   cost_element_id: row.cost_element_id!,
                   amount: row.amount,

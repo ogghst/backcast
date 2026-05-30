@@ -65,7 +65,12 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         actor_id: UUID,
         control_date: datetime | None = None,
     ) -> WorkPackage:
-        """Create new work package with optional auto-creation of schedule baseline.
+        """Create new work package with auto-creation of schedule baseline and forecast.
+
+        Both a ScheduleBaseline and a Forecast are always created alongside the
+        work package. If no schedule dates are provided, sensible defaults are
+        used (control_date or now as start, start + 90 days as end). If no
+        forecast params are provided, the budget_amount is used as EAC.
 
         Args:
             data: Work package creation data.
@@ -85,6 +90,8 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
                 "schedule_start_date",
                 "schedule_end_date",
                 "schedule_progression_type",
+                "eac_amount",
+                "basis_of_estimate",
             },
         )
 
@@ -113,21 +120,36 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         )
         wp = await cmd.execute(self.session)
 
-        # Auto-create schedule baseline if start/end dates provided
-        if data.schedule_start_date and data.schedule_end_date:
-            from app.services.schedule_baseline_service import ScheduleBaselineService
+        # Always auto-create schedule baseline
+        from app.services.schedule_baseline_service import ScheduleBaselineService
 
-            sb_service = ScheduleBaselineService(self.session)
-            await sb_service.create_for_work_package(
-                work_package_id=root_id,
-                actor_id=actor_id,
-                branch=data.branch,
-                name="Default Schedule",
-                start_date=data.schedule_start_date,
-                end_date=data.schedule_end_date,
-                progression_type=data.schedule_progression_type or "LINEAR",
-                control_date=control_date,
-            )
+        sb_service = ScheduleBaselineService(self.session)
+        await sb_service.ensure_exists(
+            work_package_id=root_id,
+            actor_id=actor_id,
+            branch=data.branch,
+            control_date=control_date,
+            start_date=data.schedule_start_date,
+            end_date=data.schedule_end_date,
+            progression_type=data.schedule_progression_type,
+        )
+
+        # Always auto-create forecast
+        from app.services.forecast_service import ForecastService
+
+        fc_service = ForecastService(self.session)
+        eac_amount = (
+            data.eac_amount if data.eac_amount is not None else data.budget_amount
+        )
+        basis_of_estimate = data.basis_of_estimate or "Initial forecast"
+        await fc_service.create_for_work_package(
+            work_package_id=root_id,
+            actor_id=actor_id,
+            branch=data.branch,
+            eac_amount=eac_amount,
+            basis_of_estimate=basis_of_estimate,
+            control_date=control_date,
+        )
 
         return wp
 
@@ -139,6 +161,10 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         control_date: datetime | None = None,
     ) -> WorkPackage:
         """Update work package, creating a new version.
+
+        Also propagates schedule baseline and forecast updates if the
+        corresponding fields are present in the update data. If no
+        baseline or forecast exists yet, one is created first.
 
         Args:
             work_package_id: Root ID of the work package.
@@ -156,6 +182,26 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         update_data.pop("control_date", None)
         branch = update_data.pop("branch", None) or "main"
 
+        # Extract schedule/forecast fields before WP update
+        schedule_fields = {
+            k: v
+            for k, v in (
+                ("name", update_data.pop("schedule_name", None)),
+                ("start_date", update_data.pop("schedule_start_date", None)),
+                ("end_date", update_data.pop("schedule_end_date", None)),
+                (
+                    "progression_type",
+                    update_data.pop("schedule_progression_type", None),
+                ),
+                ("description", update_data.pop("schedule_description", None)),
+            )
+            if v is not None
+        }
+        forecast_fields: dict[str, Any] = {}
+        for field in ("eac_amount", "basis_of_estimate"):
+            if field in update_data:
+                forecast_fields[field] = update_data.pop(field)
+
         from app.core.branching.commands import UpdateCommand
 
         cmd = UpdateCommand(  # type: ignore[type-var]
@@ -166,7 +212,65 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
             control_date=control_date,
             updates=update_data,
         )
-        return await cmd.execute(self.session)
+        wp = await cmd.execute(self.session)
+
+        # Propagate schedule baseline updates
+        if schedule_fields:
+            from app.services.schedule_baseline_service import ScheduleBaselineService
+
+            sb_service = ScheduleBaselineService(self.session)
+            # Ensure baseline exists, then update it
+            baseline = await sb_service.ensure_exists(
+                work_package_id=work_package_id,
+                actor_id=actor_id,
+                branch=branch,
+                control_date=control_date,
+            )
+            if schedule_fields:
+                from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
+
+                sb_update = ScheduleBaselineUpdate(
+                    **schedule_fields,
+                    branch=branch,
+                    control_date=control_date,
+                )
+                await sb_service.update_schedule_baseline(
+                    root_id=baseline.schedule_baseline_id,
+                    baseline_in=sb_update,
+                    actor_id=actor_id,
+                    branch=branch,
+                    control_date=control_date,
+                )
+
+        # Propagate forecast updates
+        if forecast_fields:
+            from app.services.forecast_service import ForecastService
+
+            fc_service = ForecastService(self.session)
+            # Ensure forecast exists, then update it
+            forecast = await fc_service.ensure_exists(
+                work_package_id=work_package_id,
+                actor_id=actor_id,
+                branch=branch,
+                budget_amount=wp.budget_amount,
+                control_date=control_date,
+            )
+            if forecast_fields:
+                from app.models.schemas.forecast import ForecastUpdate
+
+                fc_update = ForecastUpdate(
+                    **forecast_fields,
+                    branch=branch,
+                    control_date=control_date,
+                )
+                await fc_service.update_forecast(
+                    forecast_id=forecast.forecast_id,
+                    forecast_in=fc_update,
+                    actor_id=actor_id,
+                    control_date=control_date,
+                )
+
+        return wp
 
     async def get_work_packages(
         self,

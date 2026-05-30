@@ -959,15 +959,26 @@ class ImpactAnalysisService:
                 return None
             return ca.wbs_element_id
 
-        # Aggregate CE amounts by WBSElement using the new hierarchy
+        # Aggregate WP budget_amount by WBSElement (budget is on WP, not CE)
         main_wbe_budgets: dict[UUID, Decimal] = defaultdict(Decimal)
+        seen_main_wp_ids: set[UUID] = set()
         for ce in main_cost_elements:
+            if ce.work_package_id in seen_main_wp_ids:
+                continue
+            seen_main_wp_ids.add(ce.work_package_id)
             wbs_id = _get_wbs_id_for_ce(ce, main_wp_for_ce)
             if wbs_id:
-                main_wbe_budgets[wbs_id] += ce.amount or Decimal("0")
+                main_wp = main_wp_for_ce.get(ce.work_package_id)
+                main_wbe_budgets[wbs_id] += (
+                    main_wp.budget_amount if main_wp and main_wp.budget_amount else Decimal("0")
+                )
 
         merged_wbe_budgets: dict[UUID, Decimal] = defaultdict(Decimal)
+        seen_merged_wp_ids: set[UUID] = set()
         for ce in merged_cost_elements:
+            if ce.work_package_id in seen_merged_wp_ids:
+                continue
+            seen_merged_wp_ids.add(ce.work_package_id)
             wp_map = (
                 branch_wp_for_ce
                 if ce.cost_element_id
@@ -976,7 +987,10 @@ class ImpactAnalysisService:
             )
             wbs_id = _get_wbs_id_for_ce(ce, wp_map)
             if wbs_id:
-                merged_wbe_budgets[wbs_id] += ce.amount or Decimal("0")
+                merged_wp = wp_map.get(ce.work_package_id)
+                merged_wbe_budgets[wbs_id] += (
+                    merged_wp.budget_amount if merged_wp and merged_wp.budget_amount else Decimal("0")
+                )
 
         # Compare WBEs: main vs merged view using aggregated Cost Element budgets
         wbe_changes = self._compare_wbe_lists(
@@ -1395,8 +1409,8 @@ class ImpactAnalysisService:
     ) -> list[EntityChange]:
         """Compare two lists of Cost Elements and identify changes.
 
-        CostElement is now an EOC (Element of Cost) with amount, not budget_amount.
-        The name field is no longer on CostElement; use description as fallback.
+        CostElement is a categorization entity (EOC) linking a WorkPackage to
+        a CostElementType. Budget is on WorkPackage, not CostElement.
 
         Args:
             main_ces: Cost Elements from main branch
@@ -1428,7 +1442,7 @@ class ImpactAnalysisService:
                         id=int(root_id.int >> 96),
                         name=change_ce.description or f"EOC {str(root_id)[:8]}",
                         change_type="added",
-                        budget_delta=change_ce.amount,
+                        budget_delta=None,
                         revenue_delta=None,
                         cost_delta=cost_delta,
                     )
@@ -1440,15 +1454,17 @@ class ImpactAnalysisService:
                         id=int(root_id.int >> 96),
                         name=main_ce.description or f"EOC {str(root_id)[:8]}",
                         change_type="removed",
-                        budget_delta=-main_ce.amount,
+                        budget_delta=None,
                         revenue_delta=None,
                         cost_delta=cost_delta,
                     )
                 )
             else:
-                # Exists in both - check for modifications
-                amount_delta = change_ce.amount - main_ce.amount
-                if amount_delta != 0 or cost_delta:
+                # Exists in both - check for modifications (type change or cost delta)
+                type_changed = (
+                    main_ce.cost_element_type_id != change_ce.cost_element_type_id
+                )
+                if type_changed or cost_delta:
                     changes.append(
                         EntityChange(
                             id=int(root_id.int >> 96),
@@ -1456,7 +1472,7 @@ class ImpactAnalysisService:
                             or main_ce.description
                             or f"EOC {str(root_id)[:8]}",
                             change_type="modified",
-                            budget_delta=amount_delta if amount_delta != 0 else None,
+                            budget_delta=None,
                             revenue_delta=None,
                             cost_delta=cost_delta,
                         )

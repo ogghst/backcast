@@ -89,10 +89,10 @@ export const CostElementDetailCards = ({
     );
   }
 
-  // Budget calculations — CostElement (EOC) has `amount`, not `budget_amount`
+  // Budget calculations
   const budget = budgetStatus?.budget
     ? Number(budgetStatus.budget)
-    : Number(costElement.amount);
+    : 0;
   const used = budgetStatus?.used ? Number(budgetStatus.used) : 0;
   const remaining = budgetStatus?.remaining
     ? Number(budgetStatus.remaining)
@@ -303,12 +303,6 @@ export const CostElementDetailCards = ({
               </Text>
               <Text style={valueStyle}>{costElement.work_package_name || costElement.work_package_code || "-"}</Text>
             </Col>
-            <Col xs={12} sm={8}>
-              <Text type="secondary" style={labelStyle}>
-                Amount
-              </Text>
-              <Text style={valueStyle}>{costElement.amount || "-"}</Text>
-            </Col>
           </Row>
         </ExplorerCard>
 
@@ -316,7 +310,7 @@ export const CostElementDetailCards = ({
         <ExplorerCard title="Forecast" icon={<LineChartOutlined />}>
           <ForecastComparisonCard
             costElementId={costElement.cost_element_id}
-            budgetAmount={Number(costElement.amount || 0)}
+            budgetAmount={0}
           />
         </ExplorerCard>
 

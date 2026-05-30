@@ -3,7 +3,6 @@
 Covers is_current_version_raw_sql with and without deleted_at.
 """
 
-
 from app.core.temporal_queries import is_current_version_raw_sql
 
 

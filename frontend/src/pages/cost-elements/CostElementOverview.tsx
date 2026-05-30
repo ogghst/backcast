@@ -1,22 +1,15 @@
 import { useParams } from "react-router-dom";
-import { Card, Descriptions, Typography } from "antd";
+import { Card, Descriptions } from "antd";
 import { useCostElement } from "@/features/cost-elements/api/useCostElements";
 import { useCostElementTypes } from "@/features/cost-elements/api/useCostElementTypes";
-import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
-import { formatCurrency, formatTemporalRange } from "@/utils/formatters";
-
-const { Text } = Typography;
+import { formatTemporalRange } from "@/utils/formatters";
 
 export const CostElementOverview = () => {
   const { id } = useParams<{ id: string }>();
   const { data: costElement, isLoading } = useCostElement(id!);
   const { data: costElementTypes = [] } = useCostElementTypes();
 
-  const currency = useProjectCurrency(undefined);
-
   if (isLoading || !costElement) return null;
-
-  const amount = costElement.amount ? Number(costElement.amount) : 0;
 
   const typeName =
     costElement.cost_element_type_name ||
@@ -34,9 +27,6 @@ export const CostElementOverview = () => {
         </Descriptions.Item>
         <Descriptions.Item label="Work Package">
           {costElement.work_package_name || costElement.work_package_code || costElement.work_package_id}
-        </Descriptions.Item>
-        <Descriptions.Item label="Amount">
-          <Text strong>{formatCurrency(amount, currency)}</Text>
         </Descriptions.Item>
         <Descriptions.Item label="Description">
           {costElement.description || "-"}

@@ -7,9 +7,9 @@ The key principle is:
 
 Cost Elements in Backcast (ANSI-748):
 - Cost Elements are EOCs (Elements of Cost) under Work Packages
-- They represent individual cost line items (type + amount) within a Work Package
+- They are categorization entities linking a Work Package to a Cost Element Type
+- Budget is managed at WorkPackage.budget_amount (the BAC), not on CostElement
 - They are VERSIONABLE but NOT BRANCHABLE -- financial facts are global
-- Each Cost Element references a Cost Element Type for categorization
 
 TEMPORAL CONTEXT PATTERN:
 For temporal tools (those that work with versioned entities):
@@ -98,7 +98,6 @@ async def find_cost_elements(
                 "id": str(cost_element.cost_element_id),
                 "work_package_id": str(cost_element.work_package_id),
                 "cost_element_type_id": str(cost_element.cost_element_type_id),
-                "amount": float(cost_element.amount) if cost_element.amount else None,
                 "description": cost_element.description,
                 "work_package_name": getattr(cost_element, "work_package_name", None),
                 "work_package_code": getattr(cost_element, "work_package_code", None),
@@ -128,7 +127,6 @@ async def find_cost_elements(
                     "id": str(ce.cost_element_id),
                     "work_package_id": str(ce.work_package_id),
                     "cost_element_type_id": str(ce.cost_element_type_id),
-                    "amount": float(ce.amount) if ce.amount else None,
                     "description": ce.description,
                     "work_package_name": getattr(ce, "work_package_name", None),
                     "work_package_code": getattr(ce, "work_package_code", None),
@@ -163,7 +161,6 @@ async def find_cost_elements(
 async def create_cost_element(
     work_package_id: str,
     cost_element_type_id: str,
-    amount: float,
     description: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
@@ -172,7 +169,6 @@ async def create_cost_element(
     Args:
         work_package_id: UUID of the parent Work Package
         cost_element_type_id: UUID of the cost element type
-        amount: Allocated amount for this cost element
         description: Optional description
         context: Injected tool execution context
 
@@ -191,7 +187,6 @@ async def create_cost_element(
         ce_data = CostElementCreate(
             work_package_id=UUID(work_package_id),
             cost_element_type_id=UUID(cost_element_type_id),
-            amount=amount,
             description=description,
         )
 
@@ -204,7 +199,6 @@ async def create_cost_element(
             "id": str(cost_element.cost_element_id),
             "work_package_id": str(cost_element.work_package_id),
             "cost_element_type_id": str(cost_element.cost_element_type_id),
-            "amount": float(cost_element.amount) if cost_element.amount else None,
             "description": cost_element.description,
             "message": "Cost element created successfully",
         }
@@ -226,7 +220,6 @@ async def create_cost_element(
 )
 async def update_cost_element(
     cost_element_id: str,
-    amount: float | None = None,
     description: str | None = None,
     cost_element_type_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
@@ -237,7 +230,6 @@ async def update_cost_element(
 
     Args:
         cost_element_id: UUID of the cost element to update
-        amount: New amount (optional)
         description: New description (optional)
         cost_element_type_id: New cost element type ID (optional)
         context: Injected tool execution context
@@ -258,7 +250,6 @@ async def update_cost_element(
             cost_element_type_id=UUID(cost_element_type_id)
             if cost_element_type_id
             else None,
-            amount=amount,
             description=description,
         )
 
@@ -272,7 +263,6 @@ async def update_cost_element(
             "id": str(cost_element.cost_element_id),
             "work_package_id": str(cost_element.work_package_id),
             "cost_element_type_id": str(cost_element.cost_element_type_id),
-            "amount": float(cost_element.amount) if cost_element.amount else None,
             "description": cost_element.description,
         }
 
@@ -626,7 +616,7 @@ async def delete_cost_element_type(
     name="batch_create_cost_elements",
     description="Batch create multiple cost elements (EOCs) under the same Work Package. "
     "All items share the parent work_package_id. Each item provides its own "
-    "cost_element_type_id, amount, and optional description. "
+    "cost_element_type_id and optional description. "
     "Maximum 50 items per batch.",
     permissions=["cost-element-create"],
     category="cost-elements",
@@ -641,7 +631,7 @@ async def batch_create_cost_elements(
 
     Args:
         work_package_id: UUID of the parent Work Package
-        items: List of dicts, each with {cost_element_type_id, amount, description?}
+        items: List of dicts, each with {cost_element_type_id, description?}
         context: Injected tool execution context
 
     Returns:
@@ -672,11 +662,6 @@ async def batch_create_cost_elements(
                     },
                     context,
                 )
-            if item.get("amount") is None:
-                return add_temporal_metadata(
-                    {"error": f"Item at index {i} is missing required field 'amount'"},
-                    context,
-                )
 
         service = CostElementService(context.session)
         actor_id = UUID(context.user_id)
@@ -686,7 +671,6 @@ async def batch_create_cost_elements(
             ce_data = CostElementCreate(
                 work_package_id=UUID(work_package_id),
                 cost_element_type_id=UUID(item["cost_element_type_id"]),
-                amount=item["amount"],
                 description=item.get("description"),
             )
             cost_element = await service.create_cost_element(
@@ -696,9 +680,6 @@ async def batch_create_cost_elements(
             results.append(
                 {
                     "id": str(cost_element.cost_element_id),
-                    "amount": float(cost_element.amount)
-                    if cost_element.amount
-                    else None,
                 }
             )
 

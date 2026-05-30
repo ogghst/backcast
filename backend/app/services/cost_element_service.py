@@ -26,10 +26,9 @@ from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var,unused-ignore]
     """Service for Cost Element (EOC) entity operations.
 
-    Cost Elements are the leaf level of the budget hierarchy where:
-    - Budget amounts are allocated at the EOC level
-    - Actual costs are tracked via Cost Registrations
-    - Progress is measured via Progress Entries
+    Cost Elements are categorization entities linking a Work Package to a
+    Cost Element Type. Budget is held on WorkPackage.budget_amount (the BAC),
+    not on CostElement.
 
     Versionable but NOT branchable (cost data is global facts).
     """

@@ -274,9 +274,7 @@ async def test_create_without_actor_id_raises(db: AsyncSession, actor_id: UUID) 
 
 
 @pytest.mark.asyncio
-async def test_create_with_progress_in_schema(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_create_with_progress_in_schema(db: AsyncSession, actor_id: UUID) -> None:
     """create should work with a Pydantic progress_in schema."""
     from app.models.schemas.progress_entry import ProgressEntryCreate
 
@@ -300,7 +298,9 @@ async def test_create_with_empty_fields_raises(
     """create should raise ValueError when no fields and no progress_in."""
     service = ProgressEntryService(db)
 
-    with pytest.raises(ValueError, match="Either progress_in or fields must be provided"):
+    with pytest.raises(
+        ValueError, match="Either progress_in or fields must be provided"
+    ):
         await service.create(actor_id=actor_id, progress_in=None)
 
 
@@ -335,15 +335,16 @@ async def test_get_progress_history_batch_empty_input(
 
 
 @pytest.mark.asyncio
-async def test_get_progress_entry_as_of(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_progress_entry_as_of(db: AsyncSession, actor_id: UUID) -> None:
     """get_progress_entry_as_of returns entry at a specific timestamp."""
     from datetime import UTC, datetime, timedelta
 
     hierarchy = await create_full_hierarchy(db, actor_id)
     entry = await create_test_progress_entry(
-        db, actor_id, hierarchy["wp"].work_package_id, progress_percentage=Decimal("75.00")
+        db,
+        actor_id,
+        hierarchy["wp"].work_package_id,
+        progress_percentage=Decimal("75.00"),
     )
 
     service = ProgressEntryService(db)

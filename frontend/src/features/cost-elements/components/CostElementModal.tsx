@@ -1,12 +1,11 @@
-import { useEffect, useMemo } from "react";
-import { Modal, Form, Input, Select, InputNumber } from "antd";
+import { useEffect } from "react";
+import { Modal, Form, Input, Select } from "antd";
 import type {
   CostElementRead,
   CostElementCreate,
   CostElementUpdate,
 } from "@/api/generated";
 import { useCostElementTypes } from "@/features/cost-elements/api/useCostElementTypes";
-import { getCurrencySymbol } from "@/utils/formatters";
 
 interface CostElementModalProps {
   open: boolean;
@@ -17,7 +16,6 @@ interface CostElementModalProps {
   currentBranch: string;
   workPackageId?: string;
   workPackageName?: string;
-  currency?: string;
 }
 
 export const CostElementModal = ({
@@ -29,22 +27,9 @@ export const CostElementModal = ({
   currentBranch,
   workPackageId,
   workPackageName,
-  currency = "EUR",
 }: CostElementModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
-  const currencySymbol = getCurrencySymbol(currency);
-
-  const currencyFormatValue = useMemo(
-    () => (value: string | number | undefined) =>
-      `${currencySymbol} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ","),
-    [currencySymbol],
-  );
-
-  const currencyParseRegex = useMemo(
-    () => new RegExp(`\\${currencySymbol}\\s?|(,*)`, "g"),
-    [currencySymbol],
-  );
 
   const { data: types = [], isLoading: loadingOpts } = useCostElementTypes();
 
@@ -53,7 +38,6 @@ export const CostElementModal = ({
       if (initialValues) {
         form.setFieldsValue({
           cost_element_type_id: initialValues.cost_element_type_id,
-          amount: initialValues.amount ? Number(initialValues.amount) : undefined,
           description: initialValues.description,
         });
       } else {
@@ -94,20 +78,6 @@ export const CostElementModal = ({
       width={600}
     >
       <Form form={form} layout="vertical" name="cost_element_form">
-        <Form.Item
-          name="amount"
-          label="Amount"
-          rules={[{ required: true, message: "Please enter amount" }]}
-        >
-          <InputNumber
-            style={{ width: "100%" }}
-            formatter={(value) => currencyFormatValue(value)}
-            parser={(value) =>
-              value?.replace(currencyParseRegex, "") as unknown as number
-            }
-          />
-        </Form.Item>
-
         <div
           style={{
             display: "grid",

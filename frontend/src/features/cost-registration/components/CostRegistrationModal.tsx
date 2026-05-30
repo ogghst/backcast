@@ -192,10 +192,7 @@ export const CostRegistrationModal = ({
       const costElementUsed = budgetStatus ? Number(budgetStatus.used) : 0;
 
       // Calculate effective used amount (subtract old amount if editing)
-      let effectiveCostElementUsed = costElementUsed;
-      if (isEdit && initialValues) {
-        effectiveCostElementUsed -= Number(initialValues.amount);
-      }
+      const effectiveCostElementUsed = costElementUsed;
 
       // Get project warning threshold (default to 85% if not configured)
       const warningThresholdPercent = projectBudgetSettings

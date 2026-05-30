@@ -439,9 +439,7 @@ class TestMergeBranchCommand:
     """Tests for MergeBranchCommand."""
 
     @pytest.mark.asyncio
-    async def test_merge_branch_to_main(
-        self, db: AsyncSession, actor_id: UUID
-    ) -> None:
+    async def test_merge_branch_to_main(self, db: AsyncSession, actor_id: UUID) -> None:
         project = await create_test_project(db, actor_id, name="Original")
         await db.commit()
 
@@ -590,9 +588,7 @@ class TestRevertCommand:
     """Tests for RevertCommand."""
 
     @pytest.mark.asyncio
-    async def test_revert_to_parent(
-        self, db: AsyncSession, actor_id: UUID
-    ) -> None:
+    async def test_revert_to_parent(self, db: AsyncSession, actor_id: UUID) -> None:
         project = await create_test_project(db, actor_id, name="V1")
         await db.commit()
 
@@ -691,9 +687,7 @@ class TestRevertCommand:
             await cmd.execute(db)
 
     @pytest.mark.asyncio
-    async def test_revert_on_co_branch(
-        self, db: AsyncSession, actor_id: UUID
-    ) -> None:
+    async def test_revert_on_co_branch(self, db: AsyncSession, actor_id: UUID) -> None:
         project = await create_test_project(db, actor_id, name="MainV")
         await db.commit()
 
@@ -740,9 +734,7 @@ class TestBranchableSoftDeleteCommand:
     """Tests for BranchableSoftDeleteCommand."""
 
     @pytest.mark.asyncio
-    async def test_soft_delete_on_main(
-        self, db: AsyncSession, actor_id: UUID
-    ) -> None:
+    async def test_soft_delete_on_main(self, db: AsyncSession, actor_id: UUID) -> None:
         project = await create_test_project(db, actor_id)
         await db.commit()
 
@@ -830,7 +822,10 @@ class TestBranchableServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_generates_root_id(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await project_service.create(
             actor_id=actor_id,
@@ -846,7 +841,10 @@ class TestBranchableServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_with_explicit_root_id(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         root = uuid4()
         project = await project_service.create(
@@ -863,7 +861,10 @@ class TestBranchableServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_root(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         root = uuid4()
         project = await project_service.create_root(
@@ -890,7 +891,10 @@ class TestBranchableServiceUpdate:
 
     @pytest.mark.asyncio
     async def test_update_via_service(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id, name="SvcUpdate")
         await db.commit()
@@ -916,7 +920,10 @@ class TestBranchableServiceCreateBranch:
 
     @pytest.mark.asyncio
     async def test_create_branch_via_service(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id)
         await db.commit()
@@ -943,7 +950,10 @@ class TestBranchableServiceMergeBranch:
 
     @pytest.mark.asyncio
     async def test_merge_branch_via_service(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id, name="MergeSvc")
         await db.commit()
@@ -986,7 +996,10 @@ class TestBranchableServiceRevert:
 
     @pytest.mark.asyncio
     async def test_revert_via_service(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id, name="RevV1")
         await db.commit()
@@ -1019,7 +1032,10 @@ class TestBranchableServiceSoftDelete:
 
     @pytest.mark.asyncio
     async def test_soft_delete_via_service(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id)
         await db.commit()
@@ -1044,7 +1060,10 @@ class TestBranchableServiceGetById:
 
     @pytest.mark.asyncio
     async def test_get_by_id_returns_entity(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id)
         await db.commit()
@@ -1055,7 +1074,10 @@ class TestBranchableServiceGetById:
 
     @pytest.mark.asyncio
     async def test_get_by_id_returns_none_for_missing(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         found = await project_service.get_by_id(uuid4())
         assert found is None
@@ -1071,7 +1093,10 @@ class TestBranchableServiceGetAsOf:
 
     @pytest.mark.asyncio
     async def test_get_as_of_current(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id, name="AsOfTest")
         await db.commit()
@@ -1082,14 +1107,20 @@ class TestBranchableServiceGetAsOf:
 
     @pytest.mark.asyncio
     async def test_get_as_of_returns_none_for_unknown(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         found = await project_service.get_as_of(uuid4())
         assert found is None
 
     @pytest.mark.asyncio
     async def test_get_as_of_with_as_of_timestamp(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id, name="TimeTravel")
         await db.commit()
@@ -1103,7 +1134,10 @@ class TestBranchableServiceGetAsOf:
 
     @pytest.mark.asyncio
     async def test_get_as_of_merged_mode(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """In MERGED mode, if entity doesn't exist on branch, fall back to main."""
         project = await create_test_project(db, actor_id, name="MergeLookup")
@@ -1119,7 +1153,10 @@ class TestBranchableServiceGetAsOf:
 
     @pytest.mark.asyncio
     async def test_get_as_of_merged_mode_respects_deletion(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """In MERGED mode, if entity was deleted on branch, don't fall back to main."""
         project = await create_test_project(db, actor_id, name="DelMerge")
@@ -1149,7 +1186,10 @@ class TestBranchableServiceGetAsOf:
 
     @pytest.mark.asyncio
     async def test_get_as_of_isolated_mode(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """In ISOLATED mode, only the exact branch is queried."""
         project = await create_test_project(db, actor_id)
@@ -1164,7 +1204,10 @@ class TestBranchableServiceGetAsOf:
 
     @pytest.mark.asyncio
     async def test_get_as_of_merged_mode_with_as_of(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """MERGED mode with time travel."""
         project = await create_test_project(db, actor_id, name="MergeAsOf")
@@ -1182,7 +1225,10 @@ class TestBranchableServiceGetAsOf:
 
     @pytest.mark.asyncio
     async def test_get_as_of_merged_mode_deleted_with_as_of(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """MERGED mode with as_of respects deletion timestamp."""
         project = await create_test_project(db, actor_id, name="DelAsOf")
@@ -1226,7 +1272,10 @@ class TestBranchableServiceGetHistory:
 
     @pytest.mark.asyncio
     async def test_get_history_returns_all_versions(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id, name="HistV1")
         await db.commit()
@@ -1256,7 +1305,10 @@ class TestBranchableServiceListBranches:
 
     @pytest.mark.asyncio
     async def test_list_branches_after_create(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id)
         await db.commit()
@@ -1266,7 +1318,10 @@ class TestBranchableServiceListBranches:
 
     @pytest.mark.asyncio
     async def test_list_branches_includes_co_branch(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id)
         await db.commit()
@@ -1284,7 +1339,10 @@ class TestBranchableServiceListBranches:
 
     @pytest.mark.asyncio
     async def test_list_branches_with_as_of(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id)
         await db.commit()
@@ -1304,7 +1362,10 @@ class TestBranchableServiceCompareBranches:
 
     @pytest.mark.asyncio
     async def test_compare_same_entity_different_branches(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id, name="CompareMain")
         await db.commit()
@@ -1333,7 +1394,10 @@ class TestBranchableServiceCompareBranches:
 
     @pytest.mark.asyncio
     async def test_compare_branches_with_as_of(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id, name="CompareAsOf")
         await db.commit()
@@ -1347,7 +1411,10 @@ class TestBranchableServiceCompareBranches:
 
     @pytest.mark.asyncio
     async def test_compare_branches_without_as_of(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         project = await create_test_project(db, actor_id)
         await db.commit()
@@ -1374,7 +1441,10 @@ class TestBranchableServiceDetectMergeConflicts:
 
     @pytest.mark.asyncio
     async def test_no_conflict_when_branch_not_modified(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """When source branch just clones from main without changes, no conflict."""
         project = await create_test_project(db, actor_id, name="NoConflict")
@@ -1394,7 +1464,10 @@ class TestBranchableServiceDetectMergeConflicts:
 
     @pytest.mark.asyncio
     async def test_no_conflict_when_target_not_modified(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """When only source branch modified and target unchanged, no conflict."""
         project = await create_test_project(db, actor_id, name="SrcOnly")
@@ -1428,7 +1501,10 @@ class TestBranchableServiceDetectMergeConflicts:
 
     @pytest.mark.asyncio
     async def test_no_source_entity_returns_empty(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """When entity doesn't exist on source branch, return empty."""
         project = await create_test_project(db, actor_id)
@@ -1441,7 +1517,10 @@ class TestBranchableServiceDetectMergeConflicts:
 
     @pytest.mark.asyncio
     async def test_no_target_entity_returns_empty(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """When entity's target (main) is deleted, get_as_of returns None, no conflicts."""
         project = await create_test_project(db, actor_id)
@@ -1480,7 +1559,10 @@ class TestBranchableServiceGetRecentlyUpdated:
 
     @pytest.mark.asyncio
     async def test_get_recently_updated_returns_entities(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         await create_test_project(db, actor_id, name="Recent1")
         await db.commit()
@@ -1490,7 +1572,10 @@ class TestBranchableServiceGetRecentlyUpdated:
 
     @pytest.mark.asyncio
     async def test_get_recently_updated_with_user_filter(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         await create_test_project(db, actor_id, name="UserRecent")
         await db.commit()
@@ -1500,7 +1585,10 @@ class TestBranchableServiceGetRecentlyUpdated:
 
     @pytest.mark.asyncio
     async def test_get_recently_updated_with_branch_filter(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         await create_test_project(db, actor_id, name="BranchRecent")
         await db.commit()
@@ -1510,11 +1598,12 @@ class TestBranchableServiceGetRecentlyUpdated:
 
     @pytest.mark.asyncio
     async def test_get_recently_updated_nonexistent_user(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
-        recent = await project_service.get_recently_updated(
-            user_id=uuid4(), limit=5
-        )
+        recent = await project_service.get_recently_updated(user_id=uuid4(), limit=5)
         assert len(recent) == 0
 
 
@@ -1528,7 +1617,10 @@ class TestBranchableServiceCheckBranchLock:
 
     @pytest.mark.asyncio
     async def test_main_branch_never_locked(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """Main branch should never be considered locked."""
         # Should not raise
@@ -1536,7 +1628,10 @@ class TestBranchableServiceCheckBranchLock:
 
     @pytest.mark.asyncio
     async def test_nonexistent_entity_skips_lock_check(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """If entity doesn't exist, lock check is skipped."""
         # Should not raise
@@ -1544,7 +1639,10 @@ class TestBranchableServiceCheckBranchLock:
 
     @pytest.mark.asyncio
     async def test_entity_without_project_id_skips_lock(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """If entity has no project_id, lock check is skipped."""
 
@@ -1571,9 +1669,7 @@ class TestBranchableServiceCheckBranchLock:
         await project_service._check_branch_lock(uuid4(), "main")
 
     @pytest.mark.asyncio
-    async def test_locked_branch_raises(
-        self, db: AsyncSession, actor_id: UUID
-    ) -> None:
+    async def test_locked_branch_raises(self, db: AsyncSession, actor_id: UUID) -> None:
         """When branch is locked, update should raise BranchLockedException."""
         project = await create_test_project(db, actor_id, name="LockTest")
         await db.commit()
@@ -1635,7 +1731,10 @@ class TestBranchableServiceCheckBranchLockForCreate:
 
     @pytest.mark.asyncio
     async def test_main_branch_skips_lock_check(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         await project_service._check_branch_lock_for_create(
             uuid4(), "main", {"project_id": uuid4()}
@@ -1643,11 +1742,12 @@ class TestBranchableServiceCheckBranchLockForCreate:
 
     @pytest.mark.asyncio
     async def test_no_project_id_skips_check(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
-        await project_service._check_branch_lock_for_create(
-            uuid4(), "BR-CREATE", {}
-        )
+        await project_service._check_branch_lock_for_create(uuid4(), "BR-CREATE", {})
 
     @pytest.mark.asyncio
     async def test_locked_branch_for_create_raises(
@@ -1686,7 +1786,10 @@ class TestBranchableServiceCheckBranchLockForCreate:
 
     @pytest.mark.asyncio
     async def test_nonexistent_branch_for_create_passes(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """Branch not in DB is allowed (caught NoResultFound)."""
         await project_service._check_branch_lock_for_create(
@@ -1721,9 +1824,7 @@ class TestBranchableServiceGetRootFieldName:
 class TestBranchableServiceApplyBranchModeFilter:
     """Tests for BranchableService._apply_branch_mode_filter."""
 
-    def test_isolated_mode_filters_to_branch(
-        self, db: AsyncSession
-    ) -> None:
+    def test_isolated_mode_filters_to_branch(self, db: AsyncSession) -> None:
         service = BranchableService(Project, db)
         stmt = select(Project)
         filtered = service._apply_branch_mode_filter(
@@ -1732,25 +1833,17 @@ class TestBranchableServiceApplyBranchModeFilter:
         # Verify the filter was applied (statement compiles)
         assert filtered is not None
 
-    def test_main_branch_uses_isolated(
-        self, db: AsyncSession
-    ) -> None:
+    def test_main_branch_uses_isolated(self, db: AsyncSession) -> None:
         service = BranchableService(Project, db)
         stmt = select(Project)
-        filtered = service._apply_branch_mode_filter(
-            stmt, "main", BranchMode.MERGED
-        )
+        filtered = service._apply_branch_mode_filter(stmt, "main", BranchMode.MERGED)
         # When branch is "main", MERGED should behave as ISOLATED
         assert filtered is not None
 
-    def test_merged_mode_applies_distinct(
-        self, db: AsyncSession
-    ) -> None:
+    def test_merged_mode_applies_distinct(self, db: AsyncSession) -> None:
         service = BranchableService(Project, db)
         stmt = select(Project)
-        filtered = service._apply_branch_mode_filter(
-            stmt, "BR-MRG", BranchMode.MERGED
-        )
+        filtered = service._apply_branch_mode_filter(stmt, "BR-MRG", BranchMode.MERGED)
         assert filtered is not None
 
 
@@ -1764,7 +1857,10 @@ class TestBranchingLifecycle:
 
     @pytest.mark.asyncio
     async def test_full_branch_lifecycle(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         # 1. Create
         project = await project_service.create_root(
@@ -1925,7 +2021,9 @@ class TestDetectMergeConflictsDeep:
     ) -> None:
         """When both branches modify the same entity differently, conflicts
         should be detected."""
-        project = await create_test_project(db, actor_id, name="BaseName", code="CNFLCT-1")
+        project = await create_test_project(
+            db, actor_id, name="BaseName", code="CNFLCT-1"
+        )
         await db.commit()
 
         service = BranchableService(Project, db)
@@ -2018,7 +2116,10 @@ class TestBranchableServiceEdgeCases:
 
     @pytest.mark.asyncio
     async def test_get_recently_updated_with_eager_load(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """Test eager_load_project flag in get_recently_updated."""
         await create_test_project(db, actor_id, name="EagerLoad")
@@ -2093,7 +2194,10 @@ class TestBranchableServiceEdgeCases:
 
     @pytest.mark.asyncio
     async def test_get_as_of_with_isolated_nonexistent_branch(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """ISOLATED mode on a nonexistent branch returns None."""
         project = await create_test_project(db, actor_id)
@@ -2108,7 +2212,10 @@ class TestBranchableServiceEdgeCases:
 
     @pytest.mark.asyncio
     async def test_get_as_of_merged_finds_branch_version(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """MERGED mode returns branch version when it exists."""
         project = await create_test_project(db, actor_id, name="MergeBranchVer")
@@ -2140,7 +2247,10 @@ class TestBranchableServiceEdgeCases:
 
     @pytest.mark.asyncio
     async def test_merge_via_service_with_control_date(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """Test merge_branch with explicit control_date."""
         project = await create_test_project(db, actor_id, name="MergeCD")
@@ -2166,7 +2276,10 @@ class TestBranchableServiceEdgeCases:
 
     @pytest.mark.asyncio
     async def test_revert_with_specific_version_id(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """Test revert with explicit to_version_id."""
         project = await create_test_project(db, actor_id, name="RevSpecV1")
@@ -2200,7 +2313,10 @@ class TestBranchableServiceEdgeCases:
 
     @pytest.mark.asyncio
     async def test_soft_delete_with_explicit_control_date(
-        self, db: AsyncSession, actor_id: UUID, project_service: BranchableService[Project]
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
     ) -> None:
         """Test soft_delete with explicit control_date."""
         project = await create_test_project(db, actor_id)
@@ -2307,7 +2423,9 @@ class TestDetectMergeConflictsAncestorWalk:
         """Force a real conflict by creating a deep enough chain that both
         branches diverge from a common ancestor with different field values.
         This exercises lines 784-841 (field comparison loop)."""
-        project = await create_test_project(db, actor_id, name="ConflictBase", code="CF-001")
+        project = await create_test_project(
+            db, actor_id, name="ConflictBase", code="CF-001"
+        )
         await db.commit()
 
         service = BranchableService(Project, db)
@@ -2469,14 +2587,13 @@ class TestCheckBranchLockEntityWithProjectId:
             # Return a mock object with project_id=None
             class MockEntity:
                 project_id = None  # type: ignore[assignment]
+
             return MockEntity()
 
         service.get_as_of = mock_get_as_of_no_proj  # type: ignore[assignment]
 
         # Should not raise (returns early because project_id is None at line 94)
-        await service._check_branch_lock(
-            uuid4(), "BR-NOPROJ", uuid4()
-        )
+        await service._check_branch_lock(uuid4(), "BR-NOPROJ", uuid4())
 
 
 class TestGetRecentlyUpdatedWithEagerLoad:
@@ -2494,9 +2611,7 @@ class TestGetRecentlyUpdatedWithEagerLoad:
         from app.models.domain.wbs_element import WBSElement
 
         service = BranchableService(WBSElement, db)
-        recent = await service.get_recently_updated(
-            limit=5, eager_load_project=True
-        )
+        recent = await service.get_recently_updated(limit=5, eager_load_project=True)
         assert isinstance(recent, list)
 
 
@@ -2546,8 +2661,6 @@ class TestUpdateCommandJSONBSerialization:
         assert updated.title == "Updated CO"
 
 
-
-
 # ===================================================================
 # Coverage gap closers
 # ===================================================================
@@ -2557,13 +2670,17 @@ class TestDetectMergeConflictsSourceNotFound:
     """Cover service.py line 728: source not found on branch."""
 
     @pytest.mark.asyncio
-    async def test_source_not_found_returns_empty(self, db: AsyncSession, actor_id: UUID) -> None:
+    async def test_source_not_found_returns_empty(
+        self, db: AsyncSession, actor_id: UUID
+    ) -> None:
         """_detect_merge_conflicts returns [] when source not found."""
         from unittest.mock import AsyncMock, patch
 
         service = BranchableService(db, Project)
 
-        with patch.object(service, "get_as_of", new_callable=AsyncMock, return_value=None):
+        with patch.object(
+            service, "get_as_of", new_callable=AsyncMock, return_value=None
+        ):
             result = await service._detect_merge_conflicts(
                 root_id=uuid4(), source_branch="co-1", target_branch="main"
             )
@@ -2690,7 +2807,9 @@ class TestBranchableServiceCreateVersionSuffix:
         from unittest.mock import AsyncMock, MagicMock, patch
 
         # Create a class alias with "Version" suffix
-        ProjectVersion = type("ProjectVersion", (Project,), {"__name__": "ProjectVersion"})
+        ProjectVersion = type(
+            "ProjectVersion", (Project,), {"__name__": "ProjectVersion"}
+        )
 
         service = BranchableService(ProjectVersion, db)
 
@@ -2701,9 +2820,7 @@ class TestBranchableServiceCreateVersionSuffix:
 
         mock_result = MagicMock()
 
-        with patch(
-            "app.core.branching.service.CreateVersionCommand"
-        ) as mock_cmd_cls:
+        with patch("app.core.branching.service.CreateVersionCommand") as mock_cmd_cls:
             mock_cmd = AsyncMock()
             mock_cmd.execute = AsyncMock(return_value=mock_result)
             mock_cmd_cls.return_value = mock_cmd

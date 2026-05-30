@@ -125,9 +125,7 @@ class TestTemporalConsistency:
             f"History failed: {history_resp.status_code} {history_resp.text}"
         )
         history = history_resp.json()
-        assert len(history) >= 2, (
-            f"Expected >= 2 history entries, got {len(history)}"
-        )
+        assert len(history) >= 2, f"Expected >= 2 history entries, got {len(history)}"
         names = {h["name"] for h in history}
         assert project.name in names, f"Original name not in history: {names}"
         assert updated_name in names, f"Updated name not in history: {names}"
@@ -436,8 +434,7 @@ class TestBranchModeResolution:
             f"GET on branch: {branch_resp.status_code} {branch_resp.text}"
         )
         assert branch_resp.json()["name"] == branch_updated_name, (
-            f"Branch: expected={branch_updated_name}, "
-            f"got={branch_resp.json()['name']}"
+            f"Branch: expected={branch_updated_name}, got={branch_resp.json()['name']}"
         )
 
         # History should contain both original and branch versions
@@ -780,8 +777,7 @@ class TestCrossEntityBranchConsistency:
             f"WBS GET on branch failed: {branch_resp.status_code}"
         )
         assert branch_resp.json()["name"] == branch_name_val, (
-            f"WBS branch: expected={branch_name_val}, "
-            f"got={branch_resp.json()['name']}"
+            f"WBS branch: expected={branch_name_val}, got={branch_resp.json()['name']}"
         )
 
         # GET WBS on main returns 404 because UpdateCommand closed the
@@ -869,8 +865,7 @@ class TestCrossEntityBranchConsistency:
         )
         # WBS-2 still on main, visible via merged fallback
         assert "WBS-2" in branch_names, (
-            f"Branch tree should contain 'WBS-2' (main fallback), "
-            f"got {branch_names}"
+            f"Branch tree should contain 'WBS-2' (main fallback), got {branch_names}"
         )
 
         # GET tree on main: WBS-1's main version was closed by the branch
@@ -989,9 +984,7 @@ class TestEdgeCasesAndRobustness:
             f"{PROJECT_PREFIX}/{project_id}",
             json={"name": name_1, "branch": branch_1},
         )
-        assert resp_1.status_code == 200, (
-            f"Update on branch 1 failed: {resp_1.text}"
-        )
+        assert resp_1.status_code == 200, f"Update on branch 1 failed: {resp_1.text}"
 
         # Update project on branch 2 -- fails because main version was
         # closed by branch 1's fork. The UpdateCommand falls back to main

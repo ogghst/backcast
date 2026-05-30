@@ -729,7 +729,6 @@ class CostEventService(TemporalService[CostEvent]):  # type: ignore[type-var,unu
                 CostRegistration.cost_element_id,
                 CostRegistration.amount,
                 CostRegistration.description,
-                CostElement.amount.label("cost_element_amount"),
             )
             .outerjoin(
                 CostElement,

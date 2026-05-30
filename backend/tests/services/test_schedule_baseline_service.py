@@ -308,9 +308,7 @@ async def test_create_schedule_baseline_from_schema(
 
 
 @pytest.mark.asyncio
-async def test_soft_delete_baseline(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_soft_delete_baseline(db: AsyncSession, actor_id: UUID) -> None:
     """soft_delete should mark the baseline as deleted."""
     hierarchy = await create_full_hierarchy(db, actor_id)
     baseline = await create_test_schedule_baseline(
@@ -354,7 +352,9 @@ async def test_get_baselines_for_work_packages_with_as_of(
         [wp.work_package_id], as_of=as_of
     )
     assert wp.work_package_id in result
-    assert result[wp.work_package_id].schedule_baseline_id == baseline.schedule_baseline_id
+    assert (
+        result[wp.work_package_id].schedule_baseline_id == baseline.schedule_baseline_id
+    )
 
 
 @pytest.mark.asyncio
@@ -442,9 +442,7 @@ def test_logarithmic_invalid_duration_raises() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_base_stmt_returns_select(
-    db: AsyncSession, actor_id: UUID
-) -> None:
+async def test_get_base_stmt_returns_select(db: AsyncSession, actor_id: UUID) -> None:
     """_get_base_stmt returns a select statement with WP name join."""
     service = ScheduleBaselineService(db)
     stmt = service._get_base_stmt()

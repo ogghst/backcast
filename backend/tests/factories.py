@@ -178,7 +178,7 @@ async def create_test_cost_element(
     defaults: dict[str, Any] = {
         "work_package_id": work_package_id,
         "cost_element_type_id": cost_element_type_id,
-        "amount": Decimal("25000"),
+        "description": "Test cost element",
     }
     defaults.update(kwargs)
 

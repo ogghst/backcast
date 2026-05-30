@@ -1,7 +1,6 @@
 """Pydantic schemas for Cost Element entity (EOC under Work Package)."""
 
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,9 +14,6 @@ class CostElementBase(BaseModel):
 
     cost_element_type_id: UUID = Field(
         ..., description="Reference to standardized cost type"
-    )
-    amount: Decimal = Field(
-        Decimal("0"), ge=0, decimal_places=2, description="Allocated amount"
     )
     description: str | None = None
 
@@ -40,7 +36,6 @@ class CostElementUpdate(BaseModel):
     """Schema for updating an existing Cost Element."""
 
     cost_element_type_id: UUID | None = None
-    amount: Decimal | None = Field(None, ge=0, decimal_places=2)
     description: str | None = None
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"

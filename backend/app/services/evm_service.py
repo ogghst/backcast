@@ -484,19 +484,17 @@ class EVMService:
         # Bulk fetch all related data in parallel
         forecast_branch = "main" if branch_mode == BranchMode.MERGED else branch
         async with DB_CONCURRENCY_SEMAPHORE:
-            baselines_map, ac_map, progress_map, forecasts_map = (
-                await asyncio.gather(
-                    self.sb_service.get_baselines_for_work_packages(
-                        valid_ids, branch, as_of=control_date
-                    ),
-                    self._get_ac_batch(valid_ids, control_date),
-                    self.pe_service.get_latest_progress_for_work_packages(
-                        valid_ids, as_of=control_date
-                    ),
-                    self.f_service.get_forecasts_for_work_packages(
-                        valid_ids, forecast_branch, as_of=control_date
-                    ),
-                )
+            baselines_map, ac_map, progress_map, forecasts_map = await asyncio.gather(
+                self.sb_service.get_baselines_for_work_packages(
+                    valid_ids, branch, as_of=control_date
+                ),
+                self._get_ac_batch(valid_ids, control_date),
+                self.pe_service.get_latest_progress_for_work_packages(
+                    valid_ids, as_of=control_date
+                ),
+                self.f_service.get_forecasts_for_work_packages(
+                    valid_ids, forecast_branch, as_of=control_date
+                ),
             )
 
         results = []

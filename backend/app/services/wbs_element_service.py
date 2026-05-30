@@ -398,7 +398,9 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
             return [], 0
 
         stmt = self._get_base_stmt()
-        stmt = self._apply_branch_mode_filter(stmt, branch=branch, branch_mode=branch_mode)
+        stmt = self._apply_branch_mode_filter(
+            stmt, branch=branch, branch_mode=branch_mode
+        )
         stmt = stmt.where(
             func.upper(cast(Any, WBSElement).valid_time).is_(None),
             cast(Any, WBSElement).deleted_at.is_(None),

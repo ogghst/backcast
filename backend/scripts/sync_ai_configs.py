@@ -3,6 +3,7 @@
 
 Run with: cd backend && uv run python scripts/sync_ai_configs.py
 """
+
 import asyncio
 import json
 import logging
@@ -199,9 +200,7 @@ async def sync_ai_admin_role(session: AsyncSession) -> None:
     missing = expected_perms - existing_perms
 
     for perm in sorted(missing):
-        session.add(
-            RBACRolePermission(id=uuid4(), role_id=role.id, permission=perm)
-        )
+        session.add(RBACRolePermission(id=uuid4(), role_id=role.id, permission=perm))
 
     if missing:
         changes.append(
@@ -237,9 +236,7 @@ async def sync_ai_viewer_permissions(session: AsyncSession) -> None:
     missing = expected_perms - existing_perms
 
     for perm in sorted(missing):
-        session.add(
-            RBACRolePermission(id=uuid4(), role_id=role.id, permission=perm)
-        )
+        session.add(RBACRolePermission(id=uuid4(), role_id=role.id, permission=perm))
 
     if missing:
         changes.append(
@@ -275,9 +272,7 @@ async def sync_ai_manager_permissions(session: AsyncSession) -> None:
     missing = expected_perms - existing_perms
 
     for perm in sorted(missing):
-        session.add(
-            RBACRolePermission(id=uuid4(), role_id=role.id, permission=perm)
-        )
+        session.add(RBACRolePermission(id=uuid4(), role_id=role.id, permission=perm))
 
     if missing:
         changes.append(
@@ -322,7 +317,9 @@ async def fix_user_admin_tools(session: AsyncSession) -> None:
 
     if has_changes:
         config.allowed_tools = updated_tools
-        changes.append("Fixed user_admin stale tool names (department -> organizational_unit)")
+        changes.append(
+            "Fixed user_admin stale tool names (department -> organizational_unit)"
+        )
         print("  [H] Fixed user_admin stale tool names")
     else:
         print("  [H] user_admin tools already correct (skip)")

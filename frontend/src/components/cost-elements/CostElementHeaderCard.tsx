@@ -20,7 +20,6 @@ export const CostElementHeaderCard = ({
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
-  const costBudget = Number(costElement.amount) || 0;
   const costActual = Number(actualCosts) || 0;
 
   const ringSize = isMobile ? 120 : 160;
@@ -81,7 +80,7 @@ export const CostElementHeaderCard = ({
       >
         <Col xs={24} sm={12} md={6}>
           <BudgetProgressRing
-            budget={costBudget}
+            budget={0}
             actual={costActual}
             size={ringSize}
           />

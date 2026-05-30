@@ -615,16 +615,16 @@ export const WorkPackageOverview = () => {
         onCancel={() => setCeModalOpen(false)}
         onOk={async (values) => {
           await createCostElement({
-            ...values,
+            cost_element_type_id: values.cost_element_type_id,
+            description: values.description,
             work_package_id: id!,
-          });
+          } as Parameters<typeof createCostElement>[0]);
         }}
         confirmLoading={false}
         initialValues={null}
         currentBranch="main"
         workPackageId={id}
         workPackageName={workPackage ? `${workPackage.code} - ${workPackage.name}` : undefined}
-        currency={currency}
       />
 
       <WorkPackageScheduleBaselineModal

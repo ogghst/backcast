@@ -5,7 +5,6 @@ filters, get_by_id, history retrieval, time-travel queries, and batch fetch.
 """
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -34,7 +33,6 @@ async def test_create_cost_element_via_service(
     data = CostElementCreate(
         work_package_id=h["wp"].work_package_id,
         cost_element_type_id=h["ce_type"].cost_element_type_id,
-        amount=Decimal("12000"),
         description="Test cost element",
     )
     ce = await service.create_cost_element(data, actor_id)
@@ -43,7 +41,6 @@ async def test_create_cost_element_via_service(
     assert ce.cost_element_id is not None
     assert ce.work_package_id == h["wp"].work_package_id
     assert ce.cost_element_type_id == h["ce_type"].cost_element_type_id
-    assert ce.amount == Decimal("12000")
     assert ce.description == "Test cost element"
 
 
@@ -58,7 +55,6 @@ async def test_create_cost_element_invalid_work_package_raises(
     data = CostElementCreate(
         work_package_id=uuid4(),
         cost_element_type_id=h["ce_type"].cost_element_type_id,
-        amount=Decimal("5000"),
     )
     with pytest.raises(ValueError, match="Work Package.*not found"):
         await service.create_cost_element(data, actor_id)
@@ -75,7 +71,6 @@ async def test_create_cost_element_invalid_type_raises(
     data = CostElementCreate(
         work_package_id=h["wp"].work_package_id,
         cost_element_type_id=uuid4(),
-        amount=Decimal("5000"),
     )
     with pytest.raises(ValueError, match="Cost Element Type.*not found"):
         await service.create_cost_element(data, actor_id)
@@ -85,18 +80,17 @@ async def test_create_cost_element_invalid_type_raises(
 async def test_update_cost_element(
     db: AsyncSession, actor_id: UUID, service: CostElementService
 ) -> None:
-    """update_cost_element creates a new version with updated amount."""
+    """update_cost_element creates a new version with updated description."""
     h = await create_full_hierarchy(db, actor_id)
     await db.commit()
 
     original_id = h["ce"].cost_element_id
 
-    data = CostElementUpdate(amount=Decimal("33000"), description="Updated EOC")
+    data = CostElementUpdate(description="Updated EOC")
     updated = await service.update_cost_element(original_id, data, actor_id)
     await db.flush()
 
     assert updated.cost_element_id == original_id
-    assert updated.amount == Decimal("33000")
     assert updated.description == "Updated EOC"
 
 
@@ -128,7 +122,6 @@ async def test_get_by_id(
     result = await service.get_by_id(h["ce"].cost_element_id)
     assert result is not None
     assert result.cost_element_id == h["ce"].cost_element_id
-    assert result.amount == Decimal("25000")
 
 
 @pytest.mark.asyncio
@@ -199,15 +192,14 @@ async def test_get_history(
     await db.commit()
 
     # Create a new version by updating
-    data = CostElementUpdate(amount=Decimal("30000"))
+    data = CostElementUpdate(description="Updated description")
     await service.update_cost_element(h["ce"].cost_element_id, data, actor_id)
     await db.commit()
 
     history = await service.get_history(h["ce"].cost_element_id)
     assert len(history) == 2
     # Most recent first
-    assert history[0].amount == Decimal("30000")
-    assert history[1].amount == Decimal("25000")
+    assert history[0].description == "Updated description"
 
 
 @pytest.mark.asyncio

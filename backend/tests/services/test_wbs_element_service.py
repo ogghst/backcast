@@ -433,9 +433,7 @@ async def test_create_wbe_revenue_allocation_exceeds_contract_raises(
     """create_wbe raises ValueError when revenue allocation exceeds contract value."""
     from decimal import Decimal
 
-    project = await create_test_project(
-        db, actor_id, contract_value=Decimal("100000")
-    )
+    project = await create_test_project(db, actor_id, contract_value=Decimal("100000"))
     await db.commit()
 
     service = WBSElementService(db)
@@ -462,7 +460,10 @@ async def test_update_wbe_reparenting_to_root_changes_level(
     project = await create_test_project(db, actor_id)
     parent = await create_test_wbs_element(db, actor_id, project.project_id, level=1)
     child = await create_test_wbs_element(
-        db, actor_id, project.project_id, level=2,
+        db,
+        actor_id,
+        project.project_id,
+        level=2,
         parent_wbs_element_id=parent.wbs_element_id,
     )
     await db.commit()
@@ -482,9 +483,7 @@ async def test_update_wbe_reparenting_to_root_changes_level(
 
 
 @pytest.mark.asyncio
-async def test_update_wbe_invalid_new_parent_raises(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_update_wbe_invalid_new_parent_raises(db: AsyncSession, actor_id) -> None:
     """update_wbe raises ValueError when reparenting to a non-existent parent."""
     project = await create_test_project(db, actor_id)
     wbs = await create_test_wbs_element(db, actor_id, project.project_id, level=1)
@@ -502,9 +501,7 @@ async def test_update_wbe_invalid_new_parent_raises(
 
 
 @pytest.mark.asyncio
-async def test_get_wbs_elements_with_filters(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_wbs_elements_with_filters(db: AsyncSession, actor_id) -> None:
     """get_wbs_elements applies filter_string to allowed fields."""
     project = await create_test_project(db, actor_id)
     await create_test_wbs_element(
@@ -526,9 +523,7 @@ async def test_get_wbs_elements_with_filters(
 
 
 @pytest.mark.asyncio
-async def test_get_wbs_elements_with_parent_filter(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_wbs_elements_with_parent_filter(db: AsyncSession, actor_id) -> None:
     """get_wbs_elements filters by parent_id when apply_parent_filter=True."""
     project = await create_test_project(db, actor_id)
     parent = await create_test_wbs_element(db, actor_id, project.project_id, level=1)
@@ -559,9 +554,7 @@ async def test_get_wbs_elements_with_parent_filter(
 
 
 @pytest.mark.asyncio
-async def test_get_wbs_elements_with_as_of(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_wbs_elements_with_as_of(db: AsyncSession, actor_id) -> None:
     """get_wbs_elements supports time-travel via as_of parameter."""
     from datetime import UTC, datetime, timedelta
 
@@ -743,9 +736,7 @@ async def test_validate_revenue_allocation_excludes_wbs_id(
     """_validate_revenue_allocation excludes specified WBS from sum."""
     from decimal import Decimal
 
-    project = await create_test_project(
-        db, actor_id, contract_value=Decimal("100000")
-    )
+    project = await create_test_project(db, actor_id, contract_value=Decimal("100000"))
     wbs = await create_test_wbs_element(
         db,
         actor_id,
@@ -769,9 +760,7 @@ async def test_validate_revenue_allocation_excludes_wbs_id(
 
 
 @pytest.mark.asyncio
-async def test_create_root_creates_initial_version(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_create_root_creates_initial_version(db: AsyncSession, actor_id) -> None:
     """create_root creates the initial WBS Element version."""
     from uuid import uuid4
 
@@ -831,9 +820,7 @@ async def test_resolve_parent_names_single_element_tuple(
 
 
 @pytest.mark.asyncio
-async def test_resolve_parent_names_empty_tuple(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_resolve_parent_names_empty_tuple(db: AsyncSession, actor_id) -> None:
     """_resolve_parent_names handles empty tuples (line 248-249)."""
     service = WBSElementService(db)
 
@@ -849,9 +836,7 @@ async def test_resolve_parent_names_empty_tuple(
 
 
 @pytest.mark.asyncio
-async def test_get_descendants_isolated_on_branch(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_descendants_isolated_on_branch(db: AsyncSession, actor_id) -> None:
     """_get_all_descendants with ISOLATED mode on branch returns descendants."""
     from app.core.branching.commands import CreateBranchCommand
     from app.core.versioning.enums import BranchMode
@@ -912,9 +897,7 @@ async def test_get_descendants_isolated_on_branch(
 
 
 @pytest.mark.asyncio
-async def test_get_breadcrumb_merged_mode_on_branch(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_breadcrumb_merged_mode_on_branch(db: AsyncSession, actor_id) -> None:
     """get_breadcrumb with MERGED mode resolves project from main branch."""
     from app.core.branching.commands import CreateBranchCommand
     from app.core.versioning.enums import BranchMode
@@ -955,9 +938,7 @@ async def test_get_breadcrumb_merged_mode_on_branch(
 
 
 @pytest.mark.asyncio
-async def test_get_breadcrumb_with_as_of(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_breadcrumb_with_as_of(db: AsyncSession, actor_id) -> None:
     """get_breadcrumb supports as_of time-travel query."""
     from datetime import UTC, datetime, timedelta
 
@@ -992,9 +973,7 @@ async def test_get_breadcrumb_with_as_of(
 
 
 @pytest.mark.asyncio
-async def test_get_breadcrumb_merged_with_as_of(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_breadcrumb_merged_with_as_of(db: AsyncSession, actor_id) -> None:
     """get_breadcrumb with MERGED mode and as_of resolves project from main."""
     from datetime import UTC, datetime, timedelta
 
@@ -1037,9 +1016,7 @@ async def test_get_breadcrumb_merged_with_as_of(
 
 
 @pytest.mark.asyncio
-async def test_get_wbs_elements_desc_sort(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_wbs_elements_desc_sort(db: AsyncSession, actor_id) -> None:
     """get_wbs_elements supports desc sort order."""
     project = await create_test_project(db, actor_id)
     await create_test_wbs_element(
@@ -1064,9 +1041,7 @@ async def test_get_wbs_elements_desc_sort(
 
 
 @pytest.mark.asyncio
-async def test_create_wbe_parent_fallback_to_main(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_create_wbe_parent_fallback_to_main(db: AsyncSession, actor_id) -> None:
     """create_wbe falls back to main branch when parent not on current branch."""
 
     project = await create_test_project(db, actor_id)
@@ -1236,9 +1211,7 @@ async def test_get_breadcrumb_merged_ancestor_from_main(
 
 
 @pytest.mark.asyncio
-async def test_get_by_parent_merged_mode(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_by_parent_merged_mode(db: AsyncSession, actor_id) -> None:
     """get_by_parent with MERGED mode returns children from branch and main."""
     from app.core.branching.commands import CreateBranchCommand
     from app.core.versioning.enums import BranchMode
@@ -1290,9 +1263,7 @@ async def test_get_by_parent_merged_mode(
 
 
 @pytest.mark.asyncio
-async def test_get_wbs_elements_merged_mode(
-    db: AsyncSession, actor_id
-) -> None:
+async def test_get_wbs_elements_merged_mode(db: AsyncSession, actor_id) -> None:
     """get_wbs_elements with MERGED mode merges branch and main results."""
     from app.core.branching.commands import CreateBranchCommand
     from app.core.versioning.enums import BranchMode

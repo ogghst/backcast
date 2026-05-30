@@ -22,8 +22,7 @@ import isBetween from "dayjs/plugin/isBetween";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useCostElement } from "@/features/cost-elements/api/useCostElements";
-import { formatCurrency } from "@/utils/formatters";
-import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+
 
 dayjs.extend(isBetween);
 dayjs.extend(relativeTime);
@@ -39,9 +38,7 @@ interface ForecastHistoryViewProps {
 export const ForecastHistoryView = ({
   costElementId,
   currentBranch = "main",
-  projectId,
 }: ForecastHistoryViewProps) => {
-  const currency = useProjectCurrency(projectId);
   const { asOf } = useTimeMachineParams();
   const [selectedBranch, setSelectedBranch] = useState<string>(currentBranch);
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
@@ -164,15 +161,7 @@ export const ForecastHistoryView = ({
                   }}
                 >
                   <Row gutter={[16, 8]}>
-                    <Col span={8}>
-                      <div style={{ fontSize: "12px", color: "#999" }}>
-                        Amount
-                      </div>
-                      <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-                        {formatCurrency(costElement.amount, currency)}
-                      </div>
-                    </Col>
-                    <Col span={8}>
+                    <Col span={12}>
                       <div style={{ fontSize: "12px", color: "#999" }}>
                         Type
                       </div>
@@ -180,7 +169,7 @@ export const ForecastHistoryView = ({
                         {costElement.cost_element_type_name || "-"}
                       </div>
                     </Col>
-                    <Col span={8}>
+                    <Col span={12}>
                       <div style={{ fontSize: "12px", color: "#999" }}>
                         Work Package
                       </div>

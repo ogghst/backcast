@@ -714,7 +714,9 @@ async def test_update_cost_registration_no_amount(
     await db.commit()
 
     data = CostRegistrationUpdate(description="Updated description only")
-    updated = await service.update_cost_registration(cr.cost_registration_id, data, actor_id)
+    updated = await service.update_cost_registration(
+        cr.cost_registration_id, data, actor_id
+    )
     await db.flush()
 
     assert updated.description == "Updated description only"
@@ -884,7 +886,10 @@ async def test_get_costs_by_period_with_as_of(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("500"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("500"),
         registration_date=now,
     )
     await db.commit()
@@ -911,7 +916,10 @@ async def test_get_cumulative_costs_with_as_of(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("1500"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("1500"),
         registration_date=now - timedelta(days=2),
     )
     await db.commit()
@@ -943,11 +951,17 @@ async def test_get_cumulative_costs_batch(
     )
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("1000"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("1000"),
         registration_date=now - timedelta(days=2),
     )
     await create_test_cost_registration(
-        db, actor_id, ce2.cost_element_id, amount=Decimal("2000"),
+        db,
+        actor_id,
+        ce2.cost_element_id,
+        amount=Decimal("2000"),
         registration_date=now - timedelta(days=1),
     )
     await db.commit()
@@ -987,7 +1001,10 @@ async def test_get_costs_by_period_for_ces(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("3000"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("3000"),
         registration_date=now,
     )
     await db.commit()
@@ -1025,7 +1042,9 @@ async def test_resolve_cost_element_ids_wbs_element(
     h = await create_full_hierarchy(db, actor_id)
     await db.commit()
 
-    result = await service._resolve_cost_element_ids("wbs_element", h["wbs"].wbs_element_id)
+    result = await service._resolve_cost_element_ids(
+        "wbs_element", h["wbs"].wbs_element_id
+    )
     assert len(result) >= 1
     assert h["ce"].cost_element_id in result
 
@@ -1065,7 +1084,10 @@ async def test_get_aggregated_costs_by_entity_cost_element(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("4000"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("4000"),
         registration_date=now,
     )
     await db.commit()
@@ -1088,7 +1110,10 @@ async def test_get_aggregated_costs_by_entity_project(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("2500"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("2500"),
         registration_date=now,
     )
     await db.commit()
@@ -1135,11 +1160,17 @@ async def test_get_cumulative_costs_by_entity_cost_element(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("1000"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("1000"),
         registration_date=now - timedelta(days=2),
     )
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("2000"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("2000"),
         registration_date=now - timedelta(days=1),
     )
     await db.commit()
@@ -1162,7 +1193,10 @@ async def test_get_cumulative_costs_by_entity_project(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("1500"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("1500"),
         registration_date=now - timedelta(days=1),
     )
     await db.commit()
@@ -1443,7 +1477,10 @@ async def test_get_costs_by_period_for_ces_as_of(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("4000"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("4000"),
         registration_date=now,
     )
     await db.commit()
@@ -1470,7 +1507,10 @@ async def test_get_cumulative_costs_by_entity_wbs_element(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("2000"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("2000"),
         registration_date=now - timedelta(days=1),
     )
     await db.commit()
@@ -1497,7 +1537,10 @@ async def test_get_aggregated_costs_by_entity_wbs_element(
     h = await create_full_hierarchy(db, actor_id)
     now = datetime.now(UTC)
     await create_test_cost_registration(
-        db, actor_id, h["ce"].cost_element_id, amount=Decimal("3500"),
+        db,
+        actor_id,
+        h["ce"].cost_element_id,
+        amount=Decimal("3500"),
         registration_date=now,
     )
     await db.commit()

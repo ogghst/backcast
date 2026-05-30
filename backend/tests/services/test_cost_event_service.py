@@ -476,9 +476,7 @@ async def test_get_cost_events_filter_by_wbs_element(
     )
     await db.commit()
 
-    items, total = await service.get_cost_events(
-        wbs_element_id=h["wbs"].wbs_element_id
-    )
+    items, total = await service.get_cost_events(wbs_element_id=h["wbs"].wbs_element_id)
     assert total >= 1
 
     items2, total2 = await service.get_cost_events(wbs_element_id=uuid4())
@@ -492,7 +490,11 @@ async def test_get_cost_events_filter_by_status(
     """get_cost_events filters by status."""
     h = await create_full_hierarchy(db, actor_id)
     await create_test_cost_event(
-        db, actor_id, h["project"].project_id, h["cet"].cost_event_type_id, status="open"
+        db,
+        actor_id,
+        h["project"].project_id,
+        h["cet"].cost_event_type_id,
+        status="open",
     )
     await db.commit()
 
@@ -555,9 +557,7 @@ async def test_get_coq_trend_with_as_of_cap(
 
     # Use a past as_of that should cap the range
     as_of = datetime.now(UTC) - timedelta(days=100)
-    trend = await service.get_coq_trend(
-        data["project"].project_id, as_of=as_of
-    )
+    trend = await service.get_coq_trend(data["project"].project_id, as_of=as_of)
     # The trend should still return a valid response
     assert trend is not None
 
@@ -593,9 +593,7 @@ async def test_coq_ratio_none_when_no_budget(
     h = await create_full_hierarchy(db, actor_id, budget_amount=Decimal("0"))
     await db.commit()
 
-    ratio = await service._compute_coq_ratio(
-        h["project"].project_id, Decimal("1000")
-    )
+    ratio = await service._compute_coq_ratio(h["project"].project_id, Decimal("1000"))
     assert ratio is None
 
 
