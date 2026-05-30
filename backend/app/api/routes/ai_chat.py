@@ -614,6 +614,13 @@ async def chat_stream(
             await websocket.close(code=1008, reason="User not found")
             return
 
+        if not user.is_active:
+            logger.warning(
+                f"WebSocket connection rejected: user {user_id} is deactivated"
+            )
+            await websocket.close(code=1008, reason="User account is deactivated")
+            return
+
         user_id = user.user_id
 
         # Step 2: Check RBAC permission

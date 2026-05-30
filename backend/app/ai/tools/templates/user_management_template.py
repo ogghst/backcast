@@ -33,6 +33,7 @@ from langchain_core.tools import InjectedToolArg
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
+from app.api.dependencies.auth import invalidate_user_active_cache
 from app.models.schemas.organizational_unit import (
     OrganizationalUnitCreate,
     OrganizationalUnitUpdate,
@@ -328,6 +329,8 @@ async def update_user(
             actor_id=UUID(context.user_id),
         )
 
+        invalidate_user_active_cache(UUID(user_id))
+
         # Convert to AI-friendly format
         role = await _resolve_user_role(context.session, user.user_id)
         return {
@@ -388,6 +391,8 @@ async def delete_user(
             user_id=UUID(user_id),
             actor_id=UUID(context.user_id),
         )
+
+        invalidate_user_active_cache(UUID(user_id))
 
         return {
             "id": user_id,
