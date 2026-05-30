@@ -219,6 +219,36 @@ export const ChatInterface = ({
   );
   const deleteSession = useDeleteSession();
 
+  // Auto-select session with active execution on mount (session recovery after page reload).
+  // When the browser kills the tab and the user reopens the chat, currentSessionId is
+  // undefined. If any session has a running/awaiting_approval execution, auto-select it
+  // so the WebSocket resubscribes and the user lands back in their active conversation.
+  const hasAutoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoSelectedRef.current) return;
+    if (currentSessionId) {
+      hasAutoSelectedRef.current = true;
+      return;
+    }
+    const sessionList = paginatedData?.sessions;
+    if (!sessionList || sessionList.length === 0) return;
+
+    const sessionWithActiveExec = sessionList.find(
+      (s) =>
+        s.active_execution &&
+        (s.active_execution.status === "running" ||
+          s.active_execution.status === "awaiting_approval")
+    );
+
+    if (sessionWithActiveExec) {
+      hasAutoSelectedRef.current = true;
+      // Defer setState to avoid synchronous setState-in-effect lint violation
+      requestAnimationFrame(() => {
+        setCurrentSessionId(sessionWithActiveExec.id);
+      });
+    }
+  }, [paginatedData, currentSessionId]);
+
   // Find current session to get its assistant ID
   const currentSession = sessions?.find((s) => s.id === currentSessionId);
   const prevSessionIdRef = useRef<string | undefined>(currentSession?.id);

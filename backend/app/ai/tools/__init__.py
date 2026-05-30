@@ -289,6 +289,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         work_package_template.update_work_package,
         work_package_template.delete_work_package,
         work_package_template.get_work_package_budget_status,
+        work_package_template.batch_get_work_package_budget_status,
     ]
     tools.extend(work_package_tools)
 

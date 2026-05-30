@@ -509,6 +509,106 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
             "percentage": percentage,
         }
 
+    async def get_budget_status_batch(
+        self,
+        work_package_ids: list[UUID],
+        as_of: datetime | None = None,
+        branch: str = "main",
+    ) -> dict[UUID, dict[str, Any]]:
+        """Bulk budget status for multiple work packages in 2 queries.
+
+        Collapses N parallel single-item calls (each doing 2 DB queries) into
+        1 call doing 2 DB queries total.
+
+        Args:
+            work_package_ids: List of Work Package root IDs.
+            as_of: Optional timestamp for time-travel.
+            branch: Branch name (falls back to 'main' if not found).
+
+        Returns:
+            Dictionary mapping work_package_id to budget status dict.
+        """
+        if not work_package_ids:
+            return {}
+
+        # Query 1: Fetch all WP budgets in one round-trip
+        wp_map: dict[UUID, WorkPackage] = {}
+        stmt = select(WorkPackage).where(
+            WorkPackage.work_package_id.in_(work_package_ids),
+            WorkPackage.branch == branch,
+            func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+            cast(Any, WorkPackage).deleted_at.is_(None),
+        )
+        result = await self.session.execute(stmt)
+        for wp in result.scalars():
+            wp_map[wp.work_package_id] = wp
+
+        # Branch fallback for missing IDs
+        missing = set(work_package_ids) - set(wp_map.keys())
+        if missing and branch != "main":
+            stmt_main = select(WorkPackage).where(
+                WorkPackage.work_package_id.in_(missing),
+                WorkPackage.branch == "main",
+                func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                cast(Any, WorkPackage).deleted_at.is_(None),
+            )
+            result_main = await self.session.execute(stmt_main)
+            for wp in result_main.scalars():
+                wp_map[wp.work_package_id] = wp
+
+        # Query 2: Aggregate ALL cost registrations for ALL WPs via JOIN
+        used_stmt = (
+            select(
+                CostElement.work_package_id,
+                func.sum(CostRegistration.amount).label("total_used"),
+            )
+            .join(
+                CostRegistration,
+                CostRegistration.cost_element_id == CostElement.cost_element_id,
+            )
+            .where(
+                CostElement.work_package_id.in_(work_package_ids),
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+
+        if as_of is not None:
+            used_stmt = self._apply_bitemporal_filter(used_stmt, as_of)
+        else:
+            used_stmt = used_stmt.where(
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+            )
+
+        used_stmt = used_stmt.group_by(CostElement.work_package_id)
+        used_result = await self.session.execute(used_stmt)
+        used_map: dict[UUID, Decimal] = {
+            row.work_package_id: Decimal(str(row.total_used or 0))
+            for row in used_result.all()
+        }
+
+        # Assemble results
+        results: dict[UUID, dict[str, Any]] = {}
+        for wp_id in work_package_ids:
+            wp_obj = wp_map.get(wp_id)
+            if wp_obj is None:
+                continue
+            budget = wp_obj.budget_amount
+            used = used_map.get(wp_id, Decimal("0"))
+            remaining = budget - used
+            percentage = (
+                (used / budget * Decimal("100")) if budget > 0 else Decimal("0")
+            )
+            results[wp_id] = {
+                "work_package_id": wp_id,
+                "budget": budget,
+                "used": used,
+                "remaining": remaining,
+                "percentage": percentage,
+            }
+        return results
+
     async def get_as_of_batch(
         self,
         entity_ids: list[UUID],

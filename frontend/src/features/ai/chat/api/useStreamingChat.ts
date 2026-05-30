@@ -640,12 +640,34 @@ export const useStreamingChat = (
         // Clear execution tracking — the execution has errored
         activeExecutionIdRef.current = null;
         lastSequenceRef.current = 0;
+
         // Handle permission denied errors (403) with user-friendly message
         if (isPermissionDeniedMessage(serverMessage)) {
           const permissionMsg = formatPermissionDeniedError(serverMessage);
           callbacks.onError(permissionMsg);
           setError(new Error(permissionMsg));
           setConnectionState(WSConnectionState.ERROR);
+          return;
+        }
+
+        // Handle "execution not found or already completed" (404) as a soft
+        // completion. This occurs when the user reconnects after a page reload
+        // and the execution finished while they were disconnected. Rather than
+        // showing an error, invalidate caches so the final result is fetched,
+        // and clear the active execution tracking silently.
+        if (serverMessage.code === 404) {
+          console.info(
+            "Execution already completed (WS 404). Invalidating cache to fetch final result."
+          );
+          // Mark as recently completed to keep the connection alive for follow-up messages
+          recentlyCompletedRef.current = true;
+          if (recentlyCompletedTimeoutRef.current !== null) {
+            window.clearTimeout(recentlyCompletedTimeoutRef.current);
+          }
+          recentlyCompletedTimeoutRef.current = window.setTimeout(() => {
+            recentlyCompletedRef.current = false;
+            recentlyCompletedTimeoutRef.current = null;
+          }, 5000);
           return;
         }
 

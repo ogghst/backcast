@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, Numeric, String, Text
+from sqlalchemy import DateTime, Index, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -48,6 +48,23 @@ class CostRegistration(EntityBase, VersionableMixin):
     """
 
     __tablename__ = "cost_registrations"
+    __table_args__ = (
+        # Partial composite index for current-version budget aggregation queries
+        # Covers: WHERE cost_element_id = X AND upper(valid_time) IS NULL AND deleted_at IS NULL
+        Index(
+            "ix_cr_cost_element_id_current",
+            "cost_element_id",
+            "registration_date",
+            postgresql_where=text("upper(valid_time) IS NULL AND deleted_at IS NULL"),
+        ),
+        # Partial index for cost_registration_id current-version lookups
+        # Covers: get_by_id, soft_delete, update -- find current version by root ID
+        Index(
+            "ix_cr_cost_registration_id_current",
+            "cost_registration_id",
+            postgresql_where=text("upper(valid_time) IS NULL AND deleted_at IS NULL"),
+        ),
+    )
 
     # Root ID (stable identity across versions)
     cost_registration_id: Mapped[UUID] = mapped_column(

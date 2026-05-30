@@ -40,6 +40,8 @@ from app.models.schemas.work_package import WorkPackageCreate, WorkPackageUpdate
 
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE_LIMIT = 50
+
 # =============================================================================
 # WORK PACKAGE CRUD TOOLS
 # =============================================================================
@@ -521,5 +523,98 @@ async def get_work_package_budget_status(
         return add_temporal_metadata(error_result, context)
     except Exception as e:
         logger.error(f"Error in get_work_package_budget_status: {e}")
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
+
+
+@ai_tool(
+    name="batch_get_work_package_budget_status",
+    description="Get budget status (budget vs actual) for multiple work packages at once. "
+    "Returns budget, used, remaining, and percentage for each. "
+    "Use this instead of calling get_work_package_budget_status repeatedly.",
+    permissions=["work-package-read"],
+    category="work-packages",
+    risk_level=RiskLevel.LOW,
+)
+async def batch_get_work_package_budget_status(
+    work_package_ids: list[str],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Get budget status for multiple Work Packages in a single call.
+
+    Compares budget_amount against actual costs from Cost Registrations
+    through Cost Elements (EOC) for each Work Package. This is far more
+    efficient than calling get_work_package_budget_status N times.
+
+    Args:
+        work_package_ids: List of UUID strings for the work packages
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with results list, total count, and message.
+
+    Raises:
+        ValueError: If any work_package_id is not a valid UUID format
+    """
+    log_temporal_context("batch_get_work_package_budget_status", context)
+
+    try:
+        from app.services.work_package_service import WorkPackageService
+
+        if not work_package_ids:
+            return add_temporal_metadata(
+                {"error": "No work_package_ids provided"}, context
+            )
+
+        if len(work_package_ids) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {
+                    "error": f"Batch size ({len(work_package_ids)}) exceeds maximum "
+                    f"of {BATCH_SIZE_LIMIT}"
+                },
+                context,
+            )
+
+        service = WorkPackageService(context.session)
+        branch = context.branch_name or "main"
+
+        parsed_ids = [UUID(wpid) for wpid in work_package_ids]
+
+        batch_results = await service.get_budget_status_batch(
+            work_package_ids=parsed_ids,
+            as_of=context.as_of,
+            branch=branch,
+        )
+
+        results: list[dict[str, Any]] = []
+        for wp_id in parsed_ids:
+            status = batch_results.get(wp_id)
+            if status is not None:
+                results.append(
+                    {
+                        "work_package_id": str(status["work_package_id"]),
+                        "budget": float(status["budget"]),
+                        "used": float(status["used"]),
+                        "remaining": float(status["remaining"]),
+                        "percentage": float(status["percentage"]),
+                    }
+                )
+
+        not_found_count = len(parsed_ids) - len(results)
+        message = f"Retrieved budget status for {len(results)} work packages"
+        if not_found_count > 0:
+            message += f" ({not_found_count} not found)"
+
+        result: dict[str, Any] = {
+            "results": results,
+            "total": len(results),
+            "message": message,
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except Exception as e:
+        logger.error(f"Error in batch_get_work_package_budget_status: {e}")
         error_result = {"error": str(e)}
         return add_temporal_metadata(error_result, context)
