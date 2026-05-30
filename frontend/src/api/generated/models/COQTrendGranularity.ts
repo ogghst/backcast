@@ -5,7 +5,4 @@
 /**
  * Time granularity for COQ trend aggregation.
  */
-export enum COQTrendGranularity {
-    WEEK = 'week',
-    MONTH = 'month',
-}
+export type COQTrendGranularity = 'week' | 'month';

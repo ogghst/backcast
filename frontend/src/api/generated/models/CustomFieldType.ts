@@ -5,9 +5,4 @@
 /**
  * Supported custom field types.
  */
-export enum CustomFieldType {
-    TEXT = 'text',
-    NUMBER = 'number',
-    DATE = 'date',
-    SELECT = 'select',
-}
+export type CustomFieldType = 'text' | 'number' | 'date' | 'select';

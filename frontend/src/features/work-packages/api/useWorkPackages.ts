@@ -288,7 +288,7 @@ export interface WorkPackageBreadcrumb {
 }
 
 export const useWorkPackageBreadcrumb = (workPackageId: string | undefined) => {
-  return useQuery({
+  return useQuery<WorkPackageBreadcrumb>({
     queryKey: queryKeys.workPackages.breadcrumb(workPackageId!),
     queryFn: async () => {
       return await __request(OpenAPI, {

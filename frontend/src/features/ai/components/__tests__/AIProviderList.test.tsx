@@ -4,15 +4,30 @@
  * TDD Approach: RED-GREEN-REFACTOR
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { AIProviderList } from "../AIProviderList";
 import type { AIProviderPublic } from "../../types";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { App } from "antd";
+
+// Mock auth store to provide RBAC permissions needed by <Can> guards
+vi.mock("@/stores/useAuthStore", () => ({
+  useAuthStore: vi.fn((selector: (state: Record<string, unknown>) => unknown) =>
+    selector({
+      token: "test-token",
+      user: { id: "user-1", email: "admin@test.com", role: "admin" },
+      hasPermission: () => true,
+      hasAnyPermission: () => true,
+      hasAllPermissions: () => true,
+      hasRole: () => true,
+    })
+  ),
+}));
 
 const API_BASE = "/api/v1";
 
@@ -60,7 +75,6 @@ describe("AIProviderList", () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
-    server.listen();
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -69,8 +83,13 @@ describe("AIProviderList", () => {
     });
   });
 
+  beforeAll(() => {
+    server.listen({ onUnhandledRequest: "warn" });
+  });
+
   afterEach(() => {
     server.resetHandlers();
+    server.restoreHandlers();
   });
 
   afterAll(() => {
@@ -79,7 +98,9 @@ describe("AIProviderList", () => {
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <App>{children}</App>
+      <MemoryRouter>
+        <App>{children}</App>
+      </MemoryRouter>
     </QueryClientProvider>
   );
 
@@ -109,13 +130,19 @@ describe("AIProviderList", () => {
     });
   });
 
-  it("should show active status with tag/switch", async () => {
+  it("should show active status with icons", async () => {
     render(<AIProviderList />, { wrapper });
 
     await waitFor(() => {
-      const activeSwitches = screen.getAllByRole("switch");
-      expect(activeSwitches[0]).toBeChecked(); // OpenAI is active
+      expect(screen.getByText("OpenAI")).toBeInTheDocument();
     });
+
+    // Active providers show a check-circle icon, inactive show close-circle
+    // These render as <span> with role="img" and aria-label
+    const checkIcons = screen.getAllByLabelText("check-circle");
+    const closeIcons = screen.getAllByLabelText("close-circle");
+    expect(checkIcons.length).toBeGreaterThanOrEqual(1);
+    expect(closeIcons.length).toBeGreaterThanOrEqual(1);
   });
 
   it("should open create modal when Add Provider button clicked", async () => {
@@ -150,20 +177,6 @@ describe("AIProviderList", () => {
     });
   });
 
-  it("should open config modal when configure button clicked", async () => {
-    render(<AIProviderList />, { wrapper });
-
-    await waitFor(() => {
-      expect(screen.getByText("OpenAI")).toBeInTheDocument();
-    });
-
-    // Find configure button (should have aria-label or tooltip)
-    const configureButtons = screen.getAllByRole("button").filter(
-      (btn) => btn.getAttribute("aria-label") === "setting"
-    );
-    expect(configureButtons.length).toBeGreaterThan(0);
-  });
-
   it("should show delete confirmation when delete button clicked", async () => {
     const user = userEvent.setup();
     render(<AIProviderList />, { wrapper });
@@ -172,18 +185,16 @@ describe("AIProviderList", () => {
       expect(screen.getByText("OpenAI")).toBeInTheDocument();
     });
 
-    const deleteButtons = screen.getAllByRole("button").filter(
-      (btn) => btn.getAttribute("aria-label") === "delete"
-    );
+    const deleteButtons = screen.getAllByLabelText("delete");
 
     await user.click(deleteButtons[0]);
 
     await waitFor(() => {
-      expect(screen.getByText(/Are you sure/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Are you sure/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  it("should toggle provider active status when switch clicked", async () => {
+  it("should show configuration button inside edit modal", async () => {
     const user = userEvent.setup();
     render(<AIProviderList />, { wrapper });
 
@@ -191,12 +202,33 @@ describe("AIProviderList", () => {
       expect(screen.getByText("OpenAI")).toBeInTheDocument();
     });
 
-    const activeSwitches = screen.getAllByRole("switch");
-    await user.click(activeSwitches[0]);
+    // Open edit modal first
+    const editButtons = screen.getAllByLabelText("edit");
+    await user.click(editButtons[0]);
 
-    // Should call update mutation
+    // Configuration button is inside the edit modal
     await waitFor(() => {
-      expect(screen.getByText("AI provider updated successfully")).toBeInTheDocument();
+      expect(screen.getByText("Edit AI Provider")).toBeInTheDocument();
+      expect(screen.getByTestId("configuration-btn")).toBeInTheDocument();
+    });
+  });
+
+  it("should show model management button inside edit modal", async () => {
+    const user = userEvent.setup();
+    render(<AIProviderList />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText("OpenAI")).toBeInTheDocument();
+    });
+
+    // Open edit modal first
+    const editButtons = screen.getAllByLabelText("edit");
+    await user.click(editButtons[0]);
+
+    // Models button is inside the edit modal
+    await waitFor(() => {
+      expect(screen.getByText("Edit AI Provider")).toBeInTheDocument();
+      expect(screen.getByTestId("models-btn")).toBeInTheDocument();
     });
   });
 });

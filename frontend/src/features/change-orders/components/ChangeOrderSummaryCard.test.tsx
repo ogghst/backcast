@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ChangeOrderSummaryCard } from "./ChangeOrderSummaryCard";
 import type { ChangeOrderPublic } from "@/api/generated";
-import { ChangeOrderStatus } from "@/api/generated";
 import { useWorkflowInfo } from "../hooks/useWorkflowInfo";
 
 // Mock the workflow info hook
@@ -19,7 +18,7 @@ const mockChangeOrder: ChangeOrderPublic = {
   change_order_id: "BR-123",
   code: "CO-2026-001",
   title: "Test Change Order",
-  status: ChangeOrderStatus.DRAFT,
+  status: "draft",
   description: "Test description",
   justification: "Test justification",
   effective_date: "2026-01-15",
@@ -46,7 +45,8 @@ describe("ChangeOrderSummaryCard", () => {
     expect(screen.getByText("CO-2026-001")).toBeInTheDocument();
     expect(screen.getByText("Test Change Order")).toBeInTheDocument();
     expect(screen.getByText("draft")).toBeInTheDocument();
-    expect(screen.getByText("2026-01-15")).toBeInTheDocument();
+    // formatDate with style:"short" produces locale-dependent short date
+    expect(screen.getByText(/1\/15\/26/)).toBeInTheDocument();
     expect(screen.getByText("Test description")).toBeInTheDocument();
   });
 
@@ -73,7 +73,7 @@ describe("ChangeOrderSummaryCard", () => {
 
     render(
       <ChangeOrderSummaryCard
-        changeOrder={{ ...mockChangeOrder, status: ChangeOrderStatus.IMPLEMENTED, can_edit_status: false }}
+        changeOrder={{ ...mockChangeOrder, status: "implemented", can_edit_status: false }}
         onEdit={vi.fn()}
       />
     );

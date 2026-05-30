@@ -501,13 +501,11 @@ export const CostRegistrationsTab = ({
                 <span>
                   {ce.cost_element_type_name || "Unknown Type"}
                 </span>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {currencySymbol}
-                  {Number(ce.amount || 0).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
-                  {ce.description ? ` - ${ce.description}` : ""}
-                </Text>
+                {ce.description && (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {ce.description}
+                  </Text>
+                )}
               </Space>
             </Button>
           ))}

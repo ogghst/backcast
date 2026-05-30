@@ -12,11 +12,11 @@ export class SearchService {
      * Global Search
      * Search across all entity types with ranked results.
      *
-     * Queries 12 entity types in parallel, applies RBAC project scoping,
+     * Queries 13 entity types sequentially, applies RBAC project scoping,
      * temporal/branch filters, and returns a flat relevance-ranked list.
      * @param q Search query string
      * @param projectId Scope results to a specific project
-     * @param wbeId Scope results to a specific WBE and descendants
+     * @param wbsElementId Scope results to a specific WBSElement and descendants
      * @param branch Branch name for branchable entities
      * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: search entities as of this timestamp (ISO 8601)
@@ -27,7 +27,7 @@ export class SearchService {
     public static globalSearch(
         q: string,
         projectId?: (string | null),
-        wbeId?: (string | null),
+        wbsElementId?: (string | null),
         branch: string = 'main',
         branchMode: BranchMode = 'merged',
         asOf?: (string | null),
@@ -39,7 +39,7 @@ export class SearchService {
             query: {
                 'q': q,
                 'project_id': projectId,
-                'wbe_id': wbeId,
+                'wbs_element_id': wbsElementId,
                 'branch': branch,
                 'branch_mode': branchMode,
                 'as_of': asOf,

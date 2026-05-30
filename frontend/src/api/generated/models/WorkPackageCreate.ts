@@ -51,5 +51,13 @@ export type WorkPackageCreate = {
      * Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)
      */
     schedule_progression_type?: (string | null);
+    /**
+     * Optional EAC amount for auto-created forecast (defaults to budget_amount)
+     */
+    eac_amount?: (number | string | null);
+    /**
+     * Optional basis of estimate for auto-created forecast (defaults to 'Initial forecast')
+     */
+    basis_of_estimate?: (string | null);
 };
 

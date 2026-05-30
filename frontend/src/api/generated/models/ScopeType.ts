@@ -9,8 +9,4 @@
  * - PROJECT: Project-scoped role (replaces ProjectMember)
  * - CHANGE_ORDER: Change order scoped role (replaces ApprovalMatrixService)
  */
-export enum ScopeType {
-    GLOBAL = 'global',
-    PROJECT = 'project',
-    CHANGE_ORDER = 'change_order',
-}
+export type ScopeType = 'global' | 'project' | 'change_order';

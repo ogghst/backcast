@@ -10,10 +10,6 @@ export type CostElementCreate = {
      * Reference to standardized cost type
      */
     cost_element_type_id: string;
-    /**
-     * Allocated amount
-     */
-    amount?: (number | string);
     description?: (string | null);
     /**
      * Root Cost Element ID (internal use only for seeding)

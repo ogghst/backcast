@@ -17,6 +17,8 @@ vi.mock("react-grid-layout", () => ({
     containerRef: { current: null },
     mounted: true,
   }),
+  noCompactor: (layout: unknown) => layout,
+  verticalCompactor: (layout: unknown) => layout,
 }));
 
 /** Mock store state controlling the composition store selector */

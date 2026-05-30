@@ -5,9 +5,4 @@
 /**
  * Entity types that documents can be linked to.
  */
-export enum app__models__schemas__document__EntityType {
-    WBE = 'wbe',
-    COST_ELEMENT = 'cost_element',
-    CHANGE_ORDER = 'change_order',
-    PROJECT = 'project',
-}
+export type app__models__schemas__document__EntityType = 'wbe' | 'cost_element' | 'change_order' | 'project';

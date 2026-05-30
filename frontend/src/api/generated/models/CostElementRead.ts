@@ -10,10 +10,6 @@ export type CostElementRead = {
      * Reference to standardized cost type
      */
     cost_element_type_id: string;
-    /**
-     * Allocated amount
-     */
-    amount?: string;
     description?: (string | null);
     id: string;
     cost_element_id: string;

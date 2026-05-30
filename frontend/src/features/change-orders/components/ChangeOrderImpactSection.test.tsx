@@ -125,15 +125,9 @@ describe("ChangeOrderImpactSection", () => {
   it("test_impact_section_renders_impact_data", async () => {
     // Arrange
     const mockImpactData = {
-      budget_impact: {
-        current: 100000,
-        proposed: 120000,
-        variance: 20000,
-      },
-      schedule_impact: {
-        current_days: 30,
-        proposed_days: 35,
-        variance_days: 5,
+      kpi_scorecard: {
+        budget_delta: { delta: "20000" },
+        schedule_duration: { delta: "5" },
       },
     };
 

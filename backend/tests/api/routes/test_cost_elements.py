@@ -1,6 +1,5 @@
 """Route tests for Cost Element (EOC) API endpoints."""
 
-from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -93,11 +92,11 @@ async def test_update_cost_element(
 
     response = await client.put(
         f"{PREFIX}/{h['ce'].cost_element_id}",
-        json={"amount": "40000"},
+        json={"description": "Updated cost element"},
     )
     assert response.status_code == 200
     data = response.json()
-    assert Decimal(data["amount"]) == Decimal("40000")
+    assert data["description"] == "Updated cost element"
 
 
 @pytest.mark.asyncio

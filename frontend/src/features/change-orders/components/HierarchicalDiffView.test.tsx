@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { HierarchicalDiffView } from "./HierarchicalDiffView";
 import type { ImpactAnalysisResponse } from "@/api/generated";
-import { EntityChangeType } from "@/api/generated";
 
 const mockKPIMetric = { main_value: "0", change_value: "0", delta: "0.00", delta_percent: 0.0 };
 
@@ -28,7 +27,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 1,
           name: "WBE 1 - Assembly Line",
-          change_type: EntityChangeType.MODIFIED,
+          change_type: "modified" as const,
           budget_delta: "5000.00",
           revenue_delta: "3000.00",
           cost_delta: "2000.00",
@@ -36,7 +35,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 2,
           name: "WBE 2 - Packaging",
-          change_type: EntityChangeType.ADDED,
+          change_type: "added" as const,
           budget_delta: "10000.00",
           revenue_delta: "8000.00",
           cost_delta: null,
@@ -44,7 +43,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 3,
           name: "WBE 3 - Testing",
-          change_type: EntityChangeType.REMOVED,
+          change_type: "removed" as const,
           budget_delta: "-15000.00",
           revenue_delta: "-12000.00",
           cost_delta: "-3000.00",
@@ -54,7 +53,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 101,
           name: "Labor Costs",
-          change_type: EntityChangeType.MODIFIED,
+          change_type: "modified" as const,
           budget_delta: "2000.00",
           revenue_delta: null,
           cost_delta: "1000.00",
@@ -62,7 +61,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 102,
           name: "Material Costs",
-          change_type: EntityChangeType.ADDED,
+          change_type: "added" as const,
           budget_delta: "5000.00",
           revenue_delta: "4000.00",
           cost_delta: null,
@@ -70,7 +69,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 103,
           name: "Overhead",
-          change_type: EntityChangeType.REMOVED,
+          change_type: "removed" as const,
           budget_delta: "-3000.00",
           revenue_delta: "-2000.00",
           cost_delta: "-1000.00",
@@ -81,7 +80,7 @@ describe("HierarchicalDiffView", () => {
 
   describe("rendering tree structure", () => {
     it("should render tree with all levels (Project → WBEs → Cost Elements)", () => {
-      render(<HierarchicalDiffView impactData={mockImpactData} />);
+      render(<HierarchicalDiffView impactData={mockImpactData} defaultExpandedLevel={2} />);
 
       // Should show project level summary
       expect(screen.getByText(/Project Changes/i)).toBeInTheDocument();
@@ -98,7 +97,7 @@ describe("HierarchicalDiffView", () => {
     });
 
     it("should render change count badges for entities with changes", () => {
-      render(<HierarchicalDiffView impactData={mockImpactData} />);
+      render(<HierarchicalDiffView impactData={mockImpactData} defaultExpandedLevel={2} />);
 
       // Should show total change count in summary
       expect(screen.getByText(/Total Changes/i)).toBeInTheDocument();
@@ -126,7 +125,7 @@ describe("HierarchicalDiffView", () => {
 
   describe("expand and collapse functionality", () => {
     it("should expand and collapse WBE nodes", () => {
-      render(<HierarchicalDiffView impactData={mockImpactData} />);
+      render(<HierarchicalDiffView impactData={mockImpactData} defaultExpandedLevel={2} />);
 
       // Find WBE node
       const wbeNode = screen.getByText(/WBE 1 - Assembly Line/i);
@@ -217,7 +216,7 @@ describe("HierarchicalDiffView", () => {
             {
               id: 1,
               name: "Changed WBE",
-              change_type: EntityChangeType.MODIFIED,
+              change_type: "modified" as const,
               budget_delta: "1000.00",
               revenue_delta: "500.00",
               cost_delta: "200.00",
@@ -249,6 +248,7 @@ describe("HierarchicalDiffView", () => {
         <HierarchicalDiffView
           impactData={mockImpactData}
           onEntityClick={handleClick}
+          defaultExpandedLevel={2}
         />
       );
 
@@ -331,7 +331,7 @@ describe("HierarchicalDiffView", () => {
             {
               id: 1,
               name: "WBE with nulls",
-              change_type: EntityChangeType.MODIFIED,
+              change_type: "modified" as const,
               budget_delta: null,
               revenue_delta: null,
               cost_delta: null,
@@ -341,7 +341,7 @@ describe("HierarchicalDiffView", () => {
         },
       };
 
-      render(<HierarchicalDiffView impactData={dataWithNulls} />);
+      render(<HierarchicalDiffView impactData={dataWithNulls} defaultExpandedLevel={2} />);
 
       // Should render without errors
       expect(screen.getByText(/WBE with nulls/i)).toBeInTheDocument();
@@ -382,7 +382,7 @@ describe("HierarchicalDiffView", () => {
           wbes: Array.from({ length: 50 }, (_, i) => ({
             id: i + 1,
             name: `WBE ${i + 1}`,
-            change_type: EntityChangeType.MODIFIED,
+            change_type: "modified" as const,
             budget_delta: "1000.00",
             revenue_delta: "500.00",
             cost_delta: "200.00",
@@ -390,7 +390,7 @@ describe("HierarchicalDiffView", () => {
           cost_elements: Array.from({ length: 100 }, (_, i) => ({
             id: i + 100,
             name: `Cost Element ${i + 1}`,
-            change_type: EntityChangeType.ADDED,
+            change_type: "added" as const,
             budget_delta: "500.00",
             revenue_delta: "300.00",
             cost_delta: null,
@@ -444,7 +444,7 @@ describe("HierarchicalDiffView", () => {
             {
               id: 1,
               name: "WBE with no children",
-              change_type: EntityChangeType.MODIFIED,
+              change_type: "modified" as const,
               budget_delta: "1000.00",
               revenue_delta: "500.00",
               cost_delta: "200.00",
@@ -454,7 +454,7 @@ describe("HierarchicalDiffView", () => {
         },
       };
 
-      render(<HierarchicalDiffView impactData={dataWithNoCostElements} />);
+      render(<HierarchicalDiffView impactData={dataWithNoCostElements} defaultExpandedLevel={2} />);
 
       expect(screen.getByText(/WBE with no children/i)).toBeInTheDocument();
     });
@@ -468,7 +468,7 @@ describe("HierarchicalDiffView", () => {
             {
               id: 101,
               name: "Orphan Cost Element",
-              change_type: EntityChangeType.ADDED,
+              change_type: "added" as const,
               budget_delta: "5000.00",
               revenue_delta: "3000.00",
               cost_delta: null,
@@ -477,7 +477,7 @@ describe("HierarchicalDiffView", () => {
         },
       };
 
-      render(<HierarchicalDiffView impactData={dataWithNoWBEs} />);
+      render(<HierarchicalDiffView impactData={dataWithNoWBEs} defaultExpandedLevel={2} />);
 
       expect(screen.getByText(/Orphan Cost Element/i)).toBeInTheDocument();
     });

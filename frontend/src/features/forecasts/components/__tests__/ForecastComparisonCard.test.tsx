@@ -23,12 +23,30 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ForecastComparisonCard } from "../ForecastComparisonCard";
 import type { EVMMetricsResponse } from "@/features/evm/types";
 
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+  }),
+  useTimeMachine: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+    isHistorical: false,
+    invalidateQueries: vi.fn(),
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Mock the theme hook
 vi.mock("antd", async () => {
   const actual = await vi.importActual("antd");
   return {
     ...actual,
     theme: {
+      ...actual.theme,
       useToken: () => ({
         token: {
           colorBgContainer: "#ffffff",
@@ -38,11 +56,53 @@ vi.mock("antd", async () => {
           colorTextTertiary: "#999999",
           borderRadiusLG: 8,
           colorPrimary: "#1890ff",
+          colorSuccess: "#52c41a",
+          colorWarning: "#faad14",
+          colorError: "#ff4d4f",
+          paddingXL: 24,
+          paddingMD: 16,
+          paddingLG: 24,
+          paddingXXS: 4,
+          fontSize: 14,
         },
       }),
     },
   };
 });
+
+// Mock EVM sub-components that use echarts
+vi.mock("@/features/evm/components/EVMCompactSCurve", () => ({
+  EVMCompactSCurve: () => <div data-testid="evm-s-curve" />,
+}));
+vi.mock("@/features/evm/components/EVMKPIIndicator", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  EVMKPIIndicator: ({ label, value }: any) => (
+    <div data-testid={`kpi-${label.toLowerCase()}`}>{value}</div>
+  ),
+}));
+vi.mock("@/features/evm/components/EVMForecastBar", () => ({
+  EVMForecastBar: () => <div data-testid="evm-forecast-bar" />,
+}));
+vi.mock("@/features/evm/components/MetricCard", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  MetricCard: ({ metadata, value }: any) => (
+    <div data-testid={`metric-${metadata?.key}`}>{value}</div>
+  ),
+}));
+vi.mock("@/features/evm/components/EVMAnalyzerModal", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  EVMAnalyzerModal: ({ open }: any) => open ? <div data-testid="evm-modal" /> : null,
+}));
+vi.mock("@/features/evm/components/EVMTimeSeriesChart", () => ({
+  EVMTimeSeriesChart: () => <div data-testid="evm-timeseries" />,
+}));
+vi.mock("@/features/evm/components/charts/EChartsGauge", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  EChartsGauge: ({ label }: any) => <div data-testid={`gauge-${label.toLowerCase()}`} />,
+}));
+vi.mock("echarts-for-react", () => ({
+  default: () => null,
+}));
 
 // Mock data for tests
 const mockEvmMetricsData: EVMMetricsResponse = {
@@ -68,6 +128,18 @@ const mockEvmMetricsData: EVMMetricsResponse = {
 vi.mock("@/features/cost-elements/api/useCostElements", () => ({
   useCostElementEvmMetrics: () => ({
     data: mockEvmMetricsData,
+    isLoading: false,
+  }),
+}));
+
+// Mock useEVMMetrics and useEVMTimeSeries hooks
+vi.mock("@/features/evm/api/useEVMMetrics", () => ({
+  useEVMMetrics: () => ({
+    data: mockEvmMetricsData,
+    isLoading: false,
+  }),
+  useEVMTimeSeries: () => ({
+    data: undefined,
     isLoading: false,
   }),
 }));

@@ -63,6 +63,26 @@ vi.mock("@/features/change-orders/api/useChangeOrders", () => ({
   useDeleteChangeOrder: () => ({
     mutate: vi.fn(),
   }),
+  useNextChangeOrderCode: () => ({
+    data: "CO-2026-002",
+    isLoading: false,
+  }),
+  useChangeOrderHistory: () => ({
+    data: [],
+    isLoading: false,
+  }),
+  useCheckMergeConflicts: () => ({
+    data: [],
+    isLoading: false,
+  }),
+  useMergeChangeOrder: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useArchiveChangeOrder: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock("@/features/change-orders/api/useImpactAnalysis", () => ({

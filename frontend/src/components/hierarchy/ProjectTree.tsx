@@ -522,7 +522,7 @@ export const ProjectTree = ({
                 <NodeTitle
                   icon={<PayCircleOutlined style={{ color: "var(--ant-color-success)" }} />}
                   name={displayName}
-                  budget={ce.amount ? formatCurrency(ce.amount, projectCurrency) : undefined}
+                  budget={undefined}
                   showBudget={showBudget}
                   showDates={showDates}
                 />

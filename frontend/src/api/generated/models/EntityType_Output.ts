@@ -12,10 +12,4 @@
  * - COST_ELEMENT: Cost Element / EOC (leaf node)
  * - PROJECT: Project level (root node)
  */
-export enum EntityType_Output {
-    WBS_ELEMENT = 'wbs_element',
-    CONTROL_ACCOUNT = 'control_account',
-    WORK_PACKAGE = 'work_package',
-    COST_ELEMENT = 'cost_element',
-    PROJECT = 'project',
-}
+export type EntityType_Output = 'wbs_element' | 'control_account' | 'work_package' | 'cost_element' | 'project';

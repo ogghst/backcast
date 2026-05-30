@@ -9,6 +9,23 @@ import { AssistantSelector } from "../AssistantSelector";
 import userEvent from "@testing-library/user-event";
 
 // Mock useAIAssistants to return controlled data
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+  }),
+  useTimeMachine: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+    isHistorical: false,
+    invalidateQueries: vi.fn(),
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock("@/features/ai/api/useAIAssistants", () => ({
   useAIAssistants: vi.fn(),
 }));
@@ -20,6 +37,7 @@ const mockUseAIAssistants = vi.mocked(useAIAssistants);
 describe("AssistantSelector", () => {
   let queryClient: QueryClient;
 
+  // Mock data includes agent_type: "main" so the component filters correctly
   const defaultMockData = [
     {
       id: "assistant-1",
@@ -33,6 +51,10 @@ describe("AssistantSelector", () => {
       allowed_tools: ["list_projects", "get_project", "list_wbes"],
       default_role: null,
       is_active: true,
+      agent_type: "main",
+      delegation_config: null,
+      structured_output_schema: null,
+      is_system: false,
       created_at: "2026-03-07T00:00:00Z",
       updated_at: "2026-03-07T00:00:00Z",
     },
@@ -58,6 +80,10 @@ describe("AssistantSelector", () => {
       ],
       default_role: null,
       is_active: true,
+      agent_type: "main",
+      delegation_config: null,
+      structured_output_schema: null,
+      is_system: false,
       created_at: "2026-03-07T00:00:00Z",
       updated_at: "2026-03-07T00:00:00Z",
     },
@@ -202,7 +228,7 @@ describe("AssistantSelector", () => {
     expect(select).toBeInTheDocument();
   });
 
-  it("should show tool count for each assistant option in the dropdown", async () => {
+  it("should show default_role tag for each assistant option in the dropdown", async () => {
     const handleChange = vi.fn();
     const user = userEvent.setup();
 
@@ -219,14 +245,12 @@ describe("AssistantSelector", () => {
     );
     expect(dropdown).toBeTruthy();
 
-    // Verify tool counts are displayed for each assistant
-    // assistant-1 has 3 tools, assistant-2 has 9 tools
-    // The optionRender shows "<N> tools" in a Tag
-    expect(within(dropdown as HTMLElement).getByText("3 tools")).toBeTruthy();
-    expect(within(dropdown as HTMLElement).getByText("9 tools")).toBeTruthy();
+    // Both mock assistants have default_role: null, so they show "No role"
+    const noRoleTags = within(dropdown as HTMLElement).getAllByText("No role");
+    expect(noRoleTags.length).toBe(2);
   });
 
-  it("should show tool count in the locked state", () => {
+  it("should show default_role in the locked state", () => {
     const handleChange = vi.fn();
 
     render(
@@ -238,9 +262,10 @@ describe("AssistantSelector", () => {
       { wrapper }
     );
 
-    // Locked state should show assistant name and tool count
+    // Locked state should show assistant name and default_role tag
     expect(screen.getByText("Project Helper")).toBeInTheDocument();
-    expect(screen.getByText("3 tools")).toBeInTheDocument();
+    // default_role is null, so shows "No role"
+    expect(screen.getByText("No role")).toBeInTheDocument();
   });
 
   it("should show role name when allowed_tools is null and default_role is set", () => {
@@ -259,6 +284,10 @@ describe("AssistantSelector", () => {
         allowed_tools: null,
         default_role: "ai-manager",
         is_active: true,
+        agent_type: "main",
+        delegation_config: null,
+        structured_output_schema: null,
+        is_system: false,
         created_at: "2026-03-07T00:00:00Z",
         updated_at: "2026-03-07T00:00:00Z",
       },
@@ -279,7 +308,7 @@ describe("AssistantSelector", () => {
       { wrapper }
     );
 
-    // Locked state should show role name instead of tool count
+    // Locked state should show role name instead of "No role"
     expect(screen.getByText("Role Assistant")).toBeInTheDocument();
     expect(screen.getByText("ai-manager")).toBeInTheDocument();
   });
@@ -301,6 +330,10 @@ describe("AssistantSelector", () => {
         allowed_tools: null,
         default_role: "ai-viewer",
         is_active: true,
+        agent_type: "main",
+        delegation_config: null,
+        structured_output_schema: null,
+        is_system: false,
         created_at: "2026-03-07T00:00:00Z",
         updated_at: "2026-03-07T00:00:00Z",
       },
@@ -323,7 +356,7 @@ describe("AssistantSelector", () => {
     );
     expect(dropdown).toBeTruthy();
 
-    // Should show role name instead of "0 tools"
+    // Should show role name in the tag
     expect(within(dropdown as HTMLElement).getByText("ai-viewer")).toBeTruthy();
   });
 });

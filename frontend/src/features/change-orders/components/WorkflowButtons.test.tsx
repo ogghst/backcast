@@ -3,7 +3,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WorkflowButtons } from "./WorkflowButtons";
 import type { ChangeOrderPublic } from "@/api/generated";
-import { ChangeOrderStatus } from "@/api/generated";
 import type { MergeConflict } from "../api/useChangeOrders";
 
 // Mock the workflow actions hook
@@ -34,7 +33,7 @@ describe("WorkflowButtons", () => {
     change_order_id: "BR-123",
     code: "CO-001",
     title: "Test Change Order",
-    status: ChangeOrderStatus.DRAFT,
+    status: "draft",
     description: "Test description",
     project_id: "proj-123",
     branch: "BR-CO-001",
@@ -270,8 +269,9 @@ describe("WorkflowButtons", () => {
   describe("Archive button", () => {
     it("should show Archive button when available for Implemented status", () => {
       vi.mocked(isActionAvailable).mockImplementation((action) => action === "ARCHIVE");
+      const implementedChangeOrder = { ...mockChangeOrder, status: "implemented" as const };
 
-      render(<WorkflowButtons changeOrder={mockChangeOrder} />, { wrapper });
+      render(<WorkflowButtons changeOrder={implementedChangeOrder} />, { wrapper });
 
       expect(screen.getByText("Archive Branch")).toBeInTheDocument();
     });
@@ -279,7 +279,7 @@ describe("WorkflowButtons", () => {
     it("should show Archive button when available for Rejected status", () => {
       vi.mocked(isActionAvailable).mockImplementation((action) => action === "ARCHIVE");
 
-      const rejectedChangeOrder = { ...mockChangeOrder, status: ChangeOrderStatus.REJECTED };
+      const rejectedChangeOrder = { ...mockChangeOrder, status: "rejected" as const };
       render(<WorkflowButtons changeOrder={rejectedChangeOrder} />, { wrapper });
 
       expect(screen.getByText("Archive Branch")).toBeInTheDocument();
@@ -295,21 +295,25 @@ describe("WorkflowButtons", () => {
 
     it("should open confirmation modal when Archive button is clicked", async () => {
       vi.mocked(isActionAvailable).mockImplementation((action) => action === "ARCHIVE");
+      const implementedChangeOrder = { ...mockChangeOrder, status: "implemented" as const };
 
-      render(<WorkflowButtons changeOrder={mockChangeOrder} />, { wrapper });
+      render(<WorkflowButtons changeOrder={implementedChangeOrder} />, { wrapper });
 
-      fireEvent.click(screen.getByText("Archive Branch"));
+      // Click the Archive Branch button (first match)
+      const archiveButtons = screen.getAllByText("Archive Branch");
+      fireEvent.click(archiveButtons[0]);
 
       // Wait for modal to appear with archive warning text
       await waitFor(() => {
-        expect(screen.getByText(/Archive Branch/i)).toBeInTheDocument();
+        expect(screen.getByText(/time-travel/i)).toBeInTheDocument();
       });
     });
 
     it("should show warning message in archive modal", async () => {
       vi.mocked(isActionAvailable).mockImplementation((action) => action === "ARCHIVE");
+      const implementedChangeOrder = { ...mockChangeOrder, status: "implemented" as const };
 
-      render(<WorkflowButtons changeOrder={mockChangeOrder} />, { wrapper });
+      render(<WorkflowButtons changeOrder={implementedChangeOrder} />, { wrapper });
 
       fireEvent.click(screen.getByText("Archive Branch"));
 

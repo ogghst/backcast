@@ -7,7 +7,6 @@
  */
 export type CostElementUpdate = {
     cost_element_type_id?: (string | null);
-    amount?: (number | string | null);
     description?: (string | null);
     /**
      * Optional control date for update (valid_time start)

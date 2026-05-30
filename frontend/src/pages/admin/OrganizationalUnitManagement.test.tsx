@@ -18,6 +18,15 @@ vi.mock("@/api/generated", () => ({
   },
 }));
 
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    branch: "main",
+    effectiveDate: null,
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Mock auth store
 vi.mock("@/stores/useAuthStore", () => ({
   useAuthStore: (selector: unknown) => {
@@ -175,8 +184,8 @@ describe("OrganizationalUnitManagement", () => {
     });
 
     // Fill in form fields
-    const nameInput = screen.getByLabelText(/Department Name/i);
-    const codeInput = screen.getByLabelText(/Department Code/i);
+    const nameInput = screen.getByLabelText(/Unit Name/i);
+    const codeInput = screen.getByLabelText(/Unit Code/i);
 
     await user.type(nameInput, "Marketing");
     await user.type(codeInput, "MKT");

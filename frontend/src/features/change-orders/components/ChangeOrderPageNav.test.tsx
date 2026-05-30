@@ -35,15 +35,14 @@ describe("ChangeOrderPageNav", () => {
     // Assert
     expect(screen.getByText("Details")).toBeInTheDocument();
     expect(screen.getByText("Workflow")).toBeInTheDocument();
-    expect(screen.getByText("Impact")).toBeInTheDocument();
   });
 
   /**
-   * T-018: test_page_nav_hides_workflow_and_impact_in_create_mode
+   * T-018: test_page_nav_hides_workflow_in_create_mode
    *
-   * Test that workflow and impact links are hidden in create mode.
+   * Test that workflow link is hidden in create mode.
    */
-  it("test_page_nav_hides_workflow_and_impact_in_create_mode", () => {
+  it("test_page_nav_hides_workflow_in_create_mode", () => {
     // Arrange & Act
     render(
       <MemoryRouter>
@@ -54,6 +53,5 @@ describe("ChangeOrderPageNav", () => {
     // Assert
     expect(screen.getByText("Details")).toBeInTheDocument();
     expect(screen.queryByText("Workflow")).not.toBeInTheDocument();
-    expect(screen.queryByText("Impact")).not.toBeInTheDocument();
   });
 });

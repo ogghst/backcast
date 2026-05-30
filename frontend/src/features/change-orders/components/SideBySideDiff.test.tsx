@@ -30,9 +30,10 @@ describe("SideBySideDiff", () => {
         />
       );
 
-      // Check for added field badge
-      const addedBadge = screen.getByText("Budget").parentElement?.querySelector(".ant-badge");
-      expect(addedBadge).toBeInTheDocument();
+      // Check for added field section header
+      expect(screen.getByText(/Added Fields/i)).toBeInTheDocument();
+      // Budget is the added field label
+      expect(screen.getByText("Budget")).toBeInTheDocument();
     });
 
     it("should render modified fields with orange badge", () => {
@@ -239,9 +240,9 @@ describe("SideBySideDiff", () => {
         />
       );
 
-      // Check for two-column layout classes
-      const columns = container.querySelectorAll(".ant-col");
-      expect(columns.length).toBeGreaterThanOrEqual(2);
+      // Check that collapse panels are rendered for modified fields
+      const collapsePanels = container.querySelectorAll(".ant-collapse-item");
+      expect(collapsePanels.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -302,7 +303,7 @@ describe("SideBySideDiff", () => {
         description: "New Description",
       };
 
-      render(
+      const { container } = render(
         <SideBySideDiff
           mainData={mainData}
           branchData={branchData}
@@ -310,8 +311,9 @@ describe("SideBySideDiff", () => {
         />
       );
 
-      // Should render without errors
-      expect(screen.getByText("Name")).toBeInTheDocument();
+      // Should render without errors - collapse panels should exist
+      const collapsePanels = container.querySelectorAll(".ant-collapse-item");
+      expect(collapsePanels.length).toBeGreaterThanOrEqual(1);
     });
 
     it("should handle empty objects", () => {

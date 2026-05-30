@@ -1,108 +1,79 @@
 /**
  * Tests for useAIModels and useAIProviderConfigs hooks
- *
- * TDD Approach: RED-GREEN-REFACTOR
  */
 
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useAIModels, useCreateAIModel } from "../useAIModels";
 import { useAIProviderConfigs, useSetAIProviderConfig, useDeleteAIProviderConfig } from "../useAIProviderConfigs";
-import { http, HttpResponse } from "msw";
-import { setupServer } from "msw/node";
 
-const API_BASE = "/api/v1";
+// Mock axios
+const mockAxios = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
+}));
+vi.mock("axios", () => ({
+  default: mockAxios,
+}));
 
-const handlers = [
-  // List models for provider
-  http.get(`${API_BASE}/ai/config/providers/:providerId/models`, ({ params }) => {
-    return HttpResponse.json([
-      {
-        id: "1",
-        provider_id: params.providerId,
-        model_id: "gpt-4",
-        display_name: "GPT-4",
-        is_active: true,
-        created_at: "2026-03-01T00:00:00Z",
-        updated_at: "2026-03-01T00:00:00Z",
-      },
-      {
-        id: "2",
-        provider_id: params.providerId,
-        model_id: "gpt-3.5-turbo",
-        display_name: "GPT-3.5 Turbo",
-        is_active: true,
-        created_at: "2026-03-01T00:00:00Z",
-        updated_at: "2026-03-01T00:00:00Z",
-      },
-    ]);
-  }),
+// Mock sonner toast
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
-  // Create model
-  http.post(`${API_BASE}/ai/config/providers/:providerId/models`, async ({ request }) => {
-    const data = (await request.json()) as Record<string, unknown>;
-    return HttpResponse.json({
-      id: "3",
-      provider_id: "1",
-      model_id: data.model_id,
-      display_name: data.display_name,
-      is_active: true,
-      created_at: "2026-03-07T00:00:00Z",
-      updated_at: "2026-03-07T00:00:00Z",
-    });
-  }),
-
-  // List configs for provider
-  http.get(`${API_BASE}/ai/config/providers/:providerId/configs`, ({ params }) => {
-    return HttpResponse.json([
-      {
-        id: "1",
-        provider_id: params.providerId,
-        key: "api_key",
-        value: "***MASKED***",
-        is_encrypted: true,
-        created_at: "2026-03-01T00:00:00Z",
-        updated_at: "2026-03-01T00:00:00Z",
-      },
-      {
-        id: "2",
-        provider_id: params.providerId,
-        key: "organization",
-        value: "org-123",
-        is_encrypted: false,
-        created_at: "2026-03-01T00:00:00Z",
-        updated_at: "2026-03-01T00:00:00Z",
-      },
-    ]);
-  }),
-
-  // Set config
-  http.post(`${API_BASE}/ai/config/providers/:providerId/configs/:key`, async () => {
-    return HttpResponse.json({
-      id: "3",
-      provider_id: "1",
-      key: "api_key",
-      value: "***MASKED***",
-      is_encrypted: true,
-      created_at: "2026-03-07T00:00:00Z",
-      updated_at: "2026-03-07T00:00:00Z",
-    });
-  }),
-
-  // Delete config
-  http.delete(`${API_BASE}/ai/config/providers/:providerId/configs/:key`, () => {
-    return new HttpResponse(null, { status: 204 });
-  }),
+const mockModels = [
+  {
+    id: "1",
+    provider_id: "provider-1",
+    model_id: "gpt-4",
+    display_name: "GPT-4",
+    is_active: true,
+    created_at: "2026-03-01T00:00:00Z",
+    updated_at: "2026-03-01T00:00:00Z",
+  },
+  {
+    id: "2",
+    provider_id: "provider-1",
+    model_id: "gpt-3.5-turbo",
+    display_name: "GPT-3.5 Turbo",
+    is_active: true,
+    created_at: "2026-03-01T00:00:00Z",
+    updated_at: "2026-03-01T00:00:00Z",
+  },
 ];
 
-const server = setupServer(...handlers);
+const mockConfigs = [
+  {
+    id: "1",
+    provider_id: "provider-1",
+    key: "api_key",
+    value: "***MASKED***",
+    is_encrypted: true,
+    created_at: "2026-03-01T00:00:00Z",
+    updated_at: "2026-03-01T00:00:00Z",
+  },
+  {
+    id: "2",
+    provider_id: "provider-1",
+    key: "organization",
+    value: "org-123",
+    is_encrypted: false,
+    created_at: "2026-03-01T00:00:00Z",
+    updated_at: "2026-03-01T00:00:00Z",
+  },
+];
 
 describe("useAIModels", () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
-    server.listen();
+    vi.clearAllMocks();
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -111,20 +82,14 @@ describe("useAIModels", () => {
     });
   });
 
-  afterEach(() => {
-    server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
-  });
-
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
   describe("useAIModels (list)", () => {
     it("should fetch models for provider", async () => {
+      mockAxios.get.mockResolvedValueOnce({ data: mockModels });
+
       const { result } = renderHook(() => useAIModels("provider-1"), { wrapper });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -143,11 +108,24 @@ describe("useAIModels", () => {
 
   describe("useCreateAIModel", () => {
     it("should create model and invalidate cache", async () => {
+      mockAxios.post.mockResolvedValueOnce({
+        data: {
+          id: "3",
+          provider_id: "provider-1",
+          model_id: "gpt-4-turbo",
+          display_name: "GPT-4 Turbo",
+          is_active: true,
+          created_at: "2026-03-07T00:00:00Z",
+          updated_at: "2026-03-07T00:00:00Z",
+        },
+      });
+
       const onSuccess = vi.fn();
       const { result } = renderHook(() => useCreateAIModel({ onSuccess }), { wrapper });
 
-      await waitFor(() => {
-        result.current.mutate({
+      let created: unknown;
+      await act(async () => {
+        created = await result.current.mutateAsync({
           providerId: "provider-1",
           data: {
             model_id: "gpt-4-turbo",
@@ -156,9 +134,7 @@ describe("useAIModels", () => {
         });
       });
 
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(result.current.data?.model_id).toBe("gpt-4-turbo");
+      expect((created as Record<string, unknown>)?.model_id).toBe("gpt-4-turbo");
       expect(onSuccess).toHaveBeenCalledOnce();
     });
   });
@@ -168,7 +144,7 @@ describe("useAIProviderConfigs", () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
-    server.listen();
+    vi.clearAllMocks();
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -177,20 +153,14 @@ describe("useAIProviderConfigs", () => {
     });
   });
 
-  afterEach(() => {
-    server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
-  });
-
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
   describe("useAIProviderConfigs (list)", () => {
     it("should fetch configs for provider", async () => {
+      mockAxios.get.mockResolvedValueOnce({ data: mockConfigs });
+
       const { result } = renderHook(() => useAIProviderConfigs("provider-1"), { wrapper });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -210,36 +180,47 @@ describe("useAIProviderConfigs", () => {
 
   describe("useSetAIProviderConfig", () => {
     it("should set config and invalidate cache", async () => {
+      mockAxios.post.mockResolvedValueOnce({
+        data: {
+          id: "3",
+          provider_id: "provider-1",
+          key: "api_key",
+          value: "***MASKED***",
+          is_encrypted: true,
+          created_at: "2026-03-07T00:00:00Z",
+          updated_at: "2026-03-07T00:00:00Z",
+        },
+      });
+
       const onSuccess = vi.fn();
       const { result } = renderHook(() => useSetAIProviderConfig({ onSuccess }), { wrapper });
 
-      await waitFor(() => {
-        result.current.mutate({
+      let created: unknown;
+      await act(async () => {
+        created = await result.current.mutateAsync({
           providerId: "provider-1",
           data: { key: "api_key", value: "sk-new-key", is_encrypted: true },
         });
       });
 
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(result.current.data?.is_encrypted).toBe(true);
+      expect((created as Record<string, unknown>)?.is_encrypted).toBe(true);
       expect(onSuccess).toHaveBeenCalledOnce();
     });
   });
 
   describe("useDeleteAIProviderConfig", () => {
     it("should delete config and invalidate cache", async () => {
+      mockAxios.delete.mockResolvedValueOnce({ data: null });
+
       const onSuccess = vi.fn();
       const { result } = renderHook(() => useDeleteAIProviderConfig({ onSuccess }), { wrapper });
 
-      await waitFor(() => {
-        result.current.mutate({
+      await act(async () => {
+        await result.current.mutateAsync({
           providerId: "provider-1",
           key: "api_key",
         });
       });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(onSuccess).toHaveBeenCalledOnce();
     });

@@ -33,8 +33,8 @@ vi.mock("./MetricCard", () => ({
   ),
 }));
 
-vi.mock("./EVMGauge", () => ({
-  EVMGauge: ({ label, value }: { label: string; value: number | null }) => (
+vi.mock("./charts/EChartsGauge", () => ({
+  EChartsGauge: ({ label, value }: { label: string; value: number | null }) => (
     <div data-testid={`gauge-${label.toLowerCase()}`}>
       <div className="gauge-label">{label}</div>
       <div className="gauge-value">{value ?? "N/A"}</div>
@@ -43,9 +43,10 @@ vi.mock("./EVMGauge", () => ({
 }));
 
 vi.mock("./EVMTimeSeriesChart", () => ({
-  EVMTimeSeriesChart: () => (
+  EVMTimeSeriesChart: (props: { timeSeries?: unknown; onGranularityChange?: unknown }) => (
     <div data-testid="evm-timeseries-chart">
       <div>EVM Time Series Analysis</div>
+      <div data-testid="timeseries-props">{JSON.stringify(props)}</div>
     </div>
   ),
 }));

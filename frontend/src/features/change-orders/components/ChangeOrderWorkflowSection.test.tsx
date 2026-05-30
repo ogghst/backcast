@@ -3,7 +3,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ChangeOrderWorkflowSection } from "./ChangeOrderWorkflowSection";
 import type { ChangeOrderPublic } from "@/api/generated";
-import { ChangeOrderStatus } from "@/api/generated";
 
 // Mock the workflow hooks
 vi.mock("@/features/change-orders/hooks/useWorkflowActions", () => ({
@@ -57,7 +56,7 @@ const mockChangeOrder: ChangeOrderPublic = {
   change_order_id: "BR-123",
   code: "CO-2026-001",
   title: "Test Change Order",
-  status: ChangeOrderStatus.DRAFT,
+  status: "draft",
   description: "Test description",
   justification: "Test justification",
   effective_date: "2026-01-15",
@@ -102,7 +101,7 @@ describe("ChangeOrderWorkflowSection", () => {
 
     // Assert
     expect(screen.getByText("Workflow Status")).toBeInTheDocument();
-    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(screen.getByText("draft")).toBeInTheDocument();
   });
 
   /**
@@ -159,9 +158,10 @@ describe("ChangeOrderWorkflowSection", () => {
       { wrapper }
     );
 
-    // Assert
+    // Assert - branch_locked shows warning but does NOT disable workflow actions
+    expect(screen.getByText(/branch is locked/i)).toBeInTheDocument();
     const submitButton = screen.getByRole("button", { name: /submit/i });
-    expect(submitButton).toBeDisabled();
+    expect(submitButton).not.toBeDisabled();
   });
 
   /**

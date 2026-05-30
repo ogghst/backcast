@@ -75,8 +75,6 @@ describe("Auth Adapter", () => {
         full_name: userData.full_name,
         role: userData.role,
         department: undefined,
-        is_active: true,
-        is_superuser: false,
       });
       expect(result).toEqual(mockUser);
     });

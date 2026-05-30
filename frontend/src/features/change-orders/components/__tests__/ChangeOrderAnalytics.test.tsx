@@ -60,6 +60,19 @@ vi.mock("@/features/change-orders/api/useChangeOrderStats", () => ({
   useChangeOrderStats: vi.fn(),
 }));
 
+// Mock TimeMachine context used by useChangeOrderStats
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: vi.fn(() => ({
+    branch: "main",
+    effectiveDate: null,
+  })),
+}));
+
+// Mock useProjectCurrency
+vi.mock("@/features/projects/api/useProjectCurrency", () => ({
+  useProjectCurrency: vi.fn(() => "USD"),
+}));
+
 // Mock child chart components
 vi.mock("../StatusDistributionChart", () => ({
   StatusDistributionChart: ({ data }: { data: unknown[] }) =>

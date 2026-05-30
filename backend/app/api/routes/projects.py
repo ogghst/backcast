@@ -111,7 +111,7 @@ async def read_projects(
             sort_field=sort_field,
             sort_order=sort_order,
             as_of=as_of,
-            accessible_project_ids=accessible_project_ids,
+            accessible_project_ids=set(accessible_project_ids),
         )
 
         # Convert to Pydantic models

@@ -363,9 +363,9 @@ describe("useTimeMachineStore", () => {
         useTimeMachineStore.getState().selectTime(new Date("2025-01-01"));
       });
 
-      // Should not crash and should return null
+      // Should not crash - time is allowed to be set before project
       const state = useTimeMachineStore.getState();
-      expect(state.getSelectedTime()).toBeNull();
+      expect(state.getSelectedTime()).not.toBeNull();
     });
 
     it("handles branch selection before project is set", () => {

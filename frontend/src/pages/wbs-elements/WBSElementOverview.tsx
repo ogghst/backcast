@@ -251,7 +251,7 @@ export const WBSElementOverview = () => {
         }
       >
         {(() => {
-          const useCaCard = caResolvedMode === "card" || (caResolvedMode === "auto" && isMobile);
+          const useCaCard = caResolvedMode === "card";
           if (useCaCard) {
             if (!caData) return <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>;
             if (controlAccounts.length === 0) return <Empty description="No control accounts" />;
@@ -324,7 +324,7 @@ export const WBSElementOverview = () => {
         }
       >
         {(() => {
-          const useWpCard = wpResolvedMode === "card" || (wpResolvedMode === "auto" && isMobile);
+          const useWpCard = wpResolvedMode === "card";
           if (useWpCard) {
             if (wpLoading) return <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>;
             if (workPackages.length === 0) return <Empty description="No work packages" />;

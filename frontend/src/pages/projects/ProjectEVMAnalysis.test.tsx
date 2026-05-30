@@ -26,6 +26,15 @@ vi.mock("@/features/evm/api/useEVMMetrics", () => ({
   useEVMTimeSeries: vi.fn(),
 }));
 
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    branch: "main",
+    effectiveDate: null,
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Type alias for the mocked hooks
 type MockedUseEVMMetrics = {
   data: {
@@ -82,16 +91,74 @@ vi.mock("antd", async () => {
   return {
     ...actual,
     theme: {
+      ...actual.theme,
       useToken: () => ({
         token: {
           colorBgContainer: "#ffffff",
           colorBorder: "#d9d9d9",
+          colorTextSecondary: "#888",
+          colorSuccess: "#52c41a",
+          colorWarning: "#faad14",
+          colorError: "#ff4d4f",
+          colorPrimary: "#1677ff",
           borderRadiusLG: 8,
+          paddingXL: 24,
+          paddingMD: 16,
+          paddingLG: 24,
+          paddingXXS: 4,
+          fontSize: 14,
         },
       }),
     },
   };
 });
+
+// Mock EVM sub-components
+vi.mock("@/features/evm/components/EVMSummaryView", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  EVMSummaryView: ({ metrics, onAdvanced }: any) => (
+    <div data-testid="evm-summary-view">
+      <span data-testid="evm-bac">{metrics?.bac}</span>
+      <button onClick={onAdvanced} data-testid="evm-advanced-btn">Advanced</button>
+    </div>
+  ),
+}));
+
+vi.mock("@/features/evm/components/EVMTimeSeriesChart", () => ({
+  EVMTimeSeriesChart: () => (
+    <div data-testid="evm-timeseries-chart">Time Series Chart</div>
+  ),
+}));
+
+vi.mock("@/features/evm/components/EVMAnalyzerModal", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  EVMAnalyzerModal: ({ open }: any) => {
+    if (!open) return null;
+    return <div data-testid="evm-analyzer-modal">EVM Modal</div>;
+  },
+}));
+
+vi.mock("@/features/evm/components/EVMCompactSCurve", () => ({
+  EVMCompactSCurve: () => <div data-testid="evm-s-curve" />,
+}));
+
+vi.mock("@/features/evm/components/EVMKPIIndicator", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  EVMKPIIndicator: ({ label, value }: any) => (
+    <div data-testid={`kpi-${label.toLowerCase()}`}>{value}</div>
+  ),
+}));
+
+vi.mock("@/features/evm/components/EVMForecastBar", () => ({
+  EVMForecastBar: () => <div data-testid="evm-forecast-bar" />,
+}));
+
+vi.mock("@/features/evm/components/MetricCard", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  MetricCard: ({ metadata, value }: any) => (
+    <div data-testid={`metric-${metadata?.key}`}>{value}</div>
+  ),
+}));
 
 // Test query client for each test
 let queryClient: QueryClient;
@@ -219,7 +286,9 @@ describe("ProjectEVMAnalysis", () => {
     );
 
     // Assert - Loading spinner should be visible
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    // Ant Design Spin renders with .ant-spin class
+    const spinner = document.querySelector(".ant-spin");
+    expect(spinner).toBeInTheDocument();
   });
 
   /**

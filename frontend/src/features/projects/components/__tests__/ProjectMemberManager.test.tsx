@@ -12,6 +12,23 @@ import { ProjectMemberManager } from "../ProjectMemberManager";
 import { ProjectRole } from "../../types/projectMembers";
 import type { ProjectMemberRead } from "../../types/projectMembers";
 
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+  }),
+  useTimeMachine: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+    isHistorical: false,
+    invalidateQueries: vi.fn(),
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 
 // Mock the hooks
 vi.mock("../../hooks/useProjectMembers", () => ({
@@ -443,7 +460,7 @@ describe("ProjectMemberManager", () => {
 
       // Check for column headers
       expect(screen.getByText("Member")).toBeInTheDocument();
-      expect(screen.getByText("Role")).toBeInTheDocument();
+      expect(screen.getByText("Roles")).toBeInTheDocument();
       expect(screen.getByText("Added")).toBeInTheDocument();
       expect(screen.getByText("Actions")).toBeInTheDocument();
     });

@@ -11,7 +11,7 @@ describe("useWorkflowInfo", () => {
 
     // Assert
     expect(result.current.statusOptions).toEqual([
-      { label: "Draft", value: "Draft" },
+      { label: "Draft", value: "draft" },
     ]);
     expect(result.current.isStatusDisabled).toBe(false);
     expect(result.current.isBranchLocked).toBe(false);

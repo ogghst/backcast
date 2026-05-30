@@ -12,8 +12,4 @@
  *
  * Used in Phase 2: Risk checking and approval workflow
  */
-export enum ExecutionMode {
-    SAFE = 'safe',
-    STANDARD = 'standard',
-    EXPERT = 'expert',
-}
+export type ExecutionMode = 'safe' | 'standard' | 'expert';

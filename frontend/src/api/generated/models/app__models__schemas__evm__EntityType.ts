@@ -12,10 +12,4 @@
  * - COST_ELEMENT: Cost Element / EOC (leaf node)
  * - PROJECT: Project level (root node)
  */
-export enum app__models__schemas__evm__EntityType {
-    WBS_ELEMENT = 'wbs_element',
-    CONTROL_ACCOUNT = 'control_account',
-    WORK_PACKAGE = 'work_package',
-    COST_ELEMENT = 'cost_element',
-    PROJECT = 'project',
-}
+export type app__models__schemas__evm__EntityType = 'wbs_element' | 'control_account' | 'work_package' | 'cost_element' | 'project';

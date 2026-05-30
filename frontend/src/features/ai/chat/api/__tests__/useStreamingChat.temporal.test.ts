@@ -21,6 +21,78 @@ vi.mock("@/stores/useAuthStore", () => ({
   })),
 }));
 
+/**
+ * Helper to create a mock WebSocket that simulates the lifecycle
+ * needed by the lazy-connection hook.
+ *
+ * The hook now connects lazily -- either when sendMessage is called
+ * or when activeExecutionId is provided. We simulate an open-ready
+ * WebSocket that the hook can attach listeners to.
+ */
+function createMockWs() {
+  const mockWs = {
+    readyState: WebSocket.OPEN,
+    send: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    close: vi.fn(),
+  };
+  return mockWs;
+}
+
+/**
+ * Renders the hook, triggers lazy connection via sendMessage,
+ * and simulates the open event so the hook transitions to OPEN state.
+ */
+async function renderAndConnect(
+  temporalSetup?: () => void,
+  hookOverrides?: { projectId?: string }
+) {
+  // Set up temporal context before rendering
+  if (temporalSetup) temporalSetup();
+
+  const mockWs = createMockWs();
+
+  // Mock WebSocket constructor so the hook creates our mock instance
+  vi.spyOn(global, "WebSocket").mockImplementation(
+    () => mockWs as unknown as WebSocket
+  );
+
+  const onToken = vi.fn();
+  const onComplete = vi.fn();
+  const onError = vi.fn();
+
+  const { result } = renderHook(() =>
+    useStreamingChat({
+      assistantId: "assistant-456",
+      projectId: hookOverrides?.projectId,
+      // Provide activeExecutionId so the hook auto-connects and stays connected
+      activeExecutionId: "exec-1",
+      onToken,
+      onComplete,
+      onError,
+    })
+  );
+
+  // Trigger lazy connection by calling sendMessage with executionMode
+  result.current.sendMessage("Test message", undefined, "standard");
+
+  // Wait for the hook to create the WebSocket and add listeners
+  await waitFor(() => {
+    expect(mockWs.addEventListener).toHaveBeenCalledWith("open", expect.any(Function));
+  });
+
+  // Call the open handler to set connection state to OPEN
+  const openHandler = mockWs.addEventListener.mock.calls.find(
+    (call) => call[0] === "open"
+  )?.[1];
+  if (openHandler) {
+    openHandler();
+  }
+
+  return { result, mockWs, onToken, onComplete, onError };
+}
+
 describe("useStreamingChat - Temporal Context Integration (RED PHASE)", () => {
   beforeEach(() => {
     // Reset Time Machine store before each test
@@ -30,55 +102,16 @@ describe("useStreamingChat - Temporal Context Integration (RED PHASE)", () => {
 
   describe("sendMessage reads from Time Machine store", () => {
     it("should include temporal params from Time Machine store (T-007)", async () => {
-      // Arrange: Set up Time Machine store with temporal context
-      useTimeMachineStore.getState().setCurrentProject("proj-1");
-      useTimeMachineStore.getState().selectTime(new Date("2026-01-15T10:30:00Z"));
-      useTimeMachineStore.getState().selectBranch("BR-001");
-      useTimeMachineStore.getState().selectViewMode("isolated");
-
-      // Mock WebSocket
-      const mockWs = {
-        readyState: WebSocket.OPEN,
-        send: vi.fn(),
-        addEventListener: vi.fn(),
-        close: vi.fn(),
-      };
-
-      vi.spyOn(global, "WebSocket").mockImplementation(
-        () => mockWs as unknown as WebSocket
-      );
-
-      // Act: Render hook and send message
-      const onToken = vi.fn();
-      const onComplete = vi.fn();
-      const onError = vi.fn();
-
-      const { result } = renderHook(() =>
-        useStreamingChat({
-          assistantId: "assistant-456",
-          onToken,
-          onComplete,
-          onError,
-        })
-      );
-
-      // Wait for connection to open
-      await waitFor(() => {
-        expect(mockWs.addEventListener).toHaveBeenCalledWith("open", expect.any(Function));
+      // Arrange & Act: render, connect, and send message
+      const { mockWs } = await renderAndConnect(() => {
+        useTimeMachineStore.getState().setCurrentProject("proj-1");
+        useTimeMachineStore.getState().selectTime(new Date("2026-01-15T10:30:00Z"));
+        useTimeMachineStore.getState().selectBranch("BR-001");
+        useTimeMachineStore.getState().selectViewMode("isolated");
       });
 
-      // Call the open handler to set connection state
-      const openHandler = mockWs.addEventListener.mock.calls.find(
-        (call) => call[0] === "open"
-      )?.[1];
-      if (openHandler) {
-        openHandler();
-      }
-
-      // Send message
-      result.current.sendMessage("Show me project data");
-
       // Assert: Verify WebSocket.send was called with temporal params
+      // The first send is the "subscribe" or chat message triggered by sendMessage
       expect(mockWs.send).toHaveBeenCalled();
       const sentMessage = JSON.parse(mockWs.send.mock.calls[0][0]);
 
@@ -90,44 +123,10 @@ describe("useStreamingChat - Temporal Context Integration (RED PHASE)", () => {
 
     it("should send defaults when Time Machine is in current state (T-007b)", async () => {
       // Arrange: Time Machine in default state (now, main, merged)
-      useTimeMachineStore.getState().setCurrentProject("proj-1");
-      // Don't set any temporal params - use defaults
-
-      const mockWs = {
-        readyState: WebSocket.OPEN,
-        send: vi.fn(),
-        addEventListener: vi.fn(),
-        close: vi.fn(),
-      };
-
-      vi.spyOn(global, "WebSocket").mockImplementation(
-        () => mockWs as unknown as WebSocket
-      );
-
-      // Act: Render hook and send message
-      const { result } = renderHook(() =>
-        useStreamingChat({
-          assistantId: "assistant-456",
-          onToken: vi.fn(),
-          onComplete: vi.fn(),
-          onError: vi.fn(),
-        })
-      );
-
-      // Wait for connection and call open handler
-      await waitFor(() => {
-        expect(mockWs.addEventListener).toHaveBeenCalledWith("open", expect.any(Function));
+      const { mockWs } = await renderAndConnect(() => {
+        useTimeMachineStore.getState().setCurrentProject("proj-1");
+        // Don't set any temporal params - use defaults
       });
-
-      const openHandler = mockWs.addEventListener.mock.calls.find(
-        (call) => call[0] === "open"
-      )?.[1];
-      if (openHandler) {
-        openHandler();
-      }
-
-      // Send message
-      result.current.sendMessage("Show current data");
 
       // Assert: Verify defaults are sent
       expect(mockWs.send).toHaveBeenCalled();
@@ -141,42 +140,7 @@ describe("useStreamingChat - Temporal Context Integration (RED PHASE)", () => {
     it("should handle missing project context gracefully", async () => {
       // Arrange: No project set in Time Machine
       // Don't call setCurrentProject
-
-      const mockWs = {
-        readyState: WebSocket.OPEN,
-        send: vi.fn(),
-        addEventListener: vi.fn(),
-        close: vi.fn(),
-      };
-
-      vi.spyOn(global, "WebSocket").mockImplementation(
-        () => mockWs as unknown as WebSocket
-      );
-
-      // Act: Render hook and send message
-      const { result } = renderHook(() =>
-        useStreamingChat({
-          assistantId: "assistant-456",
-          onToken: vi.fn(),
-          onComplete: vi.fn(),
-          onError: vi.fn(),
-        })
-      );
-
-      // Wait for connection and call open handler
-      await waitFor(() => {
-        expect(mockWs.addEventListener).toHaveBeenCalledWith("open", expect.any(Function));
-      });
-
-      const openHandler = mockWs.addEventListener.mock.calls.find(
-        (call) => call[0] === "open"
-      )?.[1];
-      if (openHandler) {
-        openHandler();
-      }
-
-      // Send message
-      result.current.sendMessage("Test message");
+      const { mockWs } = await renderAndConnect();
 
       // Assert: Verify defaults are sent when no project context
       expect(mockWs.send).toHaveBeenCalled();
@@ -190,49 +154,22 @@ describe("useStreamingChat - Temporal Context Integration (RED PHASE)", () => {
 
   describe("sendMessage includes temporal params in every message", () => {
     it("should send temporal params on multiple messages", async () => {
-      // Arrange: Set temporal context
-      useTimeMachineStore.getState().setCurrentProject("proj-1");
-      useTimeMachineStore.getState().selectTime(new Date("2026-02-01T12:00:00Z"));
-      useTimeMachineStore.getState().selectBranch("BR-003");
-      useTimeMachineStore.getState().selectViewMode("merged");
-
-      const mockWs = {
-        readyState: WebSocket.OPEN,
-        send: vi.fn(),
-        addEventListener: vi.fn(),
-        close: vi.fn(),
-      };
-
-      vi.spyOn(global, "WebSocket").mockImplementation(
-        () => mockWs as unknown as WebSocket
-      );
-
-      // Act: Send multiple messages
-      const { result } = renderHook(() =>
-        useStreamingChat({
-          assistantId: "assistant-456",
-          onToken: vi.fn(),
-          onComplete: vi.fn(),
-          onError: vi.fn(),
-        })
-      );
-
-      await waitFor(() => {
-        expect(mockWs.addEventListener).toHaveBeenCalledWith("open", expect.any(Function));
+      // Arrange: Set temporal context and connect
+      const { result, mockWs } = await renderAndConnect(() => {
+        useTimeMachineStore.getState().setCurrentProject("proj-1");
+        useTimeMachineStore.getState().selectTime(new Date("2026-02-01T12:00:00Z"));
+        useTimeMachineStore.getState().selectBranch("BR-003");
+        useTimeMachineStore.getState().selectViewMode("merged");
       });
 
-      const openHandler = mockWs.addEventListener.mock.calls.find(
-        (call) => call[0] === "open"
-      )?.[1];
-      if (openHandler) {
-        openHandler();
-      }
+      // Clear the initial message sent during connection setup
+      mockWs.send.mockClear();
 
       // Send first message
-      result.current.sendMessage("First message");
+      result.current.sendMessage("First message", undefined, "standard");
 
       // Send second message
-      result.current.sendMessage("Second message");
+      result.current.sendMessage("Second message", undefined, "standard");
 
       // Assert: Both messages include temporal params
       expect(mockWs.send).toHaveBeenCalledTimes(2);
@@ -251,45 +188,19 @@ describe("useStreamingChat - Temporal Context Integration (RED PHASE)", () => {
     });
 
     it("should update temporal params when Time Machine changes", async () => {
-      // Arrange: Start with one temporal context
-      useTimeMachineStore.getState().setCurrentProject("proj-1");
-      useTimeMachineStore.getState().selectTime(new Date("2026-01-01T00:00:00Z"));
-      useTimeMachineStore.getState().selectBranch("main");
-      useTimeMachineStore.getState().selectViewMode("merged");
-
-      const mockWs = {
-        readyState: WebSocket.OPEN,
-        send: vi.fn(),
-        addEventListener: vi.fn(),
-        close: vi.fn(),
-      };
-
-      vi.spyOn(global, "WebSocket").mockImplementation(
-        () => mockWs as unknown as WebSocket
-      );
-
-      const { result } = renderHook(() =>
-        useStreamingChat({
-          assistantId: "assistant-456",
-          onToken: vi.fn(),
-          onComplete: vi.fn(),
-          onError: vi.fn(),
-        })
-      );
-
-      await waitFor(() => {
-        expect(mockWs.addEventListener).toHaveBeenCalledWith("open", expect.any(Function));
+      // Arrange: Start with one temporal context and connect
+      const { result, mockWs } = await renderAndConnect(() => {
+        useTimeMachineStore.getState().setCurrentProject("proj-1");
+        useTimeMachineStore.getState().selectTime(new Date("2026-01-01T00:00:00Z"));
+        useTimeMachineStore.getState().selectBranch("main");
+        useTimeMachineStore.getState().selectViewMode("merged");
       });
 
-      const openHandler = mockWs.addEventListener.mock.calls.find(
-        (call) => call[0] === "open"
-      )?.[1];
-      if (openHandler) {
-        openHandler();
-      }
+      // Clear the initial message sent during connection setup
+      mockWs.send.mockClear();
 
       // Act: Send first message
-      result.current.sendMessage("First message");
+      result.current.sendMessage("First message", undefined, "standard");
 
       // Change temporal context
       useTimeMachineStore.getState().selectTime(new Date("2026-03-01T00:00:00Z"));
@@ -297,7 +208,7 @@ describe("useStreamingChat - Temporal Context Integration (RED PHASE)", () => {
       useTimeMachineStore.getState().selectViewMode("isolated");
 
       // Send second message with new context
-      result.current.sendMessage("Second message");
+      result.current.sendMessage("Second message", undefined, "standard");
 
       // Assert: Messages reflect different temporal contexts
       expect(mockWs.send).toHaveBeenCalledTimes(2);

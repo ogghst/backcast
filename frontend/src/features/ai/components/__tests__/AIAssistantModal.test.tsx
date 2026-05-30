@@ -74,10 +74,12 @@ describe("AIAssistantModal", () => {
       />
     );
 
+    // Core fields always visible (create mode defaults to "specialist" agent type)
     expect(await screen.findByLabelText(/name/i)).toBeInTheDocument();
     expect(await screen.findByLabelText(/description/i)).toBeInTheDocument();
-    expect(await screen.findByLabelText(/model/i)).toBeInTheDocument();
     expect(await screen.findByLabelText(/system prompt/i)).toBeInTheDocument();
+    // Model field is only visible when agent_type === "main"
+    // In create mode, agent_type defaults to "specialist", so Model is not rendered
   });
 
   it("should render default_role select field", async () => {

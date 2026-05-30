@@ -13091,7 +13091,7 @@
           "Search"
         ],
         "summary": "Global Search",
-        "description": "Search across all entity types with ranked results.\n\nQueries 12 entity types in parallel, applies RBAC project scoping,\ntemporal/branch filters, and returns a flat relevance-ranked list.",
+        "description": "Search across all entity types with ranked results.\n\nQueries 13 entity types sequentially, applies RBAC project scoping,\ntemporal/branch filters, and returns a flat relevance-ranked list.",
         "operationId": "global_search",
         "security": [
           {
@@ -13132,7 +13132,7 @@
             "description": "Scope results to a specific project"
           },
           {
-            "name": "wbe_id",
+            "name": "wbs_element_id",
             "in": "query",
             "required": false,
             "schema": {
@@ -13145,10 +13145,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Scope results to a specific WBE and descendants",
-              "title": "Wbe Id"
+              "description": "Scope results to a specific WBSElement and descendants",
+              "title": "Wbs Element Id"
             },
-            "description": "Scope results to a specific WBE and descendants"
+            "description": "Scope results to a specific WBSElement and descendants"
           },
           {
             "name": "branch",
@@ -18966,21 +18966,6 @@
             "title": "Cost Element Type Id",
             "description": "Reference to standardized cost type"
           },
-          "amount": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
-              }
-            ],
-            "title": "Amount",
-            "description": "Allocated amount",
-            "default": "0"
-          },
           "description": {
             "anyOf": [
               {
@@ -19040,13 +19025,6 @@
             "format": "uuid",
             "title": "Cost Element Type Id",
             "description": "Reference to standardized cost type"
-          },
-          "amount": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
-            "title": "Amount",
-            "description": "Allocated amount",
-            "default": "0"
           },
           "description": {
             "anyOf": [
@@ -19425,22 +19403,6 @@
               }
             ],
             "title": "Cost Element Type Id"
-          },
-          "amount": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
           },
           "description": {
             "anyOf": [
@@ -25650,7 +25612,7 @@
             ],
             "title": "Project Id"
           },
-          "wbe_id": {
+          "wbs_element_id": {
             "anyOf": [
               {
                 "type": "string",
@@ -25660,7 +25622,7 @@
                 "type": "null"
               }
             ],
-            "title": "Wbe Id"
+            "title": "Wbs Element Id"
           }
         },
         "type": "object",
@@ -25671,7 +25633,7 @@
           "relevance_score"
         ],
         "title": "SearchResultItem",
-        "description": "A single search result from any entity type.\n\nAttributes:\n    entity_type: Entity type label (e.g. \"project\", \"wbe\", \"cost_element\").\n    id: Version PK (database row ID).\n    root_id: Stable root ID (project_id, wbe_id, etc.).\n    code: Business code if the entity has one.\n    name: Display name if the entity has one.\n    description: Description text if available.\n    status: Status field if the entity has one.\n    relevance_score: Computed relevance score (0.0 - 1.0).\n    project_id: Owning project root ID for project-scoped entities.\n    wbe_id: Owning WBE root ID for WBE-scoped entities."
+        "description": "A single search result from any entity type.\n\nAttributes:\n    entity_type: Entity type label (e.g. \"project\", \"wbs_element\", \"cost_element\").\n    id: Version PK (database row ID).\n    root_id: Stable root ID (project_id, wbs_element_id, etc.).\n    code: Business code if the entity has one.\n    name: Display name if the entity has one.\n    description: Description text if available.\n    status: Status field if the entity has one.\n    relevance_score: Computed relevance score (0.0 - 1.0).\n    project_id: Owning project root ID for project-scoped entities.\n    wbs_element_id: Owning WBSElement root ID for WBSElement-scoped entities."
       },
       "SessionContext": {
         "properties": {
@@ -27227,6 +27189,34 @@
             ],
             "title": "Schedule Progression Type",
             "description": "Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)"
+          },
+          "eac_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eac Amount",
+            "description": "Optional EAC amount for auto-created forecast (defaults to budget_amount)"
+          },
+          "basis_of_estimate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Of Estimate",
+            "description": "Optional basis of estimate for auto-created forecast (defaults to 'Initial forecast')"
           }
         },
         "type": "object",
@@ -27526,6 +27516,92 @@
             ],
             "title": "Control Date",
             "description": "Optional control date for update (valid_time start)"
+          },
+          "schedule_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Name"
+          },
+          "schedule_start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Start Date"
+          },
+          "schedule_end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule End Date"
+          },
+          "schedule_progression_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Progression Type"
+          },
+          "schedule_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Description"
+          },
+          "eac_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eac Amount"
+          },
+          "basis_of_estimate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Of Estimate"
           }
         },
         "type": "object",

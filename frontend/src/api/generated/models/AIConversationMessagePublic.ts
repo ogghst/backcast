@@ -14,7 +14,7 @@ export type AIConversationMessagePublic = {
     /**
      * Format of the content
      */
-    content_format?: AIConversationMessagePublic.content_format;
+    content_format?: 'text' | 'markdown' | 'mermaid' | 'code';
     tool_calls?: null;
     tool_results?: null;
     /**
@@ -31,15 +31,4 @@ export type AIConversationMessagePublic = {
     metadata?: Record<string, any>;
     created_at: string;
 };
-export namespace AIConversationMessagePublic {
-    /**
-     * Format of the content
-     */
-    export enum content_format {
-        TEXT = 'text',
-        MARKDOWN = 'markdown',
-        MERMAID = 'mermaid',
-        CODE = 'code',
-    }
-}
 

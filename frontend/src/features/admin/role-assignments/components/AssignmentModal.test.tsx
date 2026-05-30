@@ -22,6 +22,23 @@ import type { UserRoleAssignmentRead } from "@/api/types/roleAssignment";
 const mockCreateMutateAsync = vi.fn();
 const mockUpdateMutateAsync = vi.fn();
 
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+  }),
+  useTimeMachine: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+    isHistorical: false,
+    invalidateQueries: vi.fn(),
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock(
   "@/features/admin/role-assignments/hooks/useRoleAssignments",
   () => ({
@@ -105,7 +122,9 @@ vi.mock("@/api/queryKeys", () => ({
       list: () => ["projects", "list"],
     },
     changeOrders: {
+      all: ["change-orders"],
       lists: () => ["change-orders", "list"],
+      list: (projectId: string, params?: unknown) => ["change-orders", "list", projectId, params],
     },
   },
 }));

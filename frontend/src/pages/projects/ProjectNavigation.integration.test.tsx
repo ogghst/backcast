@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ConfigProvider } from "antd";
 import { ProjectLayout } from "./ProjectLayout";
 import { ProjectOverview } from "./ProjectOverview";
 import { ProjectChangeOrdersPage } from "./ProjectChangeOrdersPage";
@@ -17,6 +19,19 @@ vi.mock("@/features/projects/api/useProjects", () => ({
     },
     isLoading: false,
   }),
+  useUpdateProject: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useDeleteProject: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+}));
+
+// Mock Can component
+vi.mock("@/components/auth/Can", () => ({
+  Can: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock("@/features/wbs-elements/api/useWBSElements", () => ({
@@ -41,6 +56,23 @@ vi.mock("@/features/change-orders", () => ({
   ChangeOrderList: () => <div data-testid="change-order-list">Change Orders List</div>,
 }));
 
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+  }),
+  useTimeMachine: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+    isHistorical: false,
+    invalidateQueries: vi.fn(),
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 describe("Project Navigation Integration", () => {
   /**
    * T-Integration-001: test_full_navigation_flow_with_tab_clicking
@@ -59,17 +91,24 @@ describe("Project Navigation Integration", () => {
   it("test_full_navigation_flow_with_tab_clicking", async () => {
     // Arrange
     const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
 
     // Act - Start on overview page
     render(
-      <MemoryRouter initialEntries={["/projects/123"]}>
-        <Routes>
-          <Route path="/projects/:projectId" element={<ProjectLayout />}>
-            <Route index element={<ProjectOverview />} />
-            <Route path="change-orders" element={<ProjectChangeOrdersPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <ConfigProvider>
+          <MemoryRouter initialEntries={["/projects/123"]}>
+            <Routes>
+              <Route path="/projects/:projectId" element={<ProjectLayout />}>
+                <Route index element={<ProjectOverview />} />
+                <Route path="change-orders" element={<ProjectChangeOrdersPage />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </ConfigProvider>
+      </QueryClientProvider>
     );
 
     // Wait for initial render
@@ -104,15 +143,23 @@ describe("Project Navigation Integration", () => {
    */
   it("test_direct_url_navigation_shows_correct_tab", async () => {
     // Arrange & Act - Navigate directly to change orders page
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
     render(
-      <MemoryRouter initialEntries={["/projects/123/change-orders"]}>
-        <Routes>
-          <Route path="/projects/:projectId" element={<ProjectLayout />}>
-            <Route index element={<ProjectOverview />} />
-            <Route path="change-orders" element={<ProjectChangeOrdersPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <ConfigProvider>
+          <MemoryRouter initialEntries={["/projects/123/change-orders"]}>
+            <Routes>
+              <Route path="/projects/:projectId" element={<ProjectLayout />}>
+                <Route index element={<ProjectOverview />} />
+                <Route path="change-orders" element={<ProjectChangeOrdersPage />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </ConfigProvider>
+      </QueryClientProvider>
     );
 
     // Assert - Change Orders tab should be active

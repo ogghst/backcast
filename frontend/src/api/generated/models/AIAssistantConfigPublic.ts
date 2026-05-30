@@ -28,7 +28,7 @@ export type AIAssistantConfigPublic = {
     /**
      * Agent type: 'main' (user-facing) or 'specialist' (delegated)
      */
-    agent_type?: AIAssistantConfigPublic.agent_type;
+    agent_type?: 'main' | 'specialist';
     /**
      * Tool whitelist for specialist agents. None means all available tools.
      */
@@ -49,13 +49,4 @@ export type AIAssistantConfigPublic = {
     created_at: string;
     updated_at: string;
 };
-export namespace AIAssistantConfigPublic {
-    /**
-     * Agent type: 'main' (user-facing) or 'specialist' (delegated)
-     */
-    export enum agent_type {
-        MAIN = 'main',
-        SPECIALIST = 'specialist',
-    }
-}
 

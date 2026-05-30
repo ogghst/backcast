@@ -112,8 +112,8 @@ describe("EVMTimeSeriesChart", () => {
 
       // Check for EVM Progression chart title
       expect(screen.getByText(/EVM Progression/i)).toBeInTheDocument();
-      // Check for Cost Comparison chart title
-      expect(screen.getByText(/Cost Comparison/i)).toBeInTheDocument();
+      // Check for Performance Indices chart title
+      expect(screen.getByText(/Performance Indices/i)).toBeInTheDocument();
     });
 
     it("should render the main chart title", () => {
@@ -254,7 +254,7 @@ describe("EVMTimeSeriesChart", () => {
 
       // Should have two chart titles
       expect(screen.getByText(/EVM Progression/i)).toBeInTheDocument();
-      expect(screen.getByText(/Cost Comparison/i)).toBeInTheDocument();
+      expect(screen.getByText(/Performance Indices/i)).toBeInTheDocument();
     });
 
     it("should render PV/EV/AC progression chart", () => {
@@ -281,8 +281,8 @@ describe("EVMTimeSeriesChart", () => {
         { wrapper }
       );
 
-      // Check for Cost Comparison chart
-      expect(screen.getByText(/Cost Comparison/i)).toBeInTheDocument();
+      // Check for Performance Indices chart
+      expect(screen.getByText(/Performance Indices/i)).toBeInTheDocument();
     });
   });
 
@@ -299,7 +299,7 @@ describe("EVMTimeSeriesChart", () => {
 
       // If charts render without errors, data transformation is working
       expect(screen.getByText(/EVM Progression/i)).toBeInTheDocument();
-      expect(screen.getByText(/Cost Comparison/i)).toBeInTheDocument();
+      expect(screen.getByText(/Performance Indices/i)).toBeInTheDocument();
     });
   });
 

@@ -19,5 +19,12 @@ export type WorkPackageUpdate = {
      * Optional control date for update (valid_time start)
      */
     control_date?: (string | null);
+    schedule_name?: (string | null);
+    schedule_start_date?: (string | null);
+    schedule_end_date?: (string | null);
+    schedule_progression_type?: (string | null);
+    schedule_description?: (string | null);
+    eac_amount?: (number | string | null);
+    basis_of_estimate?: (string | null);
 };
 

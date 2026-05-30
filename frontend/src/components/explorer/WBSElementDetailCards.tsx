@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   Spin,
   Alert,
@@ -24,7 +24,6 @@ import { ExplorerCard } from "./ExplorerCard";
 import { EVMAnalyzerModal } from "@/features/evm/components/EVMAnalyzerModal";
 import { useEVMMetrics, useEVMTimeSeries } from "@/features/evm/api/useEVMMetrics";
 import { useWBSElement } from "@/features/wbs-elements/api/useWBSElements";
-import { useCostElements } from "@/features/cost-elements/api/useCostElements";
 import { EntityType } from "@/features/evm/types";
 import { EVMTimeSeriesGranularity } from "@/features/evm/types";
 import { formatTimestamp } from "./shared/formatters";
@@ -56,21 +55,8 @@ export const WBSElementDetailCards = ({ wbsElementId }: WBSElementDetailCardsPro
     wbsElementId,
     granularity,
   );
-  const { data: childCostElements } = useCostElements({
-    filters: { wbs_element_id: [wbsElementId] },
-    pagination: { pageSize: 100 },
-    queryOptions: { enabled: !!wbsElementId },
-  });
 
-  const donutItems = useMemo(() => {
-    if (!childCostElements?.items) return [];
-    return childCostElements.items
-      .filter((ce) => Number(ce.amount) > 0)
-      .map((ce) => ({
-        name: ce.cost_element_type_name || ce.cost_element_type_code || ce.cost_element_id,
-        value: Number(ce.amount),
-      }));
-  }, [childCostElements]);
+  const donutItems: { name: string; value: number }[] = [];
 
   if (isLoading) {
     return (

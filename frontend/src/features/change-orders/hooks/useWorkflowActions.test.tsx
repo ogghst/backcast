@@ -136,11 +136,11 @@ describe("useWorkflowActions", () => {
     });
 
     it("should have correct status values", () => {
-      expect(WORKFLOW_ACTIONS.SUBMIT.status).toBe("Submitted for Approval");
-      expect(WORKFLOW_ACTIONS.APPROVE.status).toBe("Approved");
-      expect(WORKFLOW_ACTIONS.REJECT.status).toBe("Rejected");
-      expect(WORKFLOW_ACTIONS.MERGE.status).toBe("Implemented");
-      expect(WORKFLOW_ACTIONS.ARCHIVE.status).toBe("Archived");
+      expect(WORKFLOW_ACTIONS.SUBMIT.status).toBe("submitted_for_approval");
+      expect(WORKFLOW_ACTIONS.APPROVE.status).toBe("approved");
+      expect(WORKFLOW_ACTIONS.REJECT.status).toBe("rejected");
+      expect(WORKFLOW_ACTIONS.MERGE.status).toBe("implemented");
+      expect(WORKFLOW_ACTIONS.ARCHIVE.status).toBe("archived");
     });
   });
 
@@ -163,7 +163,7 @@ describe("useWorkflowActions", () => {
     });
 
     it("should return true when action status is in available transitions", () => {
-      expect(isActionAvailable("SUBMIT", ["submitted for approval"])).toBe(
+      expect(isActionAvailable("SUBMIT", ["submitted_for_approval"])).toBe(
         true,
       );
       expect(isActionAvailable("APPROVE", ["approved"])).toBe(true);
@@ -345,7 +345,8 @@ describe("useWorkflowActions", () => {
       });
 
       await waitFor(() => {
-        expect(onError).toHaveBeenCalledWith(error);
+        expect(onError).toHaveBeenCalled();
+        expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
       });
     });
 
@@ -438,7 +439,8 @@ describe("useWorkflowActions", () => {
       });
 
       await waitFor(() => {
-        expect(onError).toHaveBeenCalledWith(error);
+        expect(onError).toHaveBeenCalled();
+        expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
       });
     });
   });

@@ -110,7 +110,7 @@ describe("ProjectOverview", () => {
 
     // Assert
     expect(screen.getByText("Project Details")).toBeInTheDocument();
-    expect(screen.getByText("Root Work Breakdown Elements")).toBeInTheDocument();
+    expect(screen.getByText("Root WBS Elements")).toBeInTheDocument();
     // Change Orders card should NOT be present
     expect(screen.queryByText("Change Orders")).not.toBeInTheDocument();
   });
