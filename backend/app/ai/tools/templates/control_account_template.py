@@ -39,6 +39,8 @@ from app.models.schemas.control_account import ControlAccountCreate
 
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE_LIMIT = 50
+
 # =============================================================================
 # CONTROL ACCOUNT CRUD TOOLS
 # =============================================================================
@@ -457,3 +459,129 @@ async def get_control_account_budget(
         logger.error(f"Error in get_control_account_budget: {e}")
         error_result = {"error": str(e)}
         return add_temporal_metadata(error_result, context)
+
+
+# =============================================================================
+# BATCH CONTROL ACCOUNT TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_control_accounts",
+    description="Batch create multiple control accounts under a WBS element. "
+    "Each control account represents the intersection of a WBS element and an organizational unit. "
+    "Maximum 50 items per batch.",
+    permissions=["control-account-create"],
+    category="control-accounts",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_control_accounts(
+    wbs_element_id: str,
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create control accounts under the same WBS element.
+
+    Each control account represents the intersection of a WBS element and an
+    organizational unit. Duplicate organizational_unit_id entries within the
+    same batch are rejected because each (wbs_element_id, organizational_unit_id)
+    pair must be unique.
+
+    Args:
+        wbs_element_id: UUID of the parent WBS Element
+        items: List of dicts, each with {organizational_unit_id, name, code?, description?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    log_temporal_context("batch_create_control_accounts", context)
+
+    try:
+        from app.services.control_account_service import ControlAccountService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("organizational_unit_id"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'organizational_unit_id'"
+                    },
+                    context,
+                )
+            if not item.get("name"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'name'"},
+                    context,
+                )
+
+        # Check for duplicate organizational_unit_id within the batch
+        seen_org_units: set[str] = set()
+        for i, item in enumerate(items):
+            org_id = item["organizational_unit_id"]
+            if org_id in seen_org_units:
+                return add_temporal_metadata(
+                    {
+                        "error": f"Duplicate organizational_unit_id '{org_id}' found at "
+                        f"index {i}. Each control account must have a unique "
+                        f"organizational unit within the same WBS element."
+                    },
+                    context,
+                )
+            seen_org_units.add(org_id)
+
+        service = ControlAccountService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            ca_data = ControlAccountCreate(
+                wbs_element_id=UUID(wbs_element_id),
+                organizational_unit_id=UUID(item["organizational_unit_id"]),
+                name=item["name"],
+                code=item.get("code"),
+                description=item.get("description"),
+            )
+
+            ca = await service.create_root(
+                root_id=uuid4(),
+                actor_id=actor_id,
+                control_date=None,
+                branch=branch,
+                wbs_element_id=ca_data.wbs_element_id,
+                organizational_unit_id=ca_data.organizational_unit_id,
+                name=ca_data.name,
+                code=ca_data.code,
+                description=ca_data.description,
+            )
+            results.append(
+                {
+                    "id": str(ca.control_account_id),
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} control accounts under WBS Element {wbs_element_id}",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata(
+            {"error": f"Parent entity not found: {e}"}, context
+        )
+    except Exception as e:
+        logger.error(f"Error in batch_create_control_accounts: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)

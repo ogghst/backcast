@@ -299,6 +299,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         control_account_template.update_control_account,
         control_account_template.delete_control_account,
         control_account_template.get_control_account_budget,
+        control_account_template.batch_create_control_accounts,
     ]
     tools.extend(control_account_tools)
 

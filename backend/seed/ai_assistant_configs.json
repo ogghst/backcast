@@ -49,7 +49,8 @@
         "find_cost_events", "find_users", "find_organizational_units",
         "get_cost_element_details", "get_progress_data", "get_work_package_budget_status",
         "get_control_account_budget", "get_project_analysis", "get_project_forecast",
-        "get_coq_data", "search_documents", "read_document"
+        "get_coq_data", "search_documents", "read_document",
+        "batch_create_control_accounts"
       ],
       "allowed_specialists": ["project_manager", "change_order_manager", "evm_analyst", "visualization_specialist", "mcp_specialist", "accountant"]
     },
@@ -77,7 +78,8 @@
         "find_cost_events", "find_users", "find_organizational_units",
         "get_cost_element_details", "get_progress_data", "get_work_package_budget_status",
         "get_control_account_budget", "get_project_analysis", "get_project_forecast",
-        "get_coq_data", "search_documents", "read_document"
+        "get_coq_data", "search_documents", "read_document",
+        "batch_create_control_accounts"
       ],
       "allowed_specialists": ["user_admin", "accountant"]
     },
