@@ -89,7 +89,7 @@ export const UserProfile: React.FC = () => {
       });
     }
 
-    if (can("package-type-read")) {
+    if (can("cost-event-type-read")) {
       adminItems.push({
         key: "/admin/cost-event-types",
         icon: <TagsOutlined />,

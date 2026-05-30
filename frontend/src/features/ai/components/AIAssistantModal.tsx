@@ -157,6 +157,12 @@ export const AIAssistantModal = ({
                 <Radio value="specialist">Specialist Agent</Radio>
               </Radio.Group>
             </Form.Item>
+
+            {isEdit && (
+              <Form.Item name="is_active" label="Active" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            )}
           </div>
         </CollapsibleCard>
 
@@ -340,29 +346,6 @@ export const AIAssistantModal = ({
           </CollapsibleCard>
         )}
 
-        {/* Section 4: Status (edit mode only) */}
-        {isEdit && (
-          <CollapsibleCard
-            id="assistant-status"
-            collapsed={true}
-            title={
-              <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
-                Status
-              </span>
-            }
-            style={{
-              marginBottom: token.marginSM,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorder}`,
-            }}
-          >
-            <div style={{ padding: token.paddingMD }}>
-              <Form.Item name="is_active" label="Active" valuePropName="checked">
-                <Switch />
-              </Form.Item>
-            </div>
-          </CollapsibleCard>
-        )}
       </Form>
     </Modal>
   );

@@ -151,6 +151,50 @@ async def update_forecast(
         return add_temporal_metadata({"error": str(e)}, context)
 
 
+@ai_tool(
+    name="delete_forecast",
+    description="Delete forecast for a cost element.",
+    permissions=["forecast-delete"],
+    category="forecast",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_forecast(
+    forecast_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a forecast."""
+    log_temporal_context("delete_forecast", context)
+
+    try:
+        from app.services.forecast_service import ForecastService
+
+        service = ForecastService(context.session)
+
+        await service.soft_delete(
+            forecast_id=UUID(forecast_id),
+            actor_id=UUID(context.user_id),
+            branch=context.branch_name or "main",
+            control_date=context.as_of,
+        )
+
+        result = {
+            "id": forecast_id,
+            "message": "Forecast deleted",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError:
+        return add_temporal_metadata(
+            {"error": f"Invalid forecast ID: {forecast_id}"}, context
+        )
+    except KeyError:
+        return add_temporal_metadata(
+            {"error": f"Forecast {forecast_id} not found"}, context
+        )
+    except Exception as e:
+        logger.error(f"Error in delete_forecast: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
 # =============================================================================
 # COST REGISTRATION TOOLS (Versionable Entity)
 # =============================================================================
@@ -420,6 +464,111 @@ async def create_progress_entry(
         return add_temporal_metadata({"error": f"Cost element not found: {e}"}, context)
     except Exception as e:
         logger.error(f"Error in create_progress_entry: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="update_progress_entry",
+    description="Update a progress entry.",
+    permissions=["progress-entry-update"],
+    category="progress-entry",
+    risk_level=RiskLevel.HIGH,
+)
+async def update_progress_entry(
+    progress_entry_id: str,
+    progress_percentage: float | None = None,
+    notes: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Update an existing progress entry."""
+    log_temporal_context("update_progress_entry", context)
+
+    try:
+        from app.models.schemas.progress_entry import ProgressEntryUpdate
+        from app.services.progress_entry_service import ProgressEntryService
+
+        service = ProgressEntryService(context.session)
+
+        update_data: dict[str, Any] = {}
+        if progress_percentage is not None:
+            update_data["progress_percentage"] = Decimal(str(progress_percentage))
+        if notes is not None:
+            update_data["notes"] = notes
+
+        if not update_data:
+            return add_temporal_metadata(
+                {"error": "No fields provided to update"}, context
+            )
+
+        ProgressEntryUpdate(**update_data)
+
+        progress = await service.update(
+            entity_id=UUID(progress_entry_id),
+            actor_id=UUID(context.user_id),
+            control_date=context.as_of,
+            **update_data,
+        )
+
+        result = {
+            "progress_entry_id": str(progress.progress_entry_id),
+            "work_package_id": str(progress.work_package_id),
+            "progress_percentage": float(progress.progress_percentage)
+            if progress.progress_percentage
+            else None,
+            "notes": progress.notes,
+            "message": "Progress entry updated",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata(
+            {"error": f"Progress entry not found: {e}"}, context
+        )
+    except Exception as e:
+        logger.error(f"Error in update_progress_entry: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="delete_progress_entry",
+    description="Delete a progress entry.",
+    permissions=["progress-entry-delete"],
+    category="progress-entry",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_progress_entry(
+    progress_entry_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a progress entry."""
+    log_temporal_context("delete_progress_entry", context)
+
+    try:
+        from app.services.progress_entry_service import ProgressEntryService
+
+        service = ProgressEntryService(context.session)
+
+        await service.soft_delete(
+            entity_id=UUID(progress_entry_id),
+            actor_id=UUID(context.user_id),
+            control_date=context.as_of,
+        )
+
+        result = {
+            "id": progress_entry_id,
+            "message": "Progress entry soft deleted. "
+            "The entry is marked as deleted but preserved for audit trail.",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata(
+            {"error": f"Progress entry not found: {e}"}, context
+        )
+    except Exception as e:
+        logger.error(f"Error in delete_progress_entry: {e}")
         return add_temporal_metadata({"error": str(e)}, context)
 
 

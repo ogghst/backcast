@@ -5,7 +5,7 @@ This template provides AI tools for cost event type management. The key principl
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
 Cost Event Types in Backcast:
-- Cost Event Types are configurable event categories (replaces old PackageType)
+- Cost Event Types are configurable event categories
 - They are VERSIONABLE but NOT BRANCHABLE (organizational data, not project-specific)
 - Admins can configure available types with code, name, color, and description
 - Used for consistent cost event categorization across projects
@@ -37,14 +37,14 @@ logger = logging.getLogger(__name__)
 
 
 @ai_tool(
-    name="find_package_types",
+    name="find_cost_event_types",
     description="Find cost event types by ID or search.",
-    permissions=["package-type-read"],
-    category="package_types",
+    permissions=["cost-event-type-read"],
+    category="cost-event-types",
     risk_level=RiskLevel.LOW,
 )
-async def find_package_types(
-    package_type_id: str | None = None,
+async def find_cost_event_types(
+    cost_event_type_id: str | None = None,
     search: str | None = None,
     skip: int = 0,
     limit: int = 50,
@@ -55,17 +55,17 @@ async def find_package_types(
     Context: Provides database session and cost event type service for querying.
 
     Args:
-        package_type_id: UUID of a specific cost event type to retrieve (returns single)
+        cost_event_type_id: UUID of a specific cost event type to retrieve (returns single)
         search: Optional search term for code or name
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
         context: Injected tool execution context
 
     Returns:
-        Single cost event type dict if package_type_id provided, otherwise list result.
+        Single cost event type dict if cost_event_type_id provided, otherwise list result.
 
     Raises:
-        ValueError: If package_type_id is not a valid UUID format
+        ValueError: If cost_event_type_id is not a valid UUID format
     """
     try:
         from app.services.cost_event_type_service import CostEventTypeService
@@ -73,11 +73,11 @@ async def find_package_types(
         service = CostEventTypeService(context.session)
 
         # Single cost event type lookup
-        if package_type_id:
-            cost_event_type = await service.get_by_id(UUID(package_type_id))
+        if cost_event_type_id:
+            cost_event_type = await service.get_by_id(UUID(cost_event_type_id))
 
             if not cost_event_type:
-                return {"error": f"Cost event type {package_type_id} not found"}
+                return {"error": f"Cost event type {cost_event_type_id} not found"}
 
             return {
                 "id": str(cost_event_type.cost_event_type_id),
@@ -95,7 +95,7 @@ async def find_package_types(
         )
 
         return {
-            "package_types": [
+            "cost_event_types": [
                 {
                     "id": str(cet.cost_event_type_id),
                     "code": cet.code,
@@ -110,20 +110,20 @@ async def find_package_types(
             "limit": limit,
         }
     except ValueError:
-        return {"error": f"Invalid cost event type ID: {package_type_id}"}
+        return {"error": f"Invalid cost event type ID: {cost_event_type_id}"}
     except Exception as e:
-        logger.error(f"Error in find_package_types: {e}")
+        logger.error(f"Error in find_cost_event_types: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
-    name="create_package_type",
+    name="create_cost_event_type",
     description="Create a new cost event type.",
-    permissions=["package-type-create"],
-    category="package_types",
+    permissions=["cost-event-type-create"],
+    category="cost-event-types",
     risk_level=RiskLevel.HIGH,
 )
-async def create_package_type(
+async def create_cost_event_type(
     code: str,
     name: str,
     color: str = "blue",
@@ -150,7 +150,7 @@ async def create_package_type(
         ValueError: If invalid input or duplicate code
 
     Example:
-        >>> result = await create_package_type(
+        >>> result = await create_cost_event_type(
         ...     code="quality_impact",
         ...     name="Quality Impact",
         ...     color="red",
@@ -191,19 +191,19 @@ async def create_package_type(
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except Exception as e:
-        logger.error(f"Error in create_package_type: {e}")
+        logger.error(f"Error in create_cost_event_type: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
-    name="update_package_type",
+    name="update_cost_event_type",
     description="Update cost event type fields.",
-    permissions=["package-type-update"],
-    category="package_types",
+    permissions=["cost-event-type-update"],
+    category="cost-event-types",
     risk_level=RiskLevel.HIGH,
 )
-async def update_package_type(
-    package_type_id: str,
+async def update_cost_event_type(
+    cost_event_type_id: str,
     code: str | None = None,
     name: str | None = None,
     color: str | None = None,
@@ -216,7 +216,7 @@ async def update_package_type(
     Context: Provides database session and cost event type service for updating.
 
     Args:
-        package_type_id: UUID of the cost event type to update
+        cost_event_type_id: UUID of the cost event type to update
         code: New code (optional)
         name: New name (optional)
         color: New color (optional)
@@ -228,12 +228,12 @@ async def update_package_type(
         Dictionary with updated cost event type details
 
     Raises:
-        ValueError: If package_type_id is invalid or no fields provided
+        ValueError: If cost_event_type_id is invalid or no fields provided
         KeyError: If cost event type not found
 
     Example:
-        >>> result = await update_package_type(
-        ...     package_type_id="...",
+        >>> result = await update_cost_event_type(
+        ...     cost_event_type_id="...",
         ...     name="Updated Quality Impact",
         ...     color="orange",
         ...     is_quality=True
@@ -256,7 +256,7 @@ async def update_package_type(
 
         # Call service method
         cost_event_type = await service.update(
-            cost_event_type_id=UUID(package_type_id),
+            cost_event_type_id=UUID(cost_event_type_id),
             type_in=update_data,
             actor_id=UUID(context.user_id),
         )
@@ -273,21 +273,21 @@ async def update_package_type(
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except KeyError:
-        return {"error": f"Cost event type {package_type_id} not found"}
+        return {"error": f"Cost event type {cost_event_type_id} not found"}
     except Exception as e:
-        logger.error(f"Error in update_package_type: {e}")
+        logger.error(f"Error in update_cost_event_type: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
-    name="delete_package_type",
+    name="delete_cost_event_type",
     description="Delete a cost event type.",
-    permissions=["package-type-delete"],
-    category="package_types",
+    permissions=["cost-event-type-delete"],
+    category="cost-event-types",
     risk_level=RiskLevel.CRITICAL,
 )
-async def delete_package_type(
-    package_type_id: str,
+async def delete_cost_event_type(
+    cost_event_type_id: str,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Soft delete a cost event type.
@@ -295,18 +295,18 @@ async def delete_package_type(
     Context: Provides database session and cost event type service for deletion.
 
     Args:
-        package_type_id: UUID of the cost event type to delete
+        cost_event_type_id: UUID of the cost event type to delete
         context: Injected tool execution context
 
     Returns:
         Dictionary with deletion confirmation
 
     Raises:
-        ValueError: If package_type_id is invalid
+        ValueError: If cost_event_type_id is invalid
         KeyError: If cost event type not found
 
     Example:
-        >>> result = await delete_package_type("...")
+        >>> result = await delete_cost_event_type("...")
         >>> print(f"Deleted cost event type: {result['id']}")
     """
     try:
@@ -316,18 +316,18 @@ async def delete_package_type(
 
         # Call service method
         await service.soft_delete(
-            cost_event_type_id=UUID(package_type_id),
+            cost_event_type_id=UUID(cost_event_type_id),
             actor_id=UUID(context.user_id),
         )
 
         return {
-            "id": package_type_id,
+            "id": cost_event_type_id,
             "message": "Cost event type deleted successfully",
         }
     except ValueError:
-        return {"error": f"Invalid cost event type ID: {package_type_id}"}
+        return {"error": f"Invalid cost event type ID: {cost_event_type_id}"}
     except KeyError:
-        return {"error": f"Cost event type {package_type_id} not found"}
+        return {"error": f"Cost event type {cost_event_type_id} not found"}
     except Exception as e:
-        logger.error(f"Error in delete_package_type: {e}")
+        logger.error(f"Error in delete_cost_event_type: {e}")
         return {"error": str(e)}

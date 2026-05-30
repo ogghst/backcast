@@ -101,7 +101,7 @@ export const CostEventTypeManagement = () => {
   // Fetch version history
   const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
     {
-      resource: "package_types",
+      resource: "cost_event_types",
       entityId: selectedType?.cost_event_type_id,
       fetchFn: (id) => CostEventTypesService.getCostEventTypeHistory(id),
       enabled: historyOpen,
@@ -135,7 +135,7 @@ export const CostEventTypeManagement = () => {
 
   const handleDelete = (id: string) => {
     modal.confirm({
-      title: "Are you sure you want to delete this package type?",
+      title: "Are you sure you want to delete this cost event type?",
       content: "This action cannot be undone.",
       okText: "Yes, Delete",
       okType: "danger",
@@ -181,7 +181,7 @@ export const CostEventTypeManagement = () => {
       key: "actions",
       render: (_, record) => (
         <Space>
-          <Can permission="package-type-read">
+          <Can permission="cost-event-type-read">
             <Button
               icon={<HistoryOutlined />}
               onClick={() => {
@@ -191,7 +191,7 @@ export const CostEventTypeManagement = () => {
               title="View History"
             />
           </Can>
-          <Can permission="package-type-update">
+          <Can permission="cost-event-type-update">
             <Button
               icon={<EditOutlined />}
               onClick={() => {
@@ -201,7 +201,7 @@ export const CostEventTypeManagement = () => {
               title="Edit Type"
             />
           </Can>
-          <Can permission="package-type-delete">
+          <Can permission="cost-event-type-delete">
             <Button
               danger
               icon={<DeleteOutlined />}
@@ -236,7 +236,7 @@ export const CostEventTypeManagement = () => {
             <div style={{ fontSize: "16px", fontWeight: "bold" }}>
               Cost Event Types
             </div>
-            <Can permission="package-type-create">
+            <Can permission="cost-event-type-create">
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -245,7 +245,7 @@ export const CostEventTypeManagement = () => {
                   setModalOpen(true);
                 }}
               >
-                Add Package Type
+                Add Cost Event Type
               </Button>
             </Can>
           </div>

@@ -163,10 +163,12 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         advanced_analysis_template,
         analysis_template,
         change_order_template,
+        control_account_template,
         cost_element_template,
+        cost_event_template,
+        cost_event_type_template,
         diagram_template,
         forecast_cost_progress_template,
-        package_type_template,
         project_template,
         user_management_template,
         work_package_template,
@@ -236,16 +238,16 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     ]
     tools.extend(cost_element_tools)
 
-    # Add tools from user_management_template (User and Department CRUD)
+    # Add tools from user_management_template (User and Organizational Unit CRUD)
     user_management_tools = [
         user_management_template.find_users,
         user_management_template.create_user,
         user_management_template.update_user,
         user_management_template.delete_user,
-        user_management_template.find_departments,
-        user_management_template.create_department,
-        user_management_template.update_department,
-        user_management_template.delete_department,
+        user_management_template.find_organizational_units,
+        user_management_template.create_organizational_unit,
+        user_management_template.update_organizational_unit,
+        user_management_template.delete_organizational_unit,
     ]
     tools.extend(user_management_tools)
 
@@ -265,10 +267,13 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     forecast_cost_progress_tools = [
         forecast_cost_progress_template.create_forecast,
         forecast_cost_progress_template.update_forecast,
+        forecast_cost_progress_template.delete_forecast,
         forecast_cost_progress_template.create_cost_registration,
         forecast_cost_progress_template.update_cost_registration,
         forecast_cost_progress_template.delete_cost_registration,
         forecast_cost_progress_template.create_progress_entry,
+        forecast_cost_progress_template.update_progress_entry,
+        forecast_cost_progress_template.delete_progress_entry,
         forecast_cost_progress_template.get_cost_element_details,
         forecast_cost_progress_template.get_progress_data,
         forecast_cost_progress_template.batch_create_cost_registrations,
@@ -286,14 +291,34 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     ]
     tools.extend(work_package_tools)
 
-    # Add tools from package_type_template (Package Type CRUD)
-    package_type_tools = [
-        package_type_template.find_package_types,
-        package_type_template.create_package_type,
-        package_type_template.update_package_type,
-        package_type_template.delete_package_type,
+    # Add tools from control_account_template (Control Account CRUD and budget)
+    control_account_tools = [
+        control_account_template.find_control_accounts,
+        control_account_template.create_control_account,
+        control_account_template.update_control_account,
+        control_account_template.delete_control_account,
+        control_account_template.get_control_account_budget,
     ]
-    tools.extend(package_type_tools)
+    tools.extend(control_account_tools)
+
+    # Add tools from cost_event_type_template (Cost Event Type CRUD)
+    cost_event_type_tools = [
+        cost_event_type_template.find_cost_event_types,
+        cost_event_type_template.create_cost_event_type,
+        cost_event_type_template.update_cost_event_type,
+        cost_event_type_template.delete_cost_event_type,
+    ]
+    tools.extend(cost_event_type_tools)
+
+    # Add tools from cost_event_template (Cost Event CRUD and COQ data)
+    cost_event_tools = [
+        cost_event_template.find_cost_events,
+        cost_event_template.create_cost_event,
+        cost_event_template.update_cost_event,
+        cost_event_template.delete_cost_event,
+        cost_event_template.get_coq_data,
+    ]
+    tools.extend(cost_event_tools)
 
     # Add tools from document_tools (Document repository access)
     document_tools_list = [

@@ -31,6 +31,7 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.organizational_unit import (
     OrganizationalUnitCreate,
@@ -101,6 +102,8 @@ async def find_users(
         ValueError: If user_id is not a valid UUID format
     """
     try:
+        log_temporal_context("find_users", context)
+
         from app.services.user import UserService
 
         service = UserService(context.session)
@@ -110,21 +113,26 @@ async def find_users(
             user = await service.get_user(UUID(user_id))
 
             if not user:
-                return {"error": f"User {user_id} not found"}
+                return add_temporal_metadata(
+                    {"error": f"User {user_id} not found"}, context
+                )
 
             role = await _resolve_user_role(context.session, user.user_id)
-            return {
-                "id": str(user.user_id),
-                "email": user.email,
-                "full_name": user.full_name,
-                "department": user.department,
-                "role": role,
-                "is_active": user.is_active,
-                "preferences": user.preferences if user.preferences else None,
-                "password_changed_at": user.password_changed_at.isoformat()
-                if user.password_changed_at
-                else None,
-            }
+            return add_temporal_metadata(
+                {
+                    "id": str(user.user_id),
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "department": user.department,
+                    "role": role,
+                    "is_active": user.is_active,
+                    "preferences": user.preferences if user.preferences else None,
+                    "password_changed_at": user.password_changed_at.isoformat()
+                    if user.password_changed_at
+                    else None,
+                },
+                context,
+            )
 
         # List users
         users = await service.get_users(skip=skip, limit=limit)
@@ -145,17 +153,20 @@ async def find_users(
                 }
             )
 
-        return {
-            "users": user_list,
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-        }
+        return add_temporal_metadata(
+            {
+                "users": user_list,
+                "total": total,
+                "skip": skip,
+                "limit": limit,
+            },
+            context,
+        )
     except ValueError:
-        return {"error": f"Invalid user ID: {user_id}"}
+        return add_temporal_metadata({"error": f"Invalid user ID: {user_id}"}, context)
     except Exception as e:
         logger.error(f"Error in find_users: {e}")
-        return {"error": str(e)}
+        return add_temporal_metadata({"error": str(e)}, context)
 
 
 @ai_tool(
@@ -397,14 +408,14 @@ async def delete_user(
 
 
 @ai_tool(
-    name="find_departments",
+    name="find_organizational_units",
     description="Find organizational units by ID or search.",
     permissions=["organizational-unit-read"],
-    category="departments",
+    category="organizational-units",
     risk_level=RiskLevel.LOW,
 )
-async def find_departments(
-    department_id: str | None = None,
+async def find_organizational_units(
+    organizational_unit_id: str | None = None,
     search: str | None = None,
     skip: int = 0,
     limit: int = 50,
@@ -415,38 +426,50 @@ async def find_departments(
     Context: Provides database session and organizational unit service for querying.
 
     Args:
-        department_id: UUID of a specific organizational unit to retrieve (returns single)
+        organizational_unit_id: UUID of a specific organizational unit to retrieve (returns single)
         search: Optional search term for code or name
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
         context: Injected tool execution context
 
     Returns:
-        Single organizational unit dict if department_id provided, otherwise list result.
+        Single organizational unit dict if organizational_unit_id provided, otherwise list result.
 
     Raises:
-        ValueError: If department_id is not a valid UUID format
+        ValueError: If organizational_unit_id is not a valid UUID format
     """
     try:
+        log_temporal_context("find_organizational_units", context)
+
         from app.services.organizational_unit_service import OrganizationalUnitService
 
         service = OrganizationalUnitService(context.session)
 
         # Single organizational unit lookup
-        if department_id:
-            org_unit = await service.get_as_of(UUID(department_id))
+        if organizational_unit_id:
+            org_unit = await service.get_as_of(UUID(organizational_unit_id))
 
             if not org_unit:
-                return {"error": f"Organizational unit {department_id} not found"}
+                return add_temporal_metadata(
+                    {
+                        "error": f"Organizational unit {organizational_unit_id} not found"
+                    },
+                    context,
+                )
 
-            return {
-                "id": str(org_unit.organizational_unit_id),
-                "code": org_unit.code,
-                "name": org_unit.name,
-                "description": org_unit.description,
-                "manager_id": str(org_unit.manager_id) if org_unit.manager_id else None,
-                "is_active": org_unit.is_active,
-            }
+            return add_temporal_metadata(
+                {
+                    "id": str(org_unit.organizational_unit_id),
+                    "code": org_unit.code,
+                    "name": org_unit.name,
+                    "description": org_unit.description,
+                    "manager_id": str(org_unit.manager_id)
+                    if org_unit.manager_id
+                    else None,
+                    "is_active": org_unit.is_active,
+                },
+                context,
+            )
 
         # List organizational units
         org_units, total = await service.get_departments(
@@ -455,37 +478,43 @@ async def find_departments(
             limit=limit,
         )
 
-        return {
-            "departments": [
-                {
-                    "id": str(ou.organizational_unit_id),
-                    "code": ou.code,
-                    "name": ou.name,
-                    "description": ou.description,
-                    "manager_id": str(ou.manager_id) if ou.manager_id else None,
-                    "is_active": ou.is_active,
-                }
-                for ou in org_units
-            ],
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-        }
+        return add_temporal_metadata(
+            {
+                "organizational_units": [
+                    {
+                        "id": str(ou.organizational_unit_id),
+                        "code": ou.code,
+                        "name": ou.name,
+                        "description": ou.description,
+                        "manager_id": str(ou.manager_id) if ou.manager_id else None,
+                        "is_active": ou.is_active,
+                    }
+                    for ou in org_units
+                ],
+                "total": total,
+                "skip": skip,
+                "limit": limit,
+            },
+            context,
+        )
     except ValueError:
-        return {"error": f"Invalid organizational unit ID: {department_id}"}
+        return add_temporal_metadata(
+            {"error": f"Invalid organizational unit ID: {organizational_unit_id}"},
+            context,
+        )
     except Exception as e:
-        logger.error(f"Error in find_departments: {e}")
-        return {"error": str(e)}
+        logger.error(f"Error in find_organizational_units: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
 
 
 @ai_tool(
-    name="create_department",
+    name="create_organizational_unit",
     description="Create a new organizational unit.",
     permissions=["organizational-unit-create"],
-    category="departments",
+    category="organizational-units",
     risk_level=RiskLevel.HIGH,
 )
-async def create_department(
+async def create_organizational_unit(
     code: str,
     name: str,
     description: str | None = None,
@@ -513,7 +542,7 @@ async def create_department(
         KeyError: If manager user not found
 
     Example:
-        >>> result = await create_department(
+        >>> result = await create_organizational_unit(
         ...     code="ENG",
         ...     name="Engineering",
         ...     description="Software and Hardware Engineering",
@@ -557,19 +586,19 @@ async def create_department(
     except KeyError as e:
         return {"error": f"Manager not found: {e}"}
     except Exception as e:
-        logger.error(f"Error in create_department: {e}")
+        logger.error(f"Error in create_organizational_unit: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
-    name="update_department",
+    name="update_organizational_unit",
     description="Update organizational unit fields.",
     permissions=["organizational-unit-update"],
-    category="departments",
+    category="organizational-units",
     risk_level=RiskLevel.HIGH,
 )
-async def update_department(
-    department_id: str,
+async def update_organizational_unit(
+    organizational_unit_id: str,
     name: str | None = None,
     description: str | None = None,
     manager_id: str | None = None,
@@ -581,7 +610,7 @@ async def update_department(
     Context: Provides database session and organizational unit service for updating.
 
     Args:
-        department_id: UUID of the organizational unit to update
+        organizational_unit_id: UUID of the organizational unit to update
         name: New name (optional)
         description: New description (optional)
         manager_id: New manager UUID (optional)
@@ -592,12 +621,12 @@ async def update_department(
         Dictionary with updated organizational unit details
 
     Raises:
-        ValueError: If department_id is invalid or no fields provided
+        ValueError: If organizational_unit_id is invalid or no fields provided
         KeyError: If organizational unit not found
 
     Example:
-        >>> result = await update_department(
-        ...     department_id="...",
+        >>> result = await update_organizational_unit(
+        ...     organizational_unit_id="...",
         ...     name="Updated Engineering",
         ...     is_active=False
         ... )
@@ -619,7 +648,7 @@ async def update_department(
 
         # Call service method
         org_unit = await service.update_organizational_unit(
-            organizational_unit_id=UUID(department_id),
+            organizational_unit_id=UUID(organizational_unit_id),
             unit_in=update_data,
             actor_id=UUID(context.user_id),
         )
@@ -637,21 +666,21 @@ async def update_department(
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except KeyError:
-        return {"error": f"Organizational unit {department_id} not found"}
+        return {"error": f"Organizational unit {organizational_unit_id} not found"}
     except Exception as e:
-        logger.error(f"Error in update_department: {e}")
+        logger.error(f"Error in update_organizational_unit: {e}")
         return {"error": str(e)}
 
 
 @ai_tool(
-    name="delete_department",
+    name="delete_organizational_unit",
     description="Delete an organizational unit.",
     permissions=["organizational-unit-delete"],
-    category="departments",
+    category="organizational-units",
     risk_level=RiskLevel.CRITICAL,
 )
-async def delete_department(
-    department_id: str,
+async def delete_organizational_unit(
+    organizational_unit_id: str,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Soft delete an organizational unit.
@@ -659,18 +688,18 @@ async def delete_department(
     Context: Provides database session and organizational unit service for deletion.
 
     Args:
-        department_id: UUID of the organizational unit to delete
+        organizational_unit_id: UUID of the organizational unit to delete
         context: Injected tool execution context
 
     Returns:
         Dictionary with deletion confirmation
 
     Raises:
-        ValueError: If department_id is invalid
+        ValueError: If organizational_unit_id is invalid
         KeyError: If organizational unit not found
 
     Example:
-        >>> result = await delete_department("...")
+        >>> result = await delete_organizational_unit("...")
         >>> print(f"Deleted organizational unit: {result['id']}")
     """
     try:
@@ -680,20 +709,20 @@ async def delete_department(
 
         # Call service method
         await service.delete_organizational_unit(
-            organizational_unit_id=UUID(department_id),
+            organizational_unit_id=UUID(organizational_unit_id),
             actor_id=UUID(context.user_id),
         )
 
         return {
-            "id": department_id,
+            "id": organizational_unit_id,
             "message": "Organizational unit deleted successfully",
         }
     except ValueError:
-        return {"error": f"Invalid organizational unit ID: {department_id}"}
+        return {"error": f"Invalid organizational unit ID: {organizational_unit_id}"}
     except KeyError:
-        return {"error": f"Organizational unit {department_id} not found"}
+        return {"error": f"Organizational unit {organizational_unit_id} not found"}
     except Exception as e:
-        logger.error(f"Error in delete_department: {e}")
+        logger.error(f"Error in delete_organizational_unit: {e}")
         return {"error": str(e)}
 
 
@@ -728,7 +757,7 @@ USER AND ORGANIZATIONAL UNIT TOOL PATTERNS:
    - user-update: Update users
    - user-delete: Delete users
 
-   DEPARTMENTS:
+   ORGANIZATIONAL UNITS:
    - organizational-unit-read: View organizational units
    - organizational-unit-create: Create organizational units
    - organizational-unit-update: Update organizational units
