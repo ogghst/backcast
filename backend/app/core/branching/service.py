@@ -639,7 +639,6 @@ class BranchableService[TBranchable: BranchableProtocol]:
             )
             .where(
                 getattr(self.entity_class, root_field) == root_id,
-                cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).transaction_time.desc())
         )
