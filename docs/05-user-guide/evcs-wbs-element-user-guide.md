@@ -1,7 +1,7 @@
 # EVCS User Guide: Working with Versioned Entities
 
-**Version:** 1.0
-**Last Updated:** 2026-01-11
+**Version:** 1.1
+**Last Updated:** 2026-05-30
 **Target Audience:** Backend Developers, API Consumers, System Architects
 
 ---
@@ -15,7 +15,7 @@
 5. [Use Case 2: Version History & Time Travel](#use-case-2-version-history--time-travel)
 6. [Use Case 3: Control Date Operations](#use-case-3-control-date-operations)
 7. [Use Case 4: Branching for Change Orders](#use-case-4-branching-for-change-orders)
-8. [Use Case 5: Hierarchical WBE Management](#use-case-5-hierarchical-wbe-management)
+8. [Use Case 5: Hierarchical WBSElement Management](#use-case-5-hierarchical-wbselement-management)
 9. [Use Case 6: Revert Operations](#use-case-6-revert-operations)
 10. [API Reference Summary](#api-reference-summary)
 11. [Best Practices](#best-practices)
@@ -33,7 +33,7 @@ The **Entity Versioning Control System (EVCS)** is a core component of Backcast 
 
 In project budget management and EVM (Earned Value Management) systems, you need to:
 
-- **Track every change** to budgets, WBE structures, and cost elements
+- **Track every change** to budgets, WBS structures, and cost elements
 - **View historical states** for audit reporting and variance analysis
 - **Isolate changes** in branches for change order approval workflows
 - **Correct errors** retroactively while maintaining data integrity
@@ -41,12 +41,12 @@ In project budget management and EVM (Earned Value Management) systems, you need
 
 EVCS provides all of these capabilities through a unified, consistent API.
 
-### The WBE Entity: Our Working Example
+### The WBSElement Entity: Our Working Example
 
-This guide uses the **WBE (Work Breakdown Element)** entity as the primary example because it demonstrates all EVCS capabilities:
+This guide uses the **WBSElement (Work Breakdown Structure Element)** entity as the primary example because it demonstrates all EVCS capabilities:
 
 - **Hierarchical structure** (parent-child relationships)
-- **Version tracking** for budget changes
+- **Version tracking** for budget and revenue changes
 - **Branch isolation** for change orders
 - **Time travel queries** for historical reporting
 
@@ -71,9 +71,9 @@ Every versioned entity follows a predictable lifecycle where updates create new 
 ```mermaid
 graph TB
     subgraph "Version Chain"
-        V1[Version 1<br/>id: abc-123<br/>parent_id: null<br/>budget: $50,000]
-        V2[Version 2<br/>id: def-456<br/>parent_id: abc-123<br/>budget: $75,000]
-        V3[Version 3<br/>id: ghi-789<br/>parent_id: def-456<br/>budget: $100,000]
+        V1[Version 1<br/>id: abc-123<br/>parent_id: null]
+        V2[Version 2<br/>id: def-456<br/>parent_id: abc-123]
+        V3[Version 3<br/>id: ghi-789<br/>parent_id: def-456]
     end
 
     V1 -->|created at| V2
@@ -85,7 +85,7 @@ graph TB
 **Key Points:**
 
 - Each version has a unique `id` (UUID)
-- The `wbe_id` (root ID) stays constant across all versions
+- The `wbs_element_id` (root ID) stays constant across all versions
 - `parent_id` links each version to its predecessor
 - Only the latest version is "current" (highlighted in green)
 
@@ -132,13 +132,13 @@ Branches allow you to work on changes in isolation, similar to Git branches:
 ```mermaid
 graph TB
     subgraph "Main Branch"
-        M1[Main v1<br/>budget: $50,000]
-        M2[Main v2<br/>budget: $75,000<br/>merged from feature]
+        M1[Main v1]
+        M2[Main v2<br/>merged from feature]
     end
 
     subgraph "Feature Branch"
-        F1[Feature v1<br/>cloned from Main v1<br/>budget: $50,000]
-        F2[Feature v2<br/>budget: $100,000<br/>pending approval]
+        F1[Feature v1<br/>cloned from Main v1]
+        F2[Feature v2<br/>pending approval]
     end
 
     M1 -->|create branch| F1
@@ -161,7 +161,7 @@ graph TB
 
 ### User Identifiers: user_id vs id
 
-The User entity follows EVCS patterns and has TWO important identifiers:
+The User entity follows EVCS patterns and has TWO important identifiers. Note that User is Versionable but NOT Branchable -- it does not support branch isolation, merge, or revert operations.
 
 #### user_id (EVCS Root ID)
 
@@ -229,8 +229,8 @@ Every versioned entity has TWO important identifiers:
 # Version ID (id): Changes with each version
 version_id = "abc-123-def-456"  # Unique to this specific version
 
-# Root ID (wbe_id): Stable across all versions
-wbe_id = "wbe-root-789"  # Same for all versions of this WBE
+# Root ID (wbs_element_id): Stable across all versions
+wbs_element_id = "wbs-root-789"  # Same for all versions of this WBSElement
 ```
 
 | Identifier | Purpose | Stability | Use When |
@@ -242,11 +242,13 @@ wbe_id = "wbe-root-789"  # Same for all versions of this WBE
 
 ```bash
 # Get current state (uses root ID)
-GET /api/v1/wbes/{wbe_id}
+GET /api/v1/wbs-elements/{wbs_element_id}
 
-# Get specific version (uses version ID)
-GET /api/v1/wbes/{version_id}?include_history=true
+# Get version history (uses root ID)
+GET /api/v1/wbs-elements/{wbs_element_id}/history
 ```
+
+Note: The API only supports root-ID based access. Version IDs are used internally in the version chain (parent_id) but are not exposed as API path parameters.
 
 ### Branches: Main vs Feature
 
@@ -278,7 +280,7 @@ graph LR
 - Updates on `main` don't affect feature branches
 - Updates on feature branches don't affect `main` until merged
 - Multiple branches can exist simultaneously
-- Merges are one-directional (typically feature → main)
+- Merges are one-directional (typically feature -> main)
 
 ### Temporal Ranges: Open-Ended vs Closed
 
@@ -312,10 +314,10 @@ gantt
 
 ```bash
 # Get current version (default)
-GET /api/v1/wbes/{wbe_id}
+GET /api/v1/wbs-elements/{wbs_element_id}
 
 # Get state as of specific date (time travel)
-GET /api/v1/wbes/{wbe_id}?as_of=2026-02-15T10:00:00+00
+GET /api/v1/wbs-elements/{wbs_element_id}?as_of=2026-02-15T10:00:00+00
 ```
 
 ### Version DAG: Parent-Child Relationships
@@ -344,18 +346,18 @@ graph TB
 
 ### Scenario
 
-You are setting up a new project and need to create the initial WBE (Work Breakdown Element) hierarchy. This includes creating parent WBEs, child WBEs, and querying WBEs by project.
+You are setting up a new project and need to create the initial WBSElement hierarchy. This includes creating parent WBSElements, child WBSElements, and querying WBSElements by project.
 
-**Note:** Budget allocation is no longer stored directly on WBEs. Instead, budgets are allocated at the Cost Element level, and WBE `budget_allocation` is computed on-the-fly as the sum of child cost element budgets.
+**Note:** Budget allocation is not stored directly on WBSElements. Instead, budgets are allocated at the Cost Element level, and WBSElement `budget_allocation` is computed on-the-fly as the sum of child cost element budgets. To allocate revenue from the project contract value, use the `revenue_allocation` field.
 
 ### Step-by-Step Example
 
-#### Step 1: Create a Parent WBE
+#### Step 1: Create a Parent WBSElement
 
-First, create a top-level WBE for Phase 1 of the project:
+First, create a top-level WBSElement for Phase 1 of the project:
 
 ```bash
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 Content-Type: application/json
 
 {
@@ -371,12 +373,13 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v1-abc-123",
-  "wbe_id": "wbe-root-789",
+  "id": "wbs-v1-abc-123",
+  "wbs_element_id": "wbs-root-789",
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
   "code": "1.0",
   "name": "Phase 1 - Foundation",
-  "budget_allocation": "0.00",
+  "budget_allocation": null,
+  "revenue_allocation": null,
   "level": 1,
   "description": "Initial foundation work for the building",
   "branch": "main",
@@ -390,22 +393,23 @@ Content-Type: application/json
 **Key Points:**
 
 - `id` is the version-specific UUID (changes on updates)
-- `wbe_id` is the root UUID (stable across all versions)
-- `budget_allocation` is computed from child cost elements (0 until cost elements are added)
+- `wbs_element_id` is the root UUID (stable across all versions)
+- `budget_allocation` is computed from child cost elements (null until cost elements are added)
+- `revenue_allocation` is an optional writable field for allocating revenue from the project contract value
 - `valid_time` and `transaction_time` are open-ended (current version)
 - `parent_id` is `null` (first version has no parent)
 
-#### Step 2: Create Child WBEs
+#### Step 2: Create Child WBSElements
 
-Now create child WBEs under the parent:
+Now create child WBSElements under the parent:
 
 ```bash
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 Content-Type: application/json
 
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": "wbe-root-789",
+  "parent_wbs_element_id": "wbs-root-789",
   "code": "1.1",
   "name": "Site Preparation",
   "level": 2
@@ -416,12 +420,13 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-child1-v1-def-456",
-  "wbe_id": "wbe-child-root-456",
-  "parent_wbe_id": "wbe-root-789",
+  "id": "wbs-child1-v1-def-456",
+  "wbs_element_id": "wbs-child-root-456",
+  "parent_wbs_element_id": "wbs-root-789",
   "code": "1.1",
   "name": "Site Preparation",
-  "budget_allocation": "0.00",
+  "budget_allocation": null,
+  "revenue_allocation": null,
   "level": 2,
   "branch": "main",
   "parent_id": null
@@ -431,24 +436,24 @@ Content-Type: application/json
 Create another child:
 
 ```bash
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 Content-Type: application/json
 
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": "wbe-root-789",
+  "parent_wbs_element_id": "wbs-root-789",
   "code": "1.2",
   "name": "Foundation Pouring",
   "level": 2
 }
 ```
 
-#### Step 3: Update WBE Description
+#### Step 3: Update WBSElement Description
 
-Update the description for the parent WBE:
+Update the description for the parent WBSElement:
 
 ```bash
-PUT /api/v1/wbes/wbe-root-789
+PUT /api/v1/wbs-elements/wbs-root-789
 Content-Type: application/json
 
 {
@@ -460,12 +465,13 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v2-ghi-789",
-  "wbe_id": "wbe-root-789",
-  "budget_allocation": "0.00",
+  "id": "wbs-v2-ghi-789",
+  "wbs_element_id": "wbs-root-789",
+  "budget_allocation": null,
+  "revenue_allocation": null,
   "description": "Updated foundation scope including additional excavation",
   "branch": "main",
-  "parent_id": "wbe-v1-abc-123",
+  "parent_id": "wbs-v1-abc-123",
   "valid_time": "[2026-01-11T11:00:00+00,)",
   "transaction_time": "[2026-01-11T11:00:00+00,)"
 }
@@ -478,13 +484,14 @@ Content-Type: application/json
 - The original version (v1) is still in the database for historical tracking
 - `valid_time` and `transaction_time` have been updated
 - `budget_allocation` is computed from child cost elements (add cost elements to set budget)
+- `budget_allocation` cannot be set directly via create or update requests
 
-#### Step 4: Query WBEs by Project
+#### Step 4: Query WBSElements by Project
 
-Retrieve all WBEs for a specific project:
+Retrieve all WBSElements for a specific project:
 
 ```bash
-GET /api/v1/wbes?project_id=550e8400-e29b-41d4-a716-446655440000
+GET /api/v1/wbs-elements?project_id=550e8400-e29b-41d4-a716-446655440000
 ```
 
 **Response (200 OK):**
@@ -492,7 +499,7 @@ GET /api/v1/wbes?project_id=550e8400-e29b-41d4-a716-446655440000
 ```json
 [
   {
-    "wbe_id": "wbe-root-789",
+    "wbs_element_id": "wbs-root-789",
     "code": "1.0",
     "name": "Phase 1 - Foundation",
     "budget_allocation": "120000.00",
@@ -500,7 +507,7 @@ GET /api/v1/wbes?project_id=550e8400-e29b-41d4-a716-446655440000
     "parent_name": null
   },
   {
-    "wbe_id": "wbe-child-root-456",
+    "wbs_element_id": "wbs-child-root-456",
     "code": "1.1",
     "name": "Site Preparation",
     "budget_allocation": "30000.00",
@@ -508,7 +515,7 @@ GET /api/v1/wbes?project_id=550e8400-e29b-41d4-a716-446655440000
     "parent_name": "Phase 1 - Foundation"
   },
   {
-    "wbe_id": "wbe-child-root-789",
+    "wbs_element_id": "wbs-child-root-789",
     "code": "1.2",
     "name": "Foundation Pouring",
     "budget_allocation": "70000.00",
@@ -522,16 +529,16 @@ GET /api/v1/wbes?project_id=550e8400-e29b-41d4-a716-446655440000
 
 ```bash
 # Filter by parent
-GET /api/v1/wbes?parent_wbe_id=wbe-root-789
+GET /api/v1/wbs-elements?parent_id=wbs-root-789
 
 # Search by code or name
-GET /api/v1/wbes?search=foundation
+GET /api/v1/wbs-elements?search=foundation
 
 # Pagination
-GET /api/v1/wbes?skip=0&limit=20
+GET /api/v1/wbs-elements?page=1&per_page=20
 
 # Sort by field
-GET /api/v1/wbes?sort_by=budget_allocation&order=desc
+GET /api/v1/wbs-elements?sort_field=code&sort_order=asc
 ```
 
 ### Diagram: Basic CRUD Flow
@@ -540,29 +547,29 @@ GET /api/v1/wbes?sort_by=budget_allocation&order=desc
 sequenceDiagram
     actor Client
     participant API as API Layer
-    participant Service as WBE Service
+    participant Service as WBSElement Service
     participant DB as Database
 
-    Client->>API: POST /wbes (Create)
-    API->>Service: create_wbe(data)
+    Client->>API: POST /wbs-elements (Create)
+    API->>Service: create_wbs_element(data)
     Service->>DB: CreateVersionCommand
-    DB-->>Service: New WBE v1
-    Service-->>API: WBE v1
+    DB-->>Service: New WBSElement v1
+    Service-->>API: WBSElement v1
     API-->>Client: 201 Created
 
-    Client->>API: PUT /wbes/{id} (Update)
-    API->>Service: update_wbe(id, data)
+    Client->>API: PUT /wbs-elements/{id} (Update)
+    API->>Service: update_wbs_element(id, data)
     Service->>DB: UpdateVersionCommand
     Note over DB: Closes v1<br/>Creates v2
-    DB-->>Service: WBE v2
-    Service-->>API: WBE v2
+    DB-->>Service: WBSElement v2
+    Service-->>API: WBSElement v2
     API-->>Client: 200 OK
 
-    Client->>API: GET /wbes?project_id={id}
-    API->>Service: get_wbes(project_id)
+    Client->>API: GET /wbs-elements?project_id={id}
+    API->>Service: get_wbs_elements(project_id)
     Service->>DB: Query current versions
-    DB-->>Service: List of WBEs
-    Service-->>API: WBE list
+    DB-->>Service: List of WBSElements
+    Service-->>API: WBSElement list
     API-->>Client: 200 OK
 ```
 
@@ -570,11 +577,11 @@ sequenceDiagram
 
 This use case is based on test cases from:
 
-- [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py):
-  - `test_create_wbe` - Lines 86-112
-  - `test_update_wbe` - Lines 197-226
-  - `test_get_wbes_by_project` - Lines 142-167
-  - `test_wbe_hierarchical_structure` - Lines 294-327
+- [`backend/tests/api/routes/test_wbs_elements.py`](../../backend/tests/api/routes/test_wbs_elements.py):
+  - `test_create_wbs_element` - Create endpoint tests
+  - `test_update_wbs_element` - Update endpoint tests
+  - `test_get_wbs_elements_by_project` - List by project tests
+  - `test_wbs_element_hierarchical_structure` - Hierarchy tests
 
 ---
 
@@ -590,17 +597,16 @@ You need to track budget changes over time for audit reporting and variance anal
 
 ### Step-by-Step Example
 
-#### Step 1: Create Initial WBE
+#### Step 1: Create Initial WBSElement
 
 ```bash
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 Content-Type: application/json
 
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
   "code": "2.0",
   "name": "Phase 2 - Structure",
-  "budget_allocation": 50000.00,
   "level": 1
 }
 ```
@@ -609,23 +615,23 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v1-jkl-012",
-  "wbe_id": "wbe-root-012",
+  "id": "wbs-v1-jkl-012",
+  "wbs_element_id": "wbs-root-012",
   "name": "Phase 2 - Structure",
-  "budget_allocation": "50000.00",
+  "budget_allocation": null,
   "valid_time": "[2026-01-01T10:00:00+00,)",
   "transaction_time": "[2026-01-01T10:00:00+00,)"
 }
 ```
 
-#### Step 2: First Budget Update
+#### Step 2: First Update
 
 ```bash
-PUT /api/v1/wbes/wbe-root-012
+PUT /api/v1/wbs-elements/wbs-root-012
 Content-Type: application/json
 
 {
-  "budget_allocation": 75000.00
+  "name": "Phase 2 - Structural Work"
 }
 ```
 
@@ -633,10 +639,10 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v2-mno-345",
-  "wbe_id": "wbe-root-012",
-  "budget_allocation": "75000.00",
-  "parent_id": "wbe-v1-jkl-012",
+  "id": "wbs-v2-mno-345",
+  "wbs_element_id": "wbs-root-012",
+  "name": "Phase 2 - Structural Work",
+  "parent_id": "wbs-v1-jkl-012",
   "valid_time": "[2026-01-15T10:00:00+00,)"
 }
 ```
@@ -646,14 +652,14 @@ Content-Type: application/json
 - Version 1's `valid_time` is closed: `[2026-01-01, 2026-01-15)`
 - Version 2's `valid_time` starts: `[2026-01-15, )`
 
-#### Step 3: Second Budget Update
+#### Step 3: Second Update
 
 ```bash
-PUT /api/v1/wbes/wbe-root-012
+PUT /api/v1/wbs-elements/wbs-root-012
 Content-Type: application/json
 
 {
-  "budget_allocation": 100000.00
+  "description": "Updated scope for structural phase"
 }
 ```
 
@@ -661,20 +667,20 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v3-pqr-678",
-  "wbe_id": "wbe-root-012",
-  "budget_allocation": "100000.00",
-  "parent_id": "wbe-v2-mno-345",
+  "id": "wbs-v3-pqr-678",
+  "wbs_element_id": "wbs-root-012",
+  "description": "Updated scope for structural phase",
+  "parent_id": "wbs-v2-mno-345",
   "valid_time": "[2026-02-01T10:00:00+00,)"
 }
 ```
 
 #### Step 4: Retrieve Version History
 
-Get the complete history of the WBE:
+Get the complete history of the WBSElement:
 
 ```bash
-GET /api/v1/wbes/wbe-root-012/history
+GET /api/v1/wbs-elements/wbs-root-012/history
 ```
 
 **Response:**
@@ -682,48 +688,45 @@ GET /api/v1/wbes/wbe-root-012/history
 ```json
 [
   {
-    "id": "wbe-v1-jkl-012",
+    "id": "wbs-v1-jkl-012",
     "name": "Phase 2 - Structure",
-    "budget_allocation": "50000.00",
     "valid_time": "[2026-01-01T10:00:00+00,2026-01-15T10:00:00+00)",
     "transaction_time": "[2026-01-01T10:00:00+00,2026-01-15T10:00:00+00)",
     "parent_id": null
   },
   {
-    "id": "wbe-v2-mno-345",
-    "name": "Phase 2 - Structure",
-    "budget_allocation": "75000.00",
+    "id": "wbs-v2-mno-345",
+    "name": "Phase 2 - Structural Work",
     "valid_time": "[2026-01-15T10:00:00+00,2026-02-01T10:00:00+00)",
     "transaction_time": "[2026-01-15T10:00:00+00,2026-02-01T10:00:00+00)",
-    "parent_id": "wbe-v1-jkl-012"
+    "parent_id": "wbs-v1-jkl-012"
   },
   {
-    "id": "wbe-v3-pqr-678",
-    "name": "Phase 2 - Structure",
-    "budget_allocation": "100000.00",
+    "id": "wbs-v3-pqr-678",
+    "name": "Phase 2 - Structural Work",
+    "description": "Updated scope for structural phase",
     "valid_time": "[2026-02-01T10:00:00+00,)",
     "transaction_time": "[2026-02-01T10:00:00+00,)",
-    "parent_id": "wbe-v2-mno-345"
+    "parent_id": "wbs-v2-mno-345"
   }
 ]
 ```
 
 #### Step 5: Time Travel - Query Historical State
 
-**Question:** What was the budget on January 20th?
+**Question:** What was the state on January 20th?
 
 ```bash
-GET /api/v1/wbes/wbe-root-012?as_of=2026-01-20T10:00:00+00
+GET /api/v1/wbs-elements/wbs-root-012?as_of=2026-01-20T10:00:00+00
 ```
 
 **Response:**
 
 ```json
 {
-  "id": "wbe-v2-mno-345",
-  "wbe_id": "wbe-root-012",
-  "name": "Phase 2 - Structure",
-  "budget_allocation": "75000.00",
+  "id": "wbs-v2-mno-345",
+  "wbs_element_id": "wbs-root-012",
+  "name": "Phase 2 - Structural Work",
   "valid_time": "[2026-01-15T10:00:00+00,2026-02-01T10:00:00+00)",
   "transaction_time": "[2026-01-15T10:00:00+00,2026-02-01T10:00:00+00)"
 }
@@ -732,53 +735,50 @@ GET /api/v1/wbes/wbe-root-012?as_of=2026-01-20T10:00:00+00
 **More Time Travel Examples:**
 
 ```bash
-# Before the WBE existed (returns 404)
-GET /api/v1/wbes/wbe-root-012?as_of=2025-12-01T10:00:00+00
+# Before the WBSElement existed (returns 404)
+GET /api/v1/wbs-elements/wbs-root-012?as_of=2025-12-01T10:00:00+00
 
 # During version 1 (returns v1)
-GET /api/v1/wbes/wbe-root-012?as_of=2026-01-10T10:00:00+00
+GET /api/v1/wbs-elements/wbs-root-012?as_of=2026-01-10T10:00:00+00
 
 # During version 2 (returns v2)
-GET /api/v1/wbes/wbe-root-012?as_of=2026-01-20T10:00:00+00
+GET /api/v1/wbs-elements/wbs-root-012?as_of=2026-01-20T10:00:00+00
 
 # Current state (returns v3)
-GET /api/v1/wbes/wbe-root-012
+GET /api/v1/wbs-elements/wbs-root-012
 ```
 
 ### Diagram: Version Chain with Temporal Ranges
 
 ```mermaid
 gantt
-    title WBE Budget Evolution Over Time
+    title WBSElement Evolution Over Time
     dateFormat  YYYY-MM-DD
     axisFormat  %b %d
 
     section Version 1
-    Budget: $50,000    :active, 2026-01-01, 14d
+    "Phase 2 - Structure"    :active, 2026-01-01, 14d
     section Version 2
-    Budget: $75,000    :active, 2026-01-15, 17d
+    "Phase 2 - Structural Work"    :active, 2026-01-15, 17d
     section Version 3
-    Budget: $100,000   :active, 2026-02-01, 30d
+    "Phase 2 - Structural Work" (updated desc)   :active, 2026-02-01, 30d
 ```
 
 ### Practical Applications
 
 | Use Case | Query | Value |
 |----------|-------|-------|
-| Beginning budget | `as_of=2026-01-01` | $50,000 |
-| Mid-project budget | `as_of=2026-01-20` | $75,000 |
-| Current budget | (no as_of) | $100,000 |
+| Beginning state | `as_of=2026-01-01` | Original name |
+| Mid-project state | `as_of=2026-01-20` | Updated name |
+| Current state | (no as_of) | Latest version |
 | Complete audit trail | `/history` endpoint | All versions |
 
 ### Code Reference
 
 This use case is based on test cases from:
 
-- [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py):
-  - `test_get_wbe_history` - Lines 260-291
-- [`backend/tests/api/test_time_machine.py`](../../backend/tests/api/test_time_machine.py):
-  - `test_wbe_time_travel_basic` - Basic time travel queries
-  - `test_wbe_time_travel_update` - Querying across updates
+- [`backend/tests/api/routes/test_wbs_elements.py`](../../backend/tests/api/routes/test_wbs_elements.py):
+  - History and time travel endpoint tests
 
 ---
 
@@ -786,29 +786,28 @@ This use case is based on test cases from:
 
 ### Scenario
 
-You discover that a budget change was recorded with the wrong date, or you need to enter a change that should have been effective in the past. Control dates allow you to specify exactly when a change should be effective, rather than using the current system time.
+You discover that a change was recorded with the wrong date, or you need to enter a change that should have been effective in the past. Control dates allow you to specify exactly when a change should be effective, rather than using the current system time.
 
 ### Why Control Dates Matter
 
-**Problem:** On February 1st, you realize a budget increase was approved on January 15th but never recorded. Without control dates, the change would be recorded with a February 1st date, making audit reports inaccurate.
+**Problem:** On February 1st, you realize a change was approved on January 15th but never recorded. Without control dates, the change would be recorded with a February 1st date, making audit reports inaccurate.
 
 **Solution:** Use `control_date` to specify when the change should have been effective.
 
 ### Step-by-Step Example
 
-#### Step 1: Create WBE with Future Control Date
+#### Step 1: Create WBSElement with Future Control Date
 
-Create a WBE that becomes effective on a specific future date:
+Create a WBSElement that becomes effective on a specific future date:
 
 ```bash
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 Content-Type: application/json
 
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
   "code": "3.0",
   "name": "Phase 3 - Finishing",
-  "budget_allocation": 100000.00,
   "level": 1,
   "control_date": "2026-03-01T10:00:00+00"
 }
@@ -818,10 +817,9 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v1-stu-901",
-  "wbe_id": "wbe-root-901",
+  "id": "wbs-v1-stu-901",
+  "wbs_element_id": "wbs-root-901",
   "name": "Phase 3 - Finishing",
-  "budget_allocation": "100000.00",
   "valid_time": "[2026-03-01T10:00:00+00,)",
   "transaction_time": "[2026-01-11T10:00:00+00,)"
 }
@@ -831,18 +829,18 @@ Content-Type: application/json
 
 - `valid_time` starts at the `control_date` (March 1)
 - `transaction_time` starts at the actual time of creation (January 11)
-- The WBE won't appear in queries until March 1 unless you use time travel
+- The WBSElement won't appear in queries until March 1 unless you use time travel
 
 #### Step 2: Update with Past Control Date (Correction)
 
-You discover that a budget should have been increased on January 15th, but it's now February 1st:
+You discover that a change should have been recorded on January 15th, but it's now February 1st:
 
 ```bash
-PUT /api/v1/wbes/wbe-root-901
+PUT /api/v1/wbs-elements/wbs-root-901
 Content-Type: application/json
 
 {
-  "budget_allocation": 120000.00,
+  "description": "Updated finishing scope",
   "control_date": "2026-01-15T10:00:00+00"
 }
 ```
@@ -851,10 +849,10 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v2-vwx-234",
-  "wbe_id": "wbe-root-901",
-  "budget_allocation": "120000.00",
-  "parent_id": "wbe-v1-stu-901",
+  "id": "wbs-v2-vwx-234",
+  "wbs_element_id": "wbs-root-901",
+  "description": "Updated finishing scope",
+  "parent_id": "wbs-v1-stu-901",
   "valid_time": "[2026-01-15T10:00:00+00,)",
   "transaction_time": "[2026-02-01T10:00:00+00,)"
 }
@@ -865,15 +863,15 @@ Content-Type: application/json
 1. Version 1's `valid_time` is closed at January 15th (not February 1st!)
 2. Version 2's `valid_time` starts at January 15th
 3. Version 2's `transaction_time` starts at February 1st (when actually recorded)
-4. Time travel queries before January 15th show no WBE
-5. Time travel queries on January 20th show the $120,000 budget
+4. Time travel queries before January 15th show no WBSElement
+5. Time travel queries on January 20th show the updated state
 
 #### Step 3: Delete with Control Date
 
-A WBE that was deleted should have been deleted earlier:
+A WBSElement that was deleted should have been deleted earlier:
 
 ```bash
-DELETE /api/v1/wbes/wbe-root-901?control_date=2026-02-15T10:00:00+00
+DELETE /api/v1/wbs-elements/wbs-root-901?control_date=2026-02-15T10:00:00+00
 ```
 
 **Response:** 204 No Content
@@ -881,12 +879,12 @@ DELETE /api/v1/wbes/wbe-root-901?control_date=2026-02-15T10:00:00+00
 **Verification:**
 
 ```bash
-# Query BEFORE control date - WBE still exists
-GET /api/v1/wbes/wbe-root-901?as_of=2026-02-14T10:00:00+00
-# Response: 200 OK with WBE data
+# Query BEFORE control date - WBSElement still exists
+GET /api/v1/wbs-elements/wbs-root-901?as_of=2026-02-14T10:00:00+00
+# Response: 200 OK with WBSElement data
 
-# Query AFTER control date - WBE is deleted
-GET /api/v1/wbes/wbe-root-901?as_of=2026-02-16T10:00:00+00
+# Query AFTER control date - WBSElement is deleted
+GET /api/v1/wbs-elements/wbs-root-901?as_of=2026-02-16T10:00:00+00
 # Response: 404 Not Found
 ```
 
@@ -896,7 +894,7 @@ GET /api/v1/wbes/wbe-root-901?as_of=2026-02-16T10:00:00+00
 timeline
     title Control Date vs Transaction Time
     2026-01-11 : Record created today (transaction_time)
-    2026-01-15 : Budget change should have been effective (control_date)
+    2026-01-15 : Change should have been effective (control_date)
     2026-02-01 : Actually recording the correction (transaction_time)
     2026-02-15 : Retroactive deletion date (control_date)
 ```
@@ -922,10 +920,8 @@ timeline
 
 This use case is based on test cases from:
 
-- [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py):
-  - `test_create_wbe_with_control_date` - Lines 329-354
-  - `test_update_wbe_with_control_date` - Lines 357-387
-  - `test_delete_wbe_with_control_date` - Lines 390-425
+- [`backend/tests/api/routes/test_wbs_elements.py`](../../backend/tests/api/routes/test_wbs_elements.py):
+  - Control date endpoint tests
 
 ---
 
@@ -933,35 +929,37 @@ This use case is based on test cases from:
 
 ### Scenario
 
-A change order is requested to increase the budget for a WBE. Before approval, the changes need to be isolated from the main production state. Once approved, the changes are merged into main. If rejected, the branch is discarded.
+A change order is requested to modify a WBSElement. Before approval, the changes need to be isolated from the main production state. Once approved, the changes are merged into main. If rejected, the branch is discarded.
 
 ### Business Context
 
 **Change Order Workflow:**
 
-1. Request: Stakeholder requests budget increase
+1. Request: Stakeholder requests a change
 2. Branch: Create isolated branch for the change
 3. Modify: Make changes on the branch
 4. Review: Stakeholders review changes
 5. Decision: Approve (merge) or Reject (discard branch)
 6. Audit: Complete history of the change order process
 
+> **Note:** Branching operations (create branch, merge, revert) are managed through the ChangeOrder API (`/api/v1/change-orders`), not through dedicated WBS Element sub-endpoints. The ChangeOrder workflow automatically handles branch creation and merging via service-layer commands (`CreateBranchCommand`, `MergeBranchCommand`, `RevertCommand`).
+
 ### Step-by-Step Example
 
 #### Step 1: Initial State on Main Branch
 
-Start with a WBE on the main branch:
+Start with a WBSElement on the main branch:
 
 ```bash
-GET /api/v1/wbes/wbe-root-co1
+GET /api/v1/wbs-elements/wbs-root-co1
 ```
 
 **Response (Main Branch):**
 
 ```json
 {
-  "id": "wbe-main-v1-abc",
-  "wbe_id": "wbe-root-co1",
+  "id": "wbs-main-v1-abc",
+  "wbs_element_id": "wbs-root-co1",
   "code": "4.0",
   "name": "Phase 4 - MEP Systems",
   "budget_allocation": "80000.00",
@@ -970,53 +968,38 @@ GET /api/v1/wbes/wbe-root-co1
 }
 ```
 
-#### Step 2: Create Change Order Branch
+#### Step 2: Create Change Order
 
-Create a new branch for the change order:
+Create a change order which automatically creates an isolated branch:
 
 ```bash
-POST /api/v1/wbes/wbe-root-co1/branches
+POST /api/v1/change-orders
 Content-Type: application/json
 
 {
-  "new_branch": "change-order-001",
-  "from_branch": "main"
-}
-```
-
-**Response:**
-
-```json
-{
-  "id": "wbe-BR-v1-def",
-  "wbe_id": "wbe-root-co1",
-  "code": "4.0",
-  "name": "Phase 4 - MEP Systems",
-  "budget_allocation": "80000.00",
-  "branch": "change-order-001",
-  "parent_id": "wbe-main-v1-abc",
-  "valid_time": "[2026-01-11T10:00:00+00,)",
-  "merge_from_branch": null
+  "project_id": "550e8400-e29b-41d4-a716-446655440000",
+  "code": "CO-2026-001",
+  "title": "Increase MEP budget",
+  "description": "Budget increase for MEP systems"
 }
 ```
 
 **What Happened:**
 
-- A new version was created on the `change-order-001` branch
-- It's a clone of the main branch version
-- `parent_id` links to the main version
+- A new branch (e.g., `change-order-001`) is created automatically
+- WBSElements on this branch are cloned from the main branch
 - Both branches now have current versions
 
-#### Step 3: Modify Budget on Change Order Branch
+#### Step 3: Modify on Change Order Branch
 
-Update the budget on the change order branch:
+Update the WBSElement on the change order branch:
 
 ```bash
-PUT /api/v1/wbes/wbe-root-co1
+PUT /api/v1/wbs-elements/wbs-root-co1
 Content-Type: application/json
 
 {
-  "budget_allocation": "120000.00",
+  "revenue_allocation": 120000.00,
   "branch": "change-order-001"
 }
 ```
@@ -1025,11 +1008,11 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-BR-v2-ghi",
-  "wbe_id": "wbe-root-co1",
-  "budget_allocation": "120000.00",
+  "id": "wbs-BR-v2-ghi",
+  "wbs_element_id": "wbs-root-co1",
+  "revenue_allocation": "120000.00",
   "branch": "change-order-001",
-  "parent_id": "wbe-BR-v1-def",
+  "parent_id": "wbs-BR-v1-def",
   "valid_time": "[2026-01-11T11:00:00+00,)"
 }
 ```
@@ -1037,73 +1020,56 @@ Content-Type: application/json
 **Verification - Main is Unaffected:**
 
 ```bash
-GET /api/v1/wbes/wbe-root-co1?branch=main
+GET /api/v1/wbs-elements/wbs-root-co1?branch=main
 ```
 
-**Still shows:** `budget_allocation: "80000.00"`
+**Still shows:** `revenue_allocation: null` (original value)
 
 **Verification - Change Order Shows New Value:**
 
 ```bash
-GET /api/v1/wbes/wbe-root-co1?branch=change-order-001
+GET /api/v1/wbs-elements/wbs-root-co1?branch=change-order-001
 ```
 
-**Now shows:** `budget_allocation: "120000.00"`
+**Now shows:** `revenue_allocation: "120000.00"`
 
 #### Step 4: Review Changes (Before Merge)
 
-Compare the branches:
+Check merge conflicts for the change order:
 
 ```bash
-GET /api/v1/wbes/wbe-root-co1/compare?from_branch=main&to_branch=change-order-001
+GET /api/v1/change-orders/{change_order_id}/merge-conflicts
 ```
 
 **Response:**
 
 ```json
 {
-  "main": {
-    "budget_allocation": "80000.00",
-    "version_id": "wbe-main-v1-abc"
-  },
-  "change-order-001": {
-    "budget_allocation": "120000.00",
-    "version_id": "wbe-BR-v2-ghi"
-  },
-  "differences": [
-    {
-      "field": "budget_allocation",
-      "from": "80000.00",
-      "to": "120000.00",
-      "change": "+40000.00 (+50%)"
-    }
-  ]
+  "has_conflicts": false,
+  "conflicts": []
 }
 ```
 
 #### Step 5: Approve and Merge to Main
 
-Stakeholders approve the change order. Merge to main:
+Stakeholders approve the change order. Merge via the ChangeOrder API:
 
 ```bash
-POST /api/v1/wbes/wbe-root-co1/branches/merge
+POST /api/v1/change-orders/{change_order_id}/merge
 Content-Type: application/json
 
-{
-  "source_branch": "change-order-001",
-  "target_branch": "main"
-}
+{}
 ```
 
 **Response:**
 
 ```json
 {
-  "id": "wbe-main-v2-jkl",
-  "wbe_id": "wbe-root-co1",
-  "budget_allocation": "120000.00",
+  "id": "wbs-main-v2-jkl",
+  "wbs_element_id": "wbs-root-co1",
+  "revenue_allocation": "120000.00",
   "branch": "main",
-  "parent_id": "wbe-main-v1-abc",
+  "parent_id": "wbs-main-v1-abc",
   "merge_from_branch": "change-order-001",
   "valid_time": "[2026-01-11T12:00:00+00,)"
 }
@@ -1112,46 +1078,51 @@ Content-Type: application/json
 **What Happened:**
 
 - A new version was created on main
-- It has the budget from the change order branch ($120,000)
+- It has the revenue_allocation from the change order branch
 - `merge_from_branch` tracks the source of the merge
 - `parent_id` maintains the linear history on main
 - The change order branch still exists (for audit)
 
-#### Alternative Step 5: Reject and Discard
+#### Alternative Step 5: Reject
 
 If the change order is rejected:
 
 ```bash
-DELETE /api/v1/wbes/wbe-root-co1/branches/change-order-001
+PUT /api/v1/change-orders/{change_order_id}/reject
+Content-Type: application/json
+
+{
+  "comment": "Budget increase not justified"
+}
 ```
 
 **Result:**
 
-- Change order branch is deleted
+- Change order is marked as rejected
 - Main branch remains unchanged
-- No audit trail of the rejected change (unless explicitly tracked)
+- Branch data is preserved for audit trail
 
 ### Diagram: Branch Creation, Isolation, and Merge
 
 ```mermaid
 graph TB
     subgraph "Initial State"
-        M1[Main v1<br/>Budget: $80,000]
+        M1[Main v1<br/>Revenue: null]
     end
 
     subgraph "After Branch Creation"
-        M2[Main v1<br/>Budget: $80,000<br/>Unchanged]
-        C1[change-order-001 v1<br/>Budget: $80,000<br/>Cloned from Main]
+        M2[Main v1<br/>Revenue: null<br/>Unchanged]
+        C1[change-order-001 v1<br/>Revenue: null<br/>Cloned from Main]
     end
 
     subgraph "After Branch Update"
-        M3[Main v1<br/>Budget: $80,000<br/>Still Unchanged]
-        C2[change-order-001 v2<br/>Budget: $120,000<br/>Modified]
+        M3[Main v1<br/>Revenue: null<br/>Still Unchanged]
+        C2[change-order-001 v2<br/>Revenue: $120k<br/>Modified]
     end
 
     subgraph "After Merge"
-        M4[Main v2<br/>Budget: $120,000<br/>Merged from CO-001]
-        C3[change-order-001 v2<br/>Budget: $120,000<br/>Preserved]
+        M4[Main v2<br/>Revenue: $120k<br/>Merged from CO-001]
+        C3[change-order-001 v2<br/>Revenue: $120k<br/>Preserved]
     end
 
     M1 -->|create branch| M2
@@ -1181,16 +1152,14 @@ graph TB
 
 This use case is based on test cases from:
 
-- [`backend/tests/unit/core/versioning/test_branch_commands.py`](../../backend/tests/unit/core/versioning/test_branch_commands.py):
-  - `test_create_branch_command` - Lines 21-63
-  - `test_update_command_on_branch` - Lines 65-102
-  - `test_merge_branch_command` - Lines 104-161
-- [`backend/tests/integration/test_integration_branch_service.py`](../../backend/tests/integration/test_integration_branch_service.py):
-  - `test_branch_service_lifecycle` - Complete branch workflow
+- [`backend/tests/core/test_branching_core.py`](../../backend/tests/core/test_branching_core.py):
+  - Branch creation, update, and merge command tests
+- [`backend/tests/api/routes/test_wbs_elements.py`](../../backend/tests/api/routes/test_wbs_elements.py):
+  - WBSElement endpoint tests with branch filtering
 
 ---
 
-## Use Case 5: Hierarchical WBE Management
+## Use Case 5: Hierarchical WBSElement Management
 
 ### Scenario
 
@@ -1217,17 +1186,16 @@ You need to manage a multi-level Work Breakdown Structure (WBS) with parent-chil
 
 ### Step-by-Step Example
 
-#### Step 1: Create Level 1 Parent WBE
+#### Step 1: Create Level 1 Parent WBSElement
 
 ```bash
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 Content-Type: application/json
 
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
   "code": "1.0",
   "name": "Construction",
-  "budget_allocation": 500000.00,
   "level": 1,
   "description": "Main construction phase"
 }
@@ -1237,129 +1205,197 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-l1-v1",
-  "wbe_id": "wbe-root-l1",
+  "id": "wbs-l1-v1",
+  "wbs_element_id": "wbs-root-l1",
   "code": "1.0",
   "name": "Construction",
-  "budget_allocation": "500000.00",
+  "budget_allocation": null,
+  "revenue_allocation": null,
   "level": 1,
-  "parent_wbe_id": null
+  "parent_wbs_element_id": null
 }
 ```
 
-#### Step 2: Create Level 2 Child WBEs
+#### Step 2: Create Level 2 Child WBSElements
 
 ```bash
 # Create 1.1 Site Preparation
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": "wbe-root-l1",
+  "parent_wbs_element_id": "wbs-root-l1",
   "code": "1.1",
   "name": "Site Preparation",
-  "budget_allocation": 100000.00,
   "level": 2
 }
 
 # Create 1.2 Building Structure
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": "wbe-root-l1",
+  "parent_wbs_element_id": "wbs-root-l1",
   "code": "1.2",
   "name": "Building Structure",
-  "budget_allocation": 400000.00,
   "level": 2
 }
 ```
 
-#### Step 3: Create Level 3 Grandchild WBEs
+#### Step 3: Create Level 3 Grandchild WBSElements
 
 ```bash
 # Create 1.1.1 Grading
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": "wbe-root-l1-1",  # WBE ID for 1.1
+  "parent_wbs_element_id": "wbs-root-l1-1",
   "code": "1.1.1",
   "name": "Grading",
-  "budget_allocation": 30000.00,
   "level": 3
 }
 
 # Create 1.1.2 Utilities
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": "wbe-root-l1-1",
+  "parent_wbs_element_id": "wbs-root-l1-1",
   "code": "1.1.2",
   "name": "Utilities",
-  "budget_allocation": 70000.00,
   "level": 3
 }
 
 # Create 1.2.1 Foundation
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": "wbe-root-l1-2",
+  "parent_wbs_element_id": "wbs-root-l1-2",
   "code": "1.2.1",
   "name": "Foundation",
-  "budget_allocation": 150000.00,
   "level": 3
 }
 
 # Create 1.2.2 Framing
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": "wbe-root-l1-2",
+  "parent_wbs_element_id": "wbs-root-l1-2",
   "code": "1.2.2",
   "name": "Framing",
-  "budget_allocation": 250000.00,
   "level": 3
 }
 ```
 
-#### Step 4: Navigate with Breadcrumb
+#### Step 4: Get Full Tree
 
-Get the breadcrumb trail for a deep WBE:
+Retrieve the complete WBS tree for a project:
 
 ```bash
-GET /api/v1/wbes/wbe-root-l1-1-1/breadcrumb
+GET /api/v1/wbs-elements/project/{project_id}/tree
+```
+
+**Response:**
+
+```json
+{
+  "id": "wbs-root-l1",
+  "wbs_element_id": "wbs-root-l1",
+  "code": "1.0",
+  "name": "Construction",
+  "children": [
+    {
+      "id": "wbs-root-l1-1",
+      "wbs_element_id": "wbs-root-l1-1",
+      "code": "1.1",
+      "name": "Site Preparation",
+      "children": [
+        {
+          "id": "wbs-root-l1-1-1",
+          "wbs_element_id": "wbs-root-l1-1-1",
+          "code": "1.1.1",
+          "name": "Grading",
+          "children": []
+        },
+        {
+          "id": "wbs-root-l1-1-2",
+          "wbs_element_id": "wbs-root-l1-1-2",
+          "code": "1.1.2",
+          "name": "Utilities",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "wbs-root-l1-2",
+      "wbs_element_id": "wbs-root-l1-2",
+      "code": "1.2",
+      "name": "Building Structure",
+      "children": [
+        {
+          "id": "wbs-root-l1-2-1",
+          "wbs_element_id": "wbs-root-l1-2-1",
+          "code": "1.2.1",
+          "name": "Foundation",
+          "children": []
+        },
+        {
+          "id": "wbs-root-l1-2-2",
+          "wbs_element_id": "wbs-root-l1-2-2",
+          "code": "1.2.2",
+          "name": "Framing",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### Step 5: Navigate with Breadcrumb
+
+Get the breadcrumb trail for a deep WBSElement:
+
+```bash
+GET /api/v1/wbs-elements/wbs-root-l1-1-1/breadcrumb
 ```
 
 **Response for 1.1.1 Grading:**
 
 ```json
-[
-  {
-    "wbe_id": "wbe-root-l1",
-    "code": "1.0",
-    "name": "Construction",
-    "level": 1
+{
+  "project": {
+    "id": "proj-version-abc",
+    "project_id": "550e8400-e29b-41d4-a716-446655440000",
+    "code": "PRJ-001",
+    "name": "Building Project"
   },
-  {
-    "wbe_id": "wbe-root-l1-1",
-    "code": "1.1",
-    "name": "Site Preparation",
-    "level": 2
-  },
-  {
-    "wbe_id": "wbe-root-l1-1-1",
-    "code": "1.1.1",
-    "name": "Grading",
-    "level": 3
-  }
-]
+  "wbe_path": [
+    {
+      "id": "wbs-l1-v1",
+      "wbs_element_id": "wbs-root-l1",
+      "code": "1.0",
+      "name": "Construction"
+    },
+    {
+      "id": "wbs-l1-1-v1",
+      "wbs_element_id": "wbs-root-l1-1",
+      "code": "1.1",
+      "name": "Site Preparation"
+    },
+    {
+      "id": "wbs-l1-1-1-v1",
+      "wbs_element_id": "wbs-root-l1-1-1",
+      "code": "1.1.1",
+      "name": "Grading"
+    }
+  ]
+}
 ```
 
-#### Step 5: Query by Parent
+#### Step 6: Query by Parent
 
-Get all direct children of a WBE:
+Get all direct children of a WBSElement:
 
 ```bash
-GET /api/v1/wbes?parent_wbe_id=wbe-root-l1
+GET /api/v1/wbs-elements?parent_id=wbs-root-l1
 ```
 
 **Response:**
@@ -1367,14 +1403,14 @@ GET /api/v1/wbes?parent_wbe_id=wbe-root-l1
 ```json
 [
   {
-    "wbe_id": "wbe-root-l1-1",
+    "wbs_element_id": "wbs-root-l1-1",
     "code": "1.1",
     "name": "Site Preparation",
     "level": 2,
     "parent_name": "Construction"
   },
   {
-    "wbe_id": "wbe-root-l1-2",
+    "wbs_element_id": "wbs-root-l1-2",
     "code": "1.2",
     "name": "Building Structure",
     "level": 2,
@@ -1383,15 +1419,15 @@ GET /api/v1/wbes?parent_wbe_id=wbe-root-l1
 ]
 ```
 
-#### Step 6: Cascading Soft Delete
+#### Step 7: Cascading Soft Delete
 
-Delete a parent WBE - all descendants are also soft deleted:
+Delete a parent WBSElement -- all descendants are also soft deleted:
 
 ```bash
-DELETE /api/v1/wbes/wbe-root-l1-1
+DELETE /api/v1/wbs-elements/wbs-root-l1-1
 ```
 
-**Result:** WBE 1.1 (Site Preparation) is deleted, AND:
+**Result:** WBSElement 1.1 (Site Preparation) is deleted, AND:
 
 - 1.1.1 (Grading) is also deleted
 - 1.1.2 (Utilities) is also deleted
@@ -1399,10 +1435,10 @@ DELETE /api/v1/wbes/wbe-root-l1-1
 **Verification:**
 
 ```bash
-GET /api/v1/wbes?parent_wbe_id=wbe-root-l1-1
+GET /api/v1/wbs-elements?parent_id=wbs-root-l1-1
 # Response: [] (empty, all children deleted)
 
-GET /api/v1/wbes?parent_wbe_id=wbe-root-l1
+GET /api/v1/wbs-elements?parent_id=wbs-root-l1
 # Response: Only 1.2 remains
 ```
 
@@ -1413,19 +1449,19 @@ GET /api/v1/wbes?parent_wbe_id=wbe-root-l1
 ```mermaid
 graph TB
     subgraph "Level 1"
-        L1[1.0 Construction<br/>wbe-root-l1]
+        L1[1.0 Construction<br/>wbs-root-l1]
     end
 
     subgraph "Level 2"
-        L1_1[1.1 Site Prep<br/>wbe-root-l1-1<br/>DELETED]
-        L1_2[1.2 Building<br/>wbe-root-l1-2<br/>ACTIVE]
+        L1_1[1.1 Site Prep<br/>wbs-root-l1-1<br/>DELETED]
+        L1_2[1.2 Building<br/>wbs-root-l1-2<br/>ACTIVE]
     end
 
     subgraph "Level 3"
-        L1_1_1[1.1.1 Grading<br/>wbe-root-l1-1-1<br/>DELETED]
-        L1_1_2[1.1.2 Utilities<br/>wbe-root-l1-1-2<br/>DELETED]
-        L1_2_1[1.2.1 Foundation<br/>wbe-root-l1-2-1<br/>ACTIVE]
-        L1_2_2[1.2.2 Framing<br/>wbe-root-l1-2-2<br/>ACTIVE]
+        L1_1_1[1.1.1 Grading<br/>wbs-root-l1-1-1<br/>DELETED]
+        L1_1_2[1.1.2 Utilities<br/>wbs-root-l1-1-2<br/>DELETED]
+        L1_2_1[1.2.1 Foundation<br/>wbs-root-l1-2-1<br/>ACTIVE]
+        L1_2_2[1.2.2 Framing<br/>wbs-root-l1-2-2<br/>ACTIVE]
     end
 
     L1 --> L1_1
@@ -1444,18 +1480,17 @@ graph TB
 
 | Query Pattern | Endpoint | Use Case |
 |---------------|----------|----------|
-| Get root level | `GET /wbes?level=1` | Top-level WBEs |
-| Get children | `GET /wbes?parent_wbe_id={id}` | Direct descendants |
-| Get subtree | `GET /wbes?ancestor_wbe_id={id}` | All descendants (recursive) |
-| Get breadcrumb | `GET /wbes/{id}/breadcrumb` | Navigation path |
-| Get leaf nodes | `GET /wbes?is_leaf=true` | WBEs with no children |
+| Get root level | `GET /wbs-elements?root_only=true` | Top-level WBSElements |
+| Get children | `GET /wbs-elements?parent_id={id}` | Direct descendants |
+| Get full tree | `GET /wbs-elements/project/{project_id}/tree` | Complete WBS tree |
+| Get breadcrumb | `GET /wbs-elements/{id}/breadcrumb` | Navigation path |
 
 ### Code Reference
 
 This use case is based on test cases from:
 
-- [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py):
-  - `test_wbe_hierarchical_structure` - Lines 294-327
+- [`backend/tests/api/routes/test_wbs_elements.py`](../../backend/tests/api/routes/test_wbs_elements.py):
+  - `test_wbs_element_hierarchical_structure` - Hierarchy tests
 
 ---
 
@@ -1463,30 +1498,31 @@ This use case is based on test cases from:
 
 ### Scenario
 
-An incorrect update was made to a WBE (e.g., budget entered as $200,000 instead of $50,000). You need to revert to the previous state. EVCS creates a new version with the old state, preserving the complete history.
+An incorrect update was made to a WBSElement. You need to revert to the previous state. EVCS creates a new version with the old state, preserving the complete history.
+
+> **Note:** Revert operations for change orders are performed via the ChangeOrder API: `POST /api/v1/change-orders/{change_order_id}/revert`
 
 ### Business Context
 
 **Revert Use Cases:**
 
-- Data entry errors (typo in budget)
+- Data entry errors
 - Incorrect change order merged to main
 - Need to undo multiple changes at once
 - Experimental changes that didn't work out
 
 ### Step-by-Step Example
 
-#### Step 1: Create Initial WBE
+#### Step 1: Create Initial WBSElement
 
 ```bash
-POST /api/v1/wbes
+POST /api/v1/wbs-elements
 Content-Type: application/json
 
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
   "code": "5.0",
   "name": "Phase 5 - Commissioning",
-  "budget_allocation": 50000.00,
   "level": 1
 }
 ```
@@ -1495,9 +1531,8 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v1-xyz",
-  "wbe_id": "wbe-root-revert",
-  "budget_allocation": "50000.00",
+  "id": "wbs-v1-xyz",
+  "wbs_element_id": "wbs-root-revert",
   "parent_id": null
 }
 ```
@@ -1505,11 +1540,11 @@ Content-Type: application/json
 #### Step 2: Make Incorrect Update
 
 ```bash
-PUT /api/v1/wbes/wbe-root-revert
+PUT /api/v1/wbs-elements/wbs-root-revert
 Content-Type: application/json
 
 {
-  "budget_allocation": 200000.00
+  "name": "Phase 5 - WRONG NAME"
 }
 ```
 
@@ -1517,21 +1552,21 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v2-xyz",
-  "wbe_id": "wbe-root-revert",
-  "budget_allocation": "200000.00",
-  "parent_id": "wbe-v1-xyz"
+  "id": "wbs-v2-xyz",
+  "wbs_element_id": "wbs-root-revert",
+  "name": "Phase 5 - WRONG NAME",
+  "parent_id": "wbs-v1-xyz"
 }
 ```
 
 #### Step 3: Make Another Update
 
 ```bash
-PUT /api/v1/wbes/wbe-root-revert
+PUT /api/v1/wbs-elements/wbs-root-revert
 Content-Type: application/json
 
 {
-  "budget_allocation": 180000.00
+  "name": "Phase 5 - ANOTHER WRONG NAME"
 }
 ```
 
@@ -1539,65 +1574,35 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-v3-xyz",
-  "wbe_id": "wbe-root-revert",
-  "budget_allocation": "180000.00",
-  "parent_id": "wbe-v2-xyz"
+  "id": "wbs-v3-xyz",
+  "wbs_element_id": "wbs-root-revert",
+  "name": "Phase 5 - ANOTHER WRONG NAME",
+  "parent_id": "wbs-v2-xyz"
 }
 ```
 
-#### Step 4: Revert to Previous Version (Implicit)
+#### Step 4: Revert via Change Order
 
-Revert to the immediate parent (v2 → v1):
+For change orders, revert through the ChangeOrder API:
 
 ```bash
-POST /api/v1/wbes/wbe-root-revert/revert
+POST /api/v1/change-orders/{change_order_id}/revert
 Content-Type: application/json
 
-{
-  "branch": "main"
-}
-```
-
-**Response (v4 - Reverted to v1 state):**
-
-```json
-{
-  "id": "wbe-v4-xyz",
-  "wbe_id": "wbe-root-revert",
-  "budget_allocation": "50000.00",
-  "branch": "main",
-  "parent_id": "wbe-v3-xyz"
-}
+{}
 ```
 
 **What Happened:**
 
-- A NEW version (v4) was created
-- v4 has the same data as v1 (budget: $50,000)
+- A NEW version (v4) is created
+- v4 has the same data as v1 (original name)
 - `parent_id` points to v3 (maintains linear history)
 - v2 and v3 are preserved in history
 
-#### Step 5: Revert to Specific Version (Explicit)
-
-Alternatively, revert directly to a specific version:
+#### Step 5: Verify History
 
 ```bash
-POST /api/v1/wbes/wbe-root-revert/revert
-Content-Type: application/json
-
-{
-  "branch": "main",
-  "to_version_id": "wbe-v1-xyz"
-}
-```
-
-**Same Result:** Creates v4 with v1's data
-
-#### Step 6: Verify History
-
-```bash
-GET /api/v1/wbes/wbe-root-revert/history
+GET /api/v1/wbs-elements/wbs-root-revert/history
 ```
 
 **Response:**
@@ -1605,24 +1610,24 @@ GET /api/v1/wbes/wbe-root-revert/history
 ```json
 [
   {
-    "id": "wbe-v1-xyz",
-    "budget_allocation": "50000.00",
+    "id": "wbs-v1-xyz",
+    "name": "Phase 5 - Commissioning",
     "parent_id": null
   },
   {
-    "id": "wbe-v2-xyz",
-    "budget_allocation": "200000.00",
-    "parent_id": "wbe-v1-xyz"
+    "id": "wbs-v2-xyz",
+    "name": "Phase 5 - WRONG NAME",
+    "parent_id": "wbs-v1-xyz"
   },
   {
-    "id": "wbe-v3-xyz",
-    "budget_allocation": "180000.00",
-    "parent_id": "wbe-v2-xyz"
+    "id": "wbs-v3-xyz",
+    "name": "Phase 5 - ANOTHER WRONG NAME",
+    "parent_id": "wbs-v2-xyz"
   },
   {
-    "id": "wbe-v4-xyz",
-    "budget_allocation": "50000.00",
-    "parent_id": "wbe-v3-xyz"
+    "id": "wbs-v4-xyz",
+    "name": "Phase 5 - Commissioning",
+    "parent_id": "wbs-v3-xyz"
   }
 ]
 ```
@@ -1632,16 +1637,16 @@ GET /api/v1/wbes/wbe-root-revert/history
 ```mermaid
 graph LR
     subgraph "Original Chain"
-        V1[v1<br/>budget: $50k]
-        V2[v2<br/>budget: $200k]
-        V3[v3<br/>budget: $180k]
+        V1[v1<br/>Commissioning]
+        V2[v2<br/>WRONG NAME]
+        V3[v3<br/>ANOTHER WRONG NAME]
     end
 
     subgraph "After Revert"
         V1
         V2
         V3
-        V4[v4<br/>budget: $50k<br/>reverted from v1]
+        V4[v4<br/>Commissioning<br/>reverted from v1]
     end
 
     V1 --> V2
@@ -1664,82 +1669,65 @@ graph LR
 | **Undo** | Not directly supported | Use revert instead |
 | **Time Travel Query** | Reads old state without changing | Reference only |
 
-### Revert on Branches
-
-Reverts work on any branch:
-
-```bash
-# Revert on main
-POST /api/v1/wbes/{wbe_id}/revert
-{ "branch": "main" }
-
-# Revert on feature branch
-POST /api/v1/wbes/{wbe_id}/revert
-{ "branch": "change-order-001" }
-```
-
-Each branch maintains its own version chain and can be reverted independently.
-
 ### Code Reference
 
 This use case is based on test cases from:
 
-- [`backend/tests/unit/core/versioning/test_branch_commands.py`](../../backend/tests/unit/core/versioning/test_branch_commands.py):
-  - `test_revert_command` - Lines 163-200
-  - `test_revert_to_specific_version` - Lines 202-252
+- [`backend/tests/core/test_branching_core.py`](../../backend/tests/core/test_branching_core.py):
+  - Revert command tests
 
 ---
 
 ## API Reference Summary
 
-### WBE Endpoints
+### WBSElement Endpoints
 
 | Method | Endpoint | Description | Branch Support |
 |--------|----------|-------------|----------------|
-| `POST` | `/api/v1/wbes` | Create new WBE | Optional `branch` field |
-| `GET` | `/api/v1/wbes` | List WBEs with filters | `?branch=` parameter |
-| `GET` | `/api/v1/wbes/{wbe_id}` | Get current WBE | `?branch=` parameter |
-| `GET` | `/api/v1/wbes/{wbe_id}?as_of={date}` | Time travel query | `?branch=` + `?as_of=` |
-| `PUT` | `/api/v1/wbes/{wbe_id}` | Update WBE | Body: `branch` field |
-| `DELETE` | `/api/v1/wbes/{wbe_id}` | Soft delete WBE | `?branch=` parameter |
-| `GET` | `/api/v1/wbes/{wbe_id}/history` | Get version history | `?branch=` parameter |
-| `GET` | `/api/v1/wbes/{wbe_id}/breadcrumb` | Get hierarchy path | N/A |
-| `POST` | `/api/v1/wbes/{wbe_id}/branches` | Create branch | Body: `new_branch`, `from_branch` |
-| `POST` | `/api/v1/wbes/{wbe_id}/branches/merge` | Merge branches | Body: `source_branch`, `target_branch` |
-| `DELETE` | `/api/v1/wbes/{wbe_id}/branches/{branch}` | Delete branch | N/A |
-| `POST` | `/api/v1/wbes/{wbe_id}/revert` | Revert to previous | Body: `branch`, `to_version_id` |
+| `POST` | `/api/v1/wbs-elements` | Create new WBSElement | Optional `branch` field |
+| `GET` | `/api/v1/wbs-elements` | List WBSElements with filters | `?branch=` parameter |
+| `GET` | `/api/v1/wbs-elements/{wbs_element_id}` | Get current WBSElement | `?branch=` parameter |
+| `GET` | `/api/v1/wbs-elements/{wbs_element_id}?as_of={date}` | Time travel query | `?branch=` + `?as_of=` |
+| `PUT` | `/api/v1/wbs-elements/{wbs_element_id}` | Update WBSElement | Body: `branch` field |
+| `DELETE` | `/api/v1/wbs-elements/{wbs_element_id}` | Soft delete WBSElement | `?branch=` parameter |
+| `GET` | `/api/v1/wbs-elements/{wbs_element_id}/history` | Get version history | `?branch=` parameter |
+| `GET` | `/api/v1/wbs-elements/{wbs_element_id}/breadcrumb` | Get hierarchy path | N/A |
+| `GET` | `/api/v1/wbs-elements/project/{project_id}/tree` | Get full WBS tree | N/A |
+
+> **Note:** Branch creation, merging, and reverting are handled through the ChangeOrder API (`/api/v1/change-orders`), not through WBSElement sub-endpoints. See the ChangeOrder API for merge, revert, and approval workflows.
 
 ### Query Parameters for List Endpoint
 
 ```
-GET /api/v1/wbes?
+GET /api/v1/wbs-elements?
     project_id={uuid}              # Filter by project
-    &parent_wbe_id={uuid}          # Filter by parent
+    &parent_id={uuid}              # Filter by parent
+    &root_only={bool}              # Return only root-level elements
     &level={int}                   # Filter by level
     &branch={string}               # Filter by branch
     &search={string}               # Search code/name
-    &skip={int}                    # Pagination offset
-    &limit={int}                   # Pagination limit
-    &sort_by={field}               # Sort field
-    &order={asc|desc}              # Sort order
+    &page={int}                    # Page number (default 1)
+    &per_page={int}                # Items per page (default 20)
+    &sort_field={field}            # Sort field
+    &sort_order={asc|desc}         # Sort order
 ```
 
 ### Request/Response Examples
 
-#### Create WBE
+#### Create WBSElement
 
 **Request:**
 
 ```http
-POST /api/v1/wbes HTTP/1.1
+POST /api/v1/wbs-elements HTTP/1.1
 Content-Type: application/json
 
 {
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": null,
+  "parent_wbs_element_id": null,
   "code": "1.0",
   "name": "Phase 1",
-  "budget_allocation": 100000.00,
+  "revenue_allocation": 100000.00,
   "level": 1,
   "description": "Initial phase",
   "control_date": "2026-01-01T10:00:00+00"
@@ -1750,13 +1738,14 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-version-id",
-  "wbe_id": "wbe-root-id",
+  "id": "wbs-version-id",
+  "wbs_element_id": "wbs-root-id",
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "parent_wbe_id": null,
+  "parent_wbs_element_id": null,
   "code": "1.0",
   "name": "Phase 1",
-  "budget_allocation": "100000.00",
+  "budget_allocation": null,
+  "revenue_allocation": "100000.00",
   "level": 1,
   "description": "Initial phase",
   "branch": "main",
@@ -1768,17 +1757,17 @@ Content-Type: application/json
 }
 ```
 
-#### Update WBE
+#### Update WBSElement
 
 **Request:**
 
 ```http
-PUT /api/v1/wbes/wbe-root-id HTTP/1.1
+PUT /api/v1/wbs-elements/wbs-root-id HTTP/1.1
 Content-Type: application/json
 
 {
-  "budget_allocation": 120000.00,
   "description": "Updated scope",
+  "revenue_allocation": 120000.00,
   "branch": "main",
   "control_date": "2026-02-01T10:00:00+00"
 }
@@ -1788,12 +1777,12 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "wbe-new-version-id",
-  "wbe_id": "wbe-root-id",
-  "budget_allocation": "120000.00",
+  "id": "wbs-new-version-id",
+  "wbs_element_id": "wbs-root-id",
   "description": "Updated scope",
+  "revenue_allocation": "120000.00",
   "branch": "main",
-  "parent_id": "wbe-version-id",
+  "parent_id": "wbs-version-id",
   "valid_time": "[2026-02-01T10:00:00+00,)",
   "transaction_time": "[2026-01-11T11:00:00+00,)"
 }
@@ -1804,16 +1793,15 @@ Content-Type: application/json
 **Request:**
 
 ```http
-GET /api/v1/wbes/wbe-root-id?as_of=2026-01-15T10:00:00+00 HTTP/1.1
+GET /api/v1/wbs-elements/wbs-root-id?as_of=2026-01-15T10:00:00+00 HTTP/1.1
 ```
 
 **Response (200 OK):**
 
 ```json
 {
-  "id": "wbe-version-id",
-  "wbe_id": "wbe-root-id",
-  "budget_allocation": "100000.00",
+  "id": "wbs-version-id",
+  "wbs_element_id": "wbs-root-id",
   "valid_time": "[2026-01-01T10:00:00+00,2026-02-01T10:00:00+00)",
   "transaction_time": "[2026-01-01T10:00:00+00,2026-02-01T10:00:00+00)"
 }
@@ -1869,14 +1857,13 @@ Does the change need approval?
 |--------|-------------|-------------|
 | **Data Recovery** | Possible via undelete | Impossible |
 | **History** | Preserved in history | Preserved in history |
-| **Query Visibility** | Hidden unless `include_deleted=true` | Hidden completely |
+| **Query Visibility** | Hidden in normal queries | Hidden completely |
 | **Storage** | Records remain in DB | Records remain in DB |
 | **Use When** | Mistakes, temporary removal | Compliance (GDPR, etc.) |
 
 **Soft Delete Best Practices:**
 
 - Always prefer soft delete for business entities
-- Use `include_deleted=true` for audit queries
 - Implement undelete workflow for recovery
 - Consider retention policies for old deleted records
 
@@ -1888,8 +1875,8 @@ The system automatically creates GIST indexes for temporal queries:
 
 ```sql
 -- Automatic indexes (created by migrations)
-CREATE INDEX ix_wbes_valid_gist ON wbes USING GIST (valid_time);
-CREATE INDEX ix_wbes_tx_gist ON wbes USING GIST (transaction_time);
+CREATE INDEX ix_wbs_elements_valid_gist ON wbs_elements USING GIST (valid_time);
+CREATE INDEX ix_wbs_elements_tx_gist ON wbs_elements USING GIST (transaction_time);
 ```
 
 #### Query Patterns
@@ -1912,21 +1899,14 @@ WHERE valid_time IS NOT NULL
 
 #### Pagination Strategy
 
-For large result sets, always use cursor-based pagination:
+For large result sets, use page-based pagination:
 
 ```bash
 # First page
-GET /api/v1/wbes?limit=100
+GET /api/v1/wbs-elements?page=1&per_page=100
 
-# Next page (using last seen ID)
-GET /api/v1/wbes?limit=100&after={last_id}
-```
-
-Avoid offset-based pagination for large offsets:
-
-```bash
-# Avoid for large offsets
-GET /api/v1/wbes?skip=10000  # Scans 10,000 rows
+# Second page
+GET /api/v1/wbs-elements?page=2&per_page=100
 ```
 
 ### Bitemporal Query Patterns
@@ -1968,15 +1948,15 @@ WHERE transaction_time @> NOW()
 
 ### Pattern 1: Bulk Updates with Single Control Date
 
-**Scenario:** You need to update multiple WBEs with the same effective date.
+**Scenario:** You need to update multiple WBSElements with the same effective date.
 
 ```bash
-# Update multiple WBEs with same control date
-for wbe_id in "${wbe_list[@]}"; do
-  curl -X PUT "http://api/wbes/$wbe_id" \
+# Update multiple WBSElements with same control date
+for wbs_element_id in "${wbs_list[@]}"; do
+  curl -X PUT "http://api/wbs-elements/$wbs_element_id" \
     -H "Content-Type: application/json" \
     -d "{
-      \"budget_allocation\": $new_budget,
+      \"description\": \"$new_description\",
       \"control_date\": \"2026-01-01T10:00:00+00\"
     }"
 done
@@ -1987,28 +1967,28 @@ done
 - All updates get same `valid_time` start
 - Each update creates new version
 - `transaction_time` reflects actual update time
-- Useful for periodic budget adjustments
+- Useful for periodic adjustments
 
 ### Pattern 2: Audit Trail Reconstruction
 
-**Scenario:** Generate a complete audit trail for a WBE.
+**Scenario:** Generate a complete audit trail for a WBSElement.
 
 ```python
-async def get_audit_trail(wbe_id: str, session: AsyncSession) -> list[dict]:
-    """Get complete audit trail for a WBE."""
-    wbe = await wbe_service.get_wbe_history(session, wbe_id)
+async def get_audit_trail(wbs_element_id: str, session: AsyncSession) -> list[dict]:
+    """Get complete audit trail for a WBSElement."""
+    history = await wbs_element_service.get_history(session, wbs_element_id)
 
     trail = []
-    for version in wbe:
+    for version in history:
         trail.append({
             "version_id": version.id,
             "effective_at": version.valid_time.lower,
             "recorded_at": version.transaction_time.lower,
             "ended_at": version.valid_time.upper,
-            "actor_id": version.actor_id,
+            "created_by": version.created_by,
             "changes": {
-                "budget": version.budget_allocation,
                 "name": version.name,
+                "code": version.code,
                 "branch": version.branch,
             }
         })
@@ -2025,10 +2005,10 @@ async def get_audit_trail(wbe_id: str, session: AsyncSession) -> list[dict]:
     "effective_at": "2026-01-01T10:00:00+00",
     "recorded_at": "2026-01-01T10:00:00+00",
     "ended_at": "2026-01-15T10:00:00+00",
-    "actor_id": "user-456",
+    "created_by": "user-456",
     "changes": {
-      "budget": 50000.00,
       "name": "Original Name",
+      "code": "1.0",
       "branch": "main"
     }
   },
@@ -2037,10 +2017,10 @@ async def get_audit_trail(wbe_id: str, session: AsyncSession) -> list[dict]:
     "effective_at": "2026-01-15T10:00:00+00",
     "recorded_at": "2026-01-15T10:00:00+00",
     "ended_at": null,
-    "actor_id": "user-789",
+    "created_by": "user-789",
     "changes": {
-      "budget": 75000.00,
       "name": "Updated Name",
+      "code": "1.0",
       "branch": "main"
     }
   }
@@ -2052,11 +2032,11 @@ async def get_audit_trail(wbe_id: str, session: AsyncSession) -> list[dict]:
 **Scenario:** Compare two versions to show exactly what changed.
 
 ```python
-def diff_versions(v1: WBE, v2: WBE) -> dict:
-    """Calculate differences between two WBE versions."""
+def diff_versions(v1: WBSElement, v2: WBSElement) -> dict:
+    """Calculate differences between two WBSElement versions."""
     fields_to_compare = [
-        "name", "code", "budget_allocation",
-        "description", "level"
+        "name", "code", "description", "level",
+        "revenue_allocation"
     ]
 
     changes = {}
@@ -2081,8 +2061,8 @@ def diff_versions(v1: WBE, v2: WBE) -> dict:
 **Usage:**
 
 ```python
-v1 = await get_version_at(wbe_id, as_of=date1)
-v2 = await get_version_at(wbe_id, as_of=date2)
+v1 = await get_version_at(wbs_element_id, as_of=date1)
+v2 = await get_version_at(wbs_element_id, as_of=date2)
 diff = diff_versions(v1, v2)
 ```
 
@@ -2092,7 +2072,7 @@ diff = diff_versions(v1, v2)
 
 ```python
 async def create_change_order(
-    wbe_id: str,
+    wbs_element_id: str,
     change_order_number: int,
     proposed_changes: dict,
     session: AsyncSession
@@ -2102,8 +2082,8 @@ async def create_change_order(
     # 1. Create branch for change order
     branch_name = f"change-order-{change_order_number:04d}"
     branch_cmd = CreateBranchCommand(
-        entity_class=WBE,
-        root_id=wbe_id,
+        entity_class=WBSElement,
+        root_id=wbs_element_id,
         actor_id=current_user.id,
         new_branch=branch_name,
         from_branch="main"
@@ -2112,8 +2092,8 @@ async def create_change_order(
 
     # 2. Apply changes on branch
     update_cmd = UpdateCommand(
-        entity_class=WBE,
-        root_id=wbe_id,
+        entity_class=WBSElement,
+        root_id=wbs_element_id,
         actor_id=current_user.id,
         updates=proposed_changes,
         branch=branch_name
@@ -2121,7 +2101,7 @@ async def create_change_order(
     updated = await update_cmd.execute(session)
 
     # 3. Return comparison for review
-    main_version = await wbe_service.get_current(session, wbe_id, branch="main")
+    main_version = await wbs_element_service.get_current(session, wbs_element_id, branch="main")
     comparison = diff_versions(main_version, updated)
 
     return {
@@ -2137,8 +2117,8 @@ async def create_change_order(
 2. Make changes on branch
 3. Generate comparison report
 4. Stakeholders review
-5. Approve → Merge to main
-6. Reject → Delete branch
+5. Approve → Merge to main (via ChangeOrder API)
+6. Reject → Reject change order (via ChangeOrder API)
 
 ### Pattern 5: Time Travel for Reporting
 
@@ -2152,65 +2132,50 @@ async def generate_historical_report(
 ) -> dict:
     """Generate report for a specific point in time."""
 
-    # Get all WBEs as of the specified date
-    wbes = await wbe_service.get_wbes(
+    # Get all WBSElements as of the specified date
+    wbs_elements = await wbs_element_service.get_wbs_elements(
         session,
         project_id=project_id,
         as_of=as_of_date
     )
 
-    total_budget = sum(w.budget_allocation for w in wbes)
-
     return {
         "report_date": as_of_date,
         "as_of_date": as_of_date,
-        "wbe_count": len(wbes),
-        "total_budget": total_budget,
-        "wbes": [
+        "wbs_element_count": len(wbs_elements),
+        "wbs_elements": [
             {
                 "code": w.code,
                 "name": w.name,
-                "budget": w.budget_allocation,
+                "budget_allocation": w.budget_allocation,
+                "revenue_allocation": w.revenue_allocation,
                 "valid_at": w.valid_time,
             }
-            for w in wbes
+            for w in wbs_elements
         ]
     }
 ```
 
 ### Pattern 6: Undelete Workflow
 
-**Scenario:** Recover a soft-deleted WBE.
+**Scenario:** Recover a soft-deleted WBSElement.
 
 ```python
-async def undelete_wbe(
-    wbe_id: str,
+async def undelete_wbs_element(
+    wbs_element_id: str,
     session: AsyncSession,
-    actor_id: str
-) -> WBE:
-    """Undelete a soft-deleted WBE."""
+    current_user_id: str
+) -> WBSElement:
+    """Undelete a soft-deleted WBSElement via the service layer."""
 
-    # Get the deleted version
-    wbe = await wbe_service.get_wbe(
+    # Undelete through the service layer
+    wbs_element = await wbs_element_service.undelete(
         session,
-        wbe_id,
-        include_deleted=True
+        wbs_element_id=wbs_element_id,
+        actor_id=current_user_id
     )
 
-    if not wbe:
-        raise NotFoundError(f"WBE {wbe_id} not found")
-
-    if not wbe.deleted_at:
-        raise ValueError(f"WBE {wbe_id} is not deleted")
-
-    # Undelete
-    wbe.undelete()
-
-    # Record undelete action
-    wbe.actor_id = actor_id
-
-    await session.flush()
-    return wbe
+    return wbs_element
 ```
 
 ---
@@ -2222,66 +2187,69 @@ async def undelete_wbe(
 - [EVCS Core Architecture](../02-architecture/backend/contexts/evcs-core/architecture.md) - System architecture and patterns
 - [Entity Classification Guide](../02-architecture/backend/contexts/evcs-core/entity-classification.md) - Choosing entity types
 - [Temporal Patterns Reference](../02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md) - Query patterns and recipes
-- [ADR-005: Bitemporal Versioning](../02-architecture/decisions/ADR-005-bitemporal-versioning.md) - Design decision record
-- [ADR-006: Protocol-Based Type System](../02-architecture/decisions/ADR-006-protocol-based-type-system.md) - Type system design
+- [ADR-005: Bitemporal Versioning](../02-architecture/decisions/ADR-005-bitemporal-versioning.md) - Versioning design decisions
+- [ADR-006: Protocol-Based Type System](../02-architecture/decisions/ADR-006-protocol-based-type-system.md) - Type-safe entity tier system
 
 ### Code References
 
-- **WBE Model:** [`backend/app/models/domain/wbe.py`](../../backend/app/models/domain/wbe.py)
-- **WBE Service:** [`backend/app/services/wbe.py`](../../backend/app/services/wbe.py)
-- **WBE API:** [`backend/app/api/routes/wbes.py`](../../backend/app/api/routes/wbes.py)
+- **WBSElement Model:** [`backend/app/models/domain/wbs_element.py`](../../backend/app/models/domain/wbs_element.py)
+- **WBSElement Service:** [`backend/app/services/wbs_element_service.py`](../../backend/app/services/wbs_element_service.py)
+- **WBSElement API:** [`backend/app/api/routes/wbs_elements.py`](../../backend/app/api/routes/wbs_elements.py)
 - **Branch Commands:** [`backend/app/core/branching/commands.py`](../../backend/app/core/branching/commands.py)
 - **Versioning Commands:** [`backend/app/core/versioning/commands.py`](../../backend/app/core/versioning/commands.py)
 
 ### Test Examples
 
-- **WBE API Tests:** [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py)
-- **Branch Command Tests:** [`backend/tests/unit/core/versioning/test_branch_commands.py`](../../backend/tests/unit/core/versioning/test_branch_commands.py)
-- **Time Travel Tests:** [`backend/tests/api/test_time_machine.py`](../../backend/tests/api/test_time_machine.py)
-- **Control Date Tests:** [`backend/tests/core/versioning/test_control_date.py`](../../backend/tests/core/versioning/test_control_date.py)
+- **WBSElement API Tests:** [`backend/tests/api/routes/test_wbs_elements.py`](../../backend/tests/api/routes/test_wbs_elements.py)
+- **Branching Core Tests:** [`backend/tests/core/test_branching_core.py`](../../backend/tests/core/test_branching_core.py)
+- **Versioning Core Tests:** [`backend/tests/core/test_versioning_core.py`](../../backend/tests/core/test_versioning_core.py)
+- **Temporal Query Tests:** [`backend/tests/core/test_temporal_queries.py`](../../backend/tests/core/test_temporal_queries.py)
 
 ---
 
-## Appendix: WBE Data Model
+## Appendix: WBSElement Data Model
 
-### WBE Table Structure
+### WBSElement Table Structure
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID (PK) | Unique version identifier |
-| `wbe_id` | UUID (Index) | Stable WBE root identifier |
-| `project_id` | UUID (FK, Index) | Parent project |
-| `parent_wbe_id` | UUID (FK, Index) | Parent WBE in hierarchy |
+| `wbs_element_id` | UUID (Index) | Stable WBSElement root identifier |
+| `project_id` | UUID (Index) | Parent project root ID |
+| `parent_wbs_element_id` | UUID (Index, nullable) | Parent WBSElement root ID for hierarchy |
 | `code` | VARCHAR(50) | WBS code (e.g., "1.2.3") |
-| `name` | VARCHAR(200) | WBE name |
-| `budget_allocation` | NUMERIC(15,2) | Budget allocated |
+| `name` | VARCHAR(255) | WBSElement name |
+| `revenue_allocation` | DECIMAL(15,2), nullable | Revenue allocated from project contract value |
 | `level` | INTEGER | Hierarchy level |
-| `description` | TEXT | Optional description |
+| `description` | TEXT, nullable | Optional description |
 | `valid_time` | TSTZRANGE | Business validity period |
 | `transaction_time` | TSTZRANGE | System recording period |
-| `deleted_at` | TIMESTAMPTZ | Soft delete timestamp |
+| `deleted_at` | TIMESTAMPTZ, nullable | Soft delete timestamp |
+| `created_by` | UUID | User who created this version |
+| `deleted_by` | UUID, nullable | User who deleted this version |
 | `branch` | VARCHAR(80) | Branch name |
-| `parent_id` | UUID (FK, Index) | Previous version |
-| `merge_from_branch` | VARCHAR(80) | Merge source branch |
-| `actor_id` | UUID | User who made change |
+| `parent_id` | UUID (Index, nullable) | Previous version in DAG |
+| `merge_from_branch` | VARCHAR(80), nullable | Merge source branch |
+
+**Note:** `budget_allocation` is NOT a stored column. It is a computed attribute, calculated on-the-fly as the sum of Cost Element amounts in the full hierarchy. It appears in GET responses but cannot be set via POST or PUT requests.
 
 ### Indexes
 
 ```sql
 -- GIST indexes for temporal queries
-CREATE INDEX ix_wbes_valid_gist ON wbes USING GIST (valid_time);
-CREATE INDEX ix_wbes_tx_gist ON wbes USING GIST (transaction_time);
+CREATE INDEX ix_wbs_elements_valid_gist ON wbs_elements USING GIST (valid_time);
+CREATE INDEX ix_wbs_elements_tx_gist ON wbs_elements USING GIST (transaction_time);
 
 -- B-tree indexes for lookups
-CREATE INDEX ix_wbes_wbe_id ON wbes (wbe_id);
-CREATE INDEX ix_wbes_project_id ON wbes (project_id);
-CREATE INDEX ix_wbes_parent_wbe_id ON wbes (parent_wbe_id);
-CREATE INDEX ix_wbes_branch ON wbes (branch);
-CREATE INDEX ix_wbes_parent_id ON wbes (parent_id);
+CREATE INDEX ix_wbs_elements_wbs_element_id ON wbs_elements (wbs_element_id);
+CREATE INDEX ix_wbs_elements_project_id ON wbs_elements (project_id);
+CREATE INDEX ix_wbs_elements_parent_wbs_element_id ON wbs_elements (parent_wbs_element_id);
+CREATE INDEX ix_wbs_elements_branch ON wbs_elements (branch);
+CREATE INDEX ix_wbs_elements_parent_id ON wbs_elements (parent_id);
 
--- Partial unique index: one current version per WBE per branch
-CREATE UNIQUE INDEX uq_wbes_current_branch
-ON wbes (wbe_id, branch)
+-- Partial unique index: one current version per WBSElement per branch
+CREATE UNIQUE INDEX uq_wbs_elements_current_branch
+ON wbs_elements (wbs_element_id, branch)
 WHERE upper(valid_time) IS NULL
   AND upper(transaction_time) IS NULL
   AND deleted_at IS NULL;
@@ -2289,8 +2257,8 @@ WHERE upper(valid_time) IS NULL
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2026-01-11
+**Document Version:** 1.1
+**Last Updated:** 2026-05-30
 **Maintained By:** Backend Team
 
 For questions or contributions to this guide, please refer to the [Documentation Guide](../00-meta/README.md).

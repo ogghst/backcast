@@ -6,7 +6,9 @@ This guide explains how to create, review, approve, and implement Change Orders 
 
 ## 1. What Are Change Orders?
 
-Change Orders (COs) manage modifications to a project's budget, work breakdown elements (WBEs), and cost elements. Every change order operates in an **isolated branch** — a private copy of the project where you can experiment freely without affecting the live budget. Changes only reach the main project when the order is approved and merged.
+Change Orders (COs) manage modifications to a project's budget, WBS Elements, Control Accounts, Work Packages, and cost elements. Every change order operates in an **isolated branch** — a private copy of the project where you can experiment freely without affecting the live budget. Changes only reach the main project when the order is approved and merged.
+
+The entity hierarchy is: **Project → WBS Element → Control Account → Work Package → Cost Element**. WBS Elements, Control Accounts, and Work Packages are **Branchable** — their changes are isolated within the change order branch. Cost Elements are **Versionable** but not branchable; their financial facts are global across branches.
 
 **Key principle:** No one sees your changes until you submit for approval. The main project data is never at risk.
 
@@ -63,7 +65,7 @@ The system automatically calculates the financial impact of your changes and rou
 | Low | Under €10,000 | Project Manager | 2 business days |
 | Medium | €10,000 — €50,000 | Department Head | 5 business days |
 | High | €50,000 — €100,000 | Director | 10 business days |
-| Critical | Over €100,000 | Executive Committee | 15 business days |
+| Critical | Over €100,000 | Admin | 15 business days |
 
 The impact level is calculated using a weighted score that considers budget change percentage, schedule impact, revenue impact, and earned value degradation. The weights and score boundaries are also configurable by administrators.
 
@@ -75,7 +77,7 @@ Every change order follows the same six-state workflow. Below is the complete li
 
 ```
 Draft → Submitted for Approval → Under Review → Approved → Implemented
-                                   ↘ Rejected → (resubmit as Draft)
+          ↘ Rejected                 ↘ Rejected → (resubmit as Draft)
 ```
 
 ### State Overview
@@ -110,7 +112,7 @@ At this point, the change order is in **Draft** status. No changes to the projec
 
 1. Open the change order from the list.
 2. **Switch to the change branch** using the branch selector in the header (the header turns amber/orange to indicate you are on a change branch).
-3. Modify WBEs, cost elements, or budgets as needed. All changes are isolated to this branch — the main project is unaffected.
+3. Modify WBS Elements, Control Accounts, Work Packages, or budgets as needed. All changes to branchable entities (WBS Elements, Control Accounts, Work Packages) are isolated to this branch — the main project is unaffected. Cost Element changes are global (versionable but not branchable).
 4. You can freely edit, add, or remove items. Nothing is permanent until submission.
 
 **Tip:** Use the **Impact Analysis** tab at any time during drafting to see a live preview of how your changes affect the project finances.
@@ -122,7 +124,7 @@ Before submitting, review the impact dashboard. It provides:
 - **KPI Cards** — Side-by-side comparison of current vs. proposed budget, gross margin, EAC, and performance indices (CPI, SPI).
 - **Waterfall Chart** — Visual bridge from the current budget to the proposed budget, showing each contributing change.
 - **S-Curve Comparison** — Dual-line chart comparing cumulative cost curves (main vs. proposed), with a time slider to inspect variance at any date.
-- **Entity Impact Grid** — Detailed table of every modified, added, or removed WBE and cost element, color-coded by direction (red = increase, green = decrease).
+- **Entity Impact Grid** — Detailed table of every modified, added, or removed WBS Element and cost element, color-coded by direction (red = increase, green = decrease). Note: impact analysis currently tracks WBS Elements, Cost Elements, and Cost Registrations. Work Package and Control Account changes are reflected indirectly through their child entities.
 
 You can view impact in two modes:
 
@@ -141,8 +143,7 @@ You can view impact in two modes:
    - Assigns the appropriate approver based on impact level.
    - Starts the SLA countdown timer.
    - Snapshots the current workflow configuration for audit purposes.
-   - Forks all project entities to the isolation branch for complete data isolation.
-   - **Locks the branch** — no further edits are possible while under review.
+   - **Locks the branch** — no further edits are possible while under review. Branch isolation was already established when you switched to the change branch and made edits; submission simply locks it.
 4. Add an optional comment for the reviewer.
 
 **Important:** Once submitted, you cannot modify the change order. If changes are needed, the approver must reject it first, which unlocks the branch.
@@ -189,7 +190,7 @@ Once a change order is approved:
 For change orders in **Implemented** or **Rejected** status that are no longer needed:
 
 1. Open the change order.
-2. Click **Archive**. This soft-deletes the associated branch for cleanup.
+2. Click **Archive**. This soft-deletes the associated branch (BR-{code}) for cleanup. The change order status itself remains unchanged (Implemented or Rejected) — archive is a branch cleanup action, not a workflow state transition.
 
 ---
 
@@ -201,10 +202,10 @@ The UI uses consistent color coding for change order states so you can identify 
 |--------|-------|------|
 | Draft | Gray (default) | Clock |
 | Submitted for Approval | Blue | Spinning sync |
-| Under Review | Cyan | Spinning sync |
+| Under Review | Blue | Spinning sync |
 | Approved | Green | Checkmark circle |
 | Rejected | Red | X circle |
-| Implemented | Purple | Merge cells |
+| Implemented | Green | Merge cells |
 
 **Impact level badges:**
 
@@ -264,7 +265,7 @@ These features are available from the change order creation page and within the 
 
 1. Create a new change order with a descriptive title.
 2. Switch to the change branch.
-3. Navigate to the relevant WBEs and update the three cost elements.
+3. Navigate to the relevant Work Package (via WBS Element → Control Account → Work Package) and update the three cost elements.
 4. Check the Impact Analysis tab to see the total budget increase.
 5. Submit for approval when ready.
 
@@ -308,7 +309,7 @@ Administrators can customize the change order workflow parameters to match organ
 | **Impact Level Thresholds** | Financial amount boundaries (LOW/MEDIUM/HIGH/CRITICAL) | €10K / €50K / €100K / unlimited |
 | **Score Boundaries** | Impact score ranges for each level | 0-10 / 10-30 / 30-50 / 50+ |
 | **Impact Weights** | Relative weight of budget, schedule, revenue, EVM factors | 0.4 / 0.3 / 0.2 / 0.1 |
-| **Approval Rules** | Which roles can approve at each impact level | PM → LOW, Dept Head → HIGH, Director → HIGH, Admin → CRITICAL |
+| **Approval Rules** | Which roles can approve at each impact level | Editor/PM → LOW, Dept Head → MEDIUM, Director → HIGH, Admin → CRITICAL |
 | **SLA Deadlines** | Business day limits per impact level | 2 / 5 / 10 / 15 days |
 
 ### Global vs. Project-Level Configuration
@@ -333,3 +334,7 @@ Administrators can customize the change order workflow parameters to match organ
 5. Configuration is **snapshotted** at submission time, so historical change orders retain the values that were active when they were submitted
 
 > **Note:** Changes to configuration do not affect change orders that are already in progress. Only new submissions use the updated values.
+
+---
+
+*Last Updated: 2026-05-30*

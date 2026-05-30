@@ -625,5 +625,5 @@ docker inspect backcast_evs_backend
 ## Additional Resources
 
 - [Architecture Documentation](../02-architecture/) - System design details
-- [User Guide: EVCS](./evcs-wbe-user-guide.md) - Working with versioned entities
+- [User Guide: EVCS](./evcs-wbs-element-user-guide.md) - Working with versioned entities
 - [Main README](../../README.md) - Project overview

@@ -48,7 +48,7 @@ This document describes the user-facing features implemented in the Backcast  fr
   - Revenue allocation (visible in change order branches)
   - Parent WBE selection
   - Level auto-inference from parent
-- **See Also:** [WBE User Guide](../05-user-guide/evcs-wbe-user-guide.md)
+- **See Also:** [WBS Element User Guide](../05-user-guide/evcs-wbs-element-user-guide.md)
 
 ### 2.3 WBE Summary Card
 - **Location:** `WBESummaryCard.tsx`
@@ -230,5 +230,5 @@ This document describes the user-facing features implemented in the Backcast  fr
 
 - [EVM Requirements](./evm-requirements.md) - Formulas and metrics
 - [Change Management User Stories](./change-management-user-stories.md) - Change order workflows
-- [WBE User Guide](../05-user-guide/evcs-wbe-user-guide.md) - WBE operations
+- [WBS Element User Guide](../05-user-guide/evcs-wbs-element-user-guide.md) - WBS Element operations
 - [Frontend Architecture](../02-architecture/frontend/README.md) - Technical implementation

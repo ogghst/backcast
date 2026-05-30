@@ -18,7 +18,7 @@ The application uses a **URL-driven navigation** approach with React Router v6. 
 │  Header (Logo, Time Machine, User Profile)                  │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │            PageNavigation (Tabs)                    │    │
-│  │  [Overview] [Change Orders] [Settings] ...          │    │
+│  │  [Dashboard] [Overview] [Structure] ...             │    │
 │  └─────────────────────────────────────────────────────┘    │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │                                                       │    │
@@ -76,27 +76,48 @@ const navigationItems = [
 
 ## Nested Routing Pattern
 
-For entities with multiple related views (e.g., Project → Overview, Change Orders, Settings), use nested routing:
+For entities with multiple related views (e.g., Project → Dashboard, Overview, Structure), use nested routing. This pattern applies to five entities: Project, WBSElement, ControlAccount, WorkPackage, and CostElement.
 
 ### Directory Structure
 
 ```
 frontend/src/pages/projects/
-├── ProjectLayout.tsx          # Layout wrapper with PageNavigation
-├── ProjectOverview.tsx        # Overview tab content
-└── ProjectChangeOrdersPage.tsx # Change Orders tab content
+├── ProjectLayout.tsx           # Layout wrapper with PageNavigation
+├── ProjectOverview.tsx         # Overview tab content
+├── ProjectChangeOrdersPage.tsx # Change Orders tab content
+├── ProjectStructure.tsx        # WBS structure tab
+├── ProjectSchedulePage.tsx     # Schedule tab
+├── ProjectEVMAnalysis.tsx      # EVM Analysis tab
+├── ProjectCOQAnalysis.tsx      # COQ Analysis tab
+├── ProjectCostEvents.tsx       # Cost Events tab
+├── ProjectMembers.tsx          # Members tab
+├── ProjectDocuments.tsx        # Documents tab
+├── ProjectChat.tsx             # AI Chat tab
+├── ProjectAdminPage.tsx        # Admin tab
+├── ProjectExplorer.tsx         # Explorer view
+├── ProjectList.tsx             # Project listing page
 ```
 
 ### Route Configuration
 
 ```tsx
-// routes/index.tsx
+// routes/index.tsx (simplified — shows project subtree children)
 {
   path: "/projects/:projectId",
   element: <ProjectLayout />,
   children: [
     { index: true, element: <ProjectOverview /> },
+    { path: "dashboard", element: <ProjectDashboard /> },
+    { path: "structure", element: <ProjectStructure /> },
+    { path: "schedule", element: <ProjectSchedulePage /> },
     { path: "change-orders", element: <ProjectChangeOrdersPage /> },
+    { path: "members", element: <ProjectMembers /> },
+    { path: "evm-analysis", element: <ProjectEVMAnalysis /> },
+    { path: "coq-analysis", element: <ProjectCOQAnalysis /> },
+    { path: "cost-events", element: <ProjectCostEvents /> },
+    { path: "documents", element: <ProjectDocuments /> },
+    { path: "chat", element: <ProjectChat /> },
+    { path: "admin", element: <ProjectAdminPage /> },
   ],
 }
 ```
@@ -104,7 +125,7 @@ frontend/src/pages/projects/
 ### Layout Component
 
 ```tsx
-// ProjectLayout.tsx
+// ProjectLayout.tsx (simplified — shows navigation items)
 import { Outlet, useParams } from "react-router-dom";
 import { PageNavigation } from "@/components/navigation";
 
@@ -112,8 +133,18 @@ export const ProjectLayout = () => {
   const { projectId } = useParams<{ projectId: string }>();
 
   const items = [
+    { key: "dashboard", label: "Dashboard", path: `/projects/${projectId}/dashboard` },
     { key: "overview", label: "Overview", path: `/projects/${projectId}` },
+    { key: "structure", label: "Structure", path: `/projects/${projectId}/structure` },
+    { key: "schedule", label: "Schedule", path: `/projects/${projectId}/schedule` },
     { key: "change-orders", label: "Change Orders", path: `/projects/${projectId}/change-orders` },
+    { key: "members", label: "Members", path: `/projects/${projectId}/members` },
+    { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/evm-analysis` },
+    { key: "coq-analysis", label: "COQ Analysis", path: `/projects/${projectId}/coq-analysis` },
+    { key: "cost-events", label: "Cost Events", path: `/projects/${projectId}/cost-events` },
+    { key: "documents", label: "Documents", path: `/projects/${projectId}/documents` },
+    { key: "chat", label: "AI Chat", path: `/projects/${projectId}/chat` },
+    { key: "admin", label: "Admin", path: `/projects/${projectId}/admin` },
   ];
 
   return (
@@ -128,24 +159,82 @@ export const ProjectLayout = () => {
 ## Current Navigation Hierarchy
 
 ```
-/ (Dashboard)
+/ (Home/Dashboard)
+├── /chat                              # Global AI Chat
+├── /profile                           # User Profile
+├── /login                             # Login page
+├── /users                             # User List
+├── /change-orders/:changeOrderId      # Change Order Redirect
+│
 ├── /projects (Project List)
-│   └── /projects/:projectId
-│       ├── /projects/:projectId (Overview - index)
-│       ├── /projects/:projectId/change-orders (Change Orders)
-│       └── /projects/:projectId/change-orders/:changeOrderId/impact (Impact Analysis)
-├── /admin (Admin Menu)
-│   ├── /admin/users
-│   ├── /admin/departments
-│   └── /admin/cost-element-types
-└── /projects/:projectId/wbes/:wbeId (WBE Detail - legacy, may be refactored)
+│   └── /projects/:projectId (ProjectLayout — 12 child routes)
+│       ├── index (Overview)
+│       ├── dashboard
+│       ├── structure
+│       ├── schedule
+│       ├── change-orders
+│       ├── members
+│       ├── evm-analysis
+│       ├── coq-analysis
+│       ├── cost-events
+│       ├── documents
+│       ├── chat
+│       └── admin
+│
+│   # Change Order standalone routes (project-scoped, not nested under ProjectLayout)
+│   /projects/:projectId/change-orders/new                          # ChangeOrderUnifiedPage
+│   /projects/:projectId/change-orders/:changeOrderId               # ChangeOrderUnifiedPage
+│   /projects/:projectId/change-orders/:changeOrderId/impact        # ChangeOrderImpactAnalysisPage
+│
+│   # WBSElement detail subtree
+│   /projects/:projectId/wbs-elements/:wbsElementId (WBSElementLayout)
+│       ├── index (Overview)
+│       ├── evm-analysis
+│       ├── cost-history
+│       ├── documents
+│       └── chat
+│
+│   # ControlAccount detail
+│   /projects/:projectId/control-accounts/:controlAccountId (ControlAccountOverview)
+│
+│   # WorkPackage detail subtree
+│   /projects/:projectId/work-packages/:id (WorkPackageLayout — 6 child routes)
+│       ├── index (Overview)
+│       ├── cost-registrations
+│       ├── cost-history
+│       ├── evm-analysis
+│       ├── documents
+│       └── chat
+│
+├── /work-packages/:id (WorkPackageLayout — alternate top-level entry)
+│
+├── /cost-elements/:id (CostElementLayout — 5 child routes)
+│   ├── index (Overview)
+│   ├── cost-registrations
+│   ├── cost-history
+│   ├── documents
+│   └── chat
+│
+└── /admin (Admin Menu)
+    ├── /admin/users
+    ├── /admin/organizational-units
+    ├── /admin/cost-element-types
+    ├── /admin/cost-event-types
+    ├── /admin/ai-providers
+    ├── /admin/ai-assistants
+    ├── /admin/mcp-servers
+    ├── /admin/rbac
+    ├── /admin/role-assignments
+    ├── /admin/change-order-config
+    ├── /admin/projects
+    └── /admin/wbs-elements
 ```
 
 ## When to Use PageNavigation
 
 ### Use PageNavigation when:
 
-- An entity has multiple related views (Project, WBE)
+- An entity has multiple related views (Project, WBSElement, ControlAccount, WorkPackage, CostElement)
 - Users need to switch between different aspects of the same entity
 - Views should be accessible via shareable URLs
 - Browser back/forward navigation is important
@@ -195,12 +284,16 @@ Users accessing `/projects/123` see the Overview tab by default. Change Orders a
 
 ## Related Components
 
-- [AppLayout](../../../frontend/src/layouts/AppLayout.tsx) - Main application layout
-- [BreadcrumbBuilder](../../../frontend/src/components/hierarchy/BreadcrumbBuilder.tsx) - Hierarchical navigation
-- [ImpactAnalysisDashboard](../../../frontend/src/features/change-orders/components/ImpactAnalysisDashboard.tsx) - Tab pattern example
+- [AppLayout](frontend/src/layouts/AppLayout.tsx) - Main application layout
+- [BreadcrumbBuilder](frontend/src/components/hierarchy/BreadcrumbBuilder.tsx) - Hierarchical navigation
+- [ImpactAnalysisDashboard](frontend/src/features/change-orders/components/ImpactAnalysisDashboard.tsx) - Tab pattern example
 
 ## References
 
 - React Router v6 Documentation: https://reactrouter.com/
 - Ant Design Tabs: https://ant.design/components/tabs/
-- Project Plan: [Contextual Navigation Iteration](../03-project-plan/iterations/2026-01-15-contextual-navigation/00-analysis.md)
+- Project Plan: [Contextual Navigation Iteration](../03-project-plan/iterations/2026-01-15-contextual-navigation/00-analysis.md) (historical — iteration completed, scope significantly exceeded)
+
+---
+
+*Last Updated: 2026-05-30*

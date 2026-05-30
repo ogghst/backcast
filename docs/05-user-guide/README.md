@@ -21,16 +21,16 @@ Comprehensive documentation of the Change Order workflow and backend logic.
 - System administrators debugging workflow issues
 - Technical users understanding the approval process
 
-### [EVCS User Guide: Working with Versioned Entities](./evcs-wbe-user-guide.md)
+### [EVCS User Guide: Working with Versioned Entities](./evcs-wbs-element-user-guide.md)
 
-A comprehensive guide to the Entity Versioning Control System (EVCS) using the WBE (Work Breakdown Element) entity as the primary example.
+A comprehensive guide to the Entity Versioning Control System (EVCS) using the WBS Element entity as the primary example.
 
 **Topics Covered:**
 - Basic CRUD operations with versioning
 - Version history and time travel queries
 - Control date operations for retroactive changes
 - Branching for change order workflows
-- Hierarchical WBE management
+- Hierarchical WBS Element management
 - Revert operations
 - API reference
 - Best practices and common patterns

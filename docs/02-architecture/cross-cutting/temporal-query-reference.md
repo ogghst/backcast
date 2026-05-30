@@ -396,7 +396,7 @@ The zombie check pattern documented above is a best-practice TDD pattern for ver
 
 ### User Guides
 
-- [EVCS User Guide](../../05-user-guide/evcs-wbe-user-guide.md) - Working with versioned entities (API consumers)
+- [EVCS User Guide](../../05-user-guide/evcs-wbs-element-user-guide.md) - Working with versioned entities (API consumers)
 
 ### Source Code
 
