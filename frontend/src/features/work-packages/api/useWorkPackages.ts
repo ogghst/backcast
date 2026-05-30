@@ -277,6 +277,32 @@ export const useUpdateWorkPackage = (
 };
 
 // ---------------------------------------------------------------------------
+// Breadcrumb hook
+// ---------------------------------------------------------------------------
+
+export interface WorkPackageBreadcrumb {
+  project: { project_id: string; code: string; name?: string };
+  wbs_element: { wbs_element_id: string; code: string; name: string };
+  control_account: { control_account_id: string; name: string };
+  work_package: { work_package_id: string; code: string; name: string };
+}
+
+export const useWorkPackageBreadcrumb = (workPackageId: string | undefined) => {
+  return useQuery({
+    queryKey: queryKeys.workPackages.breadcrumb(workPackageId!),
+    queryFn: async () => {
+      return await __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/work-packages/{work_package_id}/breadcrumb",
+        path: { work_package_id: workPackageId },
+        errors: { 422: "Validation Error" },
+      });
+    },
+    enabled: !!workPackageId,
+  });
+};
+
+// ---------------------------------------------------------------------------
 // Delete mutation
 // ---------------------------------------------------------------------------
 

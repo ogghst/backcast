@@ -9,9 +9,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import {
   useCostElement,
+  useCostElementBreadcrumb,
   useUpdateCostElement,
   useDeleteCostElement,
 } from "@/features/cost-elements/api/useCostElements";
+import { CostElementBreadcrumbBuilder } from "@/components/cost-elements/CostElementBreadcrumbBuilder";
 import { CostElementUpdate } from "@/api/generated";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { Can } from "@/components/auth/Can";
@@ -35,6 +37,7 @@ export const CostElementLayout: React.FC = () => {
   const { data: costElement, isLoading: costElementLoading } = useCostElement(
     id!,
   );
+  const { data: breadcrumb, isLoading: breadcrumbLoading } = useCostElementBreadcrumb(id);
 
   const navItems = [
     { key: "overview", label: "Overview", path: `/cost-elements/${id}` },
@@ -121,6 +124,8 @@ export const CostElementLayout: React.FC = () => {
   return (
     <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
       <PageNavigation items={navItems} />
+
+      <CostElementBreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
 
       <Flex
         justify="space-between"

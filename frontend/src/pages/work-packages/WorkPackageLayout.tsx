@@ -9,9 +9,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import {
   useWorkPackage,
+  useWorkPackageBreadcrumb,
   useUpdateWorkPackage,
   useDeleteWorkPackage,
 } from "@/features/work-packages/api/useWorkPackages";
+import type { WorkPackageBreadcrumb } from "@/features/work-packages/api/useWorkPackages";
+import { WorkPackageBreadcrumbBuilder } from "@/components/work-packages/WorkPackageBreadcrumbBuilder";
 import { useControlAccount } from "@/features/control-accounts/api/useControlAccounts";
 import { WorkPackageUpdate } from "@/api/generated";
 import { WorkPackageModal } from "@/features/work-packages/components/WorkPackageModal";
@@ -30,6 +33,7 @@ export const WorkPackageLayout: React.FC = () => {
   const { data: workPackage, isLoading: workPackageLoading } = useWorkPackage(
     id!,
   );
+  const { data: breadcrumb, isLoading: breadcrumbLoading } = useWorkPackageBreadcrumb(id);
 
   const basePath = projectId
     ? `/projects/${projectId}/work-packages/${id}`
@@ -129,6 +133,8 @@ export const WorkPackageLayout: React.FC = () => {
   return (
     <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
       <PageNavigation items={navItems} />
+
+      <WorkPackageBreadcrumbBuilder breadcrumb={breadcrumb as WorkPackageBreadcrumb | undefined} loading={breadcrumbLoading} />
 
       <Flex
         justify="space-between"
