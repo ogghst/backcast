@@ -97,6 +97,9 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "change-order-approve": { topic: "Change Order", description: "Approve change orders" },
   "change-order-implement": { topic: "Change Order", description: "Implement approved change orders" },
   "change-order-recover": { topic: "Change Order", description: "Recover cancelled change orders" },
+  "change-order-escalate": { topic: "Change Order", description: "Escalate change orders" },
+  "change-order-workflow-config-manage": { topic: "Change Order", description: "Manage change order workflow configuration" },
+  "change-order-workflow-config-override": { topic: "Change Order", description: "Override change order workflow rules" },
 
   // Forecast
   "forecast-read": { topic: "Forecast", description: "View forecasts" },
@@ -146,6 +149,13 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "mcp-server-create": { topic: "MCP Server", description: "Create MCP server configs" },
   "mcp-server-update": { topic: "MCP Server", description: "Edit MCP server configs" },
   "mcp-server-delete": { topic: "MCP Server", description: "Remove MCP server configs" },
+  "mcp-tool-execute": { topic: "MCP Server", description: "Execute MCP tools" },
+
+  // Work Package
+  "work-package-read": { topic: "Work Package", description: "View work packages" },
+  "work-package-create": { topic: "Work Package", description: "Create work packages" },
+  "work-package-update": { topic: "Work Package", description: "Edit work packages" },
+  "work-package-delete": { topic: "Work Package", description: "Remove work packages" },
 };
 
 /** Ordered topic names for consistent display. */
@@ -155,6 +165,7 @@ const TOPIC_ORDER: string[] = [
   "Project",
   "WBS Element",
   "Control Account",
+  "Work Package",
   "Cost Element Type",
   "Cost Element",
   "Cost Registration",
@@ -189,6 +200,9 @@ export function getActionLabel(permission: string): string {
     "dashboard-template-update": "Update",
     "project-budget-settings-read": "Read",
     "project-budget-settings-write": "Write",
+    "change-order-workflow-config-manage": "Manage",
+    "change-order-workflow-config-override": "Override",
+    "mcp-tool-execute": "Execute",
   };
 
   const special = specialActions[permission];

@@ -13,8 +13,17 @@
     "is_system": true,
     "allowed_tools": null,
     "delegation_config": {
-      "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search"],
-      "allowed_specialists": null
+      "direct_tools": [
+        "get_temporal_context", "set_temporal_context", "global_search",
+        "list_projects", "get_project", "get_project_context", "get_project_structure",
+        "find_wbs_elements", "find_cost_elements", "find_cost_element_types",
+        "find_cost_event_types", "find_work_packages", "find_control_accounts",
+        "find_cost_events", "find_users", "find_organizational_units",
+        "get_cost_element_details", "get_progress_data", "get_work_package_budget_status",
+        "get_control_account_budget", "get_project_analysis", "get_project_forecast",
+        "get_coq_data", "search_documents", "read_document"
+      ],
+      "allowed_specialists": ["evm_analyst", "visualization_specialist", "accountant"]
     },
     "structured_output_schema": null
   },
@@ -32,8 +41,17 @@
     "is_system": true,
     "allowed_tools": null,
     "delegation_config": {
-      "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search"],
-      "allowed_specialists": null
+      "direct_tools": [
+        "get_temporal_context", "set_temporal_context", "global_search",
+        "list_projects", "get_project", "get_project_context", "get_project_structure",
+        "find_wbs_elements", "find_cost_elements", "find_cost_element_types",
+        "find_cost_event_types", "find_work_packages", "find_control_accounts",
+        "find_cost_events", "find_users", "find_organizational_units",
+        "get_cost_element_details", "get_progress_data", "get_work_package_budget_status",
+        "get_control_account_budget", "get_project_analysis", "get_project_forecast",
+        "get_coq_data", "search_documents", "read_document"
+      ],
+      "allowed_specialists": ["project_manager", "change_order_manager", "evm_analyst", "visualization_specialist", "mcp_specialist", "accountant"]
     },
     "structured_output_schema": null
   },
@@ -51,8 +69,17 @@
     "is_system": true,
     "allowed_tools": null,
     "delegation_config": {
-      "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search"],
-      "allowed_specialists": null
+      "direct_tools": [
+        "get_temporal_context", "set_temporal_context", "global_search",
+        "list_projects", "get_project", "get_project_context", "get_project_structure",
+        "find_wbs_elements", "find_cost_elements", "find_cost_element_types",
+        "find_cost_event_types", "find_work_packages", "find_control_accounts",
+        "find_cost_events", "find_users", "find_organizational_units",
+        "get_cost_element_details", "get_progress_data", "get_work_package_budget_status",
+        "get_control_account_budget", "get_project_analysis", "get_project_forecast",
+        "get_coq_data", "search_documents", "read_document"
+      ],
+      "allowed_specialists": ["user_admin", "accountant"]
     },
     "structured_output_schema": null
   }

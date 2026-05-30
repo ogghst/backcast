@@ -387,6 +387,71 @@ async def delete_cost_registration(
         return add_temporal_metadata({"error": str(e)}, context)
 
 
+@ai_tool(
+    name="list_cost_registrations",
+    description="List cost registrations with optional filters.",
+    permissions=["cost-registration-read"],
+    category="cost-registration",
+    risk_level=RiskLevel.LOW,
+)
+async def list_cost_registrations(
+    cost_element_id: str | None = None,
+    project_id: str | None = None,
+    wbs_element_id: str | None = None,
+    work_package_id: str | None = None,
+    skip: int = 0,
+    limit: int = 50,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """List cost registrations with filtering by project, WBS, work package, or cost element."""
+    log_temporal_context("list_cost_registrations", context)
+
+    try:
+        from app.services.cost_registration_service import CostRegistrationService
+
+        service = CostRegistrationService(context.session)
+
+        filters: dict[str, Any] | None = None
+        if cost_element_id:
+            filters = {"cost_element_id": UUID(cost_element_id)}
+
+        registrations, total, _wp_map = await service.get_cost_registrations(
+            filters=filters,
+            skip=skip,
+            limit=limit,
+            as_of=context.as_of,
+            project_id=UUID(project_id) if project_id else None,
+            wbs_element_id=UUID(wbs_element_id) if wbs_element_id else None,
+            work_package_id=UUID(work_package_id) if work_package_id else None,
+        )
+
+        result: dict[str, Any] = {
+            "cost_registrations": [
+                {
+                    "id": str(reg.cost_registration_id),
+                    "cost_element_id": str(reg.cost_element_id),
+                    "amount": float(reg.amount) if reg.amount else None,
+                    "description": reg.description,
+                    "invoice_number": reg.invoice_number,
+                    "vendor_reference": reg.vendor_reference,
+                    "registration_date": reg.registration_date.isoformat()
+                    if reg.registration_date
+                    else None,
+                }
+                for reg in registrations
+            ],
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in list_cost_registrations: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
 # =============================================================================
 # PROGRESS ENTRY TOOLS (Versionable Entity)
 # =============================================================================

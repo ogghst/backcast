@@ -271,6 +271,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         forecast_cost_progress_template.create_cost_registration,
         forecast_cost_progress_template.update_cost_registration,
         forecast_cost_progress_template.delete_cost_registration,
+        forecast_cost_progress_template.list_cost_registrations,
         forecast_cost_progress_template.create_progress_entry,
         forecast_cost_progress_template.update_progress_entry,
         forecast_cost_progress_template.delete_progress_entry,
