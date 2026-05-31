@@ -126,7 +126,6 @@ from app.ai.graph_params import (
 from app.ai.message_utils import extract_tool_output_content
 from app.ai.message_utils import is_transient_stream_error as _is_transient_stream_error
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
-from app.ai.subagents import get_all_subagents
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
 from app.ai.telemetry import (
     initialize_telemetry,
@@ -249,8 +248,6 @@ async def _extract_client_config(
 
 
 logger = logging.getLogger(__name__)
-
-SPECIALIST_AGENT_NAMES = frozenset(cfg["name"] for cfg in get_all_subagents())
 
 # Skipping ~40-60% of LangGraph events reduces CPU in the hot streaming path.
 _HANDLED_EVENTS = frozenset(
@@ -1047,7 +1044,14 @@ class AgentService:
     def _handle_chain_start(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_chain_start events for specialist agent transitions."""
         chain_name = event.get("name", "")
-        if chain_name not in SPECIALIST_AGENT_NAMES:
+
+        # Track planner node activation to suppress its token streaming.
+        # The planner's LLM call produces JSON that must not leak into chat.
+        if chain_name == "planner":
+            state.planner_active = True
+            return
+
+        if chain_name not in state.specialist_names:
             return
         # LangGraph emits on_chain_start twice per specialist
         # (outer node + inner graph) -- deduplicate via last_entered_agent.
@@ -1074,7 +1078,7 @@ class AgentService:
         data = event.get("data", {})
 
         # Specialist agent chain end
-        if chain_name in SPECIALIST_AGENT_NAMES:
+        if chain_name in state.specialist_names:
             chain_output = data.get("output")
 
             # Extract briefing data from either dict output or Command.update.
@@ -1116,11 +1120,15 @@ class AgentService:
             )
             return
 
-        # Other non-specialist chain ends (e.g. initialize_briefing)
+        # Other non-specialist chain ends (e.g. initialize_briefing, planner)
         chain_output = data.get("output", {})
         state.publish_briefing_update(
             chain_output, "supervisor", log_label="CHAIN_END_NON_SPECIALIST"
         )
+
+        # Clear planner flag after its chain completes
+        if chain_name == "planner":
+            state.planner_active = False
 
     def _handle_chat_model_start(
         self, state: StreamState, event: dict[str, Any]
@@ -1145,7 +1153,14 @@ class AgentService:
     def _handle_chat_model_stream(
         self, state: StreamState, event: dict[str, Any]
     ) -> None:
-        """Handle on_chat_model_stream -- accumulate token output."""
+        """Handle on_chat_model_stream -- accumulate token output.
+
+        Tokens from the planner node are suppressed to prevent plan JSON
+        from leaking into the chat stream. The planner emits a dedicated
+        PLAN_UPDATE event instead.
+        """
+        if state.planner_active:
+            return
         data = event.get("data", {})
         chunk = data.get("chunk")
         # Token streaming: accumulate per-invocation, flush in batches.
@@ -1764,11 +1779,20 @@ class AgentService:
         ctx, existing_briefing = await self._prepare_graph_execution(params)
 
         # Step 2: Initialize mutable stream state
+        # Non-specialist node names in the parent graph.
+        _NON_SPECIALIST_NODES = frozenset({
+            "__start__", "__end__", "initialize_briefing",
+            "planner", "supervisor", "tools",
+        })
         state = StreamState(
             event_bus=ctx.event_bus,
             session_id=ctx.session_id,
             model_name=ctx.model_name,
             main_invocation_id=str(uuid.uuid4()),
+            specialist_names=frozenset(
+                n for n in ctx.graph.nodes
+                if n not in _NON_SPECIALIST_NODES
+            ),
         )
 
         # Step 3: Start periodic token flush background task
