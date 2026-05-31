@@ -314,6 +314,112 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_breadcrumb(self, cost_element_id: UUID) -> dict[str, Any]:
+        """Get breadcrumb trail for a Cost Element.
+
+        Hierarchy: Project -> WBSElement -> CostElement (with type info)
+
+        Uses a single JOIN query through: CostElement -> WorkPackage ->
+        ControlAccount -> WBSElement -> Project, plus CostElementType.
+
+        Args:
+            cost_element_id: Cost Element root ID.
+
+        Returns:
+            Dict with breadcrumb hierarchy matching frontend CostElementBreadcrumb.
+
+        Raises:
+            ValueError: If Cost Element or any parent not found.
+        """
+        from app.models.domain.control_account import ControlAccount
+        from app.models.domain.project import Project
+        from app.models.domain.wbs_element import WBSElement
+        from app.models.domain.work_package import WorkPackage
+
+        stmt = (
+            select(
+                CostElement.id.label("ce_id"),
+                CostElement.cost_element_id.label("ce_cost_element_id"),
+                CostElementType.code.label("ce_type_code"),
+                CostElementType.name.label("ce_type_name"),
+                WorkPackage.name.label("wp_name"),
+                WorkPackage.code.label("wp_code"),
+                WBSElement.id.label("wbs_id"),
+                WBSElement.wbs_element_id.label("wbs_wbs_element_id"),
+                WBSElement.code.label("wbs_code"),
+                WBSElement.name.label("wbs_name"),
+                Project.id.label("proj_id"),
+                Project.project_id.label("proj_project_id"),
+                Project.code.label("proj_code"),
+                Project.name.label("proj_name"),
+            )
+            .join(
+                WorkPackage,
+                WorkPackage.work_package_id == CostElement.work_package_id,
+            )
+            .join(
+                ControlAccount,
+                ControlAccount.control_account_id == WorkPackage.control_account_id,
+            )
+            .join(
+                WBSElement,
+                WBSElement.wbs_element_id == ControlAccount.wbs_element_id,
+            )
+            .join(
+                Project,
+                Project.project_id == WBSElement.project_id,
+            )
+            .join(
+                CostElementType,
+                CostElementType.cost_element_type_id == CostElement.cost_element_type_id,
+            )
+            .where(
+                CostElement.cost_element_id == cost_element_id,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+                func.upper(cast(Any, WorkPackage).valid_time).is_(None),
+                cast(Any, WorkPackage).deleted_at.is_(None),
+                func.upper(cast(Any, ControlAccount).valid_time).is_(None),
+                cast(Any, ControlAccount).deleted_at.is_(None),
+                func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                cast(Any, WBSElement).deleted_at.is_(None),
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
+                func.upper(cast(Any, CostElementType).valid_time).is_(None),
+                cast(Any, CostElementType).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+
+        result = await self.session.execute(stmt)
+        row = result.first()
+
+        if not row:
+            raise ValueError(f"Cost Element {cost_element_id} not found")
+
+        return {
+            "project": {
+                "id": row.proj_id,
+                "project_id": row.proj_project_id,
+                "code": row.proj_code,
+                "name": row.proj_name,
+            },
+            "wbs_element": {
+                "id": row.wbs_id,
+                "wbs_element_id": row.wbs_wbs_element_id,
+                "code": row.wbs_code,
+                "name": row.wbs_name,
+            },
+            "cost_element": {
+                "id": row.ce_id,
+                "cost_element_id": row.ce_cost_element_id,
+                "cost_element_type_name": row.ce_type_name,
+                "cost_element_type_code": row.ce_type_code,
+                "work_package_name": row.wp_name,
+                "work_package_code": row.wp_code,
+            },
+        }
+
     async def get_as_of_batch(
         self,
         entity_ids: list[UUID],

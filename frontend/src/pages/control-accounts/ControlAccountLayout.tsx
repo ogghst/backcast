@@ -1,7 +1,8 @@
 import React from "react";
-import { useParams, useNavigate, Outlet, Link } from "react-router-dom";
-import { Breadcrumb, Button, Grid, Modal, Space, theme, Typography, Flex, Tag } from "antd";
-import { EditOutlined, DeleteOutlined, HistoryOutlined, HomeOutlined } from "@ant-design/icons";
+import { useParams, useNavigate, Outlet } from "react-router-dom";
+import { Button, Grid, Modal, Space, theme, Typography, Flex, Tag } from "antd";
+import { EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import {
@@ -10,6 +11,7 @@ import {
   useDeleteControlAccount,
 } from "@/features/control-accounts/api/useControlAccounts";
 import { useWBSElement } from "@/features/wbs-elements/api/useWBSElements";
+import { useProject } from "@/features/projects/api/useProjects";
 import type {
   ControlAccountRead,
   ControlAccountUpdate,
@@ -44,7 +46,10 @@ export const ControlAccountLayout: React.FC = () => {
   // Data fetching
   const { data: ca, isLoading: caLoading } = useControlAccount(controlAccountId!);
 
-  // WBS element for breadcrumb context
+  // Project and WBS element for breadcrumb context
+  const { data: project } = useProject(projectId!, {
+    requestHeaders: { "X-Silent-Error": "true" },
+  });
   const { data: wbsElement } = useWBSElement(ca?.wbs_element_id || "");
 
   // Navigation items
@@ -122,17 +127,15 @@ export const ControlAccountLayout: React.FC = () => {
   }
 
   // Breadcrumb: Home / Projects / {ProjectCode} / {WBS Code} / {CA Code}
-  const breadcrumbItems = [
-    { title: <Link to="/"><HomeOutlined /> Home</Link> },
-    { title: <Link to="/projects">Projects</Link> },
+  const breadcrumbEntries = [
     ...(projectId
-      ? [{ title: <Link to={`/projects/${projectId}`}>{wbsElement?.code || projectId}</Link> }]
+      ? [{ label: project?.code || projectId, to: `/projects/${projectId}` }]
       : []),
     ...(wbsElement
-      ? [{ title: <Link to={`/projects/${projectId}/wbs-elements/${wbsElement.wbs_element_id}`}>{wbsElement.code}</Link> }]
+      ? [{ label: wbsElement.code, to: `/projects/${projectId}/wbs-elements/${wbsElement.wbs_element_id}` }]
       : []),
     ...(ca
-      ? [{ title: <span style={{ fontWeight: 600 }}>{ca.code || ca.name}</span> }]
+      ? [{ label: ca.code || ca.name }]
       : []),
   ];
 
@@ -140,7 +143,7 @@ export const ControlAccountLayout: React.FC = () => {
     <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
       <PageNavigation items={navItems} />
 
-      <Breadcrumb items={breadcrumbItems} style={{ marginBottom: token.marginMD }} />
+      <EntityBreadcrumb loading={caLoading || !wbsElement} items={breadcrumbEntries} />
 
       <Flex
         justify="space-between"

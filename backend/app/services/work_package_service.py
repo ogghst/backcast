@@ -331,6 +331,9 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
 
         Hierarchy: Project -> WBSElement -> ControlAccount -> WorkPackage
 
+        Uses a single JOIN query instead of 4 sequential queries to resolve
+        the full breadcrumb chain.
+
         Args:
             work_package_id: Work Package root ID.
 
@@ -338,72 +341,45 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
             Dict with breadcrumb hierarchy.
 
         Raises:
-            ValueError: If Work Package not found.
+            ValueError: If Work Package or any ancestor not found.
         """
         from app.models.domain.project import Project
 
-        # Get current work package
-        wp_stmt = (
-            select(WorkPackage)
+        stmt = (
+            select(WorkPackage, ControlAccount, WBSElement, Project)
+            .join(
+                ControlAccount,
+                ControlAccount.control_account_id == WorkPackage.control_account_id,
+            )
+            .join(
+                WBSElement,
+                WBSElement.wbs_element_id == ControlAccount.wbs_element_id,
+            )
+            .join(
+                Project,
+                Project.project_id == WBSElement.project_id,
+            )
             .where(
                 WorkPackage.work_package_id == work_package_id,
                 func.upper(cast(Any, WorkPackage).valid_time).is_(None),
                 cast(Any, WorkPackage).deleted_at.is_(None),
-            )
-            .limit(1)
-        )
-        wp_result = await self.session.execute(wp_stmt)
-        wp = wp_result.scalar_one_or_none()
-        if not wp:
-            raise ValueError(f"Work Package {work_package_id} not found")
-
-        # Get Control Account
-        ca_stmt = (
-            select(ControlAccount)
-            .where(
-                ControlAccount.control_account_id == wp.control_account_id,
                 func.upper(cast(Any, ControlAccount).valid_time).is_(None),
                 cast(Any, ControlAccount).deleted_at.is_(None),
-            )
-            .limit(1)
-        )
-        ca_result = await self.session.execute(ca_stmt)
-        ca = ca_result.scalar_one_or_none()
-
-        if not ca:
-            raise ValueError(f"Control Account {wp.control_account_id} not found")
-
-        # Get WBS Element
-        wbs_stmt = (
-            select(WBSElement)
-            .where(
-                WBSElement.wbs_element_id == ca.wbs_element_id,
                 func.upper(cast(Any, WBSElement).valid_time).is_(None),
                 cast(Any, WBSElement).deleted_at.is_(None),
-            )
-            .limit(1)
-        )
-        wbs_result = await self.session.execute(wbs_stmt)
-        wbs = wbs_result.scalar_one_or_none()
-
-        if not wbs:
-            raise ValueError(f"WBS Element {ca.wbs_element_id} not found")
-
-        # Get Project
-        project_stmt = (
-            select(Project)
-            .where(
-                Project.project_id == wbs.project_id,
                 func.upper(cast(Any, Project).valid_time).is_(None),
                 cast(Any, Project).deleted_at.is_(None),
             )
             .limit(1)
         )
-        project_result = await self.session.execute(project_stmt)
-        project = project_result.scalar_one_or_none()
 
-        if not project:
-            raise ValueError(f"Project {wbs.project_id} not found")
+        result = await self.session.execute(stmt)
+        row = result.one_or_none()
+
+        if row is None:
+            raise ValueError(f"Work Package {work_package_id} not found")
+
+        wp, ca, wbs, project = row
 
         return {
             "project": {

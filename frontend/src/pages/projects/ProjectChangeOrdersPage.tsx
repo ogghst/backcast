@@ -1,9 +1,10 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useProject } from "@/features/projects/api/useProjects";
 import { ChangeOrderList } from "@/features/change-orders";
 import { ChangeOrderAnalytics } from "@/features/change-orders/components/ChangeOrderAnalytics";
-import { Breadcrumb, Tabs } from "antd";
+import { Tabs } from "antd";
 import { useState } from "react";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 
 /**
  * ProjectChangeOrdersPage component
@@ -23,14 +24,11 @@ export const ProjectChangeOrdersPage = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <Breadcrumb
+      <EntityBreadcrumb
         items={[
-          { title: <Link to="/">Home</Link> },
-          { title: <Link to="/projects">Projects</Link> },
-          { title: project?.code || "Project" },
-          { title: "Change Orders" },
+          { label: project?.code || "Project", to: `/projects/${projectId}` },
+          { label: "Change Orders" },
         ]}
-        style={{ marginBottom: 16 }}
       />
       <h1 style={{ margin: 0, marginBottom: 16 }}>Change Orders</h1>
 

@@ -7,8 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useWBSElement, useWBSElementBreadcrumb, useUpdateWBSElement, useDeleteWBSElement } from "@/features/wbs-elements/api/useWBSElements";
 import type { WBSElementRead, WBSElementUpdate } from "@/api/generated";
-import type { WBEBreadcrumb } from "@/components/hierarchy/BreadcrumbBuilder";
-import { BreadcrumbBuilder } from "@/components/hierarchy/BreadcrumbBuilder";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { DeleteWBSElementModal } from "@/components/hierarchy/DeleteWBSElementModal";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
@@ -120,7 +119,36 @@ export const WBSElementLayout: React.FC = () => {
       <PageNavigation items={navItems} />
 
       {/* Shared header rendered on all sub-pages */}
-      <BreadcrumbBuilder breadcrumb={breadcrumb as WBEBreadcrumb | undefined} loading={breadcrumbLoading} />
+      <EntityBreadcrumb
+        loading={breadcrumbLoading}
+        items={
+          breadcrumb
+            ? [
+                // Project item — dedup if first WBE code matches project code
+                ...(breadcrumb.wbe_path.length > 0 &&
+                breadcrumb.wbe_path[0].code !== breadcrumb.project.code
+                  ? [
+                      {
+                        label: breadcrumb.project.code,
+                        to: `/projects/${breadcrumb.project.project_id}`,
+                      },
+                    ]
+                  : []),
+                // WBE path items — all linked except last
+                ...breadcrumb.wbe_path.map((wbe, idx) => ({
+                  label:
+                    idx === breadcrumb.wbe_path.length - 1
+                      ? `${wbe.code} ${wbe.name}`
+                      : wbe.code,
+                  to:
+                    idx === breadcrumb.wbe_path.length - 1
+                      ? undefined
+                      : `/projects/${breadcrumb.project.project_id}/wbs-elements/${wbe.wbs_element_id}`,
+                })),
+              ]
+            : []
+        }
+      />
 
       <Flex
         justify="space-between"

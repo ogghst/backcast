@@ -161,6 +161,28 @@ async def read_cost_elements(
 
 
 @router.get(
+    "/{cost_element_id}/breadcrumb",
+    operation_id="get_cost_element_breadcrumb",
+    dependencies=[Depends(RoleChecker(required_permission="cost-element-read"))],
+)
+async def read_cost_element_breadcrumb(
+    cost_element_id: UUID,
+    service: CostElementService = Depends(get_cost_element_service),
+) -> dict[str, Any]:
+    """Get breadcrumb trail for a Cost Element (project -> WBS -> CE).
+
+    Requires read permission.
+    """
+    try:
+        return await service.get_breadcrumb(cost_element_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+
+
+@router.get(
     "/{cost_element_id}",
     response_model=CostElementRead,
     operation_id="get_cost_element",

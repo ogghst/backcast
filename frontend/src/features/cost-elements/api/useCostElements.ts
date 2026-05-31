@@ -12,7 +12,6 @@ import {
   useQuery,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import {
@@ -26,9 +25,6 @@ import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
 import { queryKeys } from "@/api/queryKeys";
-import {
-  useWorkPackageBreadcrumb,
-} from "@/features/work-packages/api/useWorkPackages";
 import type { CostElementBreadcrumb } from "@/components/cost-elements/CostElementBreadcrumbBuilder";
 
 // Extended types for Branch support
@@ -306,38 +302,19 @@ export const useCostElement = (
 };
 
 /**
- * Hook to build a cost element breadcrumb by composing the cost element's
- * work package breadcrumb with the cost element's own data.
+ * Hook to fetch the cost element breadcrumb in a single backend request.
+ * Returns project → wbs_element → cost_element hierarchy.
  */
 export const useCostElementBreadcrumb = (costElementId: string | undefined) => {
-  const { data: costElement, isLoading: ceLoading } = useCostElement(costElementId!);
-  const { data: wpBreadcrumb, isLoading: wpLoading } = useWorkPackageBreadcrumb(costElement?.work_package_id);
-
-  const breadcrumb: CostElementBreadcrumb | undefined = useMemo(() => {
-    if (!wpBreadcrumb || !costElement) return undefined;
-    return {
-      project: {
-        id: wpBreadcrumb.project.project_id,
-        project_id: wpBreadcrumb.project.project_id,
-        code: wpBreadcrumb.project.code,
-        name: wpBreadcrumb.project.name ?? "",
-      },
-      wbe: {
-        id: wpBreadcrumb.wbs_element.wbs_element_id,
-        wbs_element_id: wpBreadcrumb.wbs_element.wbs_element_id,
-        code: wpBreadcrumb.wbs_element.code,
-        name: wpBreadcrumb.wbs_element.name,
-      },
-      cost_element: {
-        id: costElement.id,
-        cost_element_id: costElement.cost_element_id,
-        cost_element_type_name: costElement.cost_element_type_name ?? undefined,
-        cost_element_type_code: costElement.cost_element_type_code ?? undefined,
-        work_package_name: costElement.work_package_name ?? undefined,
-        work_package_code: costElement.work_package_code ?? undefined,
-      },
-    };
-  }, [wpBreadcrumb, costElement]);
-
-  return { data: breadcrumb, isLoading: ceLoading || wpLoading };
+  return useQuery<CostElementBreadcrumb>({
+    queryKey: queryKeys.costElements.breadcrumb(costElementId!),
+    queryFn: async () => {
+      return __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/cost-elements/{cost_element_id}/breadcrumb",
+        path: { cost_element_id: costElementId },
+      }) as Promise<CostElementBreadcrumb>;
+    },
+    enabled: !!costElementId,
+  });
 };

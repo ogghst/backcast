@@ -13,7 +13,7 @@ import {
   useUpdateCostElement,
   useDeleteCostElement,
 } from "@/features/cost-elements/api/useCostElements";
-import { CostElementBreadcrumbBuilder } from "@/components/cost-elements/CostElementBreadcrumbBuilder";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { CostElementUpdate } from "@/api/generated";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { Can } from "@/components/auth/Can";
@@ -125,7 +125,34 @@ export const CostElementLayout: React.FC = () => {
     <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
       <PageNavigation items={navItems} />
 
-      <CostElementBreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
+      <EntityBreadcrumb
+        loading={breadcrumbLoading}
+        items={
+          breadcrumb
+            ? [
+                // Project item — dedup if WBE code matches project code
+                ...(breadcrumb.wbs_element.code !== breadcrumb.project.code
+                  ? [
+                      {
+                        label: breadcrumb.project.code,
+                        to: `/projects/${breadcrumb.project.project_id}`,
+                      },
+                    ]
+                  : []),
+                {
+                  label: breadcrumb.wbs_element.code,
+                  to: `/projects/${breadcrumb.project.project_id}/wbs-elements/${breadcrumb.wbs_element.wbs_element_id}`,
+                },
+                {
+                  label:
+                    breadcrumb.cost_element.cost_element_type_code ||
+                    breadcrumb.cost_element.cost_element_type_name ||
+                    "Cost Element",
+                },
+              ]
+            : []
+        }
+      />
 
       <Flex
         justify="space-between"

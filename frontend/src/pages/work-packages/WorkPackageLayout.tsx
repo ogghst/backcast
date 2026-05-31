@@ -13,8 +13,7 @@ import {
   useUpdateWorkPackage,
   useDeleteWorkPackage,
 } from "@/features/work-packages/api/useWorkPackages";
-import type { WorkPackageBreadcrumb } from "@/features/work-packages/api/useWorkPackages";
-import { WorkPackageBreadcrumbBuilder } from "@/components/work-packages/WorkPackageBreadcrumbBuilder";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useControlAccount } from "@/features/control-accounts/api/useControlAccounts";
 import { WorkPackageUpdate } from "@/api/generated";
 import { WorkPackageModal } from "@/features/work-packages/components/WorkPackageModal";
@@ -134,7 +133,31 @@ export const WorkPackageLayout: React.FC = () => {
     <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
       <PageNavigation items={navItems} />
 
-      <WorkPackageBreadcrumbBuilder breadcrumb={breadcrumb as WorkPackageBreadcrumb | undefined} loading={breadcrumbLoading} />
+      <EntityBreadcrumb
+        loading={breadcrumbLoading}
+        items={
+          breadcrumb
+            ? [
+                // Project item — dedup if WBE code matches project code
+                ...(breadcrumb.wbs_element.code !== breadcrumb.project.code
+                  ? [
+                      {
+                        label: breadcrumb.project.code,
+                        to: `/projects/${breadcrumb.project.project_id}`,
+                      },
+                    ]
+                  : []),
+                {
+                  label: breadcrumb.wbs_element.code,
+                  to: `/projects/${breadcrumb.project.project_id}/wbs-elements/${breadcrumb.wbs_element.wbs_element_id}`,
+                },
+                {
+                  label: `${breadcrumb.work_package.code} ${breadcrumb.work_package.name}`,
+                },
+              ]
+            : []
+        }
+      />
 
       <Flex
         justify="space-between"

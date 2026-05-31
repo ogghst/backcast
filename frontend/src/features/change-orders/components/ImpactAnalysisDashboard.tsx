@@ -1,5 +1,5 @@
-import { useParams, Link } from "react-router-dom";
-import { Spin, Alert, Breadcrumb, Tabs } from "antd";
+import { useParams } from "react-router-dom";
+import { Spin, Alert, Tabs } from "antd";
 import { useImpactAnalysis } from "../api/useImpactAnalysis";
 import { useChangeOrder } from "../api/useChangeOrders";
 import { KPICards } from "./KPICards";
@@ -7,6 +7,7 @@ import { WaterfallChart } from "./WaterfallChart";
 import { MultiSCurveDisplay } from "./MultiSCurveDisplay";
 import { EntityImpactGrid } from "./EntityImpactGrid";
 import { ForecastImpactList } from "./ForecastImpactList";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 
 interface ImpactAnalysisDashboardProps {
   /** Change order ID - can be passed as prop or read from URL params */
@@ -139,28 +140,12 @@ export const ImpactAnalysisDashboard = ({
       {showHeader && (
         <>
           {/* Breadcrumbs */}
-          <Breadcrumb
-            style={{ marginBottom: 16 }}
+          <EntityBreadcrumb
             items={[
-              { title: <Link to="/">Home</Link> },
-              {
-                title: (
-                  <Link to={`/projects/${changeOrder?.project_id || ""}`}>
-                    Project
-                  </Link>
-                ),
-              },
-              {
-                title: (
-                  <Link to={`/projects/${changeOrder?.project_id || ""}`}>
-                    Change Orders
-                  </Link>
-                ),
-              },
-              {
-                title: changeOrder?.code || "Change Order",
-              },
-              { title: "Impact Analysis" },
+              { label: "Project", to: `/projects/${changeOrder?.project_id || ""}` },
+              { label: "Change Orders", to: `/projects/${changeOrder?.project_id || ""}/change-orders` },
+              { label: changeOrder?.code || "Change Order", to: changeOrder ? `/projects/${changeOrder.project_id}/change-orders/${changeOrder.change_order_id}` : undefined },
+              { label: "Impact Analysis" },
             ]}
           />
 

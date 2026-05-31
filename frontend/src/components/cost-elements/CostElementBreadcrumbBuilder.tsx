@@ -6,24 +6,19 @@ const { Text } = Typography;
 
 export interface CostElementBreadcrumb {
   project: {
-    id: string;
     project_id: string;
     code: string;
     name: string;
   };
-  wbe: {
-    id: string;
+  wbs_element: {
     wbs_element_id: string;
     code: string;
     name: string;
   };
   cost_element: {
-    id: string;
     cost_element_id: string;
-    cost_element_type_name?: string;
-    cost_element_type_code?: string;
-    work_package_name?: string;
-    work_package_code?: string;
+    cost_element_type_name: string;
+    cost_element_type_code: string;
   };
 }
 
@@ -49,7 +44,7 @@ export const CostElementBreadcrumbBuilder = ({
     return null;
   }
 
-  const showProjectItem = breadcrumb.wbe.code !== breadcrumb.project.code;
+  const showProjectItem = breadcrumb.wbs_element.code !== breadcrumb.project.code;
 
   const projectItem = {
     title: (
@@ -80,14 +75,14 @@ export const CostElementBreadcrumbBuilder = ({
     {
       title: (
         <Link
-          to={`/projects/${breadcrumb.project.project_id}/wbs-elements/${breadcrumb.wbe.wbs_element_id}`}
+          to={`/projects/${breadcrumb.project.project_id}/wbs-elements/${breadcrumb.wbs_element.wbs_element_id}`}
         >
           {isMobile ? (
             <Text ellipsis style={{ maxWidth: 60, fontSize: 12 }}>
-              {breadcrumb.wbe.code}
+              {breadcrumb.wbs_element.code}
             </Text>
           ) : (
-            breadcrumb.wbe.code
+            breadcrumb.wbs_element.code
           )}
         </Link>
       ),

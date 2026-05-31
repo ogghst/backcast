@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Breadcrumb, message, Card, Tabs } from "antd";
-import { Link } from "react-router-dom";
+import { message, Card, Tabs } from "antd";
 import { useState } from "react";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { ChangeOrderWorkflowSection } from "@/features/change-orders/components/ChangeOrderWorkflowSection";
 import { ApprovalInfo } from "@/features/change-orders/components/ApprovalInfo";
 import { ChangeOrderSummaryCard } from "@/features/change-orders/components/ChangeOrderSummaryCard";
@@ -132,26 +132,11 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
   return (
     <div style={{ padding: 24 }}>
       {/* Breadcrumbs */}
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
+      <EntityBreadcrumb
         items={[
-          { title: <Link to="/">Home</Link> },
-          { title: <Link to="/projects">Projects</Link> },
-          {
-            title: (
-              <Link to={`/projects/${projectId!}`}>
-                {project?.code || projectId}
-              </Link>
-            ),
-          },
-          {
-            title: (
-              <Link to={`/projects/${projectId!}/change-orders`}>
-                Change Orders
-              </Link>
-            ),
-          },
-          { title: createMode ? "New" : changeOrder?.code || changeOrderId },
+          { label: project?.code || projectId!, to: `/projects/${projectId}` },
+          { label: "Change Orders", to: `/projects/${projectId}/change-orders` },
+          { label: createMode ? "New" : changeOrder?.code || changeOrderId },
         ]}
       />
 

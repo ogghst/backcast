@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProject, useUpdateProject, useDeleteProject } from "@/features/projects/api/useProjects";
 import { queryKeys } from "@/api/queryKeys";
@@ -10,8 +10,9 @@ import { WBSElementTable } from "@/components/hierarchy/WBSElementTable";
 import { WBSElementCreate, WBSElementRead, ProjectUpdate } from "@/api/generated";
 import { useProjectBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
 import type { Version } from "@/components/common/VersionHistory";
-import { Button, Breadcrumb, Skeleton, Card, theme, Typography, Space, Flex, Grid } from "antd";
+import { Button, Skeleton, Card, theme, Typography, Space, Flex, Grid } from "antd";
 import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined } from "@ant-design/icons";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useState } from "react";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { DeleteProjectModal } from "@/components/projects/DeleteProjectModal";
@@ -125,13 +126,8 @@ export const ProjectOverview = () => {
 
   return (
     <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
-      <Breadcrumb
-        items={[
-          { title: <Link to="/">Home</Link> },
-          { title: <Link to="/projects">Projects</Link> },
-          { title: project?.code || "Project" },
-        ]}
-        style={{ marginBottom: token.paddingMD }}
+      <EntityBreadcrumb
+        items={[{ label: project?.code || "Project" }]}
       />
       <Flex
         justify="space-between"
