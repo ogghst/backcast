@@ -652,7 +652,7 @@ class SupervisorOrchestrator:
                         )
                         error_update["plan_data"] = active_plan.model_dump()
                         self._publish_plan_update(active_plan)
-                    return Command(update=error_update, goto="supervisor")
+                    return Command(update=error_update)
 
             assert result is not None
             messages = result.get("messages", [])
@@ -700,7 +700,7 @@ class SupervisorOrchestrator:
                     specialist_name,
                 )
 
-            return Command(update=cmd_update, goto="supervisor")
+            return Command(update=cmd_update)
 
         return specialist_node
 
