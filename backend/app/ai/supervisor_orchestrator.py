@@ -5,20 +5,14 @@ agents via handoff tools. Specialists do NOT share message history -- instead,
 each receives the compiled briefing document as context and contributes findings
 back to the accumulating document.
 
-The supervisor reads the briefing via ``get_briefing`` and delegates work via
-handoff tools. Each specialist runs in isolation with only the briefing as
-context, returning structured findings that get compiled back into the document.
-
-Specialists are stateless -- they receive the briefing as their only context and
-return findings via Command objects.
-
-Graph: START -> initialize_briefing -> supervisor <-> specialist_nodes -> END
+Graph: START -> initialize_briefing -> planner -> supervisor <-> specialist_nodes -> END
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from langchain.agents import create_agent as langchain_create_agent
@@ -38,8 +32,12 @@ from app.ai.briefing_compiler import (
     parse_and_clean,
 )
 from app.ai.config import AgentConfig
+from app.ai.event_types import AgentEventType
+from app.ai.execution.agent_event import AgentEvent
 from app.ai.handoff_tools import create_all_handoff_tools
 from app.ai.message_utils import extract_final_ai_response, is_transient_stream_error
+from app.ai.plan import PlanDocument
+from app.ai.planner import planner_node
 from app.ai.subagent_compiler import (
     build_backcast_middleware,
     compile_subagents,
@@ -48,6 +46,7 @@ from app.ai.subagent_compiler import (
 from app.ai.subagents import get_all_subagents
 from app.ai.subagents.db_loader import load_specialists_from_db
 from app.ai.supervisor_state import BackcastSupervisorState
+from app.ai.tools.briefing_tools import set_briefing
 from app.ai.tools.types import ToolContext
 from app.core.config import settings
 
@@ -64,6 +63,14 @@ The current briefing is injected into your context as a system message before ev
 2. If not addressed, hand off to the most relevant specialist
 3. After a specialist contributes, the briefing is updated automatically
 
+## Execution Plan
+Before delegating, review the execution plan in the state (injected as context).
+- If a plan exists with multiple steps, delegate ONE step at a time in order
+- Each step already specifies the specialist and focused task description
+- After each specialist completes, check if the next step's dependencies are met
+- If a step fails, decide whether to skip it or retry with a different approach
+- For simple single-step plans, delegate normally (current behavior)
+
 ## Available Specialists
 - project_manager -> Project CRUD, WBEs, cost elements, cost tracking, progress entries
 - evm_analyst -> EVM calculations, performance analysis
@@ -78,7 +85,6 @@ The current briefing is injected into your context as a system message before ev
 - Do NOT write a response summarizing the briefing — the user reads the briefing directly
 - Only respond if you need to ask the user a clarification question
 - Do NOT hand off to the same specialist more than once for the same task
-- Maximum 2 specialist cycles for simple requests
 - Always check the briefing before deciding to hand off
 """
 
@@ -116,29 +122,41 @@ concisely.
 """
 
 
-def _briefing_update(doc: BriefingDocument) -> dict[str, Any]:
-    """Build the standard state update after briefing initialization."""
+def _briefing_update(
+    doc: BriefingDocument,
+    plan_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the standard state update after briefing initialization.
+
+    Args:
+        doc: The briefing document to serialize.
+        plan_data: Optional serialized PlanDocument to carry forward.
+    """
     briefing_md = doc.to_markdown() if doc.sections else "No findings yet."
-    return {
+    update: dict[str, Any] = {
         "briefing_data": doc.model_dump(),
         "supervisor_iterations": 0,
         "max_supervisor_iterations": 3,
         "completed_specialists": set(),
         "messages": [SystemMessage(content=f"{_BRIEFING_CONTEXT_PREFIX}{briefing_md}")],
+        "completed_steps": set(),
+        "current_step_index": -1,
     }
+    if plan_data is not None:
+        update["plan_data"] = plan_data
+    return update
 
 
 class _BriefingSupervisorState(AgentState[Any]):
     """State extension for the briefing supervisor subgraph.
 
-    Adds ``briefing_data`` so LangGraph shares it from the parent
-    ``BackcastSupervisorState`` via automatic key-matching state sharing.
-    Without this, ``InjectedState`` inside ``get_briefing`` only sees
-    ``AgentState`` (messages, jump_to) and the briefing data field is
-    never passed into the subgraph.
+    Adds ``briefing_data`` and ``plan_data`` so LangGraph shares them from
+    the parent ``BackcastSupervisorState`` via automatic key-matching state
+    sharing.
     """
 
     briefing_data: dict[str, Any]
+    plan_data: dict[str, Any]
 
 
 def _create_get_briefing_tool() -> BaseTool:
@@ -168,14 +186,8 @@ class SupervisorOrchestrator:
     """Orchestrator that builds a briefing-room supervisor graph.
 
     Creates a parent StateGraph where the supervisor routes to specialist
-    agents via handoff tools. Each specialist receives a compiled briefing
-    document instead of shared message history, contributing structured
-    findings back to the accumulating document.
-
-    Attributes:
-        model: LangChain chat model instance.
-        context: ToolContext with user permissions and temporal parameters.
-        system_prompt: Optional custom system prompt for the supervisor.
+    agents via handoff tools. When a plan is active, the supervisor iterates
+    through plan steps sequentially, delegating one step at a time.
     """
 
     def __init__(
@@ -189,22 +201,35 @@ class SupervisorOrchestrator:
         self.context = context
         self.system_prompt = system_prompt
         self.main_assistant_config = main_assistant_config
+        self._event_bus = context._event_bus
+
+    def _publish_plan_update(self, plan: PlanDocument) -> None:
+        """Emit a PLAN_UPDATE event if an event bus is available."""
+        if self._event_bus is None:
+            return
+        steps = plan.steps
+        completed_steps = sum(1 for s in steps if s.status == "completed")
+        self._event_bus.publish(
+            AgentEvent(
+                event_type=AgentEventType.PLAN_UPDATE,
+                data={
+                    "type": AgentEventType.PLAN_UPDATE,
+                    "plan": plan.model_dump(),
+                    "plan_markdown": plan.to_prompt_text(),
+                    "completed_steps": completed_steps,
+                    "total_steps": len(steps),
+                },
+                timestamp=datetime.now(UTC),
+            )
+        )
 
     async def create_supervisor_graph(self, config: AgentConfig | None = None) -> Any:
-        """Create the briefing-based supervisor + specialist parent graph.
-
-        Args:
-            config: Optional AgentConfig with tool filtering parameters.
-
-        Returns:
-            Compiled StateGraph (parent graph with all specialists as nodes).
-        """
+        """Create the briefing-based supervisor + specialist parent graph."""
         if config is None:
             config = AgentConfig()
 
         logger.info(
-            "[SUPERVISOR_CREATION_START] create_supervisor_graph | "
-            "model=%s | execution_mode=%s",
+            "[SUPERVISOR_CREATION_START] model=%s | execution_mode=%s",
             self.model,
             self.context.execution_mode.value,
         )
@@ -213,7 +238,6 @@ class SupervisorOrchestrator:
         all_tools = await filter_tools_for_context(self.context, config)
 
         # --- 2. Compile specialists ---
-        # Try DB-loaded specialists first, fall back to hardcoded
         if config.subagents is not None:
             subagent_configs = config.subagents
         else:
@@ -258,17 +282,14 @@ class SupervisorOrchestrator:
         # --- 3. Build supervisor tools ---
         get_briefing_tool = _create_get_briefing_tool()
         handoff_tools = create_all_handoff_tools(subagent_configs)
-
         supervisor_tools: list[BaseTool] = [get_briefing_tool] + list(handoff_tools)
 
-        # Inject direct tools from the main agent's delegation config
         direct_tool_names: list[str] = []
         if self.main_assistant_config and self.main_assistant_config.delegation_config:
             direct_tool_names = (
                 self.main_assistant_config.delegation_config.get("direct_tools", [])
                 or []
             )
-
         direct_tools: list[BaseTool] = []
         if direct_tool_names:
             tool_map = {t.name: t for t in all_tools}
@@ -279,8 +300,6 @@ class SupervisorOrchestrator:
 
         # --- 4. Build supervisor agent ---
         base_prompt = self.system_prompt or BRIEFING_ROOM_SUPERVISOR_PROMPT
-
-        # Conditional prompt based on direct tool availability
         if direct_tools:
             tool_names = ", ".join(t.name for t in direct_tools)
             direct_tools_suffix = (
@@ -304,14 +323,7 @@ class SupervisorOrchestrator:
             name="supervisor",
         )
 
-        logger.debug(
-            "[SUPERVISOR] State bridge: _BriefingSupervisorState includes "
-            "briefing_data for subgraph sharing",
-        )
-
         # --- 5. Create specialist wrapper nodes ---
-        # Wrappers isolate specialists: they receive only the briefing as context
-        # and return findings via Command.
         specialist_wrappers: dict[str, Any] = {}
         for sg in specialist_graphs:
             specialist_wrappers[sg["name"]] = self._create_specialist_wrapper(
@@ -319,9 +331,7 @@ class SupervisorOrchestrator:
                 specialist_graph=sg["runnable"],
             )
 
-        # --- 6. Build the initialize_briefing node ---
-        # Restores existing briefing on follow-up messages so specialist findings
-        # survive across turns.
+        # --- 6. Build initialize_briefing node ---
         async def initialize_briefing_node(
             state: BackcastSupervisorState,
         ) -> dict[str, Any]:
@@ -336,9 +346,7 @@ class SupervisorOrchestrator:
                     )
                     break
 
-            # Check for existing briefing in state (from checkpoint on follow-ups)
             existing_briefing = state.get("briefing_data")
-
             if existing_briefing:
                 doc = BriefingDocument.from_state(existing_briefing)
                 if doc.original_request != "(recovered)":
@@ -347,31 +355,50 @@ class SupervisorOrchestrator:
                         "[SUPERVISOR] Reusing existing briefing with %d sections",
                         len(doc.sections),
                     )
-                    return _briefing_update(doc)
+                    return _briefing_update(doc, plan_data=state.get("plan_data"))
 
-            # Create new briefing (first message or recovery)
             doc = initialize_briefing(user_request)
             return _briefing_update(doc)
+
+        # --- 6b. Build the planner node ---
+        async def planner_node_fn(
+            state: BackcastSupervisorState,
+        ) -> dict[str, Any]:
+            assert isinstance(self.model, BaseChatModel), (
+                "model must be resolved to BaseChatModel"
+            )
+            try:
+                result = await planner_node(dict(state), self.model)
+                plan_data = result.get("plan_data")
+                if plan_data:
+                    plan = PlanDocument.from_state(plan_data)
+                    self._publish_plan_update(plan)
+                return result
+            except Exception:
+                logger.exception(
+                    "[PLANNER] planner_node failed, falling back to no-plan mode"
+                )
+                plan = PlanDocument(original_request="(planner error)")
+                self._publish_plan_update(plan)
+                return {"plan_data": plan.model_dump()}
 
         # --- 7. Build parent graph ---
         parent = StateGraph(BackcastSupervisorState)
         parent.add_node("initialize_briefing", initialize_briefing_node)
+        parent.add_node("planner", planner_node_fn)
         parent.add_node("supervisor", supervisor_agent)
         for name, wrapper_fn in specialist_wrappers.items():
             parent.add_node(name, wrapper_fn)
 
         # --- 8. Wire edges ---
         parent.add_edge(START, "initialize_briefing")
-        parent.add_edge("initialize_briefing", "supervisor")
-
-        # Supervisor routing: handoff or END
+        parent.add_edge("initialize_briefing", "planner")
+        parent.add_edge("planner", "supervisor")
         parent.add_conditional_edges(
             "supervisor",
             self._make_supervisor_router(specialist_names),
-            specialist_names + [END],
+            ["supervisor"] + specialist_names + [END],
         )
-
-        # Each specialist always returns to supervisor
         for name in specialist_names:
             parent.add_edge(name, "supervisor")
 
@@ -380,24 +407,20 @@ class SupervisorOrchestrator:
             checkpointer=config.checkpointer,
             name="backcast_supervisor",
         )
-
         logger.info(
             "[SUPERVISOR_CREATED] Graph compiled with %d specialists",
             len(specialist_graphs),
         )
-
         return compiled
 
     @staticmethod
-    def _make_supervisor_router(
-        specialist_names: list[str],
-    ) -> Any:
+    def _make_supervisor_router(specialist_names: list[str]) -> Any:
         """Create a routing function for the supervisor node.
 
-        After the supervisor produces output, route based on whether
-        it called a handoff tool (-> target specialist) or finished
-        (-> END). Enforces iteration cap and prevents redispatch
-        to already-completed specialists.
+        Routes based on handoff tool calls. When a multi-step plan is active
+        the iteration cap is set to ``len(plan.steps) + 1``. If no handoff
+        is called but the plan has pending steps, the supervisor loops back
+        to continue delegating.
         """
         from app.ai.handoff_tools import _slugify
 
@@ -416,9 +439,19 @@ class SupervisorOrchestrator:
         def router(state: BackcastSupervisorState) -> str:
             iterations = state.get("supervisor_iterations", 0)
             max_iterations = state.get("max_supervisor_iterations", 3)
+
+            # Extend cap for multi-step plans
+            plan_data = state.get("plan_data")
+            if plan_data:
+                plan = PlanDocument.from_state(plan_data)
+                if plan.requires_planning and plan.steps:
+                    plan_max = len(plan.steps) + 1
+                    if plan_max > max_iterations:
+                        max_iterations = plan_max
+
             if iterations >= max_iterations:
                 logger.warning(
-                    "[SUPERVISOR] Max supervisor iterations (%d) reached, forcing END",
+                    "[SUPERVISOR] Max iterations (%d) reached, forcing END",
                     max_iterations,
                 )
                 return END
@@ -435,47 +468,37 @@ class SupervisorOrchestrator:
                     tool_name = tc.get("name", "")
                     if tool_name.startswith("handoff_to_"):
                         slug = tool_name.removeprefix("handoff_to_")
-                        # Map slug back to the actual specialist name
                         spec_name = slug_map.get(slug, slug)
                         if spec_name in completed:
                             logger.warning(
-                                "[SUPERVISOR] Preventing redispatch to "
-                                "already-completed specialist: %s",
+                                "[SUPERVISOR] Preventing redispatch to completed specialist: %s",
                                 spec_name,
                             )
                             return END
                         if spec_name in specialist_set:
                             return spec_name
 
-            # No handoff -- supervisor is done
+            # No handoff -- continue if plan has pending steps
+            if plan_data:
+                plan = PlanDocument.from_state(plan_data)
+                if plan.requires_planning and plan.get_next_pending_step():
+                    logger.info("[SUPERVISOR] Plan has pending steps, continuing loop")
+                    return "supervisor"
+
             return END
 
         return router
 
     def _create_specialist_wrapper(
-        self,
-        specialist_name: str,
-        specialist_graph: Any,
+        self, specialist_name: str, specialist_graph: Any
     ) -> Any:
         """Create a briefing-specialist wrapper node for a compiled agent.
 
-        The returned async function isolates the specialist from the parent
-        graph: it constructs fresh messages containing only the briefing,
-        invokes the specialist graph, then compiles findings back into the
-        briefing document.
-
-        Failed specialists are NOT added to ``completed_specialists`` -- this
-        allows the supervisor to retry them on a subsequent turn.
-
-        The specialist's system prompt is baked into its compiled graph by
-        ``compile_subagents`` — the wrapper only provides runtime context.
-
-        Args:
-            specialist_name: Human-readable name for logging and briefing sections.
-            specialist_graph: Compiled LangGraph (output of compile_subagents()).
-
-        Returns:
-            Async function suitable as a LangGraph node.
+        Isolates the specialist from the parent graph: constructs fresh messages
+        with the briefing (and plan-step context when applicable), invokes the
+        specialist graph, then compiles findings back into the briefing.
+        Failed specialists are NOT added to ``completed_specialists`` so the
+        supervisor can retry them.
         """
 
         async def specialist_node(
@@ -484,7 +507,7 @@ class SupervisorOrchestrator:
             completed = state.get("completed_specialists", set())
             if specialist_name in completed:
                 logger.info(
-                    "[SUPERVISOR] Specialist %s already completed, early exiting",
+                    "[SUPERVISOR] Specialist %s already completed, early exit",
                     specialist_name,
                 )
                 return Command(
@@ -496,33 +519,90 @@ class SupervisorOrchestrator:
                     goto=END,
                 )
 
+            # --- Resolve plan step for this specialist ---
+            plan_data = state.get("plan_data")
+            active_plan: PlanDocument | None = None
+            active_step = None
+            if plan_data:
+                active_plan = PlanDocument.from_state(plan_data)
+                completed_step_indices = state.get("completed_steps", set())
+                for step in active_plan.steps:
+                    if (
+                        step.specialist == specialist_name
+                        and step.status == "pending"
+                        and step.step_index not in completed_step_indices
+                        and active_plan.are_dependencies_met(step.step_index)
+                    ):
+                        active_step = step
+                        break
+
             task_desc = "Execute specialist task from briefing"
             rationale: str | None = None
             briefing_data_raw = state.get("briefing_data", {})
-            if briefing_data_raw:
-                doc = BriefingDocument.from_state(briefing_data_raw)
-                if doc.task_history:
-                    latest = doc.task_history[-1]
-                    task_desc = latest.description
-                    rationale = latest.rationale
+            doc = (
+                BriefingDocument.from_state(briefing_data_raw)
+                if briefing_data_raw
+                else None
+            )
 
-            assignment_block = f"## Your Assignment\n\n{task_desc}"
-            if rationale:
-                assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
+            if active_step is not None:
+                task_desc = active_step.task_description
+            elif doc and doc.task_history:
+                latest = doc.task_history[-1]
+                task_desc = latest.description
+                rationale = latest.rationale
 
-            briefing_markdown = doc.to_markdown() if briefing_data_raw else ""
+            # --- Build assignment block ---
+            if active_step is not None and active_plan is not None:
+                total_steps = len(active_plan.steps)
+                lines = [
+                    f"## Your Assignment (Plan Step {active_step.step_index + 1}/{total_steps})",
+                    "",
+                    active_step.task_description,
+                    "",
+                    f"**Expected output:** {active_step.expected_output}",
+                ]
+                if active_step.input_from_dependencies:
+                    lines.append("")
+                    lines.append(
+                        f"**Context from previous steps:** {active_step.input_from_dependencies}"
+                    )
+                    for dep_idx in active_step.dependencies:
+                        dep_step = active_plan.get_step(dep_idx)
+                        if dep_step and dep_step.result_summary:
+                            lines.append(
+                                f"- Step {dep_idx} result: {dep_step.result_summary}"
+                            )
+                assignment_block = "\n".join(lines)
+            else:
+                assignment_block = f"## Your Assignment\n\n{task_desc}"
+                if rationale:
+                    assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
 
+            # Scope briefing to relevant steps only when plan-driven
+            if doc and active_step is not None:
+                relevant_indices = {active_step.step_index} | set(
+                    active_step.dependencies
+                )
+                briefing_markdown = doc.to_scoped_markdown(relevant_indices)
+            elif doc:
+                briefing_markdown = doc.to_markdown()
+            else:
+                briefing_markdown = ""
             isolated_messages = [
                 HumanMessage(
                     content=f"{assignment_block}\n\n## Briefing\n\n{briefing_markdown}"
                 ),
             ]
 
+            # Expose structured briefing data to the specialist's get_briefing tool
+            set_briefing(briefing_data_raw if briefing_data_raw else None)
+
             max_iterations = state.get("max_tool_iterations", 25)
             max_retries = settings.AI_SPECIALIST_MAX_RETRIES
             result = None
 
-            for _retry_attempt in range(max_retries + 1):
+            for _attempt in range(max_retries + 1):
                 try:
                     result = await specialist_graph.ainvoke(
                         {
@@ -533,22 +613,20 @@ class SupervisorOrchestrator:
                         },
                         config={"recursion_limit": max_iterations},
                     )
-                    break  # success
+                    break
                 except Exception as exc:
-                    if is_transient_stream_error(exc) and _retry_attempt < max_retries:
+                    if is_transient_stream_error(exc) and _attempt < max_retries:
                         logger.warning(
-                            "[SPECIALIST_RETRY] Specialist %s transient error "
-                            "(attempt %d/%d), retrying in 2s: %s",
+                            "[SPECIALIST_RETRY] %s transient error (attempt %d/%d): %s",
                             specialist_name,
-                            _retry_attempt + 1,
+                            _attempt + 1,
                             max_retries + 1,
                             exc,
                         )
                         await asyncio.sleep(2.0)
                         continue
-                    # Non-transient or retries exhausted — report to supervisor.
                     logger.error(
-                        "[SPECIALIST_ERROR] Specialist %s failed: %s",
+                        "[SPECIALIST_ERROR] %s failed: %s",
                         specialist_name,
                         exc,
                         exc_info=True,
@@ -562,23 +640,24 @@ class SupervisorOrchestrator:
                         task_description=f"Failed: {exc}",
                         specialist_output=error_msg,
                     )
-                    return Command(
-                        update={
-                            "briefing_data": updated_data,
-                            "active_agent": "supervisor",
-                            "supervisor_iterations": state.get(
-                                "supervisor_iterations", 0
-                            )
-                            + 1,
-                            "tool_call_count": 0,
-                        },
-                        goto="supervisor",
-                    )
+                    error_update: dict[str, Any] = {
+                        "briefing_data": updated_data,
+                        "active_agent": "supervisor",
+                        "supervisor_iterations": state.get("supervisor_iterations", 0)
+                        + 1,
+                        "tool_call_count": 0,
+                    }
+                    if active_step is not None and active_plan is not None:
+                        active_plan.mark_step_failed(
+                            active_step.step_index, f"Specialist error: {exc}"
+                        )
+                        error_update["plan_data"] = active_plan.model_dump()
+                        self._publish_plan_update(active_plan)
+                    return Command(update=error_update, goto="supervisor")
 
-            assert result is not None  # guaranteed: break on success, return on failure
+            assert result is not None
             messages = result.get("messages", [])
             findings = extract_final_ai_response(messages)
-
             cleaned_findings, parsed = parse_and_clean(findings)
 
             updated_data = compile_specialist_output(
@@ -596,27 +675,38 @@ class SupervisorOrchestrator:
                 len(updated_data.get("sections", [])),
             )
 
-            return Command(
-                update={
-                    "briefing_data": updated_data,
-                    "active_agent": "supervisor",
-                    "tool_call_count": result.get("tool_call_count", 0),
-                    "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
-                    "completed_specialists": state.get("completed_specialists", set())
-                    | {specialist_name},
-                },
-                goto="supervisor",
-            )
+            cmd_update: dict[str, Any] = {
+                "briefing_data": updated_data,
+                "active_agent": "supervisor",
+                "tool_call_count": result.get("tool_call_count", 0),
+                "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
+                "completed_specialists": state.get("completed_specialists", set())
+                | {specialist_name},
+            }
+
+            # Mark plan step as completed if plan-driven
+            if active_step is not None and active_plan is not None:
+                summary = cleaned_findings[:500] if cleaned_findings else ""
+                active_plan.mark_step_completed(active_step.step_index, summary)
+                cmd_update["plan_data"] = active_plan.model_dump()
+                cmd_update["completed_steps"] = state.get("completed_steps", set()) | {
+                    active_step.step_index
+                }
+                cmd_update["current_step_index"] = active_step.step_index
+                self._publish_plan_update(active_plan)
+                logger.info(
+                    "[SUPERVISOR] Plan step %d/%d completed for %s",
+                    active_step.step_index + 1,
+                    len(active_plan.steps),
+                    specialist_name,
+                )
+
+            return Command(update=cmd_update, goto="supervisor")
 
         return specialist_node
 
     def _build_middleware(self, tools: list[BaseTool]) -> list[Any]:
-        """Build the middleware stack for the supervisor agent.
-
-        Includes SummarizationMiddleware to compact message history during
-        long multi-specialist conversations. Safe because the briefing is
-        re-injected as a fresh SystemMessage each turn via _briefing_update.
-        """
+        """Build middleware stack including SummarizationMiddleware for long conversations."""
         from langchain.agents.middleware.summarization import SummarizationMiddleware
 
         base = build_backcast_middleware(self.context, tools)
@@ -629,19 +719,11 @@ class SupervisorOrchestrator:
         return [summ, *base]
 
     def _build_fallback_graph(
-        self,
-        all_tools: list[BaseTool],
-        config: AgentConfig,
+        self, all_tools: list[BaseTool], config: AgentConfig
     ) -> Any:
-        """Build a simple agent with direct tool access (no specialists).
-
-        Used when specialist compilation fails entirely -- gives the agent
-        direct tool access as a safety net.
-        """
+        """Build a simple agent with direct tool access (no specialists)."""
         logger.info("Building fallback graph with direct tool access")
-
         base_prompt = self.system_prompt or BRIEFING_ROOM_SUPERVISOR_PROMPT
-
         return langchain_create_agent(
             model=self.model,
             tools=all_tools,
