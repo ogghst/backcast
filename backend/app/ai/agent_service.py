@@ -1921,8 +1921,12 @@ class AgentService:
             try:
                 metrics: AgentExecutionMetrics | None = None
 
-                # Create execution tracking row
+                # Create execution tracking row — use execution_id as the PK
+                # so the DB row ID matches the event bus key (required for
+                # WebSocket re-subscribe: the client sends the DB execution.id
+                # and the subscribe handler looks up the bus by the same key).
                 execution = AIAgentExecution(
+                    id=UUID(execution_id),
                     session_id=str(session_id),
                     status=ExecutionStatus.RUNNING,
                     execution_mode=execution_mode.value,

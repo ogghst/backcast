@@ -15,7 +15,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message } from "antd";
+import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message, Spin } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
@@ -192,6 +192,17 @@ export const ChatInterface = ({
   const subagentSequenceRef = useRef(0);
   const completionTurnRef = useRef(0);
 
+  // Replay buffer — collects tokens during replay batching, flushed on replay_end
+  const replayBufferRef = useRef<Array<{
+    invocationId: string;
+    content: string;
+    source: "main" | "subagent";
+    subagentName?: string;
+  }>>([]);
+
+  // Local replay flag — mirrors hook's isReplaying so handleToken (defined before the hook) can access it
+  const isReplayingLocalRef = useRef(false);
+
   // Query client for cache invalidation
   const queryClient = useQueryClient();
 
@@ -338,6 +349,19 @@ export const ChatInterface = ({
     subagentName?: string,
     invocationId?: string,
   ) => {
+    // During replay, buffer tokens instead of updating streaming state
+    if (isReplayingLocalRef.current && invocationId) {
+      replayBufferRef.current.push({
+        invocationId,
+        content: token,
+        source,
+        subagentName,
+      });
+      // Still update session ID for new sessions
+      setCurrentSessionId((prev) => prev || sessionId);
+      return;
+    }
+
     // We've received the first token, no longer waiting
     setIsWaitingForResponse(false);
 
@@ -800,7 +824,74 @@ export const ChatInterface = ({
       const dateStr = change.as_of ? new Date(change.as_of).toLocaleDateString() : "current time";
       message.info(`Time Machine: ${dateStr}, branch: ${change.branch_name} (${change.branch_mode})`);
     }, []),
+    onReplayEnd: useCallback(() => {
+      // Flush replay buffer into a single streaming state update
+      const buffer = replayBufferRef.current;
+      if (buffer.length === 0) return;
+
+      setStreamingState((prev) => {
+        const mainStreams = new Map(prev.mainStreams);
+        const subagents = new Map(prev.subagents);
+
+        for (const item of buffer) {
+          if (item.source === "main" && item.invocationId) {
+            const existing = mainStreams.get(item.invocationId);
+            if (existing) {
+              mainStreams.set(item.invocationId, {
+                ...existing,
+                content: existing.content + item.content,
+                is_active: true,
+              });
+            } else {
+              mainStreams.set(item.invocationId, {
+                invocation_id: item.invocationId,
+                content: item.content,
+                is_active: true,
+                is_complete: false,
+                started_at: Date.now(),
+                sequence: mainSequenceRef.current++,
+              });
+            }
+          } else if (item.source === "subagent" && item.invocationId) {
+            const existing = subagents.get(item.invocationId);
+            if (existing) {
+              subagents.set(item.invocationId, {
+                ...existing,
+                content: existing.content + item.content,
+                is_active: true,
+              });
+            } else {
+              subagents.set(item.invocationId, {
+                invocation_id: item.invocationId,
+                subagent_name: item.subagentName || "Subagent",
+                content: item.content,
+                is_active: true,
+                is_complete: false,
+                started_at: Date.now(),
+              });
+            }
+          }
+        }
+
+        return { ...prev, mainStreams, subagents };
+      });
+
+      replayBufferRef.current = [];
+    }, []),
+    onSessionRecovery: useCallback(() => {
+      // Backend cleaned up a stale/orphaned execution.
+      // Invalidate caches so the UI reflects the cleared active_execution.
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
+    }, [queryClient]),
   });
+
+  // Destructure isReplaying from hook after config
+  const { isReplaying } = streamingChat;
+
+  // Keep local ref in sync so handleToken (defined above) can read it
+  useEffect(() => {
+    isReplayingLocalRef.current = isReplaying;
+  }, [isReplaying]);
 
   // Execution mode hook for managing AI tool risk level
   const { executionMode, setExecutionMode } = useExecutionMode();
@@ -1349,6 +1440,11 @@ export const ChatInterface = ({
                   paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : 0,
                 }}
               >
+                {isReplaying && (
+                  <div style={{ textAlign: "center", padding: "8px", color: token.colorTextSecondary }}>
+                    <Spin size="small" /> Resuming...
+                  </div>
+                )}
                 <MessageList
                   messages={chatMessages}
                   loading={messagesLoading}
