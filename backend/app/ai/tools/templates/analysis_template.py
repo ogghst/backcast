@@ -258,7 +258,7 @@ async def _get_wbe_variance_breakdown(
     from app.models.schemas.evm import EntityType
     from app.services.wbs_element_service import WBSElementService
 
-    wbe_service = WBSElementService(service.session)
+    wbe_service = WBSElementService(service.db)
     try:
         wbes = await wbe_service.get_by_project(UUID(project_id), branch=branch)
     except Exception:

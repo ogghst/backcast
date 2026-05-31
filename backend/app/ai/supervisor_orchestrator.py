@@ -397,7 +397,7 @@ class SupervisorOrchestrator:
         parent.add_conditional_edges(
             "supervisor",
             self._make_supervisor_router(specialist_names),
-            ["supervisor"] + specialist_names + [END],
+            specialist_names + [END],
         )
         for name in specialist_names:
             parent.add_edge(name, "supervisor")
@@ -478,13 +478,12 @@ class SupervisorOrchestrator:
                         if spec_name in specialist_set:
                             return spec_name
 
-            # No handoff -- continue if plan has pending steps
-            if plan_data:
-                plan = PlanDocument.from_state(plan_data)
-                if plan.requires_planning and plan.get_next_pending_step():
-                    logger.info("[SUPERVISOR] Plan has pending steps, continuing loop")
-                    return "supervisor"
-
+            # No handoff → END.  Multi-step plans continue via the
+            # specialist → supervisor edge (line 403): each specialist
+            # routes back to the supervisor on completion, which then
+            # delegates the next pending step.  A self-loop here would
+            # cause the supervisor to run in parallel with an active
+            # specialist, producing concurrent writes to briefing_data.
             return END
 
         return router
