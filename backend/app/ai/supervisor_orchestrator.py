@@ -644,17 +644,29 @@ class SupervisorOrchestrator:
                     "Use the get_briefing tool to review prior specialist findings "
                     "if needed for context."
                 )
+                # Add original request if available from briefing or plan
+                original_request = None
+                if doc and doc.original_request:
+                    original_request = doc.original_request
+                elif active_plan and active_plan.original_request:
+                    original_request = active_plan.original_request
+                if original_request:
+                    lines.append("")
+                    lines.append(f"**User's original request:** {original_request}")
                 assignment_block = "\n".join(lines)
             else:
                 assignment_block = f"## Your Assignment\n\n{task_desc}"
                 if rationale:
                     assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
+                # Add original request
+                original_request = None
+                if doc and doc.original_request:
+                    original_request = doc.original_request
+                if original_request:
+                    assignment_block += f"\n\n**User's original request:** {original_request}"
 
-            briefing_markdown = doc.to_markdown() if doc else ""
             isolated_messages = [
-                HumanMessage(
-                    content=f"{assignment_block}\n\n## Briefing\n\n{briefing_markdown}"
-                ),
+                HumanMessage(content=assignment_block),
             ]
 
             # Expose structured briefing data to the specialist's get_briefing tool

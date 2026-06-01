@@ -281,9 +281,9 @@ This tool returns a `Command(goto="evm_analyst", graph=Command.PARENT)` which ro
 
 The wrapper resolves the plan step and builds the specialist's assignment:
 
-#### Rule: Plan Step Assignment
+#### Rule: Focused Assignment (no inline briefing)
 
-A HumanMessage is constructed:
+A HumanMessage is constructed with only the focused assignment — no inline briefing markdown:
 
 ```
 ## Your Assignment (Plan Step 1/2)
@@ -294,14 +294,12 @@ Calculate EVM metrics (CPI, SPI, CV, SV, EAC, VAC, etc.) for the specified proje
 
 Use the get_briefing tool to review prior specialist findings if needed for context.
 
-## Briefing
-
-[Briefing document markdown — full briefing is always passed]
+**User's original request:** Analyze the EVM performance for the project and create a visualization of the results
 ```
 
-#### Rule: Full Briefing (no scoping)
+The briefing data is still available via the `get_briefing` tool (populated from a ContextVar by the specialist wrapper). Specialists call it on-demand when they need context from prior steps, rather than receiving the full accumulated briefing inline. This reduces input tokens significantly for later steps in multi-step plans — a step-4 specialist no longer carries thousands of tokens of findings from steps 0-3 in its initial message.
 
-The full briefing is always passed to every specialist. The specialist can use the `get_briefing` tool to review prior findings as needed. This ensures specialists have complete context without artificial filtering.
+For step 0 (no prior findings), the `get_briefing` hint and original request are still included but the specialist won't need to call it. For dependent steps (e.g., step 1 depends on step 0), the assignment block includes `result_summary` from the dependency step, giving the specialist enough context to start work. It can call `get_briefing(section_name="evm_analyst")` if it needs the full detailed findings.
 
 #### EVM Analyst's System Prompt
 
@@ -374,6 +372,25 @@ handoff_to_visualization_specialist(
 ```
 
 ### Step 6: `specialist_wrapper_node` (Visualization Specialist)
+
+The wrapper builds the assignment for step 1 (depends on step 0). Since step 0 is completed, the assignment includes the EVM analyst's `result_summary` and the user's original request:
+
+```
+## Your Assignment (Plan Step 2/2)
+
+Based on the EVM analysis output, create visual representations...
+
+**Expected output:** Charts and dashboard-style overview
+
+**Context from previous steps:** (from plan step 0)
+- Step 0 result: CPI=0.87, SPI=0.92, CV=-€12,400, SV=-€8,200...
+
+Use the get_briefing tool to review prior specialist findings if needed for context.
+
+**User's original request:** Analyze the EVM performance for the project and create a visualization of the results
+```
+
+The visualization specialist has enough context from the dependency summary to create charts. It can call `get_briefing(section_name="evm_analyst")` for the full metrics if needed.
 
 #### Visualization Specialist's System Prompt
 
@@ -530,7 +547,7 @@ Both steps complete. Routes to END. The final briefing contains the web search f
 
 ## 4. Context Manipulation Points
 
-The system has exactly **2** context modification points:
+The system has exactly **3** context modification points:
 
 ### 4.1 Briefing Injection (every supervisor turn)
 
@@ -548,7 +565,13 @@ The system has exactly **2** context modification points:
 **Why:** Prevents DeepSeek from silently truncating context and losing the plan
 **Guard:** Won't trigger on early turns (< 8 messages) to avoid false positives from tool schemas
 
-### 4.3 Structured Output (every specialist invocation)
+### 4.3 Specialist Assignment (every specialist invocation)
+
+**Where:** `supervisor_orchestrator.py` → `_create_specialist_wrapper()`
+**What:** Each specialist receives a focused `HumanMessage` containing only its assignment block (task description, expected output, dependency summaries, user's original request). The full briefing is **not** included — it is stored in a ContextVar and accessible via the `get_briefing` tool on-demand.
+**Why:** Reduces input token cost for later steps in multi-step plans. A step-4 specialist no longer carries thousands of tokens of findings from steps 0-3 in its initial message. The dependency `result_summary` provides enough context to start work; `get_briefing` is available for detailed retrieval when needed.
+
+### 4.4 Structured Output (every specialist invocation)
 
 **Where:** `schemas.py` → `SpecialistOutput`, `subagent_compiler.py`
 **What:** All specialists default to producing structured JSON via the `SpecialistOutput` Pydantic model. The output includes `summary`, `key_findings`, `open_questions`, and `delegation_notes`. Domain-specific specialists can override with their own schema (e.g., `EVMMetricsRead`).
@@ -580,6 +603,7 @@ The system has exactly **2** context modification points:
 | Rule | Source | Effect |
 |---|---|---|
 | Structured output | `schemas.py` `SpecialistOutput` | All specialists produce structured JSON by default |
+| No inline briefing | `supervisor_orchestrator.py` `_create_specialist_wrapper()` | Assignment-only message; briefing available via `get_briefing` tool on-demand |
 | Tool filtering | `subagent_compiler.py` | Only get their allowed_tools |
 | RBAC filtering | `backcast_security.py` | Tools filtered by user role |
 | Sequential tool calls | `sequential_tool_calls.py` | One tool at a time (configurable via `AI_SEQUENTIAL_TOOL_CALLS`) |
@@ -761,27 +785,31 @@ Specialist prompts are **never manipulated after retrieval** — no suffixes, no
 
 ### 8.5 Specialist Assignment Prompt (per-invocation)
 
-**Built dynamically each time** by `_create_specialist_wrapper()` in `supervisor_orchestrator.py:621-656`:
+**Built dynamically each time** by `_create_specialist_wrapper()` in `supervisor_orchestrator.py`:
 
 ```
 For plan-driven steps:
   assignment_block = f"## Your Assignment (Plan Step {n}/{total})\n"
                    + active_step.task_description + "\n"
                    + f"**Expected output:** {active_step.expected_output}\n"
-                   + dependency context (if any)
+                   + dependency context (result_summary from prior steps)
                    + "Use the get_briefing tool to review prior specialist findings if needed for context."
+                   + f"**User's original request:** {original_request}"
 
 For non-plan steps:
   assignment_block = f"## Your Assignment\n\n{task_desc}"
                    + optional supervisor rationale
+                   + f"**User's original request:** {original_request}"
 
 Final message to specialist:
-  HumanMessage(content=f"{assignment_block}\n\n## Briefing\n\n{briefing_markdown}")
+  HumanMessage(content=assignment_block)
 ```
 
 This is a **runtime-constructed prompt** — no DB or hardcoded source. It combines:
 - Plan step data from `PlanDocument` (produced by the planner LLM)
-- Full briefing markdown from `BriefingDocument.to_markdown()`
+- The user's original request (from `BriefingDocument.original_request` or `PlanDocument.original_request`)
+
+The full briefing is **not** included in the message. Instead, the briefing data is stored in a ContextVar via `set_briefing()`, making it available through the `get_briefing` tool for on-demand access. This keeps the specialist's input lean while preserving access to prior findings when needed.
 
 ### 8.6 Prompt Flow Diagram
 
@@ -841,9 +869,11 @@ This is a **runtime-constructed prompt** — no DB or hardcoded source. It combi
 │  )                                                                  │
 │                                                                     │
 │  ── Per invocation ──                                               │
-│  supervisor_orchestrator.py:654                                     │
-│  HumanMessage(content=assignment_block + briefing_markdown)         │
-│    └── assignment_block built from PlanDocument step + briefing     │
+│  supervisor_orchestrator.py:668                                     │
+│  HumanMessage(content=assignment_block)                             │
+│    └── assignment_block = plan step + deps + original_request       │
+│    └── briefing data stored in ContextVar via set_briefing()        │
+│    └── specialist calls get_briefing tool on-demand if needed       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
