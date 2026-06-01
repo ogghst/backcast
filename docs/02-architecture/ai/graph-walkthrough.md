@@ -2,13 +2,21 @@
 
 ## Context
 
-This document explains the full AI delegation graph using a concrete example.
+This document explains the full AI delegation graph using concrete examples.
 It traces every prompt, every rule, and every decision point from user message to final response.
+
+### Example 1: Multi-Specialist EVM Analysis
 
 **Configuration:** Senior Project Manager persona, Expert Mode, project "DIY RC Car"
 **Example prompt:** _"Analyze the EVM performance for the project and create a visualization of the results"_
 
 This prompt triggers **two specialists**: `evm_analyst` then `visualization_specialist`.
+
+### Example 2: External Web Search via MCP Specialist
+
+**Example prompt:** _"Search the web for recent EU construction cost regulations and summarize how they might affect our active projects"_
+
+This prompt triggers **two specialists**: `mcp_specialist` (web search) then `project_manager` (list active projects and correlate).
 
 ---
 
@@ -26,17 +34,25 @@ The "Senior Project Manager" is a **main agent** loaded from `ai_assistant_confi
 | `max_tokens` | 160,401 |
 | `recursion_limit` | 81 |
 | `default_role` | "ai-manager" |
+| `system_prompt` | Custom supervisor instructions (or uses the built-in default) |
 | `delegation_config.direct_tools` | 24 read-only tools the supervisor can use directly |
 | `delegation_config.allowed_specialists` | 6 specialists it can hand off to |
 
 The supervisor does NOT do domain work itself. It reads the briefing and delegates.
 
+**Configurable prompt:** The supervisor's system prompt comes from `AIAssistantConfig.system_prompt` when set via the AI Assistant management page. If no custom prompt is configured, the built-in `_BASE_SUPERVISOR_PROMPT` is used. Regardless of whether the prompt is custom or default, the system **always appends**:
+1. The delegation enforcement section (when `AI_DELEGATION_ENFORCED=true`)
+2. A dynamic "## Available Specialists" section built from the compiled specialist catalog
+3. A direct-tools or handoff suffix
+
 ### Specialists (Subagents)
 
-Each specialist is compiled from `backend/app/ai/subagents/__init__.py` with:
+Each specialist is compiled from the database (via `db_loader.py`) or from hardcoded fallbacks (`subagents/__init__.py`) with:
 - A domain-specific **system prompt**
 - A curated **allowed_tools** list
-- An auto-appended **scope suffix**
+- A **structured output schema** (defaults to `SpecialistOutput` from `schemas.py`)
+
+The specialist list in both the planner and supervisor prompts is **dynamic** — it reflects the actual specialists loaded from the database, not a hardcoded list.
 
 ---
 
@@ -49,7 +65,7 @@ START
 initialize_briefing_node ─── Creates BriefingDocument, injects as SystemMessage
   │
   ▼
-planner_node ─── Analyzes request, creates PlanDocument (or fast-path)
+planner_node ─── Analyzes request via LLM, creates PlanDocument
   │
   ▼
 supervisor_node ─── Reads briefing + plan, calls handoff_to_X tool
@@ -84,7 +100,7 @@ END ─── When all steps complete or max iterations reached
 
 ---
 
-## 3. Step-by-Step Walkthrough
+## 3. Step-by-Step Walkthrough (Example 1: EVM + Visualization)
 
 ### Step 0: User Sends Message
 
@@ -94,7 +110,7 @@ User types in the chat input and hits Enter. The frontend opens a WebSocket to `
 
 ### Step 1: `initialize_briefing_node`
 
-**File:** `handoff_tools.py`
+**File:** `supervisor_orchestrator.py`
 
 Extracts the user's text from the last HumanMessage, creates a `BriefingDocument`:
 
@@ -117,27 +133,7 @@ SystemMessage("## Current Briefing\n\nNo findings yet.")
 
 **File:** `planner.py`
 
-#### Rule: Fast-Path Check (no LLM call)
-
-Before invoking the LLM, the planner checks if the request matches a simple keyword heuristic:
-
-```python
-_FAST_KEYWORD_MAP = {
-    "budget": "project_manager", "cost": "project_manager",
-    "project": "project_manager", "wbs": "project_manager",
-    "evm": "evm_analyst", "cpi": "evm_analyst", "spi": "evm_analyst",
-    "performance": "evm_analyst", "earned value": "evm_analyst",
-    "diagram": "visualization_specialist", "chart": "visualization_specialist",
-    "visualization": "visualization_specialist",
-    # ... etc
-}
-```
-
-**Our example matches TWO specialists** (evm_analyst + visualization_specialist), so fast-path is **skipped** — the request is too ambiguous for single-domain routing.
-
-#### Rule: LLM Planner Call
-
-The planner calls DeepSeek with this system prompt:
+The planner **always** uses an LLM call to analyze the request. The system prompt is built dynamically via `build_planner_system_prompt(specialist_catalog)`, which includes a "## Available Specialists" section generated from the compiled specialist catalog.
 
 ```
 You are a request planner for the Backcast project budget management system.
@@ -148,7 +144,7 @@ or can be handled by a single specialist.
 - project_manager: Project CRUD, WBS elements, cost elements, ...
 - evm_analyst: Earned Value Management calculations, performance indices, ...
 - visualization_specialist: Charts, diagrams, visual representations
-- ... (all 8 listed)
+- ... (dynamically listed from compiled specialists)
 
 ## Your Task
 Return a JSON object with this structure:
@@ -209,7 +205,14 @@ A `PLAN_UPDATE` event is emitted to the frontend. The plan appears in the briefi
 
 #### The Supervisor's System Prompt
 
-Since `AI_DELEGATION_ENFORCED=true` (env var), the supervisor gets the **full prompt** with delegation enforcement:
+The supervisor prompt is assembled dynamically in `create_supervisor_graph()`:
+
+1. **Base prompt** — custom from `AIAssistantConfig.system_prompt` or the built-in default
+2. **Delegation enforcement section** — appended when `AI_DELEGATION_ENFORCED=true`
+3. **Dynamic specialist section** — built from the compiled specialist catalog
+4. **Direct-tools or handoff suffix** — based on the delegation config
+
+Since `AI_DELEGATION_ENFORCED=true`, the supervisor gets the **full prompt**:
 
 ```
 You are a supervisor for the Backcast project budget management system.
@@ -228,14 +231,10 @@ The user reads the briefing directly — do NOT summarize or repeat findings.
 - For simple single-step plans, delegate normally
 
 ## Available Specialists
-- project_manager -> Project CRUD, WBEs, cost elements, cost tracking, progress entries
-- evm_analyst -> EVM calculations, performance analysis
-- change_order_manager -> Change orders, impact analysis
-- user_admin -> User and department management
-- visualization_specialist -> Diagrams, visualizations
-- forecast_manager -> Forecasts, schedule baselines
-- mcp_specialist -> External tools via MCP servers
-- general_purpose -> Unclear or cross-cutting requests
+- project_manager -> Specialist for project, WBE, cost element management
+- evm_analyst -> Specialist for earned value management calculations
+- visualization_specialist -> Specialist for generating visualizations
+- ... (dynamically listed)
 
 ## Rules
 - Do NOT write a response summarizing the briefing
@@ -278,7 +277,7 @@ This tool returns a `Command(goto="evm_analyst", graph=Command.PARENT)` which ro
 
 ### Step 4: `specialist_wrapper_node` (EVM Analyst)
 
-**File:** `handoff_tools.py`
+**File:** `supervisor_orchestrator.py` → `_create_specialist_wrapper()`
 
 The wrapper resolves the plan step and builds the specialist's assignment:
 
@@ -287,20 +286,26 @@ The wrapper resolves the plan step and builds the specialist's assignment:
 A HumanMessage is constructed:
 
 ```
-## Assignment
-Task: Calculate EVM metrics (CPI, SPI, CV, SV, EAC, VAC, etc.) for the specified project
-Delegated by: supervisor
-Step 1 of 2
+## Your Assignment (Plan Step 1/2)
 
-## Briefing Context
-[Briefing document markdown — only sections relevant to this step]
+Calculate EVM metrics (CPI, SPI, CV, SV, EAC, VAC, etc.) for the specified project
+
+**Expected output:** Structured EVM analysis report
+
+Use the get_briefing tool to review prior specialist findings if needed for context.
+
+## Briefing
+
+[Briefing document markdown — full briefing is always passed]
 ```
 
-#### Rule: Briefing Scoping
+#### Rule: Full Briefing (no scoping)
 
-`to_scoped_markdown()` filters the briefing to only include sections relevant to the current step's dependencies. Since step 0 has no dependencies, the briefing is minimal.
+The full briefing is always passed to every specialist. The specialist can use the `get_briefing` tool to review prior findings as needed. This ensures specialists have complete context without artificial filtering.
 
 #### EVM Analyst's System Prompt
+
+The specialist's system prompt comes from the specialist config (DB or hardcoded). No scope suffix or output format instructions are appended — structured output is handled by the `SpecialistOutput` schema:
 
 ```
 You are an EVM analysis specialist.
@@ -315,27 +320,24 @@ You calculate and analyze earned value metrics including:
 - VAC (Variance at Completion) - final budget variance
 - TCPI (To-Complete Performance Index) - required efficiency
 
-You also provide:
-- Performance trend analysis
-- Project health assessments
-- Anomaly detection in EVM metrics
-- Optimization recommendations
-
 Use get_project_analysis for EVM metrics, KPIs, health assessments, and anomaly detection.
 Provide clear explanations of what the metrics mean and actionable insights.
 Identify trends and potential risks early.
-
-## SCOPE
-Focus only on your specialist domain. Execute ONLY the task described in
-your assignment — do not attempt other parts of the user's request or
-plan, those will be handled by other specialists.
-
-## OUTPUT FORMAT
-After tool calls, write your findings with these sections:
-- ## Key Findings: Most important discoveries
-- ## Open Questions: Questions needing answers
-- ## Delegation Notes: Context for follow-up work (IDs, partial results)
 ```
+
+#### Structured Output: SpecialistOutput
+
+By default, all specialists produce structured JSON output via the `SpecialistOutput` Pydantic model:
+
+```python
+class SpecialistOutput(BaseModel):
+    summary: str           # Brief summary of what was accomplished
+    key_findings: list[str]  # Most important discoveries
+    open_questions: list[str]  # Questions needing answers
+    delegation_notes: str    # Context for follow-up (IDs, partial results)
+```
+
+Specialists with domain-specific schemas (e.g., `EVMMetricsRead`, `ImpactAnalysisResponse`, `ForecastRead`) use their own schemas instead. The `briefing_compiler.parse_and_clean()` function handles both JSON and plain text formats — it tries JSON parsing first and falls back to regex-based section extraction.
 
 #### EVM Analyst's Tools (4 tools)
 
@@ -345,7 +347,7 @@ get_temporal_context, global_search, get_project_analysis, get_project_forecast
 
 #### EVM Analyst Executes
 
-The specialist calls `get_project_analysis` which returns all EVM metrics. It produces a structured output with Key Findings, Open Questions, and Delegation Notes.
+The specialist calls `get_project_analysis` which returns all EVM metrics. It produces a structured `SpecialistOutput` (or `EVMMetricsRead`) with its findings.
 
 #### PLAN_UPDATE Events
 
@@ -384,23 +386,10 @@ You create diagrams to illustrate project structures, workflows, hierarchies, an
 Output Mermaid diagrams DIRECTLY in markdown code blocks. Do NOT call any diagram-generation tool.
 The user's frontend renders ```mermaid code blocks automatically as SVG diagrams.
 
-## Supported Diagram Types
-- flowchart / graph: Process flows, decision trees, hierarchies
-- sequencediagram: Interactions between actors over time
-
 ## Guidelines
 - Use data from tools (global_search, get_temporal_context) to build accurate diagrams
 - Keep diagrams focused and readable — max 15 nodes
 - Always include a brief text explanation before each diagram
-
-## SCOPE
-Focus only on your specialist domain. Execute ONLY the task described in
-your assignment.
-
-## OUTPUT FORMAT
-- ## Key Findings
-- ## Open Questions
-- ## Delegation Notes
 ```
 
 #### Visualization Specialist's Tools (2 tools)
@@ -409,7 +398,7 @@ your assignment.
 get_temporal_context, global_search
 ```
 
-The specialist produces Mermaid diagrams and text explanations. Another PLAN_UPDATE is emitted (`steps[1].status = "completed"`).
+The specialist produces Mermaid diagrams and text explanations as a structured `SpecialistOutput` (diagrams go in the `summary` field). Another PLAN_UPDATE is emitted (`steps[1].status = "completed"`).
 
 ### Step 7: `supervisor_node` (Final Turn)
 
@@ -422,9 +411,126 @@ The final briefing contains sections from both specialists. The frontend renders
 
 ---
 
+## 3b. Step-by-Step Walkthrough (Example 2: Tavily Web Search via MCP)
+
+This example traces a request that uses the `mcp_specialist` to perform an external web search via Tavily, then correlates results with project data.
+
+**Example prompt:** _"Search the web for recent EU construction cost regulations and summarize how they might affect our active projects"_
+
+### Step 1: `initialize_briefing_node`
+
+Creates a `BriefingDocument` with the request. No findings yet.
+
+### Step 2: `planner_node`
+
+The planner LLM produces a 2-step plan:
+
+```json
+{
+  "requires_planning": true,
+  "estimated_complexity": "moderate",
+  "steps": [
+    {
+      "step_index": 0,
+      "specialist": "mcp_specialist",
+      "task_description": "Search the web for recent EU construction cost regulations using Tavily search",
+      "dependencies": [],
+      "expected_output": "Summary of recent EU regulations affecting construction costs"
+    },
+    {
+      "step_index": 1,
+      "specialist": "project_manager",
+      "task_description": "List active projects and assess which ones might be affected by the EU regulations found",
+      "dependencies": [0],
+      "expected_output": "Project impact assessment"
+    }
+  ]
+}
+```
+
+### Step 3: `supervisor_node` (First Turn)
+
+Delegates step 0 to `mcp_specialist`:
+
+```
+handoff_to_mcp_specialist(
+    task_description="Search the web for recent EU construction cost regulations...",
+    step_index=0
+)
+```
+
+### Step 4: `specialist_wrapper_node` (MCP Specialist)
+
+The MCP specialist is unique: it has **no regular tools** (`allowed_tools=None`). Instead, it receives MCP tools dynamically injected by category prefix (`AI_MCP_TOOL_CATEGORY_PREFIX="mcp:"`).
+
+#### MCP Tool Injection
+
+When the graph is compiled, any tools whose name starts with `mcp:` are added to the MCP specialist's tool pool. For example, if a Tavily MCP server is configured, the specialist receives tools like:
+
+```
+mcp:tavily_search    — Search the web for information
+mcp:tavily_extract   — Extract content from URLs
+```
+
+These MCP tools are:
+- Discovered dynamically from configured MCP servers (`mcp/client_manager.py`)
+- Wrapped with Backcast RBAC (`mcp/tool_metadata.py`)
+- Injected into the MCP specialist's tool pool by category prefix
+
+#### MCP Specialist Executes
+
+The specialist calls `mcp:tavily_search` with an appropriate query:
+
+```python
+mcp:tavily_search(query="EU construction cost regulations 2026 changes")
+```
+
+The tool returns search results. The specialist summarizes the findings and produces a `SpecialistOutput`:
+
+```json
+{
+  "summary": "Found 3 relevant EU regulation updates affecting construction costs...",
+  "key_findings": [
+    "EU Regulation 2026/XXX increases mandatory safety budget allocation by 5%",
+    "New carbon accounting requirements effective Q3 2026",
+    "Updated labor cost benchmarks for EU member states"
+  ],
+  "open_questions": ["Exact implementation timeline for carbon accounting"],
+  "delegation_notes": "Regulation details stored for project correlation"
+}
+```
+
+PLAN_UPDATE emitted: step 0 → completed.
+
+### Step 5: `supervisor_node` (Second Turn)
+
+Reads the updated briefing (now contains MCP specialist findings about EU regulations). Delegates step 1 to `project_manager`:
+
+```
+handoff_to_project_manager(
+    task_description="List active projects and assess which might be affected by EU regulations...",
+    step_index=1
+)
+```
+
+### Step 6: `specialist_wrapper_node` (Project Manager)
+
+The project manager specialist:
+1. Calls `list_projects` to get all active projects
+2. Correlates project locations and budgets with the EU regulation findings
+3. Produces a structured impact assessment
+
+PLAN_UPDATE emitted: step 1 → completed.
+
+### Step 7: `supervisor_node` (Final Turn)
+
+Both steps complete. Routes to END. The final briefing contains the web search findings and the project impact assessment.
+
+---
+
 ## 4. Context Manipulation Points
 
-The system has exactly **3** context modification points:
+The system has exactly **2** context modification points:
 
 ### 4.1 Briefing Injection (every supervisor turn)
 
@@ -442,22 +548,11 @@ The system has exactly **3** context modification points:
 **Why:** Prevents DeepSeek from silently truncating context and losing the plan
 **Guard:** Won't trigger on early turns (< 8 messages) to avoid false positives from tool schemas
 
-### 4.3 Specialist Scope Suffix (every specialist invocation)
+### 4.3 Structured Output (every specialist invocation)
 
-**Where:** `subagent_compiler.py` → `_SPECIALIST_SCOPE_SUFFIX`
-**What:** Appends boundary and output format instructions to every specialist's system prompt
-```
-## SCOPE
-Focus only on your specialist domain. Execute ONLY the task described in
-your assignment — do not attempt other parts of the user's request.
-
-## OUTPUT FORMAT
-After tool calls, write your findings with these sections:
-- ## Key Findings
-- ## Open Questions
-- ## Delegation Notes
-```
-**Why:** Prevents specialists from trying to do work outside their domain
+**Where:** `schemas.py` → `SpecialistOutput`, `subagent_compiler.py`
+**What:** All specialists default to producing structured JSON via the `SpecialistOutput` Pydantic model. The output includes `summary`, `key_findings`, `open_questions`, and `delegation_notes`. Domain-specific specialists can override with their own schema (e.g., `EVMMetricsRead`).
+**Why:** Ensures consistent, parseable output from all specialists. The briefing compiler (`parse_and_clean()`) handles both JSON and plain text formats.
 
 ---
 
@@ -466,10 +561,9 @@ After tool calls, write your findings with these sections:
 ### Planner Rules
 | Rule | Source | Effect |
 |---|---|---|
-| Fast-path keywords | `planner.py` `_FAST_KEYWORD_MAP` | Skip LLM call for obvious single-domain requests |
-| Multi-domain = no fast-path | `planner.py` `_try_fast_path()` | If ≥2 specialists matched, fall through to LLM |
+| Dynamic specialist list | `planner.py` `build_planner_system_prompt()` | Specialist catalog built from compiled graphs, not hardcoded |
 | Max 5 plan steps | Planner system prompt | Hard limit in prompt instructions |
-| `AI_PLANNER_FAST_PATH` env var | `config.py` | Can disable fast-path entirely |
+| LLM always called | `planner.py` `planner_node()` | Every request goes through LLM planning (no fast-path shortcut) |
 
 ### Supervisor Rules
 | Rule | Source | Effect |
@@ -479,15 +573,16 @@ After tool calls, write your findings with these sections:
 | Don't repeat specialists | Supervisor prompt | Won't hand off to same specialist twice |
 | Don't summarize briefing | Supervisor prompt | Briefing shown to user directly |
 | Check briefing before delegating | Supervisor prompt | Read first, delegate second |
+| Configurable prompt | `AIAssistantConfig.system_prompt` | Custom supervisor prompt via AI Assistant page |
+| Dynamic specialist section | `_build_supervisor_specialist_section()` | Always appended to any prompt (custom or default) |
 
 ### Specialist Rules
 | Rule | Source | Effect |
 |---|---|---|
-| Scoped to assigned task | `_SPECIALIST_SCOPE_SUFFIX` | Don't attempt other parts of the request |
-| Structured output format | `_SPECIALIST_SCOPE_SUFFIX` | Key Findings / Open Questions / Delegation Notes |
+| Structured output | `schemas.py` `SpecialistOutput` | All specialists produce structured JSON by default |
 | Tool filtering | `subagent_compiler.py` | Only get their allowed_tools |
 | RBAC filtering | `backcast_security.py` | Tools filtered by user role |
-| Sequential tool calls | `sequential_tool_calls.py` | One tool at a time |
+| Sequential tool calls | `sequential_tool_calls.py` | One tool at a time (configurable via `AI_SEQUENTIAL_TOOL_CALLS`) |
 
 ### Context Guard Rules
 | Rule | Source | Effect |
@@ -512,7 +607,7 @@ When the graph is compiled, tools go through 4 layers:
 ```
 
 Per-specialist convention (defined in `subagent_compiler.py`):
-- `allowed_tools = None` → **no tools** (mcp_specialist)
+- `allowed_tools = None` → **no tools** (mcp_specialist — receives MCP tools dynamically)
 - `allowed_tools = ["*"]` → **all tools** (general_purpose)
 - `allowed_tools = ["t1", "t2", ...]` → **only those tools**
 
@@ -525,8 +620,8 @@ Per-specialist convention (defined in `subagent_compiler.py`):
 | `AI_CONTEXT_TOKEN_LIMIT` | 50000 | Max tokens before context guard trims |
 | `AI_CONTEXT_SUMMARY_THRESHOLD_PCT` | 80 | % threshold to trigger trimming |
 | `AI_CONTEXT_KEEP_RECENT` | 4 | Messages to keep unsummarized |
-| `AI_PLANNER_FAST_PATH` | true | Enable/disable keyword-based planner shortcut |
 | `AI_DELEGATION_ENFORCED` | true | Strip supervisor tools when plan exists |
+| `AI_SEQUENTIAL_TOOL_CALLS` | true | Enforce one tool call at a time (set false for parallel) |
 | `AI_MCP_TOOL_CATEGORY_PREFIX` | "mcp:" | Category prefix for MCP tool identification |
 | `AI_TOOLS_{SPECIALIST}` | (hardcoded) | Override specialist tool lists per deployment |
 
@@ -536,13 +631,17 @@ Per-specialist convention (defined in `subagent_compiler.py`):
 
 | File | Purpose |
 |---|---|
-| `backend/app/ai/supervisor_orchestrator.py` | Graph construction, supervisor node, routing |
-| `backend/app/ai/planner.py` | Request planning, fast-path, PlanDocument creation |
-| `backend/app/ai/handoff_tools.py` | Handoff tool creation, specialist wrapper, PLAN_UPDATE events |
-| `backend/app/ai/subagents/__init__.py` | Specialist configs (prompts, tool lists) |
-| `backend/app/ai/subagent_compiler.py` | Specialist compilation, tool filtering, scope suffix |
+| `backend/app/ai/supervisor_orchestrator.py` | Graph construction, supervisor node, routing, specialist wrappers |
+| `backend/app/ai/planner.py` | Request planning, dynamic specialist catalog, PlanDocument creation |
+| `backend/app/ai/handoff_tools.py` | Handoff tool creation, specialist routing |
+| `backend/app/ai/subagents/__init__.py` | Hardcoded specialist configs (prompts, tool lists) |
+| `backend/app/ai/subagents/db_loader.py` | Load specialist configs from DB with TTL caching |
+| `backend/app/ai/subagent_compiler.py` | Specialist compilation, tool filtering, middleware setup |
+| `backend/app/ai/schemas.py` | `SpecialistOutput` structured output model |
 | `backend/app/ai/config.py` | All AI_* env constants |
-| `backend/app/ai/briefing.py` | BriefingDocument model, to_markdown, to_scoped_markdown |
+| `backend/app/ai/briefing.py` | BriefingDocument model, to_markdown |
+| `backend/app/ai/briefing_compiler.py` | parse_and_clean (JSON + regex), compile_specialist_output |
+| `backend/app/ai/plan.py` | PlanDocument, PlanStep models, VALID_SPECIALISTS |
 | `backend/app/ai/middleware/context_guard.py` | Context trimming with chain repair |
 | `backend/app/ai/middleware/backcast_security.py` | RBAC + risk-based tool filtering |
 | `backend/app/ai/agent_service.py` | Graph execution entry point, event emission |
