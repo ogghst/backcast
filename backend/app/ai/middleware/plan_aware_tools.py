@@ -9,6 +9,9 @@ request so the LLM never sees them.
 Additionally injects a strong delegation-only instruction into the system
 prompt so the LLM understands it MUST delegate every step.
 
+As a safety net, response post-filtering strips any tool calls for disallowed
+tools that the LLM may hallucinate despite the pre-filtered tool list.
+
 If no plan exists (simple request or single-step fallback), all tools pass
 through unchanged.
 """
@@ -19,7 +22,7 @@ import logging
 from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware, ModelRequest
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import BaseTool
 
 from app.ai.config import AI_DELEGATION_ENFORCED
@@ -55,6 +58,18 @@ def _has_active_plan(state: dict[str, Any]) -> bool:
     return bool(plan.requires_planning and plan.steps)
 
 
+def _allowed_tool_names(
+    tools: list[BaseTool | dict[str, Any]],
+) -> set[str]:
+    """Return the set of tool names that match the allowed prefixes."""
+    names: set[str] = set()
+    for t in tools:
+        name = t.name if isinstance(t, BaseTool) else str(t.get("name", ""))
+        if any(name.startswith(prefix) for prefix in _ALLOWED_PREFIXES):
+            names.add(name)
+    return names
+
+
 def _filter_tools_for_plan(
     tools: list[BaseTool | dict[str, Any]],
 ) -> list[BaseTool | dict[str, Any]]:
@@ -67,16 +82,58 @@ def _filter_tools_for_plan(
     return kept
 
 
+def _strip_disallowed_tool_calls(
+    ai_message: AIMessage,
+    allowed_names: set[str],
+) -> AIMessage:
+    """Remove tool_calls for tools not in *allowed_names*.
+
+    If all tool_calls are stripped the returned message has ``tool_calls=[]``
+    so the agent loop exits naturally.
+    """
+    if not ai_message.tool_calls:
+        return ai_message
+
+    filtered_calls = [
+        tc for tc in ai_message.tool_calls if tc.get("name", "") in allowed_names
+    ]
+
+    if len(filtered_calls) == len(ai_message.tool_calls):
+        return ai_message  # nothing to strip
+
+    removed_names = [
+        tc.get("name", "?")
+        for tc in ai_message.tool_calls
+        if tc not in filtered_calls
+    ]
+    logger.warning(
+        "[PLAN_AWARE_TOOLS] Post-filter: stripped %d disallowed tool_call(s) "
+        "from LLM response (removed: %s, allowed: %s)",
+        len(ai_message.tool_calls) - len(filtered_calls),
+        removed_names,
+        allowed_names,
+    )
+
+    # Build a new AIMessage keeping content and metadata but with filtered tool_calls
+    return AIMessage(
+        content=ai_message.content,
+        tool_calls=filtered_calls,
+        additional_kwargs=ai_message.additional_kwargs,
+    )
+
+
 class PlanAwareToolMiddleware(AgentMiddleware):
     """Restrict supervisor tools to delegation-only when a plan is active.
 
     Inspects ``request.state["plan_data"]`` on every model call.  When a
     multi-step plan exists:
 
-    1. Filters the tool list to only briefing and handoff tools so the LLM
+    1. Pre-filters the tool list to only briefing and handoff tools so the LLM
        cannot bypass specialist delegation.
     2. Appends a strong delegation-only instruction to the system prompt
        so the LLM understands it MUST delegate every step.
+    3. Post-filters the LLM response to strip any tool_calls for disallowed
+       tools (safety net for hallucinated tool calls).
     """
 
     async def awrap_model_call(
@@ -120,6 +177,20 @@ class PlanAwareToolMiddleware(AgentMiddleware):
                 request = request.override(
                     system_message=SystemMessage(content=new_prompt),
                 )
+
+            # --- Execute model with pre-filtered tools ---
+            response = await handler(request)
+
+            # --- Post-filter: strip hallucinated disallowed tool calls ---
+            allowed = _allowed_tool_names(filtered)
+            if allowed and isinstance(response.result, list) and response.result:
+                first_msg = response.result[0]
+                if isinstance(first_msg, AIMessage) and first_msg.tool_calls:
+                    cleaned = _strip_disallowed_tool_calls(first_msg, allowed)
+                    if cleaned is not first_msg:
+                        response.result[0] = cleaned
+
+            return response
 
         return await handler(request)
 

@@ -101,18 +101,21 @@ AI_CONTEXT_SUMMARY_THRESHOLD_PCT: int = int(
 #: Number of recent messages to keep unsummarized at the head of context.
 AI_CONTEXT_KEEP_RECENT: int = int(os.environ.get("AI_CONTEXT_KEEP_RECENT", "8"))
 
-#: Enable the planner fast-path heuristic (keyword-based single-specialist
-#: routing that skips the planner LLM call).
-AI_PLANNER_FAST_PATH: bool = os.environ.get("AI_PLANNER_FAST_PATH", "true").lower() in (
+#: When a multi-step plan exists, strip ALL domain tools from the supervisor
+#: and force delegation via handoff tools only.
+AI_DELEGATION_ENFORCED: bool = os.environ.get(
+    "AI_DELEGATION_ENFORCED", "true"
+).lower() in (
     "true",
     "1",
     "yes",
 )
 
-#: When a multi-step plan exists, strip ALL domain tools from the supervisor
-#: and force delegation via handoff tools only.
-AI_DELEGATION_ENFORCED: bool = os.environ.get(
-    "AI_DELEGATION_ENFORCED", "true"
+#: When true, enforce sequential tool execution (one tool call at a time).
+#: Prevents DB pool exhaustion and race conditions from concurrent tool calls.
+#: Set to false to allow parallel tool execution.
+AI_SEQUENTIAL_TOOL_CALLS: bool = os.environ.get(
+    "AI_SEQUENTIAL_TOOL_CALLS", "true"
 ).lower() in (
     "true",
     "1",
@@ -130,7 +133,7 @@ __all__ = [
     "AI_CONTEXT_TOKEN_LIMIT",
     "AI_CONTEXT_SUMMARY_THRESHOLD_PCT",
     "AI_CONTEXT_KEEP_RECENT",
-    "AI_PLANNER_FAST_PATH",
     "AI_DELEGATION_ENFORCED",
+    "AI_SEQUENTIAL_TOOL_CALLS",
     "AI_MCP_TOOL_CATEGORY_PREFIX",
 ]

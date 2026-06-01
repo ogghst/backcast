@@ -18,136 +18,36 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.ai.config import AI_PLANNER_FAST_PATH
 from app.ai.plan import VALID_SPECIALISTS, PlanDocument, PlanStep
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Fast-path heuristic: keyword → specialist mapping for simple single-domain
-# requests.  Only fires when the message is short (<100 chars) AND contains
-# a clear domain keyword.  Falls through to the full LLM planner otherwise.
-# ---------------------------------------------------------------------------
 
-_FAST_PATH_MAX_LENGTH = 100
-
-_FAST_KEYWORD_MAP: dict[str, str] = {
-    "budget": "project_manager",
-    "cost": "project_manager",
-    "project": "project_manager",
-    "wbs": "project_manager",
-    "progress": "project_manager",
-    "evm": "evm_analyst",
-    "cpi": "evm_analyst",
-    "spi": "evm_analyst",
-    "performance": "evm_analyst",
-    "earned value": "evm_analyst",
-    "variance": "evm_analyst",
-    "change order": "change_order_manager",
-    "approval": "change_order_manager",
-    "co ": "change_order_manager",
-    "user": "user_admin",
-    "department": "user_admin",
-    "team": "user_admin",
-    "diagram": "visualization_specialist",
-    "chart": "visualization_specialist",
-    "visualization": "visualization_specialist",
-    "graph": "visualization_specialist",
-    "forecast": "forecast_manager",
-    "prediction": "forecast_manager",
-    "timeline": "forecast_manager",
-    "schedule": "forecast_manager",
-}
-
-
-def _try_fast_path(user_request: str) -> PlanDocument | None:
-    """Return a single-step PlanDocument if the request is a clear single-domain ask.
-
-    Heuristic rules:
-    * Message must be shorter than ``_FAST_PATH_MAX_LENGTH`` characters.
-    * Message must contain at least one keyword from ``_FAST_KEYWORD_MAP``.
-    * The first matched keyword determines the specialist.
-    * Only one specialist may be matched (no cross-domain heuristic).
-
-    Returns ``None`` when the heuristic does not match, signalling the caller
-    to proceed with the full LLM planner.
-    """
-    if len(user_request) >= _FAST_PATH_MAX_LENGTH:
-        return None
-
-    lowered = user_request.lower()
-    matched_specialist: str | None = None
-
-    for keyword, specialist in _FAST_KEYWORD_MAP.items():
-        if keyword in lowered:
-            if matched_specialist is not None and specialist != matched_specialist:
-                # Multiple domains detected — too ambiguous for fast path.
-                return None
-            matched_specialist = specialist
-
-    if matched_specialist is None:
-        return None
-
-    if matched_specialist not in VALID_SPECIALISTS:
-        return None
-
-    logger.info(
-        "[PLANNER] Fast path: matched specialist=%s for request",
-        matched_specialist,
-    )
-
-    return PlanDocument(
-        original_request=user_request,
-        steps=[
-            PlanStep(
-                step_index=0,
-                specialist=matched_specialist,
-                task_description=user_request,
-                dependencies=[],
-                expected_output="Address the user's request",
-            )
-        ],
-        estimated_complexity="simple",
-        requires_planning=False,
-    )
-
-
-PLANNER_SYSTEM_PROMPT = """\
+_PLANNER_PROMPT_TEMPLATE = """\
 You are a request planner for the Backcast project budget management system.
 
 Analyze the user's request and decide whether it needs multi-step execution \
 or can be handled by a single specialist.
 
-## Available Specialists
-
-- project_manager: Project CRUD, WBS elements, cost elements, cost tracking, \
-progress entries
-- evm_analyst: Earned Value Management calculations, performance indices, \
-variance analysis
-- change_order_manager: Change orders, impact analysis, branch operations
-- user_admin: User accounts, departments, role management
-- visualization_specialist: Charts, diagrams, visual representations
-- forecast_manager: Forecasts, schedule baselines, projection models
-- mcp_specialist: External tools via MCP servers (web search, database queries)
-- general_purpose: Unclear or cross-cutting requests that don't fit one domain
+{specialist_section}
 
 ## Your Task
 
 Return a JSON object with this structure:
-{
+{{
   "original_request": "<the user's request>",
   "requires_planning": true/false,
   "estimated_complexity": "simple" | "moderate" | "complex",
   "steps": [
-    {
+    {{
       "step_index": 0,
       "specialist": "<specialist_name>",
       "task_description": "<focused description of what this step should do>",
       "dependencies": [],
       "expected_output": "<what this step should produce>"
-    }
+    }}
   ]
-}
+}}
 
 ## Decision Guide
 
@@ -173,6 +73,47 @@ Multi-step (requires_planning=true, ordered steps with dependencies):
 - Maximum 5 steps
 - Return ONLY valid JSON, no markdown fences, no commentary
 """
+
+_DEFAULT_SPECIALIST_CATALOG: list[dict[str, str]] = [
+    {"name": "project_manager", "description": "Project CRUD, WBS elements, cost elements, cost tracking, progress entries"},
+    {"name": "evm_analyst", "description": "Earned Value Management calculations, performance indices, variance analysis"},
+    {"name": "change_order_manager", "description": "Change orders, impact analysis, branch operations"},
+    {"name": "user_admin", "description": "User accounts, departments, role management"},
+    {"name": "visualization_specialist", "description": "Charts, diagrams, visual representations"},
+    {"name": "forecast_manager", "description": "Forecasts, schedule baselines, projection models"},
+    {"name": "mcp_specialist", "description": "External tools via MCP servers (web search, database queries)"},
+    {"name": "general_purpose", "description": "Unclear or cross-cutting requests that don't fit one domain"},
+]
+
+
+def _build_specialist_section(catalog: list[dict[str, str]]) -> str:
+    """Build the ## Available Specialists section from a catalog."""
+    lines = ["## Available Specialists", ""]
+    for entry in catalog:
+        lines.append(f"- {entry['name']}: {entry['description']}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def build_planner_system_prompt(
+    specialist_catalog: list[dict[str, str]] | None = None,
+) -> str:
+    """Build the planner system prompt with a dynamic specialist list.
+
+    Args:
+        specialist_catalog: Optional list of dicts with ``name`` and
+            ``description`` keys.  Falls back to the hardcoded default.
+
+    Returns:
+        Complete planner system prompt string.
+    """
+    catalog = specialist_catalog or _DEFAULT_SPECIALIST_CATALOG
+    specialist_section = _build_specialist_section(catalog)
+    return _PLANNER_PROMPT_TEMPLATE.format(specialist_section=specialist_section)
+
+
+# Backward-compatible alias
+PLANNER_SYSTEM_PROMPT = build_planner_system_prompt()
 
 
 def _build_planner_prompt(
@@ -317,6 +258,7 @@ def _extract_user_request(messages: list[Any]) -> str:
 async def planner_node(
     state: dict[str, Any],
     llm: BaseChatModel,
+    specialist_catalog: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """LangGraph planner node that decomposes requests into structured steps.
 
@@ -326,6 +268,8 @@ async def planner_node(
     Args:
         state: Current BackcastSupervisorState dict.
         llm: LangChain chat model for the planning call.
+        specialist_catalog: Optional specialist catalog for dynamic prompts.
+            Each entry must have ``name`` and ``description`` keys.
 
     Returns:
         State update dict with ``plan_data`` field containing the
@@ -338,18 +282,6 @@ async def planner_node(
         logger.warning("[PLANNER] No user request found, using fallback plan")
         plan = _fallback_plan("(no request)")
         return {"plan_data": plan.model_dump()}
-
-    # --- Fast path: skip LLM for obvious single-domain requests ---
-    if AI_PLANNER_FAST_PATH:
-        fast_plan = _try_fast_path(user_request)
-        if fast_plan is not None:
-            logger.info(
-                "[PLANNER] Plan created (fast path): specialist=%s",
-                fast_plan.steps[0].specialist,
-            )
-            return {"plan_data": fast_plan.model_dump()}
-    else:
-        logger.info("Planner fast path disabled via AI_PLANNER_FAST_PATH=false")
 
     # Extract briefing context for follow-up messages
     briefing_context: str | None = None
@@ -366,7 +298,7 @@ async def planner_node(
     try:
         response = await llm.ainvoke(
             [
-                SystemMessage(content=PLANNER_SYSTEM_PROMPT),
+                SystemMessage(content=build_planner_system_prompt(specialist_catalog)),
                 HumanMessage(content=prompt),
             ]
         )
@@ -388,4 +320,4 @@ async def planner_node(
     return {"plan_data": plan.model_dump()}
 
 
-__all__ = ["PLANNER_SYSTEM_PROMPT", "planner_node", "_try_fast_path"]
+__all__ = ["PLANNER_SYSTEM_PROMPT", "build_planner_system_prompt", "planner_node"]

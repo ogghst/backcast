@@ -76,16 +76,6 @@ Before delegating, review the execution plan in the state (injected as context).
 - If a step fails, decide whether to skip it or retry with a different approach
 - For simple single-step plans, delegate normally (current behavior)
 
-## Available Specialists
-- project_manager -> Project CRUD, WBEs, cost elements, cost tracking, progress entries
-- evm_analyst -> EVM calculations, performance analysis
-- change_order_manager -> Change orders, impact analysis
-- user_admin -> User and department management
-- visualization_specialist -> Diagrams, visualizations
-- forecast_manager -> Forecasts, schedule baselines
-- mcp_specialist -> External tools via MCP servers (web search, database, etc.)
-- general_purpose -> Unclear or cross-cutting requests
-
 ## Rules
 - Do NOT write a response summarizing the briefing — the user reads the briefing directly
 - Only respond if you need to ask the user a clarification question
@@ -106,11 +96,26 @@ When a multi-step execution plan is active:
 - If you are unsure what to do, call get_briefing first, then delegate the next step
 """
 
-BRIEFING_ROOM_SUPERVISOR_PROMPT = (
-    _BASE_SUPERVISOR_PROMPT + _DELEGATION_ENFORCED_SECTION
-    if AI_DELEGATION_ENFORCED
-    else _BASE_SUPERVISOR_PROMPT
-)
+def _build_supervisor_specialist_section(
+    specialist_graphs: list[dict[str, Any]],
+) -> str:
+    """Build the ## Available Specialists section for the supervisor prompt.
+
+    Args:
+        specialist_graphs: Compiled specialist dicts with ``name`` and
+            ``description`` keys.
+
+    Returns:
+        Specialist list formatted for the supervisor prompt, ready to append.
+    """
+    lines = ["\n\n## Available Specialists"]
+    for sg in specialist_graphs:
+        name = sg.get("name", "")
+        desc = sg.get("description", "")
+        short_desc = desc.split(".")[0] if desc else name
+        lines.append(f"- {name} -> {short_desc}")
+    return "\n".join(lines)
+
 
 _BRIEFING_HANDOFF_SUFFIX = (
     "You do NOT have direct access to Backcast tools. "
@@ -291,7 +296,7 @@ class SupervisorOrchestrator:
 
         # --- 3. Build supervisor tools ---
         get_briefing_tool = _create_get_briefing_tool()
-        handoff_tools = create_all_handoff_tools(subagent_configs)
+        handoff_tools = create_all_handoff_tools(specialist_graphs)
         supervisor_tools: list[BaseTool] = [get_briefing_tool] + list(handoff_tools)
 
         direct_tool_names: list[str] = []
@@ -309,7 +314,17 @@ class SupervisorOrchestrator:
             supervisor_tools.extend(direct_tools)
 
         # --- 4. Build supervisor agent ---
-        base_prompt = self.system_prompt or BRIEFING_ROOM_SUPERVISOR_PROMPT
+        base_prompt = self.system_prompt or _BASE_SUPERVISOR_PROMPT
+
+        # Append delegation enforcement section if configured
+        if AI_DELEGATION_ENFORCED:
+            base_prompt += _DELEGATION_ENFORCED_SECTION
+
+        # Append dynamic specialist section
+        specialist_section = _build_supervisor_specialist_section(specialist_graphs)
+        supervisor_prompt = base_prompt + specialist_section
+
+        # Append direct-tools or handoff suffix
         if direct_tools:
             tool_names = ", ".join(t.name for t in direct_tools)
             direct_tools_suffix = (
@@ -318,9 +333,9 @@ class SupervisorOrchestrator:
                 "ALL other Backcast operations must be delegated to specialists "
                 "via handoff tools."
             )
-            supervisor_prompt = base_prompt + direct_tools_suffix
+            supervisor_prompt += direct_tools_suffix
         else:
-            supervisor_prompt = base_prompt + _BRIEFING_HANDOFF_SUFFIX
+            supervisor_prompt += "\n\n" + _BRIEFING_HANDOFF_SUFFIX
 
         supervisor_agent = langchain_create_agent(
             model=self.model,
@@ -371,6 +386,11 @@ class SupervisorOrchestrator:
             return _briefing_update(doc)
 
         # --- 6b. Build the planner node ---
+        specialist_catalog = [
+            {"name": sg["name"], "description": sg["description"]}
+            for sg in specialist_graphs
+        ]
+
         async def planner_node_fn(
             state: BackcastSupervisorState,
         ) -> dict[str, Any]:
@@ -378,7 +398,9 @@ class SupervisorOrchestrator:
                 "model must be resolved to BaseChatModel"
             )
             try:
-                result = await planner_node(dict(state), self.model)
+                result = await planner_node(
+                    dict(state), self.model, specialist_catalog=specialist_catalog
+                )
                 plan_data = result.get("plan_data")
                 if plan_data:
                     plan = PlanDocument.from_state(plan_data)
@@ -617,22 +639,18 @@ class SupervisorOrchestrator:
                             lines.append(
                                 f"- Step {dep_idx} result: {dep_step.result_summary}"
                             )
+                lines.append("")
+                lines.append(
+                    "Use the get_briefing tool to review prior specialist findings "
+                    "if needed for context."
+                )
                 assignment_block = "\n".join(lines)
             else:
                 assignment_block = f"## Your Assignment\n\n{task_desc}"
                 if rationale:
                     assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
 
-            # Scope briefing to relevant steps only when plan-driven
-            if doc and active_step is not None:
-                relevant_indices = {active_step.step_index} | set(
-                    active_step.dependencies
-                )
-                briefing_markdown = doc.to_scoped_markdown(relevant_indices)
-            elif doc:
-                briefing_markdown = doc.to_markdown()
-            else:
-                briefing_markdown = ""
+            briefing_markdown = doc.to_markdown() if doc else ""
             isolated_messages = [
                 HumanMessage(
                     content=f"{assignment_block}\n\n## Briefing\n\n{briefing_markdown}"
@@ -776,7 +794,9 @@ class SupervisorOrchestrator:
     ) -> Any:
         """Build a simple agent with direct tool access (no specialists)."""
         logger.info("Building fallback graph with direct tool access")
-        base_prompt = self.system_prompt or BRIEFING_ROOM_SUPERVISOR_PROMPT
+        base_prompt = self.system_prompt or _BASE_SUPERVISOR_PROMPT
+        if AI_DELEGATION_ENFORCED:
+            base_prompt += _DELEGATION_ENFORCED_SECTION
         return langchain_create_agent(
             model=self.model,
             tools=all_tools,

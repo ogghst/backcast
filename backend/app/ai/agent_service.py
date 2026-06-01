@@ -98,7 +98,7 @@ from sqlalchemy import func as sa_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.config import AgentConfig
+from app.ai.config import AI_SEQUENTIAL_TOOL_CALLS, AgentConfig
 from app.ai.event_types import (
     TOOL_NAME_TASK,
     TOOL_NAME_WRITE_TODOS,
@@ -167,7 +167,8 @@ _tracer_provider = initialize_telemetry(
 
 # Defense-in-depth: ensure all ToolNode instances (including specialist
 # subgraphs created via langchain_create_agent) execute tools sequentially
-patch_tool_node_for_sequential_execution()
+if AI_SEQUENTIAL_TOOL_CALLS:
+    patch_tool_node_for_sequential_execution()
 
 # NOTE: DeepSeek reasoning_content handling is now provided natively by
 # langchain-deepseek package (ChatDeepSeek class). No monkey-patches needed.
@@ -1057,9 +1058,8 @@ class AgentService:
         # LangGraph emits on_chain_start twice per specialist
         # (outer node + inner graph) -- deduplicate via last_entered_agent.
         if state.last_entered_agent == chain_name:
-            pass
-        else:
-            state.flush_tokens(state.current_invocation_id or state.main_invocation_id)
+            return  # duplicate inner-graph event — skip to prevent double balloon
+        state.flush_tokens(state.current_invocation_id or state.main_invocation_id)
         state.current_subagent_name = chain_name
         state.current_invocation_id = str(uuid.uuid4())
         state.last_entered_agent = chain_name

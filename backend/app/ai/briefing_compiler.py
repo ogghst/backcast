@@ -6,6 +6,7 @@ into a BriefingDocument that accumulates findings across iterations.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -40,16 +41,44 @@ def _extract_bullet_items(text: str) -> list[str]:
 def parse_and_clean(raw_findings: str) -> tuple[str, dict[str, Any]]:
     """Parse structured sections from specialist output and strip them.
 
-    Single-pass replacement for the former ``parse_structured_findings`` +
-    ``_strip_structured_sections``.  Returns ``(cleaned_findings, parsed)``
-    where ``parsed`` has keys ``key_findings``, ``open_questions``,
-    ``delegation_notes`` (each ``None`` or ``list[str]``/``str``).
+    Supports two formats:
+    1. Structured JSON (SpecialistOutput) — preferred
+    2. Plain text with ## Key Findings / ## Open Questions / ## Delegation Notes sections
+
+    Returns ``(cleaned_findings, parsed)`` where ``parsed`` has keys
+    ``key_findings``, ``open_questions``, ``delegation_notes`` (each ``None``
+    or ``list[str]``/``str``).
     """
     parsed: dict[str, Any] = {
         "key_findings": None,
         "open_questions": None,
         "delegation_notes": None,
     }
+
+    # --- Try structured JSON first ---
+    text = raw_findings.strip()
+    # Strip markdown code fences if present
+    if text.startswith("```"):
+        first_newline = text.index("\n") if "\n" in text else len(text)
+        text = text[first_newline + 1 :]
+        if text.endswith("```"):
+            text = text[: -len("```")]
+        text = text.strip()
+
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and "summary" in data:
+            parsed = {
+                "key_findings": data.get("key_findings") or None,
+                "open_questions": data.get("open_questions") or None,
+                "delegation_notes": data.get("delegation_notes") or None,
+            }
+            cleaned = data.get("summary", "")
+            return cleaned, parsed
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # --- Fallback: regex-based section extraction (existing logic) ---
     non_structured: list[str] = []
 
     sections = re.split(r"\n(?=## )", raw_findings)
