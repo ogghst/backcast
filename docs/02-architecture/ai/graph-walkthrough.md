@@ -94,7 +94,7 @@ END ─── When all steps complete or max iterations reached
     "completed_steps": set,         # Step indices that are done
     "current_step_index": int,
     "supervisor_iterations": int,
-    "max_supervisor_iterations": 3,  # Extended to len(plan.steps)+2 when plan exists
+    "max_supervisor_iterations": 3,  # Extended to len(plan.steps)+1 when plan exists
 }
 ```
 
@@ -541,8 +541,8 @@ The system has exactly **2** context modification points:
 ### 4.2 Context Guard (when tokens exceed threshold)
 
 **Where:** `middleware/context_guard.py` → `ContextGuardMiddleware`
-**What:** If estimated tokens > 80% of `AI_CONTEXT_TOKEN_LIMIT` (default 50K) AND there are ≥8 messages:
-  - Keeps system prompt + last 4 messages
+**What:** If estimated tokens > 80% of `AI_CONTEXT_TOKEN_LIMIT` (default 120K) AND there are ≥8 messages:
+  - Keeps system prompt + last 8 messages
   - Replaces middle with a briefing document summary
   - Repairs broken tool_calls → tool response chains
 **Why:** Prevents DeepSeek from silently truncating context and losing the plan
@@ -589,7 +589,7 @@ The system has exactly **2** context modification points:
 |---|---|---|
 | Min 8 messages to trim | `context_guard.py` `_MIN_MESSAGES_TO_TRIM` | Avoid false positives from tool schemas |
 | Skip system prompt in estimate | `context_guard.py` `_estimate_tokens()` | System prompt doesn't grow across turns |
-| Keep last 4 messages | `config.py` `AI_CONTEXT_KEEP_RECENT` | Preserve recent context |
+| Keep last 8 messages | `config.py` `AI_CONTEXT_KEEP_RECENT` | Preserve recent context |
 | Chain repair after trim | `context_guard.py` `_repair_chain()` | Fix orphaned tool messages |
 
 ---
@@ -617,9 +617,9 @@ Per-specialist convention (defined in `subagent_compiler.py`):
 
 | Env Var | Default | What It Controls |
 |---|---|---|
-| `AI_CONTEXT_TOKEN_LIMIT` | 50000 | Max tokens before context guard trims |
+| `AI_CONTEXT_TOKEN_LIMIT` | 120000 | Max tokens before context guard trims |
 | `AI_CONTEXT_SUMMARY_THRESHOLD_PCT` | 80 | % threshold to trigger trimming |
-| `AI_CONTEXT_KEEP_RECENT` | 4 | Messages to keep unsummarized |
+| `AI_CONTEXT_KEEP_RECENT` | 8 | Messages to keep unsummarized |
 | `AI_DELEGATION_ENFORCED` | true | Strip supervisor tools when plan exists |
 | `AI_SEQUENTIAL_TOOL_CALLS` | true | Enforce one tool call at a time (set false for parallel) |
 | `AI_MCP_TOOL_CATEGORY_PREFIX` | "mcp:" | Category prefix for MCP tool identification |
@@ -627,21 +627,244 @@ Per-specialist convention (defined in `subagent_compiler.py`):
 
 ---
 
-## 8. Key Files Reference
+## 8. Prompt Lifecycle Reference
+
+This section traces every prompt in the system from its origin (DB or hardcoded) through retrieval, manipulation, and final injection into the LLM.
+
+### 8.1 Prompt Origins
+
+All prompts fall into one of two categories:
+
+| Source | Where stored | How retrieved | Example |
+|--------|-------------|---------------|---------|
+| **DB-configurable** | `ai_assistant_configs` table | `agent_service.py` loads `AIAssistantConfig` by ID, passes fields to orchestrator | Supervisor base prompt, specialist prompts |
+| **Hardcoded fallback** | Python module constants | Imported directly when DB value is missing | `_BASE_SUPERVISOR_PROMPT`, `_PLANNER_PROMPT_TEMPLATE` |
+
+#### DB Model: `AIAssistantConfig` (`models/domain/ai.py`)
+
+Key prompt-related columns:
+
+| Column | Type | Used for |
+|--------|------|----------|
+| `system_prompt` | `Text \| None` | Base system prompt (supervisor or specialist) |
+| `agent_type` | `String(20)` | `"main"` for supervisor, `"specialist"` for delegated agents |
+| `structured_output_schema` | `String(100) \| None` | FQCN of Pydantic class (e.g., `"app.models.schemas.evm.EVMMetricsRead"`) |
+| `allowed_tools` | `JSONB \| None` | Tool whitelist for specialists |
+| `delegation_config` | `JSONB \| None` | `{direct_tools: [...], allowed_specialists: [...]}` for main agents |
+
+### 8.2 Supervisor Prompt Assembly
+
+**Entry point:** `agent_service.py:535`
+
+```python
+system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+```
+
+The `system_prompt` is passed to `SupervisorOrchestrator(system_prompt=..., main_assistant_config=...)`.
+
+**Assembly in `supervisor_orchestrator.py:317-338`:**
+
+```
+Step 1: Resolve base prompt
+  base_prompt = self.system_prompt or _BASE_SUPERVISOR_PROMPT
+  ├── DB: assistant_config.system_prompt (from AI admin page)
+  └── Fallback: _BASE_SUPERVISOR_PROMPT (hardcoded, line 60)
+
+Step 2: Append delegation enforcement (conditional)
+  if AI_DELEGATION_ENFORCED:
+      base_prompt += _DELEGATION_ENFORCED_SECTION
+  └── Source: env var AI_DELEGATION_ENFORCED (default: true)
+
+Step 3: Append dynamic specialist section (always)
+  specialist_section = _build_supervisor_specialist_section(specialist_graphs)
+  supervisor_prompt = base_prompt + specialist_section
+  └── Source: compiled specialist_graphs (from DB via db_loader.py, or hardcoded fallback)
+
+Step 4: Append tool-access suffix (conditional)
+  if direct_tools from delegation_config:
+      supervisor_prompt += direct_tools_suffix
+  else:
+      supervisor_prompt += _BRIEFING_HANDOFF_SUFFIX
+  └── Source: delegation_config.direct_tools from DB (or hardcoded in subagents/__init__.py)
+```
+
+**Final supervisor prompt structure:**
+
+```
+[Custom DB prompt OR _BASE_SUPERVISOR_PROMPT]
+[_DELEGATION_ENFORCED_SECTION (if env var is true)]
+[## Available Specialists (dynamic from compiled specialists)]
+[Direct-tools suffix OR handoff-only suffix]
+```
+
+### 8.3 Planner Prompt Assembly
+
+**Entry point:** `supervisor_orchestrator.py:389-402`
+
+```python
+specialist_catalog = [
+    {"name": sg["name"], "description": sg["description"]}
+    for sg in specialist_graphs
+]
+result = await planner_node(dict(state), self.model, specialist_catalog=specialist_catalog)
+```
+
+**Assembly in `planner.py:98-112`:**
+
+```
+Step 1: Build specialist section from catalog
+  specialist_section = _build_specialist_section(catalog)
+  └── Source: specialist_catalog passed from orchestrator (dynamic, from compiled specialists)
+  └── Fallback: _DEFAULT_SPECIALIST_CATALOG (hardcoded, line 77)
+
+Step 2: Format into template
+  build_planner_system_prompt(specialist_catalog) →
+    _PLANNER_PROMPT_TEMPLATE.format(specialist_section=specialist_section)
+  └── Source: _PLANNER_PROMPT_TEMPLATE (hardcoded, line 26)
+```
+
+The planner has **no DB-configurable prompt** — its template is always hardcoded. Only the specialist list within it is dynamic.
+
+### 8.4 Specialist Prompt Assembly
+
+**Retrieval path:**
+
+```
+1. DB path (primary):
+   db_loader.py → load_specialists_from_db()
+     ├── Queries: SELECT * FROM ai_assistant_configs WHERE agent_type='specialist' AND is_active=true
+     ├── Maps each row: assistant_config_to_specialist_dict()
+     │     config.system_prompt → dict["system_prompt"]
+     │     config.allowed_tools → dict["allowed_tools"]
+     │     config.structured_output_schema → _resolve_schema() → Python class or None
+     └── Cached with 5-minute TTL (db_loader.py:26)
+
+2. Hardcoded fallback (when DB has no specialists or DB query fails):
+   subagents/__init__.py → get_all_subagents()
+     └── Returns list of hardcoded dicts (PROJECT_MANAGER_SUBAGENT, etc.)
+```
+
+**Compilation in `subagent_compiler.py:95-218`:**
+
+```
+For each specialist config dict:
+  1. system_prompt = cfg.get("system_prompt", "")     ← from DB or hardcoded
+  2. schema = cfg.get("structured_output_schema") or SpecialistOutput  ← DB FQCN resolved or fallback
+  3. langchain_create_agent(
+       system_prompt=system_prompt,    ← injected as-is (no manipulation)
+       response_format=schema,         ← enforces structured JSON output
+       tools=subagent_tools,           ← filtered by allowed_tools + RBAC
+     )
+```
+
+Specialist prompts are **never manipulated after retrieval** — no suffixes, no dynamic sections appended. They are passed directly to `langchain_create_agent()` as the `system_prompt`.
+
+### 8.5 Specialist Assignment Prompt (per-invocation)
+
+**Built dynamically each time** by `_create_specialist_wrapper()` in `supervisor_orchestrator.py:621-656`:
+
+```
+For plan-driven steps:
+  assignment_block = f"## Your Assignment (Plan Step {n}/{total})\n"
+                   + active_step.task_description + "\n"
+                   + f"**Expected output:** {active_step.expected_output}\n"
+                   + dependency context (if any)
+                   + "Use the get_briefing tool to review prior specialist findings if needed for context."
+
+For non-plan steps:
+  assignment_block = f"## Your Assignment\n\n{task_desc}"
+                   + optional supervisor rationale
+
+Final message to specialist:
+  HumanMessage(content=f"{assignment_block}\n\n## Briefing\n\n{briefing_markdown}")
+```
+
+This is a **runtime-constructed prompt** — no DB or hardcoded source. It combines:
+- Plan step data from `PlanDocument` (produced by the planner LLM)
+- Full briefing markdown from `BriefingDocument.to_markdown()`
+
+### 8.6 Prompt Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     SUPERVISOR PROMPT FLOW                         │
+│                                                                     │
+│  ai_assistant_configs (DB)                                          │
+│  ┌────────────────────────┐                                         │
+│  │ system_prompt (TEXT)   │──┐                                      │
+│  │ delegation_config      │  │  agent_service.py:535                │
+│  │   .direct_tools        │  │  system_prompt = config.system_prompt│
+│  │   .allowed_specialists │  │              or DEFAULT_SYSTEM_PROMPT│
+│  └────────────────────────┘──┘                                      │
+│           │                                                         │
+│           ▼                                                         │
+│  supervisor_orchestrator.py:317                                     │
+│  base_prompt = self.system_prompt or _BASE_SUPERVISOR_PROMPT        │
+│           │                                                         │
+│           ▼ += _DELEGATION_ENFORCED_SECTION (if env=true)           │
+│           ▼ += _build_supervisor_specialist_section(specialists)    │
+│           │    └── specialist_graphs from db_loader or hardcoded    │
+│           ▼ += direct_tools_suffix OR _BRIEFING_HANDOFF_SUFFIX      │
+│           │    └── from delegation_config.direct_tools (DB)        │
+│           ▼                                                         │
+│  langchain_create_agent(system_prompt=supervisor_prompt, ...)       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                      PLANNER PROMPT FLOW                            │
+│                                                                     │
+│  _PLANNER_PROMPT_TEMPLATE (hardcoded, planner.py:26)                │
+│           │                                                         │
+│           ▼ .format(specialist_section=...)                         │
+│           │    └── _build_specialist_section(catalog)                │
+│           │         └── catalog from compiled specialist_graphs     │
+│           │              └── db_loader.py or subagents/__init__.py  │
+│           ▼                                                         │
+│  llm.ainvoke([SystemMessage(planner_prompt), HumanMessage(...)])    │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SPECIALIST PROMPT FLOW                            │
+│                                                                     │
+│  ai_assistant_configs (DB, agent_type='specialist')                 │
+│  ┌──────────────────────────────────┐                                │
+│  │ system_prompt                    │──┐                             │
+│  │ allowed_tools                    │  │  db_loader.py               │
+│  │ structured_output_schema (FQCN)  │  │  → specialist config dict   │
+│  └──────────────────────────────────┘──┘  (cached 5 min)            │
+│           │                                                         │
+│           ▼                                                         │
+│  subagent_compiler.py:174                                           │
+│  langchain_create_agent(                                            │
+│    system_prompt=system_prompt,     ← as-is, no manipulation        │
+│    response_format=schema,          ← SpecialistOutput or domain    │
+│  )                                                                  │
+│                                                                     │
+│  ── Per invocation ──                                               │
+│  supervisor_orchestrator.py:654                                     │
+│  HumanMessage(content=assignment_block + briefing_markdown)         │
+│    └── assignment_block built from PlanDocument step + briefing     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Key Files Reference
 
 | File | Purpose |
 |---|---|
-| `backend/app/ai/supervisor_orchestrator.py` | Graph construction, supervisor node, routing, specialist wrappers |
-| `backend/app/ai/planner.py` | Request planning, dynamic specialist catalog, PlanDocument creation |
+| `backend/app/ai/agent_service.py` | Graph execution entry point; loads `AIAssistantConfig` from DB, passes prompts to orchestrator |
+| `backend/app/ai/supervisor_orchestrator.py` | Assembles supervisor prompt (base + sections); graph construction, routing, specialist wrappers |
+| `backend/app/ai/planner.py` | Planner prompt template + dynamic specialist catalog; PlanDocument creation |
+| `backend/app/ai/subagents/__init__.py` | Hardcoded specialist configs (prompts, tool lists, output schemas) — DB fallback |
+| `backend/app/ai/subagents/db_loader.py` | Load specialist prompts + schemas from `ai_assistant_configs` with 5-min TTL cache |
+| `backend/app/ai/subagent_compiler.py` | Compiles specialist dicts into agents; wires `system_prompt` + `response_format` |
+| `backend/app/ai/schemas.py` | `SpecialistOutput` default structured output Pydantic model |
+| `backend/app/ai/config.py` | All `AI_*` env constants |
 | `backend/app/ai/handoff_tools.py` | Handoff tool creation, specialist routing |
-| `backend/app/ai/subagents/__init__.py` | Hardcoded specialist configs (prompts, tool lists) |
-| `backend/app/ai/subagents/db_loader.py` | Load specialist configs from DB with TTL caching |
-| `backend/app/ai/subagent_compiler.py` | Specialist compilation, tool filtering, middleware setup |
-| `backend/app/ai/schemas.py` | `SpecialistOutput` structured output model |
-| `backend/app/ai/config.py` | All AI_* env constants |
-| `backend/app/ai/briefing.py` | BriefingDocument model, to_markdown |
-| `backend/app/ai/briefing_compiler.py` | parse_and_clean (JSON + regex), compile_specialist_output |
-| `backend/app/ai/plan.py` | PlanDocument, PlanStep models, VALID_SPECIALISTS |
+| `backend/app/ai/briefing.py` | BriefingDocument model, `to_markdown()` |
+| `backend/app/ai/briefing_compiler.py` | `parse_and_clean` (JSON + regex), `compile_specialist_output` |
+| `backend/app/ai/plan.py` | PlanDocument, PlanStep models, `VALID_SPECIALISTS` |
 | `backend/app/ai/middleware/context_guard.py` | Context trimming with chain repair |
 | `backend/app/ai/middleware/backcast_security.py` | RBAC + risk-based tool filtering |
-| `backend/app/ai/agent_service.py` | Graph execution entry point, event emission |
+| `backend/app/models/domain/ai.py` | `AIAssistantConfig` DB model (system_prompt, delegation_config, structured_output_schema) |
