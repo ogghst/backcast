@@ -57,6 +57,7 @@ EFFICIENCY RULES:
     "allowed_tools": get_specialist_tools(
         "project_manager",
         [
+            "get_briefing",
             "get_temporal_context",
             "set_temporal_context",
             "global_search",
@@ -115,6 +116,7 @@ Identify trends and potential risks early.""",
     "allowed_tools": get_specialist_tools(
         "evm_analyst",
         [
+            "get_briefing",
             "get_temporal_context",
             "global_search",
             "get_project_analysis",
@@ -174,6 +176,7 @@ Ensure proper documentation and audit trails.""",
     "allowed_tools": get_specialist_tools(
         "change_order_manager",
         [
+            "get_briefing",
             "get_temporal_context",
             "set_temporal_context",
             "global_search",
@@ -207,6 +210,7 @@ Follow security best practices for user management.""",
     "allowed_tools": get_specialist_tools(
         "user_admin",
         [
+            "get_briefing",
             "get_temporal_context",
             "global_search",
             "find_users",
@@ -288,6 +292,7 @@ sequenceDiagram
     "allowed_tools": get_specialist_tools(
         "visualization_specialist",
         [
+            "get_briefing",
             "get_temporal_context",
             "global_search",
         ],
@@ -316,6 +321,7 @@ Explain the impact of forecasts vs. budgets.""",
     "allowed_tools": get_specialist_tools(
         "forecast_manager",
         [
+            "get_briefing",
             "get_temporal_context",
             "global_search",
             "create_forecast",

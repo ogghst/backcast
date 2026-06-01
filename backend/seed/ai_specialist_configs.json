@@ -12,6 +12,7 @@
     "max_tokens": 4096,
     "recursion_limit": 25,
     "allowed_tools": [
+      "get_briefing",
       "get_temporal_context",
       "set_temporal_context",
       "global_search",
@@ -86,6 +87,7 @@
     "max_tokens": 3000,
     "recursion_limit": 15,
     "allowed_tools": [
+      "get_briefing",
       "get_temporal_context",
       "global_search",
       "get_project_analysis",
@@ -113,6 +115,7 @@
     "max_tokens": 3000,
     "recursion_limit": 25,
     "allowed_tools": [
+      "get_briefing",
       "get_temporal_context",
       "set_temporal_context",
       "global_search",
@@ -142,6 +145,7 @@
     "max_tokens": 3000,
     "recursion_limit": 15,
     "allowed_tools": [
+      "get_briefing",
       "get_temporal_context",
       "global_search",
       "find_users",
@@ -168,6 +172,7 @@
     "max_tokens": 3000,
     "recursion_limit": 10,
     "allowed_tools": [
+      "get_briefing",
       "get_temporal_context",
       "global_search",
       "find_control_accounts",
@@ -188,6 +193,7 @@
     "max_tokens": 4096,
     "recursion_limit": 25,
     "allowed_tools": [
+      "get_briefing",
       "get_temporal_context",
       "set_temporal_context",
       "global_search",

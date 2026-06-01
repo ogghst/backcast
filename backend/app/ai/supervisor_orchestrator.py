@@ -611,6 +611,13 @@ class SupervisorOrchestrator:
                 else None
             )
 
+            # Extract original request from briefing or plan (used in both branches)
+            _original_request = None
+            if doc and doc.original_request:
+                _original_request = doc.original_request
+            elif active_plan and active_plan.original_request:
+                _original_request = active_plan.original_request
+
             if active_step is not None:
                 task_desc = active_step.task_description
             elif doc and doc.task_history:
@@ -644,26 +651,16 @@ class SupervisorOrchestrator:
                     "Use the get_briefing tool to review prior specialist findings "
                     "if needed for context."
                 )
-                # Add original request if available from briefing or plan
-                original_request = None
-                if doc and doc.original_request:
-                    original_request = doc.original_request
-                elif active_plan and active_plan.original_request:
-                    original_request = active_plan.original_request
-                if original_request:
+                if _original_request:
                     lines.append("")
-                    lines.append(f"**User's original request:** {original_request}")
+                    lines.append(f"**User's original request:** {_original_request}")
                 assignment_block = "\n".join(lines)
             else:
                 assignment_block = f"## Your Assignment\n\n{task_desc}"
                 if rationale:
                     assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
-                # Add original request
-                original_request = None
-                if doc and doc.original_request:
-                    original_request = doc.original_request
-                if original_request:
-                    assignment_block += f"\n\n**User's original request:** {original_request}"
+                if _original_request:
+                    assignment_block += f"\n\n**User's original request:** {_original_request}"
 
             isolated_messages = [
                 HumanMessage(content=assignment_block),
@@ -772,7 +769,7 @@ class SupervisorOrchestrator:
 
             # Mark plan step as completed if plan-driven
             if active_step is not None and active_plan is not None:
-                summary = cleaned_findings[:500] if cleaned_findings else ""
+                summary = cleaned_findings if cleaned_findings else ""
                 active_plan.mark_step_completed(active_step.step_index, summary)
                 cmd_update["plan_data"] = active_plan.model_dump()
                 cmd_update["completed_steps"] = state.get("completed_steps", set()) | {
