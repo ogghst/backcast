@@ -18,6 +18,7 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.config import AI_MCP_TOOL_CATEGORY_PREFIX
 from app.ai.mcp.tool_metadata import wrap_mcp_tool
 
 logger = logging.getLogger(__name__)
@@ -150,7 +151,7 @@ class MCPClientManager:
         """
         meta = getattr(tool, "_tool_metadata", None)
         if meta is not None:
-            return meta.category == f"mcp:{server_name}"
+            return meta.category == f"{AI_MCP_TOOL_CATEGORY_PREFIX}{server_name}"
         return False
 
     def _build_connection(self, config: dict[str, Any]) -> Any:

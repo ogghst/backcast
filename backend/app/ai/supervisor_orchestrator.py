@@ -31,11 +31,16 @@ from app.ai.briefing_compiler import (
     initialize_briefing,
     parse_and_clean,
 )
-from app.ai.config import AgentConfig
+from app.ai.config import AI_DELEGATION_ENFORCED, AgentConfig
 from app.ai.event_types import AgentEventType
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.handoff_tools import create_all_handoff_tools
-from app.ai.message_utils import extract_final_ai_response, is_transient_stream_error
+from app.ai.message_utils import (
+    extract_final_ai_response,
+    is_transient_stream_error,
+)
+from app.ai.middleware.context_guard import ContextGuardMiddleware
+from app.ai.middleware.plan_aware_tools import PlanAwareToolMiddleware
 from app.ai.plan import PlanDocument
 from app.ai.planner import planner_node
 from app.ai.subagent_compiler import (
@@ -52,7 +57,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-BRIEFING_ROOM_SUPERVISOR_PROMPT = """You are a supervisor for the Backcast project budget management system.
+_BASE_SUPERVISOR_PROMPT = """You are a supervisor for the Backcast project budget management system.
 
 You coordinate specialist agents who report back through a compiled briefing document.
 The user reads the briefing directly — do NOT summarize or repeat findings in your response.
@@ -88,38 +93,31 @@ Before delegating, review the execution plan in the state (injected as context).
 - Always check the briefing before deciding to hand off
 """
 
+_DELEGATION_ENFORCED_SECTION = """
+## CRITICAL: Plan-Driven Delegation
+When a multi-step execution plan is active:
+- You MUST delegate every step to the specialist specified in the plan
+- You MUST NOT attempt to execute domain operations yourself
+- Your ONLY tools are get_briefing and handoff_to_* -- use them to delegate
+- Use get_briefing to review specialist findings between steps
+- Use handoff_to_{specialist} with the step_index to assign each step
+- NEVER use domain tools like get_project, global_search, find_users, etc.
+- NEVER try to answer the user's question yourself -- delegate to specialists
+- If you are unsure what to do, call get_briefing first, then delegate the next step
+"""
+
+BRIEFING_ROOM_SUPERVISOR_PROMPT = (
+    _BASE_SUPERVISOR_PROMPT + _DELEGATION_ENFORCED_SECTION
+    if AI_DELEGATION_ENFORCED
+    else _BASE_SUPERVISOR_PROMPT
+)
+
 _BRIEFING_HANDOFF_SUFFIX = (
     "You do NOT have direct access to Backcast tools. "
     "Delegate all operations to specialists via handoff tools."
 )
 
 _BRIEFING_CONTEXT_PREFIX = "## Current Briefing\n\n"
-
-_BRIEFING_SUMMARY_PROMPT = """<role>
-Context Extraction Assistant
-</role>
-
-<primary_objective>
-Extract the most relevant context from the conversation history below.
-</primary_objective>
-
-<instructions>
-You are nearing the input token limit. Extract the most important information from the conversation history so it can replace the full history.
-
-Focus on:
-- The user's overall goal and current request
-- Key findings, decisions, and conclusions reached so far
-- Any artifacts created, files modified, or resources accessed (with paths)
-- Remaining tasks and next steps
-
-Format your response as plain paragraphs. Do NOT use markdown headers (##) or
-bullet-point outlines. Write natural prose that captures the essential context
-concisely.
-
-<messages>
-{messages}
-</messages>
-"""
 
 
 def _briefing_update(
@@ -206,9 +204,21 @@ class SupervisorOrchestrator:
     def _publish_plan_update(self, plan: PlanDocument) -> None:
         """Emit a PLAN_UPDATE event if an event bus is available."""
         if self._event_bus is None:
+            logger.warning(
+                "[PLAN_UPDATE] Cannot emit: event_bus is None "
+                "(plan has %d steps, %d completed)",
+                len(plan.steps),
+                sum(1 for s in plan.steps if s.status == "completed"),
+            )
             return
         steps = plan.steps
         completed_steps = sum(1 for s in steps if s.status == "completed")
+        logger.info(
+            "[PLAN_UPDATE] Emitting: %d/%d steps, statuses=%s",
+            completed_steps,
+            len(steps),
+            [s.status for s in steps],
+        )
         self._event_bus.publish(
             AgentEvent(
                 event_type=AgentEventType.PLAN_UPDATE,
@@ -440,11 +450,14 @@ class SupervisorOrchestrator:
             iterations = state.get("supervisor_iterations", 0)
             max_iterations = state.get("max_supervisor_iterations", 3)
 
-            # Extend cap for multi-step plans
+            # Parse plan data once for both iteration cap and re-dispatch logic
             plan_data = state.get("plan_data")
+            plan: PlanDocument | None = None
+            has_plan = False
             if plan_data:
                 plan = PlanDocument.from_state(plan_data)
                 if plan.requires_planning and plan.steps:
+                    has_plan = True
                     plan_max = len(plan.steps) + 1
                     if plan_max > max_iterations:
                         max_iterations = plan_max
@@ -464,17 +477,25 @@ class SupervisorOrchestrator:
             if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
                 completed = state.get("completed_specialists", set())
                 specialist_set = set(specialist_names)
+
                 for tc in last_msg.tool_calls:
                     tool_name = tc.get("name", "")
                     if tool_name.startswith("handoff_to_"):
                         slug = tool_name.removeprefix("handoff_to_")
                         spec_name = slug_map.get(slug, slug)
-                        if spec_name in completed:
+
+                        # Block re-dispatch only in non-plan mode.
+                        # In plan-driven mode the specialist_node handles
+                        # the "no pending steps" early exit, so the router
+                        # allows re-dispatch to the same specialist.
+                        if spec_name in completed and not has_plan:
                             logger.warning(
-                                "[SUPERVISOR] Preventing redispatch to completed specialist: %s",
+                                "[SUPERVISOR] Preventing redispatch to "
+                                "completed specialist: %s",
                                 spec_name,
                             )
                             return END
+
                         if spec_name in specialist_set:
                             return spec_name
 
@@ -503,21 +524,6 @@ class SupervisorOrchestrator:
         async def specialist_node(
             state: BackcastSupervisorState,
         ) -> dict[str, Any] | Command:  # type: ignore[type-arg]
-            completed = state.get("completed_specialists", set())
-            if specialist_name in completed:
-                logger.info(
-                    "[SUPERVISOR] Specialist %s already completed, early exit",
-                    specialist_name,
-                )
-                return Command(
-                    update={
-                        "active_agent": "supervisor",
-                        "supervisor_iterations": state.get("supervisor_iterations", 0)
-                        + 1,
-                    },
-                    goto=END,
-                )
-
             # --- Resolve plan step for this specialist ---
             plan_data = state.get("plan_data")
             active_plan: PlanDocument | None = None
@@ -534,6 +540,45 @@ class SupervisorOrchestrator:
                     ):
                         active_step = step
                         break
+
+            # Early-exit guard: prevent redundant non-plan re-dispatch.
+            # For plan-driven execution, allow re-entry when a pending step
+            # exists for this specialist (same specialist may handle multiple
+            # plan steps). For non-plan mode, use completed_specialists.
+            if active_step is None and active_plan is not None:
+                # Plan exists but no pending step for this specialist
+                logger.info(
+                    "[SUPERVISOR] Specialist %s has no pending plan step, early exit",
+                    specialist_name,
+                )
+                return Command(
+                    update={
+                        "active_agent": "supervisor",
+                        "supervisor_iterations": state.get("supervisor_iterations", 0)
+                        + 1,
+                    },
+                    goto=END,
+                )
+
+            if active_plan is None:
+                # Non-plan mode: block via completed_specialists
+                completed = state.get("completed_specialists", set())
+                if specialist_name in completed:
+                    logger.info(
+                        "[SUPERVISOR] Specialist %s already completed "
+                        "(non-plan), early exit",
+                        specialist_name,
+                    )
+                    return Command(
+                        update={
+                            "active_agent": "supervisor",
+                            "supervisor_iterations": state.get(
+                                "supervisor_iterations", 0
+                            )
+                            + 1,
+                        },
+                        goto=END,
+                    )
 
             task_desc = "Execute specialist task from briefing"
             rationale: str | None = None
@@ -597,6 +642,17 @@ class SupervisorOrchestrator:
             # Expose structured briefing data to the specialist's get_briefing tool
             set_briefing(briefing_data_raw if briefing_data_raw else None)
 
+            # Mark plan step as in_progress and emit PLAN_UPDATE before invoking
+            # the specialist so the frontend shows immediate progress feedback.
+            if active_step is not None and active_plan is not None:
+                active_step.status = "in_progress"
+                logger.info(
+                    "Plan step %d (%s) -> in_progress",
+                    active_step.step_index,
+                    specialist_name,
+                )
+                self._publish_plan_update(active_plan)
+
             max_iterations = state.get("max_tool_iterations", 25)
             max_retries = settings.AI_SPECIALIST_MAX_RETRIES
             result = None
@@ -657,6 +713,7 @@ class SupervisorOrchestrator:
             assert result is not None
             messages = result.get("messages", [])
             findings = extract_final_ai_response(messages)
+
             cleaned_findings, parsed = parse_and_clean(findings)
 
             updated_data = compile_specialist_output(
@@ -694,9 +751,8 @@ class SupervisorOrchestrator:
                 cmd_update["current_step_index"] = active_step.step_index
                 self._publish_plan_update(active_plan)
                 logger.info(
-                    "[SUPERVISOR] Plan step %d/%d completed for %s",
-                    active_step.step_index + 1,
-                    len(active_plan.steps),
+                    "Plan step %d (%s) -> completed",
+                    active_step.step_index,
                     specialist_name,
                 )
 
@@ -705,17 +761,15 @@ class SupervisorOrchestrator:
         return specialist_node
 
     def _build_middleware(self, tools: list[BaseTool]) -> list[Any]:
-        """Build middleware stack including SummarizationMiddleware for long conversations."""
-        from langchain.agents.middleware.summarization import SummarizationMiddleware
+        """Build middleware stack for the supervisor agent.
 
+        Uses ContextGuardMiddleware for deterministic context trimming (replaces
+        older messages with the compiled briefing document).  No secondary
+        LLM-summarization middleware — the briefing already serves as the
+        structured summary of all specialist work.
+        """
         base = build_backcast_middleware(self.context, tools)
-        summ = SummarizationMiddleware(
-            model=self.model,
-            trigger=[("tokens", 8000), ("messages", 40)],
-            summary_prompt=_BRIEFING_SUMMARY_PROMPT,
-            keep=("messages", 20),
-        )
-        return [summ, *base]
+        return [ContextGuardMiddleware(), PlanAwareToolMiddleware(), *base]
 
     def _build_fallback_graph(
         self, all_tools: list[BaseTool], config: AgentConfig

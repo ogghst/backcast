@@ -325,6 +325,42 @@ export interface WSBriefingMessage {
 }
 
 /**
+ * Plan step status - mirrors backend PlanStep.status
+ */
+export type PlanStepStatus = "pending" | "in_progress" | "completed" | "skipped" | "failed";
+
+/**
+ * A single step in the execution plan
+ */
+export interface PlanStep {
+  step_index: number;
+  specialist: string;
+  task_description: string;
+  dependencies: number[];
+  input_from_dependencies?: string | null;
+  expected_output: string;
+  status: PlanStepStatus;
+  result_summary?: string | null;
+}
+
+/**
+ * Server -> Client: Plan update event
+ * Sent when the execution plan is created or when a step changes status
+ */
+export interface WSPlanUpdateMessage {
+  type: "plan_update";
+  plan: {
+    original_request: string;
+    steps: PlanStep[];
+    estimated_complexity: "simple" | "moderate" | "complex";
+    requires_planning: boolean;
+  };
+  plan_markdown: string;
+  completed_steps: number;
+  total_steps: number;
+}
+
+/**
  * Server -> Client: Content reset event
  * Sent when the streaming content buffer should be reset,
  * typically after a subagent completes
@@ -389,6 +425,7 @@ export type WSServerMessage =
   | WSExecutionStartedMessage
   | WSExecutionStatusMessage
   | WSBriefingMessage
+  | WSPlanUpdateMessage
   | WSTemporalContextChangeMessage;
 
 /**
@@ -616,6 +653,15 @@ export function isBriefingMessage(
   message: WSServerMessage
 ): message is WSBriefingMessage {
   return message.type === "briefing_update";
+}
+
+/**
+ * Type guard to check if a server message is a plan update message
+ */
+export function isPlanUpdateMessage(
+  message: WSServerMessage
+): message is WSPlanUpdateMessage {
+  return message.type === "plan_update";
 }
 
 /**

@@ -30,6 +30,13 @@ from app.models.schemas.cost_event_type import CostEventTypeCreate, CostEventTyp
 
 logger = logging.getLogger(__name__)
 
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
+
 
 # =============================================================================
 # COST EVENT TYPE CRUD TOOLS
@@ -38,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="find_cost_event_types",
-    description="Find cost event types by ID or search.",
+    description="Find cost event types by ID or search. Results are paginated; response includes total count and has_more.",
     permissions=["cost-event-type-read"],
     category="cost-event-types",
     risk_level=RiskLevel.LOW,
@@ -58,7 +65,7 @@ async def find_cost_event_types(
         cost_event_type_id: UUID of a specific cost event type to retrieve (returns single)
         search: Optional search term for code or name
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -67,6 +74,7 @@ async def find_cost_event_types(
     Raises:
         ValueError: If cost_event_type_id is not a valid UUID format
     """
+    limit = _clamp_limit(limit)
     try:
         from app.services.cost_event_type_service import CostEventTypeService
 
@@ -108,6 +116,7 @@ async def find_cost_event_types(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(cost_event_types),
         }
     except ValueError:
         return {"error": f"Invalid cost event type ID: {cost_event_type_id}"}

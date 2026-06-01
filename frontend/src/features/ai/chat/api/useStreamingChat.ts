@@ -44,6 +44,7 @@ import {
   isAgentCompleteMessage,
   isAgentTransitionMessage,
   isBriefingMessage,
+  isPlanUpdateMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -93,6 +94,8 @@ export interface UseStreamingChatConfig {
   onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
   /** Optional callback invoked when a briefing update is received */
   onBriefingUpdate?: (briefing: string, specialistName: string, completedSpecialists: string[]) => void;
+  /** Optional callback invoked when a plan update is received */
+  onPlanUpdate?: (plan: import("../types").WSPlanUpdateMessage) => void;
   /** Optional callback invoked when temporal context changes via AI tool */
   onTemporalContextChange?: (change: import("../types").WSTemporalContextChangeMessage) => void;
   /** Optional callback invoked when replay batching ends */
@@ -216,6 +219,7 @@ export const useStreamingChat = (
     onRawMessage,
     onExecutionStatus,
     onBriefingUpdate,
+    onPlanUpdate,
     onTemporalContextChange,
     onReplayEnd,
     onSessionRecovery,
@@ -310,6 +314,7 @@ export const useStreamingChat = (
     onRawMessage,
     onExecutionStatus,
     onBriefingUpdate,
+    onPlanUpdate,
     onTemporalContextChange,
     onReplayEnd,
     onSessionRecovery,
@@ -335,6 +340,7 @@ export const useStreamingChat = (
       onRawMessage,
       onExecutionStatus,
       onBriefingUpdate,
+      onPlanUpdate,
       onTemporalContextChange,
       onReplayEnd,
       onSessionRecovery,
@@ -614,6 +620,12 @@ export const useStreamingChat = (
           serverMessage.specialist_name,
           serverMessage.completed_specialists,
         );
+        return;
+      }
+
+      // Handle plan update messages
+      if (isPlanUpdateMessage(serverMessage)) {
+        callbacks.onPlanUpdate?.(serverMessage);
         return;
       }
 

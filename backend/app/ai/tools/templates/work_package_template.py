@@ -41,6 +41,13 @@ from app.models.schemas.work_package import WorkPackageCreate, WorkPackageUpdate
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE_LIMIT = 50
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
+
 
 # =============================================================================
 # WORK PACKAGE CRUD TOOLS
@@ -49,7 +56,7 @@ BATCH_SIZE_LIMIT = 50
 
 @ai_tool(
     name="find_work_packages",
-    description="Find work packages by ID or search/filter.",
+    description="Find work packages by ID or search/filter. Results are paginated; response includes total count and has_more.",
     permissions=["work-package-read"],
     category="work-packages",
     risk_level=RiskLevel.LOW,
@@ -73,7 +80,7 @@ async def find_work_packages(
         project_id: UUID of the project to list work packages for
         status: Optional filter by status (open/closed)
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -83,6 +90,7 @@ async def find_work_packages(
         ValueError: If IDs are not valid UUID format
     """
     log_temporal_context("find_work_packages", context)
+    limit = _clamp_limit(limit)
 
     try:
         from app.core.versioning.enums import BranchMode
@@ -160,6 +168,7 @@ async def find_work_packages(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(work_packages),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -529,9 +538,7 @@ async def get_work_package_budget_status(
 
 @ai_tool(
     name="batch_get_work_package_budget_status",
-    description="Get budget status (budget vs actual) for multiple work packages at once. "
-    "Returns budget, used, remaining, and percentage for each. "
-    "Use this instead of calling get_work_package_budget_status repeatedly.",
+    description="Get budget vs actual for multiple work packages at once.",
     permissions=["work-package-read"],
     category="work-packages",
     risk_level=RiskLevel.LOW,

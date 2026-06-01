@@ -28,7 +28,9 @@ logger = logging.getLogger(__name__)
 
 _SPECIALIST_SCOPE_SUFFIX = (
     "\n\n## SCOPE\n"
-    "Focus only on your specialist domain.\n\n"
+    "Focus only on your specialist domain. Execute ONLY the task described in "
+    "your assignment — do not attempt other parts of the user's request or "
+    "plan, those will be handled by other specialists.\n\n"
     "## OUTPUT FORMAT\n"
     "After tool calls, write your findings with these sections:\n"
     "- ## Key Findings: Most important discoveries\n"
@@ -138,13 +140,24 @@ def compile_subagents(
         # so they don't need to be injected per-invocation in the HumanMessage.
         system_prompt = system_prompt.rstrip() + _SPECIALIST_SCOPE_SUFFIX
 
-        # Resolve the tool-name list for this subagent
+        # Resolve the tool-name list for this subagent.
+        # Convention:
+        #   allowed_tools = None      → no tools ( specialist has no regular tool access)
+        #   allowed_tools = ["*"]     → all available tools (catch-all / fallback agents)
+        #   allowed_tools = ["t1",…]  → only the listed tools
         if allowed_tool_names is None:
+            # No tools configured — specialist gets nothing from the regular pool.
+            subagent_tools = []
+        elif "*" in allowed_tool_names:
+            # Wildcard: all tools (used by general_purpose / fallback agents).
             filtered_tool_names = (
                 list(allowed_tools)
                 if allowed_tools is not None
                 else [t.name for t in available_tools]
             )
+            subagent_tools = [
+                t for t in available_tools if t.name in filtered_tool_names
+            ]
         else:
             if allowed_tools is not None:
                 filtered_tool_names = [
@@ -153,7 +166,9 @@ def compile_subagents(
             else:
                 filtered_tool_names = allowed_tool_names
 
-        subagent_tools = [t for t in available_tools if t.name in filtered_tool_names]
+            subagent_tools = [
+                t for t in available_tools if t.name in filtered_tool_names
+            ]
 
         if not subagent_tools:
             logger.warning(

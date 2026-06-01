@@ -73,6 +73,10 @@ def create_handoff_tool(
             str | None,
             "Your overall analysis of the user request and delegation strategy.",
         ] = None,
+        step_index: Annotated[
+            int | None,
+            "Plan step index if delegating from an execution plan.",
+        ] = None,
     ) -> Command[Any]:
         tool_message = ToolMessage(
             content=f"Transferring to {agent_name}: {task_description}",
@@ -115,14 +119,18 @@ def create_handoff_tool(
         )
         updated_data = doc.model_dump()
 
+        update: dict[str, Any] = {
+            "messages": [ai_message, tool_message],
+            "active_agent": agent_name,
+            "briefing_data": updated_data,
+        }
+        if step_index is not None:
+            update["current_step_index"] = step_index
+
         return Command(
             goto=agent_name,
             graph=Command.PARENT,
-            update={
-                "messages": [ai_message, tool_message],
-                "active_agent": agent_name,
-                "briefing_data": updated_data,
-            },
+            update=update,
         )
 
     handoff_tool.metadata = {METADATA_KEY_HANDOFF_DESTINATION: agent_name}

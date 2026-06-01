@@ -36,6 +36,12 @@ from app.models.schemas.cost_element_type import (
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE_LIMIT = 50
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
 
 
 # =============================================================================
@@ -45,7 +51,7 @@ BATCH_SIZE_LIMIT = 50
 
 @ai_tool(
     name="find_cost_elements",
-    description="Find cost elements (EOCs) by ID or filter.",
+    description="Find cost elements (EOCs) by ID or filter. Results are paginated; response includes total count and has_more.",
     permissions=["cost-element-read"],
     category="cost-elements",
     risk_level=RiskLevel.LOW,
@@ -68,7 +74,7 @@ async def find_cost_elements(
         work_package_id: Optional Work Package ID to filter cost elements
         cost_element_type_id: Optional cost element type ID to filter
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -78,6 +84,7 @@ async def find_cost_elements(
         ValueError: If invalid filter parameters are provided
     """
     log_temporal_context("find_cost_elements", context)
+    limit = _clamp_limit(limit)
 
     try:
         from app.services.cost_element_service import CostElementService
@@ -142,6 +149,7 @@ async def find_cost_elements(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(cost_elements),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -330,7 +338,7 @@ async def delete_cost_element(
 
 @ai_tool(
     name="find_cost_element_types",
-    description="Find cost element types by ID or search/filter.",
+    description="Find cost element types by ID or search/filter. Results are paginated; response includes total count and has_more.",
     permissions=["cost-element-type-read"],
     category="cost-element-types",
     risk_level=RiskLevel.LOW,
@@ -355,7 +363,7 @@ async def find_cost_element_types(
         organizational_unit_id: Optional organizational unit ID to filter
         search: Optional search term for code or name
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         sort_field: Field to sort by (e.g., "name", "code")
         sort_order: Sort order ("asc" or "desc")
         context: Injected tool execution context
@@ -366,6 +374,7 @@ async def find_cost_element_types(
     Raises:
         ValueError: If invalid filter parameters
     """
+    limit = _clamp_limit(limit)
     try:
         from app.services.cost_element_type_service import CostElementTypeService
 
@@ -414,6 +423,7 @@ async def find_cost_element_types(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(types),
         }
     except ValueError:
         return {"error": f"Invalid cost element type ID: {cost_element_type_id}"}
@@ -614,10 +624,7 @@ async def delete_cost_element_type(
 
 @ai_tool(
     name="batch_create_cost_elements",
-    description="Batch create multiple cost elements (EOCs) under the same Work Package. "
-    "All items share the parent work_package_id. Each item provides its own "
-    "cost_element_type_id and optional description. "
-    "Maximum 50 items per batch.",
+    description="Batch create cost elements under a Work Package. Max 50 items.",
     permissions=["cost-element-create"],
     category="cost-elements",
     risk_level=RiskLevel.HIGH,
@@ -702,8 +709,7 @@ async def batch_create_cost_elements(
 
 @ai_tool(
     name="batch_delete_cost_elements",
-    description="Batch soft delete multiple cost elements (EOCs). "
-    "Maximum 50 items per batch.",
+    description="Batch soft delete cost elements. Max 50 items.",
     permissions=["cost-element-delete"],
     category="cost-elements",
     risk_level=RiskLevel.CRITICAL,

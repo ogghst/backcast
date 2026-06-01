@@ -27,11 +27,8 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="get_project_analysis",
-    description="Get EVM metrics, health score, variance breakdown, and KPIs for a project. "
-    "Returns comprehensive analysis including PV, EV, AC, CPI, SPI, forecast values, "
-    "health assessment, cost/schedule status labels, and actionable recommendations. "
-    "Set include_variance_breakdown=true to also get per-WBE variance data. "
-    "Temporal context (branch, as_of date) is enforced by the system.",
+    description="Get EVM metrics, health score, and KPIs for a project. "
+    "Set include_variance_breakdown=true for per-WBE variance data.",
     permissions=["evm-read"],
     category="analysis",
     risk_level=RiskLevel.LOW,

@@ -17,6 +17,17 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbsElementsService } from "@/api/generated";
 import { PageNavigation } from "@/components/navigation";
 
+interface BreadcrumbItem {
+  code: string;
+  name?: string;
+  wbs_element_id: string;
+}
+
+interface BreadcrumbData {
+  project: { code: string; name?: string; project_id: string };
+  wbe_path: BreadcrumbItem[];
+}
+
 /**
  * WBSElementLayout
  *
@@ -34,7 +45,8 @@ export const WBSElementLayout: React.FC = () => {
 
   // Data fetching
   const { data: wbe, isLoading: wbeLoading } = useWBSElement(wbsElementId!);
-  const { data: breadcrumb, isLoading: breadcrumbLoading } = useWBSElementBreadcrumb(wbsElementId);
+  const { data: _breadcrumb, isLoading: breadcrumbLoading } = useWBSElementBreadcrumb(wbsElementId);
+  const breadcrumb = _breadcrumb as BreadcrumbData | undefined;
 
   // Navigation items
   const navItems = [
@@ -135,7 +147,7 @@ export const WBSElementLayout: React.FC = () => {
                     ]
                   : []),
                 // WBE path items — all linked except last
-                ...breadcrumb.wbe_path.map((wbe, idx) => ({
+                ...breadcrumb.wbe_path.map((wbe: BreadcrumbItem, idx: number) => ({
                   label:
                     idx === breadcrumb.wbe_path.length - 1
                       ? `${wbe.code} ${wbe.name}`

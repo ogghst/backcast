@@ -28,10 +28,7 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="get_project_forecast",
     description="Get forecast with scenarios, anomalies, and optimization suggestions. "
-    "Returns EAC/ETC/VAC forecast with optimistic/likely/pessimistic scenarios, "
-    "anomaly detection for unusual CPI/SPI patterns, and actionable suggestions. "
-    "Set include_suggestions=false to skip optimization suggestions. "
-    "Temporal context (branch, as_of date) is enforced by the system.",
+    "Set include_suggestions=false to skip suggestions.",
     permissions=["forecast-read"],
     category="analysis",
     risk_level=RiskLevel.LOW,

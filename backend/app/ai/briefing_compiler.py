@@ -1,6 +1,6 @@
 """Briefing compilation functions for the Briefing Room orchestrator.
 
-Pure string/data manipulation — no LLM calls. Compiles specialist outputs
+Pure string/data manipulation — no LLM calls.  Compiles specialist outputs
 into a BriefingDocument that accumulates findings across iterations.
 """
 
@@ -83,6 +83,7 @@ def compile_specialist_output(
     specialist_output: str,
     supervisor_rationale: str | None = None,
     parsed_findings: dict[str, Any] | None = None,
+    step_index: int | None = None,
 ) -> dict[str, Any]:
     doc = BriefingDocument.from_state(briefing_data)
 
@@ -91,6 +92,7 @@ def compile_specialist_output(
         task_description=task_description,
         findings=specialist_output,
         supervisor_rationale=supervisor_rationale,
+        step_index=step_index,
         **(parsed_findings or {}),
     )
     doc.sections.append(section)

@@ -5,6 +5,8 @@ import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 interface BriefingRailToggleTabProps {
   specialistCount: number;
+  /** When a plan exists, show step progress badge instead of specialist count */
+  planStepBadge?: string; // e.g. "2/4"
   isStreaming: boolean;
   hasBriefing: boolean;
   onClick: () => void;
@@ -15,6 +17,7 @@ const MONO_FONT = "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace";
 export const BriefingRailToggleTab = memo(
   ({
     specialistCount,
+    planStepBadge,
     isStreaming,
     hasBriefing,
     onClick,
@@ -111,18 +114,20 @@ export const BriefingRailToggleTab = memo(
             BRIEFING
           </span>
 
-          {specialistCount > 0 && (
+          {(planStepBadge ?? (specialistCount > 0 ? String(specialistCount) : null)) && (
             <span
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 18,
+                minWidth: planStepBadge ? 22 : 18,
                 height: 18,
-                borderRadius: "50%",
+                padding: planStepBadge ? "0 4px" : undefined,
+                borderRadius: planStepBadge ? 9 : "50%",
+                width: planStepBadge ? undefined : 18,
                 background: token.colorPrimary,
                 color: token.colorTextLightSolid,
-                fontSize: 10,
+                fontSize: planStepBadge ? 9 : 10,
                 fontWeight: 700,
                 fontFamily: MONO_FONT,
                 lineHeight: 1,
@@ -131,7 +136,7 @@ export const BriefingRailToggleTab = memo(
                 }),
               }}
             >
-              {specialistCount}
+              {planStepBadge ?? specialistCount}
             </span>
           )}
         </div>

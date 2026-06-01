@@ -8,6 +8,7 @@ import {
   SpecialistBadge,
   BRIEFING_KEYFRAMES,
 } from "./BriefingContent";
+import { PlanStepIndicator } from "./PlanStepIndicator";
 
 interface BriefingRailProps {
   briefing: BriefingState | null;
@@ -169,7 +170,7 @@ export const BriefingRail = memo(
                   color: colors.textSecondary,
                 }}
               >
-                Briefing
+                Briefing & Planning
               </span>
             </div>
 
@@ -209,6 +210,25 @@ export const BriefingRail = memo(
               {briefing.completedSpecialists.map((name) => (
                 <SpecialistBadge key={name} name={name} completed={true} />
               ))}
+            </div>
+          )}
+
+          {/* Plan step indicator */}
+          {briefing?.plan && (
+            <div
+              style={{
+                padding: `${spacing.xs}px ${spacing.sm}px`,
+                borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                flexShrink: 0,
+              }}
+            >
+              <PlanStepIndicator
+                steps={briefing.plan.steps}
+                totalSteps={briefing.plan.totalSteps}
+                completedSteps={briefing.plan.completedSteps}
+                complexity={briefing.plan.complexity}
+                isStreaming={isStreaming}
+              />
             </div>
           )}
 

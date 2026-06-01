@@ -40,6 +40,13 @@ from app.models.schemas.control_account import ControlAccountCreate
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE_LIMIT = 50
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
+
 
 # =============================================================================
 # CONTROL ACCOUNT CRUD TOOLS
@@ -48,7 +55,7 @@ BATCH_SIZE_LIMIT = 50
 
 @ai_tool(
     name="find_control_accounts",
-    description="Find control accounts by ID or search/filter.",
+    description="Find control accounts by ID or search/filter. Results are paginated; response includes total count and has_more.",
     permissions=["control-account-read"],
     category="control-accounts",
     risk_level=RiskLevel.LOW,
@@ -72,7 +79,7 @@ async def find_control_accounts(
         wbs_element_id: UUID of the WBS element to filter control accounts for
         organizational_unit_id: UUID of the organizational unit to filter by
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -83,6 +90,7 @@ async def find_control_accounts(
         ValueError: If IDs are not valid UUID format
     """
     log_temporal_context("find_control_accounts", context)
+    limit = _clamp_limit(limit)
 
     try:
         from app.core.versioning.enums import BranchMode
@@ -152,6 +160,7 @@ async def find_control_accounts(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(control_accounts),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -468,9 +477,7 @@ async def get_control_account_budget(
 
 @ai_tool(
     name="batch_create_control_accounts",
-    description="Batch create multiple control accounts under a WBS element. "
-    "Each control account represents the intersection of a WBS element and an organizational unit. "
-    "Maximum 50 items per batch.",
+    description="Batch create control accounts under a WBS element. Max 50 items.",
     permissions=["control-account-create"],
     category="control-accounts",
     risk_level=RiskLevel.HIGH,

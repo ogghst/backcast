@@ -508,7 +508,12 @@ async def _seed_ai_providers(session: AsyncSession) -> None:
 
 
 async def _seed_ai_assistant_configs(session: AsyncSession) -> None:
-    """Seed AI assistant configs (main agents) from JSON."""
+    """Seed AI assistant configs (main agents) from JSON.
+
+    All numeric parameters (temperature, max_tokens, recursion_limit) and
+    boolean flags (is_active) are managed via the UI/DB and should not have
+    env-var overrides.
+    """
     from app.models.domain.ai import AIAssistantConfig
 
     data = _load_json("ai_assistant_configs.json")
@@ -542,7 +547,13 @@ async def _seed_mcp_servers(session: AsyncSession) -> None:
 
 
 async def _seed_ai_specialist_configs(session: AsyncSession) -> None:
-    """Seed AI specialist configs from JSON (idempotent by name)."""
+    """Seed AI specialist configs from JSON (idempotent by name).
+
+    All numeric parameters (temperature, max_tokens, recursion_limit) and
+    boolean flags (is_active) are managed via the UI/DB and should not have
+    env-var overrides.  Tool lists can be overridden via
+    ``AI_TOOLS_{SPECIALIST_NAME}`` -- see ``get_specialist_tools``.
+    """
     from sqlalchemy import select as sql_select
 
     from app.models.domain.ai import AIAssistantConfig

@@ -154,6 +154,10 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
 
     # Import tool modules
     from app.ai.tools import (
+        ask_user as ask_user_module,
+    )
+    from app.ai.tools import (
+        briefing_tools,
         context_tools,
         document_tools,
         project_tools,
@@ -167,7 +171,6 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         cost_element_template,
         cost_event_template,
         cost_event_type_template,
-        diagram_template,
         forecast_cost_progress_template,
         project_template,
         user_management_template,
@@ -187,6 +190,8 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         temporal_tools.set_temporal_context,
         context_tools.get_project_context,
         context_tools.get_project_structure,
+        briefing_tools.get_briefing,
+        ask_user_module.ask_user,
     ]
     tools.extend(context_tools_list)
 
@@ -256,12 +261,6 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         advanced_analysis_template.get_project_forecast,
     ]
     tools.extend(advanced_analysis_tools)
-
-    # Add tools from diagram_template (Mermaid diagram generation)
-    diagram_tools = [
-        diagram_template.generate_mermaid_diagram,
-    ]
-    tools.extend(diagram_tools)
 
     # Add tools from forecast_cost_progress_template (Forecast, Cost Registration, Progress Entry)
     forecast_cost_progress_tools = [

@@ -42,6 +42,14 @@ from app.models.schemas.change_order import (
 
 logger = logging.getLogger(__name__)
 
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
+
+
 # =============================================================================
 # CHANGE ORDER CRUD TOOLS
 # =============================================================================
@@ -49,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="find_change_orders",
-    description="Find change orders by ID or search/filter.",
+    description="Find change orders by ID or search/filter. Results are paginated; response includes total count and has_more.",
     permissions=["change-order-read"],
     category="change-orders",
     risk_level=RiskLevel.LOW,
@@ -71,7 +79,7 @@ async def find_change_orders(
         project_id: Optional project ID to filter change orders
         status: Optional status filter (e.g., "Draft", "Pending", "Approved", "Rejected")
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -82,6 +90,7 @@ async def find_change_orders(
     """
     # Log temporal context for observability
     log_temporal_context("find_change_orders", context)
+    limit = _clamp_limit(limit)
 
     try:
         from app.services.change_order_service import ChangeOrderService
@@ -167,6 +176,7 @@ async def find_change_orders(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(change_orders),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:

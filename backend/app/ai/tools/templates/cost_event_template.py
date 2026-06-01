@@ -45,6 +45,14 @@ from app.models.schemas.cost_event import (
 
 logger = logging.getLogger(__name__)
 
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
+
+
 # =============================================================================
 # COST EVENT CRUD TOOLS
 # =============================================================================
@@ -52,7 +60,7 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="find_cost_events",
-    description="Find cost events by ID or search/filter.",
+    description="Find cost events by ID or search/filter. Results are paginated; response includes total count and has_more.",
     permissions=["cost-event-read"],
     category="cost-events",
     risk_level=RiskLevel.LOW,
@@ -76,7 +84,7 @@ async def find_cost_events(
         coq_category: Optional COQ category filter
         status: Optional status filter (open/closed)
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -86,6 +94,7 @@ async def find_cost_events(
         ValueError: If IDs are not valid UUID format
     """
     log_temporal_context("find_cost_events", context)
+    limit = _clamp_limit(limit)
 
     try:
         from app.services.cost_event_service import CostEventService
@@ -169,6 +178,7 @@ async def find_cost_events(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(events),
         }
         return add_temporal_metadata(list_result, context)
     except ValueError as e:

@@ -32,6 +32,13 @@ from app.models.schemas.wbs_element import WBSElementCreate, WBSElementUpdate
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE_LIMIT = 50
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
+
 
 # =============================================================================
 # PROJECT CRUD TOOLS
@@ -279,7 +286,7 @@ async def delete_project(
 
 @ai_tool(
     name="find_wbs_elements",
-    description="Find WBS Elements by ID or search/filter.",
+    description="Find WBS Elements by ID or search/filter. Results are paginated; response includes total count and has_more.",
     permissions=["wbs-element-read"],
     category="wbs-elements",
     risk_level=RiskLevel.LOW,
@@ -301,7 +308,7 @@ async def find_wbs_elements(
         project_id: Optional project ID to filter WBS Elements
         search: Optional search term
         skip: Number of records to skip
-        limit: Maximum records to return
+        limit: Maximum records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -314,6 +321,7 @@ async def find_wbs_elements(
         >>> result = await find_wbs_elements(project_id="...", limit=20)
         >>> print(f"Found {result['total']} WBS Elements")
     """
+    limit = _clamp_limit(limit)
     try:
         from uuid import UUID
 
@@ -375,6 +383,7 @@ async def find_wbs_elements(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(wbs_elements),
         }
     except ValueError:
         return {"error": f"Invalid WBS Element ID: {wbs_element_id}"}
@@ -628,10 +637,7 @@ async def delete_wbs_element(
 
 @ai_tool(
     name="batch_create_wbs_elements",
-    description="Batch create multiple WBS Elements under the same project. "
-    "All items share the parent project_id. Each item provides its own name, code, "
-    "and optional description and parent_wbs_element_id. Pre-validates all codes for "
-    "duplicates before creating any. Maximum 50 items per batch.",
+    description="Batch create WBS Elements under a project. Pre-validates codes. Max 50.",
     permissions=["wbs-element-create"],
     category="wbs-elements",
     risk_level=RiskLevel.HIGH,
@@ -746,9 +752,7 @@ async def batch_create_wbs_elements(
 
 @ai_tool(
     name="batch_update_wbs_elements",
-    description="Batch update multiple WBS Elements. Each item must include wbs_element_id "
-    "and any fields to update (name, description, revenue_allocation). "
-    "Maximum 50 items per batch.",
+    description="Batch update WBS Elements. Each needs wbs_element_id and fields to update. Max 50.",
     permissions=["wbs-element-update"],
     category="wbs-elements",
     risk_level=RiskLevel.HIGH,

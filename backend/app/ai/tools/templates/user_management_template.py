@@ -42,6 +42,13 @@ from app.models.schemas.user import UserRegister, UserUpdate
 
 logger = logging.getLogger(__name__)
 
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
+
 
 async def _resolve_user_role(session: Any, user_id: UUID) -> str:
     """Resolve a user's global role from UserRoleAssignment via unified RBAC.
@@ -73,7 +80,7 @@ async def _resolve_user_role(session: Any, user_id: UUID) -> str:
 
 @ai_tool(
     name="find_users",
-    description="Find users by ID or search.",
+    description="Find users by ID or search. Results are paginated; response includes total count and has_more.",
     permissions=["user-read"],
     category="users",
     risk_level=RiskLevel.LOW,
@@ -93,7 +100,7 @@ async def find_users(
         user_id: UUID of a specific user to retrieve (returns single)
         search: Optional search term
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -102,6 +109,8 @@ async def find_users(
     Raises:
         ValueError: If user_id is not a valid UUID format
     """
+    limit = _clamp_limit(limit)
+
     try:
         log_temporal_context("find_users", context)
 
@@ -135,9 +144,29 @@ async def find_users(
                 context,
             )
 
-        # List users
+        # List users with proper count
+        from typing import Any, cast
+
+        from sqlalchemy import func, select
+
+        from app.core.temporal_queries import is_current_version
+        from app.models.domain.user import User
+
+        # Count total active users
+        count_stmt = (
+            select(func.count())
+            .select_from(User)
+            .where(
+                is_current_version(
+                    cast(Any, User).valid_time,
+                    cast(Any, User).deleted_at,
+                )
+            )
+        )
+        count_result = await context.session.execute(count_stmt)
+        total = count_result.scalar_one()
+
         users = await service.get_users(skip=skip, limit=limit)
-        total = len(users)
 
         user_list = []
         for user in users:
@@ -160,6 +189,7 @@ async def find_users(
                 "total": total,
                 "skip": skip,
                 "limit": limit,
+                "has_more": total > skip + len(users),
             },
             context,
         )
@@ -414,7 +444,7 @@ async def delete_user(
 
 @ai_tool(
     name="find_organizational_units",
-    description="Find organizational units by ID or search.",
+    description="Find organizational units by ID or search. Results are paginated; response includes total count and has_more.",
     permissions=["organizational-unit-read"],
     category="organizational-units",
     risk_level=RiskLevel.LOW,
@@ -434,7 +464,7 @@ async def find_organizational_units(
         organizational_unit_id: UUID of a specific organizational unit to retrieve (returns single)
         search: Optional search term for code or name
         skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        limit: Maximum number of records to return (max 200)
         context: Injected tool execution context
 
     Returns:
@@ -443,6 +473,8 @@ async def find_organizational_units(
     Raises:
         ValueError: If organizational_unit_id is not a valid UUID format
     """
+    limit = _clamp_limit(limit)
+
     try:
         log_temporal_context("find_organizational_units", context)
 
@@ -499,6 +531,7 @@ async def find_organizational_units(
                 "total": total,
                 "skip": skip,
                 "limit": limit,
+                "has_more": total > skip + len(org_units),
             },
             context,
         )

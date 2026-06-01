@@ -925,6 +925,7 @@ class AgentService:
         context = params.context
 
         self._subagent_invocation_counts.clear()
+
         history = await self._build_conversation_history(session_id)
 
         # Enrich context with entity names from DB
@@ -1085,14 +1086,22 @@ class AgentService:
             # Specialist nodes return Command objects, so isinstance(dict) is
             # False -- we must check Command.update as a fallback.
             output_dict: dict[str, Any] | None = None
+            is_outer_node = False
             if isinstance(chain_output, dict):
                 output_dict = chain_output
             elif hasattr(chain_output, "update") and isinstance(
                 getattr(chain_output, "update", None), dict
             ):
                 output_dict = chain_output.update
+                is_outer_node = True
 
             if output_dict and "briefing_data" in output_dict:
+                # Outer specialist_node (wrapper) completed.  Publish
+                # BRIEFING_UPDATE and AGENT_TRANSITION exit with the
+                # invocation_id that was active when the specialist entered.
+                # Use the invocation_id from the output_dict's plan_data
+                # when available, falling back to current tracking state.
+                exit_invocation_id = state.current_invocation_id
                 state.publish_briefing_update(output_dict, chain_name)
                 state.publish(
                     AgentEventType.AGENT_TRANSITION,
@@ -1100,16 +1109,24 @@ class AgentService:
                         "type": AgentEventType.AGENT_TRANSITION,
                         "agent_name": chain_name,
                         "direction": "exit",
-                        "invocation_id": state.current_invocation_id,
+                        "invocation_id": exit_invocation_id,
                     },
                 )
             elif chain_name == state.current_subagent_name:
                 state.flush_tokens(state.current_invocation_id)
 
-            # Always reset specialist tracking on chain end
+            # Reset specialist tracking.  The inner specialist graph chain_end
+            # fires first (dict output), followed by the outer specialist_node
+            # wrapper chain_end (Command output).  We must preserve
+            # current_invocation_id across the inner chain_end so the outer
+            # chain_end can emit a correct AGENT_TRANSITION exit with the
+            # original invocation_id.  Only clear invocation_id on the outer
+            # chain_end; current_subagent_name is always cleared to prevent
+            # token misattribution in subsequent stream events.
             state.current_subagent_name = None
-            state.current_invocation_id = None
-            state.last_entered_agent = None
+            if is_outer_node:
+                state.current_invocation_id = None
+                state.last_entered_agent = None
             return
 
         # Supervisor node completion
@@ -1780,18 +1797,23 @@ class AgentService:
 
         # Step 2: Initialize mutable stream state
         # Non-specialist node names in the parent graph.
-        _NON_SPECIALIST_NODES = frozenset({
-            "__start__", "__end__", "initialize_briefing",
-            "planner", "supervisor", "tools",
-        })
+        _NON_SPECIALIST_NODES = frozenset(
+            {
+                "__start__",
+                "__end__",
+                "initialize_briefing",
+                "planner",
+                "supervisor",
+                "tools",
+            }
+        )
         state = StreamState(
             event_bus=ctx.event_bus,
             session_id=ctx.session_id,
             model_name=ctx.model_name,
             main_invocation_id=str(uuid.uuid4()),
             specialist_names=frozenset(
-                n for n in ctx.graph.nodes
-                if n not in _NON_SPECIALIST_NODES
+                n for n in ctx.graph.nodes if n not in _NON_SPECIALIST_NODES
             ),
         )
 

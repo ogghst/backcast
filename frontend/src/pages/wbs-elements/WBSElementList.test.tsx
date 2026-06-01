@@ -138,7 +138,7 @@ vi.mock("@/components/common/EntityGrid", () => ({
       <div data-testid="grid-title">{title}</div>
       <div data-testid="grid-add-content">{addContent}</div>
       <div data-testid="grid-items">
-        {items?.map((item: unknown) => (
+        {items?.map((item: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
           <div key={item.wbs_element_id} data-testid="grid-item">
             {item.name}
           </div>

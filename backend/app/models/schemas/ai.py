@@ -937,6 +937,20 @@ class WSExecutionStatusMessage(BaseModel):
     )
 
 
+class WSAskUserResponse(BaseModel):
+    """WebSocket ask_user response message from client.
+
+    Client -> Server message with the user's answer to an ``ask_user``
+    question. Sent when the user submits their response in the chat UI.
+    """
+
+    type: Literal["ask_user_response"] = Field(
+        default="ask_user_response", description="Message type discriminator"
+    )
+    ask_id: str = Field(..., description="Ask ID being responded to")
+    answer: str = Field(..., description="The user's response text")
+
+
 # Union type for all server->client WebSocket messages
 WSMessage = (
     WSTokenMessage

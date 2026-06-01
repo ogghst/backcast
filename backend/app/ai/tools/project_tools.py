@@ -20,10 +20,17 @@ from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
+
 
 @ai_tool(
     name="list_projects",
-    description="List projects with search, filter, and pagination.",
+    description="List projects with search, filter, and pagination. Results are paginated; use skip/limit to page through results. Response includes total count and has_more.",
     permissions=["project-read"],
     category="projects",
     risk_level=RiskLevel.LOW,
@@ -32,7 +39,7 @@ async def list_projects(
     search: str | None = None,
     status: str | None = None,
     skip: int = 0,
-    limit: int = 20,
+    limit: int = 50,
     sort_field: str | None = None,
     sort_order: str = "asc",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
@@ -66,6 +73,9 @@ async def list_projects(
     # Log temporal and project context for observability
     log_temporal_context("list_projects", context)
     log_project_context("list_projects", context)
+
+    # Clamp limit to maximum
+    limit = _clamp_limit(limit)
 
     # Context is injected by decorator
     try:
@@ -151,6 +161,7 @@ async def list_projects(
             "total": filtered_total,
             "skip": skip,
             "limit": limit,
+            "has_more": filtered_total > skip + len(accessible_projects),
         }
 
         # Add temporal and project metadata to result
@@ -256,7 +267,7 @@ async def get_project(
 
 @ai_tool(
     name="global_search",
-    description="Search across all entity types.",
+    description="Search across all entity types. Results are paginated; response includes total count and has_more.",
     permissions=["project-read"],
     category="search",
     risk_level=RiskLevel.LOW,
@@ -265,7 +276,7 @@ async def global_search(
     query: str,
     project_id: str | None = None,
     wbs_element_id: str | None = None,
-    limit: int = 20,
+    limit: int = 50,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Search across all entity types for a given query string.
@@ -291,6 +302,8 @@ async def global_search(
     """
     log_temporal_context("global_search", context)
     log_project_context("global_search", context)
+
+    limit = _clamp_limit(limit)
 
     try:
         from uuid import UUID
@@ -326,6 +339,7 @@ async def global_search(
         )
 
         result = response.model_dump()
+        result["has_more"] = result["total"] >= limit
 
         with_project_metadata = add_project_metadata(result, context)
         return add_temporal_metadata(with_project_metadata, context)

@@ -21,6 +21,8 @@ class AgentEventType(str, Enum):
     CONTENT_RESET = "content_reset"
     TOOL_RESULT = "tool_result"
     EXECUTION_STATUS = "execution_status"
+    ASK_USER = "ask_user"
+    PLAN_UPDATE = "plan_update"
     COMPLETE = "complete"
     ERROR = "error"
 

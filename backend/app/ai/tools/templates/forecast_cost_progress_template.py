@@ -34,6 +34,12 @@ from app.ai.tools.types import RiskLevel, ToolContext
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE_LIMIT = 50
+MAX_LIST_LIMIT = 200
+
+
+def _clamp_limit(limit: int) -> int:
+    """Clamp limit to the maximum allowed value."""
+    return min(limit, MAX_LIST_LIMIT)
 
 
 # =============================================================================
@@ -389,7 +395,7 @@ async def delete_cost_registration(
 
 @ai_tool(
     name="list_cost_registrations",
-    description="List cost registrations with optional filters.",
+    description="List cost registrations with optional filters. Results are paginated; response includes total count and has_more.",
     permissions=["cost-registration-read"],
     category="cost-registration",
     risk_level=RiskLevel.LOW,
@@ -405,6 +411,7 @@ async def list_cost_registrations(
 ) -> dict[str, Any]:
     """List cost registrations with filtering by project, WBS, work package, or cost element."""
     log_temporal_context("list_cost_registrations", context)
+    limit = _clamp_limit(limit)
 
     try:
         from app.services.cost_registration_service import CostRegistrationService
@@ -443,6 +450,7 @@ async def list_cost_registrations(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(registrations),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -810,7 +818,7 @@ async def get_cost_element_details(
 
 @ai_tool(
     name="get_progress_data",
-    description="Get progress data for a cost element.",
+    description="Get progress data for a cost element. Results are paginated when include_history is true; response includes total count and has_more.",
     permissions=["progress-entry-read"],
     category="progress",
     risk_level=RiskLevel.LOW,
@@ -829,6 +837,7 @@ async def get_progress_data(
     get_progress_history.
     """
     log_temporal_context("get_progress_data", context)
+    limit = _clamp_limit(limit)
 
     try:
         from typing import Any, cast
@@ -904,6 +913,7 @@ async def get_progress_data(
                 "total": total,
                 "skip": skip,
                 "limit": limit,
+                "has_more": total > skip + len(progress_entries),
             }
             return add_temporal_metadata(history_result, context)
 
@@ -949,6 +959,7 @@ async def get_progress_data(
             "total": total,
             "skip": skip,
             "limit": limit,
+            "has_more": total > skip + len(recent_entries),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:

@@ -50,7 +50,9 @@ import { ApprovalDialog } from "../../components/ApprovalDialog";
 import { useAIChatContext } from "@/hooks/navigation/useAIChatContext";
 import type { SessionContext } from "../../types";
 import type { WSTemporalContextChangeMessage } from "../types";
+import type { WSPlanUpdateMessage } from "../types";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
+import { stripPlanJson, PlanJsonStreamFilter } from "../utils/planContentFilter";
 
 const { Sider, Content, Header } = Layout;
 const { useBreakpoint } = Grid;
@@ -182,6 +184,11 @@ export const ChatInterface = ({
   const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const debugMessageIdRef = useRef(0);
+
+  // Plan JSON stream filter — suppresses plan JSON from planner tokens
+  // before they reach the chat message area. Defense-in-depth alongside
+  // backend planner_active suppression.
+  const planFilterRef = useRef(new PlanJsonStreamFilter());
 
   // Track invocation counts per subagent name
   const [subagentInvocationCounts, setSubagentInvocationCounts] = useState<Record<string, number>>({});
@@ -362,6 +369,19 @@ export const ChatInterface = ({
       return;
     }
 
+    // Filter plan JSON from main agent tokens. The planner node's LLM
+    // produces structured JSON that should appear in the briefing rail
+    // via plan_update events, not as raw text in the chat stream.
+    let filteredToken = token;
+    if (source === "main") {
+      filteredToken = planFilterRef.current.process(token);
+      if (!filteredToken) {
+        // Token suppressed (plan JSON detected) — still update session ID
+        setCurrentSessionId((prev) => prev || sessionId);
+        return;
+      }
+    }
+
     // We've received the first token, no longer waiting
     setIsWaitingForResponse(false);
 
@@ -385,7 +405,7 @@ export const ChatInterface = ({
             const uniqueId = `${invocationId}-cr${contentResetCounterRef.current++}`;
             mainStreams.set(uniqueId, {
               invocation_id: uniqueId,
-              content: token,
+              content: filteredToken,
               is_active: true,
               is_complete: false,
               started_at: Date.now(),
@@ -398,13 +418,13 @@ export const ChatInterface = ({
           if (existing) {
             mainStreams.set(invocationId, {
               ...existing,
-              content: existing.content + token,
+              content: existing.content + filteredToken,
               is_active: true,
             });
           } else {
             mainStreams.set(invocationId, {
               invocation_id: invocationId,
-              content: token,
+              content: filteredToken,
               is_active: true,
               is_complete: false,
               started_at: Date.now(),
@@ -418,7 +438,7 @@ export const ChatInterface = ({
         // Fallback: group in main (backward compatibility)
         setStreamingState((prev) => ({
           ...prev,
-          main: prev.main + token,
+          main: prev.main + filteredToken,
         }));
       }
     } else if (source === "subagent" && invocationId) {
@@ -484,6 +504,29 @@ export const ChatInterface = ({
         sequence: subagentSequenceRef.current++,
       });
       return { ...prev, subagents };
+    });
+
+    // Mark the matching pending plan step as in_progress when the
+    // specialist starts executing. The backend only emits plan_update
+    // on step completion, so this provides visual feedback immediately.
+    setBriefing((prev) => {
+      if (!prev?.plan) return prev;
+      const steps = prev.plan.steps;
+      // Find the first pending step matching this specialist
+      const stepIdx = steps.findIndex(
+        (s) => s.status === "pending" && s.specialist === subagent,
+      );
+      if (stepIdx === -1) return prev;
+      const updated = steps.map((s, i) =>
+        i === stepIdx ? { ...s, status: "in_progress" as const } : s,
+      );
+      return {
+        ...prev,
+        plan: {
+          ...prev.plan,
+          steps: updated,
+        },
+      };
     });
   }, [subagentInvocationCounts]);
 
@@ -670,12 +713,47 @@ export const ChatInterface = ({
   // Briefing update handler
   const handleBriefingUpdate = useCallback(
     (briefingMarkdown: string, specialistName: string, completedSpecialists: string[]) => {
-      setBriefing({
+      setBriefing((prev) => ({
         markdown: briefingMarkdown,
         completedSpecialists: completedSpecialists,
         lastSpecialist: specialistName,
-      });
+        plan: prev?.plan ?? null,
+      }));
       // Auto-open briefing rail on first specialist contribution (desktop only)
+      if (!isMobile && !userDismissedBriefing.current) {
+        setIsBriefingOpen(true);
+      }
+    },
+    [isMobile],
+  );
+
+  // Plan update handler
+  const handlePlanUpdate = useCallback(
+    (msg: WSPlanUpdateMessage) => {
+      setBriefing((prev) => {
+        const steps = msg.plan.steps;
+        // Derive completedSteps from step statuses as a safety fallback.
+        // The backend sends completed_steps but we also compute it locally
+        // to ensure the counter always reflects the actual step statuses.
+        const completedFromSteps = steps.filter(
+          (s) => s.status === "completed",
+        ).length;
+        return {
+          markdown: prev?.markdown ?? msg.plan_markdown,
+          completedSpecialists: prev?.completedSpecialists ?? [],
+          lastSpecialist: prev?.lastSpecialist ?? "",
+          plan: {
+            steps,
+            totalSteps: msg.total_steps,
+            completedSteps:
+              msg.completed_steps > 0
+                ? msg.completed_steps
+                : completedFromSteps,
+            complexity: msg.plan.estimated_complexity,
+          },
+        };
+      });
+      // Auto-open briefing rail when plan arrives (desktop only)
       if (!isMobile && !userDismissedBriefing.current) {
         setIsBriefingOpen(true);
       }
@@ -806,6 +884,7 @@ export const ChatInterface = ({
     onContentReset: handleContentReset,
     onRawMessage: handleRawMessage,
     onBriefingUpdate: handleBriefingUpdate,
+    onPlanUpdate: handlePlanUpdate,
     onExecutionStatus: useCallback((executionId: string, status: string, sessionId: string) => {
       // Invalidate sessions cache to pick up execution status changes
       void executionId; // Unused but kept for interface consistency
@@ -914,6 +993,7 @@ export const ChatInterface = ({
     mainSequenceRef.current = 0;
     subagentSequenceRef.current = 0;
     setSubagentInvocationCounts({});
+    planFilterRef.current.reset();
   }, [lastAssistantId]);
 
   // Handle session selection
@@ -935,6 +1015,7 @@ export const ChatInterface = ({
       setPendingUserMessage(null);
       mainSequenceRef.current = 0;
       subagentSequenceRef.current = 0;
+      planFilterRef.current.reset();
 
       // Restore briefing from session data if available
       const session = sessions?.find((s) => s.id === sessionId);
@@ -946,6 +1027,7 @@ export const ChatInterface = ({
             session.briefing_specialists?.[
               session.briefing_specialists.length - 1
             ] ?? "",
+          plan: null,
         });
         userDismissedBriefing.current = false;
         if (window.innerWidth >= 1024) {
@@ -1014,6 +1096,7 @@ export const ChatInterface = ({
       subagentSequenceRef.current = 0; // Reset sequence counter for new message
       completionTurnRef.current = 0;
       setSubagentInvocationCounts({});
+      planFilterRef.current.reset(); // Reset plan JSON filter for new message
 
       // Generate title for new sessions (when no current session exists)
       const title = currentSessionId ? undefined : generateSessionTitle(messageContent);
@@ -1045,6 +1128,7 @@ export const ChatInterface = ({
     mainSequenceRef.current = 0; // Reset sequence counter on cancel
     subagentSequenceRef.current = 0; // Reset sequence counter on cancel
     setPendingUserMessage(null);
+    planFilterRef.current.reset();
   }, [streamingChat]);
 
   // Handle approval decision
@@ -1082,12 +1166,17 @@ export const ChatInterface = ({
   }, []);
 
   // Helper: Convert API messages to ChatMessage type
+  // Strips plan JSON from persisted assistant messages as defense-in-depth.
   const chatMessages: ChatMessage[] = useMemo(() => {
     const base: ChatMessage[] =
       messages?.map((msg) => ({
         id: msg.id,
         role: msg.role,
-        content: msg.content,
+        // Filter plan JSON from persisted assistant messages — the plan
+        // is displayed in the briefing rail via plan_update events, not
+        // as raw JSON in the chat stream.
+        content:
+          msg.role === "assistant" ? stripPlanJson(msg.content) : msg.content,
         toolCalls: msg.tool_calls,
         toolResults: msg.tool_results,
         createdAt: msg.created_at,
@@ -1500,6 +1589,11 @@ export const ChatInterface = ({
             {!isMobile && !isBriefingOpen && (
               <BriefingRailToggleTab
                 specialistCount={briefing?.completedSpecialists.length ?? 0}
+                planStepBadge={
+                  briefing?.plan
+                    ? `${briefing.plan.completedSteps}/${briefing.plan.totalSteps}`
+                    : undefined
+                }
                 isStreaming={isStreaming}
                 hasBriefing={!!briefing}
                 onClick={() => {

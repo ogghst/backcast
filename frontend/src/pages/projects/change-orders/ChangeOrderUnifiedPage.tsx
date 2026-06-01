@@ -136,7 +136,7 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
         items={[
           { label: project?.code || projectId!, to: `/projects/${projectId}` },
           { label: "Change Orders", to: `/projects/${projectId}/change-orders` },
-          { label: createMode ? "New" : changeOrder?.code || changeOrderId },
+          { label: createMode ? "New" : changeOrder?.code || changeOrderId! },
         ]}
       />
 

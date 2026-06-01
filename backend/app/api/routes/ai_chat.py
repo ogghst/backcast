@@ -45,6 +45,7 @@ from app.models.schemas.ai import (
     ApprovalRequest,
     InvokeAgentRequest,
     WSApprovalResponseMessage,
+    WSAskUserResponse,
     WSChatRequest,
     WSSubscribeMessage,
 )
@@ -749,7 +750,9 @@ async def chat_stream(
                         if bus is None:
                             # Bus lost — likely a server restart. Clean up any
                             # orphaned execution row so the client can recover.
-                            await _cleanup_stale_execution(db, str(sub_msg.execution_id))
+                            await _cleanup_stale_execution(
+                                db, str(sub_msg.execution_id)
+                            )
                             await websocket.send_json(
                                 build_ws_error(
                                     f"Execution {sub_msg.execution_id} not found or already completed",
@@ -761,7 +764,9 @@ async def chat_stream(
                         # Replay missed events (only those after the client's last seen sequence)
                         events = bus.replay(since_sequence=sub_msg.last_seen_sequence)
                         if events:
-                            await websocket.send_json({"type": "replay_start", "count": len(events)})
+                            await websocket.send_json(
+                                {"type": "replay_start", "count": len(events)}
+                            )
                             for event in events:
                                 payload = {**event.data, "type": event.event_type}
                                 try:
@@ -841,6 +846,36 @@ async def chat_stream(
                                 code=500,
                             ).model_dump()
                         )
+                    continue
+
+                # Handle ask_user_response messages -- resolve the waiting Future
+                if message_type == "ask_user_response":
+                    try:
+                        ask_response = WSAskUserResponse.model_validate(data)
+                        from app.ai.tools.ask_user import resolve_ask_user_response
+
+                        resolve_ask_user_response(
+                            ask_response.ask_id, ask_response.answer
+                        )
+                        logger.info(
+                            "Resolved ask_user response: ask_id=%s",
+                            ask_response.ask_id,
+                        )
+                    except Exception as ask_err:
+                        logger.error(
+                            "Error handling ask_user_response: %s",
+                            ask_err,
+                            exc_info=True,
+                        )
+                        try:
+                            await websocket.send_json(
+                                build_ws_error(
+                                    f"Error processing ask_user response: {str(ask_err)}",
+                                    code=500,
+                                ).model_dump()
+                            )
+                        except Exception:
+                            pass
                     continue
 
                 # Handle chat messages -- create session, start execution, forward events
