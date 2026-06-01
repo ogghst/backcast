@@ -126,6 +126,11 @@ AI_SEQUENTIAL_TOOL_CALLS: bool = os.environ.get(
 AI_MCP_TOOL_CATEGORY_PREFIX: str = os.environ.get("AI_MCP_TOOL_CATEGORY_PREFIX", "mcp:")
 
 
+#: Default page size for AI tool list/find operations (env-configurable).
+AI_TOOLS_DEFAULT_PAGE_SIZE: int = int(
+    os.environ.get("AI_TOOLS_DEFAULT_PAGE_SIZE", "50")
+)
+
 __all__ = [
     "AgentConfig",
     "OrchestratorMode",
@@ -136,4 +141,5 @@ __all__ = [
     "AI_DELEGATION_ENFORCED",
     "AI_SEQUENTIAL_TOOL_CALLS",
     "AI_MCP_TOOL_CATEGORY_PREFIX",
+    "AI_TOOLS_DEFAULT_PAGE_SIZE",
 ]

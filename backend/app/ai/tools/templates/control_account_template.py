@@ -33,19 +33,16 @@ from uuid import UUID, uuid4
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.control_account import ControlAccountCreate
 
 logger = logging.getLogger(__name__)
-
-BATCH_SIZE_LIMIT = 50
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
 
 
 # =============================================================================
@@ -55,17 +52,17 @@ def _clamp_limit(limit: int) -> int:
 
 @ai_tool(
     name="find_control_accounts",
-    description="Find control accounts by ID or search/filter. Results are paginated; response includes total count and has_more.",
+    description="Find control accounts by ID or search/filter. Results are paginated; response includes total count, page, and page_count.",
     permissions=["control-account-read"],
-    category="control-accounts",
+    category="work-tracking",
     risk_level=RiskLevel.LOW,
 )
 async def find_control_accounts(
     control_account_id: str | None = None,
     wbs_element_id: str | None = None,
     organizational_unit_id: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find control accounts by ID or search/filter.
@@ -78,8 +75,8 @@ async def find_control_accounts(
             (returns single)
         wbs_element_id: UUID of the WBS element to filter control accounts for
         organizational_unit_id: UUID of the organizational unit to filter by
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -90,7 +87,8 @@ async def find_control_accounts(
         ValueError: If IDs are not valid UUID format
     """
     log_temporal_context("find_control_accounts", context)
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         from app.core.versioning.enums import BranchMode
@@ -158,9 +156,10 @@ async def find_control_accounts(
                 for ca in control_accounts
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(control_accounts),
+            "has_more": page < calc_page_count(total, limit),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -177,7 +176,7 @@ async def find_control_accounts(
     description="Create ANSI-748 control account at a WBS Element x "
     "Organizational Unit intersection.",
     permissions=["control-account-create"],
-    category="control-accounts",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def create_control_account(
@@ -272,7 +271,7 @@ async def create_control_account(
     name="update_control_account",
     description="Update control account fields.",
     permissions=["control-account-update"],
-    category="control-accounts",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def update_control_account(
@@ -368,7 +367,7 @@ async def update_control_account(
     name="delete_control_account",
     description="Delete control account.",
     permissions=["control-account-delete"],
-    category="control-accounts",
+    category="work-tracking",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_control_account(
@@ -422,7 +421,7 @@ async def delete_control_account(
     name="get_control_account_budget",
     description="Get computed budget for a control account.",
     permissions=["control-account-read"],
-    category="control-accounts",
+    category="work-tracking",
     risk_level=RiskLevel.LOW,
 )
 async def get_control_account_budget(
@@ -479,7 +478,7 @@ async def get_control_account_budget(
     name="batch_create_control_accounts",
     description="Batch create control accounts under a WBS element. Max 50 items.",
     permissions=["control-account-create"],
-    category="control-accounts",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def batch_create_control_accounts(

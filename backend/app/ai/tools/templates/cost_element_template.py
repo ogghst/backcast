@@ -25,6 +25,11 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
@@ -35,14 +40,6 @@ from app.models.schemas.cost_element_type import (
 
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE_LIMIT = 50
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
-
 
 # =============================================================================
 # COST ELEMENT TOOLS (EOC under Work Package)
@@ -51,17 +48,17 @@ def _clamp_limit(limit: int) -> int:
 
 @ai_tool(
     name="find_cost_elements",
-    description="Find cost elements (EOCs) by ID or filter. Results are paginated; response includes total count and has_more.",
+    description="Find cost elements (EOCs) by ID or filter. Results are paginated; response includes total count, page, and page_count.",
     permissions=["cost-element-read"],
-    category="cost-elements",
+    category="cost-management",
     risk_level=RiskLevel.LOW,
 )
 async def find_cost_elements(
     cost_element_id: str | None = None,
     work_package_id: str | None = None,
     cost_element_type_id: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find cost elements (EOCs) by ID or filter.
@@ -73,8 +70,8 @@ async def find_cost_elements(
         cost_element_id: Optional UUID to fetch a single cost element
         work_package_id: Optional Work Package ID to filter cost elements
         cost_element_type_id: Optional cost element type ID to filter
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -84,7 +81,8 @@ async def find_cost_elements(
         ValueError: If invalid filter parameters are provided
     """
     log_temporal_context("find_cost_elements", context)
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         from app.services.cost_element_service import CostElementService
@@ -147,9 +145,10 @@ async def find_cost_elements(
                 for ce in cost_elements
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(cost_elements),
+            "has_more": page < calc_page_count(total, limit),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -163,7 +162,7 @@ async def find_cost_elements(
     name="create_cost_element",
     description="Create cost element (EOC) under a Work Package.",
     permissions=["cost-element-create"],
-    category="cost-elements",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def create_cost_element(
@@ -223,7 +222,7 @@ async def create_cost_element(
     name="update_cost_element",
     description="Update cost element (EOC).",
     permissions=["cost-element-update"],
-    category="cost-elements",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def update_cost_element(
@@ -288,7 +287,7 @@ async def update_cost_element(
     name="delete_cost_element",
     description="Delete cost element (EOC).",
     permissions=["cost-element-delete"],
-    category="cost-elements",
+    category="cost-management",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_cost_element(
@@ -338,17 +337,17 @@ async def delete_cost_element(
 
 @ai_tool(
     name="find_cost_element_types",
-    description="Find cost element types by ID or search/filter. Results are paginated; response includes total count and has_more.",
+    description="Find cost element types by ID or search/filter. Results are paginated; response includes total count, page, and page_count.",
     permissions=["cost-element-type-read"],
-    category="cost-element-types",
+    category="cost-management",
     risk_level=RiskLevel.LOW,
 )
 async def find_cost_element_types(
     cost_element_type_id: str | None = None,
     organizational_unit_id: str | None = None,
     search: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     sort_field: str | None = None,
     sort_order: str = "asc",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
@@ -362,8 +361,8 @@ async def find_cost_element_types(
         cost_element_type_id: Optional UUID to fetch a single cost element type
         organizational_unit_id: Optional organizational unit ID to filter
         search: Optional search term for code or name
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         sort_field: Field to sort by (e.g., "name", "code")
         sort_order: Sort order ("asc" or "desc")
         context: Injected tool execution context
@@ -374,7 +373,8 @@ async def find_cost_element_types(
     Raises:
         ValueError: If invalid filter parameters
     """
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
     try:
         from app.services.cost_element_type_service import CostElementTypeService
 
@@ -421,9 +421,10 @@ async def find_cost_element_types(
                 for t in types
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(types),
+            "has_more": page < calc_page_count(total, limit),
         }
     except ValueError:
         return {"error": f"Invalid cost element type ID: {cost_element_type_id}"}
@@ -436,7 +437,7 @@ async def find_cost_element_types(
     name="create_cost_element_type",
     description="Create cost element type under an organizational unit.",
     permissions=["cost-element-type-create"],
-    category="cost-element-types",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def create_cost_element_type(
@@ -500,7 +501,7 @@ async def create_cost_element_type(
     name="update_cost_element_type",
     description="Update cost element type.",
     permissions=["cost-element-type-update"],
-    category="cost-element-types",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def update_cost_element_type(
@@ -574,7 +575,7 @@ async def update_cost_element_type(
     name="delete_cost_element_type",
     description="Delete cost element type.",
     permissions=["cost-element-type-delete"],
-    category="cost-element-types",
+    category="cost-management",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_cost_element_type(
@@ -626,7 +627,7 @@ async def delete_cost_element_type(
     name="batch_create_cost_elements",
     description="Batch create cost elements under a Work Package. Max 50 items.",
     permissions=["cost-element-create"],
-    category="cost-elements",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def batch_create_cost_elements(
@@ -711,7 +712,7 @@ async def batch_create_cost_elements(
     name="batch_delete_cost_elements",
     description="Batch soft delete cost elements. Max 50 items.",
     permissions=["cost-element-delete"],
-    category="cost-elements",
+    category="cost-management",
     risk_level=RiskLevel.CRITICAL,
 )
 async def batch_delete_cost_elements(

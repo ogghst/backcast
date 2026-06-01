@@ -35,6 +35,11 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.cost_event import (
@@ -45,13 +50,6 @@ from app.models.schemas.cost_event import (
 
 logger = logging.getLogger(__name__)
 
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
-
 
 # =============================================================================
 # COST EVENT CRUD TOOLS
@@ -60,9 +58,9 @@ def _clamp_limit(limit: int) -> int:
 
 @ai_tool(
     name="find_cost_events",
-    description="Find cost events by ID or search/filter. Results are paginated; response includes total count and has_more.",
+    description="Find cost events by ID or search/filter. Results are paginated; response includes total count, page, and page_count.",
     permissions=["cost-event-read"],
-    category="cost-events",
+    category="cost-management",
     risk_level=RiskLevel.LOW,
 )
 async def find_cost_events(
@@ -71,8 +69,8 @@ async def find_cost_events(
     wbs_element_id: str | None = None,
     coq_category: str | None = None,
     status: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find cost events by ID or search/filter.
@@ -83,8 +81,8 @@ async def find_cost_events(
         wbs_element_id: Optional WBS Element ID to filter
         coq_category: Optional COQ category filter
         status: Optional status filter (open/closed)
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -94,7 +92,8 @@ async def find_cost_events(
         ValueError: If IDs are not valid UUID format
     """
     log_temporal_context("find_cost_events", context)
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         from app.services.cost_event_service import CostEventService
@@ -176,9 +175,10 @@ async def find_cost_events(
                 for ev in events
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(events),
+            "has_more": page < calc_page_count(total, limit),
         }
         return add_temporal_metadata(list_result, context)
     except ValueError as e:
@@ -194,7 +194,7 @@ async def find_cost_events(
     name="create_cost_event",
     description="Create cost event under a project.",
     permissions=["cost-event-create"],
-    category="cost-events",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def create_cost_event(
@@ -315,7 +315,7 @@ async def create_cost_event(
     name="update_cost_event",
     description="Update cost event fields.",
     permissions=["cost-event-update"],
-    category="cost-events",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def update_cost_event(
@@ -430,7 +430,7 @@ async def update_cost_event(
     name="delete_cost_event",
     description="Delete cost event.",
     permissions=["cost-event-delete"],
-    category="cost-events",
+    category="cost-management",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_cost_event(
@@ -477,7 +477,7 @@ async def delete_cost_event(
     name="get_coq_data",
     description="Get Cost of Quality summary and metrics.",
     permissions=["cost-event-read"],
-    category="cost-events",
+    category="cost-management",
     risk_level=RiskLevel.LOW,
 )
 async def get_coq_data(
@@ -581,3 +581,125 @@ async def get_coq_data(
         logger.error(f"Error in get_coq_data: {e}")
         error_result = {"error": str(e)}
         return add_temporal_metadata(error_result, context)
+
+
+# =============================================================================
+# BATCH COST EVENT TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_cost_events",
+    description="Batch create cost events under a project. Max 50 items.",
+    permissions=["cost-event-create"],
+    category="cost-management",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_cost_events(
+    project_id: str,
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create cost events under the same project.
+
+    Args:
+        project_id: UUID of the parent project
+        items: List of dicts, each with {name, cost_event_type_id, description?,
+               status?, external_event_id?, event_date?, coq_category?,
+               estimated_impact?, schedule_impact_days?, wbs_element_id?,
+               cost_allocations?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    log_temporal_context("batch_create_cost_events", context)
+
+    try:
+        from app.services.cost_event_service import CostEventService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("name"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'name'"},
+                    context,
+                )
+            if not item.get("cost_event_type_id"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'cost_event_type_id'"
+                    },
+                    context,
+                )
+
+        service = CostEventService(context.session)
+        actor_id = UUID(context.user_id)
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            parsed_event_date = (
+                datetime.fromisoformat(item["event_date"])
+                if item.get("event_date")
+                else None
+            )
+
+            allocations: list[QualityCostAllocation] | None = None
+            if item.get("cost_allocations"):
+                allocations = [
+                    QualityCostAllocation(
+                        cost_element_id=UUID(alloc["cost_element_id"]),
+                        amount=Decimal(str(alloc["amount"])),
+                        description=alloc.get("description"),
+                    )
+                    for alloc in item["cost_allocations"]
+                ]
+
+            event_data = CostEventCreate(
+                project_id=UUID(project_id),
+                name=item["name"],
+                cost_event_type_id=UUID(item["cost_event_type_id"]),
+                description=item.get("description"),
+                status=item.get("status", "open"),
+                external_event_id=item.get("external_event_id"),
+                event_date=parsed_event_date,
+                coq_category=item.get("coq_category"),
+                estimated_impact=Decimal(str(item.get("estimated_impact", 0.0))),
+                schedule_impact_days=item.get("schedule_impact_days"),
+                wbs_element_id=UUID(item["wbs_element_id"])
+                if item.get("wbs_element_id")
+                else None,
+                cost_allocations=allocations,
+            )
+
+            event = await service.create_cost_event(
+                data=event_data,
+                actor_id=actor_id,
+            )
+            results.append(
+                {
+                    "cost_event_id": str(event.cost_event_id),
+                    "name": event.name,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} cost events under project {project_id}",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_create_cost_events: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)

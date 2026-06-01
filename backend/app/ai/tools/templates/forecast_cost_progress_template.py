@@ -28,18 +28,15 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
-
-BATCH_SIZE_LIMIT = 50
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
 
 
 # =============================================================================
@@ -51,7 +48,7 @@ def _clamp_limit(limit: int) -> int:
     name="create_forecast",
     description="Create forecast for a cost element.",
     permissions=["forecast-create"],
-    category="forecast",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def create_forecast(
@@ -104,7 +101,7 @@ async def create_forecast(
     name="update_forecast",
     description="Update forecast for a cost element.",
     permissions=["forecast-update"],
-    category="forecast",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def update_forecast(
@@ -161,7 +158,7 @@ async def update_forecast(
     name="delete_forecast",
     description="Delete forecast for a cost element.",
     permissions=["forecast-delete"],
-    category="forecast",
+    category="cost-management",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_forecast(
@@ -210,7 +207,7 @@ async def delete_forecast(
     name="create_cost_registration",
     description="Record an actual cost against a cost element.",
     permissions=["cost-registration-create"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def create_cost_registration(
@@ -276,7 +273,7 @@ async def create_cost_registration(
     name="update_cost_registration",
     description="Update a cost registration entry.",
     permissions=["cost-registration-update"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def update_cost_registration(
@@ -355,7 +352,7 @@ async def update_cost_registration(
     name="delete_cost_registration",
     description="Delete a cost registration entry.",
     permissions=["cost-registration-delete"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_cost_registration(
@@ -395,9 +392,9 @@ async def delete_cost_registration(
 
 @ai_tool(
     name="list_cost_registrations",
-    description="List cost registrations with optional filters. Results are paginated; response includes total count and has_more.",
+    description="List cost registrations with optional filters. Results are paginated; response includes total count, page, and page_count.",
     permissions=["cost-registration-read"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.LOW,
 )
 async def list_cost_registrations(
@@ -405,13 +402,14 @@ async def list_cost_registrations(
     project_id: str | None = None,
     wbs_element_id: str | None = None,
     work_package_id: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """List cost registrations with filtering by project, WBS, work package, or cost element."""
     log_temporal_context("list_cost_registrations", context)
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         from app.services.cost_registration_service import CostRegistrationService
@@ -448,9 +446,10 @@ async def list_cost_registrations(
                 for reg in registrations
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(registrations),
+            "has_more": page < calc_page_count(total, limit),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -469,7 +468,7 @@ async def list_cost_registrations(
     name="create_progress_entry",
     description="Record work progress for a cost element.",
     permissions=["progress-entry-create"],
-    category="progress-entry",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def create_progress_entry(
@@ -544,7 +543,7 @@ async def create_progress_entry(
     name="update_progress_entry",
     description="Update a progress entry.",
     permissions=["progress-entry-update"],
-    category="progress-entry",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def update_progress_entry(
@@ -607,7 +606,7 @@ async def update_progress_entry(
     name="delete_progress_entry",
     description="Delete a progress entry.",
     permissions=["progress-entry-delete"],
-    category="progress-entry",
+    category="work-tracking",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_progress_entry(
@@ -654,7 +653,7 @@ async def delete_progress_entry(
     name="get_cost_element_details",
     description="Get CE details: forecast EAC, budget status, costs, trends.",
     permissions=["forecast-read", "cost-registration-read"],
-    category="forecast",
+    category="cost-management",
     risk_level=RiskLevel.LOW,
 )
 async def get_cost_element_details(
@@ -818,17 +817,17 @@ async def get_cost_element_details(
 
 @ai_tool(
     name="get_progress_data",
-    description="Get progress data for a cost element. Results are paginated when include_history is true; response includes total count and has_more.",
+    description="Get progress data for a cost element. Results are paginated when include_history is true; response includes total count, page, and page_count.",
     permissions=["progress-entry-read"],
-    category="progress",
+    category="work-tracking",
     risk_level=RiskLevel.LOW,
 )
 async def get_progress_data(
     cost_element_id: str,
     progress_entry_id: str | None = None,
     include_history: bool = False,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Get progress data for a cost element.
@@ -837,7 +836,8 @@ async def get_progress_data(
     get_progress_history.
     """
     log_temporal_context("get_progress_data", context)
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         from typing import Any, cast
@@ -911,9 +911,10 @@ async def get_progress_data(
                     for entry in progress_entries
                 ],
                 "total": total,
-                "skip": skip,
+                "page": page,
+                "page_count": calc_page_count(total, limit),
                 "limit": limit,
-                "has_more": total > skip + len(progress_entries),
+                "has_more": page < calc_page_count(total, limit),
             }
             return add_temporal_metadata(history_result, context)
 
@@ -957,9 +958,10 @@ async def get_progress_data(
                 for entry in recent_entries
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(recent_entries),
+            "has_more": page < calc_page_count(total, limit),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -978,7 +980,7 @@ async def get_progress_data(
     name="batch_create_cost_registrations",
     description="Batch register actual costs for multiple cost elements.",
     permissions=["cost-registration-create"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def batch_create_cost_registrations(
@@ -1080,7 +1082,7 @@ async def batch_create_cost_registrations(
     name="batch_create_progress_entries",
     description="Batch create progress entries for multiple cost elements.",
     permissions=["progress-entry-create"],
-    category="progress-entry",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def batch_create_progress_entries(
@@ -1168,4 +1170,106 @@ async def batch_create_progress_entries(
         return add_temporal_metadata({"error": f"Cost element not found: {e}"}, context)
     except Exception as e:
         logger.error(f"Error in batch_create_progress_entries: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="batch_create_forecasts",
+    description="Batch create forecasts for cost elements. Max 50 items.",
+    permissions=["forecast-create"],
+    category="cost-management",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_forecasts(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create forecasts for cost elements.
+
+    Args:
+        items: List of dicts, each with {cost_element_id, eac_amount, basis_of_estimate}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    log_temporal_context("batch_create_forecasts", context)
+
+    try:
+        from app.services.forecast_service import (
+            ForecastAlreadyExistsError,
+            ForecastService,
+        )
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("cost_element_id"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'cost_element_id'"
+                    },
+                    context,
+                )
+            if item.get("eac_amount") is None:
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'eac_amount'"
+                    },
+                    context,
+                )
+            if not item.get("basis_of_estimate"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'basis_of_estimate'"
+                    },
+                    context,
+                )
+
+        service = ForecastService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            forecast = await service.create_for_cost_element(
+                cost_element_id=UUID(item["cost_element_id"]),
+                actor_id=actor_id,
+                branch=branch,
+                control_date=context.as_of,
+                eac_amount=Decimal(str(item["eac_amount"])),
+                basis_of_estimate=item["basis_of_estimate"],
+            )
+            results.append(
+                {
+                    "id": str(forecast.forecast_id),
+                    "cost_element_id": item["cost_element_id"],
+                    "eac_amount": float(forecast.eac_amount)
+                    if forecast.eac_amount
+                    else None,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} forecasts",
+        }
+        return add_temporal_metadata(result, context)
+    except ForecastAlreadyExistsError as e:
+        return add_temporal_metadata({"error": str(e)}, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata({"error": f"Cost element not found: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_create_forecasts: {e}")
         return add_temporal_metadata({"error": str(e)}, context)

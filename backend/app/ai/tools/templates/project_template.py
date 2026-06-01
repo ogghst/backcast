@@ -24,20 +24,17 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 from app.models.schemas.wbs_element import WBSElementCreate, WBSElementUpdate
 
 logger = logging.getLogger(__name__)
-
-BATCH_SIZE_LIMIT = 50
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
 
 
 # =============================================================================
@@ -286,17 +283,17 @@ async def delete_project(
 
 @ai_tool(
     name="find_wbs_elements",
-    description="Find WBS Elements by ID or search/filter. Results are paginated; response includes total count and has_more.",
+    description="Find WBS Elements by ID or search/filter. Results are paginated; response includes total count, page, and page_count.",
     permissions=["wbs-element-read"],
-    category="wbs-elements",
+    category="projects",
     risk_level=RiskLevel.LOW,
 )
 async def find_wbs_elements(
     wbs_element_id: str | None = None,
     project_id: str | None = None,
     search: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find WBS Elements by ID or search/filter.
@@ -307,8 +304,8 @@ async def find_wbs_elements(
         wbs_element_id: UUID of a specific WBS Element to retrieve (returns single)
         project_id: Optional project ID to filter WBS Elements
         search: Optional search term
-        skip: Number of records to skip
-        limit: Maximum records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -318,10 +315,11 @@ async def find_wbs_elements(
         ValueError: If invalid filter parameters
 
     Example:
-        >>> result = await find_wbs_elements(project_id="...", limit=20)
-        >>> print(f"Found {result['total']} WBS Elements")
+        >>> result = await find_wbs_elements(project_id="...", page=1, limit=20)
+        >>> print(f"Found {result['total']} WBS Elements, page {result['page']} of {result['page_count']}")
     """
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
     try:
         from uuid import UUID
 
@@ -381,9 +379,10 @@ async def find_wbs_elements(
                 for w in wbs_elements
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(wbs_elements),
+            "has_more": page < calc_page_count(total, limit),
         }
     except ValueError:
         return {"error": f"Invalid WBS Element ID: {wbs_element_id}"}
@@ -398,7 +397,7 @@ async def find_wbs_elements(
     name="create_wbs_element",
     description="Create WBS Element under a project. Budget is computed from work packages.",
     permissions=["wbs-element-create"],
-    category="wbs-elements",
+    category="projects",
     risk_level=RiskLevel.HIGH,
 )
 async def create_wbs_element(
@@ -490,7 +489,7 @@ async def create_wbs_element(
     name="update_wbs_element",
     description="Update WBS Element fields.",
     permissions=["wbs-element-update"],
-    category="wbs-elements",
+    category="projects",
     risk_level=RiskLevel.HIGH,
 )
 async def update_wbs_element(
@@ -579,7 +578,7 @@ async def update_wbs_element(
     name="delete_wbs_element",
     description="Soft-delete WBS Element and its children.",
     permissions=["wbs-element-delete"],
-    category="wbs-elements",
+    category="projects",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_wbs_element(
@@ -639,7 +638,7 @@ async def delete_wbs_element(
     name="batch_create_wbs_elements",
     description="Batch create WBS Elements under a project. Pre-validates codes. Max 50.",
     permissions=["wbs-element-create"],
-    category="wbs-elements",
+    category="projects",
     risk_level=RiskLevel.HIGH,
 )
 async def batch_create_wbs_elements(
@@ -754,7 +753,7 @@ async def batch_create_wbs_elements(
     name="batch_update_wbs_elements",
     description="Batch update WBS Elements. Each needs wbs_element_id and fields to update. Max 50.",
     permissions=["wbs-element-update"],
-    category="wbs-elements",
+    category="projects",
     risk_level=RiskLevel.HIGH,
 )
 async def batch_update_wbs_elements(
@@ -850,6 +849,102 @@ async def batch_update_wbs_elements(
     except Exception as e:
         logger.error(f"Error in batch_update_wbs_elements: {e}")
         return add_temporal_metadata({"error": str(e)}, context)
+
+
+# =============================================================================
+# BATCH PROJECT TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_projects",
+    description="Batch create projects. Max 50 items.",
+    permissions=["project-create"],
+    category="projects",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_projects(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create projects.
+
+    Args:
+        items: List of dicts, each with {name, code, description?, budget?,
+               start_date?, end_date?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    try:
+        from datetime import datetime
+        from uuid import UUID
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"}
+
+        if not items:
+            return {"error": "No items provided"}
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("name"):
+                return {"error": f"Item at index {i} is missing required field 'name'"}
+            if not item.get("code"):
+                return {"error": f"Item at index {i} is missing required field 'code'"}
+
+        service = context.project_service
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            # Dedup check: prevent creating duplicate projects with same code
+            existing = await service.get_by_code(item["code"])
+            if existing:
+                return {
+                    "error": f"A project with code '{item['code']}' already exists "
+                    f"(ID: {existing.project_id}, name: '{existing.name}'). "
+                    "Use a different code.",
+                    "existing_id": str(existing.project_id),
+                    "existing_code": item["code"],
+                }
+
+            project_data = ProjectCreate(
+                name=item["name"],
+                code=item["code"],
+                description=item.get("description"),
+                budget=item.get("budget"),
+                start_date=datetime.fromisoformat(item["start_date"])
+                if item.get("start_date")
+                else None,
+                end_date=datetime.fromisoformat(item["end_date"])
+                if item.get("end_date")
+                else None,
+                branch=branch,
+            )
+
+            project = await service.create_project(project_data, actor_id=actor_id)
+            results.append(
+                {
+                    "id": str(project.project_id),
+                    "name": project.name,
+                    "code": project.code,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} projects",
+        }
+        return result
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except Exception as e:
+        logger.error(f"Error in batch_create_projects: {e}")
+        return {"error": str(e)}
 
 
 # =============================================================================

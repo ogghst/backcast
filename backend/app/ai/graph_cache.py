@@ -71,6 +71,16 @@ class LLMClientCache:
         self._cache: dict[tuple[object, ...], object] = {}
         self._lock = threading.Lock()
 
+    def clear(self) -> None:
+        """Drop all cached LLM client instances.
+
+        Call when provider configs (API keys, base URLs) change so the next
+        request creates fresh clients with updated credentials.
+        """
+        with self._lock:
+            self._cache.clear()
+            logger.info("LLMClientCache cleared")
+
     def get_or_create(
         self,
         key: tuple[object, ...],

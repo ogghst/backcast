@@ -1,11 +1,151 @@
 {
   "metadata": {
-    "description": "Comprehensive test dataset for AI tools testing - Forecast, Cost Registration, Progress Entry",
+    "description": "Comprehensive test dataset for AI tools testing - Forecast, Cost Registration, Progress Entry, Cost Events, Change Orders",
     "project_code": "AI-TEST-001",
     "project_name": "AI Test Project 2026",
     "created_date": "2026-03-22",
     "schema_version": "ansi-748"
   },
+  "organizational_units": [
+    {
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000001",
+      "code": "ENG",
+      "name": "Engineering",
+      "is_active": true,
+      "description": "Engineering department overseeing mechanical and electrical systems"
+    },
+    {
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000002",
+      "code": "ENG-MECH",
+      "name": "Mechanical Engineering",
+      "parent_unit_id": "00000000-0000-4000-8000-000000000001",
+      "is_active": true,
+      "description": "Mechanical engineering team responsible for conveyor and structural systems"
+    },
+    {
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000003",
+      "code": "ENG-ELEC",
+      "name": "Electrical Engineering",
+      "parent_unit_id": "00000000-0000-4000-8000-000000000001",
+      "is_active": true,
+      "description": "Electrical engineering team responsible for power distribution and control systems"
+    },
+    {
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000004",
+      "code": "PM",
+      "name": "Project Management",
+      "is_active": true,
+      "description": "Project management office overseeing schedule, budget, and change orders"
+    },
+    {
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000005",
+      "code": "QA",
+      "name": "Quality Assurance",
+      "is_active": true,
+      "description": "Quality assurance team responsible for inspections, NCRs, and COQ tracking"
+    }
+  ],
+  "users": [
+    {
+      "user_id": "00000000-0000-4000-8000-000000000301",
+      "email": "admin@backcast.example.com",
+      "full_name": "Admin User",
+      "password": "testpass123",
+      "department": "PM",
+      "role": "admin",
+      "control_date": "2026-01-01T00:00:00"
+    },
+    {
+      "user_id": "00000000-0000-4000-8000-000000000302",
+      "email": "pm@backcast.example.com",
+      "full_name": "Project Manager",
+      "password": "testpass123",
+      "department": "PM",
+      "role": "manager",
+      "control_date": "2026-01-01T00:00:00"
+    },
+    {
+      "user_id": "00000000-0000-4000-8000-000000000303",
+      "email": "viewer@backcast.example.com",
+      "full_name": "Site Engineer",
+      "password": "testpass123",
+      "department": "ENG-MECH",
+      "role": "viewer",
+      "control_date": "2026-01-01T00:00:00"
+    }
+  ],
+  "cost_element_types": [
+    {
+      "cost_element_type_id": "00000000-0000-4000-8000-000000000101",
+      "code": "LAB",
+      "name": "Labor",
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000001",
+      "description": "Direct labor costs for engineering and installation work",
+      "control_date": "2026-01-01T00:00:00"
+    },
+    {
+      "cost_element_type_id": "00000000-0000-4000-8000-000000000102",
+      "code": "MAT",
+      "name": "Material",
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000002",
+      "description": "Raw materials and components for conveyor and structural systems",
+      "control_date": "2026-01-01T00:00:00"
+    },
+    {
+      "cost_element_type_id": "00000000-0000-4000-8000-000000000103",
+      "code": "EQP",
+      "name": "Equipment",
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000003",
+      "description": "Equipment procurement including motors, panels, and control hardware",
+      "control_date": "2026-01-01T00:00:00"
+    },
+    {
+      "cost_element_type_id": "00000000-0000-4000-8000-000000000104",
+      "code": "SUB",
+      "name": "Subcontract",
+      "organizational_unit_id": "00000000-0000-4000-8000-000000000004",
+      "description": "Subcontracted services for specialized installation and commissioning",
+      "control_date": "2026-01-01T00:00:00"
+    }
+  ],
+  "cost_event_types": [
+    {
+      "cost_event_type_id": "00000000-0000-4000-8000-000000000201",
+      "code": "NC",
+      "name": "Non Conformity",
+      "color": "red",
+      "is_quality": true,
+      "description": "Non-conformity reports identifying deviations from specification",
+      "control_date": "2026-01-01T00:00:00"
+    },
+    {
+      "cost_event_type_id": "00000000-0000-4000-8000-000000000202",
+      "code": "SI",
+      "name": "Site Inspection",
+      "color": "blue",
+      "is_quality": false,
+      "description": "Scheduled and ad-hoc site inspections for progress verification",
+      "control_date": "2026-01-01T00:00:00"
+    },
+    {
+      "cost_event_type_id": "00000000-0000-4000-8000-000000000203",
+      "code": "PP",
+      "name": "Production Phase",
+      "color": "green",
+      "is_quality": false,
+      "description": "Production phase milestones and stage-gate reviews",
+      "control_date": "2026-01-01T00:00:00"
+    },
+    {
+      "cost_event_type_id": "00000000-0000-4000-8000-000000000204",
+      "code": "WC",
+      "name": "Warranty Claim",
+      "color": "orange",
+      "is_quality": true,
+      "description": "Warranty claims for defective materials or workmanship",
+      "control_date": "2026-01-01T00:00:00"
+    }
+  ],
   "project": {
     "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
     "code": "AI-TEST-001",
@@ -95,7 +235,7 @@
       "amount": 100000.0,
       "description": "Complete installation of main conveyor system including framing, motors, and controls",
       "wbs_element_id": "10000000-0000-0000-0000-000000000003",
-      "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+      "cost_element_type_id": "00000000-0000-4000-8000-000000000102",
       "control_date": "2026-01-01T00:00:00",
       "forecast": {
         "forecast_id": "50000000-0000-0000-0000-000000000001",
@@ -109,7 +249,7 @@
       "amount": 75000.0,
       "description": "Installation of secondary conveyor system with manual controls",
       "wbs_element_id": "10000000-0000-0000-0000-000000000004",
-      "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+      "cost_element_type_id": "00000000-0000-4000-8000-000000000102",
       "control_date": "2026-01-01T00:00:00",
       "forecast": {
         "forecast_id": "50000000-0000-0000-0000-000000000002",
@@ -123,7 +263,7 @@
       "amount": 50000.0,
       "description": "Installation of main electrical panel including all breakers and wiring",
       "wbs_element_id": "10000000-0000-0000-0000-000000000007",
-      "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+      "cost_element_type_id": "00000000-0000-4000-8000-000000000103",
       "control_date": "2026-01-01T00:00:00",
       "forecast": {
         "forecast_id": "50000000-0000-0000-0000-000000000003",
@@ -137,7 +277,7 @@
       "amount": 40000.0,
       "description": "PLC programming and HMI development for conveyor control system",
       "wbs_element_id": "10000000-0000-0000-0000-000000000003",
-      "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+      "cost_element_type_id": "00000000-0000-4000-8000-000000000101",
       "control_date": "2026-01-01T00:00:00",
       "forecast": {
         "forecast_id": "50000000-0000-0000-0000-000000000004",
@@ -291,6 +431,94 @@
       "progress_percentage": 30.0,
       "notes": "Control system: Basic logic programming complete, working on safety interlocks",
       "control_date": "2026-03-31T10:00:00"
+    }
+  ],
+  "cost_events": [
+    {
+      "cost_event_id": "60000000-0000-0000-0000-000000000001",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "wbs_element_id": "10000000-0000-0000-0000-000000000003",
+      "name": "Conveyor Belt Misalignment NCR",
+      "cost_event_type_id": "00000000-0000-4000-8000-000000000201",
+      "description": "During commissioning, the main conveyor belt was found to be misaligned by 12mm. Requires realignment of idler rollers and tension adjustment.",
+      "status": "open",
+      "event_date": "2026-03-20T09:00:00",
+      "coq_category": "internal_failure",
+      "estimated_impact": 3500.00,
+      "schedule_impact_days": 3,
+      "control_date": "2026-03-20T09:00:00"
+    },
+    {
+      "cost_event_id": "60000000-0000-0000-0000-000000000002",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "wbs_element_id": "10000000-0000-0000-0000-000000000007",
+      "name": "Panel Incoming Inspection",
+      "cost_event_type_id": "00000000-0000-4000-8000-000000000202",
+      "description": "Routine incoming inspection of main electrical panel. All breakers tested, wiring continuity verified. One breaker found with loose terminal — corrected on site.",
+      "status": "closed",
+      "event_date": "2026-01-18T14:00:00",
+      "coq_category": "appraisal",
+      "estimated_impact": 0,
+      "schedule_impact_days": 0,
+      "control_date": "2026-01-18T14:00:00"
+    },
+    {
+      "cost_event_id": "60000000-0000-0000-0000-000000000003",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "wbs_element_id": "10000000-0000-0000-0000-000000000003",
+      "name": "Motor Warranty Claim - Excessive Vibration",
+      "cost_event_type_id": "00000000-0000-4000-8000-000000000204",
+      "description": "Main conveyor drive motor showing excessive vibration at 1500 RPM. Vendor notified — motor falls under 24-month warranty. Replacement motor shipped.",
+      "status": "open",
+      "event_date": "2026-03-10T11:00:00",
+      "coq_category": "external_failure",
+      "estimated_impact": 8200.00,
+      "schedule_impact_days": 5,
+      "control_date": "2026-03-10T11:00:00"
+    },
+    {
+      "cost_event_id": "60000000-0000-0000-0000-000000000004",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "wbs_element_id": null,
+      "name": "Preventive Maintenance Training",
+      "cost_event_type_id": "00000000-0000-4000-8000-000000000203",
+      "description": "Conducted preventive maintenance training for conveyor operators covering belt tensioning, lubrication schedules, and safety protocols.",
+      "status": "closed",
+      "event_date": "2026-02-05T08:00:00",
+      "coq_category": "prevention",
+      "estimated_impact": 2500.00,
+      "schedule_impact_days": 0,
+      "control_date": "2026-02-05T08:00:00"
+    }
+  ],
+  "change_orders": [
+    {
+      "change_order_id": "70000000-0000-0000-0000-000000000001",
+      "code": "CO-2026-001",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "title": "Add Emergency Stop System to Conveyor Line",
+      "description": "Add dedicated emergency stop (E-stop) pull-wire switches along the entire conveyor line per updated safety standard ISO 13850. Includes additional PLC I/O modules, safety relay, and pull-wire hardware.",
+      "justification": "Client safety audit identified gap in emergency stop coverage for the main and secondary conveyor sections. Required for regulatory compliance before commissioning.",
+      "status": "draft",
+      "impact_level": "MEDIUM",
+      "effective_date": "2026-04-01T00:00:00",
+      "control_date": "2026-03-25T10:00:00"
+    },
+    {
+      "change_order_id": "70000000-0000-0000-0000-000000000002",
+      "code": "CO-2026-002",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "title": "Upgrade Secondary Conveyor to Variable Speed Drive",
+      "description": "Replace fixed-speed motor on secondary conveyor with variable frequency drive (VFD) to allow speed synchronization with the main conveyor. Includes VFD panel, cables, and commissioning.",
+      "justification": "Operational review determined that speed matching between main and secondary conveyors is needed to prevent product accumulation at transfer points. Approved by client project manager.",
+      "status": "approved",
+      "impact_level": "HIGH",
+      "effective_date": "2026-03-15T00:00:00",
+      "assigned_approver_id": "00000000-0000-4000-8000-000000000301",
+      "sla_assigned_at": "2026-03-01T09:00:00",
+      "sla_due_date": "2026-03-10T17:00:00",
+      "sla_status": "pending",
+      "control_date": "2026-03-01T09:00:00"
     }
   ],
   "expected_query_results": {

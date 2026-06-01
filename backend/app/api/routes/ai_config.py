@@ -3,6 +3,7 @@
 Provides endpoints for managing AI providers, models, and assistant configurations.
 """
 
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -26,7 +27,17 @@ from app.models.schemas.ai import (
 )
 from app.services.ai_config_service import AIConfigService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/ai/config", tags=["AI Configuration"])
+
+
+def _invalidate_llm_caches() -> None:
+    """Invalidate LLM config and client caches after provider/model changes."""
+    from app.ai.agent_service import invalidate_llm_config_cache
+
+    invalidate_llm_config_cache()
+    logger.info("LLM caches invalidated due to config change")
 
 
 def get_ai_config_service(session: AsyncSession = Depends(get_db)) -> AIConfigService:
@@ -82,6 +93,7 @@ async def update_provider(
     """Update an AI provider."""
     try:
         provider = await service.update_provider(provider_id, provider_in)
+        _invalidate_llm_caches()
         return AIProviderPublic.model_validate(provider)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -100,6 +112,7 @@ async def delete_provider(
     """Delete an AI provider."""
     try:
         await service.delete_provider(provider_id)
+        _invalidate_llm_caches()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -136,6 +149,7 @@ async def set_provider_config(
 ) -> AIProviderConfigPublic:
     """Set a provider config value."""
     config = await service.set_provider_config(provider_id, config_in)
+    _invalidate_llm_caches()
     return AIProviderConfigPublic.model_validate(config)
 
 
@@ -152,6 +166,7 @@ async def delete_provider_config(
 ) -> None:
     """Delete a provider config."""
     await service.delete_provider_config(provider_id, key)
+    _invalidate_llm_caches()
 
 
 # === Model Routes ===
@@ -201,7 +216,6 @@ async def create_model(
     service: AIConfigService = Depends(get_ai_config_service),
 ) -> AIModelPublic:
     """Create a new AI model for a provider."""
-    # Set provider_id from path parameter
     model_data = model_in.model_dump()
     model_data["provider_id"] = provider_id
     model = await service.create_model(AIModelCreate(**model_data))
@@ -223,6 +237,7 @@ async def update_model(
     """Update an AI model."""
     try:
         model = await service.update_model(model_id, model_in)
+        _invalidate_llm_caches()
         return AIModelPublic.model_validate(model)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -242,6 +257,7 @@ async def delete_model(
     """Delete an AI model."""
     try:
         await service.delete_model(model_id)
+        _invalidate_llm_caches()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 

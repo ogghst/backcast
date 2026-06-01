@@ -34,19 +34,16 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.work_package import WorkPackageCreate, WorkPackageUpdate
 
 logger = logging.getLogger(__name__)
-
-BATCH_SIZE_LIMIT = 50
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
 
 
 # =============================================================================
@@ -56,9 +53,9 @@ def _clamp_limit(limit: int) -> int:
 
 @ai_tool(
     name="find_work_packages",
-    description="Find work packages by ID or search/filter. Results are paginated; response includes total count and has_more.",
+    description="Find work packages by ID or search/filter. Results are paginated; response includes total count, page, and page_count.",
     permissions=["work-package-read"],
-    category="work-packages",
+    category="work-tracking",
     risk_level=RiskLevel.LOW,
 )
 async def find_work_packages(
@@ -66,8 +63,8 @@ async def find_work_packages(
     control_account_id: str | None = None,
     project_id: str | None = None,
     status: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find work packages by ID or search/filter.
@@ -79,8 +76,8 @@ async def find_work_packages(
         control_account_id: UUID of the control account to list work packages for
         project_id: UUID of the project to list work packages for
         status: Optional filter by status (open/closed)
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -90,7 +87,8 @@ async def find_work_packages(
         ValueError: If IDs are not valid UUID format
     """
     log_temporal_context("find_work_packages", context)
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         from app.core.versioning.enums import BranchMode
@@ -166,9 +164,10 @@ async def find_work_packages(
                 for wp in work_packages
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(work_packages),
+            "has_more": page < calc_page_count(total, limit),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -184,7 +183,7 @@ async def find_work_packages(
     name="create_work_package",
     description="Create PMI work package under a control account with budget.",
     permissions=["work-package-create"],
-    category="work-packages",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def create_work_package(
@@ -297,7 +296,7 @@ async def create_work_package(
     name="update_work_package",
     description="Update work package fields.",
     permissions=["work-package-update"],
-    category="work-packages",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def update_work_package(
@@ -429,7 +428,7 @@ async def update_work_package(
     name="delete_work_package",
     description="Delete work package.",
     permissions=["work-package-delete"],
-    category="work-packages",
+    category="work-tracking",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_work_package(
@@ -483,7 +482,7 @@ async def delete_work_package(
     name="get_work_package_budget_status",
     description="Get budget status for a work package (budget vs actual).",
     permissions=["work-package-read"],
-    category="work-packages",
+    category="work-tracking",
     risk_level=RiskLevel.LOW,
 )
 async def get_work_package_budget_status(
@@ -537,10 +536,127 @@ async def get_work_package_budget_status(
 
 
 @ai_tool(
+    name="batch_create_work_packages",
+    description="Batch create work packages under a control account. Max 50 items.",
+    permissions=["work-package-create"],
+    category="work-tracking",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_work_packages(
+    control_account_id: str,
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create work packages under the same control account.
+
+    Args:
+        control_account_id: UUID of the parent Control Account
+        items: List of dicts, each with {name, code, budget_amount?, description?,
+               status?, start_date?, end_date?, progression_type?, eac_amount?,
+               basis_of_estimate?, control_date?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    log_temporal_context("batch_create_work_packages", context)
+
+    try:
+        from app.services.work_package_service import WorkPackageService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("name"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'name'"},
+                    context,
+                )
+            if not item.get("code"):
+                return add_temporal_metadata(
+                    {"error": f"Item at index {i} is missing required field 'code'"},
+                    context,
+                )
+
+        service = WorkPackageService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            parsed_control_date = (
+                datetime.fromisoformat(item["control_date"])
+                if item.get("control_date")
+                else None
+            )
+            schedule_start = (
+                datetime.fromisoformat(item["start_date"])
+                if item.get("start_date")
+                else None
+            )
+            schedule_end = (
+                datetime.fromisoformat(item["end_date"])
+                if item.get("end_date")
+                else None
+            )
+
+            wp_data = WorkPackageCreate(
+                control_account_id=UUID(control_account_id),
+                name=item["name"],
+                code=item["code"],
+                budget_amount=Decimal(str(item.get("budget_amount", 0.0))),
+                description=item.get("description"),
+                status=item.get("status", "open"),
+                branch=branch,
+                control_date=parsed_control_date,
+                schedule_start_date=schedule_start,
+                schedule_end_date=schedule_end,
+                schedule_progression_type=item.get("progression_type"),
+                eac_amount=Decimal(str(item["eac_amount"]))
+                if item.get("eac_amount") is not None
+                else None,
+                basis_of_estimate=item.get("basis_of_estimate"),
+            )
+
+            wp = await service.create_work_package(
+                data=wp_data,
+                actor_id=actor_id,
+                control_date=parsed_control_date,
+            )
+            results.append(
+                {
+                    "work_package_id": str(wp.work_package_id),
+                    "name": wp.name,
+                    "code": wp.code,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} work packages under Control Account {control_account_id}",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_create_work_packages: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
     name="batch_get_work_package_budget_status",
     description="Get budget vs actual for multiple work packages at once.",
     permissions=["work-package-read"],
-    category="work-packages",
+    category="work-tracking",
     risk_level=RiskLevel.LOW,
 )
 async def batch_get_work_package_budget_status(

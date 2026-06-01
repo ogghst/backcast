@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
     name="generate_mermaid_diagram",
     description="Generate a Mermaid diagram. Supports flowchart, sequence, class, state, ER, Gantt.",
     permissions=["ai-chat"],
-    category="diagrams",
+    category="interaction",
     risk_level=RiskLevel.LOW,
 )
 async def generate_mermaid_diagram(

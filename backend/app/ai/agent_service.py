@@ -276,7 +276,8 @@ _LLM_CONFIG_TTL = 300  # 5 minutes
 def invalidate_llm_config_cache() -> None:
     """Clear the LLM client config cache. Called when provider/model configs change."""
     _llm_config_cache.clear()
-    logger.info("LLM config cache invalidated")
+    _llm_cache.clear()
+    logger.info("LLM config cache and client instance cache invalidated")
 
 
 # User role cache (avoids DB query per chat message)

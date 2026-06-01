@@ -10,6 +10,10 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import (
     add_project_metadata,
     add_temporal_metadata,
@@ -20,17 +24,10 @@ from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
-
 
 @ai_tool(
     name="list_projects",
-    description="List projects with search, filter, and pagination. Results are paginated; use skip/limit to page through results. Response includes total count and has_more.",
+    description="List projects with search, filter, and pagination. Results are paginated; use page/limit to page through results. Response includes total count, page, and page_count.",
     permissions=["project-read"],
     category="projects",
     risk_level=RiskLevel.LOW,
@@ -38,8 +35,8 @@ def _clamp_limit(limit: int) -> int:
 async def list_projects(
     search: str | None = None,
     status: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     sort_field: str | None = None,
     sort_order: str = "asc",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
@@ -53,8 +50,8 @@ async def list_projects(
     Args:
         search: Optional search term for project code or name
         status: Optional status filter (e.g., 'ACT' for active, 'PLN' for planned)
-        skip: Number of records to skip for pagination (default 0)
-        limit: Maximum number of records to return (default 20)
+        page: Page number for pagination (1-based, default 1)
+        limit: Maximum number of records to return per page (default from env)
         sort_field: Optional field to sort by (e.g., 'name', 'code')
         sort_order: Sort order, either 'asc' or 'desc' (default 'asc')
         context: Injected tool execution context
@@ -63,8 +60,9 @@ async def list_projects(
         Dictionary containing:
             - projects: List of project objects with id, code, name, status, budget, dates
             - total: Total count of projects matching filters
-            - skip: Pagination skip value
+            - page: Current page number
             - limit: Pagination limit value
+            - page_count: Total number of pages
             - _temporal_context: Temporal parameters used for the query
 
     Raises:
@@ -74,8 +72,9 @@ async def list_projects(
     log_temporal_context("list_projects", context)
     log_project_context("list_projects", context)
 
-    # Clamp limit to maximum
-    limit = _clamp_limit(limit)
+    # Resolve and clamp limit
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     # Context is injected by decorator
     try:
@@ -159,9 +158,10 @@ async def list_projects(
                 for p in accessible_projects
             ],
             "total": filtered_total,
-            "skip": skip,
+            "page": page,
             "limit": limit,
-            "has_more": filtered_total > skip + len(accessible_projects),
+            "page_count": calc_page_count(filtered_total, limit),
+            "has_more": page < calc_page_count(filtered_total, limit),
         }
 
         # Add temporal and project metadata to result
@@ -267,16 +267,17 @@ async def get_project(
 
 @ai_tool(
     name="global_search",
-    description="Search across all entity types. Results are paginated; response includes total count and has_more.",
+    description="Search across all entity types. Results are paginated; response includes total count, page, and page_count.",
     permissions=["project-read"],
-    category="search",
+    category="analysis",
     risk_level=RiskLevel.LOW,
 )
 async def global_search(
     query: str,
     project_id: str | None = None,
     wbs_element_id: str | None = None,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Search across all entity types for a given query string.
@@ -289,7 +290,8 @@ async def global_search(
         query: Search string to match against entity codes, names, descriptions, etc.
         project_id: Optional project UUID to scope results to a single project.
         wbs_element_id: Optional WBS Element UUID to scope results to a WBS Element and its descendants.
-        limit: Maximum number of results to return (default 20).
+        page: Page number for pagination (1-based, default 1).
+        limit: Maximum number of results to return per page (default from env).
         context: Injected tool execution context.
 
     Returns:
@@ -297,13 +299,15 @@ async def global_search(
             - results: List of search result objects with entity_type, id, code, name,
               description, status, relevance_score, project_id, wbs_element_id
             - total: Number of results returned
+            - page: Current page number
+            - page_count: Total number of pages
             - query: Original query string
             - _temporal_context: Temporal parameters used for the query
     """
     log_temporal_context("global_search", context)
     log_project_context("global_search", context)
 
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
 
     try:
         from uuid import UUID
@@ -339,7 +343,10 @@ async def global_search(
         )
 
         result = response.model_dump()
-        result["has_more"] = result["total"] >= limit
+        total = result.get("total", 0)
+        result["page"] = page
+        result["page_count"] = calc_page_count(total, limit)
+        result["has_more"] = page < result["page_count"]
 
         with_project_metadata = add_project_metadata(result, context)
         return add_temporal_metadata(with_project_metadata, context)

@@ -25,17 +25,15 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.cost_event_type import CostEventTypeCreate, CostEventTypeUpdate
 
 logger = logging.getLogger(__name__)
-
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
 
 
 # =============================================================================
@@ -45,16 +43,16 @@ def _clamp_limit(limit: int) -> int:
 
 @ai_tool(
     name="find_cost_event_types",
-    description="Find cost event types by ID or search. Results are paginated; response includes total count and has_more.",
+    description="Find cost event types by ID or search. Results are paginated; response includes total count, page, and page_count.",
     permissions=["cost-event-type-read"],
-    category="cost-event-types",
+    category="cost-management",
     risk_level=RiskLevel.LOW,
 )
 async def find_cost_event_types(
     cost_event_type_id: str | None = None,
     search: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find cost event types by ID or search.
@@ -64,8 +62,8 @@ async def find_cost_event_types(
     Args:
         cost_event_type_id: UUID of a specific cost event type to retrieve (returns single)
         search: Optional search term for code or name
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -74,7 +72,8 @@ async def find_cost_event_types(
     Raises:
         ValueError: If cost_event_type_id is not a valid UUID format
     """
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
     try:
         from app.services.cost_event_type_service import CostEventTypeService
 
@@ -114,9 +113,10 @@ async def find_cost_event_types(
                 for cet in cost_event_types
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
-            "has_more": total > skip + len(cost_event_types),
+            "has_more": page < calc_page_count(total, limit),
         }
     except ValueError:
         return {"error": f"Invalid cost event type ID: {cost_event_type_id}"}
@@ -129,7 +129,7 @@ async def find_cost_event_types(
     name="create_cost_event_type",
     description="Create a new cost event type.",
     permissions=["cost-event-type-create"],
-    category="cost-event-types",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def create_cost_event_type(
@@ -208,7 +208,7 @@ async def create_cost_event_type(
     name="update_cost_event_type",
     description="Update cost event type fields.",
     permissions=["cost-event-type-update"],
-    category="cost-event-types",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def update_cost_event_type(
@@ -292,7 +292,7 @@ async def update_cost_event_type(
     name="delete_cost_event_type",
     description="Delete a cost event type.",
     permissions=["cost-event-type-delete"],
-    category="cost-event-types",
+    category="cost-management",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_cost_event_type(
@@ -339,4 +339,83 @@ async def delete_cost_event_type(
         return {"error": f"Cost event type {cost_event_type_id} not found"}
     except Exception as e:
         logger.error(f"Error in delete_cost_event_type: {e}")
+        return {"error": str(e)}
+
+
+# =============================================================================
+# BATCH COST EVENT TYPE TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_cost_element_types",
+    description="Batch create cost event types. Max 50 items.",
+    permissions=["cost-event-type-create"],
+    category="cost-management",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_cost_element_types(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create cost event types.
+
+    Args:
+        items: List of dicts, each with {code, name, color?, is_quality?, description?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    try:
+        from app.services.cost_event_type_service import CostEventTypeService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"}
+
+        if not items:
+            return {"error": "No items provided"}
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("code"):
+                return {"error": f"Item at index {i} is missing required field 'code'"}
+            if not item.get("name"):
+                return {"error": f"Item at index {i} is missing required field 'name'"}
+
+        service = CostEventTypeService(context.session)
+        actor_id = UUID(context.user_id)
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            type_data = CostEventTypeCreate(
+                code=item["code"],
+                name=item["name"],
+                color=item.get("color", "blue"),
+                is_quality=item.get("is_quality", False),
+                description=item.get("description"),
+            )
+
+            cost_event_type = await service.create(
+                type_in=type_data,
+                actor_id=actor_id,
+            )
+            results.append(
+                {
+                    "id": str(cost_event_type.cost_event_type_id),
+                    "code": cost_event_type.code,
+                    "name": cost_event_type.name,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} cost event types",
+        }
+        return result
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except Exception as e:
+        logger.error(f"Error in batch_create_cost_element_types: {e}")
         return {"error": str(e)}

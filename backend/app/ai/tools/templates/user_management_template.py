@@ -31,6 +31,11 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.api.dependencies.auth import invalidate_user_active_cache
@@ -41,13 +46,6 @@ from app.models.schemas.organizational_unit import (
 from app.models.schemas.user import UserRegister, UserUpdate
 
 logger = logging.getLogger(__name__)
-
-MAX_LIST_LIMIT = 200
-
-
-def _clamp_limit(limit: int) -> int:
-    """Clamp limit to the maximum allowed value."""
-    return min(limit, MAX_LIST_LIMIT)
 
 
 async def _resolve_user_role(session: Any, user_id: UUID) -> str:
@@ -80,7 +78,7 @@ async def _resolve_user_role(session: Any, user_id: UUID) -> str:
 
 @ai_tool(
     name="find_users",
-    description="Find users by ID or search. Results are paginated; response includes total count and has_more.",
+    description="Find users by ID or search. Results are paginated; response includes total count, page, and page_count.",
     permissions=["user-read"],
     category="users",
     risk_level=RiskLevel.LOW,
@@ -88,8 +86,8 @@ async def _resolve_user_role(session: Any, user_id: UUID) -> str:
 async def find_users(
     user_id: str | None = None,
     search: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find users by ID or search.
@@ -99,8 +97,8 @@ async def find_users(
     Args:
         user_id: UUID of a specific user to retrieve (returns single)
         search: Optional search term
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -109,7 +107,8 @@ async def find_users(
     Raises:
         ValueError: If user_id is not a valid UUID format
     """
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         log_temporal_context("find_users", context)
@@ -187,9 +186,10 @@ async def find_users(
             {
                 "users": user_list,
                 "total": total,
-                "skip": skip,
+                "page": page,
+                "page_count": calc_page_count(total, limit),
                 "limit": limit,
-                "has_more": total > skip + len(users),
+                "has_more": page < calc_page_count(total, limit),
             },
             context,
         )
@@ -444,16 +444,16 @@ async def delete_user(
 
 @ai_tool(
     name="find_organizational_units",
-    description="Find organizational units by ID or search. Results are paginated; response includes total count and has_more.",
+    description="Find organizational units by ID or search. Results are paginated; response includes total count, page, and page_count.",
     permissions=["organizational-unit-read"],
-    category="organizational-units",
+    category="users",
     risk_level=RiskLevel.LOW,
 )
 async def find_organizational_units(
     organizational_unit_id: str | None = None,
     search: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find organizational units by ID or search.
@@ -463,8 +463,8 @@ async def find_organizational_units(
     Args:
         organizational_unit_id: UUID of a specific organizational unit to retrieve (returns single)
         search: Optional search term for code or name
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return (max 200)
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -473,7 +473,8 @@ async def find_organizational_units(
     Raises:
         ValueError: If organizational_unit_id is not a valid UUID format
     """
-    limit = _clamp_limit(limit)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         log_temporal_context("find_organizational_units", context)
@@ -529,9 +530,10 @@ async def find_organizational_units(
                     for ou in org_units
                 ],
                 "total": total,
-                "skip": skip,
+                "page": page,
+                "page_count": calc_page_count(total, limit),
                 "limit": limit,
-                "has_more": total > skip + len(org_units),
+                "has_more": page < calc_page_count(total, limit),
             },
             context,
         )
@@ -549,7 +551,7 @@ async def find_organizational_units(
     name="create_organizational_unit",
     description="Create a new organizational unit.",
     permissions=["organizational-unit-create"],
-    category="organizational-units",
+    category="users",
     risk_level=RiskLevel.HIGH,
 )
 async def create_organizational_unit(
@@ -632,7 +634,7 @@ async def create_organizational_unit(
     name="update_organizational_unit",
     description="Update organizational unit fields.",
     permissions=["organizational-unit-update"],
-    category="organizational-units",
+    category="users",
     risk_level=RiskLevel.HIGH,
 )
 async def update_organizational_unit(
@@ -714,7 +716,7 @@ async def update_organizational_unit(
     name="delete_organizational_unit",
     description="Delete an organizational unit.",
     permissions=["organizational-unit-delete"],
-    category="organizational-units",
+    category="users",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_organizational_unit(
@@ -761,6 +763,175 @@ async def delete_organizational_unit(
         return {"error": f"Organizational unit {organizational_unit_id} not found"}
     except Exception as e:
         logger.error(f"Error in delete_organizational_unit: {e}")
+        return {"error": str(e)}
+
+
+# =============================================================================
+# BATCH USER TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_users",
+    description="Batch create users. Max 50 items.",
+    permissions=["user-create"],
+    category="users",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_users(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create users.
+
+    Args:
+        items: List of dicts, each with {email, full_name, password, department?, role?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    try:
+        from app.services.user import UserService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"}
+
+        if not items:
+            return {"error": "No items provided"}
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("email"):
+                return {"error": f"Item at index {i} is missing required field 'email'"}
+            if not item.get("full_name"):
+                return {
+                    "error": f"Item at index {i} is missing required field 'full_name'"
+                }
+            if not item.get("password"):
+                return {
+                    "error": f"Item at index {i} is missing required field 'password'"
+                }
+
+        service = UserService(context.session)
+        actor_id = UUID(context.user_id)
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            user_data = UserRegister(
+                email=item["email"],
+                full_name=item["full_name"],
+                password=item["password"],
+                department=item.get("department"),
+                role=item.get("role", "viewer"),
+            )
+
+            user = await service.create_user(
+                user_in=user_data,
+                actor_id=actor_id,
+            )
+
+            role = await _resolve_user_role(context.session, user.user_id)
+            results.append(
+                {
+                    "id": str(user.user_id),
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "role": role,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} users",
+        }
+        return result
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except Exception as e:
+        logger.error(f"Error in batch_create_users: {e}")
+        return {"error": str(e)}
+
+
+# =============================================================================
+# BATCH ORGANIZATIONAL UNIT TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_organizational_units",
+    description="Batch create organizational units. Max 50 items.",
+    permissions=["organizational-unit-create"],
+    category="users",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_organizational_units(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create organizational units.
+
+    Args:
+        items: List of dicts, each with {code, name, description?, manager_id?, is_active?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    try:
+        from app.services.organizational_unit_service import OrganizationalUnitService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"}
+
+        if not items:
+            return {"error": "No items provided"}
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("code"):
+                return {"error": f"Item at index {i} is missing required field 'code'"}
+            if not item.get("name"):
+                return {"error": f"Item at index {i} is missing required field 'name'"}
+
+        service = OrganizationalUnitService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            unit_data = OrganizationalUnitCreate(
+                code=item["code"],
+                name=item["name"],
+                description=item.get("description"),
+                manager_id=UUID(item["manager_id"]) if item.get("manager_id") else None,
+                is_active=item.get("is_active", True),
+                branch=branch,
+            )
+
+            org_unit = await service.create_organizational_unit(
+                unit_in=unit_data,
+                actor_id=actor_id,
+            )
+            results.append(
+                {
+                    "id": str(org_unit.organizational_unit_id),
+                    "code": org_unit.code,
+                    "name": org_unit.name,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} organizational units",
+        }
+        return result
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except Exception as e:
+        logger.error(f"Error in batch_create_organizational_units: {e}")
         return {"error": str(e)}
 
 
