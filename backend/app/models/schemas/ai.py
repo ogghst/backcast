@@ -230,11 +230,6 @@ class AIAssistantConfigBase(BaseModel):
         max_length=100,
         description="Fully qualified Pydantic model class name for structured output (specialist-only)",
     )
-    is_system: bool = Field(
-        False,
-        description="System agents cannot be deleted, only disabled",
-    )
-
     @model_validator(mode="after")
     def validate_main_agent_model(self) -> Self:
         """Require model_id for main agents; specialists may omit it."""
@@ -279,7 +274,6 @@ class AIAssistantConfigUpdate(BaseModel):
     allowed_tools: list[str] | None = None
     delegation_config: DelegationConfig | None = None
     structured_output_schema: str | None = Field(None, max_length=100)
-    is_system: bool | None = None
 
 
 class AIAssistantConfigPublic(AIAssistantConfigBase):

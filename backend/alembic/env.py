@@ -83,6 +83,12 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=False,
+        render_as_batch=True,
+        autogenerate_plugins=[
+            "alembic.autogenerate.*",
+            "~alembic.autogenerate.comments",
+        ],
     )
 
     with context.begin_transaction():
@@ -94,7 +100,13 @@ def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
-        compare_type=True,
+        compare_type=False,
+        compare_server_default=False,
+        render_as_batch=True,
+        autogenerate_plugins=[
+            "alembic.autogenerate.*",
+            "~alembic.autogenerate.comments",
+        ],
     )
 
     with context.begin_transaction():

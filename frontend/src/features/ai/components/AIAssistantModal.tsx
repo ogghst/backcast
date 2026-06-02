@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { Alert, Checkbox, Modal, Form, Input, Radio, Select, Slider, Space, Switch, theme } from "antd";
-import { LockOutlined } from "@ant-design/icons";
 import type { AIAssistantPublic, AIAssistantCreate, AIAssistantUpdate } from "../types";
 import { AI_ROLE_OPTIONS } from "../types";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
@@ -100,17 +99,6 @@ export const AIAssistantModal = ({
       destroyOnHidden
       width={800}
     >
-      {isEdit && initialValues?.is_system && (
-        <Alert
-          message="System Assistant"
-          description="This is a system-defined assistant. It cannot be deleted, only disabled."
-          type="info"
-          showIcon
-          icon={<LockOutlined />}
-          style={{ marginBottom: 16 }}
-          banner
-        />
-      )}
       <Form form={form} layout="vertical" name="ai_assistant_form">
         {/* Section 1: General */}
         <CollapsibleCard

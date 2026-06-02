@@ -42,7 +42,6 @@ async def sync_forecast_manager(session: AsyncSession) -> None:
 
     stmt = select(AIAssistantConfig).where(
         AIAssistantConfig.name == "forecast_manager",
-        AIAssistantConfig.is_system.is_(True),
     )
     result = await session.execute(stmt)
     config = result.scalar_one_or_none()
@@ -67,7 +66,6 @@ async def sync_project_manager(session: AsyncSession) -> None:
 
     stmt = select(AIAssistantConfig).where(
         AIAssistantConfig.name == "project_manager",
-        AIAssistantConfig.is_system.is_(True),
     )
     result = await session.execute(stmt)
     config = result.scalar_one_or_none()
@@ -98,7 +96,6 @@ async def create_accountant(session: AsyncSession) -> None:
 
     stmt = select(AIAssistantConfig).where(
         AIAssistantConfig.name == "accountant",
-        AIAssistantConfig.is_system.is_(True),
     )
     result = await session.execute(stmt)
     existing = result.scalar_one_or_none()
@@ -123,7 +120,6 @@ async def create_accountant(session: AsyncSession) -> None:
         is_active=acct_seed["is_active"],
         default_role=acct_seed["default_role"],
         agent_type=acct_seed["agent_type"],
-        is_system=acct_seed["is_system"],
         allowed_tools=acct_seed["allowed_tools"],
         structured_output_schema=acct_seed.get("structured_output_schema"),
     )
@@ -296,7 +292,6 @@ async def fix_user_admin_tools(session: AsyncSession) -> None:
 
     stmt = select(AIAssistantConfig).where(
         AIAssistantConfig.name == "user_admin",
-        AIAssistantConfig.is_system.is_(True),
     )
     result = await session.execute(stmt)
     config = result.scalar_one_or_none()
@@ -337,7 +332,6 @@ async def sync_evm_analyst_tools(session: AsyncSession) -> None:
 
     stmt = select(AIAssistantConfig).where(
         AIAssistantConfig.name == "evm_analyst",
-        AIAssistantConfig.is_system.is_(True),
     )
     result = await session.execute(stmt)
     config = result.scalar_one_or_none()

@@ -25,7 +25,8 @@ describe("AI Types", () => {
         allowed_tools: ["list_projects", "get_project"],
         delegation_config: null,
         structured_output_schema: null,
-        is_system: false,
+        planner_prompt: null,
+        supervisor_prompt: null,
         created_at: "2026-03-07T00:00:00Z",
         updated_at: "2026-03-07T00:00:00Z",
       };
@@ -55,7 +56,8 @@ describe("AI Types", () => {
         allowed_tools: null,
         delegation_config: null,
         structured_output_schema: null,
-        is_system: false,
+        planner_prompt: null,
+        supervisor_prompt: null,
         created_at: "2026-03-07T00:00:00Z",
         updated_at: "2026-03-07T00:00:00Z",
       };
@@ -67,7 +69,6 @@ describe("AI Types", () => {
       expect(assistant.allowed_tools).toBeNull();
       expect(assistant.delegation_config).toBeNull();
       expect(assistant.structured_output_schema).toBeNull();
-      expect(assistant.is_system).toBe(false);
     });
   });
 

@@ -98,7 +98,6 @@ export interface AIAssistantPublic {
   allowed_tools: string[] | null;
   delegation_config: DelegationConfig | null;
   structured_output_schema: string | null;
-  is_system: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -119,7 +118,6 @@ export interface AIAssistantCreate {
   allowed_tools?: string[] | null;
   delegation_config?: DelegationConfig | null;
   structured_output_schema?: string | null;
-  is_system?: boolean;
 }
 
 export interface AIAssistantUpdate {
@@ -138,7 +136,6 @@ export interface AIAssistantUpdate {
   allowed_tools?: string[] | null;
   delegation_config?: DelegationConfig | null;
   structured_output_schema?: string | null;
-  is_system?: boolean;
 }
 
 /**

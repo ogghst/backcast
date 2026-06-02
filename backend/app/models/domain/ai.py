@@ -176,13 +176,6 @@ class AIAssistantConfig(SimpleEntityBase):
         nullable=True,
         comment="Fully qualified Pydantic model class name for structured output (specialist-only)",
     )
-    is_system: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False,
-        comment="System agents cannot be deleted, only disabled",
-    )
-
     # Relationships
     model: Mapped["AIModel"] = relationship(
         "AIModel", back_populates="assistant_configs", foreign_keys=[model_id]

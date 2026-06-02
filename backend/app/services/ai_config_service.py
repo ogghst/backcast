@@ -330,7 +330,6 @@ class AIConfigService:
             if config_in.delegation_config
             else None,
             structured_output_schema=config_in.structured_output_schema,
-            is_system=config_in.is_system,
         )
         self.session.add(config)
         await self.session.flush()
