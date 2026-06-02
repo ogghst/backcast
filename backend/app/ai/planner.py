@@ -75,14 +75,42 @@ Multi-step (requires_planning=true, ordered steps with dependencies):
 """
 
 _DEFAULT_SPECIALIST_CATALOG: list[dict[str, str]] = [
-    {"name": "project_manager", "description": "Project CRUD, WBS elements, cost elements, cost tracking, progress entries"},
-    {"name": "evm_analyst", "description": "Earned Value Management calculations, performance indices, variance analysis"},
-    {"name": "change_order_manager", "description": "Change orders, impact analysis, branch operations"},
-    {"name": "user_admin", "description": "User accounts, departments, role management"},
-    {"name": "visualization_specialist", "description": "Charts, diagrams, visual representations"},
-    {"name": "forecast_manager", "description": "Forecasts, schedule baselines, projection models"},
-    {"name": "mcp_specialist", "description": "External tools via MCP servers (web search, database queries)"},
-    {"name": "general_purpose", "description": "Unclear or cross-cutting requests that don't fit one domain"},
+    {
+        "name": "project_manager",
+        "description": "Project CRUD, WBS elements, cost elements, cost tracking, progress entries",
+    },
+    {
+        "name": "evm_analyst",
+        "description": "Earned Value Management calculations, performance indices, variance analysis",
+    },
+    {
+        "name": "change_order_manager",
+        "description": "Change orders, impact analysis, branch operations",
+    },
+    {
+        "name": "user_admin",
+        "description": "User accounts, departments, role management",
+    },
+    {
+        "name": "visualization_specialist",
+        "description": "Charts, diagrams, visual representations",
+    },
+    {
+        "name": "forecast_manager",
+        "description": "Forecasts, schedule baselines, projection models",
+    },
+    {
+        "name": "mcp_specialist",
+        "description": "External tools via MCP servers (web search, database queries)",
+    },
+    {
+        "name": "accountant",
+        "description": "Cost registrations, cost events, documentation, financial tracking",
+    },
+    {
+        "name": "general_purpose",
+        "description": "Unclear or cross-cutting requests that don't fit one domain",
+    },
 ]
 
 
@@ -97,19 +125,26 @@ def _build_specialist_section(catalog: list[dict[str, str]]) -> str:
 
 def build_planner_system_prompt(
     specialist_catalog: list[dict[str, str]] | None = None,
+    custom_template: str | None = None,
 ) -> str:
     """Build the planner system prompt with a dynamic specialist list.
 
     Args:
         specialist_catalog: Optional list of dicts with ``name`` and
             ``description`` keys.  Falls back to the hardcoded default.
+        custom_template: Optional custom prompt template.  Supports the
+            ``{specialist_section}`` placeholder.  If the placeholder is
+            absent, the specialist section is appended after a blank line.
 
     Returns:
         Complete planner system prompt string.
     """
     catalog = specialist_catalog or _DEFAULT_SPECIALIST_CATALOG
     specialist_section = _build_specialist_section(catalog)
-    return _PLANNER_PROMPT_TEMPLATE.format(specialist_section=specialist_section)
+    template = custom_template or _PLANNER_PROMPT_TEMPLATE
+    if "{specialist_section}" in template:
+        return template.replace("{specialist_section}", specialist_section, 1)
+    return template + "\n\n" + specialist_section
 
 
 # Backward-compatible alias
@@ -259,6 +294,7 @@ async def planner_node(
     state: dict[str, Any],
     llm: BaseChatModel,
     specialist_catalog: list[dict[str, str]] | None = None,
+    planner_prompt_template: str | None = None,
 ) -> dict[str, Any]:
     """LangGraph planner node that decomposes requests into structured steps.
 
@@ -270,6 +306,9 @@ async def planner_node(
         llm: LangChain chat model for the planning call.
         specialist_catalog: Optional specialist catalog for dynamic prompts.
             Each entry must have ``name`` and ``description`` keys.
+        planner_prompt_template: Optional custom prompt template for the
+            planner system message.  Supports ``{specialist_section}``
+            placeholder.
 
     Returns:
         State update dict with ``plan_data`` field containing the
@@ -298,7 +337,11 @@ async def planner_node(
     try:
         response = await llm.ainvoke(
             [
-                SystemMessage(content=build_planner_system_prompt(specialist_catalog)),
+                SystemMessage(
+                    content=build_planner_system_prompt(
+                        specialist_catalog, custom_template=planner_prompt_template
+                    )
+                ),
                 HumanMessage(content=prompt),
             ]
         )

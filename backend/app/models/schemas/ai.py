@@ -189,6 +189,16 @@ class AIAssistantConfigBase(BaseModel):
         description="Model to use. Required for main agents; specialists inherit from the main agent.",
     )
     system_prompt: str | None = Field(None, max_length=10000)
+    planner_prompt: str | None = Field(
+        None,
+        max_length=10000,
+        description="Custom planner prompt template for main agents. Use {specialist_section} for dynamic specialist list.",
+    )
+    supervisor_prompt: str | None = Field(
+        None,
+        max_length=10000,
+        description="Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list.",
+    )
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
     recursion_limit: int | None = Field(
@@ -245,6 +255,16 @@ class AIAssistantConfigUpdate(BaseModel):
     name: str | None = Field(None, max_length=255)
     description: str | None = Field(None, max_length=2000)
     system_prompt: str | None = Field(None, max_length=10000)
+    planner_prompt: str | None = Field(
+        None,
+        max_length=10000,
+        description="Custom planner prompt template for main agents.",
+    )
+    supervisor_prompt: str | None = Field(
+        None,
+        max_length=10000,
+        description="Custom supervisor prompt template for main agents.",
+    )
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
     recursion_limit: int | None = Field(None, ge=1, le=500)

@@ -532,7 +532,12 @@ class AgentService:
                 event_bus=event_bus,
             )
 
-        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        _supervisor_prompt = getattr(assistant_config, "supervisor_prompt", None)
+        system_prompt = (
+            _supervisor_prompt
+            if _supervisor_prompt is not None
+            else assistant_config.system_prompt
+        ) or DEFAULT_SYSTEM_PROMPT
         assistant_role = assistant_config.default_role
 
         # Compile graph

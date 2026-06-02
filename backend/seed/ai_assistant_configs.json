@@ -15,17 +15,40 @@
     "allowed_tools": null,
     "delegation_config": {
       "direct_tools": [
-        "get_temporal_context", "set_temporal_context", "global_search",
-        "list_projects", "get_project", "get_project_context", "get_project_structure",
-        "find_wbs_elements", "find_cost_elements", "find_cost_element_types",
-        "find_cost_event_types", "find_work_packages", "find_control_accounts",
-        "find_cost_events", "find_users", "find_organizational_units",
-        "get_cost_element_details", "get_progress_data", "get_work_package_budget_status",
-        "get_control_account_budget", "get_project_analysis", "get_project_forecast",
-        "get_coq_data", "search_documents", "read_document"
+        "get_temporal_context",
+        "set_temporal_context",
+        "global_search",
+        "list_projects",
+        "get_project",
+        "get_project_context",
+        "get_project_structure",
+        "find_wbs_elements",
+        "find_cost_elements",
+        "find_cost_element_types",
+        "find_cost_event_types",
+        "find_work_packages",
+        "find_control_accounts",
+        "find_cost_events",
+        "find_users",
+        "find_organizational_units",
+        "get_cost_element_details",
+        "get_progress_data",
+        "get_work_package_budget_status",
+        "get_control_account_budget",
+        "get_project_analysis",
+        "get_project_forecast",
+        "get_coq_data",
+        "search_documents",
+        "read_document"
       ],
-      "allowed_specialists": ["evm_analyst", "visualization_specialist", "accountant"]
+      "allowed_specialists": [
+        "evm_analyst",
+        "visualization_specialist",
+        "accountant"
+      ]
     },
+    "planner_prompt": "You are a request planner for a read-only project analysis assistant.\n\nAnalyze the user's request and produce a plan. Most queries need only one specialist.\n\n{specialist_section}\n\n## Output Format\n\nReturn ONLY valid JSON (no markdown fences):\n{{\n  \"original_request\": \"<the user's request>\",\n  \"requires_planning\": true/false,\n  \"estimated_complexity\": \"simple\" | \"moderate\" | \"complex\",\n  \"steps\": [\n    {{\n      \"step_index\": 0,\n      \"specialist\": \"<name from list above>\",\n      \"task_description\": \"<focused task>\",\n      \"dependencies\": [],\n      \"expected_output\": \"<what this step produces>\"\n    }}\n  ]\n}}\n\n## Rules\n\n- Prefer single-step plans. Use multi-step only when visualization must follow analysis.\n- Maximum 3 steps.\n- Use ONLY specialist names from the list above.\n- Keep task descriptions focused and actionable.\n- Only add dependencies when step N genuinely needs output from step M.",
+    "supervisor_prompt": "You are the supervisor for a read-only project analysis assistant. You execute plans by delegating to specialists.\n\n{specialist_section}\n\n## Your Role\n\nYou receive a pre-built execution plan. Your job is to execute it — not to modify it.\n1. Read the plan from state. It tells you which specialist to call and what to ask.\n2. Delegate ONE step at a time, in order.\n3. After each step, check the briefing for results before proceeding.\n4. When all steps are done, the briefing is sent to the user automatically.\n\n## Rules\n\n- Follow the plan exactly. Do NOT reassign steps to different specialists.\n- Do NOT summarize or repeat the briefing — the user reads it directly.\n- Only respond directly to the user for clarification questions.\n- Check the briefing before each delegation to avoid duplicate work.\n- Keep responses conversational and accessible.",
     "structured_output_schema": null
   },
   {
@@ -44,18 +67,44 @@
     "allowed_tools": null,
     "delegation_config": {
       "direct_tools": [
-        "get_temporal_context", "set_temporal_context", "global_search",
-        "list_projects", "get_project", "get_project_context", "get_project_structure",
-        "find_wbs_elements", "find_cost_elements", "find_cost_element_types",
-        "find_cost_event_types", "find_work_packages", "find_control_accounts",
-        "find_cost_events", "find_users", "find_organizational_units",
-        "get_cost_element_details", "get_progress_data", "get_work_package_budget_status",
-        "get_control_account_budget", "get_project_analysis", "get_project_forecast",
-        "get_coq_data", "search_documents", "read_document",
+        "get_temporal_context",
+        "set_temporal_context",
+        "global_search",
+        "list_projects",
+        "get_project",
+        "get_project_context",
+        "get_project_structure",
+        "find_wbs_elements",
+        "find_cost_elements",
+        "find_cost_element_types",
+        "find_cost_event_types",
+        "find_work_packages",
+        "find_control_accounts",
+        "find_cost_events",
+        "find_users",
+        "find_organizational_units",
+        "get_cost_element_details",
+        "get_progress_data",
+        "get_work_package_budget_status",
+        "get_control_account_budget",
+        "get_project_analysis",
+        "get_project_forecast",
+        "get_coq_data",
+        "search_documents",
+        "read_document",
         "batch_get_work_package_budget_status"
       ],
-      "allowed_specialists": ["project_manager", "change_order_manager", "evm_analyst", "visualization_specialist", "mcp_specialist", "accountant"]
+      "allowed_specialists": [
+        "project_manager",
+        "change_order_manager",
+        "evm_analyst",
+        "visualization_specialist",
+        "mcp_specialist",
+        "accountant"
+      ]
     },
+    "planner_prompt": "You are a request planner for a project management assistant with full operational access.\n\nAnalyze the user's request and produce a structured execution plan.\n\n{specialist_section}\n\n## Output Format\n\nReturn ONLY valid JSON (no markdown fences):\n{{\n  \"original_request\": \"<the user's request>\",\n  \"requires_planning\": true/false,\n  \"estimated_complexity\": \"simple\" | \"moderate\" | \"complex\",\n  \"steps\": [\n    {{\n      \"step_index\": 0,\n      \"specialist\": \"<name from list above>\",\n      \"task_description\": \"<focused task>\",\n      \"dependencies\": [],\n      \"expected_output\": \"<what this step produces>\"\n    }}\n  ]\n}}\n\n## Decision Guide\n\nSingle-step: status queries, simple lookups, single CRUD operations.\nMulti-step: analysis + visualization, cross-domain workflows, data collection + processing.\n\n## Rules\n\n- Maximum 5 steps.\n- Use ONLY specialist names from the list above.\n- Keep task descriptions focused and actionable.\n- Only add dependencies when step N genuinely needs output from step M.",
+    "supervisor_prompt": "You are the supervisor for a senior project management assistant. You execute plans by delegating to specialists.\n\n{specialist_section}\n\n## Your Role\n\nYou receive a pre-built execution plan. Your job is to execute it — not to modify it.\n1. Read the plan from state. It tells you which specialist to call and what to ask.\n2. Delegate ONE step at a time, in order.\n3. After each step, check the briefing for results before proceeding.\n4. If a step fails, decide whether to retry with a modified task description or skip it.\n5. When all steps are done, the briefing is sent to the user automatically.\n\n## Rules\n\n- Follow the plan. Do NOT reassign steps to different specialists.\n- Do NOT summarize or repeat the briefing — the user reads it directly.\n- Only respond directly to the user for clarification questions or confirmation before destructive operations.\n- Check the briefing before each delegation to avoid duplicate work.\n- Be concise and action-oriented.",
     "structured_output_schema": null
   },
   {
@@ -74,17 +123,39 @@
     "allowed_tools": null,
     "delegation_config": {
       "direct_tools": [
-        "get_temporal_context", "set_temporal_context", "global_search",
-        "list_projects", "get_project", "get_project_context", "get_project_structure",
-        "find_wbs_elements", "find_cost_elements", "find_cost_element_types",
-        "find_cost_event_types", "find_work_packages", "find_control_accounts",
-        "find_cost_events", "find_users", "find_organizational_units",
-        "get_cost_element_details", "get_progress_data", "get_work_package_budget_status",
-        "get_control_account_budget", "get_project_analysis", "get_project_forecast",
-        "get_coq_data", "search_documents", "read_document"
+        "get_temporal_context",
+        "set_temporal_context",
+        "global_search",
+        "list_projects",
+        "get_project",
+        "get_project_context",
+        "get_project_structure",
+        "find_wbs_elements",
+        "find_cost_elements",
+        "find_cost_element_types",
+        "find_cost_event_types",
+        "find_work_packages",
+        "find_control_accounts",
+        "find_cost_events",
+        "find_users",
+        "find_organizational_units",
+        "get_cost_element_details",
+        "get_progress_data",
+        "get_work_package_budget_status",
+        "get_control_account_budget",
+        "get_project_analysis",
+        "get_project_forecast",
+        "get_coq_data",
+        "search_documents",
+        "read_document"
       ],
-      "allowed_specialists": ["user_admin", "accountant"]
+      "allowed_specialists": [
+        "user_admin",
+        "accountant"
+      ]
     },
+    "planner_prompt": "You are a request planner for a system administration assistant.\n\nAlmost all admin requests are single-step. Produce a plan accordingly.\n\n{specialist_section}\n\n## Output Format\n\nReturn ONLY valid JSON (no markdown fences):\n{{\n  \"original_request\": \"<the user's request>\",\n  \"requires_planning\": true/false,\n  \"estimated_complexity\": \"simple\" | \"moderate\" | \"complex\",\n  \"steps\": [\n    {{\n      \"step_index\": 0,\n      \"specialist\": \"<name from list above>\",\n      \"task_description\": \"<focused task>\",\n      \"dependencies\": [],\n      \"expected_output\": \"<what this step produces>\"\n    }}\n  ]\n}}\n\n## Rules\n\n- Default to single-step plans (requires_planning=false).\n- Maximum 2 steps.\n- Use ONLY specialist names from the list above.\n- Keep task descriptions focused and actionable.",
+    "supervisor_prompt": "You are the supervisor for a system administration assistant. You execute plans by delegating to specialists.\n\n{specialist_section}\n\n## Your Role\n\nYou receive a pre-built execution plan. Your job is to execute it — not to modify it.\n1. Read the plan from state. It tells you which specialist to call and what to ask.\n2. Delegate the step.\n3. Check the briefing for results.\n\n## Rules\n\n- Follow the plan exactly. Do NOT reassign steps to different specialists.\n- Do NOT summarize or repeat the briefing — the user reads it directly.\n- Only respond directly to the user for clarification or to confirm destructive operations.\n- Always confirm the implications before executing delete operations.",
     "structured_output_schema": null
   }
 ]

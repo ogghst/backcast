@@ -37,6 +37,8 @@ export const AIAssistantModal = ({
           name: initialValues.name,
           description: initialValues.description,
           system_prompt: initialValues.system_prompt,
+          planner_prompt: initialValues.planner_prompt,
+          supervisor_prompt: initialValues.supervisor_prompt,
           default_role: initialValues.default_role,
           is_active: initialValues.is_active,
           agent_type: initialValues.agent_type,
@@ -258,7 +260,57 @@ export const AIAssistantModal = ({
           </div>
         </CollapsibleCard>
 
-        {/* Section 3a: Tools & Output (specialist only) */}
+        {/* Section 3: Planning Strategy (main only) */}
+        {agentType === "main" && (
+          <CollapsibleCard
+            id="assistant-planning"
+            collapsed={true}
+            title={
+              <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
+                Planning Strategy
+              </span>
+            }
+            style={{
+              marginBottom: token.marginSM,
+              borderRadius: token.borderRadiusLG,
+              border: `1px solid ${token.colorBorder}`,
+            }}
+          >
+            <div style={{ padding: token.paddingMD }}>
+              <Alert
+                message="Advanced"
+                description="Customize how the AI plans and decomposes requests into specialist tasks. Leave blank to use the default planner. The {specialist_section} placeholder is replaced with the dynamic specialist list."
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+              <Form.Item
+                name="planner_prompt"
+                label="Planner Prompt"
+                tooltip="Controls how the AI decomposes user requests into specialist tasks. Include {specialist_section} for the dynamic specialist list."
+                rules={[{ max: 10000, message: "Planner prompt must be 10000 characters or less" }]}
+              >
+                <Input.TextArea
+                  rows={8}
+                  placeholder="Leave blank to use the default planner strategy..."
+                />
+              </Form.Item>
+              <Form.Item
+                name="supervisor_prompt"
+                label="Supervisor Prompt"
+                tooltip="Controls how the supervisor agent coordinates specialist delegation. Include {specialist_section} for the dynamic specialist list. Leave blank to use the system prompt or default."
+                rules={[{ max: 10000, message: "Supervisor prompt must be 10000 characters or less" }]}
+              >
+                <Input.TextArea
+                  rows={8}
+                  placeholder="Leave blank to use the system prompt or default supervisor..."
+                />
+              </Form.Item>
+            </div>
+          </CollapsibleCard>
+        )}
+
+        {/* Section 4a: Tools & Output (specialist only) */}
         {agentType === "specialist" && (
           <CollapsibleCard
             id="assistant-tools"
@@ -294,7 +346,7 @@ export const AIAssistantModal = ({
           </CollapsibleCard>
         )}
 
-        {/* Section 3b: Delegation (main only) */}
+        {/* Section 4b: Delegation (main only) */}
         {agentType === "main" && (
           <CollapsibleCard
             id="assistant-delegation"

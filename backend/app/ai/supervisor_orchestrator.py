@@ -96,6 +96,7 @@ When a multi-step execution plan is active:
 - If you are unsure what to do, call get_briefing first, then delegate the next step
 """
 
+
 def _build_supervisor_specialist_section(
     specialist_graphs: list[dict[str, Any]],
 ) -> str:
@@ -316,13 +317,21 @@ class SupervisorOrchestrator:
         # --- 4. Build supervisor agent ---
         base_prompt = self.system_prompt or _BASE_SUPERVISOR_PROMPT
 
+        # Resolve {specialist_section} placeholder BEFORE appending sections
+        # that may contain literal {braces} which would collide with .format()
+        specialist_section = _build_supervisor_specialist_section(specialist_graphs)
+        if "{specialist_section}" in base_prompt:
+            base_prompt = base_prompt.replace(
+                "{specialist_section}", specialist_section, 1
+            )
+        else:
+            base_prompt = base_prompt + specialist_section
+
         # Append delegation enforcement section if configured
         if AI_DELEGATION_ENFORCED:
             base_prompt += _DELEGATION_ENFORCED_SECTION
 
-        # Append dynamic specialist section
-        specialist_section = _build_supervisor_specialist_section(specialist_graphs)
-        supervisor_prompt = base_prompt + specialist_section
+        supervisor_prompt = base_prompt
 
         # Append direct-tools or handoff suffix
         if direct_tools:
@@ -397,9 +406,17 @@ class SupervisorOrchestrator:
             assert isinstance(self.model, BaseChatModel), (
                 "model must be resolved to BaseChatModel"
             )
+            planner_template = None
+            if self.main_assistant_config and hasattr(
+                self.main_assistant_config, "planner_prompt"
+            ):
+                planner_template = self.main_assistant_config.planner_prompt
             try:
                 result = await planner_node(
-                    dict(state), self.model, specialist_catalog=specialist_catalog
+                    dict(state),
+                    self.model,
+                    specialist_catalog=specialist_catalog,
+                    planner_prompt_template=planner_template,
                 )
                 plan_data = result.get("plan_data")
                 if plan_data:
@@ -660,7 +677,9 @@ class SupervisorOrchestrator:
                 if rationale:
                     assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
                 if _original_request:
-                    assignment_block += f"\n\n**User's original request:** {_original_request}"
+                    assignment_block += (
+                        f"\n\n**User's original request:** {_original_request}"
+                    )
 
             isolated_messages = [
                 HumanMessage(content=assignment_block),

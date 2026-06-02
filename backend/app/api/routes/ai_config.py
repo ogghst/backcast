@@ -40,6 +40,14 @@ def _invalidate_llm_caches() -> None:
     logger.info("LLM caches invalidated due to config change")
 
 
+def _invalidate_specialist_cache() -> None:
+    """Invalidate specialist config cache after assistant config changes."""
+    from app.ai.subagents.db_loader import invalidate_cache
+
+    invalidate_cache()
+    logger.info("Specialist cache invalidated due to assistant config change")
+
+
 def get_ai_config_service(session: AsyncSession = Depends(get_db)) -> AIConfigService:
     """Get AI configuration service."""
     return AIConfigService(session)
@@ -314,6 +322,8 @@ async def create_assistant_config(
 ) -> AIAssistantConfigPublic:
     """Create a new assistant configuration."""
     config = await service.create_assistant_config(config_in)
+    if config.agent_type == "specialist":
+        _invalidate_specialist_cache()
     return AIAssistantConfigPublic.model_validate(config)
 
 
@@ -331,6 +341,10 @@ async def update_assistant_config(
     """Update an assistant configuration."""
     try:
         config = await service.update_assistant_config(assistant_config_id, config_in)
+        if config.agent_type == "specialist":
+            _invalidate_specialist_cache()
+        else:
+            _invalidate_llm_caches()
         return AIAssistantConfigPublic.model_validate(config)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -349,6 +363,8 @@ async def delete_assistant_config(
     """Delete an assistant configuration."""
     try:
         await service.delete_assistant_config(assistant_config_id)
+        _invalidate_llm_caches()
+        _invalidate_specialist_cache()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 

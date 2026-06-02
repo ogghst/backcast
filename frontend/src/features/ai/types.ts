@@ -87,6 +87,8 @@ export interface AIAssistantPublic {
   description: string | null;
   model_id: string;
   system_prompt: string | null;
+  planner_prompt: string | null;
+  supervisor_prompt: string | null;
   temperature: number;
   max_tokens: number;
   recursion_limit: number | null;
@@ -106,6 +108,8 @@ export interface AIAssistantCreate {
   description?: string | null;
   model_id: string;
   system_prompt?: string | null;
+  planner_prompt?: string | null;
+  supervisor_prompt?: string | null;
   temperature?: number;
   max_tokens?: number;
   recursion_limit?: number | null;
@@ -123,6 +127,8 @@ export interface AIAssistantUpdate {
   description?: string | null;
   model_id?: string;
   system_prompt?: string | null;
+  planner_prompt?: string | null;
+  supervisor_prompt?: string | null;
   temperature?: number;
   max_tokens?: number;
   recursion_limit?: number | null;

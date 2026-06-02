@@ -21,6 +21,7 @@ VALID_SPECIALISTS: frozenset[str] = frozenset(
         "visualization_specialist",
         "forecast_manager",
         "mcp_specialist",
+        "accountant",
         "general_purpose",
     }
 )

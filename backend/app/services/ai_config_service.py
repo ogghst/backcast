@@ -317,6 +317,8 @@ class AIConfigService:
             description=config_in.description,
             model_id=config_in.model_id,
             system_prompt=config_in.system_prompt,
+            planner_prompt=config_in.planner_prompt,
+            supervisor_prompt=config_in.supervisor_prompt,
             temperature=config_in.temperature,
             max_tokens=config_in.max_tokens,
             recursion_limit=config_in.recursion_limit,

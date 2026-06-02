@@ -661,7 +661,7 @@ All prompts fall into one of two categories:
 
 | Source | Where stored | How retrieved | Example |
 |--------|-------------|---------------|---------|
-| **DB-configurable** | `ai_assistant_configs` table | `agent_service.py` loads `AIAssistantConfig` by ID, passes fields to orchestrator | Supervisor base prompt, specialist prompts |
+| **DB-configurable** | `ai_assistant_configs` table | `agent_service.py` loads `AIAssistantConfig` by ID, passes fields to orchestrator | Supervisor base prompt, planner template, supervisor template, specialist prompts |
 | **Hardcoded fallback** | Python module constants | Imported directly when DB value is missing | `_BASE_SUPERVISOR_PROMPT`, `_PLANNER_PROMPT_TEMPLATE` |
 
 #### DB Model: `AIAssistantConfig` (`models/domain/ai.py`)
@@ -671,6 +671,8 @@ Key prompt-related columns:
 | Column | Type | Used for |
 |--------|------|----------|
 | `system_prompt` | `Text \| None` | Base system prompt (supervisor or specialist) |
+| `planner_prompt` | `Text \| None` | Custom planner template for main agents (supports `{specialist_section}` placeholder) |
+| `supervisor_prompt` | `Text \| None` | Custom supervisor template for main agents (supports `{specialist_section}` placeholder). Falls back to `system_prompt`, then `DEFAULT_SYSTEM_PROMPT`. |
 | `agent_type` | `String(20)` | `"main"` for supervisor, `"specialist"` for delegated agents |
 | `structured_output_schema` | `String(100) \| None` | FQCN of Pydantic class (e.g., `"app.models.schemas.evm.EVMMetricsRead"`) |
 | `allowed_tools` | `JSONB \| None` | Tool whitelist for specialists |
@@ -681,17 +683,22 @@ Key prompt-related columns:
 **Entry point:** `agent_service.py:535`
 
 ```python
-system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+system_prompt = (
+    getattr(assistant_config, "supervisor_prompt", None)
+    or assistant_config.system_prompt
+    or DEFAULT_SYSTEM_PROMPT
+)
 ```
 
-The `system_prompt` is passed to `SupervisorOrchestrator(system_prompt=..., main_assistant_config=...)`.
+The resolved `system_prompt` is passed to `SupervisorOrchestrator(system_prompt=..., main_assistant_config=...)`.
 
 **Assembly in `supervisor_orchestrator.py:317-338`:**
 
 ```
 Step 1: Resolve base prompt
   base_prompt = self.system_prompt or _BASE_SUPERVISOR_PROMPT
-  ├── DB: assistant_config.system_prompt (from AI admin page)
+  ├── DB: assistant_config.supervisor_prompt (from AI admin page, "Planning Strategy" section)
+  ├── DB: assistant_config.system_prompt (from AI admin page, "Configuration" section)
   └── Fallback: _BASE_SUPERVISOR_PROMPT (hardcoded, line 60)
 
 Step 2: Append delegation enforcement (conditional)
@@ -723,31 +730,42 @@ Step 4: Append tool-access suffix (conditional)
 
 ### 8.3 Planner Prompt Assembly
 
-**Entry point:** `supervisor_orchestrator.py:389-402`
+**Entry point:** `supervisor_orchestrator.py:389-415`
 
 ```python
-specialist_catalog = [
-    {"name": sg["name"], "description": sg["description"]}
-    for sg in specialist_graphs
-]
-result = await planner_node(dict(state), self.model, specialist_catalog=specialist_catalog)
+planner_template = None
+if self.main_assistant_config and hasattr(self.main_assistant_config, 'planner_prompt'):
+    planner_template = self.main_assistant_config.planner_prompt
+result = await planner_node(
+    dict(state), self.model,
+    specialist_catalog=specialist_catalog,
+    planner_prompt_template=planner_template,
+)
 ```
 
 **Assembly in `planner.py:98-112`:**
 
 ```
+Step 0: Resolve planner template
+  template = main_assistant_config.planner_prompt or _PLANNER_PROMPT_TEMPLATE
+  ├── DB: assistant_config.planner_prompt (from AI admin page, "Planning Strategy" section)
+  └── Fallback: _PLANNER_PROMPT_TEMPLATE (hardcoded, line 26)
+
 Step 1: Build specialist section from catalog
   specialist_section = _build_specialist_section(catalog)
   └── Source: specialist_catalog passed from orchestrator (dynamic, from compiled specialists)
   └── Fallback: _DEFAULT_SPECIALIST_CATALOG (hardcoded, line 77)
 
 Step 2: Format into template
-  build_planner_system_prompt(specialist_catalog) →
-    _PLANNER_PROMPT_TEMPLATE.format(specialist_section=specialist_section)
-  └── Source: _PLANNER_PROMPT_TEMPLATE (hardcoded, line 26)
+  build_planner_system_prompt(specialist_catalog, custom_template=planner_template) →
+    if "{specialist_section}" in template:
+        template.format(specialist_section=specialist_section)
+    else:
+        template + specialist_section
+  └── Source: DB-configurable via planner_prompt, or _PLANNER_PROMPT_TEMPLATE (hardcoded, line 26)
 ```
 
-The planner has **no DB-configurable prompt** — its template is always hardcoded. Only the specialist list within it is dynamic.
+The planner prompt is **DB-configurable** via `AIAssistantConfig.planner_prompt` (set in the "Planning Strategy" section of the AI Assistant admin page). When set, it overrides the hardcoded `_PLANNER_PROMPT_TEMPLATE`. The `{specialist_section}` placeholder is optional — if absent, the specialist list is appended.
 
 ### 8.4 Specialist Prompt Assembly
 
