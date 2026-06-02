@@ -354,8 +354,8 @@ MCP_SPECIALIST_SUBAGENT: dict[str, Any] = {
         "- Summarize external results in the context of the user's request.\n"
     ),
     "allowed_tools": get_specialist_tools(
-        "mcp_specialist", None
-    ),  # None = no regular tools (MCP tools injected dynamically by category)
+        "mcp_specialist", ["*"]
+    ),  # ["*"] = all available tools (MCP tools included via RBAC filtering)
     "structured_output_schema": None,
 }
 
