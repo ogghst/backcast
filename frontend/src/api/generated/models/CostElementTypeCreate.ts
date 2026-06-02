@@ -13,7 +13,7 @@ export type CostElementTypeCreate = {
      * Root Cost Element Type ID (internal use only for seeding)
      */
     cost_element_type_id?: (string | null);
-    department_id: string;
+    organizational_unit_id: string;
     /**
      * Optional control date for creation (valid_time start)
      */

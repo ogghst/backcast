@@ -1,7 +1,7 @@
 """Cost Element Type domain model - organizational cost categorization.
 
-Cost Element Types are versionable (NOT branchable) reference data owned by departments.
-They enable cost standardization and cross-project comparability.
+Cost Element Types are versionable (NOT branchable) reference data owned by
+organizational units. They enable cost standardization and cross-project comparability.
 """
 
 from typing import TYPE_CHECKING
@@ -19,26 +19,26 @@ if TYPE_CHECKING:
 
 
 class CostElementType(EntityBase, VersionableMixin):
-    """Cost Element Type - standardized cost category owned by a department.
+    """Cost Element Type - standardized cost category owned by an organizational unit.
 
     Cost Element Types are organizational reference data that enable:
     - Consistent cost categorization across projects
     - Cross-project cost comparability
-    - Department ownership of cost types
+    - Organizational unit ownership of cost types
 
     Versionable but NOT branchable (organizational data, not project-specific).
 
     Attributes:
         cost_element_type_id: Root ID for the Cost Element Type aggregation.
-        department_id: Owning department (e.g., Mechanical Dept owns "Mechanical Installation").
+        organizational_unit_id: Owning organizational unit (e.g., Mechanical unit owns "Mechanical Installation").
         code: Cost type code (e.g., "MECH-INST").
         name: Display name (e.g., "Mechanical Installation").
         description: Optional description.
 
     Examples:
-        - Code: "ELECT-INST", Name: "Electrical Installation", Dept: Electrical Engineering
-        - Code: "SW-DEV", Name: "Software Development", Dept: Software Engineering
-        - Code: "QA-TEST", Name: "Quality Assurance Testing", Dept: Quality Assurance
+        - Code: "ELECT-INST", Name: "Electrical Installation", Unit: Electrical Engineering
+        - Code: "SW-DEV", Name: "Software Development", Unit: Software Engineering
+        - Code: "QA-TEST", Name: "Quality Assurance Testing", Unit: Quality Assurance
 
     Satisfies: VersionableProtocol
     """
@@ -50,12 +50,12 @@ class CostElementType(EntityBase, VersionableMixin):
         PG_UUID, nullable=False, index=True
     )
 
-    # Department ownership
-    department_id: Mapped[UUID] = mapped_column(
+    # Organizational unit ownership
+    organizational_unit_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         nullable=False,
         index=True,
-        # NOTE: No database-level ForeignKey constraint because department_id is a root ID.
+        # NOTE: No database-level ForeignKey constraint because organizational_unit_id is a root ID.
     )
 
     # Identity

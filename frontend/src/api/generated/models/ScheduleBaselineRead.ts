@@ -28,10 +28,8 @@ export type ScheduleBaselineRead = {
     description?: (string | null);
     id: string;
     schedule_baseline_id: string;
-    cost_element_id?: (string | null);
     created_by: string;
     branch: string;
-    cost_element_code?: (string | null);
-    cost_element_name?: (string | null);
+    work_package_name?: (string | null);
 };
 

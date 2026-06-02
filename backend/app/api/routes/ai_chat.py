@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -16,7 +16,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,6 +45,7 @@ from app.models.schemas.ai import (
     ApprovalRequest,
     InvokeAgentRequest,
     WSApprovalResponseMessage,
+    WSAskUserResponse,
     WSChatRequest,
     WSSubscribeMessage,
 )
@@ -121,9 +122,41 @@ def _enrich_session_briefing(
         return
     doc = BriefingDocument.from_state(session.briefing_data)
     session_public.briefing_markdown = doc.to_markdown()
-    session_public.briefing_specialists = [
-        sec.specialist_name for sec in doc.sections
-    ]
+    session_public.briefing_specialists = [sec.specialist_name for sec in doc.sections]
+
+
+async def _cleanup_stale_execution(db: AsyncSession, execution_id: str) -> bool:
+    """Clean up an orphaned execution left behind by a server restart.
+
+    When the in-memory event bus is lost (server restart/crash), execution
+    rows can remain stuck at ``status='running'`` with no ``completed_at``.
+    This helper marks such an execution as errored and clears the session's
+    ``active_execution_id`` so the client can recover gracefully.
+
+    Returns True if a stale execution was found and cleaned up.
+    """
+    result = await db.execute(
+        select(AIAgentExecution).where(
+            AIAgentExecution.id == execution_id,
+            AIAgentExecution.status == ExecutionStatus.RUNNING,
+        )
+    )
+    execution = result.scalar_one_or_none()
+    if execution is None:
+        return False
+
+    now = datetime.now(UTC)
+    execution.status = ExecutionStatus.ERROR
+    execution.error_message = "Server restarted during execution"
+    execution.completed_at = now  # type: ignore[assignment]
+
+    await db.execute(
+        update(AIConversationSession)
+        .where(AIConversationSession.active_execution_id == execution_id)
+        .values(active_execution_id=None)
+    )
+    await db.commit()
+    return True
 
 
 class SessionIdHolder:
@@ -616,6 +649,13 @@ async def chat_stream(
             await websocket.close(code=1008, reason="User not found")
             return
 
+        if not user.is_active:
+            logger.warning(
+                f"WebSocket connection rejected: user {user_id} is deactivated"
+            )
+            await websocket.close(code=1008, reason="User account is deactivated")
+            return
+
         user_id = user.user_id
 
         # Step 2: Check RBAC permission
@@ -708,6 +748,11 @@ async def chat_stream(
                         sub_msg = WSSubscribeMessage.model_validate(data)
                         bus = runner_manager.get_bus(str(sub_msg.execution_id))
                         if bus is None:
+                            # Bus lost — likely a server restart. Clean up any
+                            # orphaned execution row so the client can recover.
+                            await _cleanup_stale_execution(
+                                db, str(sub_msg.execution_id)
+                            )
                             await websocket.send_json(
                                 build_ws_error(
                                     f"Execution {sub_msg.execution_id} not found or already completed",
@@ -717,14 +762,18 @@ async def chat_stream(
                             continue
 
                         # Replay missed events (only those after the client's last seen sequence)
-                        for event in bus.replay(
-                            since_sequence=sub_msg.last_seen_sequence
-                        ):
-                            payload = {**event.data, "type": event.event_type}
-                            try:
-                                await websocket.send_json(payload)
-                            except Exception:
-                                break
+                        events = bus.replay(since_sequence=sub_msg.last_seen_sequence)
+                        if events:
+                            await websocket.send_json(
+                                {"type": "replay_start", "count": len(events)}
+                            )
+                            for event in events:
+                                payload = {**event.data, "type": event.event_type}
+                                try:
+                                    await websocket.send_json(payload)
+                                except Exception:
+                                    break
+                            await websocket.send_json({"type": "replay_end"})
 
                         # If execution is already done, no need to subscribe live
                         if bus.is_completed:
@@ -797,6 +846,36 @@ async def chat_stream(
                                 code=500,
                             ).model_dump()
                         )
+                    continue
+
+                # Handle ask_user_response messages -- resolve the waiting Future
+                if message_type == "ask_user_response":
+                    try:
+                        ask_response = WSAskUserResponse.model_validate(data)
+                        from app.ai.tools.ask_user import resolve_ask_user_response
+
+                        resolve_ask_user_response(
+                            ask_response.ask_id, ask_response.answer
+                        )
+                        logger.info(
+                            "Resolved ask_user response: ask_id=%s",
+                            ask_response.ask_id,
+                        )
+                    except Exception as ask_err:
+                        logger.error(
+                            "Error handling ask_user_response: %s",
+                            ask_err,
+                            exc_info=True,
+                        )
+                        try:
+                            await websocket.send_json(
+                                build_ws_error(
+                                    f"Error processing ask_user response: {str(ask_err)}",
+                                    code=500,
+                                ).model_dump()
+                            )
+                        except Exception:
+                            pass
                     continue
 
                 # Handle chat messages -- create session, start execution, forward events

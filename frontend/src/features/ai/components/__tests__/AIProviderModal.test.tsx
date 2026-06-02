@@ -10,6 +10,25 @@ import userEvent from "@testing-library/user-event";
 import { AIProviderModal } from "../AIProviderModal";
 import type { AIProviderPublic } from "../../types";
 
+/**
+ * Helper to select an option in an antd Select component.
+ * antd Select renders as a custom combobox, not a native <select>,
+ * so userEvent.selectOptions does not work. We need to:
+ * 1. Click the combobox input to open the dropdown
+ * 2. Find and click the desired option in the dropdown
+ */
+async function selectAntdOption(
+  user: ReturnType<typeof userEvent.setup>,
+  label: string | RegExp,
+  optionText: string
+) {
+  const combobox = screen.getByRole("combobox", { name: label });
+  await user.click(combobox);
+  // antd renders the dropdown in a portal at the end of body
+  const option = await screen.findByText(optionText);
+  await user.click(option);
+}
+
 describe("AIProviderModal", () => {
   const mockOnOk = vi.fn();
   const mockOnCancel = vi.fn();
@@ -35,7 +54,8 @@ describe("AIProviderModal", () => {
     it("should render all form fields", () => {
       render(<AIProviderModal {...defaultProps} />);
 
-      expect(screen.getByLabelText("Provider Type")).toBeInTheDocument();
+      // antd Select renders as combobox
+      expect(screen.getByRole("combobox", { name: /provider type/i })).toBeInTheDocument();
       expect(screen.getByLabelText("Name")).toBeInTheDocument();
       expect(screen.getByLabelText("Base URL (Optional)")).toBeInTheDocument();
     });
@@ -43,12 +63,17 @@ describe("AIProviderModal", () => {
     it("should not show is_active switch in create mode", () => {
       render(<AIProviderModal {...defaultProps} />);
 
-      expect(screen.queryByLabelText("Active")).not.toBeInTheDocument();
+      expect(screen.queryByRole("switch", { name: /active/i })).not.toBeInTheDocument();
     });
 
     it("should validate required fields", async () => {
       const user = userEvent.setup();
       render(<AIProviderModal {...defaultProps} />);
+
+      // Touch fields to trigger validation display
+      const nameInput = screen.getByLabelText("Name");
+      await user.click(nameInput);
+      await user.tab();
 
       // Try to submit without filling form
       const submitButton = screen.getByTestId("submit-provider-btn");
@@ -56,9 +81,9 @@ describe("AIProviderModal", () => {
 
       // Should show validation errors
       await waitFor(() => {
-        expect(screen.getByText(/Please select provider type/i)).toBeInTheDocument();
-        expect(screen.getByText(/Please enter name/i)).toBeInTheDocument();
-      });
+        expect(screen.getByText(/Please select a provider type/i)).toBeInTheDocument();
+        expect(screen.getByText(/Please enter a name/i)).toBeInTheDocument();
+      }, { timeout: 3000 });
 
       // onOk should not be called
       expect(mockOnOk).not.toHaveBeenCalled();
@@ -68,8 +93,8 @@ describe("AIProviderModal", () => {
       const user = userEvent.setup();
       render(<AIProviderModal {...defaultProps} />);
 
-      // Fill form
-      await user.selectOptions(screen.getByLabelText("Provider Type"), "openai");
+      // Fill form using antd-compatible selection
+      await selectAntdOption(user, /provider type/i, "OpenAI");
       await user.type(screen.getByLabelText("Name"), "OpenAI Provider");
       await user.type(screen.getByLabelText("Base URL (Optional)"), "https://api.openai.com/v1");
 
@@ -90,7 +115,7 @@ describe("AIProviderModal", () => {
       const user = userEvent.setup();
       render(<AIProviderModal {...defaultProps} />);
 
-      await user.selectOptions(screen.getByLabelText("Provider Type"), "ollama");
+      await selectAntdOption(user, /provider type/i, "Ollama");
       await user.type(screen.getByLabelText("Name"), "Local Ollama");
 
       const submitButton = screen.getByTestId("submit-provider-btn");
@@ -122,10 +147,14 @@ describe("AIProviderModal", () => {
       expect(screen.getByText("Edit AI Provider")).toBeInTheDocument();
     });
 
-    it("should pre-fill form with initial values", () => {
+    it("should pre-fill form with initial values", async () => {
       render(<AIProviderModal {...defaultProps} initialValues={mockProvider} />);
 
-      expect(screen.getByLabelText("Provider Type")).toHaveValue("openai");
+      // antd Select shows selected value as display text (not as input value)
+      // Check the selected value text is visible
+      await waitFor(() => {
+        expect(screen.getByText("OpenAI")).toBeInTheDocument();
+      });
       expect(screen.getByLabelText("Name")).toHaveValue("OpenAI");
       expect(screen.getByLabelText("Base URL (Optional)")).toHaveValue("https://api.openai.com/v1");
     });
@@ -133,8 +162,10 @@ describe("AIProviderModal", () => {
     it("should show is_active switch in edit mode", () => {
       render(<AIProviderModal {...defaultProps} initialValues={mockProvider} />);
 
-      expect(screen.getByLabelText("Active")).toBeInTheDocument();
-      expect(screen.getByLabelText("Active")).toBeChecked();
+      const switchEl = screen.getByRole("switch", { name: /active/i });
+      expect(switchEl).toBeInTheDocument();
+      // antd Switch uses aria-checked for checked state
+      expect(switchEl).toHaveAttribute("aria-checked", "true");
     });
 
     it("should submit updated data", async () => {
@@ -176,7 +207,7 @@ describe("AIProviderModal", () => {
       );
 
       // Fill form in create mode
-      await user.selectOptions(screen.getByLabelText("Provider Type"), "openai");
+      await selectAntdOption(user, /provider type/i, "OpenAI");
       await user.type(screen.getByLabelText("Name"), "Test Provider");
 
       // Reopen in edit mode with different provider

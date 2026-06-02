@@ -58,6 +58,7 @@ describe("WebSocket Temporal Context - RED PHASE", () => {
         message: "Show me data",
         session_id: "session-123",
         assistant_config_id: "assistant-456",
+        execution_mode: "standard",
       };
 
       // Assert: Verify request works without temporal params

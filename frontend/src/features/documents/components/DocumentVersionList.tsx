@@ -67,7 +67,7 @@ export const DocumentVersionList: React.FC<DocumentVersionListProps> = ({
                       v{version.version_number} &mdash; {formatFileSize(version.size_bytes)}
                     </Text>
                     {isCurrent && (
-                      <Tag color="green" style={{ fontSize: token.fontSizeXS, lineHeight: "16px" }}>
+                      <Tag color="green" style={{ fontSize: token.fontSizeSM, lineHeight: "16px" }}>
                         Current
                       </Tag>
                     )}

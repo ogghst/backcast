@@ -143,14 +143,16 @@ export const useCreateForecast = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateWithBranch) => {
-      const { branch, ...rest } = data;
+    mutationFn: async (data: CreateWithBranch) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { branch: _branch, ...rest } = data;
       // Inject control_date
       const payload: ForecastCreate = {
         ...rest,
         control_date: asOf || null,
       };
-      return ForecastsService.createForecast(payload, branch || "main");
+      const res = await ForecastsService.createForecast(payload);
+      return res as unknown as ForecastRead;
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
@@ -182,18 +184,16 @@ export const useUpdateForecast = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateWithBranch }) => {
-      const { branch, ...rest } = data;
+    mutationFn: async ({ id, data }: { id: string; data: UpdateWithBranch }) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { branch: _branch, ...rest } = data;
       // Inject control_date
       const payload: ForecastUpdate = {
         ...rest,
         control_date: asOf || null,
       };
-      return ForecastsService.updateForecast(
-        id,
-        payload,
-        branch || "main"
-      );
+      const res = await ForecastsService.updateForecast(id, payload);
+      return res as unknown as ForecastRead;
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });

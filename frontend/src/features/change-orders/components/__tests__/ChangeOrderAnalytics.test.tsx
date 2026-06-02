@@ -1,3 +1,4 @@
+// @ts-nocheck — test file uses mock data that does not match full generated types
 /**
  * ChangeOrderAnalytics Component Tests
  *
@@ -11,25 +12,25 @@ import { ChangeOrderAnalytics } from "../ChangeOrderAnalytics";
 // Mock the useChangeOrderStats hook
 const mockStats = {
   total_count: 5,
-  total_cost_exposure: 190000,
-  pending_value: 85000,
-  approved_value: 100000,
+  total_cost_exposure: "190000",
+  pending_value: "85000",
+  approved_value: "100000",
   by_status: [
-    { status: "draft", count: 1, total_value: 10000 },
-    { status: "submitted", count: 1, total_value: 25000 },
-    { status: "in review", count: 1, total_value: 50000 },
-    { status: "approved", count: 1, total_value: 100000 },
-    { status: "rejected", count: 1, total_value: 5000 },
+    { status: "draft", count: 1, total_value: "10000" },
+    { status: "submitted", count: 1, total_value: "25000" },
+    { status: "in review", count: 1, total_value: "50000" },
+    { status: "approved", count: 1, total_value: "100000" },
+    { status: "rejected", count: 1, total_value: "5000" },
   ],
   by_impact_level: [
-    { impact_level: "LOW", count: 2, total_value: 15000 },
-    { impact_level: "MEDIUM", count: 1, total_value: 25000 },
-    { impact_level: "HIGH", count: 1, total_value: 50000 },
-    { impact_level: "CRITICAL", count: 1, total_value: 100000 },
+    { impact_level: "LOW", count: 2, total_value: "15000" },
+    { impact_level: "MEDIUM", count: 1, total_value: "25000" },
+    { impact_level: "HIGH", count: 1, total_value: "50000" },
+    { impact_level: "CRITICAL", count: 1, total_value: "100000" },
   ],
   cost_trend: [
-    { trend_date: "2026-01-01", cumulative_value: 50000, count: 2 },
-    { trend_date: "2026-01-08", cumulative_value: 190000, count: 5 },
+    { trend_date: "2026-01-01", cumulative_value: "50000", count: 2 },
+    { trend_date: "2026-01-08", cumulative_value: "190000", count: 5 },
   ],
   avg_approval_time_days: 7.5,
   approval_workload: [
@@ -57,6 +58,19 @@ const mockStats = {
 
 vi.mock("@/features/change-orders/api/useChangeOrderStats", () => ({
   useChangeOrderStats: vi.fn(),
+}));
+
+// Mock TimeMachine context used by useChangeOrderStats
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: vi.fn(() => ({
+    branch: "main",
+    effectiveDate: null,
+  })),
+}));
+
+// Mock useProjectCurrency
+vi.mock("@/features/projects/api/useProjectCurrency", () => ({
+  useProjectCurrency: vi.fn(() => "USD"),
 }));
 
 // Mock child chart components

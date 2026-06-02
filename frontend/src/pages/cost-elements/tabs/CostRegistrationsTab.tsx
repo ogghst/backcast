@@ -16,7 +16,7 @@ import {
   type CostRegistrationRead,
 } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
-import type { CostElementRead } from "@/api/generated";
+import type { CostElementRead, CostRegistrationCreate } from "@/api/generated";
 import {
   useCostRegistrations,
   useCreateCostRegistration,
@@ -32,10 +32,10 @@ import { mapHistoryVersions } from "@/utils/versionHistory";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import { useWBE } from "@/features/wbes/api/useWBEs";
+
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
-import { usePackageTypes } from "@/features/work-package/api/useWorkPackages";
+import { useCostEventTypes } from "@/features/cost-events/api/useCostEvents";
 
 const { Text } = Typography;
 
@@ -63,12 +63,12 @@ export const CostRegistrationsTab = ({
   const queryClient = useQueryClient();
   const { asOf } = useTimeMachineParams();
   const screens = Grid.useBreakpoint();
-  const { data: packageTypeOptions } = usePackageTypes();
+  const { data: packageTypeOptions } = useCostEventTypes();
   const isMobile = !screens.md;
 
   // Fetch WBE to get project_id for project-level budget validation
-  const { data: wbe } = useWBE(costElement.wbe_id);
-  const currency = useProjectCurrency(wbe?.project_id);
+  // CostElement (EOC) no longer has wbs_element_id; budget is at work_package level
+  const currency = useProjectCurrency(undefined);
   const currencySymbol = getCurrencySymbol(currency);
 
   // Build query params
@@ -268,12 +268,12 @@ export const CostRegistrationsTab = ({
         if (!name) return "-";
         const typeLabel =
           packageTypeOptions?.find(
-            (o) => o.value === record.work_package_type,
-          )?.label || record.work_package_type;
+            (o) => o.value === record.cost_event_type,
+          )?.label || record.cost_event_type;
         return (
           <Space size={4}>
             <span>{name}</span>
-            {record.work_package_type && (
+            {record.cost_event_type && (
               <Tag>{typeLabel}</Tag>
             )}
           </Space>
@@ -424,8 +424,7 @@ export const CostRegistrationsTab = ({
             });
           } else {
             // Filter out undefined values and ensure required fields are present
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { amount, cost_element_id: _cost_element_id, ...rest } = values;
+            const { amount, ...rest } = values as CostRegistrationCreate;
             const createData: Parameters<typeof createCostRegistration>[0] = {
               cost_element_id: costElement.cost_element_id,
               amount: amount ?? 0,
@@ -437,7 +436,7 @@ export const CostRegistrationsTab = ({
         confirmLoading={isLoading}
         initialValues={selectedRegistration}
         costElementId={costElement.cost_element_id}
-        projectId={wbe?.project_id ?? ""}
+        projectId={costElement.project_id ?? ""}
       />
 
       <VersionHistoryDrawer

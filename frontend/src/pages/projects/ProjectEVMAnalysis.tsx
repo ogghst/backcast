@@ -54,7 +54,7 @@ export const ProjectEVMAnalysis: React.FC = () => {
     EntityType.PROJECT,
     projectId || "",
     granularity,
-    {}
+    undefined
   );
 
   // Loading state
@@ -75,7 +75,7 @@ export const ProjectEVMAnalysis: React.FC = () => {
           padding: token.paddingXL * 1.5,
         }}
       >
-        <Spin size="large" role="status" />
+        <Spin size="large" />
       </div>
     );
   }

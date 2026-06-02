@@ -12,14 +12,14 @@ import { SideBySideDiff } from "./SideBySideDiff";
  */
 export function WBEDiffExample() {
   const mainData = {
-    wbe_name: "Assembly Station A",
+    wbs_element_name: "Assembly Station A",
     budget: "100000",
     revenue: "120000",
     description: "Manual assembly station for product line A",
   };
 
   const branchData = {
-    wbe_name: "Assembly Station A (Enhanced)",
+    wbs_element_name: "Assembly Station A (Enhanced)",
     budget: "150000", // Modified
     revenue: "120000",
     description: "Automated assembly station with robotic arms for product line A", // Modified
@@ -27,7 +27,7 @@ export function WBEDiffExample() {
   };
 
   const fieldLabels = {
-    wbe_name: "WBE Name",
+    wbs_element_name: "WBE Name",
     budget: "Budget",
     revenue: "Revenue",
     description: "Description",
@@ -39,7 +39,7 @@ export function WBEDiffExample() {
       mainData={mainData}
       branchData={branchData}
       fieldLabels={fieldLabels}
-      excludeFields={["wbe_id", "created_at", "updated_at"]}
+      excludeFields={["wbs_element_id", "created_at", "updated_at"]}
       showUnchanged={false}
     />
   );
@@ -61,17 +61,17 @@ export function EntityImpactWithDiffExample() {
     revenue_delta: "0",
     cost_delta: "0",
     main_data: {
-      wbe_name: "Assembly Station A",
+      wbs_element_name: "Assembly Station A",
       budget: "100000",
     },
     branch_data: {
-      wbe_name: "Assembly Station A (Enhanced)",
+      wbs_element_name: "Assembly Station A (Enhanced)",
       budget: "150000",
     },
   };
 
   const fieldLabels = {
-    wbe_name: "WBE Name",
+    wbs_element_name: "WBE Name",
     budget: "Budget",
   };
 
@@ -80,7 +80,7 @@ export function EntityImpactWithDiffExample() {
       mainData={entityChange.main_data}
       branchData={entityChange.branch_data}
       fieldLabels={fieldLabels}
-      excludeFields={["id", "wbe_id"]}
+      excludeFields={["id", "wbs_element_id"]}
       showUnchanged={false}
     />
   );

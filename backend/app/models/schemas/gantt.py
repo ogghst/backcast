@@ -18,11 +18,11 @@ class GanttItem(BaseModel):
     cost_element_id: UUID | None = None
     cost_element_code: str | None = None
     cost_element_name: str | None = None
-    wbe_id: UUID
+    wbs_element_id: UUID
     wbe_code: str
     wbe_name: str
     wbe_level: int
-    parent_wbe_id: UUID | None = None
+    parent_wbs_element_id: UUID | None = None
     budget_amount: Decimal | None = None
     start_date: datetime | None = None
     end_date: datetime | None = None

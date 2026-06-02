@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
     name="search_documents",
     description="Search project documents by filename.",
     permissions=["project-documents-read"],
-    category="documents",
+    category="context",
     risk_level=RiskLevel.LOW,
 )
 async def search_documents(
@@ -67,7 +67,7 @@ async def search_documents(
     name="read_document",
     description="Read extracted text content of a document.",
     permissions=["project-documents-read"],
-    category="documents",
+    category="context",
     risk_level=RiskLevel.LOW,
 )
 async def read_document(

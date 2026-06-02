@@ -50,15 +50,23 @@ describe("AIModelModal", () => {
       const user = userEvent.setup();
       render(<AIModelModal {...defaultProps} />);
 
+      // Touch the fields by clicking into them and blurring (antd v6 needs fields touched)
+      const modelIdInput = screen.getByLabelText("Model ID");
+      const displayNameInput = screen.getByLabelText("Display Name");
+      await user.click(modelIdInput);
+      await user.tab();
+      await user.click(displayNameInput);
+      await user.tab();
+
       // Try to submit without filling form
       const submitButton = screen.getByTestId("submit-model-btn");
       await user.click(submitButton);
 
       // Should show validation errors
       await waitFor(() => {
-        expect(screen.getByText(/Please enter model ID/i)).toBeInTheDocument();
-        expect(screen.getByText(/Please enter display name/i)).toBeInTheDocument();
-      });
+        expect(screen.getByText(/Please enter a model ID/i)).toBeInTheDocument();
+        expect(screen.getByText(/Please enter a display name/i)).toBeInTheDocument();
+      }, { timeout: 3000 });
 
       // onOk should not be called
       expect(mockOnOk).not.toHaveBeenCalled();

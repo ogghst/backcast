@@ -33,9 +33,7 @@ class StorageService:
             logger.info("Bucket '%s' already exists", self._bucket)
         except ClientError as exc:
             if exc.response["Error"]["Code"] == "404":
-                await asyncio.to_thread(
-                    self._client.create_bucket, Bucket=self._bucket
-                )
+                await asyncio.to_thread(self._client.create_bucket, Bucket=self._bucket)
                 logger.info("Bucket '%s' created", self._bucket)
             else:
                 raise

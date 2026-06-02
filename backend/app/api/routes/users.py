@@ -10,6 +10,7 @@ from app.api.dependencies.auth import (
     UserIdentity,
     get_current_user,
     get_user_service,
+    invalidate_user_active_cache,
 )
 from app.db.session import get_db
 from app.models.domain.user import User
@@ -203,6 +204,7 @@ async def update_user(
         updated_user = await service.update_user(
             user_id=user_id, user_in=user_in, actor_id=current_user.user_id
         )
+        invalidate_user_active_cache(user_id)
         return await UserPublic.from_user_async(updated_user, session)
     except ValueError as e:  # Entity not found or version conflict
         raise HTTPException(
@@ -228,6 +230,7 @@ async def delete_user(
     """
     try:
         await service.delete_user(user_id=user_id, actor_id=current_user.user_id)
+        invalidate_user_active_cache(user_id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

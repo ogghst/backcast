@@ -6,22 +6,19 @@ const { Text } = Typography;
 
 export interface CostElementBreadcrumb {
   project: {
-    id: string;
     project_id: string;
     code: string;
     name: string;
   };
-  wbe: {
-    id: string;
-    wbe_id: string;
+  wbs_element: {
+    wbs_element_id: string;
     code: string;
     name: string;
   };
   cost_element: {
-    id: string;
     cost_element_id: string;
-    code: string;
-    name: string;
+    cost_element_type_name: string;
+    cost_element_type_code: string;
   };
 }
 
@@ -47,7 +44,7 @@ export const CostElementBreadcrumbBuilder = ({
     return null;
   }
 
-  const showProjectItem = breadcrumb.wbe.code !== breadcrumb.project.code;
+  const showProjectItem = breadcrumb.wbs_element.code !== breadcrumb.project.code;
 
   const projectItem = {
     title: (
@@ -71,21 +68,21 @@ export const CostElementBreadcrumbBuilder = ({
         </Link>
       ),
     },
-    !isMobile ? {
+    ...( !isMobile ? [{
       title: <Link to="/projects">Projects</Link>,
-    } : null,
+    }] : []),
     ...(showProjectItem ? [projectItem] : []),
     {
       title: (
         <Link
-          to={`/projects/${breadcrumb.project.project_id}/wbes/${breadcrumb.wbe.wbe_id}`}
+          to={`/projects/${breadcrumb.project.project_id}/wbs-elements/${breadcrumb.wbs_element.wbs_element_id}`}
         >
           {isMobile ? (
             <Text ellipsis style={{ maxWidth: 60, fontSize: 12 }}>
-              {breadcrumb.wbe.code}
+              {breadcrumb.wbs_element.code}
             </Text>
           ) : (
-            breadcrumb.wbe.code
+            breadcrumb.wbs_element.code
           )}
         </Link>
       ),
@@ -95,17 +92,17 @@ export const CostElementBreadcrumbBuilder = ({
         <span style={{ fontWeight: 600 }}>
           {isMobile ? (
             <Text ellipsis style={{ maxWidth: 100, fontSize: 12 }}>
-              {breadcrumb.cost_element.code}
+              {breadcrumb.cost_element.cost_element_type_code || breadcrumb.cost_element.cost_element_type_name}
             </Text>
           ) : (
             <>
-              {breadcrumb.cost_element.code} {breadcrumb.cost_element.name}
+              {breadcrumb.cost_element.cost_element_type_code || breadcrumb.cost_element.cost_element_type_name}
             </>
           )}
         </span>
       ),
     },
-  ].filter(Boolean);
+  ];
 
   return (
     <Breadcrumb

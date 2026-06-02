@@ -24,7 +24,7 @@ describe("Auth Adapter", () => {
   describe("loginUser", () => {
     it("should map credentials to Body_login and call AuthenticationService.login", async () => {
       const credentials = { email: "test@example.com", password: "password" };
-      const mockToken = { access_token: "token", token_type: "bearer" };
+      const mockToken = { access_token: "token", token_type: "bearer", refresh_token: "refresh" };
 
       vi.mocked(AuthenticationService.login).mockResolvedValue(mockToken);
 
@@ -75,8 +75,6 @@ describe("Auth Adapter", () => {
         full_name: userData.full_name,
         role: userData.role,
         department: undefined,
-        is_active: true,
-        is_superuser: false,
       });
       expect(result).toEqual(mockUser);
     });

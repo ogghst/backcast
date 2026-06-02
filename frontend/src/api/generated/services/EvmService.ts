@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { app__models__schemas__evm__EntityType } from '../models/app__models__schemas__evm__EntityType';
 import type { BranchMode } from '../models/BranchMode';
-import type { EntityType } from '../models/EntityType';
 import type { EVMMetricsResponse } from '../models/EVMMetricsResponse';
 import type { EVMTimeSeriesGranularity } from '../models/EVMTimeSeriesGranularity';
 import type { EVMTimeSeriesResponse } from '../models/EVMTimeSeriesResponse';
@@ -48,7 +48,7 @@ export class EvmService {
      * @throws ApiError
      */
     public static getGenericEvmMetrics(
-        entityType: EntityType,
+        entityType: app__models__schemas__evm__EntityType,
         entityId: string,
         controlDate?: (string | null),
         branch: string = 'main',
@@ -103,7 +103,7 @@ export class EvmService {
      * @throws ApiError
      */
     public static getGenericEvmTimeseries(
-        entityType: EntityType,
+        entityType: app__models__schemas__evm__EntityType,
         entityId: string,
         granularity: EVMTimeSeriesGranularity = 'week',
         controlDate?: (string | null),

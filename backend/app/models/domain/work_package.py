@@ -1,107 +1,114 @@
-"""Work Package domain model - project-scoped cost grouping mechanism.
+"""Work Package domain model - ANSI-748 PMI work package (budget holder).
 
-Work Packages are a generalized concept for grouping cost registrations under
-a project. They support multiple types (quality_impact, site_visit, production_phase,
-warranty_batch, commissioning) with quality-specific fields remaining as nullable
-native columns for the quality_impact type.
-
-Uses Single Table Inheritance (STI) with a `package_type` discriminator column.
+Work Packages are the lowest level of the WBS where work is planned,
+budgeted, and tracked. They belong to Control Accounts and hold budget.
+Satisfies BranchableProtocol via structural subtyping.
 """
 
-from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, Numeric, SmallInteger, String, Text
+from sqlalchemy import DECIMAL, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base.base import EntityBase
-from app.models.mixins import VersionableMixin
+from app.models.mixins import BranchableMixin, VersionableMixin
+
+if TYPE_CHECKING:
+    from app.models.domain.control_account import ControlAccount
 
 
-class WorkPackage(EntityBase, VersionableMixin):
-    """Project-scoped cost grouping mechanism.
+class WorkPackage(EntityBase, VersionableMixin, BranchableMixin):
+    """Work Package entity - PMI budget holder under a Control Account.
 
-    Generalizes the former QualityImpact entity to support multiple work package
-    types. Quality-specific fields (coq_category, schedule_impact_days,
-    external_event_id) remain as nullable columns populated only when
-    package_type = 'quality_impact'.
+    Work Packages are the lowest management level where:
+    - Budget is allocated and tracked
+    - Work is planned and scheduled
+    - Progress is measured (via progress entries against child Cost Elements)
 
-    Versionable but NOT branchable (financial facts are global across branches).
+    Branchable (supports change orders) and Versionable (tracks changes).
 
     Attributes:
-        work_package_id: Root ID for the WorkPackage aggregation.
-        project_id: Root ID of the parent Backcast project.
-        name: Human-readable label for the work package (required).
-        package_type: Discriminator -- closed enum value.
-        description: Optional description of the work package.
-        status: Lifecycle state -- 'open' or 'closed'.
-        external_event_id: External reference identifier (e.g., QMS ID, PO number, work order).
-        event_date: When the event occurred (nullable).
-        coq_category: Cost of Quality category (quality-specific, nullable).
-        cost_impact: Total financial impact (declared/estimated).
-        schedule_impact_days: Days of schedule delay (quality-specific, nullable).
+        work_package_id: Root ID for the Work Package aggregation.
+        control_account_id: Parent Control Account root ID.
+        name: Work Package name.
+        code: Work Package code (e.g., "WP-001").
+        budget_amount: Allocated budget for this work package.
+        schedule_baseline_id: 1:1 reference to schedule baseline (optional).
+        forecast_id: 1:1 reference to forecast (optional).
+        description: Optional description.
+        status: Lifecycle state ('open' or 'closed').
+
+    Satisfies: BranchableProtocol, VersionableProtocol
     """
 
     __tablename__ = "work_packages"
 
-    # Root ID (stable identity across versions)
+    # Root ID (stable identity across versions and branches)
     work_package_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
-    # Primary relationship -- project-scoped
-    project_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
+    # Parent relationship
+    control_account_id: Mapped[UUID] = mapped_column(
+        PG_UUID,
+        nullable=False,
+        index=True,
+        # NOTE: No database-level ForeignKey constraint because control_account_id is a root ID.
+    )
 
-    # New general fields
+    # Identity
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
 
-    package_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    # Financial
+    budget_amount: Mapped[Decimal] = mapped_column(
+        DECIMAL(15, 2), default=0, nullable=False
+    )
 
+    # Schedule Baseline (1:1 relationship per version)
+    schedule_baseline_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID,
+        nullable=True,
+        index=True,
+        comment="1:1 reference to schedule baseline",
+    )
+
+    # Forecast (1:1 relationship per version)
+    forecast_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID,
+        nullable=True,
+        index=True,
+        comment="1:1 reference to forecast",
+    )
+
+    # Metadata
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="open", server_default="open"
     )
 
-    # External reference identifier (e.g., QMS ID, PO number, work order number)
-    external_event_id: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, index=True
+    # Relationships (view-only for navigation, no DB constraints)
+    control_account: Mapped["ControlAccount"] = relationship(
+        "ControlAccount",
+        primaryjoin="WorkPackage.control_account_id == ControlAccount.control_account_id",
+        foreign_keys=[control_account_id],
+        viewonly=True,
     )
 
-    # When the event occurred
-    event_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-    # Cost of Quality category (quality-specific, nullable for non-quality types)
-    coq_category: Mapped[str | None] = mapped_column(
-        String(30), nullable=True, default=None
-    )
-
-    # Financial impact (declared/estimated cost for the package)
-    cost_impact: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False, default=Decimal("0")
-    )
-
-    # Schedule impact (quality-specific, nullable for non-quality types)
-    schedule_impact_days: Mapped[int | None] = mapped_column(
-        SmallInteger, nullable=True
-    )
-
-    # Temporal fields inherited from VersionableMixin:
-    # - valid_time: TSTZRANGE
-    # - transaction_time: TSTZRANGE
-    # - deleted_at: datetime | None
-    # - created_by: UUID
-    # - deleted_by: UUID | None
+    # Temporal and branching fields inherited from mixins:
+    # - valid_time: TSTZRANGE (from VersionableMixin)
+    # - transaction_time: TSTZRANGE (from VersionableMixin)
+    # - deleted_at: datetime | None (from VersionableMixin)
+    # - branch: str (from BranchableMixin, default 'main')
+    # - parent_id: UUID | None (from BranchableMixin)
+    # - merge_from_branch: str | None (from BranchableMixin)
 
     def __repr__(self) -> str:
         return (
             f"<WorkPackage(id={self.id}, "
             f"work_package_id={self.work_package_id}, "
-            f"name={self.name}, "
-            f"package_type={self.package_type}, "
-            f"project_id={self.project_id}, "
-            f"status={self.status}, "
-            f"cost_impact={self.cost_impact})>"
+            f"control_account_id={self.control_account_id}, "
+            f"code={self.code}, name={self.name}, "
+            f"budget_amount={self.budget_amount})>"
         )

@@ -4,6 +4,9 @@ import { LayoutOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
 import {
   Responsive,
   useContainerWidth,
+  type Layout,
+  noCompactor,
+  verticalCompactor,
 } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -198,7 +201,7 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
   // in onLayoutChange prevents unnecessary store writes that would cause
   // a feedback loop.
   const layouts = useMemo(() => {
-    if (!baseLayouts.lg) return {};
+    if (!baseLayouts.lg) return {} as Record<string, typeof baseLayouts.lg>;
     const overlay = (items: typeof baseLayouts.lg) =>
       items.map((l) => {
         const isActive = activeInteraction?.instanceId === l.i;
@@ -251,7 +254,7 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
       <DashboardToolbar onSave={onSave} />
 
       <div
-        ref={containerRef}
+        ref={containerRef as React.Ref<HTMLDivElement>}
         style={{
           position: "relative",
           minHeight: "100%",
@@ -361,13 +364,13 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           width={width}
           breakpoints={BREAKPOINTS}
           cols={COLS}
-          layouts={layouts}
+          layouts={layouts as Partial<Record<string, Layout>>}
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           containerPadding={[12, 12]}
-          compactType={isEditing ? null : "vertical"}
-          isDraggable={isEditing}
-          isResizable={isEditing}
+          compactor={isEditing ? noCompactor : verticalCompactor}
+          dragConfig={{ enabled: isEditing, bounded: false, threshold: 3 }}
+          resizeConfig={{ enabled: isEditing, handles: ["se"] }}
           onLayoutChange={(layout) => {
             // Persist layout to store.  RGL fires this after drag/resize
             // completions AND when it internally recalculates positions.

@@ -74,9 +74,22 @@ async def read_progress_entries(
 
         as_of = datetime.now(tz=UTC)
 
+    # Resolve cost_element_id to work_package_id if provided
+    resolved_wp_id: UUID | None = None
+    if cost_element_id:
+        from sqlalchemy import select
+
+        from app.models.domain.cost_element import CostElement
+
+        stmt = select(CostElement.work_package_id).where(
+            CostElement.cost_element_id == cost_element_id
+        )
+        result = await service.session.execute(stmt)
+        resolved_wp_id = result.scalar_one_or_none()
+
     items, total = await service.get_progress_history(
-        cost_element_id=cost_element_id,
-        wbe_id=wbe_id if not cost_element_id else None,
+        work_package_id=resolved_wp_id,
+        wbs_element_id=wbe_id if not cost_element_id else None,
         project_id=project_id if not cost_element_id and not wbe_id else None,
         skip=skip,
         limit=per_page,
@@ -184,15 +197,33 @@ async def read_latest_progress(
         None,
         description="Time travel: get latest progress as of this timestamp (ISO 8601)",
     ),
+    session: AsyncSession = Depends(get_db),
     service: ProgressEntryService = Depends(get_progress_entry_service),
 ) -> ProgressEntry | None:
     """Retrieve the latest progress entry for a cost element.
 
-    Returns the most recent progress entry based on valid_time.
+    Returns the most recent progress entry for the work package that owns
+    the specified cost element, based on valid_time.
     Supports time-travel queries via the as_of parameter.
 
     Returns None if no progress has been reported for the cost element.
     """
+    # Resolve cost_element_id to its parent work_package_id
+    from sqlalchemy import select
+
+    from app.models.domain.cost_element import CostElement
+
+    stmt = select(CostElement.work_package_id).where(
+        CostElement.cost_element_id == cost_element_id
+    )
+    result = await session.execute(stmt)
+    wp_id = result.scalar_one_or_none()
+    if wp_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Cost element {cost_element_id} not found",
+        )
+
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
@@ -200,7 +231,7 @@ async def read_latest_progress(
         as_of = datetime.now(tz=UTC)
 
     progress = await service.get_latest_progress(
-        cost_element_id=cost_element_id,
+        work_package_id=wp_id,
         as_of=as_of,
     )
 
@@ -217,19 +248,36 @@ async def read_progress_history(
     cost_element_id: UUID,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
+    session: AsyncSession = Depends(get_db),
     service: ProgressEntryService = Depends(get_progress_entry_service),
 ) -> dict[str, Any]:
     """Retrieve progress history for a cost element.
 
-    Returns all progress entries for the specified cost element,
-    ordered by valid_time descending (most recent first).
+    Returns all progress entries for the work package that owns the
+    specified cost element, ordered by valid_time descending (most recent first).
 
     Useful for generating progress charts and historical analysis.
     """
+    # Resolve cost_element_id to its parent work_package_id
+    from sqlalchemy import select
+
+    from app.models.domain.cost_element import CostElement
+
+    stmt = select(CostElement.work_package_id).where(
+        CostElement.cost_element_id == cost_element_id
+    )
+    result = await session.execute(stmt)
+    wp_id = result.scalar_one_or_none()
+    if wp_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Cost element {cost_element_id} not found",
+        )
+
     skip = (page - 1) * per_page
 
     items, total = await service.get_progress_history(
-        cost_element_id=cost_element_id,
+        work_package_id=wp_id,
         skip=skip,
         limit=per_page,
     )

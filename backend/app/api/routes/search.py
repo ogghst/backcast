@@ -35,8 +35,8 @@ async def global_search(
     project_id: UUID | None = Query(
         None, description="Scope results to a specific project"
     ),
-    wbe_id: UUID | None = Query(
-        None, description="Scope results to a specific WBE and descendants"
+    wbs_element_id: UUID | None = Query(
+        None, description="Scope results to a specific WBSElement and descendants"
     ),
     branch: str = Query("main", description="Branch name for branchable entities"),
     branch_mode: BranchMode = Query(
@@ -53,7 +53,7 @@ async def global_search(
 ) -> GlobalSearchResponse:
     """Search across all entity types with ranked results.
 
-    Queries 12 entity types in parallel, applies RBAC project scoping,
+    Queries 13 entity types sequentially, applies RBAC project scoping,
     temporal/branch filters, and returns a flat relevance-ranked list.
     """
 
@@ -61,7 +61,7 @@ async def global_search(
         q,
         user_id=current_user.user_id,
         project_id=project_id,
-        wbe_id=wbe_id,
+        wbe_id=wbs_element_id,
         branch=branch,
         branch_mode=branch_mode,
         as_of=as_of,

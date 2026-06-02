@@ -5,7 +5,7 @@ import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import type { ChangeOrderPublic, ChangeOrderApproval, ApprovalInfoPublic } from "@/api/generated";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import type { PaginatedResponse } from "@/types";
+import type { PaginatedResponse } from "@/types/api";
 
 /**
  * Parameters for useApprovalInfo hook.

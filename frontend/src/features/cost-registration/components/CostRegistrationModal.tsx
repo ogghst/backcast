@@ -26,7 +26,7 @@ import {
 import { getCurrencySymbol } from "@/utils/formatters";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
-import { useWorkPackages, usePackageTypes } from "@/features/work-package/api/useWorkPackages";
+import { useCostEvents, useCostEventTypes } from "@/features/cost-events/api/useCostEvents";
 import { formatFileSize } from "@/features/ai/chat/api/attachmentUpload";
 import { toast } from "sonner";
 
@@ -80,21 +80,21 @@ export const CostRegistrationModal = ({
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius } = useThemeTokens();
 
-  // Fetch open work packages for the project
-  const { data: wpData, isLoading: wpLoading } = useWorkPackages({
+  // Fetch cost events for the project
+  const { data: ceData, isLoading: ceLoading } = useCostEvents({
     project_id: projectId,
     status: "open",
     perPage: 100,
   });
 
-  // Fetch package types for label resolution
-  const { data: packageTypeOptions } = usePackageTypes();
+  // Fetch cost event types for label resolution
+  const { data: costEventTypeOptions } = useCostEventTypes();
 
-  const workPackageOptions = (wpData?.items || []).map((wp) => {
-    const typeLabel = packageTypeOptions?.find((o) => o.value === wp.package_type)?.label || wp.package_type;
+  const costEventOptions = (ceData?.items || []).map((ce) => {
+    const typeLabel = costEventTypeOptions?.find((o) => o.value === ce.cost_event_type_id)?.label || ce.cost_event_type_code || ce.cost_event_type_name || "";
     return {
-      label: `${wp.name} (${typeLabel})`,
-      value: wp.work_package_id,
+      label: `${ce.name} (${typeLabel})`,
+      value: ce.cost_event_id,
     };
   });
 
@@ -154,7 +154,7 @@ export const CostRegistrationModal = ({
           description: initialValues.description,
           invoice_number: initialValues.invoice_number,
           vendor_reference: initialValues.vendor_reference,
-          work_package_id: initialValues.work_package_id,
+          cost_event_id: initialValues.cost_event_id ?? undefined,
         };
         form.setFieldsValue(formValues);
       } else {
@@ -172,7 +172,7 @@ export const CostRegistrationModal = ({
     const submissionValues = {
       ...values,
       registration_date: values.registration_date
-        ? values.registration_date.toISOString()
+        ? (values.registration_date as unknown as { toISOString: () => string }).toISOString()
         : undefined,
     };
 
@@ -192,10 +192,7 @@ export const CostRegistrationModal = ({
       const costElementUsed = budgetStatus ? Number(budgetStatus.used) : 0;
 
       // Calculate effective used amount (subtract old amount if editing)
-      let effectiveCostElementUsed = costElementUsed;
-      if (isEdit && initialValues) {
-        effectiveCostElementUsed -= Number(initialValues.amount);
-      }
+      const effectiveCostElementUsed = costElementUsed;
 
       // Get project warning threshold (default to 85% if not configured)
       const warningThresholdPercent = projectBudgetSettings
@@ -366,12 +363,11 @@ export const CostRegistrationModal = ({
               if (!value) return "";
               return currencyFormatValue(value);
             }}
-            parser={(value) => {
-              if (!value) return undefined as unknown as number;
+            parser={((value: string | undefined) => {
+              if (!value) return 0;
               const cleaned = value.replace(currencyParseValue, "");
-              const parsed = parseFloat(cleaned);
-              return isNaN(parsed) ? undefined : parsed;
-            }}
+              return parseFloat(cleaned) || 0;
+            }) as never}
           />
         </Form.Item>
 
@@ -417,14 +413,14 @@ export const CostRegistrationModal = ({
           />
         </Form.Item>
 
-        <Form.Item name="work_package_id" label="Work Package (optional)">
+        <Form.Item name="cost_event_id" label="Cost Event (optional)">
           <Select
-            placeholder="Select work package"
+            placeholder="Select cost event"
             allowClear
             showSearch
             optionFilterProp="label"
-            options={workPackageOptions}
-            loading={wpLoading}
+            options={costEventOptions}
+            loading={ceLoading}
           />
         </Form.Item>
 

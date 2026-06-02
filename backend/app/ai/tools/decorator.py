@@ -155,6 +155,23 @@ def ai_tool(
 
                 from app.ai.tools.session_manager import ToolSessionManager
 
+                # If the tool returned an error dict (e.g. batch tool that
+                # caught an internal exception), rollback instead of committing
+                # to avoid persisting partial data.
+                if isinstance(result, dict) and "error" in result:
+                    try:
+                        await ToolSessionManager.rollback()
+                        logger.debug(
+                            f"Rolled back task-local session after tool "
+                            f"returned error dict: {tool_name}"
+                        )
+                    except Exception as rollback_error:
+                        logger.warning(
+                            f"Failed to rollback session after tool "
+                            f"{tool_name} error return: {rollback_error}"
+                        )
+                    return result
+
                 try:
                     await ToolSessionManager.commit()
                     logger.debug(

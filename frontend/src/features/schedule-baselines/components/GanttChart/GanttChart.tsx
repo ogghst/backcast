@@ -62,13 +62,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   // Collapse state for WBE groups
   const [collapsedWbeIds, setCollapsedWbeIds] = useState<Set<string>>(new Set());
 
-  const toggleWbeCollapse = useCallback((wbeId: string) => {
+  const toggleWbeCollapse = useCallback((wbsElementId: string) => {
     setCollapsedWbeIds(prev => {
       const next = new Set(prev);
-      if (next.has(wbeId)) {
-        next.delete(wbeId);
+      if (next.has(wbsElementId)) {
+        next.delete(wbsElementId);
       } else {
-        next.add(wbeId);
+        next.add(wbsElementId);
       }
       return next;
     });
@@ -183,9 +183,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           const isHoverable = row.isWbe;
           return (
             <div
-              key={`${row.wbeId}-${row.costElementId ?? 'wbe'}-${index}`}
+              key={`${row.wbsElementId}-${row.costElementId ?? 'wbs_element'}-${index}`}
               onClick={() => {
-                if (row.isWbe) toggleWbeCollapse(row.wbeId);
+                if (row.isWbe) toggleWbeCollapse(row.wbsElementId);
                 else if (row.costElementId) navigate(`/cost-elements/${row.costElementId}`);
               }}
               style={{

@@ -131,7 +131,7 @@ async def read_cost_registrations(
         skip=skip,
         limit=per_page,
         as_of=as_of,
-        wbe_id=wbe_id,
+        wbs_element_id=wbe_id,
         project_id=project_id,
         work_package_id=work_package_id,
     )
@@ -145,14 +145,10 @@ async def read_cost_registrations(
         else {}
     )
 
-    # Convert to Pydantic models with denormalized work package data
+    # Convert to Pydantic models with attachment counts
     items_out = []
     for i in items:
         read = CostRegistrationRead.model_validate(i)
-        if i.work_package_id and i.work_package_id in wp_map:
-            name, pkg_type = wp_map[i.work_package_id]
-            read.work_package_name = name
-            read.work_package_type = pkg_type
         read.attachment_count = attachment_counts.get(i.cost_registration_id, 0)
         items_out.append(read)
 
@@ -191,66 +187,90 @@ async def create_cost_registration(
     try:
         # First, we need to get the project_id for budget validation
         # This requires querying the CostElement and WBE
-        from typing import Any, cast
-
         from sqlalchemy import func, select
 
         from app.models.domain.cost_element import CostElement
-        from app.models.domain.wbe import WBE
 
-        # Get Cost Element to find project_id
+        # CostElement is versionable (not branchable), get current version
         ce_stmt = select(CostElement).where(
             CostElement.cost_element_id == registration_in.cost_element_id,
-            CostElement.branch == branch,
-            func.upper(cast(Any, CostElement).valid_time).is_(None),
-            cast(Any, CostElement).deleted_at.is_(None),
+            func.upper(CostElement.valid_time).is_(None),
+            CostElement.deleted_at.is_(None),
         )
         ce_result = await service.session.execute(ce_stmt.limit(1))
         cost_element = ce_result.scalar_one_or_none()
 
-        if cost_element is None and branch != "main":
-            # Fallback to main branch
-            ce_stmt_main = select(CostElement).where(
-                CostElement.cost_element_id == registration_in.cost_element_id,
-                CostElement.branch == "main",
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
-            ce_result_main = await service.session.execute(ce_stmt_main.limit(1))
-            cost_element = ce_result_main.scalar_one_or_none()
-
         if cost_element is None:
             raise ValueError(
-                f"Cost Element {registration_in.cost_element_id} not found on branch {branch} or main"
+                f"Cost Element {registration_in.cost_element_id} not found"
             )
 
-        # Get WBE to fetch project_id
-        wbe_stmt = select(WBE).where(
-            WBE.wbe_id == cost_element.wbe_id,
-            WBE.branch == branch,
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
+        # Resolve project_id through WorkPackage → ControlAccount → WBSElement
+        from app.models.domain.control_account import ControlAccount
+        from app.models.domain.wbs_element import WBSElement
+        from app.models.domain.work_package import WorkPackage
+
+        wp_stmt = (
+            select(WorkPackage.work_package_id, WorkPackage.control_account_id)
+            .where(
+                WorkPackage.work_package_id == cost_element.work_package_id,
+                WorkPackage.branch == branch,
+                func.upper(WorkPackage.valid_time).is_(None),
+                WorkPackage.deleted_at.is_(None),
+            )
+            .limit(1)
         )
-        wbe_result = await service.session.execute(wbe_stmt.limit(1))
-        wbe = wbe_result.scalar_one_or_none()
+        wp_result = await service.session.execute(wp_stmt)
+        wp_row = wp_result.one_or_none()
 
-        if wbe is None and branch != "main":
-            # Fallback to main branch
-            wbe_stmt_main = select(WBE).where(
-                WBE.wbe_id == cost_element.wbe_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+        if wp_row is None and branch != "main":
+            wp_stmt_main = (
+                select(WorkPackage.work_package_id, WorkPackage.control_account_id)
+                .where(
+                    WorkPackage.work_package_id == cost_element.work_package_id,
+                    WorkPackage.branch == "main",
+                    func.upper(WorkPackage.valid_time).is_(None),
+                    WorkPackage.deleted_at.is_(None),
+                )
+                .limit(1)
             )
-            wbe_result_main = await service.session.execute(wbe_stmt_main.limit(1))
-            wbe = wbe_result_main.scalar_one_or_none()
+            wp_result_main = await service.session.execute(wp_stmt_main)
+            wp_row = wp_result_main.one_or_none()
 
-        if wbe is None:
+        if wp_row is None:
             raise ValueError(
-                f"WBE {cost_element.wbe_id} not found on branch {branch} or main"
+                f"WorkPackage for Cost Element {registration_in.cost_element_id} not found"
             )
 
-        project_id = wbe.project_id
+        ca_stmt = (
+            select(ControlAccount.wbs_element_id)
+            .where(
+                ControlAccount.control_account_id == wp_row.control_account_id,
+                func.upper(ControlAccount.valid_time).is_(None),
+                ControlAccount.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        ca_result = await service.session.execute(ca_stmt)
+        wbs_element_id = ca_result.scalar_one_or_none()
+
+        if wbs_element_id is None:
+            raise ValueError("ControlAccount for WorkPackage not found")
+
+        wbs_stmt = (
+            select(WBSElement.project_id)
+            .where(
+                WBSElement.wbs_element_id == wbs_element_id,
+                func.upper(WBSElement.valid_time).is_(None),
+                WBSElement.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        wbs_result = await service.session.execute(wbs_stmt)
+        project_id = wbs_result.scalar_one_or_none()
+
+        if project_id is None:
+            raise ValueError("WBSElement for ControlAccount not found")
 
         # Create the cost registration
         registration = await service.create_cost_registration(
@@ -260,19 +280,14 @@ async def create_cost_registration(
 
         # Validate budget status (non-blocking)
         budget_warning = await service.validate_budget_status(
-            cost_element_id=registration_in.cost_element_id,
+            work_package_id=wp_row.work_package_id,
             project_id=project_id,
             user_id=current_user.user_id,
             branch=branch,
         )
 
-        # Prepare response with denormalized work package data
+        # Prepare response
         read_model = CostRegistrationRead.model_validate(registration)
-        wp_name, wp_type = await service.get_work_package_info(
-            registration.work_package_id
-        )
-        read_model.work_package_name = wp_name
-        read_model.work_package_type = wp_type
 
         response = {
             **read_model.model_dump(),
@@ -337,11 +352,30 @@ async def get_budget_status(
         as_of = datetime.now(tz=UTC)
 
     try:
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
+
+        # Resolve cost_element_id to work_package_id
+        ce_stmt = select(CostElement.work_package_id).where(
+            CostElement.cost_element_id == cost_element_id,
+            func.upper(CostElement.valid_time).is_(None),
+            CostElement.deleted_at.is_(None),
+        )
+        ce_result = await service.session.execute(ce_stmt.limit(1))
+        wp_id = ce_result.scalar_one_or_none()
+
+        if wp_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Cost Element {cost_element_id} not found",
+            )
+
         budget_status = await service.get_budget_status(
-            cost_element_id, as_of=as_of, branch=branch
+            wp_id, as_of=as_of, branch=branch
         )
         return {
-            "cost_element_id": str(budget_status.cost_element_id),
+            "work_package_id": str(budget_status.work_package_id),
             "budget": str(budget_status.budget),
             "used": str(budget_status.used),
             "remaining": str(budget_status.remaining),
@@ -428,7 +462,7 @@ async def get_wbe_budget_status(
             wbe_id=wbe_id, branch=branch, as_of=as_of, branch_mode=branch_mode
         )
         return {
-            "wbe_id": str(budget_status.wbe_id),
+            "wbs_element_id": str(budget_status.wbs_element_id),
             "budget": str(budget_status.budget),
             "total_spend": str(budget_status.total_spend),
             "remaining": str(budget_status.remaining),

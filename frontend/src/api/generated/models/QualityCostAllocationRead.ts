@@ -11,6 +11,7 @@ export type QualityCostAllocationRead = {
     amount: string;
     description?: (string | null);
     cost_element_name?: (string | null);
-    wbe_code?: (string | null);
+    wbs_element_code?: (string | null);
+    wbs_element_id?: (string | null);
 };
 

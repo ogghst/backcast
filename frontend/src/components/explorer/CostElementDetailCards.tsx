@@ -22,7 +22,6 @@ import {
 import { ExplorerCard } from "./ExplorerCard";
 import {
   useCostElement,
-  useCostElementForecast,
 } from "@/features/cost-elements/api/useCostElements";
 import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
 import { ForecastComparisonCard } from "@/features/forecasts/components";
@@ -31,9 +30,9 @@ import { formatCurrency } from "@/utils/formatters";
 import { useEVMMetrics } from "@/features/evm/api/useEVMMetrics";
 import { EntityType } from "@/features/evm/types";
 import { formatTemporalRange } from "@/utils/formatters";
-import { useWBE } from "@/features/wbes/api/useWBEs";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
+import { SPACING } from "@/config/design-tokens";
 
 const { Text } = Typography;
 
@@ -52,13 +51,9 @@ export const CostElementDetailCards = ({
     costElementId,
   );
 
-  // Resolve project currency through cost element -> WBE -> project chain
-  const { data: wbe } = useWBE(costElement?.wbe_id);
-  const currency = useProjectCurrency(wbe?.project_id);
+  // Resolve project currency through cost element -> work package chain
+  const currency = useProjectCurrency(undefined);
   const currencySymbol = getCurrencySymbol(currency);
-
-  // Prefetch forecast data (1:1 relationship) so the Forecast card loads instantly
-  useCostElementForecast(costElementId);
 
   // Sparkline data derived from budget status - deterministic curve based on percentage
   const sparklineData = useMemo((): Array<[string, number | null]> => {
@@ -73,7 +68,7 @@ export const CostElementDetailCards = ({
 
   if (isLoading) {
     return (
-      <div style={{ textAlign: "center", padding: token.paddingXXL }}>
+      <div style={{ textAlign: "center", padding: SPACING.XXL }}>
         <Spin size="large" />
       </div>
     );
@@ -97,7 +92,7 @@ export const CostElementDetailCards = ({
   // Budget calculations
   const budget = budgetStatus?.budget
     ? Number(budgetStatus.budget)
-    : Number(costElement.budget_amount);
+    : 0;
   const used = budgetStatus?.used ? Number(budgetStatus.used) : 0;
   const remaining = budgetStatus?.remaining
     ? Number(budgetStatus.remaining)
@@ -108,16 +103,19 @@ export const CostElementDetailCards = ({
       ? (used / budget) * 100
       : 0;
 
+  // Display name from cost element type or work package
+  const displayName = costElement.cost_element_type_name || costElement.cost_element_type_code || costElement.cost_element_id;
+
   const labelStyle: React.CSSProperties = {
     fontSize: token.fontSizeSM,
     display: "block",
     marginBottom: token.paddingXS,
-    fontWeight: token.fontWeightStrong ?? 500,
+    fontWeight: 600,
     color: token.colorTextSecondary,
   };
   const valueStyle: React.CSSProperties = {
     fontSize: token.fontSizeLG,
-    fontWeight: token.fontWeightStrong ?? 600,
+    fontWeight: 600,
     color: token.colorText,
   };
 
@@ -134,10 +132,10 @@ export const CostElementDetailCards = ({
         <Text
           style={{
             fontSize: token.fontSizeHeading4,
-            fontWeight: token.fontWeightStrong ?? 600,
+            fontWeight: 600,
           }}
         >
-          {costElement.name}
+          {displayName}
         </Text>
         <Space>
           <Button type="text" icon={<EditOutlined />} size="small" />
@@ -293,12 +291,6 @@ export const CostElementDetailCards = ({
           <Row gutter={[token.marginLG, token.marginMD]}>
             <Col xs={12} sm={8}>
               <Text type="secondary" style={labelStyle}>
-                Code
-              </Text>
-              <Text style={valueStyle}>{costElement.code}</Text>
-            </Col>
-            <Col xs={12} sm={8}>
-              <Text type="secondary" style={labelStyle}>
                 Type
               </Text>
               <Text style={valueStyle}>
@@ -307,9 +299,9 @@ export const CostElementDetailCards = ({
             </Col>
             <Col xs={12} sm={8}>
               <Text type="secondary" style={labelStyle}>
-                WBE
+                Work Package
               </Text>
-              <Text style={valueStyle}>{costElement.wbe_name || "-"}</Text>
+              <Text style={valueStyle}>{costElement.work_package_name || costElement.work_package_code || "-"}</Text>
             </Col>
           </Row>
         </ExplorerCard>
@@ -318,7 +310,7 @@ export const CostElementDetailCards = ({
         <ExplorerCard title="Forecast" icon={<LineChartOutlined />}>
           <ForecastComparisonCard
             costElementId={costElement.cost_element_id}
-            budgetAmount={Number(costElement.budget_amount)}
+            budgetAmount={0}
           />
         </ExplorerCard>
 
@@ -332,11 +324,8 @@ export const CostElementDetailCards = ({
               <Descriptions.Item label="Cost Element ID">
                 {costElement.cost_element_id}
               </Descriptions.Item>
-              <Descriptions.Item label="Branch">
-                {costElement.branch}
-              </Descriptions.Item>
               <Descriptions.Item label="Created By">
-                {costElement.created_by}
+                {costElement.created_by_name || costElement.created_by}
               </Descriptions.Item>
               <Descriptions.Item label="Valid Time">
                 {costElement.valid_time_formatted

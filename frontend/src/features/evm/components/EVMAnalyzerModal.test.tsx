@@ -19,7 +19,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { EVMAnalyzerModal } from "./EVMAnalyzerModal";
-import type { EVMMetricsResponse, EVMTimeSeriesResponse, EVMTimeSeriesGranularity } from "../types";
+import type { EVMMetricsResponse, EVMTimeSeriesResponse } from "../types";
+import { EntityType, EVMTimeSeriesGranularity } from "../types";
 
 // Mock the dependencies
 vi.mock("./MetricCard", () => ({
@@ -32,8 +33,8 @@ vi.mock("./MetricCard", () => ({
   ),
 }));
 
-vi.mock("./EVMGauge", () => ({
-  EVMGauge: ({ label, value }: { label: string; value: number | null }) => (
+vi.mock("./charts/EChartsGauge", () => ({
+  EChartsGauge: ({ label, value }: { label: string; value: number | null }) => (
     <div data-testid={`gauge-${label.toLowerCase()}`}>
       <div className="gauge-label">{label}</div>
       <div className="gauge-value">{value ?? "N/A"}</div>
@@ -42,9 +43,10 @@ vi.mock("./EVMGauge", () => ({
 }));
 
 vi.mock("./EVMTimeSeriesChart", () => ({
-  EVMTimeSeriesChart: () => (
+  EVMTimeSeriesChart: (props: { timeSeries?: unknown; onGranularityChange?: unknown }) => (
     <div data-testid="evm-timeseries-chart">
       <div>EVM Time Series Analysis</div>
+      <div data-testid="timeseries-props">{JSON.stringify(props)}</div>
     </div>
   ),
 }));
@@ -54,7 +56,7 @@ describe("EVMAnalyzerModal", () => {
 
   // Mock EVM metrics data
   const mockEvmMetrics: EVMMetricsResponse = {
-    entity_type: "cost_element" as const,
+    entity_type: EntityType.COST_ELEMENT,
     entity_id: "test-cost-element-1",
     bac: 100000,
     pv: 40000,
@@ -74,7 +76,7 @@ describe("EVMAnalyzerModal", () => {
 
   // Mock time series data
   const mockTimeSeriesData: EVMTimeSeriesResponse = {
-    granularity: "week" as EVMTimeSeriesGranularity,
+    granularity: EVMTimeSeriesGranularity.WEEK,
     points: [
       {
         date: "2024-01-01T00:00:00Z",
@@ -83,6 +85,8 @@ describe("EVMAnalyzerModal", () => {
         ac: 9000,
         forecast: 12000,
         actual: 9000,
+        cpi: 0.89,
+        spi: 0.8,
       },
       {
         date: "2024-01-08T00:00:00Z",
@@ -91,6 +95,8 @@ describe("EVMAnalyzerModal", () => {
         ac: 19000,
         forecast: 24000,
         actual: 19000,
+        cpi: 0.95,
+        spi: 0.9,
       },
       {
         date: "2024-01-15T00:00:00Z",
@@ -99,6 +105,8 @@ describe("EVMAnalyzerModal", () => {
         ac: 29000,
         forecast: 36000,
         actual: 29000,
+        cpi: 0.97,
+        spi: 0.93,
       },
     ],
     start_date: "2024-01-01T00:00:00Z",

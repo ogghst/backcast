@@ -45,7 +45,8 @@ describe("ChangeOrderSummaryCard", () => {
     expect(screen.getByText("CO-2026-001")).toBeInTheDocument();
     expect(screen.getByText("Test Change Order")).toBeInTheDocument();
     expect(screen.getByText("draft")).toBeInTheDocument();
-    expect(screen.getByText("2026-01-15")).toBeInTheDocument();
+    // formatDate with style:"short" produces locale-dependent short date
+    expect(screen.getByText(/1\/15\/26/)).toBeInTheDocument();
     expect(screen.getByText("Test description")).toBeInTheDocument();
   });
 
@@ -72,7 +73,7 @@ describe("ChangeOrderSummaryCard", () => {
 
     render(
       <ChangeOrderSummaryCard
-        changeOrder={{ ...mockChangeOrder, status: "Implemented", can_edit_status: false }}
+        changeOrder={{ ...mockChangeOrder, status: "implemented", can_edit_status: false }}
         onEdit={vi.fn()}
       />
     );

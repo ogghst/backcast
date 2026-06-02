@@ -27,11 +27,12 @@ import { useEVMMetrics, useEVMTimeSeries } from "@/features/evm/api/useEVMMetric
 import { useProject } from "@/features/projects/api/useProjects";
 import { getProjectStatusColor } from "@/lib/status";
 import { EntityType } from "@/features/evm/types";
-import type { EVMTimeSeriesGranularity } from "@/features/evm/types";
+import { EVMTimeSeriesGranularity } from "@/features/evm/types";
 import { formatCurrency, formatDate, formatTimestamp, calculateDuration } from "./shared/formatters";
 import { KPIStrip, BudgetOverviewChart, VarianceChart, PerformanceRadar } from "./charts";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol, formatTemporalRange } from "@/utils/formatters";
+import { SPACING } from "@/config/design-tokens";
 
 const { Text } = Typography;
 
@@ -43,7 +44,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
   const { token } = theme.useToken();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [granularity, setGranularity] = useState<EVMTimeSeriesGranularity>(
-    "week",
+    EVMTimeSeriesGranularity.WEEK,
   );
 
   const { data: project, isLoading, error } = useProject(projectId);
@@ -58,7 +59,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
 
   if (isLoading) {
     return (
-      <div style={{ textAlign: "center", padding: token.paddingXXL }}>
+      <div style={{ textAlign: "center", padding: SPACING.XXL }}>
         <Spin size="large" />
       </div>
     );
@@ -86,13 +87,13 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
     fontSize: token.fontSizeSM,
     display: "block",
     marginBottom: token.paddingXS,
-    fontWeight: token.fontWeightMedium,
+    fontWeight: 600,
     color: token.colorTextSecondary,
   };
 
   const valueStyle: React.CSSProperties = {
     fontSize: token.fontSizeLG,
-    fontWeight: token.fontWeightSemiBold,
+    fontWeight: 600,
     color: token.colorText,
   };
 
@@ -109,7 +110,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
         <Text
           style={{
             fontSize: token.fontSizeHeading4,
-            fontWeight: token.fontWeightSemiBold,
+            fontWeight: 600,
           }}
         >
           {project.name}
@@ -121,7 +122,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
               fontSize: token.fontSize,
               padding: `${token.paddingXS}px ${token.paddingSM}px`,
               borderRadius: token.borderRadius,
-              fontWeight: token.fontWeightMedium,
+              fontWeight: 600,
               margin: 0,
             }}
           >
@@ -256,7 +257,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
                   fontSize: token.fontSize,
                   padding: `${token.paddingXS}px ${token.paddingSM}px`,
                   borderRadius: token.borderRadius,
-                  fontWeight: token.fontWeightMedium,
+                  fontWeight: 600,
                   margin: 0,
                 }}
               >

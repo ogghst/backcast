@@ -12,7 +12,7 @@ export type SessionContext = {
     /**
      * Context type discriminator
      */
-    type: SessionContext.type;
+    type: 'general' | 'project' | 'wbe' | 'cost_element';
     /**
      * Entity ID (required for non-general contexts)
      */
@@ -26,15 +26,4 @@ export type SessionContext = {
      */
     name?: (string | null);
 };
-export namespace SessionContext {
-    /**
-     * Context type discriminator
-     */
-    export enum type {
-        GENERAL = 'general',
-        PROJECT = 'project',
-        WBE = 'wbe',
-        COST_ELEMENT = 'cost_element',
-    }
-}
 

@@ -38,9 +38,9 @@ export function MergeConflictsList({
       {/* Conflicts list */}
       <List
         size="small"
-        items={conflicts.map((conflict) => ({
-          key: `${conflict.entity_type}-${conflict.entity_id}-${conflict.field}`,
-          children: (
+        dataSource={conflicts}
+        renderItem={(conflict) => (
+          <List.Item key={`${conflict.entity_type}-${conflict.entity_id}-${conflict.field}`}>
             <Space orientation="vertical" size={4} style={{ width: "100%" }}>
               {/* Entity and field header */}
               <Space>
@@ -65,8 +65,8 @@ export function MergeConflictsList({
                 </Space>
               </div>
             </Space>
-          ),
-        }))}
+          </List.Item>
+        )}
       />
 
       {/* Resolution hint */}

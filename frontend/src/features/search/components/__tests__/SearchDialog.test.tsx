@@ -46,7 +46,7 @@ const mockSearchResponse: GlobalSearchResponse = {
       status: "active",
       relevance_score: 0.95,
       project_id: null,
-      wbe_id: null,
+      wbs_element_id: null,
     },
     {
       entity_type: "cost_element",
@@ -58,7 +58,7 @@ const mockSearchResponse: GlobalSearchResponse = {
       status: null,
       relevance_score: 0.8,
       project_id: "proj-1",
-      wbe_id: "wbe-1",
+      wbs_element_id: "wbe-1",
     },
   ],
   total: 2,

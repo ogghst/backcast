@@ -35,11 +35,17 @@ describe("AIAssistantModal", () => {
       description: "Test description",
       model_id: "model-1",
       system_prompt: "You are helpful",
+      planner_prompt: null,
+      supervisor_prompt: null,
       temperature: 0.7,
       max_tokens: 2048,
-      allowed_tools: ["list_projects"],
+      recursion_limit: 25,
       default_role: "ai-viewer",
       is_active: true,
+      agent_type: "main",
+      allowed_tools: ["list_projects"],
+      delegation_config: null,
+      structured_output_schema: null,
       created_at: "2026-03-07T00:00:00Z",
       updated_at: "2026-03-07T00:00:00Z",
     };
@@ -69,10 +75,12 @@ describe("AIAssistantModal", () => {
       />
     );
 
+    // Core fields always visible (create mode defaults to "specialist" agent type)
     expect(await screen.findByLabelText(/name/i)).toBeInTheDocument();
     expect(await screen.findByLabelText(/description/i)).toBeInTheDocument();
-    expect(await screen.findByLabelText(/model/i)).toBeInTheDocument();
     expect(await screen.findByLabelText(/system prompt/i)).toBeInTheDocument();
+    // Model field is only visible when agent_type === "main"
+    // In create mode, agent_type defaults to "specialist", so Model is not rendered
   });
 
   it("should render default_role select field", async () => {
@@ -96,11 +104,17 @@ describe("AIAssistantModal", () => {
       description: "Test description",
       model_id: "model-1",
       system_prompt: "You are helpful",
+      planner_prompt: null,
+      supervisor_prompt: null,
       temperature: 0.7,
       max_tokens: 2048,
-      allowed_tools: ["list_projects"],
+      recursion_limit: 25,
       default_role: "ai-manager",
       is_active: true,
+      agent_type: "main",
+      allowed_tools: ["list_projects"],
+      delegation_config: null,
+      structured_output_schema: null,
       created_at: "2026-03-07T00:00:00Z",
       updated_at: "2026-03-07T00:00:00Z",
     };

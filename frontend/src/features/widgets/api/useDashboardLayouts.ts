@@ -317,7 +317,7 @@ export const useCloneTemplate = (
 
         // Insert into known list caches
         const listKeysToInvalidate = [
-          queryKeys.dashboardLayouts.list(variables.data.project_id),
+          queryKeys.dashboardLayouts.list(variables.data.project_id ?? undefined),
           queryKeys.dashboardLayouts.list(undefined),
         ];
 

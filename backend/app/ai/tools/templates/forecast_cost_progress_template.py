@@ -1,7 +1,7 @@
 """Forecast, Cost Registration, and Progress Entry tool template.
 
 This template provides AI tools for three service layers:
-1. Forecast Service - Branchable entity for cost element forecasts
+1. Forecast Service - Branchable entity for cost element (EOC) forecasts
 2. Cost Registration Service - Versionable entity for actual cost tracking
 3. Progress Entry Service - Versionable entity for work progress tracking
 
@@ -9,7 +9,7 @@ The key principle is:
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
 Service Layers:
-- Forecast: Estimate at Complete (EAC) for cost elements (branchable)
+- Forecast: Estimate at Complete (EAC) for cost elements / EOCs (branchable)
 - Cost Registration: Actual costs incurred against budget (versionable)
 - Progress Entry: Work completion percentage tracking (versionable)
 
@@ -28,12 +28,15 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
-
-BATCH_SIZE_LIMIT = 50
 
 
 # =============================================================================
@@ -45,7 +48,7 @@ BATCH_SIZE_LIMIT = 50
     name="create_forecast",
     description="Create forecast for a cost element.",
     permissions=["forecast-create"],
-    category="forecast",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def create_forecast(
@@ -58,31 +61,33 @@ async def create_forecast(
     log_temporal_context("create_forecast", context)
 
     try:
-        from app.models.schemas.forecast import ForecastCreate
-        from app.services.forecast_service import ForecastService
+        from app.services.forecast_service import (
+            ForecastAlreadyExistsError,
+            ForecastService,
+        )
 
         service = ForecastService(context.session)
 
-        forecast_in = ForecastCreate(
-            eac_amount=Decimal(str(eac_amount)),
-            basis_of_estimate=basis_of_estimate,
-            branch=context.branch_name or "main",
-        )
-
-        forecast = await service.create_forecast(
-            forecast_in=forecast_in,
+        forecast = await service.create_for_cost_element(
+            cost_element_id=UUID(cost_element_id),
             actor_id=UUID(context.user_id),
             branch=context.branch_name or "main",
+            control_date=context.as_of,
+            eac_amount=Decimal(str(eac_amount)),
+            basis_of_estimate=basis_of_estimate,
         )
 
         result = {
             "id": str(forecast.forecast_id),
+            "cost_element_id": cost_element_id,
             "eac_amount": float(forecast.eac_amount) if forecast.eac_amount else None,
             "basis_of_estimate": forecast.basis_of_estimate,
             "branch": forecast.branch,
             "message": f"Forecast created for cost element {cost_element_id}",
         }
         return add_temporal_metadata(result, context)
+    except ForecastAlreadyExistsError as e:
+        return add_temporal_metadata({"error": str(e)}, context)
     except ValueError as e:
         return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
     except KeyError as e:
@@ -96,7 +101,7 @@ async def create_forecast(
     name="update_forecast",
     description="Update forecast for a cost element.",
     permissions=["forecast-update"],
-    category="forecast",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def update_forecast(
@@ -149,6 +154,50 @@ async def update_forecast(
         return add_temporal_metadata({"error": str(e)}, context)
 
 
+@ai_tool(
+    name="delete_forecast",
+    description="Delete forecast for a cost element.",
+    permissions=["forecast-delete"],
+    category="cost-management",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_forecast(
+    forecast_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a forecast."""
+    log_temporal_context("delete_forecast", context)
+
+    try:
+        from app.services.forecast_service import ForecastService
+
+        service = ForecastService(context.session)
+
+        await service.soft_delete(
+            forecast_id=UUID(forecast_id),
+            actor_id=UUID(context.user_id),
+            branch=context.branch_name or "main",
+            control_date=context.as_of,
+        )
+
+        result = {
+            "id": forecast_id,
+            "message": "Forecast deleted",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError:
+        return add_temporal_metadata(
+            {"error": f"Invalid forecast ID: {forecast_id}"}, context
+        )
+    except KeyError:
+        return add_temporal_metadata(
+            {"error": f"Forecast {forecast_id} not found"}, context
+        )
+    except Exception as e:
+        logger.error(f"Error in delete_forecast: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
 # =============================================================================
 # COST REGISTRATION TOOLS (Versionable Entity)
 # =============================================================================
@@ -158,7 +207,7 @@ async def update_forecast(
     name="create_cost_registration",
     description="Record an actual cost against a cost element.",
     permissions=["cost-registration-create"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def create_cost_registration(
@@ -224,7 +273,7 @@ async def create_cost_registration(
     name="update_cost_registration",
     description="Update a cost registration entry.",
     permissions=["cost-registration-update"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def update_cost_registration(
@@ -303,7 +352,7 @@ async def update_cost_registration(
     name="delete_cost_registration",
     description="Delete a cost registration entry.",
     permissions=["cost-registration-delete"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.CRITICAL,
 )
 async def delete_cost_registration(
@@ -341,6 +390,75 @@ async def delete_cost_registration(
         return add_temporal_metadata({"error": str(e)}, context)
 
 
+@ai_tool(
+    name="list_cost_registrations",
+    description="List cost registrations with optional filters. Results are paginated; response includes total count, page, and page_count.",
+    permissions=["cost-registration-read"],
+    category="cost-management",
+    risk_level=RiskLevel.LOW,
+)
+async def list_cost_registrations(
+    cost_element_id: str | None = None,
+    project_id: str | None = None,
+    wbs_element_id: str | None = None,
+    work_package_id: str | None = None,
+    page: int = 1,
+    limit: int | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """List cost registrations with filtering by project, WBS, work package, or cost element."""
+    log_temporal_context("list_cost_registrations", context)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
+
+    try:
+        from app.services.cost_registration_service import CostRegistrationService
+
+        service = CostRegistrationService(context.session)
+
+        filters: dict[str, Any] | None = None
+        if cost_element_id:
+            filters = {"cost_element_id": UUID(cost_element_id)}
+
+        registrations, total, _wp_map = await service.get_cost_registrations(
+            filters=filters,
+            skip=skip,
+            limit=limit,
+            as_of=context.as_of,
+            project_id=UUID(project_id) if project_id else None,
+            wbs_element_id=UUID(wbs_element_id) if wbs_element_id else None,
+            work_package_id=UUID(work_package_id) if work_package_id else None,
+        )
+
+        result: dict[str, Any] = {
+            "cost_registrations": [
+                {
+                    "id": str(reg.cost_registration_id),
+                    "cost_element_id": str(reg.cost_element_id),
+                    "amount": float(reg.amount) if reg.amount else None,
+                    "description": reg.description,
+                    "invoice_number": reg.invoice_number,
+                    "vendor_reference": reg.vendor_reference,
+                    "registration_date": reg.registration_date.isoformat()
+                    if reg.registration_date
+                    else None,
+                }
+                for reg in registrations
+            ],
+            "total": total,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
+            "limit": limit,
+            "has_more": page < calc_page_count(total, limit),
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in list_cost_registrations: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
 # =============================================================================
 # PROGRESS ENTRY TOOLS (Versionable Entity)
 # =============================================================================
@@ -350,7 +468,7 @@ async def delete_cost_registration(
     name="create_progress_entry",
     description="Record work progress for a cost element.",
     permissions=["progress-entry-create"],
-    category="progress-entry",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def create_progress_entry(
@@ -363,13 +481,35 @@ async def create_progress_entry(
     log_temporal_context("create_progress_entry", context)
 
     try:
+        from typing import Any, cast
+
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
         from app.models.schemas.progress_entry import ProgressEntryCreate
         from app.services.progress_entry_service import ProgressEntryService
+
+        # Resolve work_package_id from cost_element_id
+        ce_stmt = (
+            select(CostElement.work_package_id)
+            .where(
+                CostElement.cost_element_id == UUID(cost_element_id),
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        ce_result = await context.session.execute(ce_stmt)
+        wp_id = ce_result.scalar_one_or_none()
+        if wp_id is None:
+            return add_temporal_metadata(
+                {"error": f"Cost element {cost_element_id} not found"}, context
+            )
 
         service = ProgressEntryService(context.session)
 
         progress_in = ProgressEntryCreate(
-            cost_element_id=UUID(cost_element_id),
+            work_package_id=wp_id,
             progress_percentage=Decimal(str(progress_percentage)),
             notes=notes,
         )
@@ -382,7 +522,7 @@ async def create_progress_entry(
 
         result = {
             "progress_entry_id": str(progress.progress_entry_id),
-            "cost_element_id": str(progress.cost_element_id),
+            "work_package_id": str(progress.work_package_id),
             "progress_percentage": float(progress.progress_percentage)
             if progress.progress_percentage
             else None,
@@ -399,6 +539,111 @@ async def create_progress_entry(
         return add_temporal_metadata({"error": str(e)}, context)
 
 
+@ai_tool(
+    name="update_progress_entry",
+    description="Update a progress entry.",
+    permissions=["progress-entry-update"],
+    category="work-tracking",
+    risk_level=RiskLevel.HIGH,
+)
+async def update_progress_entry(
+    progress_entry_id: str,
+    progress_percentage: float | None = None,
+    notes: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Update an existing progress entry."""
+    log_temporal_context("update_progress_entry", context)
+
+    try:
+        from app.models.schemas.progress_entry import ProgressEntryUpdate
+        from app.services.progress_entry_service import ProgressEntryService
+
+        service = ProgressEntryService(context.session)
+
+        update_data: dict[str, Any] = {}
+        if progress_percentage is not None:
+            update_data["progress_percentage"] = Decimal(str(progress_percentage))
+        if notes is not None:
+            update_data["notes"] = notes
+
+        if not update_data:
+            return add_temporal_metadata(
+                {"error": "No fields provided to update"}, context
+            )
+
+        ProgressEntryUpdate(**update_data)
+
+        progress = await service.update(
+            entity_id=UUID(progress_entry_id),
+            actor_id=UUID(context.user_id),
+            control_date=context.as_of,
+            **update_data,
+        )
+
+        result = {
+            "progress_entry_id": str(progress.progress_entry_id),
+            "work_package_id": str(progress.work_package_id),
+            "progress_percentage": float(progress.progress_percentage)
+            if progress.progress_percentage
+            else None,
+            "notes": progress.notes,
+            "message": "Progress entry updated",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata(
+            {"error": f"Progress entry not found: {e}"}, context
+        )
+    except Exception as e:
+        logger.error(f"Error in update_progress_entry: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="delete_progress_entry",
+    description="Delete a progress entry.",
+    permissions=["progress-entry-delete"],
+    category="work-tracking",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_progress_entry(
+    progress_entry_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a progress entry."""
+    log_temporal_context("delete_progress_entry", context)
+
+    try:
+        from app.services.progress_entry_service import ProgressEntryService
+
+        service = ProgressEntryService(context.session)
+
+        await service.soft_delete(
+            entity_id=UUID(progress_entry_id),
+            actor_id=UUID(context.user_id),
+            control_date=context.as_of,
+        )
+
+        result = {
+            "id": progress_entry_id,
+            "message": "Progress entry soft deleted. "
+            "The entry is marked as deleted but preserved for audit trail.",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata(
+            {"error": f"Progress entry not found: {e}"}, context
+        )
+    except Exception as e:
+        logger.error(f"Error in delete_progress_entry: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
 # =============================================================================
 # MERGED READ TOOLS
 # =============================================================================
@@ -408,7 +653,7 @@ async def create_progress_entry(
     name="get_cost_element_details",
     description="Get CE details: forecast EAC, budget status, costs, trends.",
     permissions=["forecast-read", "cost-registration-read"],
-    category="forecast",
+    category="cost-management",
     risk_level=RiskLevel.LOW,
 )
 async def get_cost_element_details(
@@ -426,8 +671,30 @@ async def get_cost_element_details(
     log_temporal_context("get_cost_element_details", context)
 
     try:
+        from typing import Any, cast
+
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
         from app.services.cost_registration_service import CostRegistrationService
         from app.services.forecast_service import ForecastService
+
+        # Resolve work_package_id from cost_element_id
+        ce_stmt = (
+            select(CostElement.work_package_id)
+            .where(
+                CostElement.cost_element_id == UUID(cost_element_id),
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        ce_result = await context.session.execute(ce_stmt)
+        wp_id = ce_result.scalar_one_or_none()
+        if wp_id is None:
+            return add_temporal_metadata(
+                {"error": f"Cost element {cost_element_id} not found"}, context
+            )
 
         forecast_service = ForecastService(context.session)
         cost_service = CostRegistrationService(context.session)
@@ -436,8 +703,8 @@ async def get_cost_element_details(
         # Get forecast data
         forecast_data = None
         try:
-            forecast = await forecast_service.get_for_cost_element(
-                cost_element_id=UUID(cost_element_id),
+            forecast = await forecast_service.get_for_work_package(
+                work_package_id=wp_id,
                 branch=branch,
             )
             if forecast:
@@ -457,7 +724,7 @@ async def get_cost_element_details(
 
         # Get budget status
         budget_status = await cost_service.get_budget_status(
-            cost_element_id=UUID(cost_element_id),
+            work_package_id=wp_id,
             as_of=context.as_of,
             branch=branch,
         )
@@ -550,17 +817,17 @@ async def get_cost_element_details(
 
 @ai_tool(
     name="get_progress_data",
-    description="Get progress data for a cost element.",
+    description="Get progress data for a cost element. Results are paginated when include_history is true; response includes total count, page, and page_count.",
     permissions=["progress-entry-read"],
-    category="progress",
+    category="work-tracking",
     risk_level=RiskLevel.LOW,
 )
 async def get_progress_data(
     cost_element_id: str,
     progress_entry_id: str | None = None,
     include_history: bool = False,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Get progress data for a cost element.
@@ -569,9 +836,33 @@ async def get_progress_data(
     get_progress_history.
     """
     log_temporal_context("get_progress_data", context)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
+        from typing import Any, cast
+
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
         from app.services.progress_entry_service import ProgressEntryService
+
+        # Resolve work_package_id from cost_element_id
+        ce_stmt = (
+            select(CostElement.work_package_id)
+            .where(
+                CostElement.cost_element_id == UUID(cost_element_id),
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        ce_result = await context.session.execute(ce_stmt)
+        wp_id = ce_result.scalar_one_or_none()
+        if wp_id is None:
+            return add_temporal_metadata(
+                {"error": f"Cost element {cost_element_id} not found"}, context
+            )
 
         service = ProgressEntryService(context.session)
 
@@ -590,7 +881,7 @@ async def get_progress_data(
 
             single_result: dict[str, Any] = {
                 "progress_entry_id": str(progress.progress_entry_id),
-                "cost_element_id": str(progress.cost_element_id),
+                "work_package_id": str(progress.work_package_id),
                 "progress_percentage": float(progress.progress_percentage)
                 if progress.progress_percentage
                 else None,
@@ -601,7 +892,7 @@ async def get_progress_data(
         # If history is requested, return full paginated history
         if include_history:
             progress_entries, total = await service.get_progress_history(
-                cost_element_id=UUID(cost_element_id),
+                work_package_id=wp_id,
                 skip=skip,
                 limit=limit,
                 as_of=context.as_of,
@@ -611,7 +902,7 @@ async def get_progress_data(
                 "progress_entries": [
                     {
                         "progress_entry_id": str(entry.progress_entry_id),
-                        "cost_element_id": str(entry.cost_element_id),
+                        "work_package_id": str(entry.work_package_id),
                         "progress_percentage": float(entry.progress_percentage)
                         if entry.progress_percentage
                         else None,
@@ -620,8 +911,10 @@ async def get_progress_data(
                     for entry in progress_entries
                 ],
                 "total": total,
-                "skip": skip,
+                "page": page,
+                "page_count": calc_page_count(total, limit),
                 "limit": limit,
+                "has_more": page < calc_page_count(total, limit),
             }
             return add_temporal_metadata(history_result, context)
 
@@ -629,13 +922,13 @@ async def get_progress_data(
         latest_data = None
         try:
             progress = await service.get_latest_progress(
-                cost_element_id=UUID(cost_element_id),
+                work_package_id=wp_id,
                 as_of=context.as_of,
             )
             if progress:
                 latest_data = {
                     "progress_entry_id": str(progress.progress_entry_id),
-                    "cost_element_id": str(progress.cost_element_id),
+                    "work_package_id": str(progress.work_package_id),
                     "progress_percentage": float(progress.progress_percentage)
                     if progress.progress_percentage
                     else None,
@@ -645,7 +938,7 @@ async def get_progress_data(
             latest_data = None
 
         recent_entries, total = await service.get_progress_history(
-            cost_element_id=UUID(cost_element_id),
+            work_package_id=wp_id,
             skip=skip,
             limit=limit,
             as_of=context.as_of,
@@ -656,7 +949,7 @@ async def get_progress_data(
             "progress_entries": [
                 {
                     "progress_entry_id": str(entry.progress_entry_id),
-                    "cost_element_id": str(entry.cost_element_id),
+                    "work_package_id": str(entry.work_package_id),
                     "progress_percentage": float(entry.progress_percentage)
                     if entry.progress_percentage
                     else None,
@@ -665,8 +958,10 @@ async def get_progress_data(
                 for entry in recent_entries
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
+            "has_more": page < calc_page_count(total, limit),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -685,7 +980,7 @@ async def get_progress_data(
     name="batch_create_cost_registrations",
     description="Batch register actual costs for multiple cost elements.",
     permissions=["cost-registration-create"],
-    category="cost-registration",
+    category="cost-management",
     risk_level=RiskLevel.HIGH,
 )
 async def batch_create_cost_registrations(
@@ -787,7 +1082,7 @@ async def batch_create_cost_registrations(
     name="batch_create_progress_entries",
     description="Batch create progress entries for multiple cost elements.",
     permissions=["progress-entry-create"],
-    category="progress-entry",
+    category="work-tracking",
     risk_level=RiskLevel.HIGH,
 )
 async def batch_create_progress_entries(
@@ -843,7 +1138,7 @@ async def batch_create_progress_entries(
 
         for item in items:
             progress_in = ProgressEntryCreate(
-                cost_element_id=UUID(item["cost_element_id"]),
+                work_package_id=UUID(item["work_package_id"]),
                 progress_percentage=_Decimal(str(item["progress_percentage"])),
                 notes=item.get("notes"),
             )
@@ -856,7 +1151,7 @@ async def batch_create_progress_entries(
             results.append(
                 {
                     "progress_entry_id": str(progress.progress_entry_id),
-                    "cost_element_id": str(progress.cost_element_id),
+                    "work_package_id": str(progress.work_package_id),
                     "progress_percentage": float(progress.progress_percentage)
                     if progress.progress_percentage
                     else None,
@@ -875,4 +1170,106 @@ async def batch_create_progress_entries(
         return add_temporal_metadata({"error": f"Cost element not found: {e}"}, context)
     except Exception as e:
         logger.error(f"Error in batch_create_progress_entries: {e}")
+        return add_temporal_metadata({"error": str(e)}, context)
+
+
+@ai_tool(
+    name="batch_create_forecasts",
+    description="Batch create forecasts for cost elements. Max 50 items.",
+    permissions=["forecast-create"],
+    category="cost-management",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_forecasts(
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create forecasts for cost elements.
+
+    Args:
+        items: List of dicts, each with {cost_element_id, eac_amount, basis_of_estimate}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    log_temporal_context("batch_create_forecasts", context)
+
+    try:
+        from app.services.forecast_service import (
+            ForecastAlreadyExistsError,
+            ForecastService,
+        )
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return add_temporal_metadata(
+                {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"},
+                context,
+            )
+
+        if not items:
+            return add_temporal_metadata({"error": "No items provided"}, context)
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("cost_element_id"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'cost_element_id'"
+                    },
+                    context,
+                )
+            if item.get("eac_amount") is None:
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'eac_amount'"
+                    },
+                    context,
+                )
+            if not item.get("basis_of_estimate"):
+                return add_temporal_metadata(
+                    {
+                        "error": f"Item at index {i} is missing required field 'basis_of_estimate'"
+                    },
+                    context,
+                )
+
+        service = ForecastService(context.session)
+        actor_id = UUID(context.user_id)
+        branch = context.branch_name or "main"
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            forecast = await service.create_for_cost_element(
+                cost_element_id=UUID(item["cost_element_id"]),
+                actor_id=actor_id,
+                branch=branch,
+                control_date=context.as_of,
+                eac_amount=Decimal(str(item["eac_amount"])),
+                basis_of_estimate=item["basis_of_estimate"],
+            )
+            results.append(
+                {
+                    "id": str(forecast.forecast_id),
+                    "cost_element_id": item["cost_element_id"],
+                    "eac_amount": float(forecast.eac_amount)
+                    if forecast.eac_amount
+                    else None,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} forecasts",
+        }
+        return add_temporal_metadata(result, context)
+    except ForecastAlreadyExistsError as e:
+        return add_temporal_metadata({"error": str(e)}, context)
+    except ValueError as e:
+        return add_temporal_metadata({"error": f"Invalid input: {e}"}, context)
+    except KeyError as e:
+        return add_temporal_metadata({"error": f"Cost element not found: {e}"}, context)
+    except Exception as e:
+        logger.error(f"Error in batch_create_forecasts: {e}")
         return add_temporal_metadata({"error": str(e)}, context)

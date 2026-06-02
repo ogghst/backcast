@@ -10,7 +10,7 @@ import time
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -98,7 +98,7 @@ from sqlalchemy import func as sa_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.config import AgentConfig
+from app.ai.config import AI_SEQUENTIAL_TOOL_CALLS, AgentConfig
 from app.ai.event_types import (
     TOOL_NAME_TASK,
     TOOL_NAME_WRITE_TODOS,
@@ -126,7 +126,6 @@ from app.ai.graph_params import (
 from app.ai.message_utils import extract_tool_output_content
 from app.ai.message_utils import is_transient_stream_error as _is_transient_stream_error
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
-from app.ai.subagents import get_all_subagents
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
 from app.ai.telemetry import (
     initialize_telemetry,
@@ -151,7 +150,7 @@ from app.models.domain.ai import (
 )
 from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
-from app.models.domain.wbe import WBE
+from app.models.domain.wbs_element import WBSElement
 from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
@@ -168,7 +167,8 @@ _tracer_provider = initialize_telemetry(
 
 # Defense-in-depth: ensure all ToolNode instances (including specialist
 # subgraphs created via langchain_create_agent) execute tools sequentially
-patch_tool_node_for_sequential_execution()
+if AI_SEQUENTIAL_TOOL_CALLS:
+    patch_tool_node_for_sequential_execution()
 
 # NOTE: DeepSeek reasoning_content handling is now provided natively by
 # langchain-deepseek package (ChatDeepSeek class). No monkey-patches needed.
@@ -250,8 +250,6 @@ async def _extract_client_config(
 
 logger = logging.getLogger(__name__)
 
-SPECIALIST_AGENT_NAMES = frozenset(cfg["name"] for cfg in get_all_subagents())
-
 # Skipping ~40-60% of LangGraph events reduces CPU in the hot streaming path.
 _HANDLED_EVENTS = frozenset(
     {
@@ -278,7 +276,8 @@ _LLM_CONFIG_TTL = 300  # 5 minutes
 def invalidate_llm_config_cache() -> None:
     """Clear the LLM client config cache. Called when provider/model configs change."""
     _llm_config_cache.clear()
-    logger.info("LLM config cache invalidated")
+    _llm_cache.clear()
+    logger.info("LLM config cache and client instance cache invalidated")
 
 
 # User role cache (avoids DB query per chat message)
@@ -308,11 +307,15 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
+    # Shared across all instances so interrupt nodes registered during
+    # execution (which may create a separate AgentService) are visible
+    # to the approval-handling instance.
+    _interrupt_nodes: ClassVar[dict[UUID, "InterruptNode"]] = {}
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self._config_service: AIConfigService | None = None
         self._subagent_invocation_counts: dict[str, int] = {}
-        self._interrupt_nodes: dict[UUID, InterruptNode] = {}
 
     @property
     def config_service(self) -> AIConfigService:
@@ -529,7 +532,12 @@ class AgentService:
                 event_bus=event_bus,
             )
 
-        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        _supervisor_prompt = getattr(assistant_config, "supervisor_prompt", None)
+        system_prompt = (
+            _supervisor_prompt
+            if _supervisor_prompt is not None
+            else assistant_config.system_prompt
+        ) or DEFAULT_SYSTEM_PROMPT
         assistant_role = assistant_config.default_role
 
         # Compile graph
@@ -924,6 +932,7 @@ class AgentService:
         context = params.context
 
         self._subagent_invocation_counts.clear()
+
         history = await self._build_conversation_history(session_id)
 
         # Enrich context with entity names from DB
@@ -1043,14 +1052,20 @@ class AgentService:
     def _handle_chain_start(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_chain_start events for specialist agent transitions."""
         chain_name = event.get("name", "")
-        if chain_name not in SPECIALIST_AGENT_NAMES:
+
+        # Track planner node activation to suppress its token streaming.
+        # The planner's LLM call produces JSON that must not leak into chat.
+        if chain_name == "planner":
+            state.planner_active = True
+            return
+
+        if chain_name not in state.specialist_names:
             return
         # LangGraph emits on_chain_start twice per specialist
         # (outer node + inner graph) -- deduplicate via last_entered_agent.
         if state.last_entered_agent == chain_name:
-            pass
-        else:
-            state.flush_tokens(state.current_invocation_id or state.main_invocation_id)
+            return  # duplicate inner-graph event — skip to prevent double balloon
+        state.flush_tokens(state.current_invocation_id or state.main_invocation_id)
         state.current_subagent_name = chain_name
         state.current_invocation_id = str(uuid.uuid4())
         state.last_entered_agent = chain_name
@@ -1070,21 +1085,29 @@ class AgentService:
         data = event.get("data", {})
 
         # Specialist agent chain end
-        if chain_name in SPECIALIST_AGENT_NAMES:
+        if chain_name in state.specialist_names:
             chain_output = data.get("output")
 
             # Extract briefing data from either dict output or Command.update.
             # Specialist nodes return Command objects, so isinstance(dict) is
             # False -- we must check Command.update as a fallback.
             output_dict: dict[str, Any] | None = None
+            is_outer_node = False
             if isinstance(chain_output, dict):
                 output_dict = chain_output
             elif hasattr(chain_output, "update") and isinstance(
                 getattr(chain_output, "update", None), dict
             ):
                 output_dict = chain_output.update
+                is_outer_node = True
 
             if output_dict and "briefing_data" in output_dict:
+                # Outer specialist_node (wrapper) completed.  Publish
+                # BRIEFING_UPDATE and AGENT_TRANSITION exit with the
+                # invocation_id that was active when the specialist entered.
+                # Use the invocation_id from the output_dict's plan_data
+                # when available, falling back to current tracking state.
+                exit_invocation_id = state.current_invocation_id
                 state.publish_briefing_update(output_dict, chain_name)
                 state.publish(
                     AgentEventType.AGENT_TRANSITION,
@@ -1092,16 +1115,24 @@ class AgentService:
                         "type": AgentEventType.AGENT_TRANSITION,
                         "agent_name": chain_name,
                         "direction": "exit",
-                        "invocation_id": state.current_invocation_id,
+                        "invocation_id": exit_invocation_id,
                     },
                 )
             elif chain_name == state.current_subagent_name:
                 state.flush_tokens(state.current_invocation_id)
 
-            # Always reset specialist tracking on chain end
+            # Reset specialist tracking.  The inner specialist graph chain_end
+            # fires first (dict output), followed by the outer specialist_node
+            # wrapper chain_end (Command output).  We must preserve
+            # current_invocation_id across the inner chain_end so the outer
+            # chain_end can emit a correct AGENT_TRANSITION exit with the
+            # original invocation_id.  Only clear invocation_id on the outer
+            # chain_end; current_subagent_name is always cleared to prevent
+            # token misattribution in subsequent stream events.
             state.current_subagent_name = None
-            state.current_invocation_id = None
-            state.last_entered_agent = None
+            if is_outer_node:
+                state.current_invocation_id = None
+                state.last_entered_agent = None
             return
 
         # Supervisor node completion
@@ -1112,11 +1143,15 @@ class AgentService:
             )
             return
 
-        # Other non-specialist chain ends (e.g. initialize_briefing)
+        # Other non-specialist chain ends (e.g. initialize_briefing, planner)
         chain_output = data.get("output", {})
         state.publish_briefing_update(
             chain_output, "supervisor", log_label="CHAIN_END_NON_SPECIALIST"
         )
+
+        # Clear planner flag after its chain completes
+        if chain_name == "planner":
+            state.planner_active = False
 
     def _handle_chat_model_start(
         self, state: StreamState, event: dict[str, Any]
@@ -1141,7 +1176,14 @@ class AgentService:
     def _handle_chat_model_stream(
         self, state: StreamState, event: dict[str, Any]
     ) -> None:
-        """Handle on_chat_model_stream -- accumulate token output."""
+        """Handle on_chat_model_stream -- accumulate token output.
+
+        Tokens from the planner node are suppressed to prevent plan JSON
+        from leaking into the chat stream. The planner emits a dedicated
+        PLAN_UPDATE event instead.
+        """
+        if state.planner_active:
+            return
         data = event.get("data", {})
         chunk = data.get("chunk")
         # Token streaming: accumulate per-invocation, flush in batches.
@@ -1192,6 +1234,7 @@ class AgentService:
             )
             state.llm_call_start = None
         state.token_accumulator.accumulate_from_event(data)
+
     def _handle_tool_start(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_tool_start -- discard intermediate reasoning, track tool invocation."""
         data = event.get("data", {})
@@ -1759,11 +1802,25 @@ class AgentService:
         ctx, existing_briefing = await self._prepare_graph_execution(params)
 
         # Step 2: Initialize mutable stream state
+        # Non-specialist node names in the parent graph.
+        _NON_SPECIALIST_NODES = frozenset(
+            {
+                "__start__",
+                "__end__",
+                "initialize_briefing",
+                "planner",
+                "supervisor",
+                "tools",
+            }
+        )
         state = StreamState(
             event_bus=ctx.event_bus,
             session_id=ctx.session_id,
             model_name=ctx.model_name,
             main_invocation_id=str(uuid.uuid4()),
+            specialist_names=frozenset(
+                n for n in ctx.graph.nodes if n not in _NON_SPECIALIST_NODES
+            ),
         )
 
         # Step 3: Start periodic token flush background task
@@ -1916,8 +1973,12 @@ class AgentService:
             try:
                 metrics: AgentExecutionMetrics | None = None
 
-                # Create execution tracking row
+                # Create execution tracking row — use execution_id as the PK
+                # so the DB row ID matches the event bus key (required for
+                # WebSocket re-subscribe: the client sends the DB execution.id
+                # and the subscribe handler looks up the bus by the same key).
                 execution = AIAgentExecution(
+                    id=UUID(execution_id),
                     session_id=str(session_id),
                     status=ExecutionStatus.RUNNING,
                     execution_mode=execution_mode.value,
@@ -2083,10 +2144,10 @@ class AgentService:
 
             elif context_type == "wbe":
                 stmt = (
-                    select(WBE.name)
-                    .where(WBE.wbe_id == entity_uuid)
-                    .where(sa_func.upper(WBE.valid_time).is_(None))
-                    .where(WBE.deleted_at.is_(None))
+                    select(WBSElement.name)
+                    .where(WBSElement.wbs_element_id == entity_uuid)
+                    .where(sa_func.upper(WBSElement.valid_time).is_(None))
+                    .where(WBSElement.deleted_at.is_(None))
                     .limit(1)
                 )
                 result = await self.session.execute(stmt)
@@ -2113,8 +2174,14 @@ class AgentService:
                         pass
 
             elif context_type == "cost_element":
+                from app.models.domain.cost_element_type import CostElementType as CET
+
                 stmt = (
-                    select(CostElement.name)
+                    select(CET.name)
+                    .join(
+                        CostElement,
+                        CostElement.cost_element_type_id == CET.cost_element_type_id,
+                    )
                     .where(CostElement.cost_element_id == entity_uuid)
                     .where(sa_func.upper(CostElement.valid_time).is_(None))
                     .where(CostElement.deleted_at.is_(None))

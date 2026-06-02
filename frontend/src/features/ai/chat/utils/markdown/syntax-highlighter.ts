@@ -5,7 +5,16 @@
  * consistent styling across light and dark modes.
  */
 
-import type { PrismTheme } from 'react-syntax-highlighter';
+/**
+ * Prism theme type for syntax highlighting styles
+ */
+interface PrismTheme {
+  plain?: { color?: string; backgroundColor?: string };
+  styles?: Array<{
+    types: string[];
+    style: { color?: string; backgroundColor?: string; fontStyle?: string; fontWeight?: string };
+  }>;
+}
 
 /**
  * Light theme for code blocks

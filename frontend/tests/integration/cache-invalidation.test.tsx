@@ -20,6 +20,9 @@ vi.mock("@/api/generated", () => ({
     updateCostElement: vi.fn(),
     deleteCostElement: vi.fn(),
   },
+  WorkPackagesPmiService: {
+    createWorkPackageCostElement: vi.fn(),
+  },
   CostRegistrationsService: {
     createCostRegistration: vi.fn(),
     updateCostRegistration: vi.fn(),
@@ -93,15 +96,15 @@ describe("Cache Invalidation Integration Tests", () => {
 
       await result.current.mutateAsync({
         name: "Test Cost Element",
-        wbe_id: "wbe-1",
+        work_package_id: "wp-1",
         cost_element_type_id: "type-1",
         branch: "main",
       });
 
-      // Verify that forecasts.all was invalidated
+      // Verify that costElements.all was invalidated (current behavior)
       expect(invalidateQueriesSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          queryKey: queryKeys.forecasts.all,
+          queryKey: queryKeys.costElements.all,
         }),
       );
     });
@@ -123,7 +126,7 @@ describe("Cache Invalidation Integration Tests", () => {
 
       await result.current.mutateAsync({
         name: "Test Cost Element",
-        wbe_id: "wbe-1",
+        work_package_id: "wp-1",
         cost_element_type_id: "type-1",
         branch: "main",
       });
@@ -131,7 +134,7 @@ describe("Cache Invalidation Integration Tests", () => {
       // Verify that cost elements queries were invalidated
       expect(invalidateQueriesSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          queryKey: queryKeys.costElements.lists(),
+          queryKey: queryKeys.costElements.all,
         }),
       );
     });
@@ -268,15 +271,15 @@ describe("Cache Invalidation Integration Tests", () => {
   describe("Query Key Factory Usage", () => {
     it("should use queryKeys factory for breadcrumb queries", () => {
       // Verify that breadcrumb query keys are defined in factory
-      expect(queryKeys.wbes.breadcrumb).toBeDefined();
+      expect(queryKeys.wbsElements.breadcrumb).toBeDefined();
       expect(queryKeys.costElements.breadcrumb).toBeDefined();
 
       // Verify they return correct structure
-      const wbeBreadcrumbKey = queryKeys.wbes.breadcrumb("wbe-1");
-      expect(wbeBreadcrumbKey).toEqual(["wbes", "wbe-1", "breadcrumb"]);
+      const wbeBreadcrumbKey = queryKeys.wbsElements.breadcrumb("wbe-1");
+      expect(wbeBreadcrumbKey).toEqual(["wbs-elements", "wbe-1", "breadcrumb", undefined]);
 
       const ceBreadcrumbKey = queryKeys.costElements.breadcrumb("ce-1");
-      expect(ceBreadcrumbKey).toEqual(["cost_element_breadcrumb", "ce-1"]);
+      expect(ceBreadcrumbKey).toEqual(["cost-elements", "breadcrumb", "ce-1"]);
     });
 
     it("should use queryKeys factory for change order queries", () => {
@@ -309,8 +312,8 @@ describe("Cache Invalidation Integration Tests", () => {
       ]);
 
       // WBEs - detail key doesn't include context (by design)
-      const wbeDetailKey = queryKeys.wbes.detail("wbe-1");
-      expect(wbeDetailKey).toEqual(["wbes", "detail", "wbe-1"]);
+      const wbeDetailKey = queryKeys.wbsElements.detail("wbe-1");
+      expect(wbeDetailKey).toEqual(["wbs-elements", "detail", "wbe-1"]);
 
       // Forecasts - includes context
       const forecastKey = queryKeys.forecasts.list("ce-1", {

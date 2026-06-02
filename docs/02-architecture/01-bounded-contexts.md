@@ -1,6 +1,6 @@
 # Bounded Contexts
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-05-30
 
 This document defines the bounded contexts used to partition the Backcast  system. Each context represents a cohesive functional area with clear boundaries.
 
@@ -15,8 +15,9 @@ This document defines the bounded contexts used to partition the Backcast  syste
 
 > [!NOTE]
 >
-> - **Versioned entities** (Project, WBE, CostElement) use `EntityBase + VersionableMixin`
-> - **Non-versioned entities** (UserPreferences, SystemConfig) use `SimpleEntityBase`
+> - **Branchable entities** (Project, WBSElement, ControlAccount, WorkPackage, ScheduleBaseline, Forecast, OrganizationalUnit, ChangeOrder) use `EntityBase + VersionableMixin + BranchableMixin`
+> - **Versionable entities** (User, CostElementType, CostElement, CostRegistration, etc.) use `EntityBase + VersionableMixin`
+> - **Simple entities** (RBACRole, Notification, DashboardLayout, etc.) use `SimpleEntityBase`
 
 **Key Files:**
 
@@ -43,17 +44,22 @@ This document defines the bounded contexts used to partition the Backcast  syste
 
 ---
 
-### 2. Department Management
+### 2. Organizational Unit Management
 
-**Responsibility:** Department CRUD operations for budget tracking
+**Responsibility:** Organizational unit hierarchy for organizational structure
 **Owner:** Backend Team
 **Status:** ✅ Implemented
-**Versioning:** Not versioned (standard CRUD)
+**Versioning:** Bitemporal with branching (via EVCS Core)
+
+**Key Entities:**
+
+- `OrganizationalUnit` - Organizational structure (Branchable)
+
 **Key Files:**
 
-- `app/models/domain/department.py` - Department model
-- `app/services/department_service.py` - DepartmentService
-- `app/api/routes/departments.py` - Department endpoints
+- `app/models/domain/organizational_unit.py` - OrganizationalUnit model
+- `app/services/organizational_unit_service.py` - OrganizationalUnitService
+- `app/api/routes/organizational_units.py` - Organizational unit endpoints
 
 ---
 
@@ -61,12 +67,12 @@ This document defines the bounded contexts used to partition the Backcast  syste
 
 **Responsibility:** User CRUD operations, profile management, admin user creation, user history
 **Owner:** Backend Team
-**Versioning:** Not versioned (standard CRUD)
+**Versioning:** Versionable (audit changes, no branching)
 **Documentation:** [backend/contexts/user-management/](backend/contexts/user-management/)
 
 **Key Files:**
 
-- `app/models/user.py` - User model, Role enum
+- `app/models/domain/user.py` - User model, Role enum
 - `app/services/user.py` - UserService, user history tracking
 - `app/api/v1/users.py` - User endpoints, RBAC enforcement
 
@@ -74,7 +80,7 @@ This document defines the bounded contexts used to partition the Backcast  syste
 
 ### 4. Cost Element Type Management
 
-**Responsibility:** Standardized cost categorization owned by departments
+**Responsibility:** Standardized cost categorization
 **Owner:** Backend Team
 **Status:** ✅ Implemented
 **Versioning:** Versionable (no branching) - organizational reference data
@@ -84,11 +90,10 @@ Cost Element Types are organizational reference data that enable:
 
 - Consistent cost categorization across projects
 - Cross-project cost comparability
-- Department ownership of cost types
 
 **Key Entities:**
 
-- `CostElementType` - Standardized cost category (code, name, description, department_id)
+- `CostElementType` - Standardized cost category (code, name, description)
 - Satisfies: `VersionableProtocol` (NOT branchable)
 
 **Key Files:**
@@ -99,7 +104,7 @@ Cost Element Types are organizational reference data that enable:
 
 ---
 
-### 5. Project & WBE Management
+### 5. Project & WBS Element Management
 
 **Responsibility:** Project hierarchy, Work Breakdown Elements (machines), revenue allocation
 **Owner:** Backend Team
@@ -109,18 +114,18 @@ Cost Element Types are organizational reference data that enable:
 **Key Entities:**
 
 - `Project` - Top-level container for financial data
-- `WBE` (Work Breakdown Element) - Individual machines/deliverables within projects
+- `WBSElement` (Work Breakdown Element) - Individual machines/deliverables within projects
   - `budget_allocation` is a **computed attribute** (sum of child CostElement.budget_amount)
   - See [ADR-013: Computed Budget Attribute Pattern](decisions/ADR-013-computed-budget-attribute.md)
 
 **Key Files:**
 
 - `app/models/domain/project.py` - Project model
-- `app/models/domain/wbe.py` - WBE model (with computed budget_allocation)
+- `app/models/domain/wbs_element.py` - WBSElement model (with computed budget_allocation)
 - `app/services/project_service.py` - ProjectService with EVCS support
-- `app/services/wbe_service.py` - WBEService with budget computation
+- `app/services/wbs_element_service.py` - WBSElementService with budget computation
 - `app/api/routes/projects.py` - Project endpoints
-- `app/api/routes/wbes.py` - WBE endpoints
+- `app/api/routes/wbs_elements.py` - WBS element endpoints
 
 ---
 
@@ -129,23 +134,23 @@ Cost Element Types are organizational reference data that enable:
 **Responsibility:** Departmental budgets, cost registration, forecasts, earned value tracking, schedule registrations
 **Owner:** Backend Team
 **Status:** ✅ Implemented
-**Versioning:** Bitemporal with branching (via EVCS Core)
+**Versioning:** Mixed — CostElement is Versionable, ScheduleBaseline is Branchable
 
 **Description:**
 Cost Elements are the leaf level of the project hierarchy where budgets are allocated and costs are tracked.
 
 **Budget Architecture (Single Source of Truth):**
 - `CostElement.budget_amount` is the **sole storage location** for all budget data
-- WBE budgets are computed on-the-fly from child CostElements
+- WBS Element budgets are computed on-the-fly from child CostElements
 - See [ADR-013: Computed Budget Attribute Pattern](decisions/ADR-013-computed-budget-attribute.md)
 
 **Key Entities:**
 
 - `CostElement` - Project-specific instance of a Cost Element Type
-  - Branchable (supports change orders)
+  - Versionable (financial facts are global across branches)
   - Has 1:1 relationship with ScheduleBaseline
   - **Sole source of budget data** via `budget_amount` field
-  - Satisfies: `BranchableProtocol`
+  - Satisfies: `VersionableProtocol`
   - Auto-creates default schedule baseline on creation
 
 - `ScheduleBaseline` - Single schedule baseline defining planned work progression
@@ -164,7 +169,7 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 
 **Key Files:**
 
-- `app/models/domain/cost_element.py` - CostElement model (branchable, with schedule_baseline_id FK)
+- `app/models/domain/cost_element.py` - CostElement model (versionable, with schedule_baseline_id FK)
 - `app/models/domain/schedule_baseline.py` - ScheduleBaseline model (branchable)
 - `app/services/cost_element_service.py` - CostElementService with auto-creation of baselines
 - `app/services/schedule_baseline_service.py` - ScheduleBaselineService with 1:1 validation
@@ -177,7 +182,7 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 **Responsibility:** Branch creation, modification, comparison, merging
 **Owner:** Backend Team
 **Status:** Implemented
-**Versioning:** Uses EVCS Core branching capabilities
+**Versioning:** Bitemporal with branching — ChangeOrder is a Branchable entity
 
 **Key Operations:**
 
@@ -210,43 +215,26 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 
 ---
 
-### 9. Quality Event Management
+### 9. Cost Event Management
 
-**Responsibility:** Track quality-related costs that impact project profitability without corresponding revenue increases
+**Responsibility:** Track cost events and their types for project cost analysis
 **Owner:** Backend Team
-**Status:** Planned
-**Versioning:** Bitemporal with branching (via EVCS Core)
-
-**Description:**
-Quality events capture costs associated with rework, defects, warranty claims, and other quality-related issues that reduce project profitability.
+**Status:** ✅ Implemented
+**Versioning:** Versionable (no branching)
 
 **Key Entities:**
 
-- `QualityEvent` - Root event record (date, description, severity, status)
-- `QualityEventCost` - Cost attribution to cost elements
-- `RootCause` - Classification system (rework, defects, warranty, design error)
-- `PreventiveAction` - Improvement tracking and verification
+- `CostEvent` - Cost event record (Versionable)
+- `CostEventType` - Cost event classification (Versionable)
 
-**Key Responsibilities:**
+**Key Files:**
 
-- Register quality events with detailed descriptions
-- Attribute costs to specific cost elements
-- Classify root causes for analysis
-- Track corrective and preventive actions
-- Generate quality cost analysis reports
-- Calculate quality cost as % of total project costs
-
-**Dependencies:**
-
-- Cost Element & Financial Tracking (cost attribution)
-- Project & WBE Management (project context)
-- Reporting & Analytics (quality reports)
-
-**Boundaries:**
-
-- Does NOT handle warranty claims processing (external system)
-- Does NOT handle supplier quality management (separate context)
-- Does NOT handle quality assurance planning (project management)
+- `app/models/domain/cost_event.py` - CostEvent model
+- `app/models/domain/cost_event_type.py` - CostEventType model
+- `app/services/cost_event_service.py` - CostEventService
+- `app/services/cost_event_type_service.py` - CostEventTypeService
+- `app/api/routes/cost_events.py` - Cost event endpoints
+- `app/api/routes/cost_event_types.py` - Cost event type endpoints
 
 **Documentation:** [Functional Requirements Section 9](../../01-product-scope/functional-requirements.md#9-quality-event-management)
 
@@ -286,17 +274,17 @@ AI/ML Integration provides a conversational AI interface built on LangGraph, ena
 - Stream responses in real-time via WebSocket
 
 **Tool Integration (Backend Services as Tools):**
-- Project & WBE Management tools (CRUD operations)
+- Project & WBS Element Management tools (CRUD operations)
 - Cost Element & Financial Tracking tools
 - EVM Calculations & Reporting tools
 - Change Order Processing tools
-- Quality Event Management tools
-- Department & Cost Element Type tools
+- Cost Event Management tools
+- Organizational Unit & Cost Element Type tools
 - User Management tools (admin operations)
 
 **AI-Assisted Operations:**
 - Full CRUD operations on all entities via natural language
-- Create Projects, WBEs, Cost Elements from descriptions
+- Create Projects, WBS Elements, Cost Elements from descriptions
 - Update any entity attributes via conversational interface
 - Soft delete entities (with confirmation workflow)
 - Generate change order drafts from user requirements
@@ -532,7 +520,7 @@ Portfolio Management enables executive-level oversight by aggregating data acros
 **Key Files:**
 
 - `backend/app/api/dependencies.py` - Common dependencies (auth, RBAC)
-- `backend/app/api/routes/` - API route definitions (auth, users, departments)
+- `backend/app/api/routes/` - API route definitions (auth, users, organizational units)
 - `backend/app/main.py` - FastAPI app, CORS, middleware
 
 ---
@@ -570,12 +558,12 @@ Portfolio Management enables executive-level oversight by aggregating data acros
 1. **EVCS Core** provides the versioning framework used by all versioned entities
 2. **Authentication** is used by all contexts for identifying current user
 3. **User Management** provides user data for audit trails in all versioned entities
-4. **Departments** own **Cost Element Types** for organizational cost categorization
+4. **Organizational Units** provide structure for **Cost Element Types** for organizational cost categorization
 5. **Cost Element Types** are referenced by **Cost Elements** for standardized categorization
-6. **Project/WBE** hierarchy contains **Cost Elements** (implemented)
-7. **Financial Tracking** operates on **Cost Elements** with **Schedule Registrations** for PV calculations
-8. **Change Orders** create branches via EVCS Core affecting **Project/WBE/Cost Elements** (planned)
-9. **Quality Events** attribute costs to **Cost Elements** for profitability analysis
+6. **Project/WBS Element** hierarchy contains **Cost Elements** (implemented)
+7. **Financial Tracking** operates on **Cost Elements** (Versionable — financial facts are global, not branch-isolated) with **Schedule Registrations** for PV calculations
+8. **Change Orders** are themselves **Branchable entities** that create branches via EVCS Core affecting **Project/WBS Element** hierarchy
+9. **Cost Events** attribute costs to **Cost Elements** for profitability analysis
 10. **EVM Calculations** provide metrics for **AI/ML** analysis and **Reporting**
 11. **Reporting & Analytics** aggregates data from all bounded contexts (read-only)
 12. **Portfolio Management** aggregates metrics across all projects for executive oversight

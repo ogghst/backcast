@@ -1,0 +1,163 @@
+"""Plan document models for the planner node.
+
+Defines the structured decomposition of a user request into ordered steps,
+each assigned to a specialist. Pure Pydantic — no AI framework dependencies.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from pydantic import BaseModel
+
+StepStatus = Literal["pending", "in_progress", "completed", "skipped", "failed"]
+
+VALID_SPECIALISTS: frozenset[str] = frozenset({"general_purpose"})
+
+
+class PlanStep(BaseModel):
+    """A single atomic step within a plan.
+
+    Each step targets one specialist with a focused task description.
+    Dependencies reference other step indices that must complete first.
+    """
+
+    step_index: int
+    specialist: str
+    task_description: str
+    dependencies: list[int] = []
+    input_from_dependencies: str | None = None
+    expected_output: str = ""
+    status: StepStatus = "pending"
+    result_summary: str | None = None
+
+
+class PlanDocument(BaseModel):
+    """Structured execution plan produced by the planner node.
+
+    If ``requires_planning`` is False the plan represents a single-step
+    fallback that routes directly to the most appropriate specialist.
+    """
+
+    original_request: str
+    steps: list[PlanStep] = []
+    estimated_complexity: Literal["simple", "moderate", "complex"] = "simple"
+    requires_planning: bool = False
+    specialist_catalog: list[dict[str, Any]] | None = None
+
+    # ------------------------------------------------------------------
+    # Reconstruction
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_state(cls, data: dict[str, Any]) -> PlanDocument:
+        """Reconstruct from a state dict with consistent fallback."""
+        try:
+            return cls.model_validate(data)
+        except Exception:
+            return cls(original_request="(recovered)")
+
+    # ------------------------------------------------------------------
+    # Step accessors
+    # ------------------------------------------------------------------
+
+    def get_step(self, step_index: int) -> PlanStep | None:
+        """Return the step matching *step_index*, or ``None``."""
+        for step in self.steps:
+            if step.step_index == step_index:
+                return step
+        return None
+
+    def get_next_pending_step(self) -> PlanStep | None:
+        """Return the first pending step whose dependencies are met."""
+        for step in self.steps:
+            if step.status == "pending" and self.are_dependencies_met(step.step_index):
+                return step
+        return None
+
+    # ------------------------------------------------------------------
+    # Step mutations
+    # ------------------------------------------------------------------
+
+    def mark_step_completed(self, step_index: int, result_summary: str) -> None:
+        """Mark a step as completed with a result summary."""
+        step = self.get_step(step_index)
+        if step is not None:
+            step.status = "completed"
+            step.result_summary = result_summary
+
+    def mark_step_failed(self, step_index: int, error: str) -> None:
+        """Mark a step as failed with an error description."""
+        step = self.get_step(step_index)
+        if step is not None:
+            step.status = "failed"
+            step.result_summary = error
+
+    # ------------------------------------------------------------------
+    # Dependency helpers
+    # ------------------------------------------------------------------
+
+    def are_dependencies_met(self, step_index: int) -> bool:
+        """Check whether all dependencies of a step are completed."""
+        step = self.get_step(step_index)
+        if step is None:
+            return False
+        for dep_idx in step.dependencies:
+            dep = self.get_step(dep_idx)
+            if dep is None or dep.status != "completed":
+                return False
+        return True
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    def validate_specialists(self, available: list[str]) -> list[str]:
+        """Return specialist names in this plan not present in *available*."""
+        available_set = set(available)
+        invalid: list[str] = []
+        seen: set[str] = set()
+        for step in self.steps:
+            if step.specialist not in available_set and step.specialist not in seen:
+                invalid.append(step.specialist)
+                seen.add(step.specialist)
+        return invalid
+
+    # ------------------------------------------------------------------
+    # Prompt serialization
+    # ------------------------------------------------------------------
+
+    def to_prompt_text(self) -> str:
+        """Compact text representation for injection into supervisor context."""
+        lines: list[str] = [
+            "## Execution Plan",
+            f"Request: {self.original_request}",
+            f"Complexity: {self.estimated_complexity}",
+            f"Steps: {len(self.steps)}",
+        ]
+
+        for step in self.steps:
+            status_marker = {
+                "pending": "[ ]",
+                "in_progress": "[~]",
+                "completed": "[x]",
+                "skipped": "[-]",
+                "failed": "[!]",
+            }.get(step.status, "[?]")
+
+            dep_str = f" (depends on {step.dependencies})" if step.dependencies else ""
+            lines.append(
+                f"  {step.step_index}. {status_marker} "
+                f"{step.specialist}: {step.task_description}{dep_str}"
+            )
+
+            if step.input_from_dependencies:
+                lines.append(f"     Input: {step.input_from_dependencies}")
+
+            if step.result_summary:
+                lines.append(f"     Result: {step.result_summary}")
+
+        return "\n".join(lines)
+
+
+__all__ = ["PlanDocument", "PlanStep", "StepStatus", "VALID_SPECIALISTS"]

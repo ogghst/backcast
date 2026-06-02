@@ -1,1191 +1,129 @@
-"""Pytest configuration and fixtures for tests.
+"""Test suite configuration and shared fixtures.
 
-Provides database fixtures, mock user fixtures, and entity creation helpers.
+Uses the running dev database (PostgreSQL) with real async sessions.
+RBAC is bypassed via dependency override + monkey-patching to allow all
+permission checks.  Test data is created via factory functions in factories.py.
 """
 
-import asyncio
-import os
-from collections.abc import AsyncGenerator, Generator
-from decimal import Decimal
-from typing import Any, cast
-from uuid import UUID, uuid4
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+from typing import Annotated
+from uuid import UUID
 
-import pytest
 import pytest_asyncio
-from alembic.config import Config
+from fastapi import Depends
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.dependencies.auth import (
+    ProjectRoleChecker,
+    RoleChecker,
+    UserIdentity,
+    get_current_user,
 )
-from sqlalchemy.pool import NullPool
-
-from alembic import command
-from app.core.config import settings
-from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_service
-from app.db.session import get_db
+from app.core.security import create_access_token
+from app.db.session import engine, get_db
 from app.main import app
-from app.models.domain.cost_element import CostElement
-from app.models.domain.cost_element_type import CostElementType
-from app.models.domain.department import Department
-from app.models.domain.project import Project
-from app.models.domain.user import User
-from app.models.domain.wbe import WBE
-from app.models.schemas.cost_element import CostElementCreate
-from app.models.schemas.cost_element_type import CostElementTypeCreate
-from app.models.schemas.department import DepartmentCreate
-from app.models.schemas.project import ProjectCreate
-from app.models.schemas.wbe import WBECreate
-from app.services.cost_element_service import CostElementService
-from app.services.cost_element_type_service import CostElementTypeService
-from app.services.department import DepartmentService
-from app.services.project import ProjectService
-from app.services.wbe import WBEService
 
-_orig_url = str(settings.DATABASE_URL)
-TEST_DATABASE_URL = _orig_url if _orig_url.endswith("_test") else _orig_url + "_test"
+# ---------------------------------------------------------------------------
+# Bypass RBAC: override get_current_user and monkey-patch RoleChecker.__call__
+# ---------------------------------------------------------------------------
+
+# Use a fixed test user ID that matches an existing seeded user (admin).
+TEST_USER_ID = UUID("e03556f3-4385-5d68-a685-af307fc8af5c")  # admin@backcast.org
 
 
-@pytest.fixture(scope="session")
-def anyio_backend() -> str:
-    """Configure anyio backend for async tests."""
-    return "asyncio"
+async def _override_get_current_user() -> UserIdentity:
+    """Return a fixed test user identity, bypassing JWT validation."""
+    return UserIdentity(user_id=TEST_USER_ID)
 
 
-@pytest.fixture(scope="session")
-def apply_migrations() -> Generator[None, None, None]:
-    """Apply alembic migrations to the test database."""
-    # Override settings to point to test DB
-    original_url = settings.DATABASE_URL
-    settings.DATABASE_URL = cast(Any, TEST_DATABASE_URL)
-    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
-    # Ensure ASYNC_DATABASE_URI is recomputed or patches env.py's source
-    # But env.py imports settings. If settings is already imported, we need to ensure the property reflects the change.
-    # If ASYNC_DATABASE_URI is a property, it should work. If it's a field, it won't.
+async def _bypass_role_checker(
+    self: RoleChecker,
+    current_user: Annotated[UserIdentity, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> UserIdentity:
+    """Bypass all RoleChecker permission checks."""
+    return current_user
 
-    # Ensure clean slate - Nuclear option via subprocess to avoid loop/driver issues
-    import subprocess
-    import sys
 
-    wipe_script = os.path.join(os.path.dirname(__file__), "wipe_db.py")
+async def _bypass_project_role_checker(
+    self: ProjectRoleChecker,
+    project_id: UUID,
+    current_user: Annotated[UserIdentity, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> UserIdentity:
+    """Bypass all ProjectRoleChecker permission checks."""
+    return current_user
 
-    # Get path to alembic.ini (parent directory of tests/)
-    tests_dir = os.path.dirname(__file__)
-    project_root = os.path.dirname(tests_dir)
-    alembic_ini = os.path.join(project_root, "alembic.ini")
-    alembic_cfg = Config(alembic_ini)
 
-    # Set script_location to absolute path
-    alembic_cfg.set_main_option(
-        "script_location", os.path.join(project_root, "alembic")
-    )
+# Override get_current_user so JWT validation is skipped.
+app.dependency_overrides[get_current_user] = _override_get_current_user
 
-    # Use .venv Python explicitly to ensure dependencies are available
-    # When running via uv run, sys.executable may not have access to project packages
-    venv_python = os.path.join(project_root, ".venv", "bin", "python")
-    if not os.path.exists(venv_python):
-        # Fallback to sys.executable if .venv doesn't exist
-        venv_python = sys.executable
+# Monkey-patch __call__ on both checker classes so that ANY instance
+# (including Depends(RoleChecker(required_permission="..."))) always allows access.
+RoleChecker.__call__ = _bypass_role_checker  # type: ignore[assignment]
+ProjectRoleChecker.__call__ = _bypass_project_role_checker  # type: ignore[assignment]
 
-    env = os.environ.copy()
-    # Set the database URLs for wipe script
-    env["WIPE_DATABASE_URL"] = TEST_DATABASE_URL
-    env["ORIGINAL_DATABASE_URL"] = str(original_url)
-    # Also set DATABASE_URL for wipe script fallback
-    env["DATABASE_URL"] = TEST_DATABASE_URL
 
-    try:
-        result = subprocess.run(
-            [venv_python, wipe_script],
-            env=env,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=60,  # Add timeout to prevent hanging
-        )
-        print(f"DB Wipe output: {result.stdout}")
-    except subprocess.TimeoutExpired as e:
-        print("DB Wipe timed out after 60 seconds")
-        print(f"stdout: {e.stdout}")
-        print(f"stderr: {e.stderr}")
-        # Don't raise - try to continue with migrations
-    except subprocess.CalledProcessError as e:
-        print(f"DB Wipe Failed: {e.stdout} {e.stderr}")
-        # Don't raise - try to continue with migrations
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
-    # Run migrations
-    command.upgrade(alembic_cfg, "head")
 
-    # Verify critical tables were created
-    # This ensures migrations executed successfully before running tests
-    from sqlalchemy.ext.asyncio import create_async_engine
+@pytest_asyncio.fixture(autouse=True)
+async def _dispose_engine_pool() -> AsyncGenerator[None, None]:
+    """Dispose the global engine pool before each test.
 
-    async def verify_tables() -> None:
-        engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-        try:
-            async with engine.connect() as conn:
-                # List of critical tables that must exist after migrations
-                required_tables = [
-                    "users",
-                    "departments",
-                    "projects",
-                    "wbes",
-                    "cost_element_types",
-                    "cost_elements",
-                    "cost_registrations",
-                    "progress_entries",  # Critical: Added in this iteration
-                    "schedule_baselines",
-                    "branches",
-                    "change_orders",
-                    "change_order_audit_log",
-                    "forecasts",
-                    "refresh_tokens",  # Refresh token storage
-                    "ai_providers",
-                    "ai_provider_configs",
-                    "ai_models",
-                    "ai_assistant_configs",
-                    "ai_conversation_sessions",
-                    "ai_conversation_messages",
-                    "dashboard_layouts",
-                    "notifications",
-                ]
-
-                for table_name in required_tables:
-                    result = await conn.execute(
-                        text(
-                            f"SELECT EXISTS (SELECT FROM information_schema.tables "
-                            f"WHERE table_schema = 'public' AND table_name = '{table_name}')"
-                        )
-                    )
-                    exists = result.scalar_one()
-                    if not exists:
-                        raise RuntimeError(
-                            f"Critical table '{table_name}' not found after migrations! "
-                            f"Migration may have failed silently."
-                        )
-        finally:
-            await engine.dispose()
-
-    # Run the async verification in the sync fixture
-    asyncio.run(verify_tables())
-
+    pytest-asyncio creates a new event loop per test function.  The
+    asyncpg connections in the global engine pool are bound to the
+    previous loop and become stale, causing "Future attached to a
+    different loop" errors.  Disposing the pool before each test forces
+    fresh connections on the new loop.
+    """
     yield
-
-    # Clean up (downgrade)
-    # try:
-    #     command.downgrade(alembic_cfg, "base")
-    # except Exception:
-    #     pass
-    # finally:
-    settings.DATABASE_URL = original_url
-
-
-@pytest_asyncio.fixture(scope="function")
-async def db_engine(apply_migrations) -> AsyncGenerator[AsyncEngine, None]:
-    """Create async engine for tests."""
-    engine = create_async_engine(
-        TEST_DATABASE_URL, echo=False, poolclass=NullPool, pool_pre_ping=True
-    )
-
-    yield engine
-
     await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create async database session for tests with transaction rollback."""
-    async with db_engine.connect() as conn:
-        trans = await conn.begin()
+@pytest_asyncio.fixture
+async def db() -> AsyncGenerator[AsyncSession, None]:
+    """Provide an async database session for tests.
 
-        # Bind session to the connection with the active transaction
-        async_session_maker = async_sessionmaker(
-            bind=conn,
-            class_=AsyncSession,
-            expire_on_commit=False,
-            # We must ensure that the session doesn't close the connection
-        )
+    Uses a real database session with a COMMIT at the end so that test
+    data is visible to subsequent assertions.  Cleanup is handled by
+    individual tests or by the session closing.
+    """
+    from app.db.session import async_session_maker
 
-        async with async_session_maker() as session:
-            # Clean up all test data before the test (if tables exist)
-            try:
-                # Check which tables exist using information_schema
-                result = await session.execute(
-                    text("""
-                        SELECT table_name
-                        FROM information_schema.tables
-                        WHERE table_schema = 'public'
-                        AND table_type = 'BASE TABLE'
-                    """)
-                )
-                existing_tables = {row[0] for row in result}
-
-                # List of tables to truncate in dependency order (child tables first)
-                tables_to_truncate = [
-                    "ai_conversation_attachments",
-                    "ai_conversation_messages",
-                    "ai_conversation_sessions",
-                    "ai_assistant_configs",
-                    "ai_models",
-                    "ai_provider_configs",
-                    "ai_providers",
-                    "dashboard_layouts",
-                    "notifications",
-                    "user_role_assignments",
-                    "cost_registrations",
-                    "progress_entries",
-                    "cost_elements",
-                    "change_order_audit_log",
-                    "change_orders",
-                    "branches",
-                    "forecasts",
-                    "wbes",
-                    "cost_element_types",
-                    "package_types",
-                    "projects",
-                    "departments",
-                    "users",
-                    "schedule_baselines",  # May not exist in newer migrations
-                ]
-
-                # Build TRUNCATE statement for tables that exist
-                truncate_parts = []
-                for table in tables_to_truncate:
-                    if table in existing_tables:
-                        truncate_parts.append(f'"{table}"')
-
-                if truncate_parts:
-                    truncate_sql = f"TRUNCATE TABLE {', '.join(truncate_parts)} RESTART IDENTITY CASCADE"
-                    await session.execute(text(truncate_sql))
-                    await session.commit()
-            except Exception as e:
-                # Tables might not exist yet (first test run), fail fast
-                print(f"Error truncating tables: {e}")
-                await session.rollback()
-                raise RuntimeError(
-                    f"Database tables do not exist. Migration may have failed. "
-                    f"Error: {e}"
-                ) from e
-
-            yield session
-
-        # Rollback the transaction after the test completes
-        await trans.rollback()
+    async with async_session_maker() as session:
+        yield session
+        await session.commit()
+        await session.close()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """Create async client for tests."""
-    app.dependency_overrides[get_db] = lambda: db_session
+@pytest_asyncio.fixture
+async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """Provide an httpx AsyncClient wired to the FastAPI app.
+
+    The client carries a valid JWT Authorization header for the test user.
+    """
+    token = create_access_token(subject=str(TEST_USER_ID))
+    transport = ASGITransport(app=app)
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
-        yield ac
-    app.dependency_overrides = {}
-
-
-# =============================================================================
-# Mock User Fixtures
-# =============================================================================
-
-
-class MockUnifiedRBACService:
-    """Mock UnifiedRBACService for testing.
-
-    Provides default-true responses for all permission checks.
-    Tests can override specific methods as needed.
-    """
-
-    def __init__(self) -> None:
-        self._permissions: dict[str, list[str]] = {
-            "admin": ["*"],
-            "manager": [
-                "project-read",
-                "project-update",
-                "cost-element-read",
-                "cost-element-create",
-                "wbe-read",
-                "wbe-create",
-                "forecast-read",
-                "forecast-create",
-                "ai-chat",
-            ],
-            "viewer": [
-                "project-read",
-                "cost-element-read",
-                "wbe-read",
-                "forecast-read",
-            ],
-            "ai-admin": ["*"],
-            "ai-manager": ["ai-chat", "ai-admin-read"],
-            "ai-viewer": ["ai-chat"],
-        }
-
-    async def has_permission(
-        self,
-        user_id: UUID,
-        required_permission: str,
-        scope_type: str = "global",
-        scope_id: UUID | None = None,
-    ) -> bool:
-        return True  # Default allow in tests
-
-    async def has_project_access(
-        self, user_id: UUID, project_id: UUID, required_permission: str
-    ) -> bool:
-        return True  # Default allow in tests
-
-    async def get_user_roles(
-        self,
-        user_id: UUID,
-        scope_type: str = "global",
-        scope_id: UUID | None = None,
-    ) -> list[str]:
-        return ["admin"]  # Default admin in tests
-
-    async def get_accessible_projects(self, user_id: UUID) -> list[UUID]:
-        """Return all project IDs from DB to match admin role behavior.
-
-        The mock returns ['admin'] from get_user_roles, so admin users
-        should see all projects. Queries the database when a session is available.
-        """
-        from app.core.rbac_unified import get_unified_rbac_session
-        from app.models.domain.project import Project
-
-        session = get_unified_rbac_session()
-        if session is None:
-            return []
-        from sqlalchemy import select
-
-        result = await session.execute(select(Project.project_id))
-        return [row[0] for row in result.all()]
-
-    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
-        return "project_admin"
-
-    async def get_user_permissions(
-        self,
-        user_id: UUID,
-        scope_type: str = "global",
-        scope_id: UUID | None = None,
-    ) -> list[str]:
-        return ["*"]  # Default all permissions in tests
-
-    def _get_cached_permissions(self, role_name: str) -> list[str] | None:
-        return self._permissions.get(role_name)
-
-    async def refresh_permissions_cache(self) -> None:
-        pass
-
-
-def _create_mock_user(
-    user_id: UUID | None = None,
-    email: str = "test@example.com",
-    is_active: bool = True,
-    role: str = "viewer",  # noqa: ARG001 - kept for backward compat with callers
-    full_name: str = "Test User",
-    hashed_password: str = "hash",
-) -> User:
-    """Helper function to create mock user instances.
-
-    Args:
-        user_id: Optional UUID for the user. Defaults to random UUID.
-        email: User email address.
-        is_active: Whether the user is active.
-        role: Kept for backward compatibility with callers; no longer stored on User.
-        full_name: User's full name.
-        hashed_password: Hashed password.
-
-    Returns:
-        A User instance with the provided attributes.
-    """
-    return User(
-        id=uuid4(),
-        user_id=user_id or uuid4(),
-        email=email,
-        is_active=is_active,
-        full_name=full_name,
-        hashed_password=hashed_password,
-        created_by=uuid4(),
-    )
-
-
-@pytest.fixture
-def mock_admin_user() -> User:
-    """Mock admin user for authentication testing.
-
-    Returns:
-        User instance with admin role.
-    """
-    return _create_mock_user(
-        email="admin@example.com",
-        role="admin",
-        full_name="Admin User",
-    )
-
-
-@pytest.fixture
-def mock_project_manager_user() -> User:
-    """Mock project manager user for authentication testing.
-
-    Returns:
-        User instance with project_manager role.
-    """
-    return _create_mock_user(
-        email="pm@example.com",
-        role="project_manager",
-        full_name="Project Manager User",
-    )
-
-
-@pytest.fixture
-def mock_viewer_user() -> User:
-    """Mock viewer user for authentication testing.
-
-    Returns:
-        User instance with viewer role.
-    """
-    return _create_mock_user(
-        email="viewer@example.com",
-        role="viewer",
-        full_name="Viewer User",
-    )
-
-
-# =============================================================================
-# Auth Override Fixture
-# =============================================================================
-
-
-@pytest.fixture
-def override_auth(
-    mock_admin_user: User,
-) -> Generator[None, None, None]:
-    """Override authentication and RBAC dependencies for API tests.
-
-    This fixture automatically overrides the authentication and RBAC
-    dependencies for all tests in the module it's used in.
-
-    Usage:
-        @pytest.fixture(autouse=True)
-        def override_auth_dependencies(override_auth):
-            pass
-
-    Or use autouse directly in the test file:
-        @pytest.fixture(autouse=True)
-        def override_auth(override_auth: None):
-            ...
-    """
-    from app.api.dependencies.auth import get_current_user
-
-    app.dependency_overrides[get_current_user] = lambda: mock_admin_user
-
-    unified_mock = MockUnifiedRBACService()
-    original_unified = get_unified_rbac_service()
-    set_unified_rbac_service(unified_mock)  # type: ignore[arg-type]
-
-    yield
-
-    set_unified_rbac_service(original_unified)
-    app.dependency_overrides = {}
-
-
-# =============================================================================
-# Entity Creation Helper Fixtures (Database-based)
-# =============================================================================
+        transport=transport,
+        base_url="http://testserver/api/v1",
+        headers={"Authorization": f"Bearer {token}"},
+    ) as c:
+        yield c
 
 
 @pytest_asyncio.fixture
-async def test_department(db_session: AsyncSession) -> Department:
-    """Create a test department in the database.
-
-    Returns:
-        Department instance with code 'ENG' and name 'Engineering'.
-    """
-    service = DepartmentService(db_session)
-    dept_in = DepartmentCreate(
-        name="Engineering",
-        code="ENG",
-        is_active=True,
-    )
-    return await service.create_department(dept_in, actor_id=uuid4())
+def actor_id() -> UUID:
+    """Return the test user ID (actor for create/update operations)."""
+    return TEST_USER_ID
 
 
 @pytest_asyncio.fixture
-async def test_project(db_session: AsyncSession) -> Project:
-    """Create a test project in the database.
-
-    Returns:
-        Project instance with code 'TEST-PROJ' and name 'Test Project'.
-    """
-    service = ProjectService(db_session)
-    project_in = ProjectCreate(
-        name="Test Project",
-        code="TEST-PROJ",
-        budget=Decimal("100000.00"),
-        status="active",
-    )
-    return await service.create_project(project_in, actor_id=uuid4())
-
-
-@pytest_asyncio.fixture
-async def admin_user(db_session: AsyncSession) -> User:
-    """Create an admin user in the database.
-
-    Returns:
-        User instance with admin role.
-    """
-    from app.services.user import UserService
-
-    UserService(db_session)
-    user = User(
-        id=uuid4(),
-        user_id=uuid4(),
-        email="admin@test.com",
-        full_name="Admin User",
-        is_active=True,
-        hashed_password="hash",
-        created_by=uuid4(),
-    )
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest_asyncio.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a regular test user in the database.
-
-    Returns:
-        User instance with viewer role.
-    """
-    from app.core.security import get_password_hash
-
-    test_password = "testpass123"
-    hashed = get_password_hash(test_password)
-
-    user = User(
-        id=uuid4(),
-        user_id=uuid4(),
-        email="user@test.com",
-        full_name="Test User",
-        is_active=True,
-        hashed_password=hashed,
-        created_by=uuid4(),
-    )
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-
-    # Store password on user object for test access
-    user._test_password = test_password  # type: ignore
-    return user
-
-
-@pytest.fixture
-def test_password(test_user: User) -> str:
-    """Get the test password for the test_user fixture.
-
-    Args:
-        test_user: The test user fixture.
-
-    Returns:
-        The plain text password for authentication tests.
-    """
-    return getattr(test_user, "_test_password", "testpass123")
-
-
-@pytest_asyncio.fixture
-async def test_wbe(db_session: AsyncSession, test_project: Project) -> WBE:
-    """Create a test WBE in the database.
-
-    Args:
-        db_session: Database session.
-        test_project: Parent project fixture.
-
-    Returns:
-        WBE instance linked to the test project.
-    """
-    service = WBEService(db_session)
-    wbe_in = WBECreate(
-        project_id=test_project.project_id,
-        code="1.0",
-        name="Test WBE",
-        level=1,
-    )
-    return await service.create_wbe(wbe_in, actor_id=uuid4())
-
-
-@pytest_asyncio.fixture
-async def test_cost_element_type(
-    db_session: AsyncSession,
-    test_department: Department,
-) -> CostElementType:
-    """Create a test cost element type in the database.
-
-    Args:
-        db_session: Database session.
-        test_department: Parent department fixture.
-
-    Returns:
-        CostElementType instance linked to the test department.
-    """
-    service = CostElementTypeService(db_session)
-    type_in = CostElementTypeCreate(
-        code="TEST-TYPE",
-        name="Test Cost Element Type",
-        description="A test cost element type",
-        department_id=test_department.department_id,
-    )
-    return await service.create(type_in, actor_id=uuid4())
-
-
-@pytest_asyncio.fixture
-async def test_cost_element(
-    db_session: AsyncSession,
-    test_wbe: WBE,
-    test_cost_element_type: CostElementType,
-) -> CostElement:
-    """Create a test cost element in the database.
-
-    Args:
-        db_session: Database session.
-        test_wbe: Parent WBE fixture.
-        test_cost_element_type: Cost element type fixture.
-
-    Returns:
-        CostElement instance linked to the test WBE and type.
-    """
-    service = CostElementService(db_session)
-    element_in = CostElementCreate(
-        code="TEST-CE",
-        name="Test Cost Element",
-        wbe_id=test_wbe.wbe_id,
-        cost_element_type_id=test_cost_element_type.cost_element_type_id,
-        budget_amount=Decimal("10000.00"),
-        branch="main",
-    )
-    return await service.create_cost_element(element_in, actor_id=uuid4())
-
-
-# =============================================================================
-# Entity Hierarchy Fixture (Complete dependency chain)
-# =============================================================================
-
-
-@pytest_asyncio.fixture
-async def test_entity_hierarchy(
-    db_session: AsyncSession,
-) -> dict[str, Any]:
-    """Create a complete entity hierarchy for testing.
-
-    Creates:
-    1. Department
-    2. Cost Element Type (linked to Department)
-    3. Project
-    4. WBE (linked to Project)
-    5. Cost Element (linked to WBE and Cost Element Type)
-
-    Returns:
-        Dictionary containing all created entities with keys:
-        - 'department': Department instance
-        - 'cost_element_type': CostElementType instance
-        - 'project': Project instance
-        - 'wbe': WBE instance
-        - 'cost_element': CostElement instance
-    """
-    # Create Department
-    dept_service = DepartmentService(db_session)
-    dept_in = DepartmentCreate(
-        name="Mechanical",
-        code="MECH",
-        is_active=True,
-        description="Mechanical Engineering Department",
-    )
-    department = await dept_service.create_department(dept_in, actor_id=uuid4())
-
-    # Create Cost Element Type
-    type_service = CostElementTypeService(db_session)
-    type_in = CostElementTypeCreate(
-        code="MECH-INST",
-        name="Mechanical Installation",
-        description="Mechanical installation work",
-        department_id=department.department_id,
-    )
-    cost_element_type = await type_service.create(type_in, actor_id=uuid4())
-
-    # Create Project
-    project_service = ProjectService(db_session)
-    project_in = ProjectCreate(
-        name="Project Alpha",
-        code="PROJ-A",
-        budget=Decimal("1000000.00"),
-        status="active",
-        description="Test project for automated testing",
-    )
-    project = await project_service.create_project(project_in, actor_id=uuid4())
-
-    # Create WBE
-    wbe_service = WBEService(db_session)
-    wbe_in = WBECreate(
-        project_id=project.project_id,
-        code="1.1",
-        name="Site Preparation",
-        level=1,
-        description="Site preparation phase",
-    )
-    wbe = await wbe_service.create_wbe(wbe_in, actor_id=uuid4())
-
-    # Create Cost Element
-    element_service = CostElementService(db_session)
-    element_in = CostElementCreate(
-        code="CE-001",
-        name="Mechanical Work Phase 1",
-        wbe_id=wbe.wbe_id,
-        cost_element_type_id=cost_element_type.cost_element_type_id,
-        budget_amount=Decimal("50000.00"),
-        description="Phase 1 mechanical installation",
-        branch="main",
-    )
-    cost_element = await element_service.create_cost_element(
-        element_in, actor_id=uuid4()
-    )
-
-    return {
-        "department": department,
-        "cost_element_type": cost_element_type,
-        "project": project,
-        "wbe": wbe,
-        "cost_element": cost_element,
-    }
-
-
-# =============================================================================
-# API Entity Creation Helpers (HTTP-based)
-# =============================================================================
-
-
-@pytest_asyncio.fixture
-async def api_test_department(client: AsyncClient) -> dict[str, Any]:
-    """Create a test department via API.
-
-    Returns:
-        Dictionary containing the department response data.
-    """
-    response = await client.post(
-        "/api/v1/departments",
-        json={
-            "code": f"API-DEPT-{uuid4().hex[:6].upper()}",
-            "name": "API Test Department",
-            "is_active": True,
-        },
-    )
-    assert response.status_code == 201
-    return cast(dict[str, Any], response.json())
-
-
-@pytest_asyncio.fixture
-async def api_test_project(client: AsyncClient) -> dict[str, Any]:
-    """Create a test project via API.
-
-    Returns:
-        Dictionary containing the project response data.
-    """
-    response = await client.post(
-        "/api/v1/projects",
-        json={
-            "name": "API Test Project",
-            "code": f"API-PROJ-{uuid4().hex[:6].upper()}",
-            "status": "active",
-        },
-    )
-    assert response.status_code == 201
-    return cast(dict[str, Any], response.json())
-
-
-@pytest_asyncio.fixture
-async def api_test_wbe(
-    client: AsyncClient,
-    api_test_project: dict[str, Any],
-) -> dict[str, Any]:
-    """Create a test WBE via API.
-
-    Args:
-        client: AsyncClient fixture.
-        api_test_project: Parent project fixture.
-
-    Returns:
-        Dictionary containing the WBE response data.
-    """
-    response = await client.post(
-        "/api/v1/wbes",
-        json={
-            "project_id": api_test_project["project_id"],
-            "code": f"API-WBE-{uuid4().hex[:6].upper()}",
-            "name": "API Test WBE",
-            "level": 1,
-        },
-    )
-    assert response.status_code == 201
-    return cast(dict[str, Any], response.json())
-
-
-@pytest_asyncio.fixture
-async def api_test_cost_element_type(
-    client: AsyncClient,
-    api_test_department: dict[str, Any],
-) -> dict[str, Any]:
-    """Create a test cost element type via API.
-
-    Args:
-        client: AsyncClient fixture.
-        api_test_department: Parent department fixture.
-
-    Returns:
-        Dictionary containing the cost element type response data.
-    """
-    response = await client.post(
-        "/api/v1/cost-element-types",
-        json={
-            "code": f"API-TYPE-{uuid4().hex[:6].upper()}",
-            "name": "API Test Cost Element Type",
-            "department_id": api_test_department["department_id"],
-        },
-    )
-    assert response.status_code == 201
-    return cast(dict[str, Any], response.json())
-
-
-@pytest_asyncio.fixture
-async def api_test_cost_element(
-    client: AsyncClient,
-    api_test_wbe: dict[str, Any],
-    api_test_cost_element_type: dict[str, Any],
-) -> dict[str, Any]:
-    """Create a test cost element via API.
-
-    Args:
-        client: AsyncClient fixture.
-        api_test_wbe: Parent WBE fixture.
-        api_test_cost_element_type: Cost element type fixture.
-
-    Returns:
-        Dictionary containing the cost element response data.
-    """
-    response = await client.post(
-        "/api/v1/cost-elements",
-        json={
-            "code": f"API-CE-{uuid4().hex[:6].upper()}",
-            "name": "API Test Cost Element",
-            "wbe_id": api_test_wbe["wbe_id"],
-            "cost_element_type_id": api_test_cost_element_type["cost_element_type_id"],
-            "budget_amount": 10000.00,
-            "branch": "main",
-        },
-    )
-    assert response.status_code == 201
-    return cast(dict[str, Any], response.json())
-
-
-@pytest_asyncio.fixture
-async def api_test_entity_hierarchy(client: AsyncClient) -> dict[str, dict[str, Any]]:
-    """Create a complete entity hierarchy via API for testing.
-
-    Creates all entities in order via HTTP endpoints:
-    1. Department
-    2. Cost Element Type (linked to Department)
-    3. Project
-    4. WBE (linked to Project)
-    5. Cost Element (linked to WBE and Cost Element Type)
-
-    Returns:
-        Dictionary containing all created entity responses with keys:
-        - 'department': Department response dict
-        - 'cost_element_type': CostElementType response dict
-        - 'project': Project response dict
-        - 'wbe': WBE response dict
-        - 'cost_element': CostElement response dict
-    """
-    # Create Department
-    dept_response = await client.post(
-        "/api/v1/departments",
-        json={
-            "code": f"HIER-DEPT-{uuid4().hex[:6].upper()}",
-            "name": "Hierarchy Department",
-            "is_active": True,
-        },
-    )
-    assert dept_response.status_code == 201
-    department = dept_response.json()
-
-    # Create Cost Element Type
-    type_response = await client.post(
-        "/api/v1/cost-element-types",
-        json={
-            "code": f"HIER-TYPE-{uuid4().hex[:6].upper()}",
-            "name": "Hierarchy Cost Element Type",
-            "department_id": department["department_id"],
-        },
-    )
-    assert type_response.status_code == 201
-    cost_element_type = type_response.json()
-
-    # Create Project
-    project_response = await client.post(
-        "/api/v1/projects",
-        json={
-            "name": "Hierarchy Project",
-            "code": f"HIER-PROJ-{uuid4().hex[:6].upper()}",
-            "status": "active",
-        },
-    )
-    assert project_response.status_code == 201
-    project = project_response.json()
-
-    # Create WBE
-    wbe_response = await client.post(
-        "/api/v1/wbes",
-        json={
-            "project_id": project["project_id"],
-            "code": f"HIER-WBE-{uuid4().hex[:6].upper()}",
-            "name": "Hierarchy WBE",
-            "level": 1,
-        },
-    )
-    assert wbe_response.status_code == 201
-    wbe = wbe_response.json()
-
-    # Create Cost Element
-    element_response = await client.post(
-        "/api/v1/cost-elements",
-        json={
-            "code": f"HIER-CE-{uuid4().hex[:6].upper()}",
-            "name": "Hierarchy Cost Element",
-            "wbe_id": wbe["wbe_id"],
-            "cost_element_type_id": cost_element_type["cost_element_type_id"],
-            "budget_amount": 50000.00,
-            "branch": "main",
-        },
-    )
-    assert element_response.status_code == 201
-    cost_element = element_response.json()
-
-    return {
-        "department": department,
-        "cost_element_type": cost_element_type,
-        "project": project,
-        "wbe": wbe,
-        "cost_element": cost_element,
-    }
-
-
-# =============================================================================
-# AI Configuration Fixtures
-# =============================================================================
-
-
-@pytest_asyncio.fixture
-async def test_ai_provider(db_session: AsyncSession) -> Any:
-    """Create a test AI provider in the database.
-
-    Returns:
-        AIProvider instance with OpenAI configuration.
-    """
-    from app.models.domain.ai import AIProvider
-
-    provider = AIProvider(
-        id=str(uuid4()),
-        provider_type="openai",
-        name="OpenAI Test",
-        base_url="https://api.openai.com/v1",
-        is_active=True,
-    )
-    db_session.add(provider)
-    await db_session.flush()
-    await db_session.refresh(provider)
-    return provider
-
-
-@pytest_asyncio.fixture
-async def test_ai_model(
-    db_session: AsyncSession,
-    test_ai_provider: Any,
-) -> Any:
-    """Create a test AI model in the database.
-
-    Args:
-        db_session: Database session.
-        test_ai_provider: Parent provider fixture.
-
-    Returns:
-        AIModel instance for GPT-4.
-    """
-    from app.models.domain.ai import AIModel
-
-    model = AIModel(
-        id=str(uuid4()),
-        provider_id=str(test_ai_provider.id),
-        model_id="gpt-4",
-        display_name="GPT-4 Test",
-        is_active=True,
-    )
-    db_session.add(model)
-    await db_session.flush()
-    await db_session.refresh(model)
-    return model
-
-
-@pytest_asyncio.fixture
-async def test_ai_assistant(
-    db_session: AsyncSession,
-    test_ai_model: Any,
-) -> Any:
-    """Create an active test AI assistant configuration.
-
-    Args:
-        db_session: Database session.
-        test_ai_model: Parent model fixture.
-
-    Returns:
-        AIAssistantConfig instance with test configuration.
-    """
-    from app.models.domain.ai import AIAssistantConfig
-
-    config = AIAssistantConfig(
-        id=str(uuid4()),
-        name="Test Assistant",
-        description="A test assistant for WebSocket tests",
-        model_id=str(test_ai_model.id),
-        system_prompt="You are a helpful test assistant.",
-        temperature=0.0,
-        max_tokens=1000,
-        is_active=True,
-    )
-    db_session.add(config)
-    await db_session.flush()
-    await db_session.refresh(config)
-    return config
-
-
-@pytest_asyncio.fixture
-async def inactive_ai_assistant(
-    db_session: AsyncSession,
-    test_ai_model: Any,
-) -> Any:
-    """Create an inactive test AI assistant configuration.
-
-    Args:
-        db_session: Database session.
-        test_ai_model: Parent model fixture.
-
-    Returns:
-        AIAssistantConfig instance with is_active=False.
-    """
-    from app.models.domain.ai import AIAssistantConfig
-
-    config = AIAssistantConfig(
-        id=str(uuid4()),
-        name="Inactive Assistant",
-        description="An inactive test assistant",
-        model_id=str(test_ai_model.id),
-        system_prompt="You are a helpful test assistant.",
-        temperature=0.0,
-        max_tokens=1000,
-        is_active=False,  # Inactive
-    )
-    db_session.add(config)
-    await db_session.flush()
-    await db_session.refresh(config)
-    return config
-
-
-@pytest_asyncio.fixture
-async def test_ai_provider_with_config(
-    db_session: AsyncSession,
-    test_ai_provider: Any,
-) -> Any:
-    """Create a test AI provider with encrypted API key configuration.
-
-    Args:
-        db_session: Database session.
-        test_ai_provider: Parent provider fixture.
-
-    Returns:
-        AIProvider instance with associated config.
-    """
-    from app.models.domain.ai import AIProviderConfig
-
-    # Add encrypted API key config
-    config = AIProviderConfig(
-        id=str(uuid4()),
-        provider_id=str(test_ai_provider.id),
-        key="api_key",
-        value="gsk_test_encrypted_api_key_value_that_is_long_enough",  # Mock encrypted value
-        is_encrypted=True,
-    )
-    db_session.add(config)
-    await db_session.flush()
-
-    return test_ai_provider
-
-
-@pytest_asyncio.fixture
-async def ai_assistant_config_factory(
-    db_session: AsyncSession,
-    test_ai_model: Any,
-) -> Any:
-    """Factory fixture for creating AI assistant configs.
-
-    Returns:
-        AIAssistantConfig instance with test configuration.
-    """
-    from app.models.domain.ai import AIAssistantConfig
-
-    config = AIAssistantConfig(
-        id=str(uuid4()),
-        name="Factory Test Assistant",
-        description="A factory test assistant for attachment tests",
-        model_id=str(test_ai_model.id),
-        system_prompt="You are a helpful test assistant.",
-        temperature=0.0,
-        max_tokens=1000,
-        is_active=True,
-    )
-    db_session.add(config)
-    await db_session.flush()
-    await db_session.refresh(config)
-    return config
-
-
-@pytest_asyncio.fixture
-async def user_factory(db_session: AsyncSession) -> User:
-    """Factory fixture for creating test users.
-
-    Returns:
-        User instance with test user data.
-    """
-    from app.core.security import get_password_hash
-
-    test_password = "testpass123"
-    hashed = get_password_hash(test_password)
-
-    user = User(
-        id=uuid4(),
-        user_id=uuid4(),
-        email=f"user-{uuid4().hex[:8]}@test.com",
-        full_name="Test User",
-        is_active=True,
-        hashed_password=hashed,
-        created_by=uuid4(),
-    )
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-
-    # Store password on user object for test access
-    user._test_password = test_password  # type: ignore
-    return user
+def now() -> datetime:
+    """Return current UTC timestamp."""
+    return datetime.now(tz=UTC)

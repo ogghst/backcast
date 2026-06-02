@@ -13,7 +13,6 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MessageList } from "@/features/ai/chat/components/MessageList";
 import type { ChatMessage } from "@/features/ai/types";
-import { WSConnectionState } from "@/features/ai/chat/types";
 
 // Mock the theme hooks
 vi.mock("@/hooks/useThemeTokens", () => ({
@@ -74,7 +73,6 @@ describe("MessageList - Attachment Display (Task A)", () => {
       <MessageList
         messages={[messageWithImage]}
         loading={false}
-        connectionState={WSConnectionState.OPEN}
       />
     );
 
@@ -116,7 +114,6 @@ describe("MessageList - Attachment Display (Task A)", () => {
       <MessageList
         messages={[messageWithDoc]}
         loading={false}
-        connectionState={WSConnectionState.OPEN}
       />
     );
 
@@ -162,7 +159,6 @@ describe("MessageList - Attachment Display (Task A)", () => {
       <MessageList
         messages={[messageWithMultiple]}
         loading={false}
-        connectionState={WSConnectionState.OPEN}
       />
     );
 
@@ -188,7 +184,6 @@ describe("MessageList - Attachment Display (Task A)", () => {
       <MessageList
         messages={[messageWithoutAttachments]}
         loading={false}
-        connectionState={WSConnectionState.OPEN}
       />
     );
 
@@ -229,7 +224,6 @@ describe("MessageList - Attachment Display (Task A)", () => {
       <MessageList
         messages={[messageWithAttachment]}
         loading={false}
-        connectionState={WSConnectionState.OPEN}
       />
     );
 
@@ -267,7 +261,6 @@ describe("MessageList - Attachment Display (Task A)", () => {
       <MessageList
         messages={[messageWithImage]}
         loading={false}
-        connectionState={WSConnectionState.OPEN}
       />
     );
 

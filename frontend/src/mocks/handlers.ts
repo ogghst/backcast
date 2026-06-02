@@ -146,7 +146,7 @@ export const handlers = [
   }),
 
   // WBE Handlers
-  http.get("*/api/v1/wbes", async ({ request }) => {
+  http.get("*/api/v1/wbs-elements", async ({ request }) => {
     const url = new URL(request.url);
     const projectId = url.searchParams.get("project_id");
 
@@ -156,23 +156,23 @@ export const handlers = [
       items: [
         {
           id: "wbe-1",
-          wbe_id: "wbe-1",
+          wbs_element_id: "wbe-1",
           code: "1.0",
           name: "Phase 1",
           level: 1,
           budget_allocation: 50000,
-          parent_wbe_id: null,
+          parent_wbs_element_id: null,
           project_id: projectId || "proj-1",
           branch: "main",
         },
         {
           id: "wbe-2",
-          wbe_id: "wbe-2",
+          wbs_element_id: "wbe-2",
           code: "1.1",
           name: "Design",
           level: 2,
           budget_allocation: 20000,
-          parent_wbe_id: "wbe-1",
+          parent_wbs_element_id: "wbe-1",
           project_id: projectId || "proj-1",
           branch: "main",
         },
@@ -183,7 +183,7 @@ export const handlers = [
     });
   }),
 
-  http.post("*/api/v1/wbes", async ({ request }) => {
+  http.post("*/api/v1/wbs-elements", async ({ request }) => {
     const body = await request.json();
     return HttpResponse.json({
       id: "wbe-new",
@@ -192,7 +192,7 @@ export const handlers = [
     });
   }),
 
-  http.put("*/api/v1/wbes/:id", async ({ request, params }) => {
+  http.put("*/api/v1/wbs-elements/:id", async ({ request, params }) => {
     const body = await request.json();
     return HttpResponse.json({
       id: params.id,
@@ -200,7 +200,7 @@ export const handlers = [
     });
   }),
 
-  http.delete("*/api/v1/wbes/:id", async () => {
+  http.delete("*/api/v1/wbs-elements/:id", async () => {
     return new HttpResponse(null, { status: 204 });
   }),
 
@@ -362,7 +362,7 @@ export const handlers = [
           {
             entity_id: "wbe-dashboard-1",
             entity_name: "Design Phase",
-            entity_type: "wbe",
+            entity_type: "wbs_element",
             action: "created",
             timestamp: "2026-03-15T09:30:00Z",
             actor_id: "user-1",

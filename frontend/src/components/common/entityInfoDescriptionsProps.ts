@@ -21,7 +21,7 @@ export const entityInfoDescriptionsProps = (
   column: { xs: 1, sm: 2 },
   colon: true,
   labelStyle: {
-    fontWeight: token.fontWeightMedium,
+    fontWeight: 600,
     color: token.colorTextSecondary,
     fontSize: token.fontSize,
   },

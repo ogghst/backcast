@@ -39,8 +39,8 @@ class ScheduleBaselineBase(BaseModel):
 class ScheduleBaselineCreate(ScheduleBaselineBase):
     """Properties required for creating a Schedule Baseline.
 
-    Note: cost_element_id is obtained from the URL path when creating
-    a baseline for a specific cost element, not from the request body.
+    Note: work_package_id is obtained from the URL path when creating
+    a baseline for a specific work package, not from the request body.
     """
 
     schedule_baseline_id: UUID | None = Field(
@@ -80,10 +80,6 @@ class ScheduleBaselineRead(ScheduleBaselineBase):
 
     id: UUID
     schedule_baseline_id: UUID
-    cost_element_id: UUID | None = (
-        None  # Optional for baselines created without cost element
-    )
     created_by: UUID
     branch: str
-    cost_element_code: str | None = None
-    cost_element_name: str | None = None
+    work_package_name: str | None = None

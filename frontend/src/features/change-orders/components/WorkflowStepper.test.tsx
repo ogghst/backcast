@@ -22,11 +22,11 @@ describe("WorkflowStepper", () => {
 
     it("should have correct step titles", () => {
       const titles = WORKFLOW_STEPS.map((s) => s.title);
-      expect(titles).toContain("draft");
-      expect(titles).toContain("submitted");
-      expect(titles).toContain("in review");
-      expect(titles).toContain("approved");
-      expect(titles).toContain("implemented");
+      expect(titles).toContain("Draft");
+      expect(titles).toContain("Submitted");
+      expect(titles).toContain("In Review");
+      expect(titles).toContain("Approved");
+      expect(titles).toContain("Implemented");
     });
   });
 
@@ -36,11 +36,11 @@ describe("WorkflowStepper", () => {
     });
 
     it("should return 1 for Submitted for Approval status", () => {
-      expect(getStepIndex("submitted")).toBe(1);
+      expect(getStepIndex("submitted_for_approval")).toBe(1);
     });
 
     it("should return 2 for Under Review status", () => {
-      expect(getStepIndex("in review")).toBe(2);
+      expect(getStepIndex("under_review")).toBe(2);
     });
 
     it("should return 3 for Approved status", () => {

@@ -29,7 +29,7 @@ export interface GanttRow {
   /** WBE code */
   wbeCode: string;
   /** WBE ID */
-  wbeId: string;
+  wbsElementId: string;
   /** True for WBE group headers */
   isWbe: boolean;
   /** Current collapse state */
@@ -40,11 +40,11 @@ export interface GanttRow {
 
 /** Internal tree node used during hierarchy construction. */
 interface WbeNode {
-  wbeId: string;
+  wbsElementId: string;
   wbeCode: string;
   wbeName: string;
   wbeLevel: number;
-  parentWbeId: string | null;
+  parentWbsElementId: string | null;
   items: GanttItem[];
   children: WbeNode[];
   aggregatedStartDate: Date | null;
@@ -91,7 +91,7 @@ function computeAggregatedDates(node: WbeNode): void {
  * Transform flat GanttItem array into an ordered list of GanttRow objects.
  *
  * Steps:
- * 1. Build a tree of WBE nodes from flat items using parent_wbe_id
+ * 1. Build a tree of WBE nodes from flat items using parent_wbs_element_id
  * 2. Compute aggregated dates via post-order traversal
  * 3. Insert WBE group headers at each level
  * 4. Depth-first flatten to produce display order, respecting collapsed state
@@ -109,27 +109,27 @@ export function transformGanttData(
 
   // First pass: create nodes for each unique WBE
   for (const item of items) {
-    if (!nodeMap.has(item.wbe_id)) {
+    if (!nodeMap.has(item.wbs_element_id)) {
       const node: WbeNode = {
-        wbeId: item.wbe_id,
+        wbsElementId: item.wbs_element_id,
         wbeCode: item.wbe_code,
         wbeName: item.wbe_name,
         wbeLevel: item.wbe_level,
-        parentWbeId: item.parent_wbe_id,
+        parentWbsElementId: item.parent_wbs_element_id,
         items: [],
         children: [],
         aggregatedStartDate: null,
         aggregatedEndDate: null,
       };
-      nodeMap.set(item.wbe_id, node);
+      nodeMap.set(item.wbs_element_id, node);
     }
-    nodeMap.get(item.wbe_id)!.items.push(item);
+    nodeMap.get(item.wbs_element_id)!.items.push(item);
   }
 
   // Second pass: build parent-child relationships
   for (const node of nodeMap.values()) {
-    if (node.parentWbeId && nodeMap.has(node.parentWbeId)) {
-      nodeMap.get(node.parentWbeId)!.children.push(node);
+    if (node.parentWbsElementId && nodeMap.has(node.parentWbsElementId)) {
+      nodeMap.get(node.parentWbsElementId)!.children.push(node);
     } else {
       roots.push(node);
     }
@@ -137,7 +137,7 @@ export function transformGanttData(
 
   // Sort roots and children by WBE code for consistent ordering
   const sortByCode = (a: WbeNode, b: WbeNode) =>
-    a.wbeCode.localeCompare(b.wbeCode, undefined, { numeric: true });
+    (a.wbeCode ?? "").localeCompare(b.wbeCode ?? "", undefined, { numeric: true });
 
   roots.sort(sortByCode);
   for (const node of nodeMap.values()) {
@@ -153,7 +153,7 @@ export function transformGanttData(
   const rows: GanttRow[] = [];
 
   function flattenNode(node: WbeNode, collapsedWbeIds: Set<string>): void {
-    const isCollapsed = collapsedWbeIds.has(node.wbeId);
+    const isCollapsed = collapsedWbeIds.has(node.wbsElementId);
 
     // Add WBE group header with aggregated dates
     rows.push({
@@ -165,7 +165,7 @@ export function transformGanttData(
       progressionType: null,
       budgetAmount: 0,
       wbeCode: node.wbeCode,
-      wbeId: node.wbeId,
+      wbsElementId: node.wbsElementId,
       isWbe: true,
       collapsed: isCollapsed,
       childrenCount: node.children.length + node.items.length,
@@ -177,22 +177,22 @@ export function transformGanttData(
     // Add cost element items directly under this WBE first
     // so they appear right after the WBE header, before any child WBEs
     const sortedItems = [...node.items].sort((a, b) =>
-      a.cost_element_code.localeCompare(b.cost_element_code, undefined, {
+      (a.cost_element_code ?? "").localeCompare(b.cost_element_code ?? "", undefined, {
         numeric: true,
       }),
     );
 
     for (const item of sortedItems) {
       rows.push({
-        name: item.cost_element_name,
+        name: item.cost_element_name ?? item.wbe_name ?? "",
         level: node.wbeLevel + 1,
         costElementId: item.cost_element_id,
         startDate: item.start_date ? new Date(item.start_date) : null,
         endDate: item.end_date ? new Date(item.end_date) : null,
         progressionType: item.progression_type,
-        budgetAmount: item.budget_amount,
-        wbeCode: item.wbe_code,
-        wbeId: item.wbe_id,
+        budgetAmount: item.budget_amount ?? 0,
+        wbeCode: item.wbe_code ?? "",
+        wbsElementId: item.wbs_element_id,
         isWbe: false,
         collapsed: false,
         childrenCount: 0,

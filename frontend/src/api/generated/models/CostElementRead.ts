@@ -3,24 +3,27 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * Properties returned to client.
+ * Schema for reading Cost Element data.
  */
 export type CostElementRead = {
-    code: string;
-    name: string;
-    budget_amount: string;
+    /**
+     * Reference to standardized cost type
+     */
+    cost_element_type_id: string;
     description?: (string | null);
     id: string;
     cost_element_id: string;
-    wbe_id: string;
-    wbe_name?: (string | null);
-    cost_element_type_id: string;
-    cost_element_type_name?: (string | null);
-    cost_element_type_code?: (string | null);
-    branch: string;
+    work_package_id: string;
     created_by: string;
+    created_by_name?: (string | null);
+    deleted_by?: (string | null);
     valid_time?: (string | null);
     transaction_time?: (string | null);
+    work_package_name?: (string | null);
+    work_package_code?: (string | null);
+    cost_element_type_name?: (string | null);
+    cost_element_type_code?: (string | null);
+    project_id?: (string | null);
     /**
      * Display-ready valid_time temporal data.
      *

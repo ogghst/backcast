@@ -8,7 +8,7 @@ describe("SideBySideDiff", () => {
   });
 
   const mockFieldLabels = {
-    wbe_name: "WBE Name",
+    wbs_element_name: "WBE Name",
     budget: "Budget",
     description: "Description",
     justification: "Justification",
@@ -16,9 +16,9 @@ describe("SideBySideDiff", () => {
 
   describe("rendering all change types", () => {
     it("should render added fields with green badge", () => {
-      const mainData = { wbe_name: "Old Name" };
+      const mainData = { wbs_element_name: "Old Name" };
       const branchData = {
-        wbe_name: "New Name",
+        wbs_element_name: "New Name",
         budget: "50000",
       };
 
@@ -30,14 +30,15 @@ describe("SideBySideDiff", () => {
         />
       );
 
-      // Check for added field badge
-      const addedBadge = screen.getByText("Budget").parentElement?.querySelector(".ant-badge");
-      expect(addedBadge).toBeInTheDocument();
+      // Check for added field section header
+      expect(screen.getByText(/Added Fields/i)).toBeInTheDocument();
+      // Budget is the added field label
+      expect(screen.getByText("Budget")).toBeInTheDocument();
     });
 
     it("should render modified fields with orange badge", () => {
-      const mainData = { wbe_name: "Old Name", budget: "30000" };
-      const branchData = { wbe_name: "New Name", budget: "50000" };
+      const mainData = { wbs_element_name: "Old Name", budget: "30000" };
+      const branchData = { wbs_element_name: "New Name", budget: "50000" };
 
       render(
         <SideBySideDiff
@@ -54,11 +55,11 @@ describe("SideBySideDiff", () => {
 
     it("should render removed fields with red badge", () => {
       const mainData = {
-        wbe_name: "Old Name",
+        wbs_element_name: "Old Name",
         budget: "30000",
         description: "This will be removed",
       };
-      const branchData = { wbe_name: "New Name" };
+      const branchData = { wbs_element_name: "New Name" };
 
       render(
         <SideBySideDiff
@@ -74,12 +75,12 @@ describe("SideBySideDiff", () => {
 
     it("should not render unchanged fields when showing only changes", () => {
       const mainData = {
-        wbe_name: "Same Name",
+        wbs_element_name: "Same Name",
         budget: "30000",
         description: "Same description",
       };
       const branchData = {
-        wbe_name: "Same Name",
+        wbs_element_name: "Same Name",
         budget: "50000", // Modified
         description: "Same description",
       };
@@ -103,9 +104,9 @@ describe("SideBySideDiff", () => {
 
   describe("filter functionality", () => {
     it("should show only additions when filter is set to additions", () => {
-      const mainData = { wbe_name: "Old Name", budget: "30000" };
+      const mainData = { wbs_element_name: "Old Name", budget: "30000" };
       const branchData = {
-        wbe_name: "New Name",
+        wbs_element_name: "New Name",
         budget: "50000",
         description: "New Description",
       };
@@ -130,9 +131,9 @@ describe("SideBySideDiff", () => {
     });
 
     it("should show only modifications when filter is set to modifications", () => {
-      const mainData = { wbe_name: "Old Name", budget: "30000" };
+      const mainData = { wbs_element_name: "Old Name", budget: "30000" };
       const branchData = {
-        wbe_name: "New Name",
+        wbs_element_name: "New Name",
         budget: "50000",
         description: "New Description",
       };
@@ -159,11 +160,11 @@ describe("SideBySideDiff", () => {
 
     it("should show only removals when filter is set to removals", () => {
       const mainData = {
-        wbe_name: "Old Name",
+        wbs_element_name: "Old Name",
         budget: "30000",
         description: "To be removed",
       };
-      const branchData = { wbe_name: "New Name", budget: "50000" };
+      const branchData = { wbs_element_name: "New Name", budget: "50000" };
 
       render(
         <SideBySideDiff
@@ -209,8 +210,8 @@ describe("SideBySideDiff", () => {
     });
 
     it("should not show inline diff for short text fields", () => {
-      const mainData = { wbe_name: "Short" };
-      const branchData = { wbe_name: "New Short" };
+      const mainData = { wbs_element_name: "Short" };
+      const branchData = { wbs_element_name: "New Short" };
 
       const { container } = render(
         <SideBySideDiff
@@ -228,8 +229,8 @@ describe("SideBySideDiff", () => {
 
   describe("responsive layout", () => {
     it("should render two-column layout on desktop", () => {
-      const mainData = { wbe_name: "Old Name" };
-      const branchData = { wbe_name: "New Name" };
+      const mainData = { wbs_element_name: "Old Name" };
+      const branchData = { wbs_element_name: "New Name" };
 
       const { container } = render(
         <SideBySideDiff
@@ -239,16 +240,16 @@ describe("SideBySideDiff", () => {
         />
       );
 
-      // Check for two-column layout classes
-      const columns = container.querySelectorAll(".ant-col");
-      expect(columns.length).toBeGreaterThanOrEqual(2);
+      // Check that collapse panels are rendered for modified fields
+      const collapsePanels = container.querySelectorAll(".ant-collapse-item");
+      expect(collapsePanels.length).toBeGreaterThanOrEqual(1);
     });
   });
 
   describe("empty state", () => {
     it("should render empty state when no changes detected", () => {
-      const mainData = { wbe_name: "Same", budget: "30000" };
-      const branchData = { wbe_name: "Same", budget: "30000" };
+      const mainData = { wbs_element_name: "Same", budget: "30000" };
+      const branchData = { wbs_element_name: "Same", budget: "30000" };
 
       render(
         <SideBySideDiff
@@ -264,12 +265,12 @@ describe("SideBySideDiff", () => {
 
     it("should render excluded fields correctly", () => {
       const mainData = {
-        wbe_name: "Name",
+        wbs_element_name: "Name",
         budget: "30000",
         created_at: "2024-01-01",
       };
       const branchData = {
-        wbe_name: "Name",
+        wbs_element_name: "Name",
         budget: "50000",
         updated_at: "2024-01-02",
       };
@@ -292,17 +293,17 @@ describe("SideBySideDiff", () => {
   describe("edge cases", () => {
     it("should handle null and undefined values", () => {
       const mainData = {
-        wbe_name: "Name",
+        wbs_element_name: "Name",
         budget: null as unknown as string,
         description: undefined as unknown as string,
       };
       const branchData = {
-        wbe_name: "Name",
+        wbs_element_name: "Name",
         budget: "50000",
         description: "New Description",
       };
 
-      render(
+      const { container } = render(
         <SideBySideDiff
           mainData={mainData}
           branchData={branchData}
@@ -310,8 +311,9 @@ describe("SideBySideDiff", () => {
         />
       );
 
-      // Should render without errors
-      expect(screen.getByText("Name")).toBeInTheDocument();
+      // Should render without errors - collapse panels should exist
+      const collapsePanels = container.querySelectorAll(".ant-collapse-item");
+      expect(collapsePanels.length).toBeGreaterThanOrEqual(1);
     });
 
     it("should handle empty objects", () => {

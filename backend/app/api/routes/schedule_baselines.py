@@ -47,7 +47,9 @@ async def read_schedule_baselines(
         None,
         description="Time travel: get schedule baselines as of this timestamp (ISO 8601)",
     ),
-    cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
+    cost_element_id: UUID | None = Query(
+        None, description="Filter by Work Package ID (legacy param name)"
+    ),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Retrieve schedule baselines with pagination.
@@ -60,6 +62,7 @@ async def read_schedule_baselines(
     from sqlalchemy import func, select
     from sqlalchemy.dialects.postgresql import TIMESTAMP
 
+    from app.models.domain.work_package import WorkPackage
     from app.models.schemas.common import PaginatedResponse
 
     # Default to current time if as_of is not provided
@@ -109,9 +112,17 @@ async def read_schedule_baselines(
             cast(Any, ScheduleBaseline).deleted_at.is_(None),
         )
 
-    # Apply optional filters
+    # Apply optional filter by cost_element_id (now mapped to work package via inverted relationship)
     if cost_element_id:
-        stmt = stmt.where(ScheduleBaseline.cost_element_id == cost_element_id)
+        wp_subq = (
+            select(WorkPackage.schedule_baseline_id)
+            .where(WorkPackage.work_package_id == cost_element_id)
+            .correlate(ScheduleBaseline)
+            .subquery()
+        )
+        stmt = stmt.where(
+            ScheduleBaseline.schedule_baseline_id == wp_subq.c.schedule_baseline_id
+        )
 
     # Get total count
     from sqlalchemy import func as sql_func

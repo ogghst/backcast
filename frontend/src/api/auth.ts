@@ -67,8 +67,6 @@ export const registerUser = async (userData: {
 
   const user = await AuthenticationService.register({
     ...registerData,
-    is_active: true,
-    is_superuser: false,
     role: userData.role as "admin" | "project_manager" | "department_manager" | "viewer",
   });
   return user as unknown as UserPublic;

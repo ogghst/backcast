@@ -4,8 +4,8 @@
 
 The AI Assistant supports three execution modes that control which AI tools can be used based on their risk levels. This guide explains what execution modes are, when to use each mode, and how the approval workflow works.
 
-**Version:** 1.0.0
-**Last Updated:** 2026-03-22
+**Version:** 1.1.0
+**Last Updated:** 2026-05-30
 
 ---
 
@@ -48,10 +48,11 @@ Your selected execution mode is saved in your browser, so it persists between se
 
 **Example tools available:**
 - List projects
-- Get EVM metrics
+- Get project analysis
 - View change orders
-- Generate forecasts
-- Calculate variances
+- Get project forecast
+- Search documents
+- Find cost events
 
 **When to use:**
 - You're just exploring data
@@ -68,22 +69,23 @@ Your selected execution mode is saved in your browser, so it persists between se
 - Allows read-only tools
 - Allows tools that create or modify data (with validation)
 - **Requires approval for high-risk tools** (create, update, generate)
-- **Blocks critical tools entirely** (delete, bulk operations -- switch to expert mode)
+- **Blocks critical tools entirely** (delete operations -- switch to expert mode)
 
 **Example tools available without approval:**
 - All safe mode tools
 
 **Example tools requiring approval:**
 - Create projects
-- Update WBEs
-- Generate forecasts
+- Update WBS Elements
+- Create forecasts
 - Create change orders
+- Approve/reject change orders
 
 **Example tools BLOCKED (switch to expert mode):**
 - Delete projects
-- Bulk update WBEs
-- Approve/reject change orders
-- Other destructive operations
+- Delete WBS Elements
+- Delete change orders
+- Other delete operations
 
 **When to use:**
 - Normal day-to-day work
@@ -104,8 +106,8 @@ Your selected execution mode is saved in your browser, so it persists between se
 **Example tools available:**
 - All tools from safe and standard modes
 - Delete projects
-- Bulk operations
-- Approve/reject change orders
+- Batch operations
+- Delete change orders
 - All other tools
 
 **When to use:**
@@ -125,10 +127,11 @@ Every AI tool is categorized by risk level:
 **Description:** Read-only operations with no side effects
 
 **Examples:**
-- Querying data
-- Calculating metrics
-- Generating reports
-- Viewing history
+- Querying data (find_* tools)
+- Calculating metrics (get_project_analysis)
+- Generating reports (get_project_forecast)
+- Searching documents (search_documents)
+- Viewing history (find_* tools with temporal context)
 
 **Available in:** Safe, Standard, Expert modes
 
@@ -141,8 +144,9 @@ Every AI tool is categorized by risk level:
 **Examples:**
 - Creating new projects
 - Updating existing records
-- Generating forecasts
+- Creating/updating forecasts
 - Creating change orders
+- Approving/rejecting change orders
 
 **Available in:** Standard, Expert modes
 
@@ -150,13 +154,14 @@ Every AI tool is categorized by risk level:
 
 ### Critical Risk 🔴
 
-**Description:** Destructive operations, bulk changes, or sensitive actions
+**Description:** Destructive delete operations that permanently remove data
 
 **Examples:**
-- Deleting projects or records
-- Bulk updating multiple records
-- Approving/rejecting change orders
-- Modifying user permissions
+- Deleting projects
+- Deleting WBS Elements
+- Deleting change orders
+- Deleting cost registrations
+- Deleting users
 
 **Available in:** Expert mode only (blocked in Standard mode)
 
@@ -164,26 +169,26 @@ Every AI tool is categorized by risk level:
 
 ## Approval Workflow
 
-When you use Standard mode and the AI needs to execute a high-risk tool (create, update, generate), the approval workflow ensures you review and approve the action first.
+When you use Standard mode and the AI needs to execute a high-risk tool (create, update, approve/reject), the approval workflow ensures you review and approve the action first. Note that critical-risk tools (delete operations) are blocked entirely in Standard mode -- they never reach the approval stage.
 
 ### How Approval Works
 
 ```
 1. You ask the AI to do something
-   "Delete the Test Project"
+   "Update the contract value for Project A to 500000"
 
-2. AI determines it needs to use a critical tool
-   Tool: delete_project (risk_level: critical)
+2. AI determines it needs to use a high-risk tool
+   Tool: update_project (risk_level: high)
 
 3. Approval dialog appears
    ┌─────────────────────────────────────┐
    │  🔒 Approval Required                │
    ├─────────────────────────────────────┤
-   │  Tool: delete_project                │
-   │  Risk: Critical                      │
+   │  Tool: update_project                │
+   │  Risk: High                          │
    │                                     │
-   │  This will delete the project        │
-   │  and all its data.                   │
+   │  This will update the project's      │
+   │  contract value.                     │
    │                                     │
    │  [Cancel]  [Approve]                 │
    └─────────────────────────────────────┘
@@ -328,7 +333,7 @@ Periodically review:
 ```
 User: "Show me all projects with cost overruns"
 
-AI: (Uses list_projects and analyze_cost_variance)
+AI: (Uses list_projects and get_project_analysis)
 "I found 3 projects with cost overruns:
 - Project A: 15% over budget
 - Project B: 8% over budget
@@ -369,13 +374,13 @@ AI: "I cannot delete the project in Standard mode. Critical operations like dele
 ### Example 4: Batch Operations (Expert Mode)
 
 ```
-User: "Update all WBEs in Project A to use the new cost codes"
+User: "Update all WBS Elements in Project A to use the new cost codes"
 
-AI: (Uses bulk_update_wbes - critical tool)
-"✓ Updated 47 WBEs with new cost codes"
+AI: (Uses batch_update_wbs_elements - high risk tool)
+"Updated 47 WBS Elements with new cost codes"
 ```
 
-**Mode:** Expert (no approval needed, but use with caution)
+**Mode:** Standard with approval or Expert (high-risk batch tool requires approval in Standard mode)
 
 ---
 
@@ -387,11 +392,11 @@ A: Yes, you can change the mode at any time. The new mode applies to future tool
 
 **Q: What happens if I switch from Safe to Standard mode?**
 
-A: The AI will be able to use more tools (including high-risk tools) for future responses in that conversation.
+A: The AI will be able to use more tools (including high-risk tools that create or modify data) for future responses in that conversation.
 
 **Q: Do approvals persist across sessions?**
 
-A: No, approvals are session-specific. Each new chat session requires fresh approvals for critical tools.
+A: No, approvals are session-specific. Each new chat session requires fresh approvals for high-risk tools.
 
 **Q: Can I override the approval requirement?**
 
@@ -407,7 +412,7 @@ A: The approval request expires after 5 minutes, and the tool execution is cance
 
 **Q: Can I approve multiple tools at once?**
 
-A: No, each critical tool requires individual approval. This ensures you review each dangerous operation separately.
+A: No, each high-risk tool requires individual approval. This ensures you review each operation separately.
 
 ---
 
@@ -432,10 +437,20 @@ If you have questions or encounter issues:
 
 ## Version History
 
+### Version 1.1.0 (2026-05-30)
+
+**Updated:**
+- Corrected entity naming: WBE/WBEs replaced with WBS Element/WBS Elements
+- Corrected tool names to match actual codebase (e.g., batch_update_wbs_elements, get_project_analysis, get_project_forecast)
+- Fixed risk level assignments: approve/reject change orders and batch operations are HIGH risk (not CRITICAL); only delete operations are CRITICAL
+- Updated approval workflow example to use a HIGH risk tool (update_project) instead of CRITICAL (delete_project), since CRITICAL tools are blocked in Standard mode
+- Updated Safe mode examples with actual LOW-risk tools (search_documents, find_cost_events)
+- Updated Critical Risk examples to list actual CRITICAL tools (delete operations only)
+
 ### Version 1.0.0 (2026-03-22)
 
 **Initial release:**
 - Three execution modes (Safe, Standard, Expert)
-- Approval workflow for critical tools
+- Approval workflow for high-risk tools
 - Tool risk categorization
 - User guide and best practices

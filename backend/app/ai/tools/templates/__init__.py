@@ -1,11 +1,5 @@
 """AI Tool Templates for various domain operations.
 
-This package contains template modules for AI tools:
-- project_template: Project and WBE CRUD operations
-- analysis_template: EVM and Forecasting analysis tools
-- advanced_analysis_template: Advanced project analysis and insights
-- change_order_template: Change order management tools
-
 All tools use the @ai_tool decorator with LangChain's InjectedToolArg
 for proper context injection and docstring parsing.
 """
@@ -14,14 +8,28 @@ from app.ai.tools.templates import (
     advanced_analysis_template,
     analysis_template,
     change_order_template,
-    package_type_template,
+    control_account_template,
+    cost_element_template,
+    cost_event_template,
+    cost_event_type_template,
+    diagram_template,
+    forecast_cost_progress_template,
     project_template,
+    user_management_template,
+    work_package_template,
 )
 
 __all__ = [
-    "analysis_template",
     "advanced_analysis_template",
+    "analysis_template",
     "change_order_template",
+    "control_account_template",
+    "cost_element_template",
+    "cost_event_template",
+    "cost_event_type_template",
+    "diagram_template",
+    "forecast_cost_progress_template",
     "project_template",
-    "package_type_template",
+    "user_management_template",
+    "work_package_template",
 ]

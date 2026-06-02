@@ -4,7 +4,9 @@ Provides dependency injection for current user authentication and authorization.
 
 UserIdentity is a lightweight dataclass. The JWT sub claim carries the
 user_id (UUID string). After token validation, the user's is_active status
-is checked against the database to reject deactivated accounts.
+is checked against the database to reject deactivated accounts. The active
+check is cached in-memory with a TTL to avoid a temporal DB query on every
+request.
 
 RoleChecker and ProjectRoleChecker delegate to the unified RBAC system
 (UnifiedRBACService) for all permission checks.
@@ -19,6 +21,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import TTLCache
 from app.core.jwt_utils import validate_jwt_token
 from app.core.rbac_unified import (
     get_unified_rbac_service,
@@ -31,6 +34,20 @@ from app.models.domain.user_role_assignment import ScopeType
 from app.services.user import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# ---------------------------------------------------------------------------
+# In-memory TTL cache for user is_active checks (positive results only)
+# ---------------------------------------------------------------------------
+_user_active_cache: TTLCache[UUID, bool] = TTLCache(ttl=300.0, maxsize=10_000)
+
+
+def invalidate_user_active_cache(user_id: UUID) -> None:
+    """Invalidate cached is_active status for a user.
+
+    Call this when a user is deactivated or soft-deleted
+    to ensure immediate effect on subsequent requests.
+    """
+    _user_active_cache.invalidate(user_id)
 
 
 def get_user_service(session: AsyncSession = Depends(get_db)) -> UserService:
@@ -80,7 +97,11 @@ async def get_current_user(
     except ValueError:
         raise credentials_exception from None
 
-    # Verify user is still active in the database
+    # Verify user is still active — cache-first to avoid temporal DB hit
+    if user_id in _user_active_cache:
+        return UserIdentity(user_id=user_id)
+
+    # Cache miss — query DB
     stmt = (
         select(User.is_active)
         .where(
@@ -102,6 +123,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Cache the positive result
+    _user_active_cache.set(user_id, True)
     return UserIdentity(user_id=user_id)
 
 

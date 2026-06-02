@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { Card, Grid, Tag, Typography, theme, Row, Col, Progress, Flex } from "antd";
+import { Card, Grid, Tag, Typography, Row, Col, Progress, Flex } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { getProjectStatusColor } from "@/lib/status";
 import { formatDate, formatCompactCurrency } from "@/utils/formatters";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { useExtendedToken } from "@/hooks/useToken";
 
 const { Text, Title } = Typography;
 
@@ -20,7 +21,7 @@ export const ProjectHeaderCard = ({
   extraContent,
   actualCosts,
 }: ProjectHeaderCardProps) => {
-  const { token } = theme.useToken();
+  const { token } = useExtendedToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const { asOf } = useTimeMachineParams();

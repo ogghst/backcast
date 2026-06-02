@@ -12,6 +12,7 @@ import {
   SpecialistBadge,
   BRIEFING_KEYFRAMES,
 } from "./BriefingContent";
+import { PlanStepIndicator } from "./PlanStepIndicator";
 
 interface BriefingPeekBarProps {
   briefing: BriefingState | null;
@@ -142,7 +143,7 @@ export const BriefingPeekBar = memo(
               }}
             />
 
-            <span style={{ flex: 1, textAlign: "left" }}>Briefing</span>
+            <span style={{ flex: 1, textAlign: "left" }}>Briefing & Planning</span>
 
             {isStreaming && (
               <span
@@ -156,8 +157,22 @@ export const BriefingPeekBar = memo(
               />
             )}
 
-            {specialistCount > 0 && (
-              <span style={badgeStyle}>{specialistCount}</span>
+            {briefing.plan ? (
+              <span
+                style={{
+                  ...badgeStyle,
+                  minWidth: 28,
+                  padding: "0 5px",
+                  borderRadius: 9,
+                  fontSize: 9,
+                }}
+              >
+                {briefing.plan.completedSteps}/{briefing.plan.totalSteps}
+              </span>
+            ) : (
+              specialistCount > 0 && (
+                <span style={badgeStyle}>{specialistCount}</span>
+              )
             )}
 
             {lastSpecialistPreview && (
@@ -176,10 +191,16 @@ export const BriefingPeekBar = memo(
             )}
 
             <span style={{ marginLeft: "auto", display: "flex" }}>
-              {specialistCount > 0 && (
+              {briefing.plan ? (
                 <span style={{ opacity: 0.5, marginRight: spacing.xs }}>
-                  specialist{specialistCount !== 1 ? "s" : ""} |
+                  {briefing.plan.completedSteps}/{briefing.plan.totalSteps} steps |
                 </span>
+              ) : (
+                specialistCount > 0 && (
+                  <span style={{ opacity: 0.5, marginRight: spacing.xs }}>
+                    specialist{specialistCount !== 1 ? "s" : ""} |
+                  </span>
+                )
               )}
               <DownOutlined style={{ fontSize: 10 }} />
             </span>
@@ -212,7 +233,7 @@ export const BriefingPeekBar = memo(
                   }),
                 }}
               />
-              <span style={{ flex: 1 }}>Briefing</span>
+              <span style={{ flex: 1 }}>Briefing & Planning</span>
               <button
                 type="button"
                 onClick={onToggle}
@@ -239,6 +260,17 @@ export const BriefingPeekBar = memo(
                     completed={true}
                   />
                 ))}
+              </div>
+            )}
+            {briefing.plan && (
+              <div style={{ padding: `0 ${spacing.md}px ${spacing.xs}px` }}>
+                <PlanStepIndicator
+                  steps={briefing.plan.steps}
+                  totalSteps={briefing.plan.totalSteps}
+                  completedSteps={briefing.plan.completedSteps}
+                  complexity={briefing.plan.complexity}
+                  isStreaming={isStreaming}
+                />
               </div>
             )}
             <div

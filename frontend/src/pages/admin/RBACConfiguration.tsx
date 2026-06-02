@@ -36,6 +36,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
+import { useExtendedToken } from "@/hooks/useToken";
 import { Can } from "@/components/auth/Can";
 import {
   useRBACRoles,
@@ -70,7 +71,7 @@ const PermissionSelector: React.FC<PermissionSelectorProps> = ({
   allPermissions,
   disabled = false,
 }) => {
-  const { token } = theme.useToken();
+  const { token } = useExtendedToken();
   const { colors, spacing, borderRadius } = useThemeTokens();
   const [searchText, setSearchText] = useState("");
 
@@ -341,7 +342,7 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
             position: "absolute",
             top: 4,
             right: 4,
-            fontSize: token.fontSizeXS,
+            fontSize: token.fontSizeSM,
             color: token.colorPrimary,
           }}
         />
@@ -359,7 +360,7 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
       </span>
       <span
         style={{
-          fontSize: token.fontSizeXS,
+          fontSize: token.fontSizeSM,
           color: colors.textTertiary,
           marginTop: 2,
           textAlign: "center",
@@ -476,7 +477,7 @@ const RoleModal: React.FC<RoleModalProps> = ({
 // ---------------------------------------------------------------------------
 
 export const RBACConfiguration: React.FC = () => {
-  const { token } = theme.useToken();
+  const { token } = useExtendedToken();
   const { tableParams, handleTableChange } = useTableParams<RBACRoleRead>();
   const { modal } = App.useApp();
   const { hasRole } = usePermission();

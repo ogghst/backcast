@@ -1,18 +1,20 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProject, useUpdateProject, useDeleteProject } from "@/features/projects/api/useProjects";
 import { queryKeys } from "@/api/queryKeys";
 import {
-  useWBEs,
-  useCreateWBE,
-} from "@/features/wbes/api/useWBEs";
-import { WBETable } from "@/components/hierarchy/WBETable";
-import { WBECreate, WBERead, ProjectUpdate } from "@/api/generated";
+  useWBSElements,
+  useCreateWBSElement,
+} from "@/features/wbs-elements/api/useWBSElements";
+import { WBSElementTable } from "@/components/hierarchy/WBSElementTable";
+import { WBSElementCreate, WBSElementRead, ProjectUpdate } from "@/api/generated";
 import { useProjectBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
-import { Button, Breadcrumb, Skeleton, Card, theme, Typography, Space, Flex, Grid } from "antd";
+import type { Version } from "@/components/common/VersionHistory";
+import { Button, Skeleton, Card, theme, Typography, Space, Flex, Grid } from "antd";
 import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined } from "@ant-design/icons";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useState } from "react";
-import { WBEModal } from "@/features/wbes/components/WBEModal";
+import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { DeleteProjectModal } from "@/components/projects/DeleteProjectModal";
 import { Can } from "@/components/auth/Can";
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
@@ -54,9 +56,9 @@ export const ProjectOverview = () => {
     data,
     isLoading: wbesLoading,
     refetch: refetchWBEs,
-  } = useWBEs({
+  } = useWBSElements({
     projectId: projectId,
-    parentWbeId: "null", // Explicitly ask for root WBEs
+    // Omit parentWbsElementId to fetch root-level WBEs (no parent filter)
   });
   const wbes = data?.items || [];
 
@@ -107,7 +109,7 @@ export const ProjectOverview = () => {
     }
   };
 
-  const { mutateAsync: createWBE } = useCreateWBE({
+  const { mutateAsync: createWBE } = useCreateWBSElement({
     onSuccess: () => {
       refetchWBEs();
       setModalOpen(false);
@@ -118,19 +120,14 @@ export const ProjectOverview = () => {
     setModalOpen(true);
   };
 
-  const handleRowClick = (wbe: WBERead) => {
-    navigate(`/projects/${projectId}/wbes/${wbe.wbe_id}`);
+  const handleRowClick = (wbe: WBSElementRead) => {
+    navigate(`/projects/${projectId}/wbs-elements/${wbe.wbs_element_id}`);
   };
 
   return (
     <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
-      <Breadcrumb
-        items={[
-          { title: <Link to="/">Home</Link> },
-          { title: <Link to="/projects">Projects</Link> },
-          { title: project?.code || "Project" },
-        ]}
-        style={{ marginBottom: token.paddingMD }}
+      <EntityBreadcrumb
+        items={[{ label: project?.code || "Project" }]}
       />
       <Flex
         justify="space-between"
@@ -188,7 +185,7 @@ export const ProjectOverview = () => {
           <ProjectHeaderCard
             project={project}
             loading={projectLoading}
-            actualCosts={budgetStatus?.total_spend}
+            actualCosts={(budgetStatus as Record<string, unknown> | undefined)?.total_spend as number | undefined}
             extraContent={
               projectId ? (
                 <CostHistoryChart
@@ -204,24 +201,24 @@ export const ProjectOverview = () => {
 
           {/* Root WBEs */}
           <Card
-            title="Root Work Breakdown Elements"
+            title="Root WBS Elements"
             style={{ marginBottom: token.marginLG }}
             extra={
               <Space>
                 <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
-                <Can permission="wbe-create">
+                <Can permission="wbs-element-create">
                   <Button
                     type="primary"
                     icon={<PlusOutlined />}
                     onClick={handleCreate}
                   >
-                    {isMobile ? undefined : "Add Root WBE"}
+                    {isMobile ? undefined : "Add Root WBS Element"}
                   </Button>
                 </Can>
               </Space>
             }
           >
-            <WBETable
+            <WBSElementTable
               wbes={wbes || []}
               loading={wbesLoading}
               onRowClick={handleRowClick}
@@ -242,20 +239,20 @@ export const ProjectOverview = () => {
             onClose={() => setHistoryOpen(false)}
             entityName={`Project: ${project.name}`}
             isLoading={historyLoading}
-            versions={(historyVersions || []).map((version, idx, arr) => {
+            versions={(historyVersions || []).map((v, idx, arr) => {
+              const version = v as Record<string, unknown>;
               return {
                 id: `v${arr.length - idx}`,
-                valid_from: version.valid_time || "",
-                transaction_time: version.transaction_time || "",
-                changed_by: version.created_by_name || "System",
-                valid_to: null, // The backend formatter handles unbounded ranges
+                valid_from: (version.valid_time as string) || "",
+                transaction_time: (version.transaction_time as string) || "",
+                changed_by: (version.created_by_name as string) || "System",
+                valid_to: null,
                 changes:
                   idx === 0 ? { created: "initial" } : { updated: "changed" },
-                // Backend-formatted temporal fields (new API format)
-                valid_time_formatted: version.valid_time_formatted,
-                transaction_time_formatted: version.transaction_time_formatted,
+                valid_time_formatted: version.valid_time_formatted as Record<string, unknown>,
+                transaction_time_formatted: version.transaction_time_formatted as Version["transaction_time_formatted"],
               };
-            })}
+            }) as unknown as Version[]}
           />
           <ProjectEditModal
             open={editModalOpen}
@@ -279,7 +276,7 @@ export const ProjectOverview = () => {
         </>
       )}
 
-      <WBEModal
+      <WBSElementModal
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={async (values) => {
@@ -287,12 +284,12 @@ export const ProjectOverview = () => {
             ...values,
             project_id: projectId!,
             level: 1,
-          } as WBECreate);
+          } as WBSElementCreate);
         }}
         confirmLoading={false}
         initialValues={null}
         projectId={projectId}
-        parentWbeId={null}
+        parentWbsElementId={null}
         parentName="Project Root"
       />
     </div>

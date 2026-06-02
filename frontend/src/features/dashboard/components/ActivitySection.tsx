@@ -31,11 +31,12 @@ export function ActivitySection({
 
   // Entity type colors for icons
   const getEntityColor = () => {
-    const colorMap = {
+    const colorMap: Record<string, string> = {
       project: colors.primary,
-      wbe: colors.info,
+      wbs_element: colors.info,
       cost_element: colors.chartEV,
       change_order: colors.chartForecast,
+      cost_event: colors.chartPV,
     };
     return colorMap[entityType] || colors.primary;
   };

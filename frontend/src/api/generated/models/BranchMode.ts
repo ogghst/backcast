@@ -9,7 +9,4 @@
  * - ISOLATED: Only return entities from the specified branch
  * - MERGED: Fall back to main branch if entity not found on specified branch
  */
-export enum BranchMode {
-    ISOLATED = 'isolated',
-    MERGED = 'merged',
-}
+export type BranchMode = 'isolated' | 'merged';

@@ -203,7 +203,6 @@ export const AIModelManagementModal = ({
         onOk={handleModelSubmit}
         confirmLoading={isCreating || isUpdating}
         initialValues={selectedModel}
-        providerId={providerId}
       />
     </>
   );

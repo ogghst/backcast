@@ -17,7 +17,7 @@ interface ResponsiveLayoutConfig {
 export function useResponsiveLayout(): ResponsiveLayoutConfig {
   const { md, lg } = useBreakpoint();
 
-  return useMemo(() => {
+  return useMemo((): ResponsiveLayoutConfig => {
     const isMobile = !md;
     const isTablet = !!md && !lg;
 
@@ -26,7 +26,7 @@ export function useResponsiveLayout(): ResponsiveLayoutConfig {
         breakpoints: { xs: 0 },
         cols: { xs: 1 },
         rowHeight: 80,
-        margin: [8, 8] as [number, number],
+        margin: [8, 8],
         isMobile: true,
         isTablet: false,
       };
@@ -37,7 +37,7 @@ export function useResponsiveLayout(): ResponsiveLayoutConfig {
         breakpoints: { md: 768, sm: 0 },
         cols: { md: 8, sm: 1 },
         rowHeight: 80,
-        margin: [16, 16] as [number, number],
+        margin: [16, 16],
         isMobile: false,
         isTablet: true,
       };
@@ -47,7 +47,7 @@ export function useResponsiveLayout(): ResponsiveLayoutConfig {
       breakpoints: { lg: 1200, md: 996, sm: 768, xs: 480 },
       cols: { lg: 12, md: 10, sm: 6, xs: 4 },
       rowHeight: 80,
-      margin: [12, 12] as [number, number],
+      margin: [12, 12],
       isMobile: false,
       isTablet: false,
     };

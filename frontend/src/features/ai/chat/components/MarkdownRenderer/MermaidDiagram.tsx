@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Spin, Alert, theme as antdTheme } from 'antd';
 import { createMermaidConfig, isSupportedMermaidDiagram } from '../../utils/markdown/mermaid.config';
 import { useThemeTokens } from '@/hooks/useThemeTokens';
-import type { Mermaid } from 'mermaid';
+import type { MermaidConfig } from 'mermaid';
 
 interface MermaidDiagramProps {
   /** Mermaid diagram code */
@@ -17,7 +17,11 @@ interface MermaidDiagramProps {
 }
 
 interface MermaidModule {
-  default: typeof Mermaid;
+  default: {
+    initialize: (config: MermaidConfig) => void;
+    startOnLoad: boolean;
+    render: (id: string, code: string) => Promise<{ svg: string }>;
+  };
 }
 
 /**
@@ -36,7 +40,7 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [svgContent, setSvgContent] = useState<string>('');
-  const [mermaidInstance, setMermaidInstance] = useState<Mermaid | null>(null);
+  const [mermaidInstance, setMermaidInstance] = useState<MermaidModule['default'] | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderIdRef = useRef<string>('');
   const renderCounterRef = useRef<number>(0);

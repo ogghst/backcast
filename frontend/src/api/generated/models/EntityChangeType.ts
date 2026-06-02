@@ -2,8 +2,4 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export enum EntityChangeType {
-    ADDED = 'added',
-    MODIFIED = 'modified',
-    REMOVED = 'removed',
-}
+export type EntityChangeType = 'added' | 'modified' | 'removed';

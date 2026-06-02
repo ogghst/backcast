@@ -21,7 +21,7 @@ from app.services.branch_service import BranchService
     name="get_temporal_context",
     description="Read current temporal context (date, branch, mode).",
     permissions=[],  # No special permissions required
-    category="temporal",
+    category="context",
     risk_level=RiskLevel.LOW,
 )
 async def get_temporal_context(
@@ -78,7 +78,7 @@ async def get_temporal_context(
     name="set_temporal_context",
     description="Change temporal context (date, branch, mode).",
     permissions=["temporal-write"],
-    category="temporal",
+    category="context",
     risk_level=RiskLevel.LOW,
 )
 async def set_temporal_context(

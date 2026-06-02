@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MetricCard } from "../MetricCard";
 import {
-  MetricMetadata,
+  MetricCategory,
+  type MetricMetadata,
 } from "../../types";
 
 // Mock the theme hook
@@ -31,7 +32,7 @@ describe("MetricCard", () => {
     name: "Cost Performance Index",
     description:
       "Ratio of earned value to actual cost. CPI < 1.0 indicates the project is over budget.",
-    category: "Performance" as const,
+    category: MetricCategory.PERFORMANCE,
     targetRanges: { min: 0, max: 2, good: 1.0 },
     higherIsBetter: true,
     format: "number",
@@ -109,7 +110,7 @@ describe("MetricCard", () => {
         key: "bac",
         name: "Budget at Completion",
         description: "Total planned budget",
-        category: "Cost" as const,
+        category: MetricCategory.COST,
         targetRanges: { min: 0, max: Infinity },
         higherIsBetter: false,
         format: "currency",
@@ -133,7 +134,7 @@ describe("MetricCard", () => {
         key: "spi",
         name: "Schedule Performance Index",
         description: "Schedule efficiency ratio",
-        category: "Schedule" as const,
+        category: MetricCategory.SCHEDULE,
         targetRanges: { min: 0, max: 2, good: 1.0 },
         higherIsBetter: true,
         format: "percentage",
@@ -322,7 +323,7 @@ describe("MetricCard", () => {
         key: "cv",
         name: "Cost Variance",
         description: "Difference between earned value and actual cost",
-        category: "Cost" as const,
+        category: MetricCategory.COST,
         targetRanges: { min: -Infinity, max: Infinity, good: 0 },
         higherIsBetter: true,
         format: "currency",
@@ -346,7 +347,7 @@ describe("MetricCard", () => {
         key: "bac",
         name: "Budget at Completion",
         description: "Total planned budget",
-        category: "Cost" as const,
+        category: MetricCategory.COST,
         targetRanges: { min: 0, max: Infinity },
         higherIsBetter: false,
         format: "currency",

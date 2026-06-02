@@ -12,19 +12,10 @@
  */
 
 import { memo } from "react";
-import { RobotOutlined, ClockCircleOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { RobotOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 import type { AgentActivity } from "./AgentActivityPanel";
-
-// Subagent display names - colors will be applied from theme
-const SUBAGENT_STYLES: Record<string, { name: string; icon: string; colorKey: keyof ReturnType<typeof useThemeTokens>['colors'] }> = {
-  evm_analyst: { name: "EVM Analyst", icon: "📊", colorKey: "info" },
-  change_order_manager: { name: "Change Order", icon: "📋", colorKey: "warning" },
-  forecast_analyst: { name: "Forecast", icon: "📈", colorKey: "success" },
-  project_admin: { name: "Project Admin", icon: "📁", colorKey: "primary" },
-  advanced_analyst: { name: "Advanced Analyst", icon: "🔬", colorKey: "error" },
-};
 
 interface AgentStatusBadgeProps {
   /** Current agent activity (latest only) */
@@ -38,28 +29,6 @@ interface AgentStatusBadgeProps {
  */
 function getActivityConfig(activity: AgentActivity, colors: ReturnType<typeof useThemeTokens>['colors']) {
   switch (activity.type) {
-    case "planning":
-      return {
-        icon: <ClockCircleOutlined />,
-        label: "Planning",
-        color: colors.warning,
-        bgGradient: `linear-gradient(135deg, ${colors.warning}20 0%, ${colors.warning}10 100%)`,
-      };
-    case "delegating": {
-      const subagentStyle = SUBAGENT_STYLES[activity.subagent || ""] || {
-        name: activity.subagent || "Specialist",
-        icon: "🤖",
-        colorKey: "primary" as const,
-      };
-      const color = colors[subagentStyle.colorKey];
-      return {
-        icon: <span style={{ fontSize: 12 }}>{subagentStyle.icon}</span>,
-        label: subagentStyle.name,
-        message: activity.message,
-        color,
-        bgGradient: `linear-gradient(135deg, ${color}20 0%, ${color}10 100%)`,
-      };
-    }
     case "executing":
       return {
         icon: <ThunderboltOutlined />,
@@ -201,22 +170,6 @@ export const AgentStatusBadge = memo(({ activity, compact = false }: AgentStatus
         {activity.type === "thinking" || activity.type === "executing" ? (
           <LoadingDots color={config.color} />
         ) : null}
-
-        {/* Optional message for subagent delegation (non-compact only) */}
-        {!compact && activity.type === "delegating" && config.message && (
-          <span
-            style={{
-              fontSize: typography.sizes.xs,
-              color: colors.textSecondary,
-              maxWidth: 120,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {config.message}
-          </span>
-        )}
       </div>
     </>
   );

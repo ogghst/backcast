@@ -7,7 +7,7 @@
 
 import { useMemo } from "react";
 import { Card, Typography } from "antd";
-import type { EChartsOption } from "echarts";
+
 import { EChartsBaseChart } from "@/features/evm/components/charts/EChartsBaseChart";
 import { useEChartsTheme } from "@/features/evm/utils/echartsTheme";
 import {
@@ -16,11 +16,19 @@ import {
 } from "@/features/evm/utils/echartsConfig";
 import { useEVMTimeSeries } from "@/features/evm/api/useEVMMetrics";
 import type { EVMTimeSeriesPoint } from "@/features/evm/types";
+import { EntityType, EVMTimeSeriesGranularity } from "@/features/evm/types";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
 const { Title } = Typography;
 
-type CostEntityType = "cost_element" | "wbe" | "project";
+type CostEntityType = "cost_element" | "wbs_element" | "project" | "work_package";
+
+const ENTITY_TYPE_MAP: Record<CostEntityType, EntityType> = {
+  cost_element: EntityType.COST_ELEMENT,
+  wbs_element: EntityType.WBS_ELEMENT,
+  project: EntityType.PROJECT,
+  work_package: EntityType.WORK_PACKAGE,
+};
 
 export interface CostHistoryChartProps {
   entityType: CostEntityType;
@@ -51,10 +59,10 @@ export const CostHistoryChart = ({
   projectId,
 }: CostHistoryChartProps) => {
   const { data: tsData, isLoading, error } = useEVMTimeSeries(
-    entityType === "cost_element" ? "cost_element" : entityType,
+    ENTITY_TYPE_MAP[entityType],
     entityId,
-    "week",
-    { controlDate },
+    EVMTimeSeriesGranularity.WEEK,
+    { controlDate } as Parameters<typeof useEVMTimeSeries>[3],
   );
 
   const echartsTheme = useEChartsTheme();
@@ -64,7 +72,7 @@ export const CostHistoryChart = ({
 
   const points = tsData?.points as EVMTimeSeriesPoint[] | undefined;
 
-  const chartOptions = useMemo<EChartsOption | null>(() => {
+  const chartOptions = useMemo(() => {
     if (!points || points.length === 0) return null;
 
     const pvData = points.map((p) => [p.date, p.pv]);
@@ -83,13 +91,14 @@ export const CostHistoryChart = ({
       tooltip: {
         ...echartsTheme.tooltipConfig,
         trigger: "axis" as const,
-        formatter: (params: { color: string; seriesName: string; value: [string, number] }[]) => {
-          if (!Array.isArray(params) || params.length === 0) return "";
-          const dateLabel = dateFormatter(params[0].value[0]);
-          const rows = params
+        formatter: (params: unknown) => {
+          const p = params as { color: string; seriesName: string; value: [string, number] }[];
+          if (!Array.isArray(p) || p.length === 0) return "";
+          const dateLabel = dateFormatter(p[0].value[0]);
+          const rows = p
             .map(
-              (p) =>
-                `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${p.color}; margin-right: 6px;"></span>${p.seriesName}<span style="float: right; font-weight: 600; margin-left: 16px;">${currencyFormatter(p.value[1])}</span>`,
+              (item) =>
+                `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${item.color}; margin-right: 6px;"></span>${item.seriesName}<span style="float: right; font-weight: 600; margin-left: 16px;">${currencyFormatter(item.value[1])}</span>`,
             )
             .join("<br/>");
           return `<div style="font-weight: 600; margin-bottom: 4px;">${dateLabel}</div>${rows}`;

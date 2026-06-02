@@ -21,7 +21,7 @@ from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
 from app.models.domain.user import User
-from app.models.domain.wbe import WBE
+from app.models.domain.wbs_element import WBSElement
 from app.models.schemas.dashboard import (
     DashboardActivity,
     DashboardData,
@@ -32,7 +32,7 @@ from app.models.schemas.dashboard import (
 # from app.services.change_order_service import ChangeOrderService
 # from app.services.cost_element_service import CostElementService
 # from app.services.project import ProjectService
-# from app.services.wbe import WBEService
+# from app.services.wbs_element_service import WBSElementService
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +54,11 @@ class DashboardService:
         from app.services.change_order_service import ChangeOrderService
         from app.services.cost_element_service import CostElementService
         from app.services.project import ProjectService
-        from app.services.wbe import WBEService
+        from app.services.wbs_element_service import WBSElementService
 
         self.session = session
         self.project_service = ProjectService(session)
-        self.wbe_service = WBEService(session)
+        self.wbs_element_service = WBSElementService(session)
         self.cost_element_service = CostElementService(session)
         self.change_order_service = ChangeOrderService(session)
 
@@ -115,7 +115,9 @@ class DashboardService:
                 p for p in recent_projects if p.project_id in accessible_ids
             ]
 
-            recent_wbes: list[WBE] = await self.wbe_service.get_recently_updated(
+            recent_wbes: list[
+                WBSElement
+            ] = await self.wbs_element_service.get_recently_updated(
                 user_id=None,
                 limit=activity_limit,
                 branch=branch,
@@ -125,21 +127,9 @@ class DashboardService:
             # Filter WBEs by user's RBAC access
             recent_wbes = [w for w in recent_wbes if w.project_id in accessible_ids]
 
-            recent_cost_elements: list[
-                CostElement
-            ] = await self.cost_element_service.get_recently_updated(
-                user_id=None,
-                limit=activity_limit,
-                branch=branch,
-                eager_load_wbe_and_project=True,  # Eager load WBE and project to avoid N+1 queries
-            )
-
-            # Filter Cost Elements by user's RBAC access (via loaded WBE's project_id)
-            recent_cost_elements = [
-                ce
-                for ce in (recent_cost_elements or [])
-                if hasattr(ce, "wbe") and ce.wbe and ce.wbe.project_id in accessible_ids
-            ]
+            # Cost Elements are now EOC line items without branch/name.
+            # Dashboard activity for "cost elements" is no longer meaningful at this level.
+            recent_cost_elements: list[CostElement] = []
 
             recent_change_orders: list[
                 ChangeOrder
@@ -159,7 +149,9 @@ class DashboardService:
 
             # Convert to dashboard activities
             project_activities = [self._project_to_activity(p) for p in recent_projects]
-            wbe_activities = [await self._wbe_to_activity(w) for w in recent_wbes]
+            wbs_element_activities = [
+                await self._wbs_element_to_activity(w) for w in recent_wbes
+            ]
             cost_element_activities = [
                 await self._cost_element_to_activity(ce) for ce in recent_cost_elements
             ]
@@ -179,7 +171,7 @@ class DashboardService:
                 last_edited_project=last_edited_project,
                 recent_activity={
                     "projects": project_activities,
-                    "wbes": wbe_activities,
+                    "wbes": wbs_element_activities,
                     "cost_elements": cost_element_activities,
                     "change_orders": change_order_activities,
                 },
@@ -218,14 +210,14 @@ class DashboardService:
             branch=project.branch,
         )
 
-    async def _wbe_to_activity(self, wbe: WBE) -> DashboardActivity:
-        """Convert a WBE to DashboardActivity.
+    async def _wbs_element_to_activity(self, wbe: WBSElement) -> DashboardActivity:
+        """Convert a WBSElement to DashboardActivity.
 
         Args:
-            wbe: WBE domain model (with project eagerly loaded if called from get_dashboard_data)
+            wbe: WBSElement domain model (with project eagerly loaded if called from get_dashboard_data)
 
         Returns:
-            DashboardActivity for the WBE
+            DashboardActivity for the WBSElement
         """
         # Use preloaded project relationship if available (from eager loading)
         # Otherwise fall back to querying (for backward compatibility)
@@ -246,7 +238,7 @@ class DashboardService:
         action = "updated"
 
         return DashboardActivity(
-            entity_id=wbe.wbe_id,
+            entity_id=wbe.wbs_element_id,
             entity_name=wbe.name,
             entity_type="wbe",
             action=action,
@@ -266,31 +258,24 @@ class DashboardService:
         """Convert a CostElement to DashboardActivity.
 
         Args:
-            cost_element: CostElement domain model (with WBE and project eagerly loaded if called from get_dashboard_data)
+            cost_element: CostElement domain model
 
         Returns:
             DashboardActivity for the cost element
         """
-        # Use preloaded WBE and project relationships if available (from eager loading)
-        # Otherwise fall back to querying (for backward compatibility)
+        # Resolve project via WorkPackage -> ControlAccount -> WBSElement
         project_name = None
         project_id = None
 
-        if cost_element.wbe_id:
-            if hasattr(cost_element, "wbe") and cost_element.wbe:
-                # Use eagerly loaded WBE (avoiding N+1 query)
-                wbe = cost_element.wbe
-                project_id = wbe.project_id
-                if hasattr(wbe, "project") and wbe.project:
-                    # Use eagerly loaded project (avoiding another N+1 query)
-                    project_name = wbe.project.name
-            else:
-                # Fall back to querying if not eagerly loaded (backward compatibility)
-                queried_wbe = await self.wbe_service.get_as_of(
-                    cost_element.wbe_id, branch="main"
-                )
-                if queried_wbe:
-                    project_id = queried_wbe.project_id
+        # Use the work_package relationship to resolve project
+        if cost_element.work_package_id:
+            from app.services.work_package_service import WorkPackageService
+
+            wp_service = WorkPackageService(self.session)
+            wp = await wp_service.get_as_of(cost_element.work_package_id, branch="main")
+            if wp:
+                project_id = await self._resolve_project_id_for_wp(wp)
+                if project_id:
                     project = await self.project_service.get_as_of(
                         project_id, branch="main"
                     )
@@ -302,7 +287,7 @@ class DashboardService:
 
         return DashboardActivity(
             entity_id=cost_element.cost_element_id,
-            entity_name=cost_element.name,
+            entity_name=f"Cost Element {str(cost_element.cost_element_id)[:8]}",
             entity_type="cost_element",
             action=action,
             timestamp=cost_element.transaction_time.lower
@@ -312,8 +297,29 @@ class DashboardService:
             actor_name=getattr(cost_element, "created_by_name", None),
             project_id=project_id,
             project_name=project_name,
-            branch=cost_element.branch,
+            branch="main",
         )
+
+    async def _resolve_project_id_for_wp(self, wp: Any) -> UUID | None:
+        """Resolve project_id from a WorkPackage via ControlAccount -> WBSElement."""
+        from app.models.domain.control_account import ControlAccount
+        from app.models.domain.wbs_element import WBSElement
+
+        stmt = (
+            select(WBSElement.project_id)
+            .join(
+                ControlAccount,
+                ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+            )
+            .where(
+                ControlAccount.control_account_id == wp.control_account_id,
+                func.upper(cast(Any, WBSElement).valid_time).is_(None),
+                cast(Any, WBSElement).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def _change_order_to_activity(
         self, change_order: ChangeOrder
@@ -419,48 +425,47 @@ class DashboardService:
             raise ValueError(f"Project {project_id} not found")
 
         # Count WBEs
-        wbe_stmt = (
+        wbs_element_stmt = (
             select(func.count())
-            .select_from(WBE)
+            .select_from(WBSElement)
             .where(
-                WBE.project_id == project_id,
+                WBSElement.project_id == project_id,
                 is_current_version_on_branch(
-                    cast(Any, WBE).valid_time,
-                    WBE.branch,
+                    cast(Any, WBSElement).valid_time,
+                    WBSElement.branch,
                     branch,
-                    cast(Any, WBE).deleted_at,
+                    cast(Any, WBSElement).deleted_at,
                 ),
             )
         )
-        wbe_result = await safe_db_execute(
+        wbs_element_result = await safe_db_execute(
             self.session,
-            self.session.execute(wbe_stmt),
+            self.session.execute(wbs_element_stmt),
             "Failed to count WBEs for project metrics",
         )
-        total_wbes = wbe_result.scalar() or 0
+        total_wbes = wbs_element_result.scalar() or 0
 
-        # Count Cost Elements
+        # Count Cost Elements (via WorkPackage -> ControlAccount -> WBSElement)
+        from app.models.domain.control_account import ControlAccount
+        from app.models.domain.work_package import WorkPackage
+
         ce_stmt = (
             select(func.count())
             .select_from(CostElement)
+            .join(
+                WorkPackage, CostElement.work_package_id == WorkPackage.work_package_id
+            )
+            .join(
+                ControlAccount,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
+            .join(
+                WBSElement, ControlAccount.wbs_element_id == WBSElement.wbs_element_id
+            )
             .where(
-                CostElement.wbe_id.in_(
-                    select(WBE.wbe_id).where(
-                        WBE.project_id == project_id,
-                        is_current_version_on_branch(
-                            cast(Any, WBE).valid_time,
-                            WBE.branch,
-                            branch,
-                            cast(Any, WBE).deleted_at,
-                        ),
-                    )
-                ),
-                is_current_version_on_branch(
-                    cast(Any, CostElement).valid_time,
-                    CostElement.branch,
-                    branch,
-                    cast(Any, CostElement).deleted_at,
-                ),
+                WBSElement.project_id == project_id,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
             )
         )
         ce_result = await safe_db_execute(

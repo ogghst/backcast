@@ -127,7 +127,7 @@ export const AIProviderConfigModal = ({
   };
 
   // Filter out DeepSeek-managed keys from the generic table
-  const deepseekKeys = new Set(DEEPSEEK_SETTINGS.map((s) => s.key));
+  const deepseekKeys = new Set<string>(DEEPSEEK_SETTINGS.map((s) => s.key));
   const genericConfigs = isDeepseek
     ? (configs || []).filter((c) => !deepseekKeys.has(c.key))
     : configs || [];

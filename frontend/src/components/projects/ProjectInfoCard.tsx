@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Descriptions, Typography, Tag, theme, message } from "antd";
+import { Descriptions, Typography, Tag, message } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { EntityInfoCard } from "@/components/common/EntityInfoCard";
 import { entityInfoDescriptionsProps } from "@/components/common/entityInfoDescriptionsProps";
 import { CopyOutlined } from "@ant-design/icons";
+import { useExtendedToken } from "@/hooks/useToken";
 
 const { Text } = Typography;
 
@@ -24,7 +25,7 @@ interface ProjectInfoCardProps {
 export const ProjectInfoCard = ({
   project,
 }: ProjectInfoCardProps) => {
-  const { token } = theme.useToken();
+  const { token } = useExtendedToken();
   const [copied, setCopied] = useState(false);
 
   const handleCopyId = async () => {

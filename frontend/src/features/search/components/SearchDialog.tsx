@@ -7,31 +7,31 @@ import type { SearchResultItem, EntityType } from "../types";
 
 const ENTITY_COLORS: Record<EntityType, string> = {
   project: "blue",
-  wbe: "green",
+  wbs_element: "green",
   cost_element: "orange",
   schedule_baseline: "cyan",
   change_order: "red",
   cost_registration: "gold",
   forecast: "purple",
-  quality_event: "magenta",
+  cost_event: "magenta",
   progress_entry: "geekblue",
   user: "volcano",
-  department: "lime",
+  organizational_unit: "lime",
   cost_element_type: "turquoise",
 };
 
 const ENTITY_LABELS: Record<EntityType, string> = {
   project: "Project",
-  wbe: "WBE",
+  wbs_element: "WBS Element",
   cost_element: "Cost Element",
   schedule_baseline: "Schedule Baseline",
   change_order: "Change Order",
   cost_registration: "Cost Registration",
   forecast: "Forecast",
-  quality_event: "Quality Event",
+  cost_event: "Cost Event",
   progress_entry: "Progress Entry",
   user: "User",
-  department: "Department",
+  organizational_unit: "Org Unit",
   cost_element_type: "Cost Element Type",
 };
 
@@ -39,13 +39,13 @@ function getEntityRoute(result: SearchResultItem): string {
   switch (result.entity_type) {
     case "project":
       return `/projects/${result.root_id}`;
-    case "wbe":
+    case "wbs_element":
       return result.project_id
-        ? `/projects/${result.project_id}/wbes/${result.root_id}`
+        ? `/projects/${result.project_id}/wbs-elements/${result.root_id}`
         : "/";
     case "cost_element":
-      return result.wbe_id && result.project_id
-        ? `/projects/${result.project_id}/wbes/${result.wbe_id}`
+      return result.wbs_element_id && result.project_id
+        ? `/projects/${result.project_id}/wbs-elements/${result.wbs_element_id}`
         : "/";
     case "change_order":
       return result.project_id
@@ -53,12 +53,12 @@ function getEntityRoute(result: SearchResultItem): string {
         : "/";
     case "user":
       return "/admin/users";
-    case "department":
+    case "organizational_unit":
       return "/admin/departments";
     case "cost_element_type":
       return "/admin/cost-element-types";
-    case "package_type":
-      return "/admin/package-types";
+    case "cost_event":
+      return "/admin/cost-event-types";
     default:
       return "/";
   }
@@ -83,7 +83,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<import("antd/es/input").InputRef>(null);
   const navigate = useNavigate();
   const { token } = theme.useToken();
 
@@ -145,13 +145,13 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
       width={560}
       styles={{
         body: { padding: 0 },
-        content: { top: 80 },
       }}
+      style={{ top: 80 }}
       destroyOnHidden
     >
       <div style={{ padding: `${token.paddingMD}px ${token.paddingLG}px` }}>
         <Input
-          ref={inputRef as React.Ref<HTMLInputElement>}
+          ref={inputRef}
           placeholder="Search entities..."
           prefix={<SearchOutlined />}
           value={query}

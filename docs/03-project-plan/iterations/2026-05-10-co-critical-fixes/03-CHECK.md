@@ -114,7 +114,7 @@ co = await self.get_as_of(change_order_id, branch=branch)
 
 **Status:** ✅ **FULLY COMPLIANT**
 
-**Verification Method:** Comparison with `/home/nicola/dev/backcast/docs/05-user-guide/evcs-wbe-user-guide.md`
+**Verification Method:** Comparison with `/home/nicola/dev/backcast/docs/05-user-guide/evcs-wbs-element-user-guide.md`
 
 **Findings:**
 

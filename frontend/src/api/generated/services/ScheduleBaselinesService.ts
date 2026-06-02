@@ -21,7 +21,7 @@ export class ScheduleBaselinesService {
      * @param branch Branch to query
      * @param branchMode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: get schedule baselines as of this timestamp (ISO 8601)
-     * @param costElementId Filter by Cost Element ID
+     * @param costElementId Filter by Work Package ID (legacy param name)
      * @returns any Successful Response
      * @throws ApiError
      */

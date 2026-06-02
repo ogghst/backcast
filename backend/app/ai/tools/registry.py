@@ -100,9 +100,11 @@ class ToolRegistry:
                 if not any(p in permissions for p in metadata.permissions):
                     continue
 
-            # Convert to LangChain tool
-            langchain_tool = to_langchain_tool(func, context)
-            tools.append(langchain_tool)
+            # Use BaseTool directly if already converted by @ai_tool
+            if isinstance(func, BaseTool):
+                tools.append(func)
+            else:
+                tools.append(to_langchain_tool(func, context))
 
         return tools
 

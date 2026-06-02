@@ -3,11 +3,20 @@ import { theme, Tag } from "antd";
 import { FileTextOutlined, UserOutlined } from "@ant-design/icons";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { PlanStepIndicator } from "./PlanStepIndicator";
+import type { PlanStep } from "../types";
 
 export interface BriefingState {
   markdown: string;
   completedSpecialists: string[];
   lastSpecialist: string;
+  /** Execution plan with live step status — null if no plan was created */
+  plan: {
+    steps: PlanStep[];
+    totalSteps: number;
+    completedSteps: number;
+    complexity: "simple" | "moderate" | "complex";
+  } | null;
 }
 
 export const BRIEFING_KEYFRAMES = `
@@ -93,7 +102,7 @@ export const BriefingContent = memo(
                 color: colors.textSecondary,
               }}
             >
-              Briefing
+              Briefing & Planning
               {completedCount > 0 && (
                 <span style={{ opacity: 0.7, marginLeft: 6 }}>
                   {completedCount} specialist{completedCount !== 1 ? "s" : ""}
@@ -129,6 +138,15 @@ export const BriefingContent = memo(
               borderTop: `1px solid ${colors.borderSecondary}`,
             }}
           >
+            {briefing.plan && (
+              <PlanStepIndicator
+                steps={briefing.plan.steps}
+                totalSteps={briefing.plan.totalSteps}
+                completedSteps={briefing.plan.completedSteps}
+                complexity={briefing.plan.complexity}
+                isStreaming={isStreaming}
+              />
+            )}
             <div
               style={{
                 fontSize: 12,

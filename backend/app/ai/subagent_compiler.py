@@ -12,10 +12,11 @@ from langchain.agents import create_agent as langchain_create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-from app.ai.config import AgentConfig
+from app.ai.config import AI_SEQUENTIAL_TOOL_CALLS, AgentConfig
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.sequential_tool_calls import SequentialToolCallsMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
+from app.ai.schemas import SpecialistOutput
 from app.ai.tools import (
     create_project_tools,
     filter_tools_by_execution_mode,
@@ -26,15 +27,6 @@ from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
 
-_SPECIALIST_SCOPE_SUFFIX = (
-    "\n\n## SCOPE\n"
-    "Focus only on your specialist domain.\n\n"
-    "## OUTPUT FORMAT\n"
-    "After tool calls, write your findings with these sections:\n"
-    "- ## Key Findings: Most important discoveries\n"
-    "- ## Open Questions: Questions needing answers\n"
-    "- ## Delegation Notes: Context for follow-up work (IDs, partial results)\n"
-)
 
 DEFAULT_SYSTEM_PROMPT = """You are a Backcast project management assistant.
 
@@ -86,15 +78,18 @@ def build_backcast_middleware(
     Returns:
         List with TemporalContextMiddleware and BackcastSecurityMiddleware.
     """
-    return [
-        SequentialToolCallsMiddleware(),
+    middleware: list[Any] = []
+    if AI_SEQUENTIAL_TOOL_CALLS:
+        middleware.append(SequentialToolCallsMiddleware())
+    middleware.extend([
         TemporalContextMiddleware(context),
         BackcastSecurityMiddleware(
             context,
             tools=tools,
             interrupt_node=None,
         ),
-    ]
+    ])
+    return middleware
 
 
 def compile_subagents(
@@ -132,19 +127,26 @@ def compile_subagents(
         description = cfg.get("description", "")
         system_prompt = cfg.get("system_prompt", "")
         allowed_tool_names = cfg.get("allowed_tools")
-        schema = cfg.get("structured_output_schema")
+        schema = cfg.get("structured_output_schema") or SpecialistOutput
 
-        # Append scope boundary and output format instructions to system prompt
-        # so they don't need to be injected per-invocation in the HumanMessage.
-        system_prompt = system_prompt.rstrip() + _SPECIALIST_SCOPE_SUFFIX
-
-        # Resolve the tool-name list for this subagent
+        # Resolve the tool-name list for this subagent.
+        # Convention:
+        #   allowed_tools = None      → no tools ( specialist has no regular tool access)
+        #   allowed_tools = ["*"]     → all available tools (catch-all / fallback agents)
+        #   allowed_tools = ["t1",…]  → only the listed tools
         if allowed_tool_names is None:
+            # No tools configured — specialist gets nothing from the regular pool.
+            subagent_tools = []
+        elif "*" in allowed_tool_names:
+            # Wildcard: all tools (used by general_purpose / fallback agents).
             filtered_tool_names = (
                 list(allowed_tools)
                 if allowed_tools is not None
                 else [t.name for t in available_tools]
             )
+            subagent_tools = [
+                t for t in available_tools if t.name in filtered_tool_names
+            ]
         else:
             if allowed_tools is not None:
                 filtered_tool_names = [
@@ -153,7 +155,9 @@ def compile_subagents(
             else:
                 filtered_tool_names = allowed_tool_names
 
-        subagent_tools = [t for t in available_tools if t.name in filtered_tool_names]
+            subagent_tools = [
+                t for t in available_tools if t.name in filtered_tool_names
+            ]
 
         if not subagent_tools:
             logger.warning(
@@ -176,30 +180,31 @@ def compile_subagents(
         # Belt-and-suspenders: replace the tools node's afunc at the instance
         # level so the sequential version is used even if the class-level
         # monkey-patch is bypassed by LangGraph's internal dispatch.
-        tools_spec = runnable.builder.nodes.get("tools")
-        if tools_spec is not None and hasattr(tools_spec, "runnable"):
-            tool_node_instance = tools_spec.runnable
-            if hasattr(tool_node_instance, "afunc"):
-                tool_node_instance.afunc = types.MethodType(
-                    SequentialToolNode._afunc, tool_node_instance
-                )
-                logger.info(
-                    "Replaced tools node afunc for specialist '%s': %s → sequential",
-                    name,
-                    type(tool_node_instance).__name__,
-                )
+        if AI_SEQUENTIAL_TOOL_CALLS:
+            tools_spec = runnable.builder.nodes.get("tools")
+            if tools_spec is not None and hasattr(tools_spec, "runnable"):
+                tool_node_instance = tools_spec.runnable
+                if hasattr(tool_node_instance, "afunc"):
+                    tool_node_instance.afunc = types.MethodType(
+                        SequentialToolNode._afunc, tool_node_instance
+                    )
+                    logger.info(
+                        "Replaced tools node afunc for specialist '%s': %s → sequential",
+                        name,
+                        type(tool_node_instance).__name__,
+                    )
+                else:
+                    logger.warning(
+                        "Tools node for specialist '%s' has no afunc attribute (type=%s)",
+                        name,
+                        type(tool_node_instance).__name__,
+                    )
             else:
                 logger.warning(
-                    "Tools node for specialist '%s' has no afunc attribute (type=%s)",
+                    "No 'tools' node found in specialist '%s' graph (nodes=%s)",
                     name,
-                    type(tool_node_instance).__name__,
+                    list(runnable.builder.nodes.keys()),
                 )
-        else:
-            logger.warning(
-                "No 'tools' node found in specialist '%s' graph (nodes=%s)",
-                name,
-                list(runnable.builder.nodes.keys()),
-            )
 
         results.append(
             {

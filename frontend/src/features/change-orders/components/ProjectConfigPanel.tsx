@@ -64,8 +64,9 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
   const updateMutation = useUpdateProjectConfig(projectId);
   const resetMutation = useResetProjectConfig(projectId);
 
-  // Has project override? project_id is null when using global defaults
-  const hasOverride = projectConfig?.project_id !== null;
+  // Has project override? project_id is non-null when project has its own config.
+  // When projectConfig is undefined (no project config exists / 404), there is no override.
+  const hasOverride = projectConfig != null && projectConfig.project_id !== null;
   const [useOverride, setUseOverride] = useState(hasOverride);
   const isReadOnly = !useOverride;
 
@@ -87,6 +88,7 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
   });
   const [workflowTransitions, setWorkflowTransitions] =
     useState<WorkflowTransitionsConfig | null>(null);
+  const [holidayCountryCode, setHolidayCountryCode] = useState<string | null>(null);
 
   // Sync server data into local state
   const prevSourceRef = useRef<typeof projectConfig | typeof globalConfig | null>(null);
@@ -100,6 +102,7 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
       setWeights(source.impact_weights);
       setBoundaries(source.score_boundaries);
       setWorkflowTransitions(source.workflow_transitions ?? null);
+      setHolidayCountryCode(source.holiday_country_code ?? null);
       prevSourceRef.current = source;
     }
   }, [projectConfig, globalConfig]);
@@ -270,6 +273,8 @@ export function ProjectConfigPanel({ projectId }: ProjectConfigPanelProps) {
                       rules={slaRules}
                       onChange={setSlaRules}
                       readOnly={isReadOnly}
+                      holidayCountryCode={holidayCountryCode}
+                      onHolidayCountryCodeChange={setHolidayCountryCode}
                     />
                   ),
                 },

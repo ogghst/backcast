@@ -30,7 +30,11 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{project_id}/documents/folders", response_model=DocumentFolderPublic, status_code=201)
+@router.post(
+    "/{project_id}/documents/folders",
+    response_model=DocumentFolderPublic,
+    status_code=201,
+)
 async def create_folder(
     project_id: UUID,
     data: DocumentFolderCreate,
@@ -45,7 +49,9 @@ async def create_folder(
     return folder  # type: ignore[return-value]
 
 
-@router.get("/{project_id}/documents/folders", response_model=list[DocumentFolderPublic])
+@router.get(
+    "/{project_id}/documents/folders", response_model=list[DocumentFolderPublic]
+)
 async def list_folders(
     project_id: UUID,
     current_user: UserIdentity = Depends(
@@ -58,7 +64,9 @@ async def list_folders(
     return await service.get_folder_tree(project_id)  # type: ignore[return-value]
 
 
-@router.put("/{project_id}/documents/folders/{folder_id}", response_model=DocumentFolderPublic)
+@router.put(
+    "/{project_id}/documents/folders/{folder_id}", response_model=DocumentFolderPublic
+)
 async def update_folder(
     project_id: UUID,
     folder_id: UUID,
@@ -96,7 +104,9 @@ async def delete_folder(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{project_id}/documents/upload", response_model=DocumentPublic, status_code=201)
+@router.post(
+    "/{project_id}/documents/upload", response_model=DocumentPublic, status_code=201
+)
 async def upload_document(
     project_id: UUID,
     file: UploadFile = File(...),
@@ -143,7 +153,9 @@ async def list_documents(
 ) -> list[DocumentPublic]:
     """List documents for a project, optionally filtered by folder."""
     service = DocumentService(db)
-    return await service.list_documents(project_id, str(folder_id) if folder_id else None, skip, limit)  # type: ignore[return-value]
+    return await service.list_documents(
+        project_id, str(folder_id) if folder_id else None, skip, limit
+    )  # type: ignore[return-value]
 
 
 @router.get("/{project_id}/documents/search", response_model=list[DocumentPublic])
@@ -224,7 +236,11 @@ async def delete_document(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{project_id}/documents/upload-version/{document_id}", response_model=DocumentVersionPublic, status_code=201)
+@router.post(
+    "/{project_id}/documents/upload-version/{document_id}",
+    response_model=DocumentVersionPublic,
+    status_code=201,
+)
 async def upload_new_version(
     project_id: UUID,
     document_id: UUID,
@@ -261,7 +277,10 @@ async def download_document(
     return {"url": url}
 
 
-@router.get("/{project_id}/documents/{document_id}/versions", response_model=list[DocumentVersionPublic])
+@router.get(
+    "/{project_id}/documents/{document_id}/versions",
+    response_model=list[DocumentVersionPublic],
+)
 async def get_version_history(
     project_id: UUID,
     document_id: UUID,
@@ -275,7 +294,10 @@ async def get_version_history(
     return await service.get_version_history(document_id, project_id)  # type: ignore[return-value]
 
 
-@router.get("/{project_id}/documents/{document_id}/versions/{version_number}", response_model=DocumentVersionPublic)
+@router.get(
+    "/{project_id}/documents/{document_id}/versions/{version_number}",
+    response_model=DocumentVersionPublic,
+)
 async def get_version(
     project_id: UUID,
     document_id: UUID,
@@ -312,7 +334,9 @@ async def lock_document(
     return await service.lock_document(document_id, current_user.user_id, project_id)  # type: ignore[return-value]
 
 
-@router.delete("/{project_id}/documents/{document_id}/lock", response_model=DocumentPublic)
+@router.delete(
+    "/{project_id}/documents/{document_id}/lock", response_model=DocumentPublic
+)
 async def unlock_document(
     project_id: UUID,
     document_id: UUID,
@@ -331,7 +355,11 @@ async def unlock_document(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{project_id}/documents/{document_id}/links", response_model=DocumentLinkPublic, status_code=201)
+@router.post(
+    "/{project_id}/documents/{document_id}/links",
+    response_model=DocumentLinkPublic,
+    status_code=201,
+)
 async def link_document(
     project_id: UUID,
     document_id: UUID,
@@ -348,7 +376,10 @@ async def link_document(
     )
 
 
-@router.delete("/{project_id}/documents/{document_id}/links/{entity_type}/{entity_id}", status_code=204)
+@router.delete(
+    "/{project_id}/documents/{document_id}/links/{entity_type}/{entity_id}",
+    status_code=204,
+)
 async def unlink_document(
     project_id: UUID,
     document_id: UUID,
@@ -364,7 +395,10 @@ async def unlink_document(
     await service.unlink_document(document_id, entity_type, str(entity_id))
 
 
-@router.put("/{project_id}/documents/{document_id}/links/{entity_type}/{entity_id}", response_model=DocumentLinkPublic)
+@router.put(
+    "/{project_id}/documents/{document_id}/links/{entity_type}/{entity_id}",
+    response_model=DocumentLinkPublic,
+)
 async def update_link_note(
     project_id: UUID,
     document_id: UUID,
@@ -386,7 +420,10 @@ async def update_link_note(
     return link  # type: ignore[return-value]
 
 
-@router.get("/{project_id}/documents/{document_id}/links", response_model=list[DocumentLinkPublic])
+@router.get(
+    "/{project_id}/documents/{document_id}/links",
+    response_model=list[DocumentLinkPublic],
+)
 async def get_linked_entities(
     project_id: UUID,
     document_id: UUID,
@@ -400,7 +437,10 @@ async def get_linked_entities(
     return await service.get_linked_entities(document_id)  # type: ignore[return-value]
 
 
-@router.get("/{project_id}/documents/linked/{entity_type}/{entity_id}", response_model=list[DocumentPublic])
+@router.get(
+    "/{project_id}/documents/linked/{entity_type}/{entity_id}",
+    response_model=list[DocumentPublic],
+)
 async def get_linked_documents(
     project_id: UUID,
     entity_type: str,

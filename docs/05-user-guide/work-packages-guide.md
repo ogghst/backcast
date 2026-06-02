@@ -1,22 +1,21 @@
 # Work Packages User Guide
 
-**Version:** 2.0
-**Last Updated:** 2026-05-21
-**Target Audience:** Project Managers, Cost Engineers, Quality Managers
+**Version:** 3.0
+**Last Updated:** 2026-05-30
+**Target Audience:** Project Managers, Cost Engineers, Control Account Managers
 
 ---
 
 ## Table of Contents
 
 1. [Introduction](#introduction)
-2. [Work Package Types](#work-package-types)
-3. [How Work Packages Work in Backcast](#how-work-packages-work-in-backcast)
-4. [Creating and Managing Work Packages](#creating-and-managing-work-packages)
-5. [Cost of Quality (COQ) for Quality-Typed Packages](#cost-of-quality-coq-for-quality-typed-packages)
-6. [COQ Metrics](#coq-metrics)
-7. [COQ Integration with EVM](#coq-integration-with-evm)
-8. [Summary Card](#summary-card)
-9. [Standards References](#standards-references)
+2. [How Work Packages Work in Backcast](#how-work-packages-work-in-backcast)
+3. [Creating and Managing Work Packages](#creating-and-managing-work-packages)
+4. [Work Package Sub-Resources](#work-package-sub-resources)
+5. [Cost Events and Cost of Quality (COQ)](#cost-events-and-cost-of-quality-coq)
+6. [EVM Integration](#evm-integration)
+7. [Summary Card](#summary-card)
+8. [Standards References](#standards-references)
 
 ---
 
@@ -24,106 +23,106 @@
 
 ### What are Work Packages?
 
-Work Packages are a project-scoped grouping mechanism for cost registrations. Inspired by SAP internal orders and service orders, they allow project managers to organize actual costs by scope, activity, or event type -- beyond the default cost element breakdown.
+Work Packages are the lowest-level budget holders in Backcast's ANSI-748 Work Breakdown Structure. Each Work Package sits under a Control Account and holds an allocated budget (`budget_amount`) along with optional schedule baseline and forecast references. Work Packages contain Cost Elements, against which actual costs (Cost Registrations) are tracked.
 
-Every cost registration may optionally be linked to exactly one work package. This provides a secondary axis for analyzing project costs: alongside the *what* (which cost element was charged), you can now track the *why* (which package of work drove the cost).
+The hierarchy is:
+
+```
+Project > WBSElement > ControlAccount > WorkPackage > CostElement > CostRegistration
+```
+
+Control Accounts represent the intersection of *what* (WBS Element) and *who* (Organizational Unit). Work Packages decompose each Control Account into manageable budget units for earned value management.
 
 ### Why Work Packages Matter
 
-In capital projects, costs often need to be grouped in ways that don't map cleanly to the WBS or cost element structure:
+In ANSI-748/EVM systems, the Work Package is the fundamental unit of planning and control:
 
-- **Site visits** incur travel, labor, and material costs across multiple cost elements
-- **Production phases** accumulate costs that need phase-level tracking
-- **Quality events** carry prevention, appraisal, and failure costs that must be measured
-- **Warranty batches** group post-delivery costs for claim processing
-- **Commissioning phases** track costs during handover and acceptance
+- **Budget allocation**: Each Work Package holds a specific budget amount, enabling granular cost control
+- **Schedule baseline**: Work Packages can reference a Schedule Baseline defining the planned value curve (linear, Gaussian, or logarithmic progression)
+- **Forecasting**: Work Packages can reference a Forecast (Estimate at Complete) for projected final cost
+- **EVM computation**: Cost Performance Index (CPI) and Schedule Performance Index (SPI) are computed at the Work Package level from its Cost Elements and their Cost Registrations
+- **Progress tracking**: Progress Entries record physical percent complete against Work Packages
 
-Without a grouping mechanism, these costs are scattered across the general ledger with no way to answer:
+### Relationship to Cost Events
 
-- How much did that site visit actually cost?
-- What is the total financial impact of quality failures?
-- Are commissioning costs within budget?
+Cost Events are a separate entity that tracks quality and cost events at the project level (e.g., NCRs, site visits, warranty claims). Cost Events have their own COQ (Cost of Quality) tracking. Cost Registrations optionally link to a Cost Event via `cost_event_id` for event-based cost grouping. See the [Cost Events and Cost of Quality (COQ)](#cost-events-and-cost-of-quality-coq) section below.
 
-Backcast answers these questions by making work packages part of the project's unified financial system.
+### From Quality Impacts to the Current Model
 
-### From Quality Impacts to Work Packages
-
-Quality Impacts were the first implementation of this concept -- a way to track the financial impact of quality events. Work Packages generalize this: quality impacts become one *type* of work package, alongside site visits, production phases, and other groupings.
-
-The existing COQ (Cost of Quality) metrics pipeline continues to work unchanged, filtering work packages by type.
-
----
-
-## Work Package Types
-
-Backcast uses a closed set of work package types, each serving a distinct purpose:
-
-| Type | Purpose | Example |
-|---|---|---|
-| **Quality Impact** | Track costs from quality events (NCRs, audits, rework) | `NCR-2026-0042` -- nonconformance report with rework costs |
-| **Site Visit** | Group costs from on-site activities | `SV-2026-March` -- March site inspection trip |
-| **Production Phase** | Track costs per manufacturing or assembly phase | `Phase 3 - Assembly` -- final assembly and testing |
-| **Warranty Batch** | Group post-delivery warranty claim costs | `WB-2026-Q1` -- Q1 warranty claims batch |
-| **Commissioning** | Track handover and acceptance costs | `Commissioning Line A` -- production line A commissioning |
-
-Each type shares the same base fields (name, description, status, dates, cost impact) but may have type-specific fields. Quality-typed packages, for example, carry additional COQ fields.
-
-### Status Lifecycle
-
-Work packages have a simple two-state lifecycle:
-
-- **Open** -- Costs can be posted and allocations added. The package is actively tracking costs.
-- **Closed** -- Read-only. No further cost postings. Used for completed packages.
-
-This simplified lifecycle avoids SAP-level complexity (CRTD → REL → TECO → CLSD) while covering Backcast's needs. The status can be extended via migration if more granular states are required.
+Quality Impacts were the original quality event tracking entity. They were refactored into Cost Events with configurable Cost Event Types. Work Packages are a separate ANSI-748 concept representing budget holders under Control Accounts, not a generalization of Quality Impact.
 
 ---
 
 ## How Work Packages Work in Backcast
 
-### Key Architectural Concept: Work Packages Are Flagged Cost Registrations
+### Key Architectural Concept: Work Packages Are Budget Holders
 
-Work packages do not maintain a separate cost ledger. Instead, cost registrations are *linked* to a work package via a `work_package_id` flag. This means:
+Work Packages hold budget (`budget_amount`) and contain Cost Elements. Cost Registrations track actual costs against Cost Elements. EVM metrics (CPI, SPI) are computed at the Work Package level from its Cost Elements and their Cost Registrations.
 
-- Work package costs automatically flow into EVM Actual Cost calculations
-- CPI and SPI naturally reflect work package costs (per PMI best practice)
-- The financial impact of any package is traceable to specific WBS elements and cost elements
-- No separate cost ledger is required -- work packages are part of the unified project financial system
-- Metrics are computed by filtering cost registrations by the work package flag
+- Work Package costs automatically flow into EVM Actual Cost calculations via their child Cost Elements
+- CPI and SPI reflect the combined performance of all Cost Elements within the Work Package
+- The financial status of any Work Package is traceable to specific Cost Elements and their Cost Registrations
+- Separately, Cost Events provide event-based cost grouping via `cost_event_id` on Cost Registration
 
 ### Data Model
 
 ```
-WorkPackage (event header, renamed from QualityImpact)
-  |-- work_package_id       --> Root ID (stable identity across versions)
-  |-- project_id             --> Root ID of the affected Backcast project
-  |-- name                   --> Human-readable label (required)
-  |-- package_type           --> Closed enum: quality_impact, site_visit, etc.
-  |-- description            --> Optional details about the package
-  |-- status                 --> "open" or "closed"
-  |-- event_date             --> When the event or activity occurred
-  |-- cost_impact            --> Declared/estimated total financial impact
-  |   ... quality-specific fields (see COQ section below)
-  +-- [versioned]            --> Full EVCS bitemporal versioning support
+WorkPackage [Tier 3: Branchable] (ANSI-748 budget holder under ControlAccount)
+  |-- work_package_id         --> Root ID (stable identity across versions and branches)
+  |-- control_account_id      --> Parent Control Account root ID (required)
+  |-- name                    --> Human-readable label (required)
+  |-- code                    --> Work Package code (required, max 50 chars)
+  |-- budget_amount           --> Allocated budget (DECIMAL 15,2, required, default 0)
+  |-- description             --> Optional details about the package
+  |-- status                  --> Lifecycle state, default "open"
+  |-- schedule_baseline_id    --> 1:1 reference to schedule baseline (optional)
+  |-- forecast_id             --> 1:1 reference to forecast (optional)
+  +-- [branchable]            --> Full EVCS bitemporal versioning with change order branching
 
-CostRegistration (with work_package_id flag, when set = grouped cost)
-  |-- cost_registration_id   --> Root ID
-  |-- cost_element_id        --> Which cost element is affected
-  |-- amount                 --> The actual cost incurred
-  |-- work_package_id        --> Links to the work package (NULL = ungrouped)
-  |-- [versioned, not branchable]
+CostElement [Tier 2: Versionable] (child of WorkPackage)
+  |-- cost_element_id         --> Root ID
+  |-- work_package_id         --> Parent Work Package root ID (required)
+  |-- cost_element_type_id    --> Cost Element Type root ID (required)
+  |-- amount                  --> Allocated amount (DECIMAL 15,2)
+  +-- [versioned]
+
+CostRegistration [Tier 2: Versionable] (actual cost against a CostElement)
+  |-- cost_registration_id    --> Root ID
+  |-- cost_element_id         --> Cost Element root ID (required)
+  |-- cost_event_id           --> Optional CostEvent root ID (NULL = not event-linked)
+  |-- amount                  --> The actual cost incurred
+  |-- registration_date       --> Business date incurred
+  +-- [versioned, not branchable]
+
+CostEvent [Tier 2: Versionable] (project-scoped quality/cost event tracker)
+  |-- cost_event_id           --> Root ID
+  |-- project_id              --> Parent project root ID (required)
+  |-- cost_event_type_id      --> CostEventType root ID (required)
+  |-- name                    --> Event label (required)
+  |-- external_event_id       --> External reference ID (e.g., QMS ID, PO number)
+  |-- event_date              --> When the event occurred
+  |-- coq_category            --> COQ category: prevention, appraisal, internal_failure, external_failure
+  |-- estimated_impact        --> Estimated financial impact (DECIMAL 15,2, default 0)
+  |-- schedule_impact_days    --> Schedule delay in days
+  +-- [versioned, not branchable]
 ```
 
-When a cost registration has `work_package_id` set, it belongs to that work package. The `cost_impact` on the WorkPackage represents the declared/estimated total, while actual costs are computed from the sum of linked cost registrations.
+The cost flow is: WorkPackage (budget) -> CostElement (budget line) -> CostRegistration (actual cost). Event-based grouping uses CostEvent -> CostRegistration (via `cost_event_id`).
 
 ### Versioning and Branching
 
-Work Packages use the EVCS versioning system with these characteristics:
+Work Packages are **Branchable (Tier 3)**: They support full change order branching alongside versioning. Work Packages can be modified in change order branches for what-if analysis of budget reallocation. When a change order is merged, Work Package changes are merged back to the main branch.
 
-- **Versionable**: Every change creates a new version. Full history is preserved. Time-travel queries are supported.
-- **NOT branchable**: Work packages are financial facts that exist globally across all branches. A site visit cost is a fact regardless of which change order branch you are viewing.
+Note: Cost Events and Cost Registrations are Versionable (Tier 2) but NOT Branchable. They are financial facts that exist globally across all branches.
 
-This distinction is important: while scope elements (WBEs, Cost Elements) can be branched for change order what-if analysis, work package costs are objective financial facts that affect all branches equally.
+### Status Lifecycle
+
+Work packages have a simple two-state lifecycle:
+
+- **Open** -- Costs can be posted and the package is actively tracking. Budget can be adjusted.
+- **Closed** -- Read-only. No further cost postings. Used for completed packages.
+
+The status field (`String(20)`, default `open`) can be extended via migration if more granular states are required.
 
 ---
 
@@ -131,53 +130,27 @@ This distinction is important: while scope elements (WBEs, Cost Elements) can be
 
 ### Step-by-Step Guide
 
-1. **Navigate to the project**: Open the project you want to add a work package to.
+1. **Navigate to the Control Account**: Open the Control Account under which you want to create a Work Package.
 
-2. **Open the Work Packages tab**: Select the "Work Packages" tab in the project view.
+2. **Click "Add Work Package"**: This opens the Work Package creation form.
 
-3. **Review the summary card**: The summary card at the top shows key metrics. When filtering by quality packages, the COQ summary card appears with quality-specific metrics.
-
-4. **Click "Add Package"**: This opens the Work Package creation form.
-
-5. **Fill in the required fields**:
+3. **Fill in the required fields**:
 
    | Field | Description | Required | Example |
    |---|---|---|---|
-   | Name | Human-readable label for the package | Yes | `NCR-2026-0042 Rework` |
-   | Package Type | The type of work package | Yes | `Quality Impact` |
-   | Description | Optional details | No | `Rework on column base plates after NCR` |
-   | Event Date | When the event/activity occurred | No (defaults to today) | `2026-03-15` |
-   | Cost Impact | Estimated total financial impact | Yes | `EUR 12,500.00` |
+   | Name | Human-readable label for the work package | Yes | `Column Base Plate Assembly` |
+   | Code | Work Package code (unique within the Control Account) | Yes | `WP-1.2.3.01` |
+   | Budget Amount | Allocated budget for this work package | Yes | `EUR 25,000.00` |
+   | Description | Optional details | No | `Final assembly and testing of column base plates` |
    | Status | Open or Closed (defaults to Open) | No | `Open` |
 
-6. **Fill in type-specific fields**: Depending on the selected package type, additional fields may appear:
+4. **Click "Create"**: The work package is saved and immediately reflected in the Control Account's budget summary.
 
-   **For Quality Impact packages:**
+5. **Add Cost Elements**: After creation, add Cost Elements to break down the budget by cost type (labor, material, subcontract, etc.). Each Cost Element references a Cost Element Type and has an allocated amount.
 
-   | Field | Description | Required | Example |
-   |---|---|---|---|
-   | External Event ID | QMS identifier from the corporate system | Yes | `NCR-2026-0042` |
-   | COQ Category | Conformance or Nonconformance | Yes | `Nonconformance` |
-   | Schedule Impact Days | Days of schedule delay | No | `5` |
+6. **Optionally attach a Schedule Baseline**: A schedule baseline defines the planned value curve for the work package (start/end dates and progression type: linear, Gaussian, or logarithmic).
 
-7. **Optionally add Cost Allocations**: Expand the "Cost Breakdown (optional)" section to allocate the cost impact to specific Cost Elements. For each allocation row:
-   - Select a **Cost Element** from the dropdown
-   - Enter the **amount** to allocate to that cost element
-   - Click "Add Row" to add more allocations
-
-   Each allocation creates a **Cost Registration entry** with the `work_package_id` flag set, meaning it automatically flows into EVM Actual Cost calculations. The form displays the **unallocated** remainder so you can see how much of the total cost impact remains at the project level.
-
-8. **Click "Create"**: The work package is saved and immediately reflected in the summary card and package list.
-
-### Filtering by Type
-
-The Work Packages tab includes a type filter (chips/tabs for each type). This allows you to:
-
-- View all work packages across types
-- Filter to a specific type (e.g., show only quality impacts)
-- Switch between views to compare cost distributions
-
-When filtering to quality impact packages, the COQ summary card appears with quality-specific metrics (see [COQ Metrics](#coq-metrics) section).
+7. **Optionally attach a Forecast**: A forecast defines the Estimate at Complete (EAC) with a basis of estimate and optional approval.
 
 ### Editing Work Packages
 
@@ -192,11 +165,11 @@ To edit an existing work package:
 To open or close a work package:
 
 1. Click the status toggle on the package row.
-2. Closing a package makes it read-only -- no further cost postings can be linked to it.
+2. Closing a package makes it read-only -- no further cost postings can be linked to its Cost Elements.
 
 ### Viewing Version History
 
-Work Packages support full bitemporal versioning. To view the history of changes:
+Work Packages support full bitemporal versioning with branch support. To view the history of changes:
 
 1. Click the history icon (clock) on the package row.
 2. The Version History drawer opens, showing all versions with timestamps and field changes.
@@ -208,12 +181,11 @@ Deletion is a soft-delete operation. The work package is marked as deleted but p
 1. Click the delete icon (trash) on the package row.
 2. Confirm the deletion in the pop-up dialog.
 
-### Viewing Breakdowns
+### Viewing the Breadcrumb
 
-To view the cost breakdown allocations for a work package:
+To see the full hierarchy path of a Work Package:
 
-1. Click "View" in the Breakdowns column.
-2. The Breakdown drawer opens, showing the allocated amounts per WBE/Cost Element along with the unallocated remainder.
+- The breadcrumb endpoint returns the path from Project through WBS Element and Control Account to the Work Package.
 
 ### Permissions
 
@@ -228,13 +200,94 @@ Work Package operations require the following RBAC permissions:
 
 ---
 
-## Cost of Quality (COQ) for Quality-Typed Packages
+## Work Package Sub-Resources
 
-When a work package has `package_type = "quality_impact"`, it carries additional fields for Cost of Quality tracking. This section describes the COQ framework and how it applies to quality-typed packages.
+### Schedule Baseline
+
+Each Work Package can have one Schedule Baseline that defines the planned value curve:
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/work-packages/{work_package_id}/schedule-baseline` | GET | Get the current schedule baseline |
+| `/api/v1/work-packages/{work_package_id}/schedule-baseline` | POST | Create a new schedule baseline |
+| `/api/v1/work-packages/{work_package_id}/schedule-baseline/{baseline_id}` | PUT | Update a schedule baseline |
+| `/api/v1/work-packages/{work_package_id}/schedule-baseline/{baseline_id}` | DELETE | Delete a schedule baseline |
+
+Schedule Baseline fields: `name`, `start_date`, `end_date`, `progression_type` (LINEAR, GAUSSIAN, or LOGARITHMIC), and optional `description`.
+
+### Forecast
+
+Each Work Package can have one Forecast (Estimate at Complete):
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/work-packages/{work_package_id}/forecast` | GET | Get the current forecast |
+| `/api/v1/work-packages/{work_package_id}/forecast` | PUT | Update the forecast |
+| `/api/v1/work-packages/{work_package_id}/forecast` | DELETE | Delete the forecast |
+
+Forecast fields: `eac_amount` (Estimate at Complete), `basis_of_estimate`, `approved_date`, `approved_by`.
+
+### EVM Metrics
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/work-packages/{work_package_id}/evm` | GET | Get EVM metrics (CPI, SPI, etc.) for this work package |
+
+### Cost Elements
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/work-packages/{work_package_id}/cost-elements` | GET | List cost elements for this work package |
+| `/api/v1/work-packages/{work_package_id}/cost-elements` | POST | Create a cost element under this work package |
+
+### Budget Status
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/work-packages/{work_package_id}/budget-status` | GET | Get budget vs. actual status for this work package |
+
+### Breadcrumb
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/work-packages/{work_package_id}/breadcrumb` | GET | Get the full hierarchy path |
+
+---
+
+## Cost Events and Cost of Quality (COQ)
+
+Cost Events are a separate entity from Work Packages. They track quality and cost events at the project level with configurable Cost Event Types and COQ (Cost of Quality) fields.
+
+### Cost Event Types
+
+Cost Event Types are configurable admin reference data. Each type has:
+
+| Field | Description | Example |
+|---|---|---|
+| Code | Type code | `ncr` |
+| Name | Display name | `Nonconformance Report` |
+| Color | Ant Design color name | `red` |
+| Is Quality | Whether this type contributes to COQ metrics | `true` |
+| Description | Optional details | `Quality-related nonconformance event` |
+
+Types are configurable by admins via `/api/v1/cost-event-types` endpoints. The `is_quality` flag determines whether events of that type are included in COQ metric calculations.
+
+### COQ Categories
+
+Cost Events use four granular P-A-F (Prevention-Appraisal-Failure) values in the `coq_category` field:
+
+| Category | P-A-F Group | Description |
+|---|---|---|
+| `prevention` | Conformance | Training, quality planning, process design, process control |
+| `appraisal` | Conformance | Inspection, testing, audits, measurement equipment calibration |
+| `internal_failure` | Nonconformance | Rework, scrap, retest, design changes (found before delivery) |
+| `external_failure` | Nonconformance | Warranty claims, returns, field repairs, litigation (found after delivery) |
+
+Prevention + Appraisal = conformance costs. Internal failure + External failure = nonconformance costs.
 
 ### The P-A-F Model
 
-The Prevention-Appraisal-Failure (P-A-F) model, formalized in ASQ TR 2:2018, classifies quality costs into four categories:
+The Prevention-Appraisal-Failure (P-A-F) model, formalized in ASQ TR 2:2018, classifies quality costs into the four categories above:
 
 ```
 Cost of Quality (COQ)
@@ -282,44 +335,45 @@ Industry benchmarks from ASQ suggest:
 | Average | 20 -- 25% | Mixed |
 | Mature (world-class) | 15 -- 20% | Prevention/appraisal dominate |
 
-Backcast classifies quality-typed work packages as either **conformance** or **nonconformance** via the `coq_category` field, reflecting this two-part structure. When more granular breakdown is needed, the external QMS (referenced by External Event ID) typically provides the sub-category detail.
+### Cost Event Quality-Specific Fields
 
-### Quality-Specific Data Model Fields
+When a CostEvent is associated with a CostEventType where `is_quality = True`, the following fields are populated:
 
-When `package_type = "quality_impact"`, the following additional fields are populated:
+| Field | Description | Required | Example |
+|---|---|---|---|
+| `coq_category` | One of: `prevention`, `appraisal`, `internal_failure`, `external_failure` | Required for quality events | `internal_failure` |
+| `external_event_id` | External reference (e.g., QMS ID, PO number, work order) | No | `NCR-2026-0042` |
+| `estimated_impact` | Estimated financial impact (DECIMAL 15,2) | Yes (default 0) | `EUR 12,500.00` |
+| `schedule_impact_days` | Schedule delay in days | No | `5` |
+| `event_date` | When the event occurred | No | `2026-03-15` |
 
-```
-WorkPackage (quality-specific fields)
-  |-- external_event_id      --> Link to corporate QMS (e.g., "NCR-2026-0042")
-  |-- coq_category           --> "conformance" or "nonconformance"
-  |-- schedule_impact_days   --> Schedule delay in days
-```
+### COQ Metrics
 
-These fields are nullable on all work packages and are only meaningful for quality-typed packages.
+Backcast provides the following COQ metrics for Cost Events, drawing on the EVMq framework (Ahmed & Afifi, CSCE 2018) which integrates quality measures into earned value management.
 
----
+All COQ metrics are computed by filtering Cost Events where the associated CostEventType has `is_quality = True`.
 
-## COQ Metrics
-
-Backcast provides the following COQ metrics for quality-typed work packages, drawing on the EVMq framework (Ahmed & Afifi, CSCE 2018) which integrates quality measures into earned value management.
-
-All COQ metrics are computed by filtering work packages where `package_type = 'quality_impact'`.
-
-### Metric Definitions
+#### Metric Definitions
 
 | Metric | Formula | Meaning |
 |---|---|---|
-| **Total COQ** | Sum of all quality-flagged cost registrations | Total quality spend across both conformance and nonconformance |
-| **CPQ** (Cost of Poor Quality) | Sum of nonconformance cost registrations | Failure costs only |
-| **CCQ** (Cost of Conformance Quality) | Sum of conformance cost registrations | Prevention and appraisal costs only |
+| **Total COQ** | Sum of all quality Cost Event estimated impacts | Total quality spend across both conformance and nonconformance |
+| **CPQ** (Cost of Poor Quality) | Sum of nonconformance Cost Event impacts | Failure costs only |
+| **CCQ** (Cost of Conformance Quality) | Sum of conformance Cost Event impacts | Prevention and appraisal costs only |
 | **CPQ%** | `CPQ / Total AC * 100` | Quality failure share of total project spend |
 | **CPIq** | `CPQ / AC` | Quality's share of cost variance -- how much of the total cost overrun is quality-related |
 | **COQ Ratio** | `Total COQ / Project Budget * 100` | Quality cost burden relative to project budget |
 | **QPI** (Quality Performance Index) | Normalized from CPQ% | Single quality health score |
 
-These metrics are available via the `GET /api/v1/work-packages/project/{id}/coq-metrics` endpoint and are computed from actual cost registration data, ensuring alignment with EVM calculations.
+These metrics are available via the following endpoints:
 
-### Quality Performance Index (QPI)
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/cost-events/project/{project_id}/coq-metrics` | GET | COQ metrics for the project |
+| `/api/v1/cost-events/project/{project_id}/coq-trend` | GET | COQ metrics trend over time |
+| `/api/v1/cost-events/project/{project_id}/summary` | GET | Cost Event summary for the project |
+
+#### Quality Performance Index (QPI)
 
 The QPI, based on the scoring methodology by Nassar (2009), translates CPQ% into a single index value that is comparable across projects:
 
@@ -331,7 +385,7 @@ The QPI, based on the scoring methodology by Nassar (2009), translates CPQ% into
 | 2.0% -- 4.0% | 0.85 -- 0.95 | Below Target | Quality failures are eroding project margins |
 | > 4.0% | <= 0.85 | Poor Performance | Urgent corrective action required |
 
-### Using These Metrics
+#### Using These Metrics
 
 **For project managers:**
 
@@ -344,18 +398,18 @@ The QPI, based on the scoring methodology by Nassar (2009), translates CPQ% into
 
 - Compare conformance vs. nonconformance costs. A healthy ratio shows more investment in prevention/appraisal than in failures.
 - Use External Event IDs to trace Backcast quality costs back to the QMS for root cause analysis.
-- Review the breakdown allocations to identify which cost elements are most affected by quality events.
+- Review Cost Event allocations to identify which cost elements are most affected by quality events.
 
 ---
 
-## COQ Integration with EVM
+## EVM Integration
 
 ### How Quality Costs Flow Into Earned Value
 
 Per the PMI Practice Standard for EMA (Earned Value Management), quality costs are a legitimate component of Actual Cost (AC). Backcast follows this principle:
 
-1. Quality costs are recorded as financial impacts with optional cost element allocations.
-2. These costs contribute to the project's total actual expenditure.
+1. Quality costs are recorded as Cost Events with estimated impacts and optional Cost Registration allocations.
+2. These costs contribute to the project's total actual expenditure via Cost Registrations against Cost Elements.
 3. CPI (Cost Performance Index) naturally reflects quality failures -- this is correct and intentional per PMI best practice.
 4. CPIq isolates the quality-related portion of cost variance.
 
@@ -413,29 +467,27 @@ This reveals that the project's underlying cost performance (CPI = 0.987) is nea
 
 ## Summary Card
 
-The Work Packages tab displays a summary card at the top of the page. The card content adapts based on the active type filter.
+### Work Package Budget Summary
 
-### General Summary Card
-
-When viewing all work packages or non-quality types, the summary card shows:
+The Work Package view displays a budget summary card showing:
 
 | Metric | Description |
 |---|---|
-| **Total Packages** | Count of work packages (filtered by active type). |
-| **Total Cost Impact** | Sum of all work package `cost_impact` values. Displayed in project currency. |
-| **Open Packages** | Count of packages still accepting cost postings. |
-| **Total Allocated** | Sum of all linked cost registrations across packages. |
+| **Budget Amount** | The allocated budget for the work package. |
+| **Actual Spend** | Sum of all Cost Registrations against the work package's Cost Elements. |
+| **Variance** | Budget Amount minus Actual Spend. Positive = under budget. |
+| **EVM Metrics** | CPI (Cost Performance Index) and SPI (Schedule Performance Index) for the work package. |
 
-### COQ Summary Card (Quality Filter Active)
+### Cost Event Summary (COQ)
 
-When filtering by quality impact packages, the summary card switches to the COQ view:
+When viewing Cost Events with quality types (where `is_quality = True`), the COQ summary card shows:
 
 | Metric | Description |
 |---|---|
-| **Total COQ** | Sum of all quality package cost_impact values. Displayed in project currency. Color-coded: red if nonzero, green if zero (no quality costs). |
-| **Conformance** | Total conformance (prevention + appraisal) costs. Displayed with percentage of total COQ. Color-coded green. |
-| **Nonconformance** | Total nonconformance (internal + external failure) costs. Displayed with percentage of total COQ. Color-coded red. |
-| **Schedule Impact** | Total schedule delay in days across all quality packages. Color-coded red if nonzero. |
+| **Total COQ** | Sum of all quality Cost Event estimated impacts. Color-coded: red if nonzero, green if zero. |
+| **Conformance** | Total prevention + appraisal costs. Displayed with percentage of total COQ. Color-coded green. |
+| **Nonconformance** | Total internal failure + external failure costs. Displayed with percentage of total COQ. Color-coded red. |
+| **Schedule Impact** | Total schedule delay in days across all quality Cost Events. Color-coded red if nonzero. |
 
 Below the four metrics, the **COQ Ratio** is displayed as a percentage: `(Total COQ / Project Budget) * 100`. This provides immediate context for whether the quality cost level is within acceptable range.
 
@@ -451,6 +503,8 @@ Below the four metrics, the **COQ Ratio** is displayed as a percentage: `(Total 
 ## Standards References
 
 ### Primary Standards
+
+- **ANSI-748** -- Earned Value Management Systems. Defines the Work Package as the lowest-level planning and control unit in the WBS, with budget allocation, scheduling, and earned value measurement.
 
 - **PMI PMBOK 7th Edition** -- Quality Performance Domain, Measurement Performance Domain. Defines quality management as a core performance domain and establishes the relationship between quality metrics and project outcomes.
 
@@ -468,9 +522,9 @@ Below the four metrics, the **COQ Ratio** is displayed as a percentage: `(Total 
 
 ### ERP Integration References
 
-- **SAP Internal Orders (CO-OM-OPA)** -- The work package entity maps naturally to SAP's internal order concept. The `external_event_id` field can reference SAP order numbers for future ERP integration.
+- **SAP Internal Orders (CO-OM-OPA)** -- The Cost Event entity maps naturally to SAP's internal order concept. The `external_event_id` field on CostEvent can reference SAP order numbers for future ERP integration.
 
 ### Related Backcast Documentation
 
-- [EVCS User Guide](./evcs-wbe-user-guide.md) -- Understanding versioning and time-travel for work packages
-- [Change Order Business Guide](./change-order-business-guide.md) -- How change orders interact with work package costs
+- [EVCS User Guide](./evcs-wbs-element-user-guide.md) -- Understanding versioning and time-travel for work packages
+- [Change Order Business Guide](./change-order-business-guide.md) -- How change orders interact with work package budgets via branching

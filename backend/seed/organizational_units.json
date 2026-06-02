@@ -1,0 +1,47 @@
+[
+  {
+    "organizational_unit_id": "00000000-0000-4000-8000-000000000001",
+    "code": "ENG",
+    "name": "Engineering",
+    "parent_unit_id": null,
+    "manager_id": null,
+    "is_active": true,
+    "description": "Engineering department"
+  },
+  {
+    "organizational_unit_id": "00000000-0000-4000-8000-000000000002",
+    "code": "ENG-MECH",
+    "name": "Mechanical Engineering",
+    "parent_unit_id": "00000000-0000-4000-8000-000000000001",
+    "manager_id": null,
+    "is_active": true,
+    "description": "Mechanical engineering team"
+  },
+  {
+    "organizational_unit_id": "00000000-0000-4000-8000-000000000003",
+    "code": "ENG-ELEC",
+    "name": "Electrical Engineering",
+    "parent_unit_id": "00000000-0000-4000-8000-000000000001",
+    "manager_id": null,
+    "is_active": true,
+    "description": "Electrical engineering team"
+  },
+  {
+    "organizational_unit_id": "00000000-0000-4000-8000-000000000004",
+    "code": "PM",
+    "name": "Project Management",
+    "parent_unit_id": null,
+    "manager_id": null,
+    "is_active": true,
+    "description": "Project management office"
+  },
+  {
+    "organizational_unit_id": "00000000-0000-4000-8000-000000000005",
+    "code": "QA",
+    "name": "Quality Assurance",
+    "parent_unit_id": null,
+    "manager_id": null,
+    "is_active": true,
+    "description": "Quality assurance team"
+  }
+]

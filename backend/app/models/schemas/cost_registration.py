@@ -48,9 +48,9 @@ class CostRegistrationCreate(CostRegistrationBase):
         exclude=True,  # Exclude from OpenAPI docs
     )
     cost_element_id: UUID = Field(..., description="ID of the cost element to charge")
-    work_package_id: UUID | None = Field(
+    cost_event_id: UUID | None = Field(
         None,
-        description="Optional work package to link this cost registration to",
+        description="Optional cost event to link this cost registration to",
     )
     control_date: datetime | None = Field(
         None, description="Optional control date for creation (valid_time start)"
@@ -67,9 +67,9 @@ class CostRegistrationUpdate(BaseModel):
     description: str | None = None
     invoice_number: str | None = Field(None, max_length=100)
     vendor_reference: str | None = Field(None, max_length=255)
-    work_package_id: UUID | None = Field(
+    cost_event_id: UUID | None = Field(
         None,
-        description="Optional work package to link this cost registration to",
+        description="Optional cost event to link this cost registration to",
     )
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"
@@ -84,9 +84,9 @@ class CostRegistrationRead(CostRegistrationBase):
     id: UUID
     cost_registration_id: UUID
     cost_element_id: UUID
-    work_package_id: UUID | None = None
-    work_package_name: str | None = None
-    work_package_type: str | None = None
+    cost_event_id: UUID | None = None
+    cost_event_name: str | None = None
+    cost_event_type: str | None = None
     attachment_count: int = 0
     created_by: UUID
 

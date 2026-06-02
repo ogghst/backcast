@@ -23,7 +23,8 @@
  */
 export enum EntityType {
   COST_ELEMENT = "cost_element",
-  WBE = "wbe",
+  WBS_ELEMENT = "wbs_element",
+  WORK_PACKAGE = "work_package",
   PROJECT = "project",
 }
 

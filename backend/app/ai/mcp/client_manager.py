@@ -18,6 +18,7 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.config import AI_MCP_TOOL_CATEGORY_PREFIX
 from app.ai.mcp.tool_metadata import wrap_mcp_tool
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,10 @@ class MCPClientManager:
         tools = await self._connect_server(server_name, config)
         self._tools.extend(tools)
 
+        from app.ai.tools import invalidate_tool_cache
+
+        invalidate_tool_cache()
+
     async def remove_server(self, server_name: str) -> None:
         """Remove tools belonging to a deleted server.
 
@@ -97,9 +102,18 @@ class MCPClientManager:
             before - len(self._tools),
         )
 
+        from app.ai.tools import invalidate_tool_cache
+
+        invalidate_tool_cache()
+
     async def shutdown(self) -> None:
         """Clean up all cached tools."""
         self._tools = []
+
+        from app.ai.tools import invalidate_tool_cache
+
+        invalidate_tool_cache()
+
         logger.info("MCP client manager shut down")
 
     async def test_connection(self, config: dict[str, Any]) -> list[dict[str, str]]:
@@ -137,7 +151,7 @@ class MCPClientManager:
         """
         meta = getattr(tool, "_tool_metadata", None)
         if meta is not None:
-            return meta.category == f"mcp:{server_name}"
+            return meta.category == f"{AI_MCP_TOOL_CATEGORY_PREFIX}{server_name}"
         return False
 
     def _build_connection(self, config: dict[str, Any]) -> Any:

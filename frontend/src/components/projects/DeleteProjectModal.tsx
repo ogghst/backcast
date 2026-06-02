@@ -1,6 +1,6 @@
 import { Modal, Alert } from "antd";
 import { ProjectRead } from "@/api/generated";
-import { useWBEs } from "@/features/wbes/api/useWBEs";
+import { useWBSElements } from "@/features/wbs-elements/api/useWBSElements";
 
 interface DeleteProjectModalProps {
   project: ProjectRead | null;
@@ -19,7 +19,7 @@ export const DeleteProjectModal = ({
 }: DeleteProjectModalProps) => {
   // Check for WBEs
   // Only fetching 1 item to check existence
-  const { data: wbes, isLoading } = useWBEs({
+  const { data: wbes, isLoading } = useWBSElements({
     // Only query if we have a project and modal is open
     projectId: project?.project_id,
     pagination: { current: 1, pageSize: 1 },

@@ -43,15 +43,15 @@ vi.mock("@/features/projects/api/useProjects", () => ({
   }),
 }));
 
-vi.mock("@/features/wbes/api/useWBEs", () => ({
-  useWBEs: () => ({
+vi.mock("@/features/wbs-elements/api/useWBSElements", () => ({
+  useWBSElements: () => ({
     data: { items: [] },
     isLoading: false,
     refetch: vi.fn(),
   }),
-  useCreateWBE: () => ({ mutateAsync: vi.fn() }),
-  useUpdateWBE: () => ({ mutateAsync: vi.fn() }),
-  useDeleteWBE: () => ({ mutate: vi.fn() }),
+  useCreateWBSElement: () => ({ mutateAsync: vi.fn() }),
+  useUpdateWBSElement: () => ({ mutateAsync: vi.fn() }),
+  useDeleteWBSElement: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock("@/hooks/useEntityHistory", () => ({
@@ -110,7 +110,7 @@ describe("ProjectOverview", () => {
 
     // Assert
     expect(screen.getByText("Project Details")).toBeInTheDocument();
-    expect(screen.getByText("Root Work Breakdown Elements")).toBeInTheDocument();
+    expect(screen.getByText("Root WBS Elements")).toBeInTheDocument();
     // Change Orders card should NOT be present
     expect(screen.queryByText("Change Orders")).not.toBeInTheDocument();
   });

@@ -33,6 +33,11 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    BATCH_SIZE_LIMIT,
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.change_order import (
@@ -42,6 +47,7 @@ from app.models.schemas.change_order import (
 
 logger = logging.getLogger(__name__)
 
+
 # =============================================================================
 # CHANGE ORDER CRUD TOOLS
 # =============================================================================
@@ -49,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="find_change_orders",
-    description="Find change orders by ID or search/filter.",
+    description="Find change orders by ID or search/filter. Results are paginated; response includes total count, page, and page_count.",
     permissions=["change-order-read"],
     category="change-orders",
     risk_level=RiskLevel.LOW,
@@ -58,8 +64,8 @@ async def find_change_orders(
     change_order_id: str | None = None,
     project_id: str | None = None,
     status: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find change orders by ID or search/filter.
@@ -70,8 +76,8 @@ async def find_change_orders(
         change_order_id: UUID of a specific change order to retrieve (returns single)
         project_id: Optional project ID to filter change orders
         status: Optional status filter (e.g., "Draft", "Pending", "Approved", "Rejected")
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        page: Page number (1-based)
+        limit: Maximum records per page (default from config, max 200)
         context: Injected tool execution context
 
     Returns:
@@ -82,6 +88,8 @@ async def find_change_orders(
     """
     # Log temporal context for observability
     log_temporal_context("find_change_orders", context)
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     try:
         from app.services.change_order_service import ChangeOrderService
@@ -165,8 +173,10 @@ async def find_change_orders(
                 for co in change_orders
             ],
             "total": total,
-            "skip": skip,
+            "page": page,
+            "page_count": calc_page_count(total, limit),
             "limit": limit,
+            "has_more": page < calc_page_count(total, limit),
         }
         return add_temporal_metadata(result, context)
     except ValueError as e:
@@ -705,6 +715,95 @@ async def delete_change_order(
         return {"error": f"Change order {change_order_id} not found"}
     except Exception as e:
         logger.error(f"Error in delete_change_order: {e}")
+        return {"error": str(e)}
+
+
+# =============================================================================
+# BATCH CHANGE ORDER TOOLS
+# =============================================================================
+
+
+@ai_tool(
+    name="batch_create_change_orders",
+    description="Batch create change orders under a project. Max 50 items.",
+    permissions=["change-order-create"],
+    category="change-orders",
+    risk_level=RiskLevel.HIGH,
+)
+async def batch_create_change_orders(
+    project_id: str,
+    items: list[dict[str, Any]],
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Batch create change orders under the same project.
+
+    Args:
+        project_id: UUID of the parent project
+        items: List of dicts, each with {title, description, reason,
+               budget_impact?, schedule_impact_days?}
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created items list, total count, and message
+    """
+    try:
+        from app.services.change_order_service import ChangeOrderService
+
+        if len(items) > BATCH_SIZE_LIMIT:
+            return {"error": f"Batch size exceeds maximum of {BATCH_SIZE_LIMIT} items"}
+
+        if not items:
+            return {"error": "No items provided"}
+
+        # Validate required fields on each item
+        for i, item in enumerate(items):
+            if not item.get("title"):
+                return {"error": f"Item at index {i} is missing required field 'title'"}
+            if not item.get("description"):
+                return {
+                    "error": f"Item at index {i} is missing required field 'description'"
+                }
+            if not item.get("reason"):
+                return {
+                    "error": f"Item at index {i} is missing required field 'reason'"
+                }
+
+        service = ChangeOrderService(context.session)
+        actor_id = UUID(context.user_id)
+        results: list[dict[str, Any]] = []
+
+        for item in items:
+            co_data = ChangeOrderCreate(  # type: ignore[call-arg]
+                project_id=UUID(project_id),
+                title=item["title"],
+                description=item["description"],
+                reason=item["reason"],
+                budget_impact=item.get("budget_impact"),
+                schedule_impact_days=item.get("schedule_impact_days"),
+            )
+
+            change_order = await service.create_change_order(
+                change_order_in=co_data,
+                actor_id=actor_id,
+                control_date=context.as_of,
+            )
+            results.append(
+                {
+                    "id": str(change_order.change_order_id),
+                    "title": change_order.title,
+                }
+            )
+
+        result = {
+            "created": results,
+            "total": len(results),
+            "message": f"Created {len(results)} change orders under project {project_id}",
+        }
+        return result
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except Exception as e:
+        logger.error(f"Error in batch_create_change_orders: {e}")
         return {"error": str(e)}
 
 

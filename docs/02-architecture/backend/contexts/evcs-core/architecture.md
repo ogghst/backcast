@@ -1,6 +1,6 @@
 # EVCS Core Architecture
 
-**Last Updated:** 2026-04-14  
+**Last Updated:** 2026-05-30  
 **Owner:** Backend Team  
 **ADR:** [ADR-005: Bitemporal Versioning](../../decisions/ADR-005-bitemporal-versioning.md)
 
@@ -137,7 +137,7 @@ classDiagram
 | **EntityProtocol** | Base for all entities | `id: UUID` | All database entities |
 | **SimpleEntityProtocol** | Non-versioned entities | `created_at`, `updated_at` | User preferences, config, transient data |
 | **VersionableProtocol** | Versioned without branching | `valid_time`, `transaction_time`, `deleted_at` | Audit logs, immutable records |
-| **BranchableProtocol** | Full EVCS with branching | All versionable + `branch`, `parent_id` | Business entities (Projects, WBEs, Cost Elements) |
+| **BranchableProtocol** | Full EVCS with branching | All versionable + `branch`, `parent_id` | Business entities (Projects, WBS Elements, Control Accounts) |
 
 > **For implementation details and code examples, see [EVCS Implementation Guide](evcs-implementation-guide.md).**
 
@@ -298,7 +298,7 @@ Each versioned entity has a single table with this structure:
 
 ### Used By
 
-- All versioned entities (Project, WBE, CostElement, etc.)
+- All versioned entities (Project, WBSElement, CostElement, etc.)
 - Change Order system (branch creation/merging)
 - Time Machine feature (temporal queries)
 - Audit reporting (history views)
@@ -333,7 +333,7 @@ Each versioned entity has a single table with this structure:
 - **Services (Branching):** `app/core/branching/service.py` - `BranchableService`
 - **UUID Utils:** `app/core/uuid_utils.py` - UUIDv5 namespace-based generation
 - **Seed Context:** `app/db/seed_context.py` - Seed operation context manager
-- **Entity Examples:** `app/models/domain/project.py`, `app/models/domain/wbe.py`
+- **Entity Examples:** `app/models/domain/project.py`, `app/models/domain/wbs_element.py`
 
 ---
 

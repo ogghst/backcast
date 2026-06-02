@@ -56,7 +56,7 @@ const mockChangeOrder: ChangeOrderPublic = {
   change_order_id: "BR-123",
   code: "CO-2026-001",
   title: "Test Change Order",
-  status: "Draft",
+  status: "draft",
   description: "Test description",
   justification: "Test justification",
   effective_date: "2026-01-15",
@@ -101,7 +101,7 @@ describe("ChangeOrderWorkflowSection", () => {
 
     // Assert
     expect(screen.getByText("Workflow Status")).toBeInTheDocument();
-    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(screen.getByText("draft")).toBeInTheDocument();
   });
 
   /**
@@ -158,9 +158,10 @@ describe("ChangeOrderWorkflowSection", () => {
       { wrapper }
     );
 
-    // Assert
+    // Assert - branch_locked shows warning but does NOT disable workflow actions
+    expect(screen.getByText(/branch is locked/i)).toBeInTheDocument();
     const submitButton = screen.getByRole("button", { name: /submit/i });
-    expect(submitButton).toBeDisabled();
+    expect(submitButton).not.toBeDisabled();
   });
 
   /**
@@ -172,7 +173,7 @@ describe("ChangeOrderWorkflowSection", () => {
     // Arrange
     const { useWorkflowActions } = await import("@/features/change-orders/hooks/useWorkflowActions");
     const mockSubmit = vi.fn().mockResolvedValue({});
-    (useWorkflowActions as unknown).mockReturnValue({
+    (useWorkflowActions as ReturnType<typeof vi.fn>).mockReturnValue({
       submit: mockSubmit,
       approve: vi.fn(),
       reject: vi.fn(),

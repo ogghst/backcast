@@ -24,9 +24,12 @@ class BriefingSection(BaseModel):
 
     specialist_name: str
     findings: str
+    task_description: str | None = None
+    supervisor_rationale: str | None = None
     key_findings: list[str] | None = None
     open_questions: list[str] | None = None
     delegation_notes: str | None = None
+    step_index: int | None = None
 
 
 class BriefingDocument(BaseModel):
@@ -39,6 +42,7 @@ class BriefingDocument(BaseModel):
     sections: list[BriefingSection] = []
     supervisor_analysis: str | None = None
     task_history: list[TaskAssignment] = []
+    plan: list[dict[str, Any]] | None = None
 
     @classmethod
     def from_state(cls, briefing_data: dict[str, Any]) -> BriefingDocument:
@@ -69,12 +73,25 @@ class BriefingDocument(BaseModel):
                 if task.rationale:
                     parts.append(f"   - Rationale: {task.rationale}")
 
+        if self.plan:
+            parts += ["", "## Execution Plan"]
+            for step_idx, step in enumerate(self.plan, start=1):
+                specialist = step.get("specialist", "unknown")
+                task_desc = step.get("task_description", "")
+                status = step.get("status", "pending")
+                parts.append(f"Step {step_idx}: [{specialist}] {task_desc} — {status}")
+
         if self.sections:
             parts += ["", "## Specialist Findings"]
             for idx, sec in enumerate(self.sections, start=1):
+                header = sec.specialist_name
+                if sec.step_index is not None:
+                    header += f" (Step {sec.step_index})"
+                else:
+                    header += f" (Iteration {idx})"
                 section_lines = [
                     "",
-                    f"### {sec.specialist_name} (Iteration {idx})",
+                    f"### {header}",
                 ]
 
                 # Findings are already cleaned of structured sections at input time

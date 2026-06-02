@@ -125,7 +125,7 @@ const AppLayout: React.FC = () => {
               size="small"
             />
           </Tooltip>
-          <TimeMachineCompact projectId={projectId} />
+          <TimeMachineCompact projectId={projectId ?? undefined} />
         </div>
 
         {/* Right: NotificationBell + UserProfile - always visible */}
@@ -138,7 +138,7 @@ const AppLayout: React.FC = () => {
       {/* Time Machine Expanded Panel (below header) */}
       {isTimeMachineExpanded && (
         <TimeMachineExpanded
-          projectId={projectId}
+          projectId={projectId ?? undefined}
           projectName={project?.name}
           timelineData={projectId ? {
             startDate: (() => {

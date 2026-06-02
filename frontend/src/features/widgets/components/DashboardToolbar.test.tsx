@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { App, ConfigProvider } from "antd";
 import type { Dashboard } from "@/features/widgets/types";
+import { DashboardToolbar } from "./DashboardToolbar";
 
 // ---------------------------------------------------------------------------
 // Mock store state
@@ -93,10 +94,7 @@ vi.mock("antd", async () => {
     ...actual,
     message: {
       ...actual.message,
-      useMessage: () => ({
-        message: mockMessageApi,
-        contextHolder: null,
-      }),
+      useMessage: () => [mockMessageApi, null],
     },
   };
 });
@@ -121,13 +119,6 @@ vi.mock("@/features/widgets/components/TemplateManagementModal", () => ({
 
 function renderWithTheme(ui: React.ReactElement) {
   return render(<App><ConfigProvider>{ui}</ConfigProvider></App>);
-}
-
-/** Dynamic import to pick up the latest mock values */
-async function importDashboardToolbar() {
-  vi.resetModules();
-  const mod = await import("./DashboardToolbar");
-  return mod.DashboardToolbar;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +149,6 @@ describe("DashboardToolbar", () => {
   });
 
   it('renders with default "My Dashboard" name when no active dashboard', async () => {
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(screen.getByText("My Dashboard")).toBeInTheDocument();
   });
@@ -171,13 +161,11 @@ describe("DashboardToolbar", () => {
       widgets: [],
       isDefault: false,
     };
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(screen.getByText("Project Alpha Dashboard")).toBeInTheDocument();
   });
 
   it('shows "Customize" button in view mode', async () => {
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
       screen.getByRole("button", { name: /customize dashboard/i }),
@@ -186,7 +174,6 @@ describe("DashboardToolbar", () => {
 
   it('shows "Done" button in edit mode', async () => {
     mockStoreState.isEditing = true;
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
       screen.getByRole("button", { name: /save changes and finish editing/i }),
@@ -195,7 +182,6 @@ describe("DashboardToolbar", () => {
 
   it("shows Cancel button in edit mode", async () => {
     mockStoreState.isEditing = true;
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
       screen.getByRole("button", { name: /cancel editing/i }),
@@ -203,7 +189,6 @@ describe("DashboardToolbar", () => {
   });
 
   it("does not show Cancel or Done buttons in view mode", async () => {
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
       screen.queryByRole("button", { name: /cancel editing/i }),
@@ -214,7 +199,6 @@ describe("DashboardToolbar", () => {
   });
 
   it('clicking "Customize" enters edit mode', async () => {
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     const btn = screen.getByRole("button", { name: /customize dashboard/i });
     fireEvent.click(btn);
@@ -225,7 +209,6 @@ describe("DashboardToolbar", () => {
     mockStoreState.isEditing = true;
     mockStoreState.isDirty = true;
     mockSave.mockResolvedValue(undefined);
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     const btn = screen.getByRole("button", { name: /save changes and finish editing/i });
     fireEvent.click(btn);
@@ -239,7 +222,6 @@ describe("DashboardToolbar", () => {
     mockStoreState.isEditing = true;
     mockStoreState.isDirty = false;
     mockSave.mockResolvedValue(undefined);
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     const btn = screen.getByRole("button", { name: /save changes and finish editing/i });
     fireEvent.click(btn);
@@ -251,7 +233,6 @@ describe("DashboardToolbar", () => {
 
   it('shows "Add Widget" button only in edit mode', async () => {
     // Not in edit mode -- button should not be present
-    let DashboardToolbar = await importDashboardToolbar();
     const { unmount } = renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
       screen.queryByRole("button", { name: /add widget to dashboard/i }),
@@ -260,7 +241,6 @@ describe("DashboardToolbar", () => {
 
     // In edit mode -- button should be present
     mockStoreState.isEditing = true;
-    DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
       screen.getByRole("button", { name: /add widget to dashboard/i }),
@@ -269,7 +249,6 @@ describe("DashboardToolbar", () => {
 
   it("Reset button is disabled when no active dashboard", async () => {
     mockStoreState.activeDashboard = null;
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     const resetBtn = screen.getByRole("button", { name: /reset dashboard to default/i });
     expect(resetBtn).toBeDisabled();
@@ -283,7 +262,6 @@ describe("DashboardToolbar", () => {
       widgets: [],
       isDefault: false,
     };
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     const resetBtn = screen.getByRole("button", { name: /reset dashboard to default/i });
     expect(resetBtn).not.toBeDisabled();
@@ -304,7 +282,6 @@ describe("DashboardToolbar", () => {
         updated_at: "2026-01-01T00:00:00Z",
       },
     ];
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     // Template button should be present and enabled
     const templateBtn = screen.getByRole("button", { name: /select dashboard template/i });
@@ -314,7 +291,6 @@ describe("DashboardToolbar", () => {
 
   it("Template dropdown is disabled when no templates exist", async () => {
     mockTemplatesState.data = [];
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     const templateBtn = screen.getByRole("button", { name: /select dashboard template/i });
     expect(templateBtn).toBeDisabled();
@@ -329,7 +305,6 @@ describe("DashboardToolbar", () => {
       widgets: [],
       isDefault: false,
     };
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     // The name text should be present
     expect(screen.getByText("Project Alpha Dashboard")).toBeInTheDocument();
@@ -349,7 +324,6 @@ describe("DashboardToolbar", () => {
       widgets: [],
       isDefault: false,
     };
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     // The name text should be present
     expect(screen.getByText("Project Alpha Dashboard")).toBeInTheDocument();
@@ -383,7 +357,6 @@ describe("DashboardToolbar", () => {
         updated_at: "2026-01-01T00:00:00Z",
       },
     ];
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
 
     expect(
@@ -402,7 +375,6 @@ describe("DashboardToolbar", () => {
 
   it("shows manage templates button for admin", async () => {
     // Can mock renders children by default
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
       screen.getByRole("button", { name: /manage templates/i }),
@@ -411,7 +383,6 @@ describe("DashboardToolbar", () => {
 
   it("does not show manage templates button for non-admin", async () => {
     canRenderChildren = false;
-    const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
       screen.queryByRole("button", { name: /manage templates/i }),

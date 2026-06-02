@@ -6,14 +6,14 @@ This document provides comprehensive documentation of the Change Order workflow 
 
 ### Purpose of Change Orders
 
-Change Orders (COs) in the Backcast  system manage modifications to project budgets, work breakdown elements (WBEs), and cost elements. They provide a structured approval workflow with impact analysis, SLA tracking, and complete audit trails.
+Change Orders (COs) in the Backcast  system manage modifications to project budgets, WBS elements, and cost elements. They provide a structured approval workflow with impact analysis, SLA tracking, and complete audit trails.
 
 ### Key Concepts
 
 - **EVCS (Entity Versioning Control System):** Git-style versioning with bitemporal tracking
 - **Branch Isolation:** Each change order creates a dedicated branch (`BR-{code}`) for isolated modifications
 - **Bitemporal Tracking:** Entities track both `valid_time` (business validity) and `transaction_time` (system record time)
-- **Lazy Branching:** Entities are only forked to the change order branch when modified, not proactively
+- **Eager Forking:** All WBSElements are forked to the change order branch at submission time for a complete, consistent snapshot
 
 ### Document Scope
 
@@ -70,25 +70,43 @@ classDiagram
         +str status
     }
 
-    class WBE {
-        +UUID wbe_id
+    class WBSElement {
+        +UUID wbs_element_id
         +str code
         +str name
         +UUID project_id
-        +Decimal budget
+        +Decimal revenue_allocation
+        +int level
+    }
+
+    class ControlAccount {
+        +UUID control_account_id
+        +str name
+        +UUID wbs_element_id
+        +UUID organizational_unit_id
+    }
+
+    class WorkPackage {
+        +UUID work_package_id
+        +str name
+        +str code
+        +UUID control_account_id
+        +Decimal budget_amount
     }
 
     class CostElement {
         +UUID cost_element_id
-        +str name
-        +UUID wbe_id
-        +Decimal planned_cost
+        +str description
+        +UUID work_package_id
+        +UUID cost_element_type_id
+        +Decimal amount
     }
 
     class User {
         +UUID user_id
         +str email
-        +str role
+        +str full_name
+        +str department
     }
 
     class Branch {
@@ -109,15 +127,18 @@ classDiagram
         +str comment
         +UUID changed_by
         +datetime changed_at
+        +datetime control_date
     }
 
     ChangeOrder "1" --> "1" Project : belongs to
-    ChangeOrder "1" --> "*" WBE : modifies
-    WBE "1" --> "*" CostElement : contains
     ChangeOrder "1" --> "1" User : assigned approver
     ChangeOrder "1" --> "*" ChangeOrderAuditLog : tracks
     ChangeOrder "1" --> "1" Branch : creates
     Project "1" --> "*" Branch : has
+    Project "1" --> "*" WBSElement : has
+    WBSElement "1" --> "*" ControlAccount : has
+    ControlAccount "1" --> "*" WorkPackage : has
+    WorkPackage "1" --> "*" CostElement : has
 ```
 
 ### Field Reference
@@ -160,6 +181,13 @@ stateDiagram-v2
     Submitted_for_Approval --> Rejected: reject()
     Under_Review --> Approved: approve()
     Under_Review --> Rejected: reject()
+
+    note left of Submitted_for_Approval
+        Note: The Submitted_for_Approval -> Under_Review
+        transition exists in the state machine config
+        but has no dedicated API endpoint. It may be
+        triggered internally by the workflow service.
+    end note
     Rejected --> Submitted_for_Approval: resubmit()
     Approved --> Implemented: merge_change_order()
     Implemented --> [*]: Complete
@@ -188,13 +216,13 @@ stateDiagram-v2
 ### Valid Transitions
 
 ```python
-_TRANSITIONS = {
-    "Draft": ["Submitted for Approval"],
-    "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
-    "Under Review": ["Approved", "Rejected"],
-    "Rejected": ["Draft", "Submitted for Approval"],
-    "Approved": ["Implemented"],
-    "Implemented": [],  # Terminal state
+_DEFAULT_TRANSITIONS = {
+    "draft": ["submitted_for_approval"],
+    "submitted_for_approval": ["under_review", "approved", "rejected"],
+    "under_review": ["approved", "rejected"],
+    "rejected": ["draft", "submitted_for_approval"],
+    "approved": ["implemented"],
+    "implemented": [],  # Terminal state
 }
 ```
 
@@ -220,7 +248,7 @@ _TRANSITIONS = {
 | `submit_for_approval()` | Draft | Submitted for Approval | **Lock** | Calculate impact, assign approver, set SLA, fork entities to isolation branch |
 | `approve_change_order()` | Submitted/Under Review | Approved | Stays locked | Validates assigned approver matches, audit log entry |
 | `reject_change_order()` | Submitted/Under Review | Rejected | **Unlock** | Validates authority, clears SLA fields, unlocks branch |
-| `merge_change_order()` | Approved | Implemented | Unlock | Merge entities, audit log |
+| `merge_change_order()` | Approved | Implemented | Unlock | Merge WBSElements (CostElements are not branchable), audit log |
 | `archive_change_order_branch()` | Implemented/Rejected | - | - | Soft-delete branch |
 
 ### Method Signatures
@@ -232,7 +260,8 @@ async def submit_for_approval(
     actor_id: UUID,
     branch: str = "main",
     comment: str | None = None,
-) -> ChangeOrderPublic
+    control_date: datetime | None = None,
+) -> ChangeOrder
 ```
 
 **Validates:**
@@ -247,7 +276,7 @@ async def submit_for_approval(
 - Assigns approver based on impact level
 - Calculates SLA due date from config
 - Snapshots workflow config (`config_snapshot`)
-- Forks ALL project entities to isolation branch (eager forking)
+- Forks ALL project WBSElements to isolation branch (eager forking)
 - Locks isolation branch via `BranchingService.lock()`
 - Sends notification to assigned approver
 
@@ -259,7 +288,8 @@ async def approve_change_order(
     actor_id: UUID,
     branch: str = "main",
     comments: str | None = None,
-) -> ChangeOrderPublic
+    control_date: datetime | None = None,
+) -> ChangeOrder
 ```
 
 **Validates:**
@@ -279,7 +309,8 @@ async def reject_change_order(
     actor_id: UUID,
     branch: str = "main",
     comments: str | None = None,
-) -> ChangeOrderPublic
+    control_date: datetime | None = None,
+) -> ChangeOrder
 ```
 
 **Validates:**
@@ -298,7 +329,7 @@ async def merge_change_order(
     actor_id: UUID,
     target_branch: str = "main",
     control_date: datetime | None = None,
-) -> ChangeOrderPublic
+) -> ChangeOrder
 ```
 
 **Validates:**
@@ -306,8 +337,8 @@ async def merge_change_order(
 - No merge conflicts exist
 
 **Side Effects:**
-- Merges all WBEs from source branch to target
-- Merges all CostElements from source branch to target
+- Merges all WBSElements from source branch to target
+- CostElements are NOT merged (they are Versionable only, not Branchable; financial facts are global across branches)
 - Merges ChangeOrder itself (if forked)
 - Sets `status` to "Implemented"
 - Creates audit log entry
@@ -340,7 +371,7 @@ classDiagram
     EntityProtocol <|-- VersionableProtocol
     VersionableProtocol <|-- BranchableProtocol
 
-    note for BranchableProtocol "Projects, WBEs, CostElements, ChangeOrders"
+    note for BranchableProtocol "Projects, WBSElements, ChangeOrders are Branchable.\nCostElements are Versionable only (not branchable).\nFinancial facts are global across branches."
 ```
 
 ### 5.2 Branch Isolation Pattern
@@ -349,28 +380,25 @@ The EVCS uses a two-phase branching pattern:
 
 1. **Branch Creation (CO Creation):** An empty `BR-{code}` branch is created when the CO is created. No project data is forked at this point.
 
-2. **Eager Forking (CO Submission):** When the CO is submitted for approval, ALL project entities (WBEs, CostElements) are forked from `main` to the isolation branch. This ensures the isolation branch has a complete, consistent snapshot of the project for change tracking. The branch is then locked.
+2. **Eager Forking (CO Submission):** When the CO is submitted for approval, ALL WBSElements on the main branch are forked from `main` to the isolation branch. This ensures the isolation branch has a complete, consistent snapshot of the project for change tracking. The branch is then locked.
 
 ```mermaid
 flowchart TD
     A[Create Change Order] --> B[CO on main branch]
     B --> C[Create BR-CO-XXX branch]
-    C --> D{Modify WBE/CostElement?}
-    D -->|Yes| E[Fork entity to branch]
-    D -->|No| F[Entity stays on main]
-    E --> G[Merge: include forked entity]
-    F --> H[Merge: skip unforked entity]
-    G --> I[Update CO status to Implemented]
-    H --> I
+    C --> D[Submit for Approval]
+    D --> E[Fork ALL WBSElements to branch]
+    E --> F[Lock branch]
+    F --> G[Merge: include forked entities]
+    G --> H[Update CO status to Implemented]
 
     style E fill:#e1f5fe
-    style F fill:#fff3e0
 ```
 
 **Benefits:**
-- Reduced storage overhead (only modified entities are duplicated)
-- Faster branch creation
-- Simpler merge for unmodified entities
+- Complete, consistent snapshot of the project state at submission time
+- Predictable merge behavior (all entities present on branch)
+- No conditional logic needed during merge
 
 ### 5.3 Merge Flow
 
@@ -379,14 +407,13 @@ sequenceDiagram
     participant API as API Route
     participant COService as ChangeOrderService
     participant Discovery as EntityDiscoveryService
-    participant WBEService as WBEService
-    participant CESService as CostElementService
+    participant WBSElementService as WBSElementService
     participant Branching as BranchableService
 
     API->>COService: merge_change_order(id)
-    COService->>COService: get_current(id, main)
+    COService->>COService: get_as_of(id, branch=main)
     COService->>COService: source_branch = BR-{code}
-    COService->>COService: co_was_forked = get_current(id, source_branch)
+    COService->>COService: co_was_forked = get_as_of(id, branch=source_branch)
 
     COService->>COService: _detect_all_merge_conflicts()
     alt Conflicts Found
@@ -394,23 +421,15 @@ sequenceDiagram
     end
 
     COService->>Discovery: discover_all_wbes(source_branch)
-    Discovery-->>COService: [WBEs on branch]
+    Discovery-->>COService: [WBSElements on branch]
     COService->>Discovery: discover_all_cost_elements(source_branch)
-    Discovery-->>COService: [CostElements on branch]
+    Note over COService: CostElements are Versionable but NOT Branchable. No merge needed.
 
-    loop For each WBE
+    loop For each WBSElement
         alt Soft-deleted
-            COService->>WBEService: soft_delete(target_branch)
+            COService->>WBSElementService: soft_delete(target_branch)
         else Active
-            COService->>WBEService: merge_branch(source, target)
-        end
-    end
-
-    loop For each CostElement
-        alt Soft-deleted
-            COService->>CESService: soft_delete(target_branch)
-        else Active
-            COService->>CESService: merge_branch(source, target)
+            COService->>WBSElementService: merge_branch(source, target)
         end
     end
 
@@ -437,18 +456,22 @@ Branches can be locked to prevent modifications during the approval process.
 
 **Implementation:**
 ```python
-# Check in BranchableService
-def _check_branch_lock(root_id: UUID, branch: str, entity_id: UUID | None = None) -> None:
-    if branch == "main":
-        return  # Main branch never locked
+# Branch locking is managed by BranchService
+# Lock state is stored on the Branch.locked boolean field
 
-    branch_record = get_branch(branch)
-    if branch_record and branch_record.locked:
-        raise BranchLockedException(
-            f"Branch '{branch}' is locked. Cannot modify entities.",
-            branch=branch,
-            entity_id=entity_id,
-        )
+# Lock a branch (called during submit_for_approval)
+await branch_service.lock(branch_name="BR-CO-2026-001")
+
+# Unlock a branch (called during reject_change_order)
+await branch_service.unlock(branch_name="BR-CO-2026-001")
+
+# Check lock state before entity modifications
+branch = await branch_service.get_by_name("BR-CO-2026-001")
+if branch and branch.locked:
+    raise BranchLockedException(
+        f"Branch '{branch_name}' is locked. Cannot modify entities.",
+        branch=branch_name,
+    )
 ```
 
 ---
@@ -506,8 +529,8 @@ Impact analysis is triggered when a Change Order is submitted for approval (not 
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
-| `MERGE` | Shows merged result (main + delta) | Default view, shows final state after merge |
-| `STRICT` | Shows isolated comparison (delta only) | Understanding what changed without main context |
+| `MERGED` | Shows merged result (main + delta) | Default view, shows final state after merge |
+| `ISOLATED` | Shows isolated comparison (delta only) | Understanding what changed without main context |
 
 ### Impact Components
 
@@ -520,9 +543,9 @@ The impact analysis includes:
    - Actual Costs
 
 2. **Entity Changes**
-   - Added WBEs/CostElements
-   - Modified WBEs/CostElements
-   - Removed WBEs/CostElements
+   - Added WBSElements/CostElements
+   - Modified WBSElements/CostElements
+   - Removed WBSElements/CostElements
 
 3. **Waterfall Chart**
    - Cost bridge visualization showing flow from baseline to forecast
@@ -549,11 +572,11 @@ The impact analysis includes:
 - In the current workflow, the CO is always forked to the isolation branch at submission time
 - During merge, the system expects the CO to exist on the source branch
 - If the CO was never submitted (still in Draft), merge will fail with "No active version found on isolation branch"
-- Only child entities (WBEs, CostElements) that differ between branches are merged
+- Only child entities (WBSElements, CostElements) that differ between branches are merged
 
 **Code Check:**
 ```python
-co_on_branch = await self.get_current(change_order_id, source_branch)
+co_on_branch = await self.get_as_of(change_order_id, branch=source_branch)
 co_was_forked = co_on_branch is not None
 
 if co_was_forked:
@@ -576,10 +599,10 @@ all_wbes = await discovery.discover_all_wbes(source_branch)
 for wbe in all_wbes:
     if wbe.deleted_at is not None:
         # Propagate soft delete
-        await wbe_service.soft_delete(wbe.wbe_id, target_branch, actor_id)
+        await wbe_service.soft_delete(root_id=wbe.wbs_element_id, branch=target_branch, actor_id=actor_id)
     else:
         # Normal merge
-        await wbe_service.merge_branch(wbe.wbe_id, source_branch, target_branch)
+        await wbe_service.merge_branch(wbe.wbs_element_id, source_branch, target_branch)
 ```
 
 ### 8.3 Branch Locking
@@ -622,9 +645,9 @@ if conflicts:
 **Conflict Structure:**
 ```json
 {
-  "entity_type": "WBE",
+  "entity_type": "WBSElement",
   "entity_id": "uuid-here",
-  "field": "budget",
+  "field": "revenue_allocation",
   "source_value": 50000,
   "target_value": 45000,
   "base_value": 40000
@@ -642,8 +665,8 @@ if conflicts:
 
 **Query Pattern:**
 ```sql
-SELECT * FROM wbes
-WHERE wbe_id = :id
+SELECT * FROM wbs_elements
+WHERE wbs_element_id = :id
   AND branch = :branch
   AND upper(valid_time) IS NULL  -- Current version only
   AND NOT isempty(valid_time)
@@ -658,30 +681,30 @@ WHERE wbe_id = :id
 |--------|----------|---------|
 | POST | `/change-orders` | Create CO |
 | GET | `/change-orders` | List COs with pagination |
-| GET | `/change-orders/{id}` | Get CO by UUID |
+| GET | `/change-orders/{change_order_id}` | Get CO by UUID |
 | GET | `/change-orders/by-code/{code}` | Get CO by business code |
-| PUT | `/change-orders/{id}` | Update CO metadata |
-| DELETE | `/change-orders/{id}` | Soft delete CO |
-| GET | `/change-orders/{id}/history` | Version history |
-| GET | `/change-orders/{id}/merge-conflicts` | Check merge conflicts |
-| POST | `/change-orders/{id}/merge` | Merge to main |
-| POST | `/change-orders/{id}/revert` | Revert to version |
-| GET | `/change-orders/{id}/impact` | Impact analysis |
-| PUT | `/change-orders/{id}/submit-for-approval` | Submit for approval |
-| PUT | `/change-orders/{id}/approve` | Approve CO |
-| PUT | `/change-orders/{id}/reject` | Reject CO |
-| POST | `/change-orders/{id}/archive` | Archive branch |
-| POST | `/change-orders/{id}/recover` | Admin recovery |
-| POST | `/change-orders/{id}/escalate` | Escalate SLA status |
-| GET | `/change-orders/{id}/approval-info` | Approval details |
+| PUT | `/change-orders/{change_order_id}` | Update CO metadata |
+| DELETE | `/change-orders/{change_order_id}` | Soft delete CO |
+| GET | `/change-orders/{change_order_id}/history` | Version history |
+| GET | `/change-orders/{change_order_id}/merge-conflicts` | Check merge conflicts |
+| POST | `/change-orders/{change_order_id}/merge` | Merge to main |
+| POST | `/change-orders/{change_order_id}/revert` | Revert to version |
+| GET | `/change-orders/{change_order_id}/impact` | Impact analysis |
+| PUT | `/change-orders/{change_order_id}/submit-for-approval` | Submit for approval |
+| PUT | `/change-orders/{change_order_id}/approve` | Approve CO |
+| PUT | `/change-orders/{change_order_id}/reject` | Reject CO |
+| POST | `/change-orders/{change_order_id}/archive` | Archive branch |
+| POST | `/change-orders/{change_order_id}/recover` | Admin recovery |
+| POST | `/change-orders/{change_order_id}/escalate` | Escalate SLA status |
+| GET | `/change-orders/{change_order_id}/approval-info` | Approval details |
 | GET | `/change-orders/pending-approvals` | User's pending approvals |
 | GET | `/change-orders/stats` | Aggregated statistics |
 | GET | `/change-orders/next-code` | Next sequential code |
 | GET | `/change-order-config/global` | Get global workflow config |
 | PUT | `/change-order-config/global` | Upsert global workflow config |
-| GET | `/change-order-config/projects/{id}` | Get project config override |
-| PUT | `/change-order-config/projects/{id}` | Upsert project config override |
-| DELETE | `/change-order-config/projects/{id}` | Reset project to global defaults |
+| GET | `/change-order-config/projects/{project_id}` | Get project config override |
+| PUT | `/change-order-config/projects/{project_id}` | Upsert project config override |
+| DELETE | `/change-order-config/projects/{project_id}` | Reset project to global defaults |
 
 ### RBAC Permissions
 
@@ -706,19 +729,20 @@ WHERE wbe_id = :id
 ```python
 from uuid import UUID
 from app.services.change_order_service import ChangeOrderService
+from app.models.schemas.change_order import ChangeOrderCreate
 
 # Initialize service
 service = ChangeOrderService(session)
 
-# Create change order
-co = await service.create_change_order(
+# Create change order (uses Pydantic schema, not individual keyword args)
+co_in = ChangeOrderCreate(
     project_id=UUID("..."),
     code="CO-2026-001",  # Or use get_next_code()
     title="Add emergency stop feature",
     description="Install emergency stop buttons at all workstations",
     justification="Safety requirement per ISO 13850",
-    created_by=current_user.user_id,
 )
+co = await service.create_change_order(co_in, actor_id=current_user.user_id)
 
 # Submit for approval (triggers impact analysis, assigns approver, locks branch)
 co = await service.submit_for_approval(
@@ -727,7 +751,7 @@ co = await service.submit_for_approval(
     comment="Ready for review",
 )
 
-print(f"Status: {co.status}")  # "Submitted for Approval"
+print(f"Status: {co.status}")  # "submitted_for_approval"
 print(f"Branch: {co.branch_name}")  # "BR-CO-2026-001"
 print(f"Impact Level: {co.impact_level}")  # e.g., "MEDIUM"
 print(f"SLA Due: {co.sla_due_date}")
@@ -802,9 +826,12 @@ co = await service.submit_for_approval(
 ### Check Merge Conflicts Before Merge
 
 ```python
-# Pre-merge conflict check
-conflicts = await service.get_merge_conflicts(
-    change_order_id=co_id,
+# Pre-merge conflict check (via API endpoint or private method)
+# Option 1: Via API endpoint GET /change-orders/{change_order_id}/merge-conflicts
+
+# Option 2: Direct service call (private method, inherited from BranchableService)
+conflicts = await service._detect_merge_conflicts(
+    root_id=co_id,
     source_branch="BR-CO-2026-001",
     target_branch="main",
 )
@@ -821,14 +848,15 @@ else:
 
 ```python
 from app.services.impact_analysis_service import ImpactAnalysisService
+from app.core.versioning.enums import BranchMode
 
 impact_service = ImpactAnalysisService(session)
 
-# Get impact in MERGE mode (shows merged result)
+# Get impact in MERGED mode (shows merged result)
 impact = await impact_service.analyze_impact(
     change_order_id=co_id,
     branch_name="BR-CO-2026-001",
-    branch_mode="MERGE",  # or "STRICT"
+    branch_mode=BranchMode.MERGED,  # or BranchMode.ISOLATED
     include_evm_metrics=True,
 )
 
@@ -837,9 +865,9 @@ print(f"Budget Delta %: {impact.kpi_scorecard.budget_delta_percent:.1f}%")
 print(f"Impact Score: {impact.impact_score}")
 
 # Entity changes
-print(f"WBEs Added: {len(impact.entity_changes.wbes_added)}")
-print(f"WBEs Modified: {len(impact.entity_changes.wbes_modified)}")
-print(f"WBEs Removed: {len(impact.entity_changes.wbes_removed)}")
+print(f"WBSElements Added: {len(impact.entity_changes.wbes_added)}")
+print(f"WBSElements Modified: {len(impact.entity_changes.wbes_modified)}")
+print(f"WBSElements Removed: {len(impact.entity_changes.wbes_removed)}")
 ```
 
 ---
@@ -854,7 +882,7 @@ print(f"WBEs Removed: {len(impact.entity_changes.wbes_removed)}")
 
 **Fix:** This is expected behavior. Check if entity exists on branch before merge:
 ```python
-co_on_branch = await service.get_current(change_order_id, source_branch)
+co_on_branch = await service.get_as_of(change_order_id, branch=source_branch)
 if co_on_branch is None:
     # Entity not forked - use main version
     pass
@@ -912,7 +940,7 @@ if not user.has_permission("change-order-approve"):
 impact = await impact_service.analyze_impact(
     change_order_id=co_id,
     branch_name="BR-CO-2026-001",
-    timeout_seconds=120,  # Increase from default 60
+    timeout_seconds=600,  # Increase from default 300
 )
 ```
 
@@ -941,8 +969,8 @@ WHERE change_order_id = :id
 #### All Entities on Branch (Including Soft-Deleted)
 
 ```sql
--- WBEs
-SELECT * FROM wbes
+-- WBSElements
+SELECT * FROM wbs_elements
 WHERE branch = :branch
   AND upper(valid_time) IS NULL
   AND NOT isempty(valid_time);
@@ -959,17 +987,17 @@ WHERE branch = :branch
 ```sql
 -- Find entities modified on both branches
 SELECT
-    s.wbe_id,
-    s.budget as source_budget,
-    t.budget as target_budget,
-    b.budget as base_budget
-FROM wbes s
-JOIN wbes t ON s.wbe_id = t.wbe_id
-JOIN wbes b ON s.wbe_id = b.wbe_id
+    s.wbs_element_id,
+    s.revenue_allocation as source_revenue,
+    t.revenue_allocation as target_revenue,
+    b.revenue_allocation as base_revenue
+FROM wbs_elements s
+JOIN wbs_elements t ON s.wbs_element_id = t.wbs_element_id
+JOIN wbs_elements b ON s.wbs_element_id = b.wbs_element_id
 WHERE s.branch = :source_branch
   AND t.branch = :target_branch
   AND b.branch = 'main'
-  AND s.budget != t.budget;
+  AND s.revenue_allocation != t.revenue_allocation;
 ```
 
 #### SLA Status Check
@@ -986,7 +1014,7 @@ SELECT
         ELSE 'pending'
     END as calculated_sla_status
 FROM change_orders
-WHERE status IN ('Submitted for Approval', 'Under Review', 'Approved')
+WHERE status IN ('submitted_for_approval', 'under_review', 'approved')
   AND deleted_at IS NULL;
 ```
 
@@ -1008,14 +1036,16 @@ logging.getLogger("app.core.branching").setLevel(logging.DEBUG)
 ## Appendix A: Status Constants
 
 ```python
-class ChangeOrderStatus:
-    DRAFT = "Draft"
-    SUBMITTED_FOR_APPROVAL = "Submitted for Approval"
-    UNDER_REVIEW = "Under Review"
-    APPROVED = "Approved"
-    REJECTED = "Rejected"
-    IMPLEMENTED = "Implemented"
+# Defined in app/core/enums.py
+class ChangeOrderStatus(str, Enum):
+    DRAFT = "draft"
+    SUBMITTED_FOR_APPROVAL = "submitted_for_approval"
+    UNDER_REVIEW = "under_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    IMPLEMENTED = "implemented"
 
+# Defined in app/models/domain/change_order.py (plain classes, not enums)
 class ImpactLevel:
     LOW = "LOW"        # < €10,000
     MEDIUM = "MEDIUM"  # €10,000 - €50,000
@@ -1028,12 +1058,8 @@ class SLAStatus:
     ESCALATED = "escalated"
     OVERDUE = "overdue"
 
-class ImpactAnalysisStatus:
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
+# Impact analysis status is stored as plain strings directly on the ChangeOrder model,
+# not as a separate enum class. Valid values: pending, in_progress, completed, failed, skipped
 ```
 
 ## Appendix B: Workflow Configuration
@@ -1121,3 +1147,7 @@ The workflow state machine is configurable through the `workflow_transitions` JS
 | `backend/app/models/domain/change_order_config.py` | Config domain models |
 | `backend/app/models/schemas/change_order_config.py` | Config API schemas |
 | `backend/app/api/routes/change_order_config.py` | Config API endpoints |
+
+---
+
+*Last Updated: 2026-05-30*

@@ -15,6 +15,18 @@ logger = logging.getLogger(__name__)
 _cached_tools: list[BaseTool] | None = None
 
 
+def invalidate_tool_cache() -> None:
+    """Clear the cached tool list so the next call rebuilds it from scratch.
+
+    Must be called when MCP tools are added, removed, or reconfigured at
+    runtime so that ``create_project_tools()`` returns a fresh list on
+    its next invocation.
+    """
+    global _cached_tools
+    _cached_tools = None
+    logger.debug("Tool cache invalidated")
+
+
 def filter_tools_by_execution_mode(
     tools: list[BaseTool],
     execution_mode: ExecutionMode,
@@ -142,6 +154,10 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
 
     # Import tool modules
     from app.ai.tools import (
+        ask_user as ask_user_module,
+    )
+    from app.ai.tools import (
+        briefing_tools,
         context_tools,
         document_tools,
         project_tools,
@@ -151,66 +167,39 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         advanced_analysis_template,
         analysis_template,
         change_order_template,
+        control_account_template,
         cost_element_template,
+        cost_event_template,
+        cost_event_type_template,
         diagram_template,
         forecast_cost_progress_template,
-        package_type_template,
         project_template,
         user_management_template,
         work_package_template,
     )
 
-    # Collect all tools from project_tools (production tools)
+    # --- Category: "projects" (Project + WBS hierarchy) ---
     tools: list[BaseTool] = [
+        # From project_tools (read/search)
         project_tools.list_projects,
         project_tools.get_project,
-        project_tools.global_search,
-    ]
-
-    # Add context tools (read and write for LLM awareness and control)
-    context_tools_list = [
-        temporal_tools.get_temporal_context,
-        temporal_tools.set_temporal_context,
-        context_tools.get_project_context,
-        context_tools.get_project_structure,
-    ]
-    tools.extend(context_tools_list)
-
-    # Add tools from project_template (Project and WBE CRUD operations)
-    project_template_tools = [
+        # From project_template (Project CRUD)
         project_template.create_project,
         project_template.update_project,
         project_template.delete_project,
-        project_template.find_wbes,
-        project_template.create_wbe,
-        project_template.update_wbe,
-        project_template.delete_wbe,
-        project_template.batch_create_wbes,
-        project_template.batch_update_wbes,
+        project_template.batch_create_projects,
+        # From project_template (WBS Element CRUD)
+        project_template.find_wbs_elements,
+        project_template.create_wbs_element,
+        project_template.update_wbs_element,
+        project_template.delete_wbs_element,
+        project_template.batch_create_wbs_elements,
+        project_template.batch_update_wbs_elements,
     ]
-    tools.extend(project_template_tools)
 
-    # Add tools from analysis_template (EVM metrics and health assessment)
-    analysis_tools = [
-        analysis_template.get_project_analysis,
-    ]
-    tools.extend(analysis_tools)
-
-    # Add tools from change_order_template (Change Order management)
-    change_order_tools = [
-        change_order_template.find_change_orders,
-        change_order_template.create_change_order,
-        change_order_template.generate_change_order_draft,
-        change_order_template.submit_change_order_for_approval,
-        change_order_template.approve_change_order,
-        change_order_template.reject_change_order,
-        change_order_template.analyze_change_order_impact,
-        change_order_template.delete_change_order,
-    ]
-    tools.extend(change_order_tools)
-
-    # Add tools from cost_element_template (Cost Element and Cost Element Type CRUD)
-    cost_element_tools = [
+    # --- Category: "cost-management" (all cost-related entities) ---
+    cost_management_tools = [
+        # From cost_element_template (Cost Element + Cost Element Type CRUD)
         cost_element_template.find_cost_elements,
         cost_element_template.create_cost_element,
         cost_element_template.update_cost_element,
@@ -220,78 +209,115 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         cost_element_template.update_cost_element_type,
         cost_element_template.delete_cost_element_type,
         cost_element_template.batch_create_cost_elements,
-        cost_element_template.batch_update_cost_elements,
         cost_element_template.batch_delete_cost_elements,
-        cost_element_template.get_budget_status_batch,
-        cost_element_template.get_cost_element_summaries,
+        # From cost_event_template (Cost Event CRUD + COQ)
+        cost_event_template.find_cost_events,
+        cost_event_template.create_cost_event,
+        cost_event_template.update_cost_event,
+        cost_event_template.delete_cost_event,
+        cost_event_template.batch_create_cost_events,
+        cost_event_template.get_coq_data,
+        # From cost_event_type_template (Cost Event Type CRUD)
+        cost_event_type_template.find_cost_event_types,
+        cost_event_type_template.create_cost_event_type,
+        cost_event_type_template.update_cost_event_type,
+        cost_event_type_template.delete_cost_event_type,
+        cost_event_type_template.batch_create_cost_element_types,
+        # From forecast_cost_progress_template (Forecast + Cost Registration)
+        forecast_cost_progress_template.create_forecast,
+        forecast_cost_progress_template.update_forecast,
+        forecast_cost_progress_template.delete_forecast,
+        forecast_cost_progress_template.batch_create_forecasts,
+        forecast_cost_progress_template.get_cost_element_details,
+        forecast_cost_progress_template.create_cost_registration,
+        forecast_cost_progress_template.update_cost_registration,
+        forecast_cost_progress_template.delete_cost_registration,
+        forecast_cost_progress_template.list_cost_registrations,
+        forecast_cost_progress_template.batch_create_cost_registrations,
     ]
-    tools.extend(cost_element_tools)
+    tools.extend(cost_management_tools)
 
-    # Add tools from user_management_template (User and Department CRUD)
+    # --- Category: "work-tracking" (work execution tracking) ---
+    work_tracking_tools = [
+        # From control_account_template (Control Account CRUD + budget)
+        control_account_template.find_control_accounts,
+        control_account_template.create_control_account,
+        control_account_template.update_control_account,
+        control_account_template.delete_control_account,
+        control_account_template.get_control_account_budget,
+        control_account_template.batch_create_control_accounts,
+        # From work_package_template (Work Package CRUD + budget status)
+        work_package_template.find_work_packages,
+        work_package_template.create_work_package,
+        work_package_template.update_work_package,
+        work_package_template.delete_work_package,
+        work_package_template.batch_create_work_packages,
+        work_package_template.get_work_package_budget_status,
+        work_package_template.batch_get_work_package_budget_status,
+        # From forecast_cost_progress_template (Progress Entry)
+        forecast_cost_progress_template.create_progress_entry,
+        forecast_cost_progress_template.update_progress_entry,
+        forecast_cost_progress_template.delete_progress_entry,
+        forecast_cost_progress_template.batch_create_progress_entries,
+        forecast_cost_progress_template.get_progress_data,
+    ]
+    tools.extend(work_tracking_tools)
+
+    # --- Category: "change-orders" (change order workflow) ---
+    change_order_tools = [
+        change_order_template.find_change_orders,
+        change_order_template.create_change_order,
+        change_order_template.generate_change_order_draft,
+        change_order_template.submit_change_order_for_approval,
+        change_order_template.approve_change_order,
+        change_order_template.reject_change_order,
+        change_order_template.analyze_change_order_impact,
+        change_order_template.delete_change_order,
+        change_order_template.batch_create_change_orders,
+    ]
+    tools.extend(change_order_tools)
+
+    # --- Category: "analysis" (EVM metrics, forecasting, search) ---
+    analysis_tools = [
+        analysis_template.get_project_analysis,
+        advanced_analysis_template.get_project_forecast,
+        project_tools.global_search,
+    ]
+    tools.extend(analysis_tools)
+
+    # --- Category: "users" (User + Organizational Unit management) ---
     user_management_tools = [
         user_management_template.find_users,
         user_management_template.create_user,
         user_management_template.update_user,
         user_management_template.delete_user,
-        user_management_template.find_departments,
-        user_management_template.create_department,
-        user_management_template.update_department,
-        user_management_template.delete_department,
+        user_management_template.batch_create_users,
+        user_management_template.find_organizational_units,
+        user_management_template.create_organizational_unit,
+        user_management_template.update_organizational_unit,
+        user_management_template.delete_organizational_unit,
+        user_management_template.batch_create_organizational_units,
     ]
     tools.extend(user_management_tools)
 
-    # Add tools from advanced_analysis_template (Forecasting and anomaly detection)
-    advanced_analysis_tools = [
-        advanced_analysis_template.get_project_forecast,
-    ]
-    tools.extend(advanced_analysis_tools)
-
-    # Add tools from diagram_template (Mermaid diagram generation)
-    diagram_tools = [
-        diagram_template.generate_mermaid_diagram,
-    ]
-    tools.extend(diagram_tools)
-
-    # Add tools from forecast_cost_progress_template (Forecast, Cost Registration, Progress Entry)
-    forecast_cost_progress_tools = [
-        forecast_cost_progress_template.create_forecast,
-        forecast_cost_progress_template.update_forecast,
-        forecast_cost_progress_template.create_cost_registration,
-        forecast_cost_progress_template.update_cost_registration,
-        forecast_cost_progress_template.delete_cost_registration,
-        forecast_cost_progress_template.create_progress_entry,
-        forecast_cost_progress_template.get_cost_element_details,
-        forecast_cost_progress_template.get_progress_data,
-        forecast_cost_progress_template.batch_create_cost_registrations,
-        forecast_cost_progress_template.batch_create_progress_entries,
-    ]
-    tools.extend(forecast_cost_progress_tools)
-
-    # Add tools from work_package_template (Work Package CRUD and COQ)
-    work_package_tools = [
-        work_package_template.find_work_packages,
-        work_package_template.create_work_package,
-        work_package_template.update_work_package,
-        work_package_template.delete_work_package,
-        work_package_template.get_coq_data,
-    ]
-    tools.extend(work_package_tools)
-
-    # Add tools from package_type_template (Package Type CRUD)
-    package_type_tools = [
-        package_type_template.find_package_types,
-        package_type_template.create_package_type,
-        package_type_template.update_package_type,
-        package_type_template.delete_package_type,
-    ]
-    tools.extend(package_type_tools)
-
-    # Add tools from document_tools (Document repository access)
-    document_tools_list = [
+    # --- Category: "context" (read-only context for AI) ---
+    context_tools_list = [
+        temporal_tools.get_temporal_context,
+        temporal_tools.set_temporal_context,
+        context_tools.get_project_context,
+        context_tools.get_project_structure,
+        briefing_tools.get_briefing,
         document_tools.search_documents,
         document_tools.read_document,
     ]
-    tools.extend(document_tools_list)
+    tools.extend(context_tools_list)
+
+    # --- Category: "interaction" (user-facing features) ---
+    interaction_tools = [
+        ask_user_module.ask_user,
+        diagram_template.generate_mermaid_diagram,
+    ]
+    tools.extend(interaction_tools)
 
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [tool for tool in tools if isinstance(tool, BaseTool)]
@@ -312,5 +338,6 @@ __all__ = [
     "create_project_tools",
     "filter_tools_by_execution_mode",
     "filter_tools_by_role",
+    "invalidate_tool_cache",
     "ToolContext",
 ]

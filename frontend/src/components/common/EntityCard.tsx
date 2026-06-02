@@ -82,7 +82,7 @@ export const EntityCard: React.FC<EntityCardProps> = ({
           <div
             style={{
               fontSize: token.fontSizeLG,
-              fontWeight: token.fontWeightSemiBold ?? 600,
+              fontWeight: token.fontWeightStrong ?? 600,
               color: token.colorText,
               overflow: "hidden",
               textOverflow: "ellipsis",

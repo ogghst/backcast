@@ -189,6 +189,16 @@ class AIAssistantConfigBase(BaseModel):
         description="Model to use. Required for main agents; specialists inherit from the main agent.",
     )
     system_prompt: str | None = Field(None, max_length=10000)
+    planner_prompt: str | None = Field(
+        None,
+        max_length=10000,
+        description="Custom planner prompt template for main agents. Use {specialist_section} for dynamic specialist list.",
+    )
+    supervisor_prompt: str | None = Field(
+        None,
+        max_length=10000,
+        description="Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list.",
+    )
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
     recursion_limit: int | None = Field(
@@ -220,11 +230,6 @@ class AIAssistantConfigBase(BaseModel):
         max_length=100,
         description="Fully qualified Pydantic model class name for structured output (specialist-only)",
     )
-    is_system: bool = Field(
-        False,
-        description="System agents cannot be deleted, only disabled",
-    )
-
     @model_validator(mode="after")
     def validate_main_agent_model(self) -> Self:
         """Require model_id for main agents; specialists may omit it."""
@@ -245,6 +250,16 @@ class AIAssistantConfigUpdate(BaseModel):
     name: str | None = Field(None, max_length=255)
     description: str | None = Field(None, max_length=2000)
     system_prompt: str | None = Field(None, max_length=10000)
+    planner_prompt: str | None = Field(
+        None,
+        max_length=10000,
+        description="Custom planner prompt template for main agents.",
+    )
+    supervisor_prompt: str | None = Field(
+        None,
+        max_length=10000,
+        description="Custom supervisor prompt template for main agents.",
+    )
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
     recursion_limit: int | None = Field(None, ge=1, le=500)
@@ -259,7 +274,6 @@ class AIAssistantConfigUpdate(BaseModel):
     allowed_tools: list[str] | None = None
     delegation_config: DelegationConfig | None = None
     structured_output_schema: str | None = Field(None, max_length=100)
-    is_system: bool | None = None
 
 
 class AIAssistantConfigPublic(AIAssistantConfigBase):
@@ -935,6 +949,20 @@ class WSExecutionStatusMessage(BaseModel):
     error_message: str | None = Field(
         None, description="Error message if status is 'error'"
     )
+
+
+class WSAskUserResponse(BaseModel):
+    """WebSocket ask_user response message from client.
+
+    Client -> Server message with the user's answer to an ``ask_user``
+    question. Sent when the user submits their response in the chat UI.
+    """
+
+    type: Literal["ask_user_response"] = Field(
+        default="ask_user_response", description="Message type discriminator"
+    )
+    ask_id: str = Field(..., description="Ask ID being responded to")
+    answer: str = Field(..., description="The user's response text")
 
 
 # Union type for all server->client WebSocket messages

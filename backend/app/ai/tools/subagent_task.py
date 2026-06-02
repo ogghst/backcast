@@ -132,7 +132,7 @@ def _summarize_structured_output(model: BaseModel) -> str:
     if isinstance(model, EVMMetricsRead):
         # Summarize EVM metrics
         parts = [
-            f"**EVM Metrics for Cost Element {model.cost_element_id}**",
+            f"**EVM Metrics for Work Package {model.work_package_id}**",
         ]
         if model.cpi is not None:
             cpi_status = "on track" if model.cpi >= 1.0 else "over budget"

@@ -1,0 +1,140 @@
+{
+  "config": {
+    "id": "40000000-0000-4000-8000-000000000001",
+    "config_id": "40000000-0000-4000-8000-000000000001",
+    "project_id": null,
+    "is_active": true,
+    "version": 1,
+    "created_by": "00000000-0000-0000-0000-000000000001",
+    "updated_by": null,
+    "impact_weights": {
+      "budget": 0.4,
+      "schedule": 0.3,
+      "revenue": 0.2,
+      "evm": 0.1
+    },
+    "score_boundaries": {
+      "LOW": 10,
+      "MEDIUM": 30,
+      "HIGH": 50,
+      "CRITICAL": 999
+    },
+    "workflow_transitions": {
+      "transitions": {
+        "draft": ["submitted_for_approval"],
+        "submitted_for_approval": ["under_review", "approved", "rejected"],
+        "under_review": ["approved", "rejected"],
+        "rejected": ["draft", "submitted_for_approval"],
+        "approved": ["implemented"],
+        "implemented": []
+      },
+      "lock_transitions": [["draft", "submitted_for_approval"]],
+      "unlock_transitions": [["under_review", "rejected"]],
+      "editable_statuses": ["draft", "rejected"]
+    },
+    "holiday_country_code": "IT",
+    "custom_fields": null
+  },
+  "impact_levels": [
+    {
+      "id": "41000000-0000-4000-8000-000000000001",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "level_name": "LOW",
+      "level_order": 1,
+      "threshold_amount": "10000.00",
+      "score_threshold_min": "0.00",
+      "score_threshold_max": "10.00",
+      "is_active": true
+    },
+    {
+      "id": "41000000-0000-4000-8000-000000000002",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "level_name": "MEDIUM",
+      "level_order": 2,
+      "threshold_amount": "50000.00",
+      "score_threshold_min": "10.01",
+      "score_threshold_max": "30.00",
+      "is_active": true
+    },
+    {
+      "id": "41000000-0000-4000-8000-000000000003",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "level_name": "HIGH",
+      "level_order": 3,
+      "threshold_amount": "100000.00",
+      "score_threshold_min": "30.01",
+      "score_threshold_max": "50.00",
+      "is_active": true
+    },
+    {
+      "id": "41000000-0000-4000-8000-000000000004",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "level_name": "CRITICAL",
+      "level_order": 4,
+      "threshold_amount": "999999.99",
+      "score_threshold_min": "50.01",
+      "score_threshold_max": "999.99",
+      "is_active": true
+    }
+  ],
+  "approval_rules": [
+    {
+      "id": "42000000-0000-4000-8000-000000000001",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "impact_level_name": "LOW",
+      "required_authority_level": "LOW",
+      "approver_role": "editor_pm"
+    },
+    {
+      "id": "42000000-0000-4000-8000-000000000002",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "impact_level_name": "MEDIUM",
+      "required_authority_level": "MEDIUM",
+      "approver_role": "dept_head"
+    },
+    {
+      "id": "42000000-0000-4000-8000-000000000003",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "impact_level_name": "HIGH",
+      "required_authority_level": "HIGH",
+      "approver_role": "director"
+    },
+    {
+      "id": "42000000-0000-4000-8000-000000000004",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "impact_level_name": "CRITICAL",
+      "required_authority_level": "CRITICAL",
+      "approver_role": "admin"
+    }
+  ],
+  "sla_rules": [
+    {
+      "id": "43000000-0000-4000-8000-000000000001",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "impact_level_name": "LOW",
+      "business_days": 10,
+      "escalation_trigger_pct": "50.00"
+    },
+    {
+      "id": "43000000-0000-4000-8000-000000000002",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "impact_level_name": "MEDIUM",
+      "business_days": 7,
+      "escalation_trigger_pct": "50.00"
+    },
+    {
+      "id": "43000000-0000-4000-8000-000000000003",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "impact_level_name": "HIGH",
+      "business_days": 5,
+      "escalation_trigger_pct": "50.00"
+    },
+    {
+      "id": "43000000-0000-4000-8000-000000000004",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "impact_level_name": "CRITICAL",
+      "business_days": 3,
+      "escalation_trigger_pct": "50.00"
+    }
+  ]
+}

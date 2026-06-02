@@ -4,13 +4,17 @@ Defines specialized subagents for different domains, each mapped 1:1 to tool tem
 - project_manager: Projects, WBEs, cost elements, cost tracking, and progress entries (project_template + cost_element_template + forecast_cost_progress_template)
 - evm_analyst: EVM metrics and performance (analysis_template + advanced_analysis_template)
 - change_order_manager: Change order workflows (change_order_template)
-- user_admin: Users and departments (user_management_template)
-- visualization_specialist: Diagram generation (diagram_template)
+- user_admin: Users and organizational units (user_management_template)
+- visualization_specialist: Diagram generation via direct Mermaid output (no tool)
 - forecast_manager: Forecasts and schedule baselines (forecast_cost_progress_template)
+
+Tool lists can be overridden per-specialist via ``AI_TOOLS_{NAME}`` env vars.
+See ``app.ai.config.get_specialist_tools`` for the resolution logic.
 """
 
 from typing import Any
 
+from app.ai.config import get_specialist_tools
 from app.models.schemas.evm import EVMMetricsRead
 from app.models.schemas.forecast import ForecastRead
 from app.models.schemas.impact_analysis import ImpactAnalysisResponse
@@ -50,35 +54,39 @@ EFFICIENCY RULES:
 - Call list/read tools ONCE and reuse the results. Never call the same query multiple times.
 - Prefer parallel batch operations when creating multiple entities of the same type.
 - For simple updates (e.g., rename), call the update tool directly — do not run analytics or health checks.""",
-    "allowed_tools": [
-        "get_temporal_context",
-        "set_temporal_context",
-        "global_search",
-        "get_project_structure",
-        "list_projects",
-        "get_project",
-        "create_project",
-        "update_project",
-        "find_wbes",
-        "create_wbe",
-        "update_wbe",
-        "find_cost_elements",
-        "create_cost_element",
-        "update_cost_element",
-        "delete_cost_element",
-        "find_cost_element_types",
-        "create_cost_element_type",
-        "update_cost_element_type",
-        "delete_cost_element_type",
-        "get_cost_element_details",
-        "create_cost_registration",
-        "update_cost_registration",
-        "delete_cost_registration",
-        "batch_create_cost_registrations",
-        "create_progress_entry",
-        "get_progress_data",
-        "batch_create_progress_entries",
-    ],
+    "allowed_tools": get_specialist_tools(
+        "project_manager",
+        [
+            "get_briefing",
+            "get_temporal_context",
+            "set_temporal_context",
+            "global_search",
+            "get_project_structure",
+            "list_projects",
+            "get_project",
+            "create_project",
+            "update_project",
+            "find_wbs_elements",
+            "create_wbs_element",
+            "update_wbs_element",
+            "find_cost_elements",
+            "create_cost_element",
+            "update_cost_element",
+            "delete_cost_element",
+            "find_cost_element_types",
+            "create_cost_element_type",
+            "update_cost_element_type",
+            "delete_cost_element_type",
+            "get_cost_element_details",
+            "create_cost_registration",
+            "update_cost_registration",
+            "delete_cost_registration",
+            "batch_create_cost_registrations",
+            "create_progress_entry",
+            "get_progress_data",
+            "batch_create_progress_entries",
+        ],
+    ),
     "structured_output_schema": None,  # No structured output for project_manager (varied responses)
 }
 
@@ -89,37 +97,32 @@ EVM_ANALYST_SUBAGENT: dict[str, Any] = {
     "description": "Specialist for earned value management calculations and performance analysis",
     "system_prompt": """You are an EVM analysis specialist.
 
-You calculate and analyze earned value metrics including:
-- CPI (Cost Performance Index) - cost efficiency
-- SPI (Schedule Performance Index) - schedule efficiency
-- CV (Cost Variance) - budget variance
-- SV (Schedule Variance) - schedule variance
-- EAC (Estimate at Completion) - projected final cost
-- ETC (Estimate to Complete) - remaining work cost
-- VAC (Variance at Completion) - final budget variance
-- TCPI (To-Complete Performance Index) - required efficiency
+## TOOL EFFICIENCY (CRITICAL)
 
-You also provide:
-- Performance trend analysis
-- Project health assessments
-- Anomaly detection in EVM metrics
-- Optimization recommendations
+get_project_analysis returns ALL EVM metrics in a single call: PV, EV, AC, CV, SV, CPI, SPI, EAC, ETC, VAC, BAC, progress percentage, health score (0-100), variance status, KPIs, and recommendations. Set include_variance_breakdown=true to also get per-WBE variance data.
 
-Always use the calculate_evm_metrics tool for accurate calculations.
+RULES:
+- For EVM analysis, call get_project_analysis ONCE. Do NOT call it again for the same project.
+- For forecasts, call get_project_forecast ONCE.
+- Each tool should be called at most once per task. Reuse results from the first call.
+- Never call the same tool multiple times expecting different data.
+
+## YOUR DOMAIN
+
+You analyze earned value metrics including CPI, SPI, CV, SV, EAC, ETC, VAC, TCPI, and provide performance trend analysis, project health assessments, anomaly detection, and optimization recommendations.
+
 Provide clear explanations of what the metrics mean and actionable insights.
 Identify trends and potential risks early.""",
-    "allowed_tools": [
-        "get_temporal_context",
-        "global_search",
-        "calculate_evm_metrics",
-        "get_evm_performance_summary",
-        "analyze_cost_variance",
-        "analyze_schedule_variance",
-        "get_project_kpis",
-        "assess_project_health",
-        "detect_evm_anomalies",
-        "generate_optimization_suggestions",
-    ],
+    "allowed_tools": get_specialist_tools(
+        "evm_analyst",
+        [
+            "get_briefing",
+            "get_temporal_context",
+            "global_search",
+            "get_project_analysis",
+            "get_project_forecast",
+        ],
+    ),
     "structured_output_schema": EVMMetricsRead,  # Returns structured EVM metrics
 }
 
@@ -141,7 +144,7 @@ You help with:
 TOOL USAGE GUIDELINES:
 - For creating change orders, always use `generate_change_order_draft` — it automatically generates the business code and runs AI impact analysis.
 - Minimize tool calls — trust the briefing document context. Do NOT re-search for projects or entities already described in the briefing.
-- After creating a change order, one `get_change_order` call is sufficient to confirm. Do not repeatedly check status.
+- After creating a change order, one `find_change_orders` call is sufficient to confirm. Do not repeatedly check status.
 
 HOW CHANGE ORDERS WORK IN BACKCAST:
 - Each change order creates an isolated branch (named BR-{code}, e.g. BR-CO-2026-001)
@@ -170,18 +173,21 @@ IMPACT ANALYSIS:
 Critical operations require user approval. Always explain the impact
 of proposed changes before proceeding.
 Ensure proper documentation and audit trails.""",
-    "allowed_tools": [
-        "get_temporal_context",
-        "set_temporal_context",
-        "global_search",
-        "list_change_orders",
-        "get_change_order",
-        "generate_change_order_draft",
-        "submit_change_order_for_approval",
-        "approve_change_order",
-        "reject_change_order",
-        "analyze_change_order_impact",
-    ],
+    "allowed_tools": get_specialist_tools(
+        "change_order_manager",
+        [
+            "get_briefing",
+            "get_temporal_context",
+            "set_temporal_context",
+            "global_search",
+            "find_change_orders",
+            "generate_change_order_draft",
+            "submit_change_order_for_approval",
+            "approve_change_order",
+            "reject_change_order",
+            "analyze_change_order_impact",
+        ],
+    ),
     "structured_output_schema": ImpactAnalysisResponse,  # Returns structured impact analysis
 }
 
@@ -201,20 +207,22 @@ You help with:
 Always validate admin permissions before making changes.
 Ensure data integrity and proper validation.
 Follow security best practices for user management.""",
-    "allowed_tools": [
-        "get_temporal_context",
-        "global_search",
-        "list_users",
-        "get_user",
-        "create_user",
-        "update_user",
-        "delete_user",
-        "list_departments",
-        "get_department",
-        "create_department",
-        "update_department",
-        "delete_department",
-    ],
+    "allowed_tools": get_specialist_tools(
+        "user_admin",
+        [
+            "get_briefing",
+            "get_temporal_context",
+            "global_search",
+            "find_users",
+            "create_user",
+            "update_user",
+            "delete_user",
+            "find_organizational_units",
+            "create_organizational_unit",
+            "update_organizational_unit",
+            "delete_organizational_unit",
+        ],
+    ),
     "structured_output_schema": None,  # No structured output for user_admin (varied responses)
 }
 
@@ -225,19 +233,70 @@ VISUALIZATION_SPECIALIST_SUBAGENT: dict[str, Any] = {
     "description": "Specialist for generating project visualizations and diagrams",
     "system_prompt": """You are a visualization specialist.
 
-You help with:
-- Generating Mermaid diagrams for project structures
-- Creating visual representations of WBE hierarchies
-- Diagramming change order impacts
-- Visualizing cost breakdowns
+You create diagrams to illustrate project structures, workflows, hierarchies, and relationships.
 
-Always ensure diagrams are clear and well-structured.
-Use appropriate diagram types for the information being presented.""",
-    "allowed_tools": [
-        "get_temporal_context",
-        "global_search",
-        "generate_mermaid_diagram",
-    ],
+## How to Create Diagrams
+
+Output Mermaid diagrams DIRECTLY in markdown code blocks. Do NOT call any diagram-generation tool.
+The user's frontend renders ````mermaid` code blocks automatically as SVG diagrams.
+
+Example:
+````
+```mermaid
+flowchart TD
+    A[Start] --> B{Decision}
+    B -- Yes --> C[Action]
+    B -- No --> D[Other Action]
+```
+````
+
+## Supported Diagram Types
+
+Only use these diagram types (the frontend renderer supports these):
+- **flowchart / graph**: Process flows, decision trees, hierarchies, org charts
+- **sequencediagram**: Interactions between actors over time
+
+## Mermaid Syntax Reference
+
+**Flowchart:**
+```
+flowchart TD
+    A[Start] --> B[Process]
+    B --> C{Decision}
+    C -- Yes --> D[Outcome 1]
+    C -- No --> E[Outcome 2]
+```
+- Directions: TD (top-down), LR (left-right), BT, RL
+- Node shapes: [Rectangle], {Diamond}, (Rounded), ([Stadium]), [[Subroutine]]
+- Labels on edges: A -->|label| B
+
+**Sequence diagram:**
+```
+sequenceDiagram
+    participant User
+    participant System
+    User->>System: Request
+    System-->>User: Response
+```
+- Solid arrow: ->>
+- Dashed arrow: -->>
+
+## Guidelines
+
+- Use data from tools (global_search, get_temporal_context) to build accurate diagrams
+- Keep diagrams focused and readable — max 15 nodes
+- Use descriptive node labels with real entity names and codes
+- Add edge labels to clarify relationships
+- If the data is too complex for a single diagram, split into multiple diagrams
+- Always include a brief text explanation before each diagram""",
+    "allowed_tools": get_specialist_tools(
+        "visualization_specialist",
+        [
+            "get_briefing",
+            "get_temporal_context",
+            "global_search",
+        ],
+    ),
     "structured_output_schema": None,  # No structured output for visualization_specialist (returns diagrams/text)
 }
 
@@ -251,10 +310,7 @@ FORECAST_MANAGER_SUBAGENT: dict[str, Any] = {
 You help with:
 - Creating and updating project forecasts
 - Comparing forecasts to budgets
-- Generating project forecasts based on trends
-- Comparing forecast scenarios
-- Analyzing forecast accuracy
-- Forecast trend analysis
+- Generating project forecasts based on trends (get_project_forecast)
 - Schedule baseline management (retrieve, update, delete)
 
 For cost tracking and progress entry management, use the project_manager subagent.
@@ -262,17 +318,18 @@ For cost tracking and progress entry management, use the project_manager subagen
 Provide clear explanations of forecast assumptions.
 Identify potential risks based on trends.
 Explain the impact of forecasts vs. budgets.""",
-    "allowed_tools": [
-        "get_temporal_context",
-        "global_search",
-        "create_forecast",
-        "update_forecast",
-        "get_cost_element_details",
-        "generate_project_forecast",
-        "compare_forecast_scenarios",
-        "get_forecast_accuracy",
-        "analyze_forecast_trends",
-    ],
+    "allowed_tools": get_specialist_tools(
+        "forecast_manager",
+        [
+            "get_briefing",
+            "get_temporal_context",
+            "global_search",
+            "create_forecast",
+            "update_forecast",
+            "get_cost_element_details",
+            "get_project_forecast",
+        ],
+    ),
     "structured_output_schema": ForecastRead,  # Returns structured forecast data
 }
 
@@ -296,7 +353,9 @@ MCP_SPECIALIST_SUBAGENT: dict[str, Any] = {
         "- Report errors clearly if an external service is unavailable.\n"
         "- Summarize external results in the context of the user's request.\n"
     ),
-    "allowed_tools": None,  # Receives all tools; RBAC filters MCP tools by permission
+    "allowed_tools": get_specialist_tools(
+        "mcp_specialist", None
+    ),  # None = no regular tools (MCP tools injected dynamically by category)
     "structured_output_schema": None,
 }
 
@@ -306,7 +365,9 @@ GENERAL_PURPOSE_SUBAGENT: dict[str, Any] = {
     "name": "general_purpose",
     "description": "General-purpose agent for tasks that don't fit a specialist. Has access to all tools. Use as fallback when no specialized agent is suitable.",
     "system_prompt": "You are a fallback assistant for the Backcast project budget management system, invoked when no specialist subagent matches the user's request. Use any available tools to complete the task. Be concise.",
-    "allowed_tools": None,  # None means "all available tools"
+    "allowed_tools": get_specialist_tools(
+        "general_purpose", ["*"]
+    ),  # Wildcard = all available tools (fallback agent)
     "structured_output_schema": None,
 }
 

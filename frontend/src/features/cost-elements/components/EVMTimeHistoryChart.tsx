@@ -1,4 +1,4 @@
-import { useCostElementEvmHistory } from "../api/useCostElements";
+import { useEVMTimeSeries } from "@/features/evm/api/useEVMMetrics";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import {
   LineChart,
@@ -12,9 +12,8 @@ import {
 } from "recharts";
 import { Select, Spin, Empty } from "antd";
 import { useState } from "react";
-import dayjs from "dayjs";
+import { EntityType, EVMTimeSeriesGranularity } from "@/features/evm/types";
 import { useCostElement } from "@/features/cost-elements/api/useCostElements";
-import { useWBE } from "@/features/wbes/api/useWBEs";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
 
@@ -25,18 +24,19 @@ interface EVMTimeHistoryChartProps {
 export const EVMTimeHistoryChart = ({
   costElementId,
 }: EVMTimeHistoryChartProps) => {
-  const [granularity, setGranularity] = useState<"day" | "week" | "month">(
-    "week",
+  const [granularity, setGranularity] = useState<EVMTimeSeriesGranularity>(
+    EVMTimeSeriesGranularity.WEEK,
   );
-  const { data: history, isLoading } = useCostElementEvmHistory(
+
+  const { data: timeSeries, isLoading } = useEVMTimeSeries(
+    EntityType.COST_ELEMENT,
     costElementId,
     granularity,
   );
 
-  // Resolve project currency through cost element -> WBE -> project chain
-  const { data: costElement } = useCostElement(costElementId);
-  const { data: wbe } = useWBE(costElement?.wbe_id);
-  const currency = useProjectCurrency(wbe?.project_id);
+  // Trigger cost element query (used indirectly for project currency resolution)
+  useCostElement(costElementId);
+  const currency = useProjectCurrency(undefined);
   const currencySymbol = getCurrencySymbol(currency);
 
   if (isLoading) {
@@ -60,87 +60,83 @@ export const EVMTimeHistoryChart = ({
     );
   }
 
-  if (!history || !history.points || history.points.length === 0) {
+  if (!timeSeries?.points?.length) {
     return (
       <CollapsibleCard
         id="evm-time-history-empty"
         title="EVM Performance Over Time"
+        style={{ minHeight: 400 }}
       >
-        <Empty description="No history data available" />
+        <Empty description="No EVM history data available" />
       </CollapsibleCard>
     );
   }
 
-  // Format date for X-axis
-  const formatDate = (dateStr: string) => {
-    return dayjs(dateStr).format(
-      granularity === "day"
-        ? "DD MMM"
-        : granularity === "week"
-          ? "DD MMM"
-          : "MMM YYYY",
-    );
-  };
-
-  const formatCurrencyValue = (value: number) => {
-    return `${currencySymbol} ${value.toLocaleString()}`;
-  };
+  const chartData = timeSeries.points.map((point) => ({
+    date: point.date,
+    PV: point.pv,
+    EV: point.ev,
+    AC: point.ac,
+    Forecast: point.forecast,
+  }));
 
   return (
     <CollapsibleCard
-      id="evm-time-history-card"
+      id="evm-time-history"
       title="EVM Performance Over Time"
+      style={{ minHeight: 400 }}
       extra={
         <Select
-          defaultValue="week"
           value={granularity}
-          onChange={(val) => setGranularity(val as "day" | "week" | "month")}
-          options={[
-            { value: "day", label: "Daily" },
-            { value: "week", label: "Weekly" },
-            { value: "month", label: "Monthly" },
-          ]}
+          onChange={(v) => setGranularity(v as EVMTimeSeriesGranularity)}
+          size="small"
           style={{ width: 120 }}
+          options={[
+            { label: "Daily", value: EVMTimeSeriesGranularity.DAY },
+            { label: "Weekly", value: EVMTimeSeriesGranularity.WEEK },
+            { label: "Monthly", value: EVMTimeSeriesGranularity.MONTH },
+          ]}
         />
       }
     >
-      <div style={{ height: 400, width: "100%" }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={history.points}
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" tickFormatter={formatDate} minTickGap={30} />
-            <YAxis tickFormatter={(val) => `${currencySymbol}${val / 1000}k`} />
-            <Tooltip
-              formatter={(value: number) => formatCurrencyValue(value)}
-              labelFormatter={(label) => dayjs(label).format("DD MMM YYYY")}
-            />
-            <Legend />
-            <Line
-              type="monotone"
-              dataKey="pv"
-              name="Planned Value (PV)"
-              stroke="#8884d8"
-              strokeDasharray="5 5"
-            />
-            <Line
-              type="monotone"
-              dataKey="ev"
-              name="Earned Value (EV)"
-              stroke="#82ca9d"
-              strokeWidth={2}
-            />
-            <Line
-              type="monotone"
-              dataKey="ac"
-              name="Actual Cost (AC)"
-              stroke="#ff7300"
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <ResponsiveContainer width="100%" height={350}>
+        <LineChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip />
+          <Legend />
+          <Line
+            type="monotone"
+            dataKey="PV"
+            stroke="#5b8ff9"
+            strokeWidth={2}
+            name={`PV (${currencySymbol})`}
+          />
+          <Line
+            type="monotone"
+            dataKey="EV"
+            stroke="#5ad8a6"
+            strokeWidth={2}
+            name={`EV (${currencySymbol})`}
+          />
+          <Line
+            type="monotone"
+            dataKey="AC"
+            stroke="#5d7092"
+            strokeWidth={2}
+            name={`AC (${currencySymbol})`}
+          />
+          <Line
+            type="monotone"
+            dataKey="Forecast"
+            stroke="#faad14"
+            strokeWidth={2}
+            strokeDasharray="5 5"
+            name={`Forecast (${currencySymbol})`}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </CollapsibleCard>
   );
 };

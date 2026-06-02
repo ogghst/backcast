@@ -14,7 +14,7 @@ import {
 } from "@ant-design/icons";
 import { useMemo } from "react";
 import type { ColumnType } from "antd/es/table";
-import type { ProjectRead } from "@/types";
+import type { ProjectRead } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import { formatDate } from "@/utils/formatters";
 

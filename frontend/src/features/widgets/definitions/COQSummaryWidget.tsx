@@ -3,9 +3,9 @@ import { Col, Row, Statistic, Tag, Typography, theme } from "antd";
 import type { FC } from "react";
 import { useDashboardContext } from "../context/useDashboardContext";
 import {
-  useWorkPackageSummary,
+  useCostEventSummary,
   useCOQMetrics,
-} from "@/features/work-package/api/useWorkPackages";
+} from "@/features/cost-events/api/useCostEvents";
 import { WidgetShell } from "../components/WidgetShell";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
@@ -35,7 +35,7 @@ const COQSummaryComponent: FC<WidgetComponentProps<COQSummaryConfig>> = ({
     isLoading: summaryLoading,
     error: summaryError,
     refetch: summaryRefetch,
-  } = useWorkPackageSummary(context.projectId);
+  } = useCostEventSummary(context.projectId);
 
   const {
     data: metrics,
@@ -71,7 +71,7 @@ const COQSummaryComponent: FC<WidgetComponentProps<COQSummaryConfig>> = ({
       {summary && metrics ? (
         <div style={{ display: "flex", flexDirection: "column", gap: token.paddingSM }}>
           {/* Planned COQ (from work package cost_impact) */}
-          <Text type="secondary" style={{ fontSize: token.fontSizeXS }}>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
             Planned (Budgeted)
           </Text>
           <Row gutter={[token.paddingSM, token.paddingXS]}>

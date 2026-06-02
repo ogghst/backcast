@@ -8,7 +8,7 @@ import { formatCompactCurrency } from "@/utils/formatters";
 
 export type ActivityType = "created" | "updated" | "deleted" | "merged";
 
-export type EntityType = "project" | "wbe" | "cost_element" | "change_order";
+export type EntityType = "project" | "wbs_element" | "cost_element" | "change_order";
 
 // ============================================================================
 // BACKEND API RESPONSE TYPES

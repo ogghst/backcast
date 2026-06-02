@@ -24,6 +24,23 @@ const mockUseUpdateRoleAssignment = vi.fn();
 const mockUseDeleteRoleAssignment = vi.fn();
 const mockUseRBACRoles = vi.fn();
 
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+  }),
+  useTimeMachine: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+    isHistorical: false,
+    invalidateQueries: vi.fn(),
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock(
   "@/features/admin/role-assignments/hooks/useRoleAssignments",
   () => ({
@@ -154,6 +171,8 @@ describe("useProjectMembers", () => {
           user_id: "user-1",
           project_id: "proj-1",
           role: "project_admin",
+          roles: ["project_admin"],
+          assignment_ids: ["assignment-1"],
           assigned_at: "2026-01-01T00:00:00Z",
           assigned_by: "user-2",
           created_at: "2026-01-01T00:00:00Z",
@@ -167,6 +186,8 @@ describe("useProjectMembers", () => {
           user_id: "user-2",
           project_id: "proj-1",
           role: "project_viewer",
+          roles: ["project_viewer"],
+          assignment_ids: ["assignment-2"],
           assigned_at: "2026-01-02T00:00:00Z",
           assigned_by: "user-2",
           created_at: "2026-01-02T00:00:00Z",
@@ -298,6 +319,8 @@ describe("useProjectMembers", () => {
         user_id: "user-3",
         project_id: "proj-1",
         role: "project_editor",
+        roles: ["project_editor"],
+        assignment_ids: ["assignment-new"],
         assigned_at: "2026-01-01T00:00:00Z",
         assigned_by: "user-2",
         created_at: "2026-01-01T00:00:00Z",
@@ -436,6 +459,8 @@ describe("useProjectMembers", () => {
         user_id: "user-1",
         project_id: "proj-1",
         role: "project_manager",
+        roles: ["project_manager"],
+        assignment_ids: ["assignment-1"],
         assigned_at: "2026-01-01T00:00:00Z",
         assigned_by: "user-2",
         created_at: "2026-01-01T00:00:00Z",
@@ -483,9 +508,9 @@ describe("useProjectMembers", () => {
     it("builds roleNameToId and roleIdToName maps from RBAC roles", () => {
       mockUseRBACRoles.mockReturnValue({
         data: [
-          { id: "role-1", name: "project_admin" },
-          { id: "role-2", name: "project_viewer" },
-          { id: "role-3", name: "project_editor" },
+          { id: "role-1", name: "admin" },
+          { id: "role-2", name: "viewer" },
+          { id: "role-3", name: "manager" },
         ],
         isLoading: false,
       });
@@ -494,13 +519,13 @@ describe("useProjectMembers", () => {
         wrapper: createWrapper(),
       });
 
-      expect(result.current.roleNameToId.get("project_admin")).toBe("role-1");
-      expect(result.current.roleNameToId.get("project_viewer")).toBe("role-2");
-      expect(result.current.roleNameToId.get("project_editor")).toBe("role-3");
+      expect(result.current.roleNameToId.get("admin")).toBe("role-1");
+      expect(result.current.roleNameToId.get("viewer")).toBe("role-2");
+      expect(result.current.roleNameToId.get("manager")).toBe("role-3");
 
-      expect(result.current.roleIdToName.get("role-1")).toBe("project_admin");
-      expect(result.current.roleIdToName.get("role-2")).toBe("project_viewer");
-      expect(result.current.roleIdToName.get("role-3")).toBe("project_editor");
+      expect(result.current.roleIdToName.get("role-1")).toBe("admin");
+      expect(result.current.roleIdToName.get("role-2")).toBe("viewer");
+      expect(result.current.roleIdToName.get("role-3")).toBe("manager");
 
       expect(result.current.isLoading).toBe(false);
     });

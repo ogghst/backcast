@@ -1,200 +1,114 @@
-"""Pydantic schemas for WorkPackage API."""
+"""Pydantic schemas for Work Package entity (ANSI-748 PMI budget holder)."""
 
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.schemas.mixins import TemporalComputedMixin
 from app.models.schemas.temporal_validators import TemporalRange
-
-# --- Allocation schemas ---
-
-
-class QualityCostAllocation(BaseModel):
-    """A quality cost allocation to a specific cost element."""
-
-    cost_element_id: UUID
-    amount: Decimal = Field(..., gt=0)
-    description: str | None = None
-
-
-class QualityCostAllocationRead(BaseModel):
-    """A quality cost allocation entry (from CostRegistration)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    cost_registration_id: UUID
-    cost_element_id: UUID
-    amount: Decimal
-    description: str | None = None
-    cost_element_name: str | None = None
-    wbe_code: str | None = None
-
-
-# --- WorkPackage schemas ---
+from app.models.schemas.validators import NotEmptyString
 
 
 class WorkPackageBase(BaseModel):
-    """Shared properties for WorkPackage."""
+    """Base schema for Work Package."""
 
-    name: str = Field(..., min_length=1, max_length=255)
-    package_type: str = Field(
-        ...,
-        min_length=1,
-        max_length=100,
+    name: str = Field(
+        ..., min_length=1, max_length=255, description="Work package name"
     )
-    project_id: UUID
+    code: str = Field(..., min_length=1, max_length=50, description="Work package code")
+    budget_amount: Decimal = Field(
+        Decimal("0"), ge=0, decimal_places=2, description="Allocated budget"
+    )
     description: str | None = None
     status: str = Field(
         default="open",
         pattern="^(open|closed)$",
+        description="Work package lifecycle status",
     )
-
-    # External reference identifier (e.g., QMS ID, PO number, work order)
-    external_event_id: str | None = Field(
-        None,
-        max_length=100,
-        description="External reference identifier (e.g., QMS ID, PO number, work order)",
-    )
-
-    # Quality-specific fields (nullable, used when package_type = quality_impact)
-    event_date: datetime | None = None
-    coq_category: str | None = Field(
-        None,
-        pattern="^(prevention|appraisal|internal_failure|external_failure)$",
-    )
-    cost_impact: Decimal = Field(default=Decimal("0"), ge=0)
-    schedule_impact_days: int | None = Field(None, ge=0)
 
 
 class WorkPackageCreate(WorkPackageBase):
-    """Properties required for creating a WorkPackage."""
+    """Schema for creating a new Work Package."""
 
-    work_package_id: UUID = Field(default_factory=uuid4)
-    control_date: datetime | None = None
-    cost_allocations: list[QualityCostAllocation] | None = None
+    work_package_id: UUID = Field(
+        default_factory=uuid4, description="Root Work Package ID"
+    )
+    control_account_id: UUID = Field(..., description="Parent Control Account root ID")
+    branch: str = Field(
+        "main",
+        description="Branch name for creation (defaults to main if not specified)",
+    )
+    control_date: datetime | None = Field(
+        None, description="Optional control date for creation (valid_time start)"
+    )
+    # Optional schedule baseline creation params
+    schedule_start_date: datetime | None = Field(
+        None, description="Optional start date for the auto-created schedule baseline"
+    )
+    schedule_end_date: datetime | None = Field(
+        None, description="Optional end date for the auto-created schedule baseline"
+    )
+    schedule_progression_type: str | None = Field(
+        None,
+        description="Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)",
+    )
+    # Forecast creation params (auto-created with defaults if not provided)
+    eac_amount: Decimal | None = Field(
+        None,
+        description="Optional EAC amount for auto-created forecast (defaults to budget_amount)",
+    )
+    basis_of_estimate: str | None = Field(
+        None,
+        description="Optional basis of estimate for auto-created forecast (defaults to 'Initial forecast')",
+    )
 
 
 class WorkPackageUpdate(BaseModel):
-    """Properties that can be updated on a WorkPackage."""
+    """Schema for updating an existing Work Package."""
 
-    name: str | None = Field(None, min_length=1, max_length=255)
-    package_type: str | None = Field(
-        None,
-        min_length=1,
-        max_length=100,
-    )
-    project_id: UUID | None = None
+    name: NotEmptyString = Field(None, max_length=255)
+    code: NotEmptyString = Field(None, max_length=50)
+    budget_amount: Decimal | None = Field(None, ge=0, decimal_places=2)
     description: str | None = None
     status: str | None = Field(None, pattern="^(open|closed)$")
-
-    # External reference identifier (e.g., QMS ID, PO number, work order)
-    external_event_id: str | None = Field(
-        None,
-        max_length=100,
-        description="External reference identifier (e.g., QMS ID, PO number, work order)",
+    branch: str | None = Field(
+        None, description="Branch name for update (defaults to current branch)"
     )
-
-    # Quality-specific fields
-    event_date: datetime | None = None
-    coq_category: str | None = Field(
-        None, pattern="^(prevention|appraisal|internal_failure|external_failure)$"
+    control_date: datetime | None = Field(
+        None, description="Optional control date for update (valid_time start)"
     )
-    cost_impact: Decimal | None = Field(None, ge=0)
-    schedule_impact_days: int | None = Field(None, ge=0)
+    # Schedule baseline update params
+    schedule_name: str | None = Field(None, max_length=255)
+    schedule_start_date: datetime | None = None
+    schedule_end_date: datetime | None = None
+    schedule_progression_type: str | None = None
+    schedule_description: str | None = None
+    # Forecast update params
+    eac_amount: Decimal | None = Field(None, ge=0, decimal_places=2)
+    basis_of_estimate: str | None = Field(None, max_length=5000)
 
-    control_date: datetime | None = None
-    cost_allocations: list[QualityCostAllocation] | None = None
 
-
-class WorkPackageRead(TemporalComputedMixin, WorkPackageBase):
-    """Properties returned to client."""
-
-    model_config = ConfigDict(from_attributes=True)
+class WorkPackageRead(WorkPackageBase, TemporalComputedMixin):
+    """Schema for reading Work Package data."""
 
     id: UUID
     work_package_id: UUID
+    control_account_id: UUID
+    schedule_baseline_id: UUID | None = None
+    forecast_id: UUID | None = None
+    branch: str
     created_by: UUID
     created_by_name: str | None = None
+    deleted_by: UUID | None = None
     valid_time: TemporalRange = None
     transaction_time: TemporalRange = None
-    actual_cost: Decimal | None = None
+    # Denormalized names for convenience
+    control_account_name: str | None = None
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def event_date_formatted(self) -> dict[str, str | None]:
-        """Display-ready event date data."""
-        if not self.event_date:
-            return {"iso": None, "formatted": "Unknown"}
-
-        return {
-            "iso": self.event_date.isoformat(),
-            "formatted": self.event_date.strftime("%B %d, %Y"),
-        }
+    model_config = ConfigDict(from_attributes=True)
 
 
-class WorkPackageSummary(BaseModel):
-    """Aggregated COQ summary for a project."""
-
-    total_cost: Decimal
-    conformance_cost: Decimal
-    nonconformance_cost: Decimal
-    prevention_cost: Decimal = Decimal("0")
-    appraisal_cost: Decimal = Decimal("0")
-    internal_failure_cost: Decimal = Decimal("0")
-    external_failure_cost: Decimal = Decimal("0")
-    total_schedule_days: int
-    impact_count: int
-    coq_ratio: Decimal | None = None
-
-
-class COQMetrics(BaseModel):
-    """COQ metrics complementing standard EVM indicators."""
-
-    total_coq: Decimal
-    cpq: Decimal  # Cost of Poor Quality (nonconformance only)
-    cpq_percentage: Decimal  # CPQ / Total AC * 100
-    cpiq: Decimal | None = None  # CPQ / AC (quality's share of cost variance)
-    qpi: Decimal | None = None  # Quality Performance Index (normalized from CPQ%)
-    qpi_rating: str | None = None  # Human-readable QPI rating
-    total_ac: Decimal  # Total Actual Cost for the project (for context)
-    coq_ratio: Decimal | None = None  # Total COQ / Project Budget * 100
-
-
-class COQTrendPoint(BaseModel):
-    """Single data point for COQ trend time-series."""
-
-    date: datetime
-    # Planned costs (from work package cost_impact)
-    planned_prevention: Decimal = Decimal("0")
-    planned_appraisal: Decimal = Decimal("0")
-    planned_internal_failure: Decimal = Decimal("0")
-    planned_external_failure: Decimal = Decimal("0")
-    total_planned: Decimal = Decimal("0")
-    # Actual costs (from cost registrations)
-    prevention: Decimal = Decimal("0")
-    appraisal: Decimal = Decimal("0")
-    internal_failure: Decimal = Decimal("0")
-    external_failure: Decimal = Decimal("0")
-    total_coq: Decimal = Decimal("0")
-    cpq: Decimal = Decimal("0")
-
-
-class COQTrendGranularity(str, Enum):
-    """Time granularity for COQ trend aggregation."""
-
-    WEEK = "week"
-    MONTH = "month"
-
-
-class COQTrendResponse(BaseModel):
-    """COQ trend time-series response."""
-
-    granularity: COQTrendGranularity
-    points: list[COQTrendPoint]
-    start_date: datetime
-    end_date: datetime
-    total_points: int
+# Alias for backward compatibility
+WorkPackagePublic = WorkPackageRead

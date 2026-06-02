@@ -17,7 +17,26 @@ __all__ = [
     "extract_tool_output_content",
     "find_last_ai_reasoning_kwargs",
     "is_transient_stream_error",
+    "trim_tool_result_text",
 ]
+
+# Maximum characters to keep from each individual tool result when building
+# specialist findings.  Tool results from get_project_structure,
+# get_project_analysis etc. can return 50K+ chars of nested JSON which
+# inflates prompt tokens on subsequent LLM turns.
+_MAX_TOOL_RESULT_CHARS = 2000
+
+
+def trim_tool_result_text(text: str, max_chars: int = _MAX_TOOL_RESULT_CHARS) -> str:
+    """Truncate a single tool-result string to *max_chars*, preserving a trailer.
+
+    If the text exceeds *max_chars*, keeps the first ``max_chars`` characters
+    and appends a ``... [truncated N chars total]`` marker so the LLM knows
+    data was omitted.
+    """
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + f"\n... [truncated {len(text)} chars total]"
 
 
 def find_last_ai_reasoning_kwargs(messages: list[BaseMessage]) -> dict[str, Any]:
@@ -65,11 +84,11 @@ def extract_final_ai_response(messages: list[BaseMessage]) -> str:
             if content:
                 return content
 
-    # Fallback: concatenate tool results in original order
+    # Fallback: concatenate tool results in original order, trimmed
     tool_parts: list[str] = []
     for msg in reversed(messages):
         if isinstance(msg, ToolMessage) and msg.content:
-            tool_parts.append(str(msg.content))
+            tool_parts.append(trim_tool_result_text(str(msg.content)))
     if tool_parts:
         return "\n\n".join(reversed(tool_parts))
     return ""

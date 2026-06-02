@@ -19,7 +19,7 @@ interface UseWidgetEVMDataOptions {
 /**
  * Maps widget config entity types to the lowercase API format.
  * Handles both uppercase enum keys strings (e.g., "PROJECT", "WBE", "COST_ELEMENT")
- * and lowercase values (e.g., "project", "wbe", "cost_element").
+ * and lowercase values (e.g., "project", "wbs_element", "cost_element").
  * Returns undefined for unknown entity types.
  */
 function normalizeEntityType(raw: string | undefined): EntityType | undefined {
@@ -30,8 +30,8 @@ function normalizeEntityType(raw: string | undefined): EntityType | undefined {
     case "project":
       return EntityType.PROJECT;
     case "WBE":
-    case "wbe":
-      return EntityType.WBE;
+    case "wbs_element":
+      return EntityType.WBS_ELEMENT;
     case "COST_ELEMENT":
     case "cost_element":
       return EntityType.COST_ELEMENT;
@@ -46,7 +46,7 @@ function normalizeEntityType(raw: string | undefined): EntityType | undefined {
  *
  * Maps EntityType to the correct ID from context:
  * - PROJECT -> projectId
- * - WBE -> wbeId
+ * - WBE -> wbsElementId
  * - COST_ELEMENT -> costElementId
  *
  * Uses string-based comparison to handle both enum references and plain strings
@@ -66,8 +66,8 @@ export function useWidgetEVMData(
   const entityId =
     entityTypeStr === EntityType.PROJECT || entityTypeStr === "project"
       ? context.projectId
-      : entityTypeStr === EntityType.WBE || entityTypeStr === "wbe"
-        ? context.wbeId
+      : entityTypeStr === EntityType.WBS_ELEMENT || entityTypeStr === "wbs_element"
+        ? context.wbsElementId
         : context.costElementId;
 
   const normalizedType = normalizeEntityType(entityType);

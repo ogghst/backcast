@@ -19,7 +19,7 @@ import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { queryKeys } from "@/api/queryKeys";
 
 // Domain types for Schedule Baseline (matching backend schemas)
-export interface ScheduleBaselineRead {
+export interface CostElementScheduleBaselineRead {
   schedule_baseline_id: string;
   cost_element_id: string;
   name: string;
@@ -33,7 +33,7 @@ export interface ScheduleBaselineRead {
   created_by: string;
 }
 
-export interface ScheduleBaselineCreate {
+export interface CostElementScheduleBaselineCreate {
   name: string;
   start_date: string; // ISO 8601 datetime
   end_date: string; // ISO 8601 datetime
@@ -41,7 +41,7 @@ export interface ScheduleBaselineCreate {
   description?: string;
 }
 
-export interface ScheduleBaselineUpdate {
+export interface CostElementScheduleBaselineUpdate {
   name?: string;
   start_date?: string;
   end_date?: string;
@@ -50,8 +50,8 @@ export interface ScheduleBaselineUpdate {
 }
 
 // Extended types for Branch support
-export type CreateWithBranch = ScheduleBaselineCreate & { branch?: string };
-export type UpdateWithBranch = ScheduleBaselineUpdate & { branch?: string };
+export type CostElementCreateWithBranch = CostElementScheduleBaselineCreate & { branch?: string };
+export type CostElementUpdateWithBranch = CostElementScheduleBaselineUpdate & { branch?: string };
 
 /**
  * Fetch the schedule baseline for a specific cost element.
@@ -66,17 +66,16 @@ export const useCostElementScheduleBaseline = (
   costElementId: string,
   branch: string = "main",
   queryOptions?: Omit<
-    UseQueryOptions<ScheduleBaselineRead>,
+    UseQueryOptions<CostElementScheduleBaselineRead>,
     "queryKey" | "queryFn"
   >,
 ) => {
   const { asOf } = useTimeMachineParams();
 
-  return useQuery<ScheduleBaselineRead>({
-    queryKey: queryKeys.scheduleBaselines.byCostElement(
+  return useQuery<CostElementScheduleBaselineRead>({
+    queryKey: queryKeys.scheduleBaselines.byWorkPackage(
       costElementId,
-      branch,
-      asOf,
+      { branch, asOf },
     ),
     queryFn: async () => {
       const res = await __request(OpenAPI, {
@@ -87,7 +86,7 @@ export const useCostElementScheduleBaseline = (
           as_of: asOf || undefined,
         },
       });
-      return res as ScheduleBaselineRead;
+      return res as CostElementScheduleBaselineRead;
     },
     enabled: !!costElementId,
     ...queryOptions,
@@ -104,7 +103,7 @@ export const useCostElementScheduleBaseline = (
 export const useCreateCostElementScheduleBaseline = (
   mutationOptions?: Omit<
     UseMutationOptions<
-      ScheduleBaselineRead,
+      CostElementScheduleBaselineRead,
       Error,
       {
         costElementId: string;
@@ -142,11 +141,12 @@ export const useCreateCostElementScheduleBaseline = (
         control_date: asOf || null,
       };
 
-      return (await __request(OpenAPI, {
+      const res = await __request(OpenAPI, {
         method: "POST",
         url: `/api/v1/cost-elements/${costElementId}/schedule-baseline`,
         body: payload,
-      })) as Promise<ScheduleBaselineRead>;
+      });
+      return res as CostElementScheduleBaselineRead;
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
@@ -174,12 +174,12 @@ export const useCreateCostElementScheduleBaseline = (
 export const useUpdateCostElementScheduleBaseline = (
   mutationOptions?: Omit<
     UseMutationOptions<
-      ScheduleBaselineRead,
+      CostElementScheduleBaselineRead,
       Error,
       {
         costElementId: string;
         baselineId: string;
-        data: ScheduleBaselineUpdate;
+        data: CostElementScheduleBaselineUpdate;
         branch?: string;
       }
     >,
@@ -198,7 +198,7 @@ export const useUpdateCostElementScheduleBaseline = (
     }: {
       costElementId: string;
       baselineId: string;
-      data: ScheduleBaselineUpdate;
+      data: CostElementScheduleBaselineUpdate;
       branch?: string;
     }) => {
       const payload = {
@@ -207,11 +207,12 @@ export const useUpdateCostElementScheduleBaseline = (
         control_date: asOf || null,
       };
 
-      return (await __request(OpenAPI, {
+      const res = await __request(OpenAPI, {
         method: "PUT",
         url: `/api/v1/cost-elements/${costElementId}/schedule-baseline/${baselineId}`,
         body: payload,
-      })) as Promise<ScheduleBaselineRead>;
+      });
+      return res as CostElementScheduleBaselineRead;
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
@@ -263,14 +264,14 @@ export const useDeleteCostElementScheduleBaseline = (
       baselineId: string;
       branch?: string;
     }) => {
-      (await __request(OpenAPI, {
+      await __request(OpenAPI, {
         method: "DELETE",
         url: `/api/v1/cost-elements/${costElementId}/schedule-baseline/${baselineId}`,
         query: {
           branch: branch || "main",
           control_date: asOf || undefined,
         },
-      })) as Promise<void>;
+      });
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({

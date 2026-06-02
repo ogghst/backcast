@@ -47,19 +47,24 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         # Remove control_date from data to avoid duplicate kwarg error
         type_data.pop("control_date", None)
 
-        # 1. Validate Department existence (Application-level Integrity)
-        from app.models.domain.department import Department
+        # 1. Validate OrganizationalUnit existence (Application-level Integrity)
+        from app.models.domain.organizational_unit import OrganizationalUnit
 
         dept_exists = await self.session.execute(
-            select(Department.id)
+            select(OrganizationalUnit.id)
             .where(
-                Department.department_id == type_in.department_id,
-                is_current_version(Department.valid_time, Department.deleted_at),
+                OrganizationalUnit.organizational_unit_id
+                == type_in.organizational_unit_id,
+                is_current_version(
+                    OrganizationalUnit.valid_time, OrganizationalUnit.deleted_at
+                ),
             )
             .limit(1)
         )
         if not dept_exists.scalar_one_or_none():
-            raise ValueError(f"Department {type_in.department_id} not found")
+            raise ValueError(
+                f"OrganizationalUnit {type_in.organizational_unit_id} not found"
+            )
 
         cmd = CreateVersionCommand(
             entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
@@ -155,9 +160,10 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         )
 
         if filters:
-            if "department_id" in filters:
+            if "organizational_unit_id" in filters:
                 stmt = stmt.where(
-                    CostElementType.department_id == filters["department_id"]
+                    CostElementType.organizational_unit_id
+                    == filters["organizational_unit_id"]
                 )
 
         if search:

@@ -17,7 +17,7 @@ export type BranchPublic = {
     /**
      * Type of branch
      */
-    type: BranchPublic.type;
+    type: 'main' | 'change_order';
     /**
      * Whether this is the default branch
      */
@@ -39,13 +39,4 @@ export type BranchPublic = {
      */
     change_order_status?: (string | null);
 };
-export namespace BranchPublic {
-    /**
-     * Type of branch
-     */
-    export enum type {
-        MAIN = 'main',
-        CHANGE_ORDER = 'change_order',
-    }
-}
 

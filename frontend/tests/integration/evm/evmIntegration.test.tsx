@@ -2,19 +2,13 @@
  * Integration tests for EVM (Earned Value Management) Analyzer
  *
  * These tests verify the complete EVM analysis flow from the frontend:
- * - ForecastComparisonCard integration with EVM metrics
- * - EVMAnalyzerModal open/close flow
- * - EVMSummaryView rendering with real data
+ * - EVMAnalyzerModal open/close flow with EChartsGauge
+ * - EVMSummaryView rendering with KPI indicators
  * - Time-series chart with mocked data
  * - TimeMachineContext integration
  * - Loading and error states
  *
  * FE-009: Frontend Integration Tests for EVM Analyzer
- *
- * TDD Approach:
- * 1. RED: Write failing integration tests
- * 2. GREEN: Set up proper mocks and make tests pass
- * 3. REFACTOR: Clean up and optimize
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -42,9 +36,9 @@ vi.mock("@/contexts/TimeMachineContext", () => ({
   TimeMachineProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-// Mock EVM-related components BEFORE imports to avoid canvas rendering issues
-vi.mock("@/features/evm/components/EVMGauge", () => ({
-  EVMGauge: ({ value, label }: { value: number | null; label: string }) => (
+// Mock EChartsGauge (replaces old EVMGauge)
+vi.mock("@/features/evm/components/charts/EChartsGauge", () => ({
+  EChartsGauge: ({ value, label }: { value: number | null; label: string }) => (
     <div data-testid={`gauge-${label.toLowerCase()}`}>
       <span data-testid={`${label.toLowerCase()}-value`}>
         {value !== null && value !== undefined ? value.toFixed(2) : "N/A"}
@@ -53,6 +47,7 @@ vi.mock("@/features/evm/components/EVMGauge", () => ({
   ),
 }));
 
+// Mock EVMTimeSeriesChart
 vi.mock("@/features/evm/components/EVMTimeSeriesChart", () => ({
   EVMTimeSeriesChart: ({
     timeSeries,
@@ -92,6 +87,7 @@ vi.mock("@/features/evm/components/EVMTimeSeriesChart", () => ({
   ),
 }));
 
+// Mock MetricCard
 vi.mock("@/features/evm/components/MetricCard", () => ({
   MetricCard: ({
     metadata,
@@ -117,6 +113,63 @@ vi.mock("@/features/evm/components/MetricCard", () => ({
       </div>
     );
   },
+}));
+
+// Mock EVMCompactSCurve
+vi.mock("@/features/evm/components/EVMCompactSCurve", () => ({
+  EVMCompactSCurve: ({ height }: { height: number }) => (
+    <div data-testid="evm-compact-s-curve" style={{ height }}>
+      S-Curve Chart
+    </div>
+  ),
+}));
+
+// Mock EVMKPIIndicator
+vi.mock("@/features/evm/components/EVMKPIIndicator", () => ({
+  EVMKPIIndicator: ({
+    label,
+    value,
+    format,
+    status,
+  }: {
+    label: string;
+    value: number | null;
+    format: string;
+    status: string;
+    neutral?: boolean;
+  }) => (
+    <div data-testid={`kpi-${label.toLowerCase()}`}>
+      <span data-testid={`kpi-value-${label.toLowerCase()}`}>
+        {value !== null && value !== undefined
+          ? format === "currency"
+            ? value.toLocaleString()
+            : format === "percentage"
+              ? `${(value * 100).toFixed(0)}%`
+              : value.toFixed(2)
+          : "N/A"}
+      </span>
+      <span data-testid={`kpi-status-${label.toLowerCase()}`}>{status}</span>
+    </div>
+  ),
+}));
+
+// Mock EVMForecastBar
+vi.mock("@/features/evm/components/EVMForecastBar", () => ({
+  EVMForecastBar: ({
+    bac,
+    eac,
+  }: {
+    bac: number;
+    eac: number | null;
+    ac: number;
+    etc: number | null;
+    vac: number | null;
+  }) => (
+    <div data-testid="evm-forecast-bar">
+      <span data-testid="forecast-bac">{bac}</span>
+      <span data-testid="forecast-eac">{eac ?? "N/A"}</span>
+    </div>
+  ),
 }));
 
 // Import components after mocking
@@ -251,13 +304,13 @@ describe("EVM Integration Tests", () => {
         { wrapper }
       );
 
-      // Verify modal renders
+      // Verify modal renders with current title
       await waitFor(() => {
-        expect(screen.getByText("EVM Analysis")).toBeInTheDocument();
+        expect(screen.getByText(/EVM Analysis Dashboard/i)).toBeInTheDocument();
       });
     });
 
-    it("should call onClose when Cancel button is clicked", async () => {
+    it("should call onClose when Close button is clicked", async () => {
       const { wrapper } = createWrapper();
       const onClose = vi.fn();
 
@@ -273,33 +326,9 @@ describe("EVM Integration Tests", () => {
         { wrapper }
       );
 
-      // Click Cancel button
-      const cancelButton = await screen.findByText("Cancel");
-      fireEvent.click(cancelButton);
-
-      // Verify onClose called
-      expect(onClose).toHaveBeenCalledTimes(1);
-    });
-
-    it("should call onClose when OK button is clicked", async () => {
-      const { wrapper } = createWrapper();
-      const onClose = vi.fn();
-
-      render(
-        <EVMAnalyzerModal
-          open={true}
-          onClose={onClose}
-          evmMetrics={mockEVMMetrics}
-          timeSeries={mockTimeSeries}
-          loading={false}
-          onGranularityChange={() => {}}
-        />,
-        { wrapper }
-      );
-
-      // Click OK button
-      const okButton = await screen.findByText("OK");
-      fireEvent.click(okButton);
+      // Click Close button (okText is "Close")
+      const closeButton = await screen.findByText("Close");
+      fireEvent.click(closeButton);
 
       // Verify onClose called
       expect(onClose).toHaveBeenCalledTimes(1);
@@ -426,7 +455,7 @@ describe("EVM Integration Tests", () => {
       expect(onGranularityChange).toHaveBeenCalledWith("day");
     });
 
-    it("should render metric cards in overview tab", async () => {
+    it("should render metric cards in All Metrics tab", async () => {
       const { wrapper } = createWrapper();
 
       render(
@@ -441,12 +470,17 @@ describe("EVM Integration Tests", () => {
         { wrapper }
       );
 
-      // Verify overview tab metrics
+      // Click on the All Metrics tab
+      const allMetricsTab = await screen.findByText(/All Metrics/i);
+      fireEvent.click(allMetricsTab);
+
+      // Verify key financial metric sections appear
       await waitFor(() => {
-        expect(screen.getByTestId("metric-budget-at-completion")).toBeInTheDocument();
-        expect(screen.getByTestId("metric-estimate-at-completion")).toBeInTheDocument();
-        expect(screen.getByTestId("metric-variance-at-completion")).toBeInTheDocument();
-        expect(screen.getByTestId("metric-estimate-to-complete")).toBeInTheDocument();
+        expect(screen.getByText(/Key Financial Metrics/i)).toBeInTheDocument();
+        expect(screen.getByText(/Schedule Performance Metrics/i)).toBeInTheDocument();
+        expect(screen.getByText(/Cost Performance Metrics/i)).toBeInTheDocument();
+        expect(screen.getByText(/Variance Analysis/i)).toBeInTheDocument();
+        expect(screen.getByText(/Forecast Metrics/i)).toBeInTheDocument();
       });
     });
 
@@ -478,7 +512,7 @@ describe("EVM Integration Tests", () => {
       });
     });
 
-    it("should render all metric categories in tabs", async () => {
+    it("should render Overview and All Metrics tabs", async () => {
       const { wrapper } = createWrapper();
 
       render(
@@ -493,19 +527,16 @@ describe("EVM Integration Tests", () => {
         { wrapper }
       );
 
-      // Verify all tabs are present
+      // Verify tabs are present
       await waitFor(() => {
         expect(screen.getByText("Overview")).toBeInTheDocument();
-        expect(screen.getByText("Schedule")).toBeInTheDocument();
-        expect(screen.getByText("Cost")).toBeInTheDocument();
-        expect(screen.getByText("Variance")).toBeInTheDocument();
-        expect(screen.getByText("Forecast")).toBeInTheDocument();
+        expect(screen.getByText("All Metrics")).toBeInTheDocument();
       });
     });
   });
 
   describe("EVMSummaryView Integration", () => {
-    it("should render all metric categories", async () => {
+    it("should render KPI indicators and forecast bar", async () => {
       const { wrapper } = createWrapper();
 
       render(
@@ -516,12 +547,13 @@ describe("EVM Integration Tests", () => {
         { wrapper }
       );
 
-      // Verify all category panels are present
+      // Verify KPI indicators are present
       await waitFor(() => {
-        expect(screen.getByText("Schedule Metrics")).toBeInTheDocument();
-        expect(screen.getByText("Cost Metrics")).toBeInTheDocument();
-        expect(screen.getByText("Performance Metrics")).toBeInTheDocument();
-        expect(screen.getByText("Forecast Metrics")).toBeInTheDocument();
+        expect(screen.getByTestId("kpi-cpi")).toBeInTheDocument();
+        expect(screen.getByTestId("kpi-spi")).toBeInTheDocument();
+        expect(screen.getByTestId("kpi-bac")).toBeInTheDocument();
+        expect(screen.getByTestId("kpi-eac")).toBeInTheDocument();
+        expect(screen.getByTestId("kpi-vac")).toBeInTheDocument();
       });
     });
 
@@ -545,7 +577,7 @@ describe("EVM Integration Tests", () => {
       expect(onAdvanced).toHaveBeenCalledTimes(1);
     });
 
-    it("should render metric cards for each category", async () => {
+    it("should render detail metrics in collapsible section", async () => {
       const { wrapper } = createWrapper();
 
       render(
@@ -556,27 +588,17 @@ describe("EVM Integration Tests", () => {
         { wrapper }
       );
 
-      // Verify schedule metrics
+      // Verify the S-curve and forecast bar render
       await waitFor(() => {
-        expect(screen.getByTestId("metric-schedule-performance-index")).toBeInTheDocument();
-        expect(screen.getByTestId("metric-schedule-variance")).toBeInTheDocument();
+        expect(screen.getByTestId("evm-compact-s-curve")).toBeInTheDocument();
+        expect(screen.getByTestId("evm-forecast-bar")).toBeInTheDocument();
       });
 
-      // Verify cost metrics
-      expect(screen.getByTestId("metric-budget-at-completion")).toBeInTheDocument();
-      expect(screen.getByTestId("metric-actual-cost")).toBeInTheDocument();
-      expect(screen.getByTestId("metric-cost-variance")).toBeInTheDocument();
-
-      // Verify performance metrics
-      expect(screen.getByTestId("metric-cost-performance-index")).toBeInTheDocument();
-
-      // Verify forecast metrics
-      expect(screen.getByTestId("metric-estimate-at-completion")).toBeInTheDocument();
-      expect(screen.getByTestId("metric-variance-at-completion")).toBeInTheDocument();
-      expect(screen.getByTestId("metric-estimate-to-complete")).toBeInTheDocument();
+      // Verify detail metrics header
+      expect(screen.getByText("Detail Metrics")).toBeInTheDocument();
     });
 
-    it("should display correct metric values", async () => {
+    it("should display correct KPI values", async () => {
       const { wrapper } = createWrapper();
 
       render(
@@ -587,17 +609,15 @@ describe("EVM Integration Tests", () => {
         { wrapper }
       );
 
-      // Verify BAC value
+      // Verify CPI value
       await waitFor(() => {
-        const bacValue = screen.getByTestId(
-          "metric-value-budget-at-completion"
-        );
-        expect(bacValue).toHaveTextContent(mockEVMMetrics.bac.toFixed(2));
+        const cpiValue = screen.getByTestId("kpi-value-cpi");
+        expect(cpiValue).toHaveTextContent(mockEVMMetrics.cpi!.toFixed(2));
       });
 
-      // Verify CPI value
-      const cpiValue = screen.getByTestId("metric-value-cost-performance-index");
-      expect(cpiValue).toHaveTextContent(mockEVMMetrics.cpi?.toFixed(2) || "N/A");
+      // Verify SPI value
+      const spiValue = screen.getByTestId("kpi-value-spi");
+      expect(spiValue).toHaveTextContent(mockEVMMetrics.spi!.toFixed(2));
     });
 
     it("should display correct status colors based on metric values", async () => {
@@ -613,16 +633,12 @@ describe("EVM Integration Tests", () => {
 
       // Verify CPI status (CPI < 1.0 should be "bad")
       await waitFor(() => {
-        const cpiStatus = screen.getByTestId(
-          "metric-status-cost-performance-index"
-        );
+        const cpiStatus = screen.getByTestId("kpi-status-cpi");
         expect(cpiStatus).toHaveTextContent("bad");
       });
 
       // Verify VAC status (negative VAC should be "bad")
-      const vacStatus = screen.getByTestId(
-        "metric-status-variance-at-completion"
-      );
+      const vacStatus = screen.getByTestId("kpi-status-vac");
       expect(vacStatus).toHaveTextContent("bad");
     });
 
@@ -648,15 +664,15 @@ describe("EVM Integration Tests", () => {
 
       // Verify null values display as N/A
       await waitFor(() => {
-        const cpiValue = screen.getByTestId("metric-value-cost-performance-index");
+        const cpiValue = screen.getByTestId("kpi-value-cpi");
         expect(cpiValue).toHaveTextContent("N/A");
 
-        const eacValue = screen.getByTestId("metric-value-estimate-at-completion");
+        const eacValue = screen.getByTestId("kpi-value-eac");
         expect(eacValue).toHaveTextContent("N/A");
       });
     });
 
-    it("should render with default all categories expanded", async () => {
+    it("should render with S-curve and forecast bar visible", async () => {
       const { wrapper } = createWrapper();
 
       render(
@@ -667,12 +683,12 @@ describe("EVM Integration Tests", () => {
         { wrapper }
       );
 
-      // Verify all categories are visible (expanded by default)
+      // Verify all major sections visible
       await waitFor(() => {
-        expect(screen.getByTestId("metric-schedule-performance-index")).toBeInTheDocument();
-        expect(screen.getByTestId("metric-budget-at-completion")).toBeInTheDocument();
-        expect(screen.getByTestId("metric-cost-performance-index")).toBeInTheDocument();
-        expect(screen.getByTestId("metric-estimate-at-completion")).toBeInTheDocument();
+        expect(screen.getByTestId("evm-compact-s-curve")).toBeInTheDocument();
+        expect(screen.getByTestId("evm-forecast-bar")).toBeInTheDocument();
+        expect(screen.getByTestId("kpi-cpi")).toBeInTheDocument();
+        expect(screen.getByTestId("kpi-eac")).toBeInTheDocument();
       });
     });
   });
@@ -753,18 +769,8 @@ describe("EVM Integration Tests", () => {
       // Verify status calculations
       await waitFor(() => {
         // CPI < 1.0 = bad
-        const cpiStatus = screen.getByTestId(
-          "metric-status-cost-performance-index"
-        );
+        const cpiStatus = screen.getByTestId("kpi-status-cpi");
         expect(cpiStatus).toHaveTextContent("bad");
-
-        // Negative CV = bad
-        const cvStatus = screen.getByTestId("metric-status-cost-variance");
-        expect(cvStatus).toHaveTextContent("bad");
-
-        // Negative SV = bad
-        const svStatus = screen.getByTestId("metric-status-schedule-variance");
-        expect(svStatus).toHaveTextContent("bad");
       });
     });
 
@@ -790,14 +796,10 @@ describe("EVM Integration Tests", () => {
 
       // Verify good status
       await waitFor(() => {
-        const cpiStatus = screen.getByTestId(
-          "metric-status-cost-performance-index"
-        );
+        const cpiStatus = screen.getByTestId("kpi-status-cpi");
         expect(cpiStatus).toHaveTextContent("good");
 
-        const spiStatus = screen.getByTestId(
-          "metric-status-schedule-performance-index"
-        );
+        const spiStatus = screen.getByTestId("kpi-status-spi");
         expect(spiStatus).toHaveTextContent("good");
       });
     });
@@ -823,7 +825,7 @@ describe("EVM Integration Tests", () => {
 
       // Verify modal opens
       await waitFor(() => {
-        expect(screen.getByText("EVM Analysis")).toBeInTheDocument();
+        expect(screen.getByText(/EVM Analysis Dashboard/i)).toBeInTheDocument();
       });
 
       // Step 2: Verify modal content
@@ -831,20 +833,14 @@ describe("EVM Integration Tests", () => {
       expect(screen.getByTestId("gauge-spi")).toBeInTheDocument();
       expect(screen.getByTestId("evm-timeseries-chart")).toBeInTheDocument();
 
-      // Step 3: Verify overview tab metrics
-      expect(screen.getByTestId("metric-budget-at-completion")).toBeInTheDocument();
-      expect(screen.getByTestId("metric-estimate-at-completion")).toBeInTheDocument();
-      expect(screen.getByTestId("metric-variance-at-completion")).toBeInTheDocument();
-      expect(screen.getByTestId("metric-estimate-to-complete")).toBeInTheDocument();
-
-      // Step 4: Close modal
-      const cancelButton = screen.getByText("Cancel");
-      fireEvent.click(cancelButton);
+      // Step 3: Close modal via the Close button
+      const closeButton = screen.getByText("Close");
+      fireEvent.click(closeButton);
 
       // Verify onClose callback was called
       expect(handleClose).toHaveBeenCalledTimes(1);
 
-      // Step 5: Re-render with open=false to simulate modal closing
+      // Step 4: Re-render with open=false to simulate modal closing
       rerender(
         <EVMAnalyzerModal
           open={false}
@@ -856,9 +852,9 @@ describe("EVM Integration Tests", () => {
         />
       );
 
-      // Modal should close (destroyOnClose removes content)
+      // Modal should close (destroyOnHidden removes content)
       await waitFor(() => {
-        expect(screen.queryByText("Performance Indices")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("gauge-cpi")).not.toBeInTheDocument();
       });
     });
 

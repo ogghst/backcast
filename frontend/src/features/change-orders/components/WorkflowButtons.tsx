@@ -225,6 +225,7 @@ export function WorkflowButtons({
               sourceBranch={`BR-${changeOrder.code}`}
               targetBranch="main"
               targetStatus="implemented"
+              entityCount={0}
             />
             <WorkflowTransitionContent
               comment={comment}

@@ -43,10 +43,10 @@ const mockSearchResponse: GlobalSearchResponse = {
       status: "active",
       relevance_score: 0.95,
       project_id: null,
-      wbe_id: null,
+      wbs_element_id: null,
     },
     {
-      entity_type: "wbe",
+      entity_type: "wbs_element",
       id: "wbe-1",
       root_id: "wbe-root-1",
       code: "1.0",
@@ -55,7 +55,7 @@ const mockSearchResponse: GlobalSearchResponse = {
       status: null,
       relevance_score: 0.82,
       project_id: "proj-1",
-      wbe_id: null,
+      wbs_element_id: null,
     },
   ],
   total: 2,
@@ -149,6 +149,6 @@ describe("useGlobalSearch", () => {
     expect(result.current.data?.total).toBe(2);
     expect(result.current.data?.query).toBe("alpha");
     expect(result.current.data?.results[0].entity_type).toBe("project");
-    expect(result.current.data?.results[1].entity_type).toBe("wbe");
+    expect(result.current.data?.results[1].entity_type).toBe("wbs_element");
   });
 });

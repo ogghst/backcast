@@ -1,5 +1,5 @@
 import React from "react";
-import { ErrorBoundary as ReactErrorBoundary } from "react-error-boundary";
+import { ErrorBoundary as ReactErrorBoundary, type FallbackProps } from "react-error-boundary";
 import { Result, Button } from "antd";
 
 interface ErrorFallbackProps {
@@ -41,7 +41,7 @@ interface ErrorBoundaryProps {
 
 export const ErrorBoundary: React.FC<ErrorBoundaryProps> = ({ children }) => {
   const handleError = (
-    error: Error,
+    error: unknown,
     info: { componentStack?: string | null }
   ) => {
     // Log error to console in development
@@ -51,7 +51,10 @@ export const ErrorBoundary: React.FC<ErrorBoundaryProps> = ({ children }) => {
   };
 
   return (
-    <ReactErrorBoundary FallbackComponent={ErrorFallback} onError={handleError}>
+    <ReactErrorBoundary
+      FallbackComponent={ErrorFallback as React.FC<FallbackProps>}
+      onError={handleError}
+    >
       {children}
     </ReactErrorBoundary>
   );

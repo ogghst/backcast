@@ -1,6 +1,6 @@
 # System Map: Backcast 
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-05-30
 **Technology:** Python 3.12, FastAPI, React 18, PostgreSQL, AsyncIO
 
 ## High-Level Architecture
@@ -36,11 +36,12 @@ The system is partitioned into the following bounded contexts. See [01-bounded-c
 
 1.  Authentication & Authorization
 2.  User Management
-3.  Department Management
-4.  Project & WBE Management
+3.  Organizational Unit Management
+4.  Project & WBS Element Management
 5.  Cost Element & Financial Tracking
 6.  Change Order & Branching
 7.  EVM Calculations & Reporting
+8.  AI/ML Integration
 
 ## Versioning Architecture (EVCS Core)
 
@@ -51,7 +52,7 @@ The system is partitioned into the following bounded contexts. See [01-bounded-c
 **Key Features:**
 
 - **Bitemporal:** Track valid time (business) and transaction time (system)
-- **Branching:** All entities support branch isolation for change orders
+- **Branching:** Branchable entities support branch isolation for change orders
 - **Soft Delete:** Reversible deletion with `deleted_at` timestamp
 - **Version Chain:** DAG structure via `parent_id` for history traversal
 - **Generic Framework:** `EntityBase + VersionableMixin`, `TemporalService[T]`, generic commands

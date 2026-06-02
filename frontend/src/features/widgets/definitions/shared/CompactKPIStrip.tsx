@@ -108,7 +108,7 @@ const MetricCell: React.FC<{
         <span
           style={{
             fontSize: token.fontSizeLG,
-            fontWeight: token.fontWeightSemiBold,
+            fontWeight: 600,
             color,
             lineHeight: 1.2,
             overflow: "hidden",
@@ -121,7 +121,7 @@ const MetricCell: React.FC<{
       </div>
       <div
         style={{
-          fontSize: token.fontSizeXS,
+          fontSize: token.fontSizeSM,
           color: token.colorTextTertiary,
           marginTop: 2,
           lineHeight: 1,

@@ -102,6 +102,7 @@ class StreamState:
     session_id: UUID
     model_name: str | None
     main_invocation_id: str
+    specialist_names: frozenset[str] = frozenset()
 
     # Tool/content tracking
     all_tool_calls: list[dict[str, Any]] = field(default_factory=list)
@@ -122,6 +123,11 @@ class StreamState:
     current_invocation_id: str | None = None
     task_initiating_main_invocation_id: str | None = None
     last_entered_agent: str | None = None
+
+    # Planner suppression: when True, LLM tokens are NOT published to chat.
+    # Set during planner node LLM calls to prevent plan JSON from leaking
+    # into the main agent's chat stream.
+    planner_active: bool = False
 
     # Timing
     llm_call_start: float | None = None

@@ -6,9 +6,9 @@
  * Supports progressive rendering for streaming responses.
  */
 
-import { useEffect, useRef, useMemo, useState, Fragment } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { List, Empty, Typography, Spin, theme } from "antd";
-import type { Theme } from "antd/es/config-provider/context";
+import type { GlobalToken } from "antd/es/theme/interface";
 import {
   UserOutlined,
   RobotOutlined,
@@ -17,7 +17,8 @@ import {
   DownOutlined,
   UpOutlined,
 } from "@ant-design/icons";
-import type { ChatMessage, SubagentStream, MainAgentStream, StreamingState, TokenUsage } from "../../types";
+import type { ChatMessage } from "../../types";
+import type { SubagentStream, StreamingState, TokenUsage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TokenUsageBar } from "./TokenUsageBar";
@@ -80,7 +81,7 @@ interface StreamingMessageProps {
   isStreaming: boolean;
   /** Whether the stream is complete (for main agent streams) */
   isComplete?: boolean;
-  token: Theme['token'];
+  token: GlobalToken;
   /** Whether to show a separator (when new text stream starts after tool execution) */
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
@@ -99,8 +100,6 @@ const StreamingMessage = ({
   token,
   showSeparator,
   isMobile = false,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  activeToolCalls = [],
 }: StreamingMessageProps) => {
   const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
@@ -255,7 +254,7 @@ const StreamingMessage = ({
  */
 interface SubagentMessageProps {
   subagent: SubagentStream;
-  token: Theme['token'];
+  token: GlobalToken;
   isMobile?: boolean;
   invocationNumber?: number;
 }
@@ -437,7 +436,7 @@ const SubagentMessage = ({
 interface PersistedSubagentMessageProps {
   subagentName: string;
   content: string;
-  token: Theme['token'];
+  token: GlobalToken;
   isMobile?: boolean;
   invocationNumber?: number;
 }
@@ -566,7 +565,7 @@ const getMessageIcon = (role: ChatMessage["role"]) => {
   }
 };
 
-const getMessageStyle = (role: ChatMessage["role"], token: Theme['token'], isMobile: boolean = false) => {
+const getMessageStyle = (role: ChatMessage["role"], token: GlobalToken, isMobile: boolean = false) => {
   switch (role) {
     case "user":
       return {
@@ -591,9 +590,9 @@ const getMessageStyle = (role: ChatMessage["role"], token: Theme['token'], isMob
  * Displays chat messages with auto-scroll and progressive streaming rendering.
  *
  * Context: Primary message display component for the AI chat feature. Renders
- * persisted messages from the API alongside active streaming bubbles for the
- * main agent and subagents. Uses a useMemo-based sortedStreams computation to
- * render concurrent streams in sequence order without re-sorting on every token.
+ * persisted messages from the API alongside a single merged assistant balloon
+ * that combines all main agent stream segments, with subagent bubbles shown
+ * as separate collapsible elements.
  *
  * @param props.messages - Array of completed (persisted) chat messages
  * @param props.loading - Whether messages are being fetched initially
@@ -619,47 +618,48 @@ export const MessageList = ({
   const scrollRafRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
 
-  // Combine main agent streams and subagents, sorted by sequence for rendering.
-  // Ensures an assistant bubble always appears before specialist bubbles.
-  const sortedStreams = useMemo(() => {
-    type StreamItem =
-      | { type: 'main'; sequence: number; started_at: number; data: MainAgentStream }
-      | { type: 'subagent'; sequence: number; started_at: number; data: SubagentStream };
+  // Build a merged view of main agent streams + subagent streams.
+  // All MainAgentStream segments are merged into a single unified assistant
+  // balloon (one balloon per user message). Subagent streams appear inline
+  // between segments within that balloon.
+  const { mergedMainContent, isMainActive, isMainComplete, subagentStreams } = useMemo(() => {
+    const mainStreams = streamingState?.mainStreams;
+    const subagents = streamingState?.subagents;
 
-    const allStreams: StreamItem[] = [];
+    // Merge all main agent stream segments into one content string, ordered by sequence.
+    let merged = "";
+    let active = false;
+    let complete = true;
 
-    if (streamingState?.mainStreams) {
-      for (const stream of streamingState.mainStreams.values()) {
-        allStreams.push({
-          type: 'main',
-          sequence: stream.sequence ?? 0,
-          started_at: stream.started_at,
-          data: stream,
-        });
+    if (mainStreams && mainStreams.size > 0) {
+      const sorted = Array.from(mainStreams.values()).sort(
+        (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+      );
+      for (const stream of sorted) {
+        if (stream.content) {
+          merged += stream.content;
+        }
+        if (stream.is_active) active = true;
+        if (!stream.is_complete) complete = false;
       }
     }
 
-    if (streamingState?.subagents) {
-      for (const stream of streamingState.subagents.values()) {
-        allStreams.push({
-          type: 'subagent',
-          sequence: stream.sequence ?? 0,
-          started_at: stream.started_at,
-          data: stream,
-        });
-      }
+    // Collect subagent streams sorted by sequence for inline rendering.
+    const sortedSubagents: SubagentStream[] = [];
+    if (subagents && subagents.size > 0) {
+      sortedSubagents.push(
+        ...Array.from(subagents.values()).sort(
+          (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+        ),
+      );
     }
 
-    allStreams.sort((a, b) => {
-      // First by type: main before subagent
-      if (a.type !== b.type) {
-        return a.type === 'main' ? -1 : 1;
-      }
-      // Then by sequence
-      return a.sequence - b.sequence;
-    });
-
-    return allStreams;
+    return {
+      mergedMainContent: merged,
+      isMainActive: active,
+      isMainComplete: complete,
+      subagentStreams: sortedSubagents,
+    };
   }, [streamingState]);
 
   // Combine regular messages with streaming message for display
@@ -864,50 +864,32 @@ export const MessageList = ({
         />
       )}
 
-      {/* Combine main agent streams and subagents, render in sequence order */}
-      {sortedStreams.map((item, index) => {
-        // Determine if we need a separator between consecutive main agent streams
-        // We look at the previous item in the sorted array instead of using a ref
-        const showLLMCallSeparator = index > 0 &&
-          item.type === 'main' &&
-          sortedStreams[index - 1].type === 'main';
+      {/* Single assistant balloon: merges all main agent segments. */}
+      {mergedMainContent && (
+        <StreamingMessage
+          content={mergedMainContent}
+          isStreaming={isMainActive}
+          isComplete={isMainComplete}
+          token={token}
+          showSeparator={false}
+          isMobile={isMobile}
+          activeToolCalls={activeToolCalls}
+        />
+      )}
 
-        if (item.type === 'main') {
-          // Skip empty completed main agent streams (they shouldn't render)
-          if (!item.data.content && !item.data.is_active) {
-            return null;
-          }
-          return (
-            <Fragment key={item.data.invocation_id}>
-              {showLLMCallSeparator && (
-                <div style={{ height: spacing.md }} />
-              )}
-              <StreamingMessage
-                content={item.data.content}
-                isStreaming={item.data.is_active}
-                isComplete={item.data.is_complete}
-                token={token}
-                showSeparator={false}
-                isMobile={isMobile}
-                activeToolCalls={activeToolCalls}
-              />
-            </Fragment>
-          );
-        } else {
-          return (
-            <SubagentMessage
-              key={item.data.invocation_id}
-              subagent={item.data}
-              token={token}
-              isMobile={isMobile}
-              invocationNumber={item.data.invocation_number}
-            />
-          );
-        }
-      })}
+      {/* Subagent bubbles rendered as separate collapsible elements after the main balloon */}
+      {subagentStreams.map((sa) => (
+        <SubagentMessage
+          key={sa.invocation_id}
+          subagent={sa}
+          token={token}
+          isMobile={isMobile}
+          invocationNumber={sa.invocation_number}
+        />
+      ))}
 
       {/* Typing indicator when waiting for first token */}
-      {isStreaming && sortedStreams.length === 0 && !(streamingState?.main) && (
+      {isStreaming && !mergedMainContent && !(streamingState?.main) && subagentStreams.length === 0 && (
         <StreamingMessage
           content=""
           isStreaming={true}

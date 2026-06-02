@@ -6,7 +6,10 @@
  * across CostRegistrationsTab, ProgressEntriesTab, and other entity tabs.
  */
 
-import type { TemporalRange } from "@/components/common/VersionHistory";
+/**
+ * Temporal range representation from PostgreSQL TSTZRANGE.
+ */
+type TemporalRange = { lower: string | null; upper: string | null };
 
 /**
  * History item type from API responses.

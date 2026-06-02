@@ -44,7 +44,7 @@ interface ChangeOrderOption {
 function useScopeProjects(enabled: boolean) {
   const { branch, mode } = useTimeMachineParams();
   return useQuery<ProjectOption[]>({
-    queryKey: queryKeys.projects.list({ branch, mode }),
+    queryKey: queryKeys.projects.list({ branch, mode } as Parameters<typeof queryKeys.projects.list>[0]),
     queryFn: async () => {
       const { data } = await apiClient.get("/api/v1/projects", {
         params: { per_page: 200, branch, mode },

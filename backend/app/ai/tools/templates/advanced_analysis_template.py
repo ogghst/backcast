@@ -28,10 +28,7 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="get_project_forecast",
     description="Get forecast with scenarios, anomalies, and optimization suggestions. "
-    "Returns EAC/ETC/VAC forecast with optimistic/likely/pessimistic scenarios, "
-    "anomaly detection for unusual CPI/SPI patterns, and actionable suggestions. "
-    "Set include_suggestions=false to skip optimization suggestions. "
-    "Temporal context (branch, as_of date) is enforced by the system.",
+    "Set include_suggestions=false to skip suggestions.",
     permissions=["forecast-read"],
     category="analysis",
     risk_level=RiskLevel.LOW,
@@ -99,12 +96,16 @@ async def get_project_forecast(
             branch_mode=branch_mode,
         )
 
-        cpis = [float(p.cpi) for p in timeseries.points if p.cpi] if timeseries.points else []
+        cpis = (
+            [float(p.cpi) for p in timeseries.points if p.cpi]
+            if timeseries.points
+            else []
+        )
         cpi_volatility = stdev(cpis) if len(cpis) > 1 else 0.1
 
-        if cpis and cpis[-1] > cpi:
+        if len(cpis) >= 2 and cpis[-2] > cpis[-1]:
             trend_direction = "improving"
-        elif cpis and cpis[-1] < cpi:
+        elif len(cpis) >= 2 and cpis[-2] < cpis[-1]:
             trend_direction = "declining"
         else:
             trend_direction = "stable"
@@ -124,9 +125,13 @@ async def get_project_forecast(
             confidence_level = "Low"
 
         optimistic_cpi = cpi + cpi_volatility
-        optimistic_eac = ac + (bac - ev) / optimistic_cpi if optimistic_cpi > 0 else bac * 1.5
+        optimistic_eac = (
+            ac + (bac - ev) / optimistic_cpi if optimistic_cpi > 0 else bac * 1.5
+        )
         pessimistic_cpi = max(cpi - cpi_volatility, 0.7)
-        pessimistic_eac = ac + (bac - ev) / pessimistic_cpi if pessimistic_cpi > 0 else bac * 2.0
+        pessimistic_eac = (
+            ac + (bac - ev) / pessimistic_cpi if pessimistic_cpi > 0 else bac * 2.0
+        )
 
         anomalies = _detect_anomalies(timeseries.points)
 
@@ -166,7 +171,9 @@ async def get_project_forecast(
         }
 
         if include_suggestions:
-            result["suggestions"] = _generate_suggestions(cpi, spi, vac, bac, eac, anomalies)
+            result["suggestions"] = _generate_suggestions(
+                cpi, spi, vac, bac, eac, anomalies
+            )
 
         if timeseries.points:
             result["analysis_period"] = {
@@ -213,7 +220,7 @@ def _detect_anomalies(points: list[Any]) -> list[dict[str, Any]]:
                 }
             )
 
-        if cpi_val and spi_val:
+        if cpi_val is not None and spi_val is not None:
             divergence = abs(cpi_val - spi_val)
             if divergence > 0.3:
                 anomalies.append(

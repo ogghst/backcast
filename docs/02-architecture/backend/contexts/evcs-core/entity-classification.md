@@ -1,6 +1,6 @@
 # Entity Classification Guide
 
-**Last Updated:** 2026-04-14 (import paths corrected)  
+**Last Updated:** 2026-05-30  
 **Context:** [EVCS Core](./architecture.md)  
 **Related:** [ADR-006: Protocol-Based Type System](../../decisions/ADR-006-protocol-based-type-system.md)
 
@@ -205,9 +205,9 @@ class ProjectVersion(EntityBase, VersionableMixin, BranchableMixin):
 ### Example Use Cases
 
 - Projects
-- Work Breakdown Elements (WBE)
-- Cost Elements
-- Resources
+- WBS Elements
+- Control Accounts
+- Work Packages
 - Any entity subject to change orders
 
 ---
@@ -304,24 +304,26 @@ Use this checklist when designing a new entity:
 
 ### Projects & Planning
 
-- **Projects**: Branchable (change orders)
-- **WBE**: Branchable (change orders)
-- **Milestones**: Branchable (part of project hierarchy)
-- **Project Templates**: Simple (reference data)
+- **Project**: Branchable (change orders)
+- **WBSElement**: Branchable (change orders)
+- **ControlAccount**: Branchable (ANSI-748 control accounts)
+- **WorkPackage**: Branchable (cost grouping — site visits, quality impacts, etc.)
+- **ScheduleBaseline**: Branchable (what-if scenarios via branches)
 
 ### Finance
 
-- **Cost Elements**: Branchable (change orders)
-- **Budget Allocations**: Branchable (change orders)
-- **Payment Records**: Versionable (audit only, no branches)
-- **Exchange Rates**: Simple (lookup table)
+- **CostElement**: Versionable (financial facts are global, not branchable)
+- **CostRegistration**: Versionable (actual cost tracking, audit only)
+- **CostEvent**: Versionable (cost event tracking)
+- **Forecast**: Branchable (scenario planning)
+- **CostElementType**: Versionable (organizational reference data)
 
-### User Management
+### Organization & Users
 
-- **Users**: Versionable (audit changes, no branches)
-- **Departments**: Versionable (audit changes, no branches)
-- **User Preferences**: Simple (no history needed)
-- **Access Logs**: Versionable (audit only)
+- **OrganizationalUnit**: Branchable (org structure)
+- **User**: Versionable (audit changes, no branches)
+- **RBACRole**: Simple (no history needed)
+- **UserRoleAssignment**: Simple (no history needed)
 
 ---
 

@@ -135,18 +135,22 @@ describe("useStreamingChat Permission Error Handling", () => {
 
   const getLastWsInstance = () => wsInstances[wsInstances.length - 1];
 
+  // Helper to render the hook with an active execution ID so it auto-connects
+  const renderConnectedHook = (overrides?: { projectId?: string }) =>
+    renderHook(() =>
+      useStreamingChat({
+        assistantId: mockAssistantId,
+        projectId: overrides?.projectId ?? "project-abc",
+        activeExecutionId: "exec-1",
+        onToken: mockOnToken,
+        onComplete: mockOnComplete,
+        onError: mockOnError,
+      })
+    );
+
   describe("403 Permission Error Detection", () => {
     it("should detect and handle 403 permission denied errors", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            projectId: "project-abc",
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       // Wait for WebSocket to connect
       await waitFor(() => {
@@ -185,15 +189,7 @@ describe("useStreamingChat Permission Error Handling", () => {
     });
 
     it("should distinguish between 403 and other error codes", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -226,15 +222,7 @@ describe("useStreamingChat Permission Error Handling", () => {
 
   describe("formatPermissionDeniedError Helper", () => {
     it("should format complete permission denied error with all fields", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook({ projectId: "project-xyz" });
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -265,15 +253,7 @@ describe("useStreamingChat Permission Error Handling", () => {
     });
 
     it("should handle permission error with only project_id", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook({ projectId: "project-xyz" });
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -303,15 +283,7 @@ describe("useStreamingChat Permission Error Handling", () => {
     });
 
     it("should handle permission error with only required_permission", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -341,15 +313,7 @@ describe("useStreamingChat Permission Error Handling", () => {
     });
 
     it("should handle minimal permission error with base message only", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -378,15 +342,7 @@ describe("useStreamingChat Permission Error Handling", () => {
 
   describe("Project ID in Error Messages", () => {
     it("should include project_id in permission denied error", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -416,15 +372,7 @@ describe("useStreamingChat Permission Error Handling", () => {
     });
 
     it("should format project-specific permission message correctly", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -458,15 +406,7 @@ describe("useStreamingChat Permission Error Handling", () => {
 
   describe("Required Permission Display", () => {
     it("should display required_permission in error message", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -509,15 +449,7 @@ describe("useStreamingChat Permission Error Handling", () => {
         vi.clearAllMocks();
         wsInstances = [];
 
-        const { result } = renderHook(
-          () =>
-            useStreamingChat({
-              assistantId: mockAssistantId,
-              onToken: mockOnToken,
-              onComplete: mockOnComplete,
-              onError: mockOnError,
-            })
-        );
+        const { result } = renderConnectedHook();
 
         await waitFor(() => {
           expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -550,15 +482,7 @@ describe("useStreamingChat Permission Error Handling", () => {
 
   describe("Project-Level vs Global Permission Denials", () => {
     it("should handle project-level permission denials", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook({ projectId: "project-789" });
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -593,15 +517,7 @@ describe("useStreamingChat Permission Error Handling", () => {
     });
 
     it("should handle global permission denials", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -634,15 +550,7 @@ describe("useStreamingChat Permission Error Handling", () => {
     });
 
     it("should handle permission denial without project context", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);
@@ -673,15 +581,7 @@ describe("useStreamingChat Permission Error Handling", () => {
 
   describe("Error State and Connection Lifecycle", () => {
     it("should set connection state to ERROR on permission denied", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       // Initial state should be OPEN
       await waitFor(() => {
@@ -711,15 +611,7 @@ describe("useStreamingChat Permission Error Handling", () => {
     });
 
     it("should set connection state to ERROR and prevent further message processing", async () => {
-      const { result } = renderHook(
-        () =>
-          useStreamingChat({
-            assistantId: mockAssistantId,
-            onToken: mockOnToken,
-            onComplete: mockOnComplete,
-            onError: mockOnError,
-          })
-      );
+      const { result } = renderConnectedHook();
 
       await waitFor(() => {
         expect(result.current.connectionState).toBe(WSConnectionState.OPEN);

@@ -21,13 +21,13 @@ import { queryKeys } from "@/api/queryKeys";
 /**
  * Progress Entry API parameters for filtering, pagination, and sorting.
  *
- * Filtering hierarchy: cost_element_id > wbe_id > project_id.
+ * Filtering hierarchy: cost_element_id > wbs_element_id > project_id.
  * At least one filter is recommended for scoped queries.
- * cost_element_id is now optional - wbe_id or project_id can be used instead.
+ * cost_element_id is now optional - wbs_element_id or project_id can be used instead.
  */
 interface ProgressEntryListParams {
   cost_element_id?: string;
-  wbe_id?: string;
+  wbs_element_id?: string;
   project_id?: string;
   page?: number;
   perPage?: number;
@@ -41,32 +41,32 @@ interface ProgressEntryListParams {
 /**
  * Custom hook to get progress entries with pagination and filtering.
  *
- * Supports filtering by cost_element_id, wbe_id, or project_id.
+ * Supports filtering by cost_element_id, wbs_element_id, or project_id.
  * Progress entries are NOT branchable but support time-travel queries.
  */
 export const useProgressEntries = (params?: ProgressEntryListParams) => {
   const { asOf, branch, mode } = useTimeMachineParams();
   const filterId =
-    params?.cost_element_id || params?.wbe_id || params?.project_id || "";
+    params?.cost_element_id || params?.wbs_element_id || params?.project_id || "";
 
   return useQuery<PaginatedResponse<ProgressEntryRead>>({
     queryKey: queryKeys.progressEntries.list(filterId, {
       asOf: params?.asOf || asOf,
       branch,
       mode,
-      wbe_id: params?.wbe_id,
+      wbs_element_id: params?.wbs_element_id,
       project_id: params?.project_id,
     }),
     queryFn: async () => {
       const {
         cost_element_id,
-        wbe_id,
+        wbs_element_id,
         project_id,
         page = 1,
         perPage = 20,
       } = params || {};
 
-      // Use __request to pass wbe_id and project_id which are not yet
+      // Use __request to pass wbs_element_id and project_id which are not yet
       // in the generated client.
       const res = await __request(OpenAPI, {
         method: "GET",
@@ -77,7 +77,7 @@ export const useProgressEntries = (params?: ProgressEntryListParams) => {
           branch,
           mode,
           cost_element_id: cost_element_id || undefined,
-          wbe_id: wbe_id || undefined,
+          wbs_element_id: wbs_element_id || undefined,
           project_id: project_id || undefined,
           as_of: params?.asOf || asOf || undefined,
         },
@@ -96,7 +96,7 @@ export const useProgressEntries = (params?: ProgressEntryListParams) => {
     },
     enabled:
       !!params?.cost_element_id ||
-      !!params?.wbe_id ||
+      !!params?.wbs_element_id ||
       !!params?.project_id,
     ...params?.queryOptions,
   });
@@ -206,18 +206,18 @@ export const useCreateProgressEntry = (
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.progressEntries.latest(
-          variables.cost_element_id,
+          variables.work_package_id,
           {},
         ),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.evmMetrics(
-          variables.cost_element_id,
+        queryKey: queryKeys.workPackages.evmMetrics(
+          variables.work_package_id,
           {},
         ),
       });
       toast.success("Progress entry created successfully");
-      mutationOptions?.onSuccess?.(data, variables, undefined);
+      mutationOptions?.onSuccess?.(data, variables, undefined as never, undefined as never);
     },
     onError: (error, ...args) => {
       toast.error(`Error creating progress entry: ${error.message}`);

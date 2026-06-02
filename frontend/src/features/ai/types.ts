@@ -87,6 +87,8 @@ export interface AIAssistantPublic {
   description: string | null;
   model_id: string;
   system_prompt: string | null;
+  planner_prompt: string | null;
+  supervisor_prompt: string | null;
   temperature: number;
   max_tokens: number;
   recursion_limit: number | null;
@@ -96,7 +98,6 @@ export interface AIAssistantPublic {
   allowed_tools: string[] | null;
   delegation_config: DelegationConfig | null;
   structured_output_schema: string | null;
-  is_system: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +107,8 @@ export interface AIAssistantCreate {
   description?: string | null;
   model_id: string;
   system_prompt?: string | null;
+  planner_prompt?: string | null;
+  supervisor_prompt?: string | null;
   temperature?: number;
   max_tokens?: number;
   recursion_limit?: number | null;
@@ -115,7 +118,6 @@ export interface AIAssistantCreate {
   allowed_tools?: string[] | null;
   delegation_config?: DelegationConfig | null;
   structured_output_schema?: string | null;
-  is_system?: boolean;
 }
 
 export interface AIAssistantUpdate {
@@ -123,6 +125,8 @@ export interface AIAssistantUpdate {
   description?: string | null;
   model_id?: string;
   system_prompt?: string | null;
+  planner_prompt?: string | null;
+  supervisor_prompt?: string | null;
   temperature?: number;
   max_tokens?: number;
   recursion_limit?: number | null;
@@ -132,7 +136,6 @@ export interface AIAssistantUpdate {
   allowed_tools?: string[] | null;
   delegation_config?: DelegationConfig | null;
   structured_output_schema?: string | null;
-  is_system?: boolean;
 }
 
 /**
@@ -186,7 +189,7 @@ export interface AIToolPublic {
  * Matches backend SessionContext schema
  */
 export interface SessionContext {
-  type: "general" | "project" | "wbe" | "cost_element";
+  type: "general" | "project" | "wbs_element" | "cost_element";
   id?: string;
   project_id?: string;
   name?: string;

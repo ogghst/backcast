@@ -17,6 +17,8 @@ vi.mock("react-grid-layout", () => ({
     containerRef: { current: null },
     mounted: true,
   }),
+  noCompactor: (layout: unknown) => layout,
+  verticalCompactor: (layout: unknown) => layout,
 }));
 
 /** Mock store state controlling the composition store selector */
@@ -133,14 +135,14 @@ describe("DashboardGrid", () => {
 
   it("renders empty state when activeDashboard is null", () => {
     mockStoreState.activeDashboard = null;
-    renderWithTheme(<DashboardGrid />);
+    renderWithTheme(<DashboardGrid onSave={async () => {}} />);
     expect(
       screen.getByText("Build Your Dashboard"),
     ).toBeInTheDocument();
   });
 
   it('renders "Customize" button via toolbar', () => {
-    renderWithTheme(<DashboardGrid />);
+    renderWithTheme(<DashboardGrid onSave={async () => {}} />);
     expect(
       screen.getByRole("button", { name: /customize/i }),
     ).toBeInTheDocument();
@@ -148,12 +150,12 @@ describe("DashboardGrid", () => {
 
   it('shows "Done" button when isEditing is true', () => {
     mockStoreState.isEditing = true;
-    renderWithTheme(<DashboardGrid />);
+    renderWithTheme(<DashboardGrid onSave={async () => {}} />);
     expect(screen.getByRole("button", { name: /save changes and finish editing/i })).toBeInTheDocument();
   });
 
   it('toggles edit mode when "Customize" button is clicked', () => {
-    renderWithTheme(<DashboardGrid />);
+    renderWithTheme(<DashboardGrid onSave={async () => {}} />);
     const button = screen.getByRole("button", { name: /customize/i });
     fireEvent.click(button);
     expect(mockStoreState.setEditing).toHaveBeenCalledWith(true);
@@ -161,7 +163,7 @@ describe("DashboardGrid", () => {
 
   it('renders "Get Started" button in empty state', () => {
     mockStoreState.activeDashboard = null;
-    renderWithTheme(<DashboardGrid />);
+    renderWithTheme(<DashboardGrid onSave={async () => {}} />);
     expect(
       screen.getByRole("button", { name: /get started/i }),
     ).toBeInTheDocument();
@@ -169,7 +171,7 @@ describe("DashboardGrid", () => {
 
   it('clicking "Get Started" enables edit mode and opens palette', () => {
     mockStoreState.activeDashboard = null;
-    renderWithTheme(<DashboardGrid />);
+    renderWithTheme(<DashboardGrid onSave={async () => {}} />);
     const addBtn = screen.getByRole("button", { name: /get started/i });
     fireEvent.click(addBtn);
     expect(mockStoreState.setEditing).toHaveBeenCalledWith(true);
@@ -194,7 +196,7 @@ describe("DashboardGrid", () => {
       isDefault: false,
     };
 
-    renderWithTheme(<DashboardGrid />);
+    renderWithTheme(<DashboardGrid onSave={async () => {}} />);
     expect(
       screen.queryByText("Build Your Dashboard"),
     ).not.toBeInTheDocument();

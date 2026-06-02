@@ -4,7 +4,7 @@ import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useProjectBudgetSettings, useUpdateProjectBudgetSettings } from "../api/useProjectBudgetSettings";
 import type { ProjectBudgetSettingsCreate } from "@/api/generated";
 
-interface BudgetSettingsWidgetProps {
+export interface BudgetSettingsWidgetProps {
   /** Project ID to fetch/update settings for */
   projectId: string;
   /** Whether the widget is in read-only mode */
@@ -83,7 +83,7 @@ export const BudgetSettingsWidget = ({
   return (
     <Card
       title={
-        <Space style={{ fontSize: typography.lg, fontWeight: typography.weights.medium }}>
+        <Space style={{ fontSize: typography.sizes.lg, fontWeight: typography.weights.medium }}>
           <SettingOutlined style={{ color: colors.primary }} />
           Budget Settings
         </Space>
@@ -109,7 +109,7 @@ export const BudgetSettingsWidget = ({
         <Form.Item
           name="warning_threshold_percent"
           label={
-            <span style={{ fontSize: typography.md, fontWeight: typography.weights.medium }}>
+            <span style={{ fontSize: typography.sizes.md, fontWeight: typography.weights.medium }}>
               Warning Threshold (%)
             </span>
           }
@@ -133,9 +133,9 @@ export const BudgetSettingsWidget = ({
             placeholder="80.0"
             formatter={(value) => `${value}%`}
             parser={(value) => {
-              if (!value) return 0;
+              if (!value) return 0 as 0 | 100;
               const parsed = parseFloat(value.replace("%", ""));
-              return isNaN(parsed) ? 0 : parsed;
+              return (isNaN(parsed) ? 0 : parsed) as 0 | 100;
             }}
             disabled={readOnly || isUpdating}
           />
@@ -148,7 +148,7 @@ export const BudgetSettingsWidget = ({
           <Checkbox
             disabled={readOnly || isUpdating}
             style={{
-              fontSize: typography.md,
+              fontSize: typography.sizes.md,
             }}
           >
             Allow project admins to override budget warnings
@@ -161,7 +161,7 @@ export const BudgetSettingsWidget = ({
         >
           <Checkbox
             disabled={readOnly || isUpdating}
-            style={{ fontSize: typography.md }}
+            style={{ fontSize: typography.sizes.md }}
           >
             Enforce budget limits (block over-budget registrations)
           </Checkbox>
@@ -177,7 +177,7 @@ export const BudgetSettingsWidget = ({
               style={{
                 width: "100%",
                 height: "40px",
-                fontSize: typography.md,
+                fontSize: typography.sizes.md,
                 borderRadius: borderRadius.md,
               }}
             >
@@ -190,7 +190,7 @@ export const BudgetSettingsWidget = ({
       {/* Information Alert */}
       <Alert
         message={
-          <div style={{ fontSize: typography.sm }}>
+          <div style={{ fontSize: typography.sizes.sm }}>
             <strong>How budget warnings work:</strong>
             <ul style={{ margin: `${spacing.xs}px 0 0 0`, paddingLeft: spacing.lg }}>
               <li>

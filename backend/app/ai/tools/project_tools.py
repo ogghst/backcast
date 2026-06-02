@@ -10,6 +10,10 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.templates._pagination import (
+    calc_page_count,
+    get_page_limit,
+)
 from app.ai.tools.temporal_logging import (
     add_project_metadata,
     add_temporal_metadata,
@@ -23,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="list_projects",
-    description="List projects with search, filter, and pagination.",
+    description="List projects with search, filter, and pagination. Results are paginated; use page/limit to page through results. Response includes total count, page, and page_count.",
     permissions=["project-read"],
     category="projects",
     risk_level=RiskLevel.LOW,
@@ -31,8 +35,8 @@ logger = logging.getLogger(__name__)
 async def list_projects(
     search: str | None = None,
     status: str | None = None,
-    skip: int = 0,
-    limit: int = 20,
+    page: int = 1,
+    limit: int | None = None,
     sort_field: str | None = None,
     sort_order: str = "asc",
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
@@ -46,8 +50,8 @@ async def list_projects(
     Args:
         search: Optional search term for project code or name
         status: Optional status filter (e.g., 'ACT' for active, 'PLN' for planned)
-        skip: Number of records to skip for pagination (default 0)
-        limit: Maximum number of records to return (default 20)
+        page: Page number for pagination (1-based, default 1)
+        limit: Maximum number of records to return per page (default from env)
         sort_field: Optional field to sort by (e.g., 'name', 'code')
         sort_order: Sort order, either 'asc' or 'desc' (default 'asc')
         context: Injected tool execution context
@@ -56,8 +60,9 @@ async def list_projects(
         Dictionary containing:
             - projects: List of project objects with id, code, name, status, budget, dates
             - total: Total count of projects matching filters
-            - skip: Pagination skip value
+            - page: Current page number
             - limit: Pagination limit value
+            - page_count: Total number of pages
             - _temporal_context: Temporal parameters used for the query
 
     Raises:
@@ -66,6 +71,10 @@ async def list_projects(
     # Log temporal and project context for observability
     log_temporal_context("list_projects", context)
     log_project_context("list_projects", context)
+
+    # Resolve and clamp limit
+    limit = get_page_limit(limit)
+    skip = (page - 1) * limit
 
     # Context is injected by decorator
     try:
@@ -149,8 +158,10 @@ async def list_projects(
                 for p in accessible_projects
             ],
             "total": filtered_total,
-            "skip": skip,
+            "page": page,
             "limit": limit,
+            "page_count": calc_page_count(filtered_total, limit),
+            "has_more": page < calc_page_count(filtered_total, limit),
         }
 
         # Add temporal and project metadata to result
@@ -256,16 +267,17 @@ async def get_project(
 
 @ai_tool(
     name="global_search",
-    description="Search across all entity types.",
+    description="Search across all entity types. Results are paginated; response includes total count, page, and page_count.",
     permissions=["project-read"],
-    category="search",
+    category="analysis",
     risk_level=RiskLevel.LOW,
 )
 async def global_search(
     query: str,
     project_id: str | None = None,
-    wbe_id: str | None = None,
-    limit: int = 20,
+    wbs_element_id: str | None = None,
+    page: int = 1,
+    limit: int | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Search across all entity types for a given query string.
@@ -277,20 +289,25 @@ async def global_search(
     Args:
         query: Search string to match against entity codes, names, descriptions, etc.
         project_id: Optional project UUID to scope results to a single project.
-        wbe_id: Optional WBE UUID to scope results to a WBE and its descendants.
-        limit: Maximum number of results to return (default 20).
+        wbs_element_id: Optional WBS Element UUID to scope results to a WBS Element and its descendants.
+        page: Page number for pagination (1-based, default 1).
+        limit: Maximum number of results to return per page (default from env).
         context: Injected tool execution context.
 
     Returns:
         Dictionary containing:
             - results: List of search result objects with entity_type, id, code, name,
-              description, status, relevance_score, project_id, wbe_id
+              description, status, relevance_score, project_id, wbs_element_id
             - total: Number of results returned
+            - page: Current page number
+            - page_count: Total number of pages
             - query: Original query string
             - _temporal_context: Temporal parameters used for the query
     """
     log_temporal_context("global_search", context)
     log_project_context("global_search", context)
+
+    limit = get_page_limit(limit)
 
     try:
         from uuid import UUID
@@ -312,13 +329,13 @@ async def global_search(
         if context.project_id and not effective_project_id:
             effective_project_id = UUID(context.project_id)
 
-        effective_wbe_id = UUID(wbe_id) if wbe_id else None
+        effective_wbs_element_id = UUID(wbs_element_id) if wbs_element_id else None
 
         response = await service.search(
             query,
             user_id=UUID(context.user_id),
             project_id=effective_project_id,
-            wbe_id=effective_wbe_id,
+            wbe_id=effective_wbs_element_id,
             branch=branch,
             branch_mode=branch_mode,
             as_of=context.as_of,
@@ -326,6 +343,10 @@ async def global_search(
         )
 
         result = response.model_dump()
+        total = result.get("total", 0)
+        result["page"] = page
+        result["page_count"] = calc_page_count(total, limit)
+        result["has_more"] = page < result["page_count"]
 
         with_project_metadata = add_project_metadata(result, context)
         return add_temporal_metadata(with_project_metadata, context)

@@ -1,7 +1,10 @@
+// @ts-nocheck — test file uses mock data that does not match full generated types
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { HierarchicalDiffView } from "./HierarchicalDiffView";
 import type { ImpactAnalysisResponse } from "@/api/generated";
+
+const mockKPIMetric = { main_value: "0", change_value: "0", delta: "0.00", delta_percent: 0.0 };
 
 describe("HierarchicalDiffView", () => {
   beforeEach(() => {
@@ -13,19 +16,18 @@ describe("HierarchicalDiffView", () => {
     branch_name: "BR-CO-2026-001",
     main_branch_name: "main",
     kpi_scorecard: {
-      budget_variance: "0.00",
-      revenue_variance: "0.00",
-      cost_variance: "0.00",
-      budget_variance_percent: 0.0,
-      revenue_variance_percent: 0.0,
-      cost_variance_percent: 0.0,
+      bac: mockKPIMetric,
+      budget_delta: mockKPIMetric,
+      revenue_delta: mockKPIMetric,
+      gross_margin: mockKPIMetric,
+      actual_costs: mockKPIMetric,
     },
     entity_changes: {
       wbes: [
         {
           id: 1,
           name: "WBE 1 - Assembly Line",
-          change_type: "modified",
+          change_type: "modified" as const,
           budget_delta: "5000.00",
           revenue_delta: "3000.00",
           cost_delta: "2000.00",
@@ -33,7 +35,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 2,
           name: "WBE 2 - Packaging",
-          change_type: "added",
+          change_type: "added" as const,
           budget_delta: "10000.00",
           revenue_delta: "8000.00",
           cost_delta: null,
@@ -41,7 +43,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 3,
           name: "WBE 3 - Testing",
-          change_type: "removed",
+          change_type: "removed" as const,
           budget_delta: "-15000.00",
           revenue_delta: "-12000.00",
           cost_delta: "-3000.00",
@@ -51,7 +53,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 101,
           name: "Labor Costs",
-          change_type: "modified",
+          change_type: "modified" as const,
           budget_delta: "2000.00",
           revenue_delta: null,
           cost_delta: "1000.00",
@@ -59,7 +61,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 102,
           name: "Material Costs",
-          change_type: "added",
+          change_type: "added" as const,
           budget_delta: "5000.00",
           revenue_delta: "4000.00",
           cost_delta: null,
@@ -67,7 +69,7 @@ describe("HierarchicalDiffView", () => {
         {
           id: 103,
           name: "Overhead",
-          change_type: "removed",
+          change_type: "removed" as const,
           budget_delta: "-3000.00",
           revenue_delta: "-2000.00",
           cost_delta: "-1000.00",
@@ -78,7 +80,7 @@ describe("HierarchicalDiffView", () => {
 
   describe("rendering tree structure", () => {
     it("should render tree with all levels (Project → WBEs → Cost Elements)", () => {
-      render(<HierarchicalDiffView impactData={mockImpactData} />);
+      render(<HierarchicalDiffView impactData={mockImpactData} defaultExpandedLevel={2} />);
 
       // Should show project level summary
       expect(screen.getByText(/Project Changes/i)).toBeInTheDocument();
@@ -95,7 +97,7 @@ describe("HierarchicalDiffView", () => {
     });
 
     it("should render change count badges for entities with changes", () => {
-      render(<HierarchicalDiffView impactData={mockImpactData} />);
+      render(<HierarchicalDiffView impactData={mockImpactData} defaultExpandedLevel={2} />);
 
       // Should show total change count in summary
       expect(screen.getByText(/Total Changes/i)).toBeInTheDocument();
@@ -123,7 +125,7 @@ describe("HierarchicalDiffView", () => {
 
   describe("expand and collapse functionality", () => {
     it("should expand and collapse WBE nodes", () => {
-      render(<HierarchicalDiffView impactData={mockImpactData} />);
+      render(<HierarchicalDiffView impactData={mockImpactData} defaultExpandedLevel={2} />);
 
       // Find WBE node
       const wbeNode = screen.getByText(/WBE 1 - Assembly Line/i);
@@ -199,8 +201,7 @@ describe("HierarchicalDiffView", () => {
       render(<HierarchicalDiffView impactData={mockImpactData} showUnchanged={false} />);
 
       // Should have filter control
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _filterToggle = screen.queryByRole("checkbox", {
+      void screen.queryByRole("checkbox", {
         name: /show unchanged/i,
       });
       // Note: This might be a Switch or Toggle implementation
@@ -215,7 +216,7 @@ describe("HierarchicalDiffView", () => {
             {
               id: 1,
               name: "Changed WBE",
-              change_type: "modified",
+              change_type: "modified" as const,
               budget_delta: "1000.00",
               revenue_delta: "500.00",
               cost_delta: "200.00",
@@ -247,6 +248,7 @@ describe("HierarchicalDiffView", () => {
         <HierarchicalDiffView
           impactData={mockImpactData}
           onEntityClick={handleClick}
+          defaultExpandedLevel={2}
         />
       );
 
@@ -291,7 +293,7 @@ describe("HierarchicalDiffView", () => {
     it("should show appropriate message when entity_changes is undefined", () => {
       const noChangesData: ImpactAnalysisResponse = {
         ...mockImpactData,
-        entity_changes: undefined,
+        entity_changes: {},
       };
 
       render(<HierarchicalDiffView impactData={noChangesData} />);
@@ -329,7 +331,7 @@ describe("HierarchicalDiffView", () => {
             {
               id: 1,
               name: "WBE with nulls",
-              change_type: "modified",
+              change_type: "modified" as const,
               budget_delta: null,
               revenue_delta: null,
               cost_delta: null,
@@ -339,7 +341,7 @@ describe("HierarchicalDiffView", () => {
         },
       };
 
-      render(<HierarchicalDiffView impactData={dataWithNulls} />);
+      render(<HierarchicalDiffView impactData={dataWithNulls} defaultExpandedLevel={2} />);
 
       // Should render without errors
       expect(screen.getByText(/WBE with nulls/i)).toBeInTheDocument();
@@ -355,8 +357,7 @@ describe("HierarchicalDiffView", () => {
       expect(tree).toBeInTheDocument();
 
       // Tree items should have proper roles (Ant Design Tree uses these roles)
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _treeItems = screen.queryAllByRole("treeitem");
+      void screen.queryAllByRole("treeitem");
       // Note: Ant Design might not expose all items as treeitem roles
       // Just verify tree exists
       expect(tree).toBeInTheDocument();
@@ -443,7 +444,7 @@ describe("HierarchicalDiffView", () => {
             {
               id: 1,
               name: "WBE with no children",
-              change_type: "modified",
+              change_type: "modified" as const,
               budget_delta: "1000.00",
               revenue_delta: "500.00",
               cost_delta: "200.00",
@@ -453,7 +454,7 @@ describe("HierarchicalDiffView", () => {
         },
       };
 
-      render(<HierarchicalDiffView impactData={dataWithNoCostElements} />);
+      render(<HierarchicalDiffView impactData={dataWithNoCostElements} defaultExpandedLevel={2} />);
 
       expect(screen.getByText(/WBE with no children/i)).toBeInTheDocument();
     });
@@ -467,7 +468,7 @@ describe("HierarchicalDiffView", () => {
             {
               id: 101,
               name: "Orphan Cost Element",
-              change_type: "added",
+              change_type: "added" as const,
               budget_delta: "5000.00",
               revenue_delta: "3000.00",
               cost_delta: null,
@@ -476,7 +477,7 @@ describe("HierarchicalDiffView", () => {
         },
       };
 
-      render(<HierarchicalDiffView impactData={dataWithNoWBEs} />);
+      render(<HierarchicalDiffView impactData={dataWithNoWBEs} defaultExpandedLevel={2} />);
 
       expect(screen.getByText(/Orphan Cost Element/i)).toBeInTheDocument();
     });

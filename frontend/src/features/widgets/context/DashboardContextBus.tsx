@@ -6,7 +6,7 @@ import type { BranchMode } from "@/stores/useTimeMachineStore";
  * Dashboard context value providing entity selection and time-machine state.
  *
  * Consumes (does not duplicate) TimeMachineContext for branch/viewDate.
- * Adds entity-level context (projectId, wbeId, costElementId) for widgets.
+ * Adds entity-level context (projectId, wbsElementId, costElementId) for widgets.
  */
 export interface DashboardContextValue {
   /** ISO timestamp for time-travel, undefined for current time */
@@ -23,7 +23,7 @@ export interface DashboardContextValue {
   /** Project identifier from URL params */
   projectId: string;
   /** Currently selected WBE identifier */
-  wbeId: string | undefined;
+  wbsElementId: string | undefined;
   /** Currently selected cost element identifier */
   costElementId: string | undefined;
   /** Update the selected WBE */
@@ -62,7 +62,7 @@ export function DashboardContextBus({
   const { asOf, branch, mode, isHistorical, invalidateQueries } =
     useTimeMachine();
 
-  const [wbeId, setWbeId] = useState<string | undefined>(undefined);
+  const [wbsElementId, setWbeId] = useState<string | undefined>(undefined);
   const [costElementId, setCostElementId] = useState<string | undefined>(
     undefined,
   );
@@ -75,7 +75,7 @@ export function DashboardContextBus({
       isHistorical,
       invalidateQueries,
       projectId,
-      wbeId,
+      wbsElementId,
       costElementId,
       setWbeId,
       setCostElementId,
@@ -87,7 +87,7 @@ export function DashboardContextBus({
       isHistorical,
       invalidateQueries,
       projectId,
-      wbeId,
+      wbsElementId,
       costElementId,
     ],
   );

@@ -4,9 +4,9 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import { UserList } from "@/pages/admin/UserList";
-import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
+import { OrganizationalUnitManagement } from "@/pages/admin/OrganizationalUnitManagement";
 import { CostElementTypeManagement } from "@/pages/admin/CostElementTypeManagement";
-import { PackageTypeManagement } from "@/pages/admin/PackageTypeManagement";
+import { CostEventTypeManagement } from "@/pages/admin/CostEventTypeManagement";
 import { AIProviderManagement } from "@/pages/admin/AIProviderManagement";
 import { AIAssistantManagement } from "@/pages/admin/AIAssistantManagement";
 import { MCPServerManagement } from "@/pages/admin/MCPServerManagement";
@@ -22,21 +22,20 @@ import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPag
 import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
 import { ProjectCOQAnalysis } from "@/pages/projects/ProjectCOQAnalysis";
 import { ProjectSchedulePage } from "@/pages/projects/ProjectSchedulePage";
-import { WBEList } from "@/pages/wbes/WBEList";
-import { WBELayout } from "@/pages/wbes/WBELayout";
-import { WBEOverview } from "@/pages/wbes/WBEOverview";
-import { WBEEVMAnalysis } from "@/pages/wbes/WBEEVMAnalysis";
-import { WBECostHistory } from "@/pages/wbes/WBECostHistory";
-import { WBEChat } from "@/pages/wbes/WBEChat";
+import { WBSElementList } from "@/pages/wbs-elements/WBSElementList";
+import { WBSElementLayout } from "@/pages/wbs-elements/WBSElementLayout";
+import { WBSElementOverview } from "@/pages/wbs-elements/WBSElementOverview";
+import { WBSElementEVMAnalysis } from "@/pages/wbs-elements/WBSElementEVMAnalysis";
+import { WBSElementCostHistory } from "@/pages/wbs-elements/WBSElementCostHistory";
+import { WBSElementChat } from "@/pages/wbs-elements/WBSElementChat";
 import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrderUnifiedPage";
 import { ChangeOrderImpactAnalysisPage } from "@/pages/projects/change-orders/ChangeOrderImpactAnalysisPage";
 import { CostElementLayout } from "@/pages/cost-elements/CostElementLayout";
 import { CostElementOverview } from "@/pages/cost-elements/CostElementOverview";
 import { CostElementCostRegistrations } from "@/pages/cost-elements/CostElementCostRegistrations";
 import { CostElementCostHistory } from "@/pages/cost-elements/CostElementCostHistory";
-import { ProjectWorkPackages } from "@/pages/projects/ProjectWorkPackages";
+import { ProjectCostEvents } from "@/pages/projects/ProjectCostEvents";
 import { CostElementChat } from "@/pages/cost-elements/CostElementChat";
-import { CostElementEVMAnalysis } from "@/pages/cost-elements/CostElementEVMAnalysis";
 import { Profile } from "@/pages/Profile";
 import { ChatInterfacePage } from "@/pages/chat/ChatInterface";
 import { ProjectChat } from "@/pages/projects/ProjectChat";
@@ -46,8 +45,26 @@ import { DashboardPage } from "@/features/widgets/pages/DashboardPage";
 import { ChangeOrderConfigPage } from "@/features/change-orders/components/ChangeOrderConfigPage";
 import { ChangeOrderRedirect } from "@/features/change-orders/components/ChangeOrderRedirect";
 import { ProjectDocuments } from "@/pages/projects/ProjectDocuments";
-import { WBEDocuments } from "@/pages/wbes/WBEDocuments";
+import { WBSElementDocuments } from "@/pages/wbs-elements/WBSElementDocuments";
 import { CostElementDocuments } from "@/pages/cost-elements/CostElementDocuments";
+import { WorkPackageLayout } from "@/pages/work-packages/WorkPackageLayout";
+import { WorkPackageOverview } from "@/pages/work-packages/WorkPackageOverview";
+import { WorkPackageCostRegistrations } from "@/pages/work-packages/WorkPackageCostRegistrations";
+import { WorkPackageCostHistory } from "@/pages/work-packages/WorkPackageCostHistory";
+import { WorkPackageEVMAnalysis } from "@/pages/work-packages/WorkPackageEVMAnalysis";
+import { WorkPackageDocuments } from "@/pages/work-packages/WorkPackageDocuments";
+import { WorkPackageChat } from "@/pages/work-packages/WorkPackageChat";
+import { ControlAccountLayout } from "@/pages/control-accounts/ControlAccountLayout";
+import { ControlAccountOverview } from "@/pages/control-accounts/ControlAccountOverview";
+
+const workPackageChildren = [
+  { index: true, element: <WorkPackageOverview /> },
+  { path: "cost-registrations", element: <WorkPackageCostRegistrations /> },
+  { path: "cost-history", element: <WorkPackageCostHistory /> },
+  { path: "evm-analysis", element: <WorkPackageEVMAnalysis /> },
+  { path: "documents", element: <WorkPackageDocuments /> },
+  { path: "chat", element: <WorkPackageChat /> },
+];
 
 export const router = createBrowserRouter([
   {
@@ -75,8 +92,8 @@ export const router = createBrowserRouter([
         element: <ProjectList />,
       },
       {
-        path: "/admin/wbes",
-        element: <WBEList />,
+        path: "/admin/wbs-elements",
+        element: <WBSElementList />,
       },
       {
         path: "/users",
@@ -87,16 +104,16 @@ export const router = createBrowserRouter([
         element: <UserList />,
       },
       {
-        path: "/admin/departments",
-        element: <DepartmentManagement />,
+        path: "/admin/organizational-units",
+        element: <OrganizationalUnitManagement />,
       },
       {
         path: "/admin/cost-element-types",
         element: <CostElementTypeManagement />,
       },
       {
-        path: "/admin/package-types",
-        element: <PackageTypeManagement />,
+        path: "/admin/cost-event-types",
+        element: <CostEventTypeManagement />,
       },
       {
         path: "/admin/ai-providers",
@@ -125,7 +142,7 @@ export const router = createBrowserRouter([
       {
         path: "/chat",
         element: (
-          <ProtectedRoute permission="ai-chat">
+          <ProtectedRoute>
             <ChatInterfacePage />
           </ProtectedRoute>
         ),
@@ -139,6 +156,11 @@ export const router = createBrowserRouter([
         element: <ChangeOrderRedirect />,
       },
 
+      {
+        path: "/projects/:projectId/work-packages/:id",
+        element: <WorkPackageLayout />,
+        children: workPackageChildren,
+      },
       {
         path: "/projects/:projectId",
         element: <ProjectLayout />,
@@ -177,8 +199,8 @@ export const router = createBrowserRouter([
             element: <ProjectSchedulePage />,
           },
           {
-            path: "work-packages",
-            element: <ProjectWorkPackages />,
+            path: "cost-events",
+            element: <ProjectCostEvents />,
           },
           {
             path: "documents",
@@ -211,14 +233,21 @@ export const router = createBrowserRouter([
         element: <ChangeOrderUnifiedPage />,
       },
       {
-        path: "/projects/:projectId/wbes/:wbeId",
-        element: <WBELayout />,
+        path: "/projects/:projectId/wbs-elements/:wbsElementId",
+        element: <WBSElementLayout />,
         children: [
-          { index: true, element: <WBEOverview /> },
-          { path: "evm-analysis", element: <WBEEVMAnalysis /> },
-          { path: "cost-history", element: <WBECostHistory /> },
-          { path: "documents", element: <WBEDocuments /> },
-          { path: "chat", element: <WBEChat /> },
+          { index: true, element: <WBSElementOverview /> },
+          { path: "evm-analysis", element: <WBSElementEVMAnalysis /> },
+          { path: "cost-history", element: <WBSElementCostHistory /> },
+          { path: "documents", element: <WBSElementDocuments /> },
+          { path: "chat", element: <WBSElementChat /> },
+        ],
+      },
+      {
+        path: "/projects/:projectId/control-accounts/:controlAccountId",
+        element: <ControlAccountLayout />,
+        children: [
+          { index: true, element: <ControlAccountOverview /> },
         ],
       },
       {
@@ -228,10 +257,14 @@ export const router = createBrowserRouter([
           { index: true, element: <CostElementOverview /> },
           { path: "cost-registrations", element: <CostElementCostRegistrations /> },
           { path: "cost-history", element: <CostElementCostHistory /> },
-          { path: "evm-analysis", element: <CostElementEVMAnalysis /> },
           { path: "documents", element: <CostElementDocuments /> },
           { path: "chat", element: <CostElementChat /> },
         ],
+      },
+      {
+        path: "/work-packages/:id",
+        element: <WorkPackageLayout />,
+        children: workPackageChildren,
       },
     ],
   },

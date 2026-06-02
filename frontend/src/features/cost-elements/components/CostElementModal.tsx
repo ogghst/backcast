@@ -1,12 +1,11 @@
-import { useEffect, useMemo } from "react";
-import { Modal, Form, Input, Select, InputNumber } from "antd";
+import { useEffect } from "react";
+import { Modal, Form, Input, Select } from "antd";
 import type {
   CostElementRead,
   CostElementCreate,
   CostElementUpdate,
 } from "@/api/generated";
 import { useCostElementTypes } from "@/features/cost-elements/api/useCostElementTypes";
-import { getCurrencySymbol } from "@/utils/formatters";
 
 interface CostElementModalProps {
   open: boolean;
@@ -14,10 +13,9 @@ interface CostElementModalProps {
   onOk: (values: CostElementCreate | CostElementUpdate) => void;
   confirmLoading: boolean;
   initialValues?: CostElementRead | null;
-  currentBranch: string; // Used for "Create in Branch" context if needed
-  wbeId?: string;
-  wbeName?: string;
-  currency?: string;
+  currentBranch: string;
+  workPackageId?: string;
+  workPackageName?: string;
 }
 
 export const CostElementModal = ({
@@ -27,43 +25,33 @@ export const CostElementModal = ({
   confirmLoading,
   initialValues,
   currentBranch,
-  wbeId,
-  wbeName,
-  currency = "EUR",
+  workPackageId,
+  workPackageName,
 }: CostElementModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
-  const currencySymbol = getCurrencySymbol(currency);
-
-  const currencyFormatValue = useMemo(
-    () => (value: string | number | undefined) =>
-      `${currencySymbol} ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ","),
-    [currencySymbol],
-  );
-
-  const currencyParseRegex = useMemo(
-    () => new RegExp(`\\${currencySymbol}\\s?|(,*)`, "g"),
-    [currencySymbol],
-  );
 
   const { data: types = [], isLoading: loadingOpts } = useCostElementTypes();
 
   useEffect(() => {
     if (open) {
       if (initialValues) {
-        form.setFieldsValue(initialValues);
+        form.setFieldsValue({
+          cost_element_type_id: initialValues.cost_element_type_id,
+          description: initialValues.description,
+        });
       } else {
         form.resetFields();
-        if (wbeId) {
-          form.setFieldValue("wbe_id", wbeId);
+        if (workPackageId) {
+          form.setFieldValue("work_package_id", workPackageId);
         }
       }
     }
-  }, [open, initialValues, form, wbeId]);
+  }, [open, initialValues, form, workPackageId]);
 
-  const displayWbeName = isEdit
-    ? initialValues?.wbe_name || initialValues?.wbe_id
-    : wbeName || "Unknown WBE";
+  const displayWorkPackageName = isEdit
+    ? initialValues?.work_package_name || initialValues?.work_package_id
+    : workPackageName || "Unknown Work Package";
 
   const handleSubmit = async () => {
     try {
@@ -90,48 +78,6 @@ export const CostElementModal = ({
       width={600}
     >
       <Form form={form} layout="vertical" name="cost_element_form">
-        <Form.Item
-          name="name"
-          label="Name"
-          rules={[{ required: true, message: "Please enter name" }]}
-        >
-          <Input placeholder="Equipment Rental" />
-        </Form.Item>
-
-        <Form.Item
-          name="code"
-          label="Code"
-          rules={[
-            { required: true, message: "Please enter code" },
-            {
-              pattern: /^[A-Z0-9_-]+$/,
-              message: "Code must be uppercase alphanumeric",
-            },
-          ]}
-        >
-          <Input
-            placeholder="EQUIP-RENT"
-            style={{ textTransform: "uppercase" }}
-            onChange={(e) =>
-              form.setFieldValue("code", e.target.value.toUpperCase())
-            }
-          />
-        </Form.Item>
-
-        <Form.Item
-          name="budget_amount"
-          label="Budget Amount"
-          rules={[{ required: true, message: "Please enter budget amount" }]}
-        >
-          <InputNumber
-            style={{ width: "100%" }}
-            formatter={(value) => currencyFormatValue(value)}
-            parser={(value) =>
-              value?.replace(currencyParseRegex, "") as unknown as number
-            }
-          />
-        </Form.Item>
-
         <div
           style={{
             display: "grid",
@@ -139,12 +85,12 @@ export const CostElementModal = ({
             gap: "16px",
           }}
         >
-          <Form.Item name="wbe_id" hidden>
+          <Form.Item name="work_package_id" hidden>
             <Input />
           </Form.Item>
 
-          <Form.Item label="WBE" tooltip="Context inherited from parent WBE">
-            <Input value={displayWbeName} disabled />
+          <Form.Item label="Work Package" tooltip="Context inherited from parent Work Package">
+            <Input value={displayWorkPackageName} disabled />
           </Form.Item>
 
           <Form.Item

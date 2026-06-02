@@ -216,7 +216,7 @@ export const EntityGrid = <T,>({
       <div
         style={{
           fontSize: token.fontSizeXL,
-          fontWeight: token.fontWeightSemiBold ?? 600,
+          fontWeight: token.fontWeightStrong ?? 600,
           color: token.colorText,
           display: "flex",
           alignItems: "center",

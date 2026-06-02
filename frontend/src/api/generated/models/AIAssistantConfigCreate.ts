@@ -9,7 +9,10 @@ import type { DelegationConfig } from './DelegationConfig';
 export type AIAssistantConfigCreate = {
     name: string;
     description?: (string | null);
-    model_id: string;
+    /**
+     * Model to use. Required for main agents; specialists inherit from the main agent.
+     */
+    model_id?: (string | null);
     system_prompt?: (string | null);
     temperature?: (number | null);
     max_tokens?: (number | null);
@@ -25,7 +28,7 @@ export type AIAssistantConfigCreate = {
     /**
      * Agent type: 'main' (user-facing) or 'specialist' (delegated)
      */
-    agent_type?: AIAssistantConfigCreate.agent_type;
+    agent_type?: 'main' | 'specialist';
     /**
      * Tool whitelist for specialist agents. None means all available tools.
      */
@@ -43,13 +46,4 @@ export type AIAssistantConfigCreate = {
      */
     is_system?: boolean;
 };
-export namespace AIAssistantConfigCreate {
-    /**
-     * Agent type: 'main' (user-facing) or 'specialist' (delegated)
-     */
-    export enum agent_type {
-        MAIN = 'main',
-        SPECIALIST = 'specialist',
-    }
-}
 

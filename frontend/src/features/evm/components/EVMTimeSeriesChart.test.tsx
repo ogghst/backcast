@@ -17,7 +17,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { EVMTimeSeriesChart } from "./EVMTimeSeriesChart";
-import type { EVMTimeSeriesResponse, EVMTimeSeriesGranularity } from "../types";
+import type { EVMTimeSeriesResponse } from "../types";
+import { EVMTimeSeriesGranularity } from "../types";
 
 // Mock echarts-for-react to avoid canvas rendering issues in tests
 vi.mock("echarts-for-react", () => ({
@@ -33,7 +34,7 @@ describe("EVMTimeSeriesChart", () => {
 
   // Mock time series data with complete structure
   const mockTimeSeriesData: EVMTimeSeriesResponse = {
-    granularity: "week" as EVMTimeSeriesGranularity,
+    granularity: EVMTimeSeriesGranularity.WEEK,
     points: [
       {
         date: "2024-01-01T00:00:00Z",
@@ -42,6 +43,8 @@ describe("EVMTimeSeriesChart", () => {
         ac: 9000,
         forecast: 12000,
         actual: 9000,
+        cpi: 0.89,
+        spi: 0.8,
       },
       {
         date: "2024-01-08T00:00:00Z",
@@ -50,6 +53,8 @@ describe("EVMTimeSeriesChart", () => {
         ac: 19000,
         forecast: 24000,
         actual: 19000,
+        cpi: 0.95,
+        spi: 0.9,
       },
       {
         date: "2024-01-15T00:00:00Z",
@@ -58,6 +63,8 @@ describe("EVMTimeSeriesChart", () => {
         ac: 29000,
         forecast: 36000,
         actual: 29000,
+        cpi: 0.97,
+        spi: 0.93,
       },
     ],
     start_date: "2024-01-01T00:00:00Z",
@@ -105,8 +112,8 @@ describe("EVMTimeSeriesChart", () => {
 
       // Check for EVM Progression chart title
       expect(screen.getByText(/EVM Progression/i)).toBeInTheDocument();
-      // Check for Cost Comparison chart title
-      expect(screen.getByText(/Cost Comparison/i)).toBeInTheDocument();
+      // Check for Performance Indices chart title
+      expect(screen.getByText(/Performance Indices/i)).toBeInTheDocument();
     });
 
     it("should render the main chart title", () => {
@@ -141,7 +148,7 @@ describe("EVMTimeSeriesChart", () => {
 
     it("should display empty state when timeSeries has no points", () => {
       const emptyData: EVMTimeSeriesResponse = {
-        granularity: "week" as EVMTimeSeriesGranularity,
+        granularity: EVMTimeSeriesGranularity.WEEK,
         points: [],
         start_date: "2024-01-01T00:00:00Z",
         end_date: "2024-01-15T00:00:00Z",
@@ -247,7 +254,7 @@ describe("EVMTimeSeriesChart", () => {
 
       // Should have two chart titles
       expect(screen.getByText(/EVM Progression/i)).toBeInTheDocument();
-      expect(screen.getByText(/Cost Comparison/i)).toBeInTheDocument();
+      expect(screen.getByText(/Performance Indices/i)).toBeInTheDocument();
     });
 
     it("should render PV/EV/AC progression chart", () => {
@@ -274,8 +281,8 @@ describe("EVMTimeSeriesChart", () => {
         { wrapper }
       );
 
-      // Check for Cost Comparison chart
-      expect(screen.getByText(/Cost Comparison/i)).toBeInTheDocument();
+      // Check for Performance Indices chart
+      expect(screen.getByText(/Performance Indices/i)).toBeInTheDocument();
     });
   });
 
@@ -292,7 +299,7 @@ describe("EVMTimeSeriesChart", () => {
 
       // If charts render without errors, data transformation is working
       expect(screen.getByText(/EVM Progression/i)).toBeInTheDocument();
-      expect(screen.getByText(/Cost Comparison/i)).toBeInTheDocument();
+      expect(screen.getByText(/Performance Indices/i)).toBeInTheDocument();
     });
   });
 

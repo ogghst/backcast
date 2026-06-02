@@ -11,7 +11,7 @@ export type CostElementTypeRead = {
     description?: (string | null);
     id: string;
     cost_element_type_id: string;
-    department_id: string;
+    organizational_unit_id: string;
     created_by: string;
 };
 

@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { App, Button, Segmented, Space, Tag, theme, Tooltip } from "antd";
+import { App, Button, Segmented, Space, Tag, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  LockOutlined,
 } from "@ant-design/icons";
 import type { ColumnType } from "antd/es/table";
 import { useAIAssistants, useUpdateAIAssistant, useDeleteAIAssistant, useCreateAIAssistant, useAllAIModels } from "../api";
@@ -89,12 +88,7 @@ export const AIAssistantList = () => {
       dataIndex: "name",
       key: "name",
       sorter: true,
-      render: (name: string, record: AIAssistantPublic) => (
-        <Space>
-          {name}
-          {record.is_system && <LockOutlined style={{ color: token.colorTextSecondary, fontSize: 12 }} />}
-        </Space>
-      ),
+      render: (name: string) => name,
     },
     {
       title: "Type",
@@ -144,16 +138,13 @@ export const AIAssistantList = () => {
             />
           </Can>
           <Can permission="ai-config-delete">
-            <Tooltip title={record.is_system ? "System assistants cannot be deleted" : "Delete"}>
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => handleDelete(record.id)}
-                disabled={record.is_system}
-                aria-label="delete"
-                title="Delete Assistant"
-              />
-            </Tooltip>
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record.id)}
+              aria-label="delete"
+              title="Delete Assistant"
+            />
           </Can>
         </Space>
       ),

@@ -17,7 +17,7 @@ interface MiniGanttConfig {
 
 /** A single row in the timeline, grouped by WBE. */
 interface TimelineRow {
-  wbeId: string;
+  wbsElementId: string;
   code: string;
   name: string;
   startDate: Date;
@@ -35,13 +35,13 @@ function aggregateToWBERows(items: GanttItem[]): TimelineRow[] {
   for (const item of items) {
     if (!item.start_date || !item.end_date) continue;
 
-    const existing = groups.get(item.wbe_id);
+    const existing = groups.get(item.wbs_element_id);
     const start = new Date(item.start_date);
     const end = new Date(item.end_date);
 
     if (!existing) {
-      groups.set(item.wbe_id, {
-        wbeId: item.wbe_id,
+      groups.set(item.wbs_element_id, {
+        wbsElementId: item.wbs_element_id,
         code: item.wbe_code,
         name: item.wbe_name,
         startDate: start,
@@ -64,11 +64,11 @@ function aggregateToWBERows(items: GanttItem[]): TimelineRow[] {
  */
 function toItemRows(items: GanttItem[]): TimelineRow[] {
   return items
-    .filter((item) => item.start_date && item.end_date)
+    .filter((item) => item.cost_element_id && item.start_date && item.end_date)
     .map((item) => ({
-      wbeId: item.cost_element_id,
-      code: item.cost_element_code,
-      name: item.cost_element_name,
+      wbsElementId: item.cost_element_id!,
+      code: item.cost_element_code ?? "",
+      name: item.cost_element_name ?? "",
       startDate: new Date(item.start_date!),
       endDate: new Date(item.end_date!),
     }))
@@ -180,7 +180,7 @@ const MiniGanttComponent: FC<WidgetComponentProps<MiniGanttConfig>> = ({
 
             return (
               <div
-                key={row.wbeId}
+                key={row.wbsElementId}
                 style={{
                   display: "flex",
                   alignItems: "center",

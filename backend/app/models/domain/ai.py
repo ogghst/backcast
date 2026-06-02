@@ -135,6 +135,16 @@ class AIAssistantConfig(SimpleEntityBase):
         index=True,
     )
     system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    planner_prompt: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Custom planner prompt template for main agents. Supports {specialist_section} placeholder.",
+    )
+    supervisor_prompt: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Custom supervisor prompt template for main agents. Supports {specialist_section} placeholder.",
+    )
     temperature: Mapped[float | None] = mapped_column(Float(3), nullable=True)
     max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # LangGraph recursion limit (maximum steps in agent execution loop)
@@ -166,13 +176,6 @@ class AIAssistantConfig(SimpleEntityBase):
         nullable=True,
         comment="Fully qualified Pydantic model class name for structured output (specialist-only)",
     )
-    is_system: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False,
-        comment="System agents cannot be deleted, only disabled",
-    )
-
     # Relationships
     model: Mapped["AIModel"] = relationship(
         "AIModel", back_populates="assistant_configs", foreign_keys=[model_id]

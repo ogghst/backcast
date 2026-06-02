@@ -92,7 +92,15 @@ async def read_projects(
         as_of = datetime.now(tz=UTC)
 
     try:
-        # Get projects with filters
+        # Resolve RBAC access BEFORE querying so DB-level pagination is correct
+        set_unified_rbac_session(session)
+        unified_service = get_unified_rbac_service()
+        accessible_project_ids = await unified_service.get_accessible_projects(
+            user_id=current_user.user_id,
+        )
+        set_unified_rbac_session(None)
+
+        # Get projects with filters (RBAC filtering applied at DB level)
         projects, total = await service.get_projects(
             skip=skip,
             limit=per_page,
@@ -103,17 +111,8 @@ async def read_projects(
             sort_field=sort_field,
             sort_order=sort_order,
             as_of=as_of,
+            accessible_project_ids=set(accessible_project_ids),
         )
-
-        # Filter projects by user's access
-        set_unified_rbac_session(session)
-        unified_service = get_unified_rbac_service()
-        accessible_project_ids = await unified_service.get_accessible_projects(
-            user_id=current_user.user_id,
-        )
-        set_unified_rbac_session(None)
-        projects = [p for p in projects if p.project_id in accessible_project_ids]
-        total = len(projects)
 
         # Convert to Pydantic models
         from app.models.schemas.project import ProjectPublic

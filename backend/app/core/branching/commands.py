@@ -74,8 +74,9 @@ class BranchCommandABC(VersionedCommandABC[TBranchable]):
         if exclude_version_id:
             stmt = stmt.where(cast(Any, self.entity_class).id != exclude_version_id)
 
-        # Check for any version that ends after start_time or is open-ended
         stmt = stmt.where(
+            func.lower(cast(Any, self.entity_class).valid_time) <= start_time,
+        ).where(
             or_(
                 func.upper(cast(Any, self.entity_class).valid_time) > start_time,
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
@@ -198,6 +199,8 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # CRITICAL: Store current_id before any modifications for use in parent_id
         current_id = current.id
 
+        already_closed_as_remainder = False
+
         if self.control_date:
             current_lower = cast(Any, current).valid_time.lower
             # NOTE: Allow control_date == current_lower for Time Machine mode
@@ -237,12 +240,19 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
                 await session.flush()
                 # Skip the _close_version call below since we already closed it
                 current = None
+                already_closed_as_remainder = True
 
         # CRITICAL FIX: Determine valid_time lower bound BEFORE closing current version
         # This ensures we use consistent timestamps throughout the update operation
         valid_time_lower = (
             self.control_date if self.control_date is not None else update_timestamp
         )
+        # Clamp to current version's lower bound if it's in the future
+        # (e.g., after Time Machine created a version with future valid_time)
+        if current is not None:
+            current_lower = cast(Any, current).valid_time.lower
+            if current_lower and valid_time_lower < current_lower:
+                valid_time_lower = current_lower
 
         # 2. Clone and apply updates (Safe Clone via Core Select)
         # Fetch raw data to avoid ORM lazy-load triggers (MissingGreenlet)
@@ -259,7 +269,7 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         )
 
         # 3. Close current (only if not already closed as remainder)
-        if current is not None:
+        if current is not None and not already_closed_as_remainder:
             await self._close_version(
                 session,
                 current,
@@ -272,11 +282,13 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             # CRITICAL: Refresh to ensure we see the updated values from the database
             await session.refresh(current)
 
-        # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges
-        # When control_date is None (normal update), use update_timestamp for valid_time lower bound
-        valid_time_lower = (
-            self.control_date if self.control_date is not None else update_timestamp
-        )
+            # After close, ensure valid_time_lower is at or after the closed range's upper bound
+            # The close may add 1us to prevent empty ranges, so we must respect that
+            closed_upper = cast(Any, current).valid_time.upper
+            if closed_upper and valid_time_lower < closed_upper:
+                valid_time_lower = closed_upper
+
+        # valid_time_lower was already computed above with the future-clamp fix
 
         # 0. Check for overlaps on current branch (excluding the version we just closed/are closing)
         # Note: We checked 'current' before closing, but _check_overlap logic looks for conflicts
@@ -554,12 +566,25 @@ class BranchableSoftDeleteCommand(BranchCommandABC[TBranchable]):
         self.control_date = control_date or datetime.now(UTC)
 
     async def execute(self, session: AsyncSession) -> TBranchable:
-        """Mark current version on specified branch as deleted."""
+        """Mark current version on specified branch as deleted.
+
+        Closes the valid_time range to prevent overlap errors when a new entity
+        is created with the same root_id on the same branch.
+        """
         current = await self._get_current_on_branch(session, self.branch)
         if not current:
             raise ValueError(
                 f"No active version found on branch {self.branch} for {self.root_id}"
             )
+
+        # Close the valid_time range so it no longer extends to infinity.
+        # Without this, the overlap check in CreateBranchCommand/CreateVersionCommand
+        # would see the soft-deleted version's [start, NULL) and reject the new entity.
+        await self._close_version(
+            session,
+            current,
+            close_at_valid_time=self.control_date,
+        )
 
         current.deleted_at = self.control_date
         current.deleted_by = self.actor_id

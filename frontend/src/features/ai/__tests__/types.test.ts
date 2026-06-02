@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 import type {
-  AIAssistantConfigPublic,
-  AIAssistantConfigCreate,
-  AIAssistantConfigUpdate,
+  AIAssistantPublic,
+  AIAssistantCreate,
+  AIAssistantUpdate,
   AIModelPublic,
   AIProviderConfigCreate,
 } from "../types";
 
 describe("AI Types", () => {
-  describe("AIAssistantConfigPublic", () => {
+  describe("AIAssistantPublic", () => {
     it("should have correct type structure", () => {
-      const assistant: AIAssistantConfigPublic = {
+      const assistant: AIAssistantPublic = {
         id: "123e4567-e89b-12d3-a456-426614174000",
         name: "Test Assistant",
         description: "A test assistant",
@@ -18,8 +18,15 @@ describe("AI Types", () => {
         system_prompt: "You are helpful",
         temperature: 0.7,
         max_tokens: 2048,
-        allowed_tools: ["list_projects", "get_project"],
+        recursion_limit: 25,
+        default_role: "ai-viewer",
         is_active: true,
+        agent_type: "main",
+        allowed_tools: ["list_projects", "get_project"],
+        delegation_config: null,
+        structured_output_schema: null,
+        planner_prompt: null,
+        supervisor_prompt: null,
         created_at: "2026-03-07T00:00:00Z",
         updated_at: "2026-03-07T00:00:00Z",
       };
@@ -34,31 +41,40 @@ describe("AI Types", () => {
     });
 
     it("should allow optional fields to be null", () => {
-      const assistant: AIAssistantConfigPublic = {
+      const assistant: AIAssistantPublic = {
         id: "123",
         name: "Minimal Assistant",
         model_id: "model-123",
         description: null,
         system_prompt: null,
-        temperature: null,
-        max_tokens: null,
-        allowed_tools: null,
+        temperature: 0.7,
+        max_tokens: 2048,
+        recursion_limit: null,
+        default_role: null,
         is_active: true,
+        agent_type: "main",
+        allowed_tools: null,
+        delegation_config: null,
+        structured_output_schema: null,
+        planner_prompt: null,
+        supervisor_prompt: null,
         created_at: "2026-03-07T00:00:00Z",
         updated_at: "2026-03-07T00:00:00Z",
       };
 
       expect(assistant.description).toBeNull();
       expect(assistant.system_prompt).toBeNull();
-      expect(assistant.temperature).toBeNull();
-      expect(assistant.max_tokens).toBeNull();
+      expect(assistant.recursion_limit).toBeNull();
+      expect(assistant.default_role).toBeNull();
       expect(assistant.allowed_tools).toBeNull();
+      expect(assistant.delegation_config).toBeNull();
+      expect(assistant.structured_output_schema).toBeNull();
     });
   });
 
-  describe("AIAssistantConfigCreate", () => {
+  describe("AIAssistantCreate", () => {
     it("should have required fields for creation", () => {
-      const create: AIAssistantConfigCreate = {
+      const create: AIAssistantCreate = {
         name: "New Assistant",
         model_id: "model-123",
       };
@@ -68,7 +84,7 @@ describe("AI Types", () => {
     });
 
     it("should allow optional fields", () => {
-      const create: AIAssistantConfigCreate = {
+      const create: AIAssistantCreate = {
         name: "Full Assistant",
         model_id: "model-123",
         description: "With description",
@@ -86,15 +102,15 @@ describe("AI Types", () => {
     });
   });
 
-  describe("AIAssistantConfigUpdate", () => {
+  describe("AIAssistantUpdate", () => {
     it("should allow all fields to be optional", () => {
-      const update: AIAssistantConfigUpdate = {};
+      const update: AIAssistantUpdate = {};
 
       expect(Object.keys(update)).toHaveLength(0);
     });
 
     it("should allow partial updates", () => {
-      const update: AIAssistantConfigUpdate = {
+      const update: AIAssistantUpdate = {
         name: "Updated Name",
         temperature: 0.5,
       };

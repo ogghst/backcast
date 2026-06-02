@@ -10,9 +10,16 @@ import {
 } from "../useAIAssistants";
 import { queryKeys } from "@/api/queryKeys";
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch as unknown as typeof fetch;
+// Mock axios
+const mockAxios = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
+}));
+vi.mock("axios", () => ({
+  default: mockAxios,
+}));
 
 // Mock sonner toast
 vi.mock("sonner", () => ({
@@ -59,10 +66,7 @@ describe("useAIAssistants", () => {
 
   describe("useAIAssistants", () => {
     it("should return query object", () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockAssistants,
-      } as Response);
+      mockAxios.get.mockResolvedValueOnce({ data: mockAssistants });
 
       const { result } = renderHook(() => useAIAssistants(), { wrapper });
 
@@ -71,26 +75,21 @@ describe("useAIAssistants", () => {
     });
 
     it("should fetch assistants", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockAssistants,
-      } as Response);
+      mockAxios.get.mockResolvedValueOnce({ data: mockAssistants });
 
       const { result } = renderHook(() => useAIAssistants(), { wrapper });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(result.current.data).toEqual(mockAssistants);
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/v1/ai/config/assistants")
+      expect(mockAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/ai/config/assistants"),
+        expect.any(Object)
       );
     });
 
     it("should use correct query key", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      } as Response);
+      mockAxios.get.mockResolvedValueOnce({ data: [] });
 
       renderHook(() => useAIAssistants(), { wrapper });
 
@@ -99,32 +98,30 @@ describe("useAIAssistants", () => {
     });
 
     it("should pass include_inactive parameter when true", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockAssistants,
-      } as Response);
+      mockAxios.get.mockResolvedValueOnce({ data: mockAssistants });
 
       renderHook(() => useAIAssistants(true), { wrapper });
 
-      await waitFor(() => expect(mockFetch).toHaveBeenCalled());
+      await waitFor(() => expect(mockAxios.get).toHaveBeenCalled());
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("include_inactive=true")
+      expect(mockAxios.get).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          params: expect.objectContaining({ include_inactive: "true" }),
+        })
       );
     });
 
     it("should not pass include_inactive parameter when false or undefined", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockAssistants,
-      } as Response);
+      mockAxios.get.mockResolvedValueOnce({ data: mockAssistants });
 
       renderHook(() => useAIAssistants(false), { wrapper });
 
-      await waitFor(() => expect(mockFetch).toHaveBeenCalled());
+      await waitFor(() => expect(mockAxios.get).toHaveBeenCalled());
 
-      const fetchUrl = mockFetch.mock.calls[0][0] as string;
-      expect(fetchUrl).not.toContain("include_inactive");
+      const callArgs = mockAxios.get.mock.calls[0];
+      const params = callArgs[1]?.params || {};
+      expect(params).not.toHaveProperty("include_inactive");
     });
   });
 
@@ -132,21 +129,18 @@ describe("useAIAssistants", () => {
     it("should not fetch when id is empty", () => {
       renderHook(() => useAIAssistant(""), { wrapper });
 
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockAxios.get).not.toHaveBeenCalled();
     });
 
     it("should fetch single assistant by id", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockAssistants[0],
-      } as Response);
+      mockAxios.get.mockResolvedValueOnce({ data: mockAssistants[0] });
 
       const { result } = renderHook(() => useAIAssistant("123"), { wrapper });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(result.current.data).toEqual(mockAssistants[0]);
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockAxios.get).toHaveBeenCalledWith(
         expect.stringContaining("/api/v1/ai/config/assistants/123")
       );
     });
@@ -166,10 +160,9 @@ describe("useAIAssistants", () => {
         model_id: "model-123",
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ ...mockAssistants[0], ...newAssistant, id: "new-id" }),
-      } as Response);
+      mockAxios.post.mockResolvedValueOnce({
+        data: { ...mockAssistants[0], ...newAssistant, id: "new-id" },
+      });
 
       const { result } = renderHook(() => useCreateAIAssistant(), { wrapper });
 
@@ -177,12 +170,9 @@ describe("useAIAssistants", () => {
         await result.current.mutateAsync(newAssistant);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockAxios.post).toHaveBeenCalledWith(
         expect.stringContaining("/api/v1/ai/config/assistants"),
-        expect.objectContaining({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        })
+        newAssistant
       );
       expect(toast.success).toHaveBeenCalledWith(
         "AI assistant created successfully"
@@ -190,10 +180,9 @@ describe("useAIAssistants", () => {
     });
 
     it("should invalidate queries on success", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ ...mockAssistants[0], name: "New" }),
-      } as Response);
+      mockAxios.post.mockResolvedValueOnce({
+        data: { ...mockAssistants[0], name: "New" },
+      });
 
       const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -212,7 +201,7 @@ describe("useAIAssistants", () => {
 
     it("should show error toast on failure", async () => {
       const error = new Error("Failed to create");
-      mockFetch.mockRejectedValueOnce(error);
+      mockAxios.post.mockRejectedValueOnce(error);
 
       const { result } = renderHook(() => useCreateAIAssistant(), { wrapper });
 
@@ -241,10 +230,9 @@ describe("useAIAssistants", () => {
     it("should update assistant successfully", async () => {
       const updateData = { name: "Updated Name" };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ ...mockAssistants[0], ...updateData }),
-      } as Response);
+      mockAxios.put.mockResolvedValueOnce({
+        data: { ...mockAssistants[0], ...updateData },
+      });
 
       const { result } = renderHook(() => useUpdateAIAssistant(), { wrapper });
 
@@ -252,11 +240,9 @@ describe("useAIAssistants", () => {
         await result.current.mutateAsync({ id: "123", data: updateData });
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockAxios.put).toHaveBeenCalledWith(
         expect.stringContaining("/api/v1/ai/config/assistants/123"),
-        expect.objectContaining({
-          method: "PUT",
-        })
+        updateData
       );
       expect(toast.success).toHaveBeenCalledWith(
         "AI assistant updated successfully"
@@ -264,10 +250,7 @@ describe("useAIAssistants", () => {
     });
 
     it("should invalidate queries on success", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockAssistants[0],
-      } as Response);
+      mockAxios.put.mockResolvedValueOnce({ data: mockAssistants[0] });
 
       const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -294,10 +277,7 @@ describe("useAIAssistants", () => {
     });
 
     it("should delete assistant successfully", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      } as Response);
+      mockAxios.delete.mockResolvedValueOnce({ data: {} });
 
       const { result } = renderHook(() => useDeleteAIAssistant(), { wrapper });
 
@@ -305,11 +285,8 @@ describe("useAIAssistants", () => {
         await result.current.mutateAsync("123");
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/v1/ai/config/assistants/123"),
-        expect.objectContaining({
-          method: "DELETE",
-        })
+      expect(mockAxios.delete).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/ai/config/assistants/123")
       );
       expect(toast.success).toHaveBeenCalledWith(
         "AI assistant deleted successfully"
@@ -317,10 +294,7 @@ describe("useAIAssistants", () => {
     });
 
     it("should invalidate queries on success", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      } as Response);
+      mockAxios.delete.mockResolvedValueOnce({ data: {} });
 
       const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 

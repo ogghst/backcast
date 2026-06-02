@@ -1,4 +1,5 @@
 import { App, Button, Select } from "antd";
+import type { Version } from "@/components/common/VersionHistory";
 import {
   ProjectOutlined,
   PlusOutlined,
@@ -222,14 +223,17 @@ const HistoryDrawerWrapper = ({
     <VersionHistoryDrawer
       open={open}
       onClose={onClose}
-      versions={(history || []).map((v, idx, arr) => ({
-        ...v,
-        id: `v${arr.length - idx}`,
-        valid_from: v.valid_time || "",
-        transaction_time: v.transaction_time || "",
-        valid_to: null,
-        changed_by: v.created_by_name || "System",
-      }))}
+      versions={(history || []).map((v, idx, arr) => {
+        const item = v as Record<string, unknown>;
+        return {
+          ...item,
+          id: `v${arr.length - idx}`,
+          valid_from: (item.valid_time as string) || "",
+          transaction_time: (item.transaction_time as string) || "",
+          valid_to: null,
+          changed_by: (item.created_by_name as string) || "System",
+        };
+      }) as Version[]}
       entityName={`Project: ${project?.name || ""}`}
       isLoading={isLoading}
     />

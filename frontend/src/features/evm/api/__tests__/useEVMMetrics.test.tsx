@@ -14,6 +14,7 @@ import { http, HttpResponse } from "msw";
 import React from "react";
 
 import { useEVMMetrics, useEVMTimeSeries, useEVMMetricsBatch } from "../useEVMMetrics";
+import { EntityType, EVMTimeSeriesGranularity } from "../../types";
 import { server } from "@/mocks/server";
 import { TimeMachineProvider } from "@/contexts/TimeMachineContext";
 
@@ -42,7 +43,7 @@ describe("useEVMMetrics", () => {
   it("should fetch EVM metrics for a cost element", async () => {
     // Arrange: Mock the API response
     const mockMetrics = {
-      entity_type: "cost_element",
+      entity_type: EntityType.COST_ELEMENT,
       entity_id: "550e8400-e29b-41d4-a716-446655440000",
       bac: 100000,
       pv: 50000,
@@ -70,7 +71,7 @@ describe("useEVMMetrics", () => {
 
     // Act: Render the hook
     const { result } = renderHook(
-      () => useEVMMetrics("cost_element", "550e8400-e29b-41d4-a716-446655440000"),
+      () => useEVMMetrics(EntityType.COST_ELEMENT, "550e8400-e29b-41d4-a716-446655440000"),
       { wrapper: createWrapper() }
     );
 
@@ -87,7 +88,7 @@ describe("useEVMMetrics", () => {
   it("should include query parameters for branch and control_date", async () => {
     // Arrange
     const mockMetrics = {
-      entity_type: "cost_element",
+      entity_type: EntityType.COST_ELEMENT,
       entity_id: "550e8400-e29b-41d4-a716-446655440000",
       bac: 100000,
       pv: 50000,
@@ -119,7 +120,7 @@ describe("useEVMMetrics", () => {
     // Act
     const { result } = renderHook(
       () =>
-        useEVMMetrics("cost_element", "550e8400-e29b-41d4-a716-446655440000", {
+        useEVMMetrics(EntityType.COST_ELEMENT, "550e8400-e29b-41d4-a716-446655440000", {
           branch: "feature-branch",
           controlDate: "2024-01-01T00:00:00Z",
         }),
@@ -145,7 +146,7 @@ describe("useEVMMetrics", () => {
 
     // Act
     const { result } = renderHook(
-      () => useEVMMetrics("cost_element", "non-existent-id"),
+      () => useEVMMetrics(EntityType.COST_ELEMENT, "non-existent-id"),
       { wrapper: createWrapper() }
     );
 
@@ -158,7 +159,7 @@ describe("useEVMMetrics", () => {
 
   it("should disable query when entity_id is not provided", () => {
     // Act
-    const { result } = renderHook(() => useEVMMetrics("cost_element", ""), {
+    const { result } = renderHook(() => useEVMMetrics(EntityType.COST_ELEMENT, ""), {
       wrapper: createWrapper(),
     });
 
@@ -207,7 +208,7 @@ describe("useEVMTimeSeries", () => {
 
     server.use(
       http.get(
-        "/api/v1/cost-elements/:costElementId/evm/timeseries",
+        "/api/v1/evm/:entityType/:entityId/timeseries",
         ({ request }) => {
           const url = new URL(request.url);
           expect(url.searchParams.get("granularity")).toBe("week");
@@ -220,9 +221,9 @@ describe("useEVMTimeSeries", () => {
     const { result } = renderHook(
       () =>
         useEVMTimeSeries(
-          "cost_element",
+          EntityType.COST_ELEMENT,
           "550e8400-e29b-41d4-a716-446655440000",
-          "week"
+          EVMTimeSeriesGranularity.WEEK
         ),
       { wrapper: createWrapper() }
     );
@@ -249,7 +250,7 @@ describe("useEVMTimeSeries", () => {
 
     server.use(
       http.get(
-        "/api/v1/cost-elements/:costElementId/evm/timeseries",
+        "/api/v1/evm/:entityType/:entityId/timeseries",
         ({ request }) => {
           const url = new URL(request.url);
           expect(url.searchParams.get("granularity")).toBe("day");
@@ -262,9 +263,9 @@ describe("useEVMTimeSeries", () => {
     const { result } = renderHook(
       () =>
         useEVMTimeSeries(
-          "cost_element",
+          EntityType.COST_ELEMENT,
           "550e8400-e29b-41d4-a716-446655440000",
-          "day"
+          EVMTimeSeriesGranularity.DAY
         ),
       { wrapper: createWrapper() }
     );
@@ -279,7 +280,7 @@ describe("useEVMTimeSeries", () => {
     // Arrange: Mock error response
     server.use(
       http.get(
-        "/api/v1/cost-elements/:costElementId/evm/timeseries",
+        "/api/v1/evm/:entityType/:entityId/timeseries",
         () => {
           return HttpResponse.json(
             { detail: "Entity not found" },
@@ -292,7 +293,7 @@ describe("useEVMTimeSeries", () => {
     // Act
     const { result } = renderHook(
       () =>
-        useEVMTimeSeries("cost_element", "non-existent-id", "week"),
+        useEVMTimeSeries(EntityType.COST_ELEMENT, "non-existent-id", EVMTimeSeriesGranularity.WEEK),
       { wrapper: createWrapper() }
     );
 
@@ -318,7 +319,7 @@ describe("useEVMMetricsBatch", () => {
   it("should fetch aggregated metrics for multiple entities", async () => {
     // Arrange: Mock the API response
     const mockBatchMetrics = {
-      entity_type: "cost_element",
+      entity_type: EntityType.COST_ELEMENT,
       metrics: [
         {
           entity_id: "550e8400-e29b-41d4-a716-446655440000",
@@ -380,7 +381,7 @@ describe("useEVMMetricsBatch", () => {
     // Act: Render the hook
     const { result } = renderHook(
       () =>
-        useEVMMetricsBatch("cost_element", [
+        useEVMMetricsBatch(EntityType.COST_ELEMENT, [
           "550e8400-e29b-41d4-a716-446655440000",
           "550e8400-e29b-41d4-a716-446655440001",
         ]),
@@ -400,7 +401,7 @@ describe("useEVMMetricsBatch", () => {
   it("should disable query when entity_ids list is empty", async () => {
     // Arrange
     const mockEmptyResponse = {
-      entity_type: "cost_element",
+      entity_type: EntityType.COST_ELEMENT,
       metrics: [],
       aggregated: {
         bac: 0,
@@ -429,7 +430,7 @@ describe("useEVMMetricsBatch", () => {
     // The current implementation has enabled: !!entityIds && entityIds.length > 0
     // So the query won't fire with empty array
     const { result } = renderHook(
-      () => useEVMMetricsBatch("cost_element", []),
+      () => useEVMMetricsBatch(EntityType.COST_ELEMENT, []),
       { wrapper: createWrapper() }
     );
 
@@ -451,7 +452,7 @@ describe("useEVMMetricsBatch", () => {
     // Act
     const { result } = renderHook(
       () =>
-        useEVMMetricsBatch("cost_element", [
+        useEVMMetricsBatch(EntityType.COST_ELEMENT, [
           "550e8400-e29b-41d4-a716-446655440000",
         ]),
       { wrapper: createWrapper() }
@@ -467,7 +468,7 @@ describe("useEVMMetricsBatch", () => {
   it("should disable query when entity_ids list is undefined", () => {
     // Act
     const { result } = renderHook(
-      () => useEVMMetricsBatch("cost_element", undefined as unknown as string[]),
+      () => useEVMMetricsBatch(EntityType.COST_ELEMENT, undefined as unknown as string[]),
       { wrapper: createWrapper() }
     );
 

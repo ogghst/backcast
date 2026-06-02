@@ -71,12 +71,12 @@ export const UserProfile: React.FC = () => {
       });
     }
 
-    if (can("department-read")) {
+    if (can("organizational-unit-read")) {
       adminItems.push({
-        key: "/admin/departments",
+        key: "/admin/organizational-units",
         icon: <TeamOutlined />,
-        label: "Departments",
-        onClick: () => navigate("/admin/departments"),
+        label: "Organizational Units",
+        onClick: () => navigate("/admin/organizational-units"),
       });
     }
 
@@ -89,12 +89,12 @@ export const UserProfile: React.FC = () => {
       });
     }
 
-    if (can("package-type-read")) {
+    if (can("cost-event-type-read")) {
       adminItems.push({
-        key: "/admin/package-types",
+        key: "/admin/cost-event-types",
         icon: <TagsOutlined />,
-        label: "Package Types",
-        onClick: () => navigate("/admin/package-types"),
+        label: "Cost Event Types",
+        onClick: () => navigate("/admin/cost-event-types"),
       });
     }
 
@@ -190,7 +190,7 @@ export const UserProfile: React.FC = () => {
       onClick: () => navigate("/profile"),
     },
     // Admin submenu section
-    ...(hasRole("admin") && getAdminItems().length > 0
+    ...(hasRole("admin") && (getAdminItems()?.length ?? 0) > 0
       ? [
           {
             type: "divider" as const,

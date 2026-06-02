@@ -5,11 +5,9 @@ supporting Earned Value Management (EVM) calculations via progression types.
 
 Branchable and Versionable - baselines can vary across change orders and time.
 
-IMPORTANT: Relationship Inversion (Migration 2026-01-18):
-- OLD: schedule_baselines.cost_element_id FK → cost_elements.cost_element_id (1:N)
-- NEW: cost_elements.schedule_baseline_id FK → schedule_baselines.schedule_baseline_id (1:1)
+Relationship Inversion:
+- cost_elements.schedule_baseline_id FK -> schedule_baselines.schedule_baseline_id (1:1)
 - This enforces exactly one baseline per cost element
-- The cost_element_id field is kept for backward compatibility during migration
 """
 
 from datetime import datetime
@@ -78,17 +76,6 @@ class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):
         PG_UUID, nullable=False, index=True
     )
 
-    # Foreign key to cost element (kept for backward compatibility during migration)
-    # NOTE: This field is being phased out in favor of the inverse relationship
-    # (cost_elements.schedule_baseline_id FK). It will be removed in a future migration.
-    cost_element_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID,
-        nullable=True,  # Now nullable (migration in progress)
-        index=True,
-        # NOTE: No database-level ForeignKey constraint on root ID.
-        comment="DEPRECATED: Use cost_elements.schedule_baseline_id instead",
-    )
-
     # Identity
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
@@ -130,7 +117,6 @@ class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):
         return (
             f"<ScheduleBaseline(id={self.id}, "
             f"schedule_baseline_id={self.schedule_baseline_id}, "
-            f"cost_element_id={self.cost_element_id}, "
             f"name='{self.name}', "
             f"start_date={self.start_date}, "
             f"end_date={self.end_date}, "

@@ -140,7 +140,7 @@ export const DocumentLinkModal: React.FC<DocumentLinkModalProps> = ({
                     </div>
                   </div>
                   {isLinked && (
-                    <Text type="secondary" style={{ fontSize: token.fontSizeXS }}>
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                       Already linked
                     </Text>
                   )}

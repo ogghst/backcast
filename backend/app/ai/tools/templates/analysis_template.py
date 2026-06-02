@@ -27,11 +27,8 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="get_project_analysis",
-    description="Get EVM metrics, health score, variance breakdown, and KPIs for a project. "
-    "Returns comprehensive analysis including PV, EV, AC, CPI, SPI, forecast values, "
-    "health assessment, cost/schedule status labels, and actionable recommendations. "
-    "Set include_variance_breakdown=true to also get per-WBE variance data. "
-    "Temporal context (branch, as_of date) is enforced by the system.",
+    description="Get EVM metrics, health score, and KPIs for a project. "
+    "Set include_variance_breakdown=true for per-WBE variance data.",
     permissions=["evm-read"],
     category="analysis",
     risk_level=RiskLevel.LOW,
@@ -164,7 +161,9 @@ async def get_project_analysis(
             "variance": {
                 "cost_variance_percentage": round(cv_pct, 1),
                 "cost_status": "Under Budget" if cv >= 0 else "Over Budget",
-                "schedule_status": "Ahead of Schedule" if sv >= 0 else "Behind Schedule",
+                "schedule_status": "Ahead of Schedule"
+                if sv >= 0
+                else "Behind Schedule",
                 "performance_status": _get_performance_status(cpi, spi),
             },
             "kpis": {
@@ -191,9 +190,7 @@ async def get_project_analysis(
         return add_temporal_metadata(error_result, context)
 
 
-def _calculate_budget_score(
-    cpi: float, cv: float, bac: float, evm_data: Any
-) -> float:
+def _calculate_budget_score(cpi: float, cv: float, bac: float, evm_data: Any) -> float:
     score = min(cpi * 100, 100)
     if cv < 0:
         variance_pct = abs(cv) / bac * 100 if bac > 0 else 0
@@ -256,9 +253,9 @@ async def _get_wbe_variance_breakdown(
     branch_mode: BranchMode,
 ) -> list[dict[str, Any]]:
     from app.models.schemas.evm import EntityType
-    from app.services.wbe import WBEService
+    from app.services.wbs_element_service import WBSElementService
 
-    wbe_service = WBEService(service.session)
+    wbe_service = WBSElementService(service.db)
     try:
         wbes = await wbe_service.get_by_project(UUID(project_id), branch=branch)
     except Exception:
@@ -267,14 +264,14 @@ async def _get_wbe_variance_breakdown(
     if not wbes:
         return []
 
-    wbe_ids = [wbe.id for wbe in wbes]
-    wbe_map = {wbe.id: wbe for wbe in wbes}
+    wbe_ids = [wbe.wbs_element_id for wbe in wbes]
+    wbe_map = {wbe.wbs_element_id: wbe for wbe in wbes}
 
     breakdown: list[dict[str, Any]] = []
     for wbe_id in wbe_ids:
         try:
             wbe_evm = await service.calculate_evm_metrics_batch(
-                entity_type=EntityType.WBE,
+                entity_type=EntityType.WBS_ELEMENT,
                 entity_ids=[wbe_id],
                 control_date=as_of,
                 branch=branch,
@@ -283,8 +280,8 @@ async def _get_wbe_variance_breakdown(
             wbe = wbe_map[wbe_id]
             breakdown.append(
                 {
-                    "wbe_id": str(wbe_id),
-                    "wbe_name": wbe.name,
+                    "wbs_element_id": str(wbe_id),
+                    "wbs_element_name": wbe.name,
                     "cost_variance": float(wbe_evm.cv),
                     "schedule_variance": float(wbe_evm.sv),
                     "cpi": float(wbe_evm.cpi) if wbe_evm.cpi is not None else None,

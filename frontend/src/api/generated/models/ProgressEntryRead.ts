@@ -16,7 +16,7 @@ export type ProgressEntryRead = {
     notes?: (string | null);
     id: string;
     progress_entry_id: string;
-    cost_element_id: string;
+    work_package_id: string;
     created_by: string;
     valid_time: (string | null);
     transaction_time: (string | null);

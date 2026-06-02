@@ -12,7 +12,7 @@
  * All hooks integrate with TimeMachineContext for time-travel queries.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
@@ -40,7 +40,7 @@ interface EVMQueryParams {
 interface UseEVMMetricsParams extends EVMQueryParams {
   /** TanStack Query options */
   queryOptions?: Omit<
-    ReturnType<typeof useQuery<EVMMetricsResponse>>["options"],
+    UseQueryOptions<EVMMetricsResponse>,
     "queryKey" | "queryFn"
   >;
 }
@@ -75,9 +75,7 @@ function transformEVMMetricsResponse(data: unknown): EVMMetricsResponse {
     const value = transformed[field];
     if (value !== null && typeof value === "string") {
       // Convert string to number
-      transformed[field] = parseFloat(
-        value,
-      ) as EVMMetricsResponse[typeof field];
+      (transformed as Record<string, unknown>)[field] = parseFloat(value);
     }
   }
 
@@ -95,12 +93,7 @@ interface EVMMetricsBatchResponse {
   /** Aggregated metrics across all entities */
   aggregated: Omit<
     EVMMetricsResponse,
-    | "entity_type"
-    | "entity_id"
-    | "control_date"
-    | "branch"
-    | "branch_mode"
-    | "warning"
+    "entity_type" | "entity_id" | "control_date" | "branch"
   >;
 }
 
@@ -179,7 +172,7 @@ interface EVMTimeSeriesParams extends EVMQueryParams {
   granularity: EVMTimeSeriesGranularity;
   /** TanStack Query options */
   queryOptions?: Omit<
-    ReturnType<typeof useQuery<EVMTimeSeriesResponse>>["options"],
+    UseQueryOptions<EVMTimeSeriesResponse>,
     "queryKey" | "queryFn"
   >;
 }
@@ -220,24 +213,6 @@ export function useEVMTimeSeries(
       granularity,
     }),
     queryFn: async () => {
-      // For cost elements, use the cost-element-specific endpoint
-      if (entityType === "cost_element") {
-        return await __request(OpenAPI, {
-          method: "GET",
-          url: "/api/v1/cost-elements/{cost_element_id}/evm-history",
-          path: {
-            cost_element_id: entityId,
-          },
-          query: {
-            granularity,
-            control_date: controlDate || undefined,
-            branch,
-            branch_mode: tmMode,
-          },
-        });
-      }
-
-      // For WBE and Project entity types, use the generic endpoint
       return await __request(OpenAPI, {
         method: "GET",
         url: "/api/v1/evm/{entity_type}/{entity_id}/timeseries",
@@ -264,7 +239,7 @@ export function useEVMTimeSeries(
 interface EVMMetricsBatchParams extends EVMQueryParams {
   /** TanStack Query options */
   queryOptions?: Omit<
-    ReturnType<typeof useQuery<EVMMetricsBatchResponse>>["options"],
+    UseQueryOptions<EVMMetricsBatchResponse>,
     "queryKey" | "queryFn"
   >;
 }

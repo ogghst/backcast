@@ -1,7 +1,23 @@
 import { Breadcrumb, Skeleton } from "antd";
 import { Link } from "react-router-dom";
-import { WBEBreadcrumb } from "@/api/generated";
 import { HomeOutlined } from "@ant-design/icons";
+
+interface BreadcrumbProject {
+  project_id: string;
+  code: string;
+  name?: string;
+}
+
+interface BreadcrumbWBE {
+  wbs_element_id: string;
+  code: string;
+  name: string;
+}
+
+export interface WBEBreadcrumb {
+  project: BreadcrumbProject;
+  wbe_path: BreadcrumbWBE[];
+}
 
 interface BreadcrumbBuilderProps {
   breadcrumb?: WBEBreadcrumb;
@@ -47,7 +63,7 @@ export const BreadcrumbBuilder = ({
     },
     ...(showProjectItem ? [projectItem] : []),
     // WBE path items
-    ...breadcrumb.wbe_path.map((wbe, idx) => {
+    ...breadcrumb.wbe_path.map((wbe: BreadcrumbWBE, idx: number) => {
       const isLast = idx === breadcrumb.wbe_path.length - 1;
       return {
         title: isLast ? (
@@ -56,7 +72,7 @@ export const BreadcrumbBuilder = ({
           </span>
         ) : (
           <Link
-            to={`/projects/${breadcrumb.project.project_id}/wbes/${wbe.wbe_id}`}
+            to={`/projects/${breadcrumb.project.project_id}/wbs-elements/${wbe.wbs_element_id}`}
           >
             {wbe.code}
           </Link>

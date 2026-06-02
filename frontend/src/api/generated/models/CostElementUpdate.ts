@@ -3,18 +3,11 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * Properties that can be updated.
+ * Schema for updating an existing Cost Element.
  */
 export type CostElementUpdate = {
-    code?: (string | null);
-    name?: (string | null);
-    budget_amount?: (number | string | null);
-    description?: (string | null);
     cost_element_type_id?: (string | null);
-    /**
-     * Branch name for update (defaults to current branch)
-     */
-    branch?: (string | null);
+    description?: (string | null);
     /**
      * Optional control date for update (valid_time start)
      */

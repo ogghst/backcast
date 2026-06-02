@@ -54,7 +54,7 @@
 
 ### Documentation Updates Required
 
-- [x] Update `docs/05-user-guide/evcs-wbe-user-guide.md` with user_id vs PK pattern section
+- [x] Update `docs/05-user-guide/evcs-wbs-element-user-guide.md` with user_id vs PK pattern section
 - [ ] Add to code review checklist: "Verify user lookups use get_user(user_id) for EVCS root ID"
 - [ ] Create architecture decision record (ADR) for user identifier pattern
 
@@ -64,7 +64,7 @@
 
 | Document | Update Needed | Status |
 |----------|---------------|--------|
-| `docs/05-user-guide/evcs-wbe-user-guide.md` | Add new section: "User Identifiers: user_id vs id" explaining when to use each lookup method | 🔄 IN PROGRESS |
+| `docs/05-user-guide/evcs-wbs-element-user-guide.md` | Add new section: "User Identifiers: user_id vs id" explaining when to use each lookup method | 🔄 IN PROGRESS |
 | `docs/02-architecture/backend/coding-standards.md` | Add pattern: "User Lookups: Use get_user(user_id) for EVCS root ID, get_by_id(id) for PK" | ⏸️ DEFERRED |
 | ADR: User Identifier Standardization | Create ADR documenting architectural decision to standardize on user_id (EVCS root ID) | ⏸️ DEFERRED |
 
@@ -237,7 +237,7 @@ user = await user_service.get_user(version_id)  # Wrong! version_id is not root 
 
 ## 9. Concrete Action Items
 
-- [ ] **ACT-1:** Add user identifier pattern section to `docs/05-user-guide/evcs-wbe-user-guide.md` - @Backend Lead - by 2026-05-12
+- [ ] **ACT-1:** Add user identifier pattern section to `docs/05-user-guide/evcs-wbs-element-user-guide.md` - @Backend Lead - by 2026-05-12
 - [ ] **ACT-2:** Create ADR for user identifier standardization decision - @Architecture Owner - by 2026-05-15
 - [ ] **ACT-3:** Address TD-092 (26 frontend TypeScript errors) - @Frontend Developer - by 2026-05-15
 - [ ] **ACT-4:** Increase test coverage to 80% for modified services (TD-093) - @Backend Developer - by 2026-05-30

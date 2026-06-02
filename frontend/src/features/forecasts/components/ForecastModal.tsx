@@ -112,9 +112,9 @@ export const ForecastModal = ({
             min={0}
             precision={2}
             formatter={(value) => currencyFormatValue(value)}
-            parser={(value) =>
-              value?.replace(currencyParseRegex, "") as unknown as number
-            }
+            parser={((value: string | undefined) =>
+              Number(value?.replace(currencyParseRegex, "") || 0)
+            ) as never}
             placeholder="0.00"
           />
         </Form.Item>

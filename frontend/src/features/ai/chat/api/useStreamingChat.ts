@@ -20,8 +20,8 @@ import type {
   WSSubscribeMessage,
   TokenUsage,
   FileAttachment,
-  SessionContext,
 } from "../types";
+import type { SessionContext } from "../../types";
 import {
   uploadMultipleFiles,
   type UploadError,
@@ -44,6 +44,7 @@ import {
   isAgentCompleteMessage,
   isAgentTransitionMessage,
   isBriefingMessage,
+  isPlanUpdateMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -93,8 +94,15 @@ export interface UseStreamingChatConfig {
   onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
   /** Optional callback invoked when a briefing update is received */
   onBriefingUpdate?: (briefing: string, specialistName: string, completedSpecialists: string[]) => void;
+  /** Optional callback invoked when a plan update is received */
+  onPlanUpdate?: (plan: import("../types").WSPlanUpdateMessage) => void;
   /** Optional callback invoked when temporal context changes via AI tool */
   onTemporalContextChange?: (change: import("../types").WSTemporalContextChangeMessage) => void;
+  /** Optional callback invoked when replay batching ends */
+  onReplayEnd?: () => void;
+  /** Optional callback invoked when a stale/orphaned execution is detected (404 on subscribe).
+   * The frontend should invalidate session caches so the UI reflects the cleaned-up state. */
+  onSessionRecovery?: () => void;
 }
 
 /**
@@ -111,6 +119,8 @@ export interface UseStreamingChatReturn {
   connectionState: WSConnectionState;
   /** Error if one occurred */
   error: Error | null;
+  /** Whether a replay batch is being processed */
+  isReplaying: boolean;
 }
 
 /**
@@ -209,7 +219,10 @@ export const useStreamingChat = (
     onRawMessage,
     onExecutionStatus,
     onBriefingUpdate,
+    onPlanUpdate,
     onTemporalContextChange,
+    onReplayEnd,
+    onSessionRecovery,
   } = config;
 
   // Get JWT token from auth store
@@ -267,6 +280,12 @@ export const useStreamingChat = (
   // Reconnection attempt counter
   const reconnectAttemptsRef = useRef(0);
 
+  // Throttle timer for sequence persistence
+  const lastPersistTimeRef = useRef(0);
+
+  // Replay mode flag (set by replay_start/replay_end messages)
+  const isReplayingRef = useRef(false);
+
   // Timeout reference for reconnection delays
   const reconnectTimeoutRef = useRef<number | null>(null);
 
@@ -295,7 +314,10 @@ export const useStreamingChat = (
     onRawMessage,
     onExecutionStatus,
     onBriefingUpdate,
+    onPlanUpdate,
     onTemporalContextChange,
+    onReplayEnd,
+    onSessionRecovery,
   });
 
   // Keep callbacks ref updated (run on every render to capture latest callbacks)
@@ -318,7 +340,10 @@ export const useStreamingChat = (
       onRawMessage,
       onExecutionStatus,
       onBriefingUpdate,
+      onPlanUpdate,
       onTemporalContextChange,
+      onReplayEnd,
+      onSessionRecovery,
     };
   });
 
@@ -368,6 +393,9 @@ export const useStreamingChat = (
 
   // Error state
   const [error, setError] = useState<Error | null>(null);
+
+  // Replay mode state (mirrors isReplayingRef for React re-renders)
+  const [isReplaying, setIsReplaying] = useState(false);
 
   /**
    * Clears the complete message timeout
@@ -427,6 +455,31 @@ export const useStreamingChat = (
       // Track sequence number for resubscription support
       if (typeof message.sequence === "number") {
         lastSequenceRef.current = Math.max(lastSequenceRef.current, message.sequence);
+
+        // Throttled persistence — survives tab kills where React cleanup doesn't run
+        if (activeExecutionIdRef.current) {
+          const now = Date.now();
+          if (now - lastPersistTimeRef.current > 2000) {
+            lastPersistTimeRef.current = now;
+            sessionStorage.setItem(
+              `ws-seq-${activeExecutionIdRef.current}`,
+              String(lastSequenceRef.current)
+            );
+          }
+        }
+      }
+
+      // Handle replay markers from backend
+      if (message.type === "replay_start") {
+        isReplayingRef.current = true;
+        setIsReplaying(true);
+        return;
+      }
+      if (message.type === "replay_end") {
+        isReplayingRef.current = false;
+        setIsReplaying(false);
+        callbacks.onReplayEnd?.();
+        return;
       }
 
       // Handle execution_started — store execution_id for reconnection support
@@ -570,6 +623,12 @@ export const useStreamingChat = (
         return;
       }
 
+      // Handle plan update messages
+      if (isPlanUpdateMessage(serverMessage)) {
+        callbacks.onPlanUpdate?.(serverMessage);
+        return;
+      }
+
       // Handle temporal context change messages (AI tool changed viewing context)
       if (serverMessage.type === "temporal_context_change") {
         callbacks.onTemporalContextChange?.(serverMessage as import("../types").WSTemporalContextChangeMessage);
@@ -640,12 +699,37 @@ export const useStreamingChat = (
         // Clear execution tracking — the execution has errored
         activeExecutionIdRef.current = null;
         lastSequenceRef.current = 0;
+
         // Handle permission denied errors (403) with user-friendly message
         if (isPermissionDeniedMessage(serverMessage)) {
           const permissionMsg = formatPermissionDeniedError(serverMessage);
           callbacks.onError(permissionMsg);
           setError(new Error(permissionMsg));
           setConnectionState(WSConnectionState.ERROR);
+          return;
+        }
+
+        // Handle "execution not found or already completed" (404) as a soft
+        // completion. This occurs when the user reconnects after a page reload
+        // and the execution finished while they were disconnected. Rather than
+        // showing an error, invalidate caches so the final result is fetched,
+        // and clear the active execution tracking silently.
+        if (serverMessage.code === 404) {
+          console.info(
+            "Execution already completed (WS 404). Invalidating cache to fetch final result."
+          );
+          // Notify ChatInterface to invalidate session caches so the UI
+          // reflects the cleaned-up state (backend cleared active_execution_id).
+          callbacks.onSessionRecovery?.();
+          // Mark as recently completed to keep the connection alive for follow-up messages
+          recentlyCompletedRef.current = true;
+          if (recentlyCompletedTimeoutRef.current !== null) {
+            window.clearTimeout(recentlyCompletedTimeoutRef.current);
+          }
+          recentlyCompletedTimeoutRef.current = window.setTimeout(() => {
+            recentlyCompletedRef.current = false;
+            recentlyCompletedTimeoutRef.current = null;
+          }, 5000);
           return;
         }
 
@@ -823,7 +907,7 @@ export const useStreamingChat = (
       const effectiveProjectId = projectIdRef.current ?? contextRef.current?.project_id;
 
       // Log context derivation for debugging
-      if (contextRef.current?.type === "wbe" || contextRef.current?.type === "cost_element") {
+      if (contextRef.current?.type === "wbs_element" || contextRef.current?.type === "cost_element") {
         console.log(
           `[AI Chat Context] Deriving project_id for ${contextRef.current.type}: ` +
           `projectId=${projectIdRef.current}, ` +
@@ -1072,7 +1156,7 @@ export const useStreamingChat = (
               branch_mode: branchMode,
               project_id: effectiveProjectId,
               context: contextRef.current,
-              execution_mode: executionMode,
+              execution_mode: executionMode!,
               attachments: attachments && attachments.length > 0 ? attachments : undefined,
               images: images && images.length > 0 ? images : undefined,
             };
@@ -1147,6 +1231,14 @@ export const useStreamingChat = (
     // Reconnect when the browser tab becomes visible after being hidden.
     // Backgrounded tabs may have their WebSocket silently killed by the OS.
     const handleVisibilityChange = () => {
+      // Persist sequence when tab goes hidden (survives tab kill on mobile)
+      if (document.visibilityState === "hidden" && activeExecutionIdRef.current) {
+        sessionStorage.setItem(
+          `ws-seq-${activeExecutionIdRef.current}`,
+          String(lastSequenceRef.current)
+        );
+        return;
+      }
       if (document.visibilityState !== "visible") return;
       if (cancelledRef.current) return;
 
@@ -1237,5 +1329,6 @@ export const useStreamingChat = (
     cancel,
     connectionState,
     error,
+    isReplaying,
   };
 };

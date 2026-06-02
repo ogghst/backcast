@@ -124,7 +124,7 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
             display: "flex",
             alignItems: "center",
             gap: spacing.xs,
-            marginBottom: activity.type === "planning" && activity.steps ? spacing.xs : 0,
+            marginBottom: 0,
           }}
         >
           <span

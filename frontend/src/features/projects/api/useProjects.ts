@@ -86,7 +86,7 @@ export const useProjects = (params?: ProjectListParams) => {
   const { asOf, mode } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<ProjectRead>>({
-    queryKey: queryKeys.projects.list({ ...params, asOf, mode }),
+    queryKey: queryKeys.projects.list({ ...params, asOf, mode } as Parameters<typeof queryKeys.projects.list>[0]),
     queryFn: async () => {
       const serverParams = getPaginationParams(params);
 
@@ -101,7 +101,7 @@ export const useProjects = (params?: ProjectListParams) => {
         },
       }) as Promise<PaginatedResponse<ProjectRead>>;
     },
-    ...params?.queryOptions,
+    ...(params?.queryOptions as Record<string, unknown>),
   });
 };
 
@@ -214,7 +214,7 @@ export const useProject = (
   const { requestHeaders, ...tanstackOptions } = queryOptions || {};
 
   return useQuery({
-    queryKey: queryKeys.projects.detail(id),
+    queryKey: queryKeys.projects.detail(id || ""),
     queryFn: async () => {
       if (!id) throw new Error("Project ID is required");
 

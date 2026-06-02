@@ -207,9 +207,9 @@ function isLongTextField(value: unknown): boolean {
  * @example
  * ```tsx
  * <SideBySideDiff
- *   mainData={{ wbe_name: "Old Name", budget: "30000" }}
- *   branchData={{ wbe_name: "New Name", budget: "50000", description: "New" }}
- *   fieldLabels={{ wbe_name: "WBE Name", budget: "Budget", description: "Description" }}
+ *   mainData={{ wbs_element_name: "Old Name", budget: "30000" }}
+ *   branchData={{ wbs_element_name: "New Name", budget: "50000", description: "New" }}
+ *   fieldLabels={{ wbs_element_name: "WBE Name", budget: "Budget", description: "Description" }}
  *   excludeFields={["id", "created_at"]}
  *   showUnchanged={false}
  * />

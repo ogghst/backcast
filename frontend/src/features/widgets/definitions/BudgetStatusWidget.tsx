@@ -59,8 +59,7 @@ const BudgetStatusComponent: FC<WidgetComponentProps<BudgetStatusConfig>> = ({
             }}
           >
             <Text type="secondary">
-              {config.entityType === EntityType.PROJECT ||
-              config.entityType === "project"
+              {config.entityType === EntityType.PROJECT
                 ? "No project data available"
                 : "Select an entity to view budget status"}
             </Text>

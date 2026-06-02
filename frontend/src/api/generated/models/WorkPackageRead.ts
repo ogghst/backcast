@@ -3,29 +3,38 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * Properties returned to client.
+ * Schema for reading Work Package data.
  */
 export type WorkPackageRead = {
-    name: string;
-    package_type: string;
-    project_id: string;
-    description?: (string | null);
-    status?: string;
     /**
-     * External reference identifier (e.g., QMS ID, PO number, work order)
+     * Work package name
      */
-    external_event_id?: (string | null);
-    event_date?: (string | null);
-    coq_category?: (string | null);
-    cost_impact?: string;
-    schedule_impact_days?: (number | null);
+    name: string;
+    /**
+     * Work package code
+     */
+    code: string;
+    /**
+     * Allocated budget
+     */
+    budget_amount?: string;
+    description?: (string | null);
+    /**
+     * Work package lifecycle status
+     */
+    status?: string;
     id: string;
     work_package_id: string;
+    control_account_id: string;
+    schedule_baseline_id?: (string | null);
+    forecast_id?: (string | null);
+    branch: string;
     created_by: string;
     created_by_name?: (string | null);
+    deleted_by?: (string | null);
     valid_time?: (string | null);
     transaction_time?: (string | null);
-    actual_cost?: (string | null);
+    control_account_name?: (string | null);
     /**
      * Display-ready valid_time temporal data.
      *
@@ -62,9 +71,5 @@ export type WorkPackageRead = {
          * Dictionary with formatted temporal range information
          */
         readonly transaction_time_formatted: Record<string, (string | boolean | null)>;
-        /**
-         * Display-ready event date data.
-         */
-        readonly event_date_formatted: Record<string, (string | null)>;
     };
 

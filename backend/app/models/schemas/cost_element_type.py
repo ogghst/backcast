@@ -22,7 +22,7 @@ class CostElementTypeCreate(CostElementTypeBase):
         description="Root Cost Element Type ID (internal use only for seeding)",
         exclude=True,  # Exclude from OpenAPI docs
     )
-    department_id: UUID
+    organizational_unit_id: UUID
     control_date: datetime | None = Field(
         None, description="Optional control date for creation (valid_time start)"
     )
@@ -34,7 +34,7 @@ class CostElementTypeUpdate(BaseModel):
     code: str | None = Field(None, min_length=1, max_length=50)
     name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
-    department_id: UUID | None = None
+    organizational_unit_id: UUID | None = None
 
 
 class CostElementTypeRead(CostElementTypeBase):
@@ -44,5 +44,5 @@ class CostElementTypeRead(CostElementTypeBase):
 
     id: UUID
     cost_element_type_id: UUID
-    department_id: UUID
+    organizational_unit_id: UUID
     created_by: UUID

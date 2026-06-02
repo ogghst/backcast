@@ -1,3 +1,4 @@
+// @ts-nocheck — test file uses mock data that does not match full generated types
 /**
  * useDashboardData Hook Tests
  *
@@ -17,6 +18,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { useDashboardData } from "./useDashboardData";
+
+// Mock TimeMachine context used by dashboard hooks
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: vi.fn(() => ({
+    branch: "main",
+    effectiveDate: null,
+  })),
+}));
 
 /**
  * Create a wrapper with QueryClient for testing hooks
@@ -116,7 +125,7 @@ describe("useDashboardData", () => {
       name: "Design Phase",
       activity_type: "created",
       timestamp: "2026-03-15T09:30:00Z",
-      entity_type: "wbe",
+      entity_type: "wbs_element",
       project_id: "proj-dashboard-1",
     });
   });
@@ -173,10 +182,12 @@ describe("useDashboardData", () => {
       wrapper: createWrapper(),
     });
 
+    // Wait for loading to finish (includes retries from hook's retry:1)
     await waitFor(() => {
-      expect(result.current.isError).toBe(true);
-    });
+      expect(result.current.isLoading).toBe(false);
+    }, { timeout: 5000 });
 
+    expect(result.current.isError).toBe(true);
     expect(result.current.error).toBeDefined();
     expect(result.current.data).toBeUndefined();
   });
@@ -196,10 +207,12 @@ describe("useDashboardData", () => {
       wrapper: createWrapper(),
     });
 
+    // Wait for loading to finish (includes retries from hook's retry:1)
     await waitFor(() => {
-      expect(result.current.isError).toBe(true);
-    });
+      expect(result.current.isLoading).toBe(false);
+    }, { timeout: 5000 });
 
+    expect(result.current.isError).toBe(true);
     expect(result.current.error).toBeDefined();
   });
 
@@ -240,7 +253,7 @@ describe("useDashboardData", () => {
     expect(typeof result.current.refetch).toBe("function");
 
     // Trigger refetch
-    const { result: refetchResult } = await result.current.refetch();
+    const refetchResult = await result.current.refetch();
 
     expect(refetchResult.data).toBeDefined();
   });
@@ -362,9 +375,12 @@ describe("useDashboardData", () => {
       wrapper: createWrapper(),
     });
 
+    // Wait for loading to finish
     await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
+      expect(result.current.isLoading).toBe(false);
+    }, { timeout: 5000 });
+
+    expect(result.current.isSuccess).toBe(true);
 
     // Should have retried once
     expect(attemptCount).toBe(2);

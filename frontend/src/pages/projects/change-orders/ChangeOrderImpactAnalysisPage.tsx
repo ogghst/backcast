@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Breadcrumb, Button } from "antd";
-import { Link } from "react-router-dom";
+import { Button } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
+import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { ImpactAnalysisDashboard } from "@/features/change-orders/components/ImpactAnalysisDashboard";
 import { useChangeOrder } from "@/features/change-orders/api/useChangeOrders";
 import { useProject } from "@/features/projects/api/useProjects";
@@ -47,35 +47,12 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
   return (
     <div style={{ padding: 24 }}>
       {/* Breadcrumbs */}
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
+      <EntityBreadcrumb
         items={[
-          { title: <Link to="/">Home</Link> },
-          { title: <Link to="/projects">Projects</Link> },
-          {
-            title: (
-              <Link to={`/projects/${projectId!}`}>
-                {project?.code || projectId}
-              </Link>
-            ),
-          },
-          {
-            title: (
-              <Link to={`/projects/${projectId!}/change-orders`}>
-                Change Orders
-              </Link>
-            ),
-          },
-          {
-            title: (
-              <Link
-                to={`/projects/${projectId!}/change-orders/${changeOrderId}`}
-              >
-                {changeOrder?.code || changeOrderId}
-              </Link>
-            ),
-          },
-          { title: "Impact Analysis" },
+          { label: project?.code || projectId!, to: `/projects/${projectId}` },
+          { label: "Change Orders", to: `/projects/${projectId}/change-orders` },
+          { label: changeOrder?.code || changeOrderId!, to: `/projects/${projectId}/change-orders/${changeOrderId}` },
+          { label: "Impact Analysis" },
         ]}
       />
 
@@ -107,6 +84,7 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
         <ImpactAnalysisDashboard
           changeOrderId={changeOrderId!}
           branchName={`BR-${changeOrder.code}`}
+          showHeader={false}
         />
       )}
     </div>

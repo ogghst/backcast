@@ -17,12 +17,8 @@ import {
 } from "@ant-design/icons";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
-
-export interface BriefingState {
-  markdown: string;
-  completedSpecialists: string[];
-  lastSpecialist: string;
-}
+import { type BriefingState } from "./BriefingContent";
+import { PlanStepIndicator } from "./PlanStepIndicator";
 
 interface BriefingPanelProps {
   briefing: BriefingState | null;
@@ -140,10 +136,13 @@ export const BriefingPanel = memo(
               }}
             />
             <span style={{ flex: 1, textAlign: "left" }}>
-              Briefing
+              Briefing & Planning
               {completedCount > 0 && (
                 <span style={{ opacity: 0.7, marginLeft: 6 }}>
                   {completedCount} specialist{completedCount !== 1 ? "s" : ""}
+                  {briefing.plan && (
+                    <> &middot; {briefing.plan.completedSteps}/{briefing.plan.totalSteps} steps</>
+                  )}
                 </span>
               )}
             </span>
@@ -197,6 +196,15 @@ export const BriefingPanel = memo(
                 borderTop: `1px solid ${token.colorBorderSecondary}`,
               }}
             >
+              {briefing.plan && (
+                <PlanStepIndicator
+                  steps={briefing.plan.steps}
+                  totalSteps={briefing.plan.totalSteps}
+                  completedSteps={briefing.plan.completedSteps}
+                  complexity={briefing.plan.complexity}
+                  isStreaming={isStreaming}
+                />
+              )}
               <div
                 style={{
                   fontSize: 12,

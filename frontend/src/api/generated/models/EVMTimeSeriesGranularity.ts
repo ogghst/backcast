@@ -10,8 +10,4 @@
  * - WEEK: Weekly data points (default)
  * - MONTH: Monthly data points
  */
-export enum EVMTimeSeriesGranularity {
-    DAY = 'day',
-    WEEK = 'week',
-    MONTH = 'month',
-}
+export type EVMTimeSeriesGranularity = 'day' | 'week' | 'month';

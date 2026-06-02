@@ -9,6 +9,7 @@ from typing import Any
 
 from langchain_core.tools import BaseTool, StructuredTool
 
+from app.ai.config import AI_MCP_TOOL_CATEGORY_PREFIX
 from app.ai.tools.types import RiskLevel, ToolMetadata
 
 BACKCAST_INJECTED_PARAMS = frozenset(
@@ -53,7 +54,7 @@ def wrap_mcp_tool(tool: BaseTool, server_name: str) -> BaseTool:
         name=tool.name,
         description=tool.description or "",
         permissions=["mcp-tool-execute"],
-        category=f"mcp:{server_name}",
+        category=f"{AI_MCP_TOOL_CATEGORY_PREFIX}{server_name}",
         risk_level=RiskLevel.HIGH,
     )
     tool._tool_metadata = metadata  # type: ignore[attr-defined]

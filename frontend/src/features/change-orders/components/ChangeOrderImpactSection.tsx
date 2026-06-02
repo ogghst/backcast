@@ -95,8 +95,10 @@ export function ChangeOrderImpactSection({
     );
   }
 
-  // Extract impact data (adjust based on actual API response structure)
-  const impactData = data;
+  // Extract KPI values from the scorecard
+  const kpi = data.kpi_scorecard;
+  const budgetDelta = parseFloat(kpi.budget_delta?.delta || "0");
+  const scheduleDurationDelta = parseFloat(kpi.schedule_duration?.delta || "0");
 
   const dataContent = (
     <>
@@ -106,18 +108,18 @@ export function ChangeOrderImpactSection({
           <Statistic
             title="Budget Impact"
             prefix={<DollarOutlined />}
-            value={impactData.budget_variance || 0}
+            value={budgetDelta || 0}
             precision={2}
             styles={{
               content: {
                 color:
-                  (impactData.budget_variance || 0) >= 0
+                  budgetDelta >= 0
                     ? token.colorError
                     : token.colorSuccess,
               },
             }}
             suffix={
-              (impactData.budget_variance || 0) >= 0 ? (
+              budgetDelta >= 0 ? (
                 <ArrowUpOutlined />
               ) : (
                 <ArrowDownOutlined />
@@ -131,18 +133,18 @@ export function ChangeOrderImpactSection({
           <Statistic
             title="Schedule Impact"
             prefix={<CalendarOutlined />}
-            value={impactData.schedule_variance_days || 0}
+            value={scheduleDurationDelta || 0}
             styles={{
               content: {
                 color:
-                  (impactData.schedule_variance_days || 0) >= 0
+                  scheduleDurationDelta >= 0
                     ? token.colorError
                     : token.colorSuccess,
               },
             }}
             suffix={
               <>
-                {(impactData.schedule_variance_days || 0) >= 0 ? (
+                {scheduleDurationDelta >= 0 ? (
                   <ArrowUpOutlined />
                 ) : (
                   <ArrowDownOutlined />

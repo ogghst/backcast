@@ -16,6 +16,7 @@ from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
+from app.ai.config import AI_SEQUENTIAL_TOOL_CALLS
 from app.ai.state import AgentState
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.rbac_tool_node import RBACToolNode
@@ -125,7 +126,7 @@ def create_agent_node(
 
         # Bind tools to LLM
         # This is the LangGraph 1.0+ way to enable tool calling
-        llm_with_tools = llm.bind_tools(tools, parallel_tool_calls=False)
+        llm_with_tools = llm.bind_tools(tools, parallel_tool_calls=not AI_SEQUENTIAL_TOOL_CALLS)
 
         # Invoke the LLM asynchronously
         # The response will be an AIMessage, possibly with tool_calls
@@ -206,7 +207,12 @@ def create_graph(
     elif context:
         tool_node = RBACToolNode(tools, context)
     else:
-        tool_node = SequentialToolNode(tools)
+        if AI_SEQUENTIAL_TOOL_CALLS:
+            tool_node = SequentialToolNode(tools)
+        else:
+            from langgraph.prebuilt import ToolNode as PlainToolNode
+
+            tool_node = PlainToolNode(tools)
     workflow.add_node("tools", tool_node)
 
     # Set entry point

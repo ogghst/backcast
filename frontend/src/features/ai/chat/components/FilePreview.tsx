@@ -75,7 +75,7 @@ export const FilePreview = ({ attachment }: FilePreviewProps) => {
             width: 40,
             height: 40,
             objectFit: "cover",
-            borderRadius: borderRadius.xs,
+            borderRadius: borderRadius.sm,
           }}
           data-testid={`image-preview-${attachment.filename}`}
         />

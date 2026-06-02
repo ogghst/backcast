@@ -1,0 +1,14 @@
+[
+  {
+    "name": "tavily",
+    "config": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "tavily-mcp@latest"],
+      "env": {
+        "TAVILY_API_KEY": "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"
+      }
+    },
+    "is_active": true
+  }
+]

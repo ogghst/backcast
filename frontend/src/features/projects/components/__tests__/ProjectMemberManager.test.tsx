@@ -12,19 +12,23 @@ import { ProjectMemberManager } from "../ProjectMemberManager";
 import { ProjectRole } from "../../types/projectMembers";
 import type { ProjectMemberRead } from "../../types/projectMembers";
 
-// Type for mocked hook return values
-interface MockUseProjectMembersReturn {
-  data: ProjectMemberRead[];
-  isLoading: boolean;
-  isError: boolean;
-  error: Error | null;
-  isSuccess: boolean;
-}
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+  }),
+  useTimeMachine: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+    isHistorical: false,
+    invalidateQueries: vi.fn(),
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
-interface MockMutationReturn {
-  mutate: ReturnType<typeof vi.fn>;
-  isPending: boolean;
-}
 
 // Mock the hooks
 vi.mock("../../hooks/useProjectMembers", () => ({
@@ -189,13 +193,13 @@ describe("ProjectMemberManager", () => {
       isError: false,
       error: null,
       isSuccess: true,
-    } as MockUseProjectMembersReturn);
+    } as unknown as never);
 
     // Mock useAddProjectMember
     mockUseAddProjectMember.mockReturnValue({
       mutate: mutateAdd,
       isPending: false,
-    } as MockMutationReturn);
+    } as unknown as never);
 
     // Mock useUsers
     mockUseUsers.mockReturnValue({
@@ -203,27 +207,27 @@ describe("ProjectMemberManager", () => {
       isLoading: false,
       isError: false,
       error: null,
-    });
+    } as unknown as never);
 
     // Mock useRemoveProjectMember
     mockUseRemoveProjectMember.mockReturnValue({
       mutate: mutateRemove,
       isPending: false,
-    } as MockMutationReturn);
+    } as unknown as never);
 
     // Mock useUpdateProjectMember
     mockUseUpdateProjectMember.mockReturnValue({
       mutate: mutateUpdate,
       isPending: false,
-    } as MockMutationReturn);
+    } as unknown as never);
 
     // Mock useProjectRoleMap
     mockUseProjectRoleMap.mockReturnValue({
       roles: [
-        { id: "role-pa", name: "project_admin", description: "Full control including member management" },
-        { id: "role-pm", name: "project_manager", description: "Manage project settings and content" },
-        { id: "role-pe", name: "project_editor", description: "Edit project content" },
-        { id: "role-pv", name: "project_viewer", description: "Read-only access" },
+        { id: "role-pa", name: "project_admin", description: "Full control including member management", is_system: false, permissions: [], created_at: "2024-01-01", updated_at: "2024-01-01" },
+        { id: "role-pm", name: "project_manager", description: "Manage project settings and content", is_system: false, permissions: [], created_at: "2024-01-01", updated_at: "2024-01-01" },
+        { id: "role-pe", name: "project_editor", description: "Edit project content", is_system: false, permissions: [], created_at: "2024-01-01", updated_at: "2024-01-01" },
+        { id: "role-pv", name: "project_viewer", description: "Read-only access", is_system: false, permissions: [], created_at: "2024-01-01", updated_at: "2024-01-01" },
       ],
       roleNameToId: new Map([
         ["project_admin", "role-pa"],
@@ -295,7 +299,7 @@ describe("ProjectMemberManager", () => {
         isLoading: true,
         isError: false,
         error: null,
-      } as MockUseProjectMembersReturn);
+      } as unknown as never);
 
       render(
         <ProjectMemberManager projectId={mockProjectId} />,
@@ -312,7 +316,7 @@ describe("ProjectMemberManager", () => {
         isLoading: false,
         isError: false,
         error: null,
-      } as MockUseProjectMembersReturn);
+      } as unknown as never);
 
       render(
         <ProjectMemberManager projectId={mockProjectId} />,
@@ -379,7 +383,7 @@ describe("ProjectMemberManager", () => {
         isLoading: false,
         isError: false,
         error: null,
-      } as MockUseProjectMembersReturn);
+      } as unknown as never);
 
       render(
         <ProjectMemberManager projectId={mockProjectId} />,
@@ -415,7 +419,7 @@ describe("ProjectMemberManager", () => {
         isLoading: false,
         isError: true,
         error: new Error("Failed to load members"),
-      } as MockUseProjectMembersReturn);
+      } as unknown as never);
 
       render(
         <ProjectMemberManager projectId={mockProjectId} />,
@@ -432,7 +436,7 @@ describe("ProjectMemberManager", () => {
         isPending: false,
         isError: true,
         error: new Error("Failed to remove member"),
-      } as MockUseProjectMembersReturn);
+      } as unknown as never);
 
       render(
         <ProjectMemberManager projectId={mockProjectId} />,
@@ -456,7 +460,7 @@ describe("ProjectMemberManager", () => {
 
       // Check for column headers
       expect(screen.getByText("Member")).toBeInTheDocument();
-      expect(screen.getByText("Role")).toBeInTheDocument();
+      expect(screen.getByText("Roles")).toBeInTheDocument();
       expect(screen.getByText("Added")).toBeInTheDocument();
       expect(screen.getByText("Actions")).toBeInTheDocument();
     });
