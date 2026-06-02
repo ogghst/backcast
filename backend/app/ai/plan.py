@@ -12,19 +12,7 @@ from pydantic import BaseModel
 
 StepStatus = Literal["pending", "in_progress", "completed", "skipped", "failed"]
 
-VALID_SPECIALISTS: frozenset[str] = frozenset(
-    {
-        "project_manager",
-        "evm_analyst",
-        "change_order_manager",
-        "user_admin",
-        "visualization_specialist",
-        "forecast_manager",
-        "mcp_specialist",
-        "accountant",
-        "general_purpose",
-    }
-)
+VALID_SPECIALISTS: frozenset[str] = frozenset({"general_purpose"})
 
 
 class PlanStep(BaseModel):

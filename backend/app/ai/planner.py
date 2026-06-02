@@ -18,7 +18,7 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.ai.plan import VALID_SPECIALISTS, PlanDocument, PlanStep
+from app.ai.plan import PlanDocument, PlanStep
 
 logger = logging.getLogger(__name__)
 
@@ -75,38 +75,6 @@ Multi-step (requires_planning=true, ordered steps with dependencies):
 """
 
 _DEFAULT_SPECIALIST_CATALOG: list[dict[str, str]] = [
-    {
-        "name": "project_manager",
-        "description": "Project CRUD, WBS elements, cost elements, cost tracking, progress entries",
-    },
-    {
-        "name": "evm_analyst",
-        "description": "Earned Value Management calculations, performance indices, variance analysis",
-    },
-    {
-        "name": "change_order_manager",
-        "description": "Change orders, impact analysis, branch operations",
-    },
-    {
-        "name": "user_admin",
-        "description": "User accounts, departments, role management",
-    },
-    {
-        "name": "visualization_specialist",
-        "description": "Charts, diagrams, visual representations",
-    },
-    {
-        "name": "forecast_manager",
-        "description": "Forecasts, schedule baselines, projection models",
-    },
-    {
-        "name": "mcp_specialist",
-        "description": "External tools via MCP servers (web search, database queries)",
-    },
-    {
-        "name": "accountant",
-        "description": "Cost registrations, cost events, documentation, financial tracking",
-    },
     {
         "name": "general_purpose",
         "description": "Unclear or cross-cutting requests that don't fit one domain",
@@ -172,7 +140,11 @@ def _build_planner_prompt(
     return "\n".join(parts)
 
 
-def _parse_plan_response(raw: str, user_request: str) -> PlanDocument:
+def _parse_plan_response(
+    raw: str,
+    user_request: str,
+    valid_specialists: frozenset[str] | None = None,
+) -> PlanDocument:
     """Parse the LLM response into a PlanDocument.
 
     Handles common LLM output issues: markdown fences, trailing commas,
@@ -181,6 +153,8 @@ def _parse_plan_response(raw: str, user_request: str) -> PlanDocument:
     Args:
         raw: Raw text from the LLM response.
         user_request: Original user request (used in fallback).
+        valid_specialists: Set of specialist names considered valid.
+            Defaults to ``{general_purpose}`` when not provided.
 
     Returns:
         Parsed PlanDocument, or a single-step fallback.
@@ -216,7 +190,8 @@ def _parse_plan_response(raw: str, user_request: str) -> PlanDocument:
             continue
 
         specialist = raw_step.get("specialist", "general_purpose")
-        if specialist not in VALID_SPECIALISTS:
+        allowed = valid_specialists or frozenset({"general_purpose"})
+        if specialist not in allowed:
             logger.warning(
                 "[PLANNER] Unknown specialist '%s', defaulting to general_purpose",
                 specialist,
@@ -334,6 +309,10 @@ async def planner_node(
 
     prompt = _build_planner_prompt(user_request, briefing_context)
 
+    # Extract valid specialist names from catalog for validation
+    catalog = specialist_catalog or _DEFAULT_SPECIALIST_CATALOG
+    valid_names = frozenset(entry["name"] for entry in catalog)
+
     try:
         response = await llm.ainvoke(
             [
@@ -348,7 +327,9 @@ async def planner_node(
         raw_text = response.content
         if isinstance(raw_text, list):
             raw_text = " ".join(part for part in raw_text if isinstance(part, str))
-        plan = _parse_plan_response(raw_text, user_request)
+        plan = _parse_plan_response(
+            raw_text, user_request, valid_specialists=valid_names
+        )
     except Exception:
         logger.exception("[PLANNER] LLM call failed, falling back to single step")
         plan = _fallback_plan(user_request)

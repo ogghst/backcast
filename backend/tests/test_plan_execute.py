@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage
 
-from app.ai.briefing import BriefingDocument, BriefingSection, TaskAssignment
+from app.ai.briefing import BriefingDocument, BriefingSection
 from app.ai.handoff_tools import create_handoff_tool
-from app.ai.plan import VALID_SPECIALISTS, PlanDocument, PlanStep
+from app.ai.plan import PlanDocument, PlanStep
 from app.ai.planner import (
     _build_planner_prompt,
     _extract_user_request,
@@ -25,7 +26,16 @@ from app.ai.planner import (
     _parse_plan_response,
     planner_node,
 )
-from langchain_core.messages import AIMessage, HumanMessage
+
+# Full specialist catalog for planner tests that need multi-specialist validation.
+# In production this comes from the DB; tests use this to simulate it.
+_TEST_SPECIALIST_CATALOG: list[dict[str, str]] = [
+    {"name": "project_manager", "description": "Project CRUD and tracking"},
+    {"name": "evm_analyst", "description": "Earned Value calculations"},
+    {"name": "visualization_specialist", "description": "Charts and diagrams"},
+    {"name": "general_purpose", "description": "Catch-all"},
+]
+_TEST_SPECIALIST_NAMES = frozenset(e["name"] for e in _TEST_SPECIALIST_CATALOG)
 
 
 # =====================================================================
@@ -377,7 +387,7 @@ class TestValidateSpecialists:
                 ),
             ],
         )
-        invalid = doc.validate_specialists(list(VALID_SPECIALISTS))
+        invalid = doc.validate_specialists(list(_TEST_SPECIALIST_NAMES))
         assert invalid == []
 
     def test_invalid_specialists_returned(self) -> None:
@@ -401,7 +411,7 @@ class TestValidateSpecialists:
                 ),
             ],
         )
-        invalid = doc.validate_specialists(list(VALID_SPECIALISTS))
+        invalid = doc.validate_specialists(list(_TEST_SPECIALIST_NAMES))
         assert "nonexistent_specialist" in invalid
         assert "another_fake" in invalid
         assert "evm_analyst" not in invalid
@@ -422,7 +432,7 @@ class TestValidateSpecialists:
                 ),
             ],
         )
-        invalid = doc.validate_specialists(list(VALID_SPECIALISTS))
+        invalid = doc.validate_specialists(list(_TEST_SPECIALIST_NAMES))
         assert invalid == ["fake"]
 
     def test_empty_plan_no_specialists(self) -> None:
@@ -554,7 +564,9 @@ class TestPlannerNode:
         state: dict[str, Any] = {
             "messages": [HumanMessage(content="Show me project ACME budget status")],
         }
-        result = await planner_node(state, llm)
+        result = await planner_node(
+            state, llm, specialist_catalog=_TEST_SPECIALIST_CATALOG
+        )
         plan_data = result["plan_data"]
         assert plan_data["requires_planning"] is False
         assert len(plan_data["steps"]) == 1
@@ -598,7 +610,9 @@ class TestPlannerNode:
                 )
             ],
         }
-        result = await planner_node(state, llm)
+        result = await planner_node(
+            state, llm, specialist_catalog=_TEST_SPECIALIST_CATALOG
+        )
         plan_data = result["plan_data"]
         assert plan_data["requires_planning"] is True
         assert len(plan_data["steps"]) == 2
@@ -647,7 +661,9 @@ class TestPlannerNode:
         state: dict[str, Any] = {
             "messages": [HumanMessage(content="What is the CPI for PRJ-100?")],
         }
-        result = await planner_node(state, llm)
+        result = await planner_node(
+            state, llm, specialist_catalog=_TEST_SPECIALIST_CATALOG
+        )
         plan_data = result["plan_data"]
         assert plan_data["original_request"] == "What is the CPI for PRJ-100?"
 
@@ -719,7 +735,9 @@ class TestPlannerNode:
         state: dict[str, Any] = {
             "messages": [HumanMessage(content="test fenced")],
         }
-        result = await planner_node(state, llm)
+        result = await planner_node(
+            state, llm, specialist_catalog=_TEST_SPECIALIST_CATALOG
+        )
         plan_data = result["plan_data"]
         assert plan_data["requires_planning"] is True
         assert len(plan_data["steps"]) == 1
