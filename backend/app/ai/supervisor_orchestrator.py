@@ -448,8 +448,8 @@ class SupervisorOrchestrator:
             self._make_supervisor_router(specialist_names),
             specialist_names + [END],
         )
-        for name in specialist_names:
-            parent.add_edge(name, "supervisor")
+        # NOTE: specialist nodes return Command(goto="supervisor") or
+        # Command(goto=END) explicitly — no static edge to supervisor.
 
         # --- 9. Compile and return ---
         compiled = parent.compile(
@@ -754,7 +754,7 @@ class SupervisorOrchestrator:
                         )
                         error_update["plan_data"] = active_plan.model_dump()
                         self._publish_plan_update(active_plan)
-                    return Command(update=error_update)
+                    return Command(update=error_update, goto="supervisor")
 
             assert result is not None
             messages = result.get("messages", [])
@@ -802,7 +802,31 @@ class SupervisorOrchestrator:
                     specialist_name,
                 )
 
-            return Command(update=cmd_update)
+                # Inject plan completion status so the supervisor LLM knows
+                # whether to delegate the next step or wrap up.
+                pending = [
+                    s for s in active_plan.steps if s.status == "pending"
+                ]
+                if pending:
+                    next_step = pending[0]
+                    plan_msg = (
+                        f"Plan step {active_step.step_index + 1}/{len(active_plan.steps)} "
+                        f"completed by {specialist_name}. "
+                        f"Next pending step: step {next_step.step_index + 1} "
+                        f"({next_step.specialist}). "
+                        f"{len(pending)} step(s) remaining."
+                    )
+                else:
+                    plan_msg = (
+                        f"All {len(active_plan.steps)} plan steps completed. "
+                        "Respond to the user with the briefing findings. "
+                        "Do NOT delegate further."
+                    )
+                cmd_update["messages"] = [
+                    SystemMessage(content=plan_msg)
+                ]
+
+            return Command(update=cmd_update, goto="supervisor")
 
         return specialist_node
 
