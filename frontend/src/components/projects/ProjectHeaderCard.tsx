@@ -144,7 +144,7 @@ export const ProjectHeaderCard = ({
             <Progress
               type="circle"
               percent={timePercent}
-              size={isMobile ? 120 : 140}
+              size={isMobile ? 120 : 160}
               format={(percent) => (
                 <div>
                   <div
