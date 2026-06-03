@@ -10,7 +10,7 @@
 
 import { useParams } from "react-router-dom";
 import { useState } from "react";
-import { Space, Collapse, Spin, theme } from "antd";
+import { Space, Card, Spin, theme } from "antd";
 import { LineChartOutlined } from "@ant-design/icons";
 
 import {
@@ -93,11 +93,8 @@ export const ProjectEVMAnalysis: React.FC = () => {
     <Space
       direction="vertical"
       size="large"
-      style={{ width: "100%", padding: token.paddingXL }}
+      style={{ width: "100%" }}
     >
-      {/* Page Title */}
-      <h1 style={{ margin: 0 }}>EVM Analysis</h1>
-
       {/* EVM Summary View */}
       {evmMetrics && (
         <EVMSummaryView
@@ -108,40 +105,23 @@ export const ProjectEVMAnalysis: React.FC = () => {
       )}
 
       {/* Historical Trends Chart */}
-      <Collapse
-        defaultActiveKey={["historical-trends"]}
-        bordered
-        style={{ backgroundColor: "transparent" }}
-        items={[
-          {
-            key: "historical-trends",
-            label: (
-              <Space>
-                <LineChartOutlined />
-                <span>Historical Trends</span>
-              </Space>
-            ),
-            children: (
-              <div
-                style={{
-                  backgroundColor: token.colorBgContainer,
-                  padding: token.paddingMD,
-                  borderRadius: token.borderRadiusLG,
-                }}
-              >
-                <EVMTimeSeriesChart
-                  timeSeries={timeSeries}
-                  loading={timeSeriesLoading}
-                  onGranularityChange={setGranularity}
-                  currentGranularity={granularity}
-                  headless={true}
-                  height={400}
-                />
-              </div>
-            ),
-          },
-        ]}
-      />
+      <Card
+        title={
+          <Space>
+            <LineChartOutlined />
+            <span>Historical Trends</span>
+          </Space>
+        }
+      >
+        <EVMTimeSeriesChart
+          timeSeries={timeSeries}
+          loading={timeSeriesLoading}
+          onGranularityChange={setGranularity}
+          currentGranularity={granularity}
+          headless={true}
+          height={400}
+        />
+      </Card>
 
       {/* EVM Analyzer Modal */}
       <EVMAnalyzerModal

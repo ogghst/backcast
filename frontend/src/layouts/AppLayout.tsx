@@ -44,6 +44,7 @@ const AppLayout: React.FC = () => {
       paddingMD,
       paddingLG,
       paddingXL,
+      boxShadowTertiary,
     },
   } = theme.useToken();
 
@@ -171,6 +172,7 @@ const AppLayout: React.FC = () => {
             minHeight: 360,
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
+            boxShadow: boxShadowTertiary,
           }}
         >
           <Outlet />

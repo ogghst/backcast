@@ -1,4 +1,4 @@
-import { App, Button, Input, Space, theme } from "antd";
+import { App, Button, Card, Input, Space, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -249,43 +249,36 @@ export const OrganizationalUnitManagement = () => {
   ];
 
   return (
-    <div>
-      <StandardTable<OrganizationalUnitRead>
-        tableParams={tableParams}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={(departments as OrganizationalUnitRead[]) || []}
-        columns={columns}
-        rowKey="organizational_unit_id"
-        searchable={true}
-        searchPlaceholder="Search organizational units..."
-        onSearch={handleSearch}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
-              Organizational Unit Management
-            </div>
-            <Can permission="organizational-unit-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedDepartment(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add Organizational Unit
-              </Button>
-            </Can>
-          </div>
+    <>
+      <Card
+        title={<span style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>Organizational Unit Management</span>}
+        extra={
+          <Can permission="organizational-unit-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedDepartment(null);
+                setModalOpen(true);
+              }}
+            >
+              Add Organizational Unit
+            </Button>
+          </Can>
         }
-      />
+      >
+        <StandardTable<OrganizationalUnitRead>
+          tableParams={tableParams}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={(departments as OrganizationalUnitRead[]) || []}
+          columns={columns}
+          rowKey="organizational_unit_id"
+          searchable={true}
+          searchPlaceholder="Search organizational units..."
+          onSearch={handleSearch}
+        />
+      </Card>
 
       <OrganizationalUnitModal
         open={modalOpen}
@@ -317,6 +310,6 @@ export const OrganizationalUnitManagement = () => {
         entityName={`Organizational Unit: ${selectedDepartment?.name || ""}`}
         isLoading={historyLoading}
       />
-    </div>
+    </>
   );
 };

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Card,
   Table,
   Button,
   Space,
@@ -49,7 +50,7 @@ interface CostEventsTabProps {
 }
 
 export const CostEventsTab = ({ projectId }: CostEventsTabProps) => {
-  const { spacing, colors, borderRadius, typography } = useThemeTokens();
+  const { spacing, colors, typography } = useThemeTokens();
   const { can } = usePermission();
   const currency = useProjectCurrency(projectId);
   const { data: costEventTypeOptions } = useCostEventTypes();
@@ -365,65 +366,64 @@ export const CostEventsTab = ({ projectId }: CostEventsTabProps) => {
       {(typeFilter === null ||
         costEventTypeOptions?.find((ct) => ct.value === typeFilter)?.is_quality) && <CostEventSummaryCard projectId={projectId} />}
 
-      {/* Action Bar */}
-      <div
-        style={{
-          marginBottom: spacing.md,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
+      <Card
+        title={
+          <span
+            style={{ fontSize: typography.sizes.lg, fontWeight: "bold" }}
+          >
+            Cost Events
+          </span>
+        }
+        extra={
+          can("work-package-create") && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleCreate}
+            >
+              Add Event
+            </Button>
+          )
+        }
       >
-        <h2 style={{ margin: 0, fontSize: typography.sizes.lg }}>
-          Cost Events
-        </h2>
-        {can("work-package-create") && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-            Add Event
-          </Button>
-        )}
-      </div>
+        {/* Type Filter */}
+        <div style={{ marginBottom: spacing.md }}>
+          <Select
+            placeholder="Filter by type"
+            value={typeFilter ?? undefined}
+            onChange={(value) => {
+              setTypeFilter(value ?? null);
+              setPage(1);
+            }}
+            options={(costEventTypeOptions || []).map((opt) => ({
+              label: opt.label,
+              value: opt.value,
+            }))}
+            allowClear
+            style={{ minWidth: 200 }}
+          />
+        </div>
 
-      {/* Type Filter */}
-      <div style={{ marginBottom: spacing.md }}>
-        <Select
-          placeholder="Filter by type"
-          value={typeFilter ?? undefined}
-          onChange={(value) => {
-            setTypeFilter(value ?? null);
-            setPage(1);
+        {/* Table */}
+        <Table
+          columns={columns}
+          dataSource={events}
+          rowKey="cost_event_id"
+          loading={isLoading}
+          pagination={{
+            current: page,
+            pageSize: perPage,
+            total,
+            showSizeChanger: true,
+            showTotal: (t) => `Total ${t} events`,
+            onChange: (newPage, newPerPage) => {
+              setPage(newPage);
+              setPerPage(newPerPage || 10);
+            },
           }}
-          options={(costEventTypeOptions || []).map((opt) => ({
-            label: opt.label,
-            value: opt.value,
-          }))}
-          allowClear
-          style={{ minWidth: 200 }}
+          scroll={{ x: 1200 }}
         />
-      </div>
-
-      {/* Table */}
-      <Table
-        columns={columns}
-        dataSource={events}
-        rowKey="cost_event_id"
-        loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize: perPage,
-          total,
-          showSizeChanger: true,
-          showTotal: (t) => `Total ${t} events`,
-          onChange: (newPage, newPerPage) => {
-            setPage(newPage);
-            setPerPage(newPerPage || 10);
-          },
-        }}
-        scroll={{ x: 1200 }}
-        style={{
-          borderRadius: borderRadius.lg,
-        }}
-      />
+      </Card>
 
       {/* Create/Edit Modal */}
       <CostEventModal

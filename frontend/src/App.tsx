@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { App as AntApp, ConfigProvider, theme as antTheme } from "antd";
 import { Toaster } from "sonner";
 import { RouterProvider } from "react-router-dom";
@@ -11,6 +12,11 @@ export const App = () => {
 
   // Initialize token refresh timer
   useTokenRefreshTimer();
+
+  // Sync data-theme attribute for CSS-based theme queries
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", themeMode);
+  }, [themeMode]);
 
   return (
     <ConfigProvider

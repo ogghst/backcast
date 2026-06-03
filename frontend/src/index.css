@@ -135,3 +135,20 @@ body {
     linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
   background-size: 20px 20px;
 }
+
+/* ========================================
+ * 3D Panel Effect - Bordered Card Shadows
+ * ======================================== */
+
+/* Light mode shadow (default) */
+.ant-card.ant-card-bordered {
+  box-shadow: 0 1px 3px 0 rgba(139, 125, 107, 0.1),
+              0 3px 8px -1px rgba(139, 125, 107, 0.06);
+  transition: box-shadow 0.2s ease;
+}
+
+/* Dark mode shadow */
+[data-theme="dark"] .ant-card.ant-card-bordered {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.24),
+              0 3px 8px -1px rgba(0, 0, 0, 0.18);
+}

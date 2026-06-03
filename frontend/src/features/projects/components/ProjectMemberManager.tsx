@@ -302,56 +302,73 @@ export const ProjectMemberManager = ({
   ];
 
   return (
-    <div
-      style={{
-        padding: spacing.md,
-        backgroundColor: colors.bgContainer,
-        borderRadius: borderRadius.lg,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: spacing.md,
-        }}
+    <>
+      <Card
+        title={
+          <div>
+            <div>Project Members</div>
+            {projectName && (
+              <div
+                style={{
+                  fontSize: typography.sizes.sm,
+                  color: colors.textSecondary,
+                  fontWeight: "normal",
+                }}
+              >
+                {projectName}
+              </div>
+            )}
+          </div>
+        }
+        extra={
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setIsAddModalOpen(true)}
+          >
+            Add Member
+          </Button>
+        }
       >
-        <div>
-          <h2 style={{ margin: 0, fontSize: typography.sizes.xl, color: colors.text }}>
-            Project Members
-          </h2>
-          {projectName && (
-            <p
-              style={{
-                margin: 0,
-                marginTop: spacing.xs,
-                fontSize: typography.sizes.sm,
-                color: colors.textSecondary,
-              }}
-            >
-              {projectName}
-            </p>
-          )}
-        </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setIsAddModalOpen(true)}
-        >
-          Add Member
-        </Button>
-      </div>
+        <Table
+          columns={columns}
+          dataSource={enrichedMembers || []}
+          rowKey="id"
+          loading={isLoading}
+          pagination={false}
+          size="middle"
+        />
 
-      <Table
-        columns={columns}
-        dataSource={enrichedMembers || []}
-        rowKey="id"
-        loading={isLoading}
-        pagination={false}
-        size="middle"
-        style={{ marginTop: spacing.md }}
-      />
+        {/* Role Legend */}
+        <div
+          style={{
+            marginTop: spacing.lg,
+            padding: spacing.md,
+            backgroundColor: colors.bgLayout,
+            borderRadius: borderRadius.md,
+          }}
+        >
+          <h4 style={{ margin: 0, marginBottom: spacing.sm, color: colors.text }}>
+            Role Permissions
+          </h4>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: spacing.sm,
+            }}
+          >
+            {roles.map((role) => (
+              <div key={role.id} style={{ display: "flex", alignItems: "flex-start", gap: spacing.xs }}>
+                <Tag color={getRoleColor(role.name)}>{getRoleLabel(role.name)}</Tag>
+                <span style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>
+                  {role.description || getRoleLabel(role.name)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       {/* Add Member Modal */}
       <Modal
@@ -569,34 +586,6 @@ export const ProjectMemberManager = ({
           )}
         </div>
       </Modal>
-
-      {/* Role Legend */}
-      <div
-        style={{
-          marginTop: spacing.lg,
-          padding: spacing.md,
-          backgroundColor: colors.bgLayout,
-          borderRadius: borderRadius.md,
-        }}
-      >
-        <h4 style={{ margin: 0, marginBottom: spacing.sm, color: colors.text }}>Role Permissions</h4>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: spacing.sm,
-          }}
-        >
-          {roles.map((role) => (
-            <div key={role.id} style={{ display: "flex", alignItems: "flex-start", gap: spacing.xs }}>
-              <Tag color={getRoleColor(role.name)}>{getRoleLabel(role.name)}</Tag>
-              <span style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>
-                {role.description || getRoleLabel(role.name)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+    </>
   );
 };

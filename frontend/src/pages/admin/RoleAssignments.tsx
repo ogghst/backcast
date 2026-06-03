@@ -5,7 +5,7 @@
  * filters by user, role, and scope type.
  */
 
-import { App, Button, Select, Space, Tag, theme } from "antd";
+import { App, Button, Card, Select, Space, Tag, theme } from "antd";
 import { useSearchParams } from "react-router-dom";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useCallback, useMemo, useState } from "react";
@@ -216,115 +216,87 @@ export const RoleAssignments: React.FC = () => {
   ];
 
   return (
-    <div>
-      <StandardTable<UserRoleAssignmentRead>
-        tableParams={{
-          ...tableParams,
-          pagination: {
-            ...tableParams.pagination,
-            total: (assignments || []).length,
-          },
-        }}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={assignments || []}
-        columns={columns}
-        rowKey="id"
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: token.marginSM,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: token.marginSM,
-                flexWrap: "wrap",
-              }}
+    <>
+      <Card
+        title={<span style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>Role Assignments</span>}
+        extra={
+          <Can permission="role-assignment-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleCreate}
             >
-              <span
-                style={{
-                  fontSize: token.fontSizeLG,
-                  fontWeight: "bold",
-                }}
-              >
-                Role Assignments
-              </span>
-
-              {/* Filter: User */}
-              <Select
-                placeholder="Filter by User"
-                value={userFilter}
-                onChange={setUserFilter}
-                options={userOptions}
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                loading={usersLoading}
-                style={{ minWidth: 180 }}
-                size="small"
-              />
-
-              {/* Filter: Scope Type */}
-              <Select
-                placeholder="Filter by Scope"
-                value={scopeTypeFilter}
-                onChange={setScopeTypeFilter}
-                options={[
-                  { value: "global", label: "Global" },
-                  { value: "project", label: "Project" },
-                  { value: "change_order", label: "Change Order" },
-                ]}
-                allowClear
-                style={{ minWidth: 140 }}
-                size="small"
-              />
-
-              {/* Filter: Role */}
-              <Select
-                placeholder="Filter by Role"
-                value={roleFilter}
-                onChange={setRoleFilter}
-                options={roleOptions}
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                style={{ minWidth: 160 }}
-                size="small"
-              />
-
-              {/* Clear Filters */}
-              {hasActiveFilters && (
-                <Button size="small" onClick={clearFilters}>
-                  Clear Filters
-                </Button>
-              )}
-            </div>
-
-            <Can permission="role-assignment-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={handleCreate}
-              >
-                Add Assignment
-              </Button>
-            </Can>
-          </div>
+              Add Assignment
+            </Button>
+          </Can>
         }
-      />
+      >
+        {/* Filters row */}
+        <Space style={{ marginBottom: token.marginMD }} wrap>
+          <Select
+            placeholder="Filter by User"
+            value={userFilter}
+            onChange={setUserFilter}
+            options={userOptions}
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            loading={usersLoading}
+            style={{ minWidth: 180 }}
+            size="small"
+          />
+          <Select
+            placeholder="Filter by Scope"
+            value={scopeTypeFilter}
+            onChange={setScopeTypeFilter}
+            options={[
+              { value: "global", label: "Global" },
+              { value: "project", label: "Project" },
+              { value: "change_order", label: "Change Order" },
+            ]}
+            allowClear
+            style={{ minWidth: 140 }}
+            size="small"
+          />
+          <Select
+            placeholder="Filter by Role"
+            value={roleFilter}
+            onChange={setRoleFilter}
+            options={roleOptions}
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            style={{ minWidth: 160 }}
+            size="small"
+          />
+          {hasActiveFilters && (
+            <Button size="small" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          )}
+        </Space>
+
+        <StandardTable<UserRoleAssignmentRead>
+          tableParams={{
+            ...tableParams,
+            pagination: {
+              ...tableParams.pagination,
+              total: (assignments || []).length,
+            },
+          }}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={assignments || []}
+          columns={columns}
+          rowKey="id"
+        />
+      </Card>
 
       <AssignmentModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         assignment={selectedAssignment ?? undefined}
       />
-    </div>
+    </>
   );
 };

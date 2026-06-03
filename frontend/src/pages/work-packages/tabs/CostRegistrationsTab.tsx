@@ -1,4 +1,4 @@
-import { App, Button, Space, Input, Tag, Grid, Badge, Typography, Alert, theme, Empty, Spin } from "antd";
+import { App, Button, Space, Input, Tag, Grid, Badge, Typography, Alert, theme, Empty, Spin, Card } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -400,65 +400,68 @@ export const CostRegistrationsTab = ({
         />
       )}
 
-      {/* Toolbar - shared between card and table views */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: token.marginMD }}>
-        <Space>
-          <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-            Cost Registrations
-          </div>
-          <Tag color="blue">
-            Total: {currencySymbol}
-            {totalCosts.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </Tag>
-        </Space>
-        <Space>
-          <ViewModeToggle viewMode={crViewMode} onCycleViewMode={crCycleViewMode} />
-          {costElements.length > 0 && (
-            <Can permission="cost-registration-create">
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddCost}>
-                Add Cost
-              </Button>
-            </Can>
-          )}
-        </Space>
-      </div>
-
-      {/* Card view */}
-      {useCard ? (
-        isLoading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>
-        ) : costRegistrations.length === 0 ? (
-          <Empty description="No cost registrations" />
+      <Card
+        title={
+          <Space>
+            <span style={{ fontSize: "16px", fontWeight: "bold" }}>
+              Cost Registrations
+            </span>
+            <Tag color="blue">
+              Total: {currencySymbol}
+              {totalCosts.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Tag>
+          </Space>
+        }
+        extra={
+          <Space>
+            <ViewModeToggle viewMode={crViewMode} onCycleViewMode={crCycleViewMode} />
+            {costElements.length > 0 && (
+              <Can permission="cost-registration-create">
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleAddCost}>
+                  Add Cost
+                </Button>
+              </Can>
+            )}
+          </Space>
+        }
+      >
+        {/* Card view */}
+        {useCard ? (
+          isLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>
+          ) : costRegistrations.length === 0 ? (
+            <Empty description="No cost registrations" />
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
+              {costRegistrations.map((cr) => (
+                <CostRegistrationCard
+                  key={cr.id || cr.cost_registration_id}
+                  registration={cr}
+                  currencySymbol={currencySymbol}
+                />
+              ))}
+            </div>
+          )
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
-            {costRegistrations.map((cr) => (
-              <CostRegistrationCard
-                key={cr.id || cr.cost_registration_id}
-                registration={cr}
-                currencySymbol={currencySymbol}
-              />
-            ))}
-          </div>
-        )
-      ) : (
-        /* Table view */
-        <StandardTable<CostRegistrationRead>
-          tableParams={{
-            ...tableParams,
-            pagination: { ...tableParams.pagination, total },
-          }}
-          onChange={handleTableChange}
-          loading={isLoading}
-          dataSource={costRegistrations}
-          columns={columns}
-          rowKey="id"
-          searchable={true}
-          searchPlaceholder="Search cost registrations..."
-          onSearch={handleSearch}
-          scroll={{ x: isMobile ? "max-content" : undefined }}
-          size={isMobile ? "small" : "middle"}
-        />
-      )}
+          /* Table view */
+          <StandardTable<CostRegistrationRead>
+            tableParams={{
+              ...tableParams,
+              pagination: { ...tableParams.pagination, total },
+            }}
+            onChange={handleTableChange}
+            loading={isLoading}
+            dataSource={costRegistrations}
+            columns={columns}
+            rowKey="id"
+            searchable={true}
+            searchPlaceholder="Search cost registrations..."
+            onSearch={handleSearch}
+            scroll={{ x: isMobile ? "max-content" : undefined }}
+            size={isMobile ? "small" : "middle"}
+          />
+        )}
+      </Card>
 
       {/* Cost element picker modal -- shown when multiple cost elements exist */}
       {/* Create/Edit modal */}

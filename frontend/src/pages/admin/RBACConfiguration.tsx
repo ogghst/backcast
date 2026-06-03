@@ -10,6 +10,7 @@ import {
   Alert,
   App,
   Button,
+  Card,
   Checkbox,
   Collapse,
   Form,
@@ -610,7 +611,7 @@ export const RBACConfiguration: React.FC = () => {
         />
       }
     >
-      <div>
+      <>
         {/* Provider status banner */}
         {providerStatus && (
           <Alert
@@ -631,35 +632,28 @@ export const RBACConfiguration: React.FC = () => {
           />
         )}
 
-        <StandardTable<RBACRoleRead>
-          tableParams={tableParams}
-          onChange={handleTableChange}
-          loading={isLoading}
-          dataSource={roles || []}
-          columns={columns}
-          rowKey="id"
-          toolbar={
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
+        <Card
+          title={<span style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>RBAC Configuration</span>}
+          extra={
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleCreate}
+              disabled={!isEditable}
             >
-              <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
-                RBAC Configuration
-              </div>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={handleCreate}
-                disabled={!isEditable}
-              >
-                Create Role
-              </Button>
-            </div>
+              Create Role
+            </Button>
           }
-        />
+        >
+          <StandardTable<RBACRoleRead>
+            tableParams={tableParams}
+            onChange={handleTableChange}
+            loading={isLoading}
+            dataSource={roles || []}
+            columns={columns}
+            rowKey="id"
+          />
+        </Card>
 
         <RoleModal
           key={selectedRole?.id || "create"}
@@ -671,7 +665,7 @@ export const RBACConfiguration: React.FC = () => {
           allPermissions={allPermissions}
           editable={isEditable}
         />
-      </div>
+      </>
     </Can>
   );
 };
