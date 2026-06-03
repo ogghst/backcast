@@ -1,4 +1,4 @@
-import { App, Button, Space, Input, Tag, Grid, Badge, Typography, Alert, Modal, theme, Empty, Spin } from "antd";
+import { App, Button, Space, Input, Tag, Grid, Badge, Typography, Alert, theme, Empty, Spin } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -111,10 +111,6 @@ export const CostRegistrationsTab = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRegistration, setSelectedRegistration] =
     useState<CostRegistrationRead | null>(null);
-  const [selectedCostElementId, setSelectedCostElementId] = useState<
-    string | null
-  >(null);
-  const [costElementPickerOpen, setCostElementPickerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // History hook
@@ -137,7 +133,6 @@ export const CostRegistrationsTab = ({
         ),
       });
       setModalOpen(false);
-      setSelectedCostElementId(null);
     },
   });
 
@@ -185,22 +180,7 @@ export const CostRegistrationsTab = ({
 
   const handleAddCost = () => {
     if (costElements.length === 0) return;
-
-    if (costElements.length === 1) {
-      // Only one cost element -- go straight to the modal
-      setSelectedRegistration(null);
-      setSelectedCostElementId(costElements[0].cost_element_id);
-      setModalOpen(true);
-    } else {
-      // Multiple cost elements -- show picker first
-      setCostElementPickerOpen(true);
-    }
-  };
-
-  const handleCostElementSelected = (costElementId: string) => {
     setSelectedRegistration(null);
-    setSelectedCostElementId(costElementId);
-    setCostElementPickerOpen(false);
     setModalOpen(true);
   };
 
@@ -384,7 +364,6 @@ export const CostRegistrationsTab = ({
               icon={<EditOutlined />}
               onClick={() => {
                 setSelectedRegistration(record);
-                setSelectedCostElementId(record.cost_element_id);
                 setModalOpen(true);
               }}
               title="Edit"
@@ -482,69 +461,27 @@ export const CostRegistrationsTab = ({
       )}
 
       {/* Cost element picker modal -- shown when multiple cost elements exist */}
-      <Modal
-        title="Select Cost Element"
-        open={costElementPickerOpen}
-        onCancel={() => setCostElementPickerOpen(false)}
-        footer={null}
-        width={480}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {costElements.map((ce) => (
-            <Button
-              key={ce.cost_element_id}
-              block
-              onClick={() => handleCostElementSelected(ce.cost_element_id)}
-              style={{ textAlign: "left", height: "auto", padding: "8px 16px" }}
-            >
-              <Space direction="vertical" size={0}>
-                <span>
-                  {ce.cost_element_type_name || "Unknown Type"}
-                </span>
-                {ce.description && (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {ce.description}
-                  </Text>
-                )}
-              </Space>
-            </Button>
-          ))}
-        </div>
-      </Modal>
-
       {/* Create/Edit modal */}
-      {selectedCostElementId && (
-        <CostRegistrationModal
-          open={modalOpen}
-          onCancel={() => {
-            setModalOpen(false);
-            if (!selectedRegistration) {
-              setSelectedCostElementId(null);
-            }
-          }}
-          onOk={async (values) => {
-            if (selectedRegistration) {
-              await updateCostRegistration({
-                id: selectedRegistration.cost_registration_id,
-                data: values,
-                costElementId: selectedCostElementId,
-              });
-            } else {
-              const { amount, ...rest } = values as CostRegistrationCreate;
-              const createData: Parameters<typeof createCostRegistration>[0] = {
-                cost_element_id: selectedCostElementId,
-                amount: amount ?? 0,
-                ...(rest && typeof rest === "object" ? rest : {}),
-              };
-              await createCostRegistration(createData);
-            }
-          }}
-          confirmLoading={isLoading}
-          initialValues={selectedRegistration}
-          costElementId={selectedCostElementId}
-          projectId={projectId || ""}
-        />
-      )}
+      <CostRegistrationModal
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        onOk={async (values) => {
+          if (selectedRegistration) {
+            await updateCostRegistration({
+              id: selectedRegistration.cost_registration_id,
+              data: values,
+              costElementId: selectedRegistration.cost_element_id,
+            });
+          } else {
+            await createCostRegistration(values as CostRegistrationCreate);
+          }
+        }}
+        confirmLoading={isLoading}
+        initialValues={selectedRegistration}
+        costElementId={selectedRegistration?.cost_element_id}
+        workPackageId={workPackage.work_package_id}
+        projectId={projectId || ""}
+      />
 
       <VersionHistoryDrawer
         open={historyOpen}

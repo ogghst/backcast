@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { App, Modal, Form, Input, InputNumber, DatePicker, Select, Button, Space, Typography, Tooltip, theme } from "antd";
+import { useCostElements } from "@/features/cost-elements/api/useCostElements";
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -41,7 +42,8 @@ interface CostRegistrationModalProps {
   onOk: (values: CostRegistrationCreate | CostRegistrationUpdate) => void;
   confirmLoading: boolean;
   initialValues?: CostRegistrationRead | null;
-  costElementId: string;
+  costElementId?: string;
+  workPackageId?: string;
   projectId: string;
 }
 
@@ -65,14 +67,25 @@ export const CostRegistrationModal = ({
   confirmLoading,
   initialValues,
   costElementId,
+  workPackageId,
   projectId,
 }: CostRegistrationModalProps) => {
   const [form] = Form.useForm();
   const { asOf } = useTimeMachineParams();
   const { modal } = App.useApp();
-  const { data: budgetStatus } = useBudgetStatus(costElementId);
-  const { data: projectBudgetSettings } = useProjectBudgetSettings(projectId);
   const isEdit = !!initialValues;
+
+  // Determine if Cost Element Select should be shown (create mode from work-packages tab)
+  const showCostElementSelect = !costElementId && !!workPackageId && !isEdit;
+
+  // Reactive cost element ID from form when in select mode
+  const formCostElementId = Form.useWatch("cost_element_id", form);
+  const activeCostElementId = showCostElementSelect
+    ? (formCostElementId || "")
+    : (costElementId || initialValues?.cost_element_id || "");
+
+  const { data: budgetStatus } = useBudgetStatus(activeCostElementId);
+  const { data: projectBudgetSettings } = useProjectBudgetSettings(projectId);
   const enforceBudget = projectBudgetSettings?.enforce_budget ?? false;
   const currency = useProjectCurrency(projectId);
   const currencySymbol = getCurrencySymbol(currency);
@@ -97,6 +110,23 @@ export const CostRegistrationModal = ({
       value: ce.cost_event_id,
     };
   });
+
+  // Fetch cost element options for the select dropdown (only in select mode)
+  const { data: ceOptionsData, isLoading: ceOptionsLoading } = useCostElements({
+    work_package_id: workPackageId,
+    queryOptions: { enabled: showCostElementSelect },
+  });
+
+  const costElementOptions = useMemo(
+    () =>
+      (ceOptionsData?.items || []).map((ce) => ({
+        label: ce.description
+          ? `${ce.cost_element_type_name || "Unknown"} — ${ce.description}`
+          : (ce.cost_element_type_name || "Unknown"),
+        value: ce.cost_element_id,
+      })),
+    [ceOptionsData],
+  );
 
   // Attachment hooks (only for edit mode)
   const costRegId = isEdit ? initialValues?.cost_registration_id ?? null : null;
@@ -341,6 +371,22 @@ export const CostRegistrationModal = ({
       width={650}
     >
       <Form form={form} layout="vertical" name="cost_registration_form">
+        {showCostElementSelect && (
+          <Form.Item
+            name="cost_element_id"
+            label="Cost Element"
+            rules={[{ required: true, message: "Please select a cost element" }]}
+          >
+            <Select
+              placeholder="Select cost element"
+              showSearch
+              optionFilterProp="label"
+              options={costElementOptions}
+              loading={ceOptionsLoading}
+            />
+          </Form.Item>
+        )}
+
         <Form.Item
           name="amount"
           label="Amount"

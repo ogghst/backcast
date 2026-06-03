@@ -122,7 +122,7 @@ AI_SEQUENTIAL_TOOL_CALLS: bool = os.environ.get(
     "yes",
 )
 
-#: Tool-category prefix used to identify MCP tools for the mcp_specialist.
+#: Tool-category prefix used to identify MCP tools from external servers.
 AI_MCP_TOOL_CATEGORY_PREFIX: str = os.environ.get("AI_MCP_TOOL_CATEGORY_PREFIX", "mcp:")
 
 

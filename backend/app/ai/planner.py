@@ -11,14 +11,13 @@ Inserted between initialize_briefing and supervisor in the graph flow:
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.ai.plan import PlanDocument, PlanStep
+from app.ai.plan import PlanDocument, PlannerOutput, PlanStep
 
 logger = logging.getLogger(__name__)
 
@@ -30,24 +29,6 @@ Analyze the user's request and decide whether it needs multi-step execution \
 or can be handled by a single specialist.
 
 {specialist_section}
-
-## Your Task
-
-Return a JSON object with this structure:
-{{
-  "original_request": "<the user's request>",
-  "requires_planning": true/false,
-  "estimated_complexity": "simple" | "moderate" | "complex",
-  "steps": [
-    {{
-      "step_index": 0,
-      "specialist": "<specialist_name>",
-      "task_description": "<focused description of what this step should do>",
-      "dependencies": [],
-      "expected_output": "<what this step should produce>"
-    }}
-  ]
-}}
 
 ## Decision Guide
 
@@ -71,7 +52,6 @@ Multi-step (requires_planning=true, ordered steps with dependencies):
 - Keep task descriptions focused and actionable
 - Only add dependencies when step N genuinely needs output from step M
 - Maximum 5 steps
-- Return ONLY valid JSON, no markdown fences, no commentary
 """
 
 _DEFAULT_SPECIALIST_CATALOG: list[dict[str, str]] = [
@@ -140,82 +120,54 @@ def _build_planner_prompt(
     return "\n".join(parts)
 
 
-def _parse_plan_response(
-    raw: str,
-    user_request: str,
+def _convert_planner_output(
+    output: PlannerOutput,
     valid_specialists: frozenset[str] | None = None,
 ) -> PlanDocument:
-    """Parse the LLM response into a PlanDocument.
+    """Convert a PlannerOutput from structured LLM call into a PlanDocument.
 
-    Handles common LLM output issues: markdown fences, trailing commas,
-    missing fields. Falls back to a single-step plan on any parse failure.
+    Validates specialist names against the catalog and converts LLM-only
+    fields into runtime PlanStep instances with default status.
 
     Args:
-        raw: Raw text from the LLM response.
-        user_request: Original user request (used in fallback).
+        output: Structured output from the planner LLM call.
         valid_specialists: Set of specialist names considered valid.
             Defaults to ``{general_purpose}`` when not provided.
 
     Returns:
-        Parsed PlanDocument, or a single-step fallback.
+        PlanDocument with validated steps, or a single-step fallback.
     """
-    # Strip markdown code fences if present
-    text = raw.strip()
-    if text.startswith("```"):
-        first_newline = text.index("\n") if "\n" in text else len(text)
-        text = text[first_newline + 1 :]
-        if text.endswith("```"):
-            text = text[: -len("```")]
-        text = text.strip()
-
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        logger.warning("[PLANNER] JSON parse failed, falling back to single step")
-        return _fallback_plan(user_request)
-
-    # Validate required fields exist
-    if not isinstance(data, dict) or "steps" not in data:
-        logger.warning("[PLANNER] Unexpected response shape, falling back")
-        return _fallback_plan(user_request)
-
-    # Normalize steps
+    allowed = valid_specialists or frozenset({"general_purpose"})
     steps: list[PlanStep] = []
-    raw_steps = data.get("steps", [])
-    if not isinstance(raw_steps, list):
-        return _fallback_plan(user_request)
-
-    for i, raw_step in enumerate(raw_steps):
-        if not isinstance(raw_step, dict):
-            continue
-
-        specialist = raw_step.get("specialist", "general_purpose")
-        allowed = valid_specialists or frozenset({"general_purpose"})
+    for i, raw_step in enumerate(output.steps):
+        specialist = raw_step.specialist
         if specialist not in allowed:
             logger.warning(
                 "[PLANNER] Unknown specialist '%s', defaulting to general_purpose",
                 specialist,
             )
             specialist = "general_purpose"
-
         steps.append(
             PlanStep(
                 step_index=i,
                 specialist=specialist,
-                task_description=raw_step.get("task_description", ""),
-                dependencies=raw_step.get("dependencies", []),
-                expected_output=raw_step.get("expected_output", ""),
+                task_description=raw_step.task_description,
+                dependencies=raw_step.dependencies,
+                expected_output=raw_step.expected_output,
             )
         )
 
     if not steps:
-        return _fallback_plan(user_request)
+        logger.warning(
+            "[PLANNER] Empty steps from structured output, falling back"
+        )
+        return _fallback_plan(output.original_request)
 
     return PlanDocument(
-        original_request=data.get("original_request", user_request),
+        original_request=output.original_request,
         steps=steps,
-        estimated_complexity=data.get("estimated_complexity", "simple"),
-        requires_planning=bool(data.get("requires_planning", False)),
+        estimated_complexity=output.estimated_complexity,
+        requires_planning=output.requires_planning,
     )
 
 
@@ -313,8 +265,9 @@ async def planner_node(
     catalog = specialist_catalog or _DEFAULT_SPECIALIST_CATALOG
     valid_names = frozenset(entry["name"] for entry in catalog)
 
+    structured_llm = llm.with_structured_output(PlannerOutput)
     try:
-        response = await llm.ainvoke(
+        planner_output = await structured_llm.ainvoke(
             [
                 SystemMessage(
                     content=build_planner_system_prompt(
@@ -324,11 +277,14 @@ async def planner_node(
                 HumanMessage(content=prompt),
             ]
         )
-        raw_text = response.content
-        if isinstance(raw_text, list):
-            raw_text = " ".join(part for part in raw_text if isinstance(part, str))
-        plan = _parse_plan_response(
-            raw_text, user_request, valid_specialists=valid_names
+        if not isinstance(planner_output, PlannerOutput):
+            logger.warning(
+                "[PLANNER] Unexpected output type %s, falling back",
+                type(planner_output).__name__,
+            )
+            return {"plan_data": _fallback_plan(user_request).model_dump()}
+        plan = _convert_planner_output(
+            planner_output, valid_specialists=valid_names
         )
     except Exception:
         logger.exception("[PLANNER] LLM call failed, falling back to single step")

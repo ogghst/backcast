@@ -92,19 +92,24 @@ async def update_server(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
-    # Refresh MCP client manager if config was part of the update
+    # Refresh MCP client manager if config or is_active was part of the update
     update_data = server_in.model_dump(exclude_unset=True)
-    if "config" in update_data:
+    needs_remove = "is_active" in update_data and not server.is_active
+    needs_refresh = "config" in update_data or ("is_active" in update_data and server.is_active)
+    if needs_remove or needs_refresh:
         mcp_manager = MCPClientManager()
-        decrypted = await service.get_decrypted_config(server.id)
-        try:
-            await mcp_manager.refresh_server(server.name, decrypted)
-        except Exception:
-            logger.warning(
-                "MCP server '%s' connection failed after update",
-                server.name,
-                exc_info=True,
-            )
+        if needs_remove:
+            await mcp_manager.remove_server(server.name)
+        if needs_refresh:
+            decrypted = await service.get_decrypted_config(server.id)
+            try:
+                await mcp_manager.refresh_server(server.name, decrypted)
+            except Exception:
+                logger.warning(
+                    "MCP server '%s' connection failed after update",
+                    server.name,
+                    exc_info=True,
+                )
 
     return MCPServerPublic.model_validate(server)
 

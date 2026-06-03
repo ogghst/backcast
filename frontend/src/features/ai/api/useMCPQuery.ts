@@ -81,6 +81,7 @@ export const useCreateMCPServer = (
     mutationFn: (data: MCPServerCreate) => mcpServerApi.create(data),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.mcpServers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.tools.lists() });
       toast.success("MCP server created successfully");
       options?.onSuccess?.(...args);
     },
@@ -108,6 +109,7 @@ export const useUpdateMCPServer = (
       mcpServerApi.update(id, data),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.mcpServers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.tools.lists() });
       toast.success("MCP server updated successfully");
       options?.onSuccess?.(...args);
     },
@@ -131,6 +133,7 @@ export const useDeleteMCPServer = (
     mutationFn: (id: string) => mcpServerApi.delete(id),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.mcpServers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.tools.lists() });
       toast.success("MCP server deleted successfully");
       options?.onSuccess?.(...args);
     },

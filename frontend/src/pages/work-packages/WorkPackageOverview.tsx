@@ -40,6 +40,7 @@ import { useState, useMemo } from "react";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import {
   useCreateCostElement,
+  useUpdateCostElement,
   useDeleteCostElement,
 } from "@/features/cost-elements/api/useCostElements";
 import {
@@ -91,6 +92,7 @@ export const WorkPackageOverview = () => {
 
   // Modal states
   const [ceModalOpen, setCeModalOpen] = useState(false);
+  const [selectedCostElement, setSelectedCostElement] = useState<CostElementRead | null>(null);
   const [sbModalOpen, setSbModalOpen] = useState(false);
   const [fcModalOpen, setFcModalOpen] = useState(false);
 
@@ -119,6 +121,15 @@ export const WorkPackageOverview = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.costElements.lists() });
       setCeModalOpen(false);
+      setSelectedCostElement(null);
+    },
+  });
+
+  const { mutateAsync: updateCostElement } = useUpdateCostElement({
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.costElements.lists() });
+      setCeModalOpen(false);
+      setSelectedCostElement(null);
     },
   });
 
@@ -136,6 +147,16 @@ export const WorkPackageOverview = () => {
       okType: "danger",
       onOk: () => deleteCostElement(ce.cost_element_id),
     });
+  };
+
+  const handleEditCE = (ce: CostElementRead) => {
+    setSelectedCostElement(ce);
+    setCeModalOpen(true);
+  };
+
+  const handleAddCE = () => {
+    setSelectedCostElement(null);
+    setCeModalOpen(true);
   };
 
   const handleDeleteForecast = () => {
@@ -244,18 +265,29 @@ export const WorkPackageOverview = () => {
     {
       title: "Actions",
       key: "actions",
-      width: 60,
+      width: 80,
       render: (_: unknown, record: CostElementRead) => (
-        <Can permission="cost-element-delete">
-          <Button
-            danger
-            type="text"
-            size="small"
-            icon={<DeleteOutlined />}
-            onClick={() => handleDeleteCE(record)}
-            title="Delete"
-          />
-        </Can>
+        <Space>
+          <Can permission="cost-element-update">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleEditCE(record)}
+              title="Edit"
+            />
+          </Can>
+          <Can permission="cost-element-delete">
+            <Button
+              danger
+              type="text"
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteCE(record)}
+              title="Delete"
+            />
+          </Can>
+        </Space>
       ),
     },
   ];
@@ -571,7 +603,7 @@ export const WorkPackageOverview = () => {
                 type="primary"
                 size="small"
                 icon={<PlusOutlined />}
-                onClick={() => setCeModalOpen(true)}
+                onClick={handleAddCE}
               >
                 {isMobile ? undefined : "Add Cost Element"}
               </Button>
@@ -612,16 +644,23 @@ export const WorkPackageOverview = () => {
       {/* Modals */}
       <CostElementModal
         open={ceModalOpen}
-        onCancel={() => setCeModalOpen(false)}
+        onCancel={() => { setCeModalOpen(false); setSelectedCostElement(null); }}
         onOk={async (values) => {
-          await createCostElement({
-            cost_element_type_id: values.cost_element_type_id,
-            description: values.description,
-            work_package_id: id!,
-          } as Parameters<typeof createCostElement>[0]);
+          if (selectedCostElement) {
+            await updateCostElement({
+              id: selectedCostElement.id,
+              data: values,
+            });
+          } else {
+            await createCostElement({
+              cost_element_type_id: values.cost_element_type_id,
+              description: values.description,
+              work_package_id: id!,
+            } as Parameters<typeof createCostElement>[0]);
+          }
         }}
         confirmLoading={false}
-        initialValues={null}
+        initialValues={selectedCostElement}
         currentBranch="main"
         workPackageId={id}
         workPackageName={workPackage ? `${workPackage.code} - ${workPackage.name}` : undefined}

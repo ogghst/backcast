@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 StepStatus = Literal["pending", "in_progress", "completed", "skipped", "failed"]
 
@@ -30,6 +30,43 @@ class PlanStep(BaseModel):
     expected_output: str = ""
     status: StepStatus = "pending"
     result_summary: str | None = None
+
+
+class PlannerStepOutput(BaseModel):
+    """Single step in the planner's structured LLM output."""
+
+    step_index: int = Field(
+        description="Sequential step index starting from 0"
+    )
+    specialist: str = Field(
+        description="Specialist name from the available list"
+    )
+    task_description: str = Field(
+        description="Focused, actionable description of what this step should do"
+    )
+    dependencies: list[int] = Field(
+        default=[], description="Indices of steps that must complete first"
+    )
+    expected_output: str = Field(
+        default="", description="What this step should produce"
+    )
+
+
+class PlannerOutput(BaseModel):
+    """Structured output schema for the planner LLM call."""
+
+    original_request: str = Field(
+        description="The user's request verbatim"
+    )
+    requires_planning: bool = Field(
+        description="True if multi-step execution is needed"
+    )
+    estimated_complexity: Literal["simple", "moderate", "complex"] = Field(
+        description="Assessment of request complexity"
+    )
+    steps: list[PlannerStepOutput] = Field(
+        description="Ordered list of execution steps"
+    )
 
 
 class PlanDocument(BaseModel):
@@ -160,4 +197,11 @@ class PlanDocument(BaseModel):
         return "\n".join(lines)
 
 
-__all__ = ["PlanDocument", "PlanStep", "StepStatus", "VALID_SPECIALISTS"]
+__all__ = [
+    "PlanDocument",
+    "PlanStep",
+    "PlannerOutput",
+    "PlannerStepOutput",
+    "StepStatus",
+    "VALID_SPECIALISTS",
+]

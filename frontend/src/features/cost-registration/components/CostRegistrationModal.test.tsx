@@ -21,6 +21,20 @@ vi.mock("../api/useCostRegistrations", () => ({
   useProjectBudgetSettings: vi.fn(),
 }));
 
+// Mock cost elements hook (used for Cost Element Select in work-packages flow)
+vi.mock("@/features/cost-elements/api/useCostElements", () => ({
+  useCostElements: vi.fn(() => ({
+    data: { items: [], total: 0, page: 1, per_page: 20 },
+    isLoading: false,
+  })),
+}));
+
+// Mock cost events hooks
+vi.mock("@/features/cost-events/api/useCostEvents", () => ({
+  useCostEvents: vi.fn(() => ({ data: { items: [] }, isLoading: false })),
+  useCostEventTypes: vi.fn(() => ({ data: [] })),
+}));
+
 // Mock TimeMachineContext
 vi.mock("@/contexts/TimeMachineContext", () => ({
   useTimeMachineParams: () => ({
@@ -296,5 +310,49 @@ describe("CostRegistrationModal", () => {
     expect(confirmCall.title).toBe("Cost Element Budget Warning");
 
     expect(modalErrorSpy).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------
+  // Test: Cost Element Select is shown in select mode (work-packages tab)
+  // -------------------------------------------------------------------
+  it("shows Cost Element Select when workPackageId is provided without costElementId", async () => {
+    const { useCostElements } = await import("@/features/cost-elements/api/useCostElements");
+    const mockUseCostElements = vi.mocked(useCostElements);
+    mockUseCostElements.mockReturnValue({
+      data: {
+        items: [
+          { cost_element_id: "ce-1", cost_element_type_name: "Mechanical", description: "Mechanical work" },
+          { cost_element_id: "ce-2", cost_element_type_name: "Electrical", description: null },
+        ],
+        total: 2,
+        page: 1,
+        per_page: 20,
+      },
+      isLoading: false,
+    } as ReturnType<typeof useCostElements>);
+
+    renderModal({ costElementId: undefined, workPackageId: "wp-1" });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /create/i })).toBeInTheDocument();
+    });
+
+    // The Cost Element Select should be rendered
+    const select = screen.getByText("Select cost element");
+    expect(select).toBeTruthy();
+  });
+
+  // -------------------------------------------------------------------
+  // Test: Cost Element Select is NOT shown when costElementId is provided (fixed mode)
+  // -------------------------------------------------------------------
+  it("does not show Cost Element Select when costElementId is provided", async () => {
+    renderModal({ costElementId: "ce-1" });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /create/i })).toBeInTheDocument();
+    });
+
+    // The Cost Element Select placeholder should NOT be in the document
+    expect(screen.queryByText("Select cost element")).toBeNull();
   });
 });

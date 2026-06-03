@@ -294,6 +294,7 @@ class AIToolPublic(BaseModel):
     permissions: list[str]
     category: str | None = None
     version: str
+    risk_level: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

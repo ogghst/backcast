@@ -48,6 +48,7 @@ import { useExecutionMode } from "../../hooks/useExecutionMode";
 import { useLastAssistantId } from "../../hooks/useLastAssistantId";
 import { ApprovalDialog } from "../../components/ApprovalDialog";
 import { useAIChatContext } from "@/hooks/navigation/useAIChatContext";
+import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
 import type { SessionContext } from "../../types";
 import type { WSTemporalContextChangeMessage } from "../types";
 import type { WSPlanUpdateMessage } from "../types";
@@ -237,6 +238,8 @@ export const ChatInterface = ({
   );
   const deleteSession = useDeleteSession();
 
+  const { data: activeAssistants } = useAIAssistants(false);
+
   // Auto-select session with active execution on mount (session recovery after page reload).
   // When the browser kills the tab and the user reopens the chat, currentSessionId is
   // undefined. If any session has a running/awaiting_approval execution, auto-select it
@@ -269,6 +272,14 @@ export const ChatInterface = ({
 
   // Find current session to get its assistant ID
   const currentSession = sessions?.find((s) => s.id === currentSessionId);
+
+  const isAssistantInactive = useMemo(() => {
+    if (!currentSessionId || !currentSession) return false;
+    if (!activeAssistants) return false;
+    const assistantId = currentSession.assistant_config_id;
+    return !activeAssistants.some((a) => a.is_active && a.agent_type === "main" && a.id === assistantId);
+  }, [currentSessionId, currentSession, activeAssistants]);
+
   const prevSessionIdRef = useRef<string | undefined>(currentSession?.id);
 
   // Set assistant from session when session changes (only if not already set)
@@ -1504,6 +1515,24 @@ export const ChatInterface = ({
                 overflow: "hidden",
               }}
             >
+              {isAssistantInactive && (
+                <Alert
+                  type="warning"
+                  message="Assistant deactivated"
+                  description="This assistant has been deactivated and cannot accept new messages. Start a new chat with an active assistant."
+                  showIcon
+                  style={{
+                    margin: isMobile ? spacing.sm : spacing.md,
+                    borderRadius: isMobile ? 8 : token.borderRadius,
+                  }}
+                  action={
+                    <Button size="small" type="primary" onClick={handleNewChat}>
+                      New Chat
+                    </Button>
+                  }
+                />
+              )}
+
               {/* Error Alert - mobile optimized */}
               {error && (
                 <Alert
@@ -1559,7 +1588,7 @@ export const ChatInterface = ({
               {/* Input - fixed at bottom for mobile feel */}
               <MessageInput
                 onSend={handleSendMessage}
-                disabled={!selectedAssistantId}
+                disabled={!selectedAssistantId || isAssistantInactive}
                 loading={messagesLoading}
                 isStreaming={isStreaming}
                 onCancel={handleCancel}
@@ -1568,11 +1597,13 @@ export const ChatInterface = ({
                 onExecutionModeChange={setExecutionMode}
                 onAttachmentsChange={handleAttachmentsChange}
                 placeholder={
-                  !selectedAssistantId
-                    ? isSmallMobile
-                      ? "Select an assistant"
-                      : "Select an assistant to start chatting"
-                    : "Type your message..."
+                  isAssistantInactive
+                    ? "Assistant is deactivated"
+                    : !selectedAssistantId
+                      ? isSmallMobile
+                        ? "Select an assistant"
+                        : "Select an assistant to start chatting"
+                      : "Type your message..."
                 }
               />
 

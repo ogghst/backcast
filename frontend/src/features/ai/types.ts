@@ -177,6 +177,7 @@ export interface AIToolPublic {
   permissions: string[];
   category: string | null;
   version: string;
+  risk_level?: string | null;
 }
 
 /**

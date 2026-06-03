@@ -407,7 +407,21 @@ async def list_ai_tools() -> list[AIToolPublic]:
 
     tools = get_all_tools()
 
-    # Sort tools by category, then by name
-    sorted_tools = sorted(tools, key=lambda t: (t.category or "uncategorized", t.name))
+    # Convert domain tools to AIToolPublic
+    result: list[AIToolPublic] = [
+        AIToolPublic.model_validate(t.to_dict()) for t in tools
+    ]
 
-    return [AIToolPublic.model_validate(t.to_dict()) for t in sorted_tools]
+    # Append MCP tools discovered from configured external servers
+    from app.ai.mcp.client_manager import MCPClientManager
+
+    mcp_manager = MCPClientManager()
+    for mcp_tool in mcp_manager.get_all_tools():
+        meta = getattr(mcp_tool, "_tool_metadata", None)
+        if meta is not None:
+            result.append(AIToolPublic.model_validate(meta.to_dict()))
+
+    # Sort tools by category, then by name
+    result.sort(key=lambda t: (t.category or "uncategorized", t.name))
+
+    return result
