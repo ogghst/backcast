@@ -128,6 +128,11 @@ class AIAssistantConfig(SimpleEntityBase):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    presentation_prompt: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Text injected into planner/supervisor/handoff prompts to describe this specialist's capabilities. Specialist-only.",
+    )
     model_id: Mapped[str | None] = mapped_column(
         PG_UUID,
         ForeignKey("ai_models.id", ondelete="RESTRICT"),

@@ -125,6 +125,7 @@ def compile_subagents(
     for cfg in subagent_configs:
         name = cfg.get("name", "")
         description = cfg.get("description", "")
+        presentation_prompt = cfg.get("presentation_prompt", description)
         system_prompt = cfg.get("system_prompt", "")
         allowed_tool_names = cfg.get("allowed_tools")
         schema = cfg.get("structured_output_schema") or SpecialistOutput
@@ -210,6 +211,7 @@ def compile_subagents(
             {
                 "name": name,
                 "description": description,
+                "presentation_prompt": presentation_prompt,
                 "runnable": runnable,
                 "structured_output_schema": schema,
                 "tools": subagent_tools,

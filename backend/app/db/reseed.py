@@ -534,12 +534,19 @@ async def _seed_ai_assistant_configs(session: AsyncSession) -> None:
 async def _seed_mcp_servers(session: AsyncSession) -> None:
     """Seed MCP server configurations from JSON."""
     from app.models.domain.mcp_server import MCPServer
+    from app.services.mcp_server_service import MCPServerService
 
     data = _load_json("mcp_servers.json")
+    service = MCPServerService(session)
 
     with seed_operation():
         for server_data in data:
-            server = MCPServer(**server_data)
+            encrypted_config = service.encrypt_config(server_data["config"])
+            server = MCPServer(
+                name=server_data["name"],
+                config=encrypted_config,
+                is_active=server_data.get("is_active", True),
+            )
             session.add(server)
             await session.flush()
 
@@ -549,10 +556,7 @@ async def _seed_mcp_servers(session: AsyncSession) -> None:
 async def _seed_ai_specialist_configs(session: AsyncSession) -> None:
     """Seed AI specialist configs from JSON (idempotent by name).
 
-    All numeric parameters (temperature, max_tokens, recursion_limit) and
-    boolean flags (is_active) are managed via the UI/DB and should not have
-    env-var overrides.  Tool lists can be overridden via
-    ``AI_TOOLS_{SPECIALIST_NAME}`` -- see ``get_specialist_tools``.
+    All parameters are managed via the UI/DB or the seed JSON file.
     """
     from sqlalchemy import select as sql_select
 

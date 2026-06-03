@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.mcp.client_manager import MCPClientManager
 from app.api.dependencies.auth import RoleChecker
 from app.db.session import get_db
+from app.models.domain.mcp_server import MCPServer
 from app.models.schemas.mcp_server import (
     MCPServerCreate,
     MCPServerPublic,
@@ -33,6 +34,19 @@ def get_mcp_server_service(
     return MCPServerService(session)
 
 
+def _decrypt_and_public(service: MCPServerService, server: MCPServer) -> MCPServerPublic:
+    """Build a MCPServerPublic with decrypted config."""
+    decrypted = service.decrypt_config(server.config)
+    return MCPServerPublic(
+        id=server.id,
+        name=server.name,
+        config=decrypted,
+        is_active=server.is_active,
+        created_at=server.created_at,
+        updated_at=server.updated_at,
+    )
+
+
 @router.get(
     "",
     response_model=list[MCPServerPublic],
@@ -45,7 +59,7 @@ async def list_servers(
 ) -> list[MCPServerPublic]:
     """List all MCP server configurations."""
     servers = await service.list_servers(active_only=not include_inactive)
-    return [MCPServerPublic.model_validate(s) for s in servers]
+    return [_decrypt_and_public(service, s) for s in servers]
 
 
 @router.post(
@@ -64,7 +78,7 @@ async def create_server(
 
     # Notify MCP client manager to connect and discover tools (non-blocking)
     mcp_manager = MCPClientManager()
-    decrypted = await service.get_decrypted_config(server.id)
+    decrypted = service.decrypt_config(server.config)
     try:
         await mcp_manager.refresh_server(server.name, decrypted)
     except Exception:
@@ -72,7 +86,7 @@ async def create_server(
             "MCP server '%s' connection failed after create", server.name, exc_info=True
         )
 
-    return MCPServerPublic.model_validate(server)
+    return _decrypt_and_public(service, server)
 
 
 @router.put(
@@ -95,13 +109,15 @@ async def update_server(
     # Refresh MCP client manager if config or is_active was part of the update
     update_data = server_in.model_dump(exclude_unset=True)
     needs_remove = "is_active" in update_data and not server.is_active
-    needs_refresh = "config" in update_data or ("is_active" in update_data and server.is_active)
+    needs_refresh = "config" in update_data or (
+        "is_active" in update_data and server.is_active
+    )
     if needs_remove or needs_refresh:
         mcp_manager = MCPClientManager()
         if needs_remove:
             await mcp_manager.remove_server(server.name)
         if needs_refresh:
-            decrypted = await service.get_decrypted_config(server.id)
+            decrypted = service.decrypt_config(server.config)
             try:
                 await mcp_manager.refresh_server(server.name, decrypted)
             except Exception:
@@ -111,7 +127,7 @@ async def update_server(
                     exc_info=True,
                 )
 
-    return MCPServerPublic.model_validate(server)
+    return _decrypt_and_public(service, server)
 
 
 @router.delete(
@@ -149,10 +165,11 @@ async def test_server_connection(
 ) -> list[MCPToolInfo]:
     """Test connection to an MCP server and return discovered tools."""
     try:
-        decrypted = await service.get_decrypted_config(server_id)
+        server = await service.get_server(server_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
+    decrypted = service.decrypt_config(server.config)
     mcp_manager = MCPClientManager()
     tools = await mcp_manager.test_connection(decrypted)
     return [MCPToolInfo.model_validate(t) for t in tools]

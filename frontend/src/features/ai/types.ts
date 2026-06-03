@@ -85,6 +85,7 @@ export interface AIAssistantPublic {
   id: string;
   name: string;
   description: string | null;
+  presentation_prompt: string | null;
   model_id: string;
   system_prompt: string | null;
   planner_prompt: string | null;
@@ -105,6 +106,7 @@ export interface AIAssistantPublic {
 export interface AIAssistantCreate {
   name: string;
   description?: string | null;
+  presentation_prompt?: string | null;
   model_id: string;
   system_prompt?: string | null;
   planner_prompt?: string | null;
@@ -123,6 +125,7 @@ export interface AIAssistantCreate {
 export interface AIAssistantUpdate {
   name?: string;
   description?: string | null;
+  presentation_prompt?: string | null;
   model_id?: string;
   system_prompt?: string | null;
   planner_prompt?: string | null;

@@ -152,7 +152,7 @@ def create_all_handoff_tools(
     tools: list[BaseTool] = []
     for config in subagent_configs:
         name = config.get("name", "")
-        description = config.get("description", "")
+        description = config.get("presentation_prompt", config.get("description", ""))
         if not name:
             continue
         tools.append(

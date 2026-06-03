@@ -1,9 +1,11 @@
 import { useEffect } from "react";
-import { Alert, Checkbox, Modal, Form, Input, Radio, Select, Slider, Space, Switch, theme } from "antd";
+import { Modal, Form } from "antd";
 import type { AIAssistantPublic, AIAssistantCreate, AIAssistantUpdate } from "../types";
-import { AI_ROLE_OPTIONS } from "../types";
-import { CollapsibleCard } from "@/components/common/CollapsibleCard";
-import { ToolSelectorPanel } from "./ToolSelectorPanel";
+import { GeneralSection } from "./modal/GeneralSection";
+import { ConfigurationSection } from "./modal/ConfigurationSection";
+import { PlanningStrategySection } from "./modal/PlanningStrategySection";
+import { ToolsOutputSection } from "./modal/ToolsOutputSection";
+import { DelegationSection } from "./modal/DelegationSection";
 
 interface AIAssistantModalProps {
   open: boolean;
@@ -25,7 +27,6 @@ export const AIAssistantModal = ({
   specialists = [],
 }: AIAssistantModalProps) => {
   const [form] = Form.useForm();
-  const { token } = theme.useToken();
   const isEdit = !!initialValues;
   const agentType = Form.useWatch("agent_type", form) ?? initialValues?.agent_type ?? "specialist";
 
@@ -35,6 +36,7 @@ export const AIAssistantModal = ({
         const baseValues = {
           name: initialValues.name,
           description: initialValues.description,
+          presentation_prompt: initialValues.presentation_prompt,
           system_prompt: initialValues.system_prompt,
           planner_prompt: initialValues.planner_prompt,
           supervisor_prompt: initialValues.supervisor_prompt,
@@ -100,292 +102,11 @@ export const AIAssistantModal = ({
       width={800}
     >
       <Form form={form} layout="vertical" name="ai_assistant_form">
-        {/* Section 1: General */}
-        <CollapsibleCard
-          id="assistant-general"
-          collapsed={false}
-          title={
-            <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
-              General
-            </span>
-          }
-          style={{
-            marginBottom: token.marginSM,
-            borderRadius: token.borderRadiusLG,
-            border: `1px solid ${token.colorBorder}`,
-          }}
-        >
-          <div style={{ padding: token.paddingMD }}>
-            <Form.Item
-              name="name"
-              label="Name"
-              rules={[
-                { required: true, message: "Please enter a name" },
-                { max: 255, message: "Name must be 255 characters or less" },
-              ]}
-            >
-              <Input placeholder="My AI Assistant" />
-            </Form.Item>
-
-            <Form.Item
-              name="description"
-              label="Description"
-              rules={[{ max: 2000, message: "Description must be 2000 characters or less" }]}
-            >
-              <Input.TextArea rows={2} placeholder="What does this assistant do?" />
-            </Form.Item>
-
-            <Form.Item
-              name="agent_type"
-              label="Agent Type"
-              initialValue="specialist"
-              tooltip="Main agents orchestrate specialist agents. Specialist agents focus on specific tasks."
-              rules={[{ required: true, message: "Please select an agent type" }]}
-            >
-              <Radio.Group disabled={isEdit}>
-                <Radio value="main">Main Agent</Radio>
-                <Radio value="specialist">Specialist Agent</Radio>
-              </Radio.Group>
-            </Form.Item>
-
-            {isEdit && (
-              <Form.Item name="is_active" label="Active" valuePropName="checked">
-                <Switch />
-              </Form.Item>
-            )}
-          </div>
-        </CollapsibleCard>
-
-        {/* Section 2: Configuration */}
-        <CollapsibleCard
-          id="assistant-config"
-          collapsed={false}
-          title={
-            <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
-              Configuration
-            </span>
-          }
-          style={{
-            marginBottom: token.marginSM,
-            borderRadius: token.borderRadiusLG,
-            border: `1px solid ${token.colorBorder}`,
-          }}
-        >
-          <div style={{ padding: token.paddingMD }}>
-            <Form.Item
-              name="system_prompt"
-              label="System Prompt"
-              rules={[{ max: 10000, message: "System prompt must be 10000 characters or less" }]}
-            >
-              <Input.TextArea rows={4} placeholder="You are a helpful assistant..." />
-            </Form.Item>
-
-            <Form.Item
-              name="default_role"
-              label="Role"
-              tooltip="The RBAC role determines which tools this assistant can use"
-              rules={[{ required: true, message: "Please select a role" }]}
-            >
-              <Select placeholder="Select a role" allowClear>
-                {AI_ROLE_OPTIONS.map((role) => (
-                  <Select.Option key={role.value} value={role.value}>
-                    <div>
-                      <strong>{role.label}</strong>
-                      <div style={{ fontSize: token.fontSizeSM, color: token.colorTextTertiary }}>
-                        {role.description}
-                      </div>
-                    </div>
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-
-            {agentType === "main" && (
-              <>
-                <Form.Item
-                  name="model_id"
-                  label="Model"
-                  rules={[{ required: true, message: "Please select a model" }]}
-                >
-                  <Select placeholder="Select a model">
-                    {models.map((model) => (
-                      <Select.Option key={model.id} value={model.id}>
-                        {model.display_name} {model.provider_name ? `(${model.provider_name})` : ""}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-
-                <Form.Item
-                  name="temperature"
-                  label="Temperature"
-                  initialValue={0.7}
-                  rules={[{ type: "number", min: 0, max: 2, message: "Temperature must be between 0 and 2" }]}
-                >
-                  <Slider min={0} max={2} step={0.1} marks={{ 0: "Precise", 1: "Balanced", 2: "Creative" }} />
-                </Form.Item>
-
-                <Form.Item
-                  name="max_tokens"
-                  label="Max Tokens"
-                  initialValue={2048}
-                  rules={[{ type: "number", min: 1, max: 200000, message: "Max tokens must be between 1 and 200000" }]}
-                >
-                  <Slider min={1} max={200000} step={100} marks={{ 1: "1", 100000: "100K", 200000: "200K" }} />
-                </Form.Item>
-
-                <Form.Item
-                  name="recursion_limit"
-                  label="Recursion Limit"
-                  initialValue={25}
-                  tooltip="Maximum number of agent iterations (LangGraph default is 25)"
-                  rules={[{ type: "number", min: 1, max: 100, message: "Recursion limit must be between 1 and 100" }]}
-                >
-                  <Slider min={1} max={100} step={5} marks={{ 1: "1", 25: "25 (default)", 50: "50", 100: "100" }} />
-                </Form.Item>
-              </>
-            )}
-          </div>
-        </CollapsibleCard>
-
-        {/* Section 3: Planning Strategy (main only) */}
-        {agentType === "main" && (
-          <CollapsibleCard
-            id="assistant-planning"
-            collapsed={true}
-            title={
-              <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
-                Planning Strategy
-              </span>
-            }
-            style={{
-              marginBottom: token.marginSM,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorder}`,
-            }}
-          >
-            <div style={{ padding: token.paddingMD }}>
-              <Alert
-                message="Advanced"
-                description="Customize how the AI plans and decomposes requests into specialist tasks. Leave blank to use the default planner. The {specialist_section} placeholder is replaced with the dynamic specialist list."
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
-              <Form.Item
-                name="planner_prompt"
-                label="Planner Prompt"
-                tooltip="Controls how the AI decomposes user requests into specialist tasks. Include {specialist_section} for the dynamic specialist list."
-                rules={[{ max: 10000, message: "Planner prompt must be 10000 characters or less" }]}
-              >
-                <Input.TextArea
-                  rows={8}
-                  placeholder="Leave blank to use the default planner strategy..."
-                />
-              </Form.Item>
-              <Form.Item
-                name="supervisor_prompt"
-                label="Supervisor Prompt"
-                tooltip="Controls how the supervisor agent coordinates specialist delegation. Include {specialist_section} for the dynamic specialist list. Leave blank to use the system prompt or default."
-                rules={[{ max: 10000, message: "Supervisor prompt must be 10000 characters or less" }]}
-              >
-                <Input.TextArea
-                  rows={8}
-                  placeholder="Leave blank to use the system prompt or default supervisor..."
-                />
-              </Form.Item>
-            </div>
-          </CollapsibleCard>
-        )}
-
-        {/* Section 4a: Tools & Output (specialist only) */}
-        {agentType === "specialist" && (
-          <CollapsibleCard
-            id="assistant-tools"
-            collapsed={true}
-            title={
-              <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
-                Tools &amp; Output
-              </span>
-            }
-            style={{
-              marginBottom: token.marginSM,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorder}`,
-            }}
-          >
-            <div style={{ padding: token.paddingMD }}>
-              <Form.Item
-                name="allowed_tools"
-                label="Allowed Tools"
-                tooltip="Tools this specialist can use directly. Leave empty for all tools."
-              >
-                <ToolSelectorPanel />
-              </Form.Item>
-              <Form.Item
-                name="structured_output_schema"
-                label="Structured Output Schema"
-                tooltip="Fully qualified class name of a Pydantic model (e.g. app.models.schemas.evm.EVMMetricsRead)"
-                rules={[{ max: 100, message: "Schema must be 100 characters or less" }]}
-              >
-                <Input placeholder="app.models.schemas.evm.EVMMetricsRead" />
-              </Form.Item>
-            </div>
-          </CollapsibleCard>
-        )}
-
-        {/* Section 4b: Delegation (main only) */}
-        {agentType === "main" && (
-          <CollapsibleCard
-            id="assistant-delegation"
-            collapsed={true}
-            title={
-              <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
-                Delegation
-              </span>
-            }
-            style={{
-              marginBottom: token.marginSM,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorder}`,
-            }}
-          >
-            <div style={{ padding: token.paddingMD }}>
-              <Form.Item
-                name={["delegation_config", "direct_tools"]}
-                label="Direct Tools"
-                tooltip="Tools the main agent can use directly without delegating to specialists"
-              >
-                <ToolSelectorPanel />
-              </Form.Item>
-              <Form.Item
-                name={["delegation_config", "allowed_specialists"]}
-                label="Allowed Specialists"
-                tooltip="Specialists this main agent can delegate to. Leave empty for all specialists."
-              >
-                <Checkbox.Group
-                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                >
-                  {specialists
-                    .filter(s => s.is_active)
-                    .map(s => (
-                      <Checkbox key={s.name} value={s.name}>
-                        <Space>
-                          <span>{s.name}</span>
-                          {s.description && (
-                            <span style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }}>
-                              — {s.description}
-                            </span>
-                          )}
-                        </Space>
-                      </Checkbox>
-                    ))}
-                </Checkbox.Group>
-              </Form.Item>
-            </div>
-          </CollapsibleCard>
-        )}
-
+        <GeneralSection isEdit={isEdit} />
+        <ConfigurationSection agentType={agentType} models={models} />
+        {agentType === "main" && <PlanningStrategySection />}
+        {agentType === "specialist" && <ToolsOutputSection />}
+        {agentType === "main" && <DelegationSection specialists={specialists} />}
       </Form>
     </Modal>
   );

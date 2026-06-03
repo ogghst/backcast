@@ -48,7 +48,6 @@ from app.ai.subagent_compiler import (
     compile_subagents,
     filter_tools_for_context,
 )
-from app.ai.subagents import get_all_subagents
 from app.ai.subagents.db_loader import load_specialists_from_db
 from app.ai.supervisor_state import BackcastSupervisorState
 from app.ai.tools.briefing_tools import set_briefing
@@ -112,9 +111,8 @@ def _build_supervisor_specialist_section(
     lines = ["\n\n## Available Specialists"]
     for sg in specialist_graphs:
         name = sg.get("name", "")
-        desc = sg.get("description", "")
-        short_desc = desc.split(".")[0] if desc else name
-        lines.append(f"- {name} -> {short_desc}")
+        desc = sg.get("presentation_prompt", sg.get("description", ""))
+        lines.append(f"- {name} -> {desc}")
     return "\n".join(lines)
 
 
@@ -259,15 +257,11 @@ class SupervisorOrchestrator:
         else:
             try:
                 subagent_configs = await load_specialists_from_db()
-                if not subagent_configs:
-                    logger.info("[SUPERVISOR] No DB specialists found, using hardcoded")
-                    subagent_configs = get_all_subagents()
             except Exception as exc:
-                logger.warning(
-                    "[SUPERVISOR] DB specialist loading failed, using hardcoded: %s",
-                    exc,
+                logger.error(
+                    "[SUPERVISOR] DB specialist loading failed: %s", exc
                 )
-                subagent_configs = get_all_subagents()
+                subagent_configs = []
 
         # Filter specialists by delegation config
         if self.main_assistant_config and self.main_assistant_config.delegation_config:
@@ -396,7 +390,7 @@ class SupervisorOrchestrator:
 
         # --- 6b. Build the planner node ---
         specialist_catalog = [
-            {"name": sg["name"], "description": sg["description"]}
+            {"name": sg["name"], "description": sg.get("presentation_prompt", sg.get("description", ""))}
             for sg in specialist_graphs
         ]
 

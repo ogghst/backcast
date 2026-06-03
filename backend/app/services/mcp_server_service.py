@@ -1,11 +1,11 @@
 """MCP Server Configuration Service.
 
 CRUD operations for MCP server configurations with Fernet encryption
-for sensitive values stored within the config JSONB column.
+for the entire config blob stored in the config TEXT column.
 """
 
 import base64
-import copy
+import json
 import logging
 from typing import Any
 from uuid import UUID
@@ -24,13 +24,10 @@ logger = logging.getLogger(__name__)
 class MCPServerService:
     """Service for managing MCP server configurations.
 
-    Encrypts sensitive values (API keys, tokens, passwords) inside the
-    config JSONB column before persisting.  Returned MCPServer objects
-    always contain encrypted config; use ``get_decrypted_config`` to
-    retrieve the plaintext version.
+    Encrypts the entire config dict as a single Fernet-encrypted blob
+    before persisting.  Returned MCPServer objects always contain the
+    encrypted blob; use ``decrypt_config`` to retrieve the plaintext dict.
     """
-
-    SENSITIVE_KEYS = {"api_key", "authorization", "token", "secret", "password"}
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -46,55 +43,21 @@ class MCPServerService:
             self._fernet = Fernet(key)
         return self._fernet
 
-    def _encrypt_value(self, value: str) -> str:
-        """Encrypt a sensitive value."""
-        return self._get_fernet().encrypt(value.encode()).decode()
+    def encrypt_config(self, config: dict[str, Any]) -> str:
+        """Encrypt a full config dict into a Fernet blob."""
+        plaintext = json.dumps(config)
+        return self._get_fernet().encrypt(plaintext.encode()).decode()
 
-    def _decrypt_value(self, encrypted_value: str) -> str:
-        """Decrypt a sensitive value."""
+    def decrypt_config(self, config: str) -> dict[str, Any]:
+        """Decrypt a Fernet blob back into a config dict."""
         try:
-            return self._get_fernet().decrypt(encrypted_value.encode()).decode()
+            plaintext = self._get_fernet().decrypt(config.encode()).decode()
+            return json.loads(plaintext)
         except InvalidToken as e:
             raise ValueError(
-                "MCP server config value cannot be decrypted -- it was encrypted "
+                "MCP server config cannot be decrypted -- it was encrypted "
                 "with a different SECRET_KEY. Re-enter the configuration."
             ) from e
-
-    def _is_sensitive_key(self, key: str) -> bool:
-        """Check whether a dict key refers to a sensitive value."""
-        return any(s in key.lower() for s in self.SENSITIVE_KEYS)
-
-    def _encrypt_config(self, config: dict[str, Any]) -> dict[str, Any]:
-        """Encrypt sensitive values within a config dict (deep copy).
-
-        Scans ``env`` and ``headers`` sub-dicts for keys matching
-        :attr:`SENSITIVE_KEYS` and encrypts their values in-place.
-        """
-        encrypted = copy.deepcopy(config)
-
-        for section in ("env", "headers"):
-            section_dict = encrypted.get(section)
-            if not section_dict or not isinstance(section_dict, dict):
-                continue
-            for key, value in section_dict.items():
-                if self._is_sensitive_key(key) and isinstance(value, str):
-                    section_dict[key] = self._encrypt_value(value)
-
-        return encrypted
-
-    def _decrypt_config(self, config: dict[str, Any]) -> dict[str, Any]:
-        """Decrypt sensitive values within a config dict (deep copy)."""
-        decrypted = copy.deepcopy(config)
-
-        for section in ("env", "headers"):
-            section_dict = decrypted.get(section)
-            if not section_dict or not isinstance(section_dict, dict):
-                continue
-            for key, value in section_dict.items():
-                if self._is_sensitive_key(key) and isinstance(value, str):
-                    section_dict[key] = self._decrypt_value(value)
-
-        return decrypted
 
     # ── CRUD Operations ─────────────────────────────────────────────
 
@@ -105,7 +68,7 @@ class MCPServerService:
             active_only: When True, return only servers where is_active is True.
 
         Returns:
-            List of MCPServer objects (config contains encrypted values).
+            List of MCPServer objects (config contains encrypted blob).
         """
         stmt = select(MCPServer).order_by(MCPServer.name)
         if active_only:
@@ -129,10 +92,9 @@ class MCPServerService:
     async def create_server(self, data: MCPServerCreate) -> MCPServer:
         """Create a new MCP server configuration.
 
-        Sensitive values inside ``config.env`` and ``config.headers`` are
-        encrypted before persisting.
+        The entire config dict is encrypted before persisting.
         """
-        encrypted_config = self._encrypt_config(data.config)
+        encrypted_config = self.encrypt_config(data.config)
 
         server = MCPServer(
             name=data.name,
@@ -151,7 +113,7 @@ class MCPServerService:
         """Update an MCP server configuration.
 
         Only fields explicitly present in the request are modified.
-        When ``config`` is provided, sensitive values are encrypted before
+        When ``config`` is provided, the entire dict is encrypted before
         persisting.
         """
         server = await self.session.get(MCPServer, server_id)
@@ -162,7 +124,7 @@ class MCPServerService:
 
         # Encrypt config if it is being updated
         if "config" in update_data and update_data["config"] is not None:
-            update_data["config"] = self._encrypt_config(update_data["config"])
+            update_data["config"] = self.encrypt_config(update_data["config"])
 
         for key, value in update_data.items():
             setattr(server, key, value)
@@ -182,12 +144,3 @@ class MCPServerService:
         """
         server = await self.get_server(server_id)
         await self.session.delete(server)
-
-    async def get_decrypted_config(self, server_id: UUID) -> dict[str, Any]:
-        """Return the fully decrypted config dict for a server.
-
-        This is the method callers should use when they need the actual
-        connection parameters (e.g. to initialise an MCP client).
-        """
-        server = await self.get_server(server_id)
-        return self._decrypt_config(server.config)

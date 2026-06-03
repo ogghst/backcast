@@ -53,6 +53,7 @@ def assistant_config_to_specialist_dict(
     return {
         "name": config.name,
         "description": config.description or "",
+        "presentation_prompt": config.presentation_prompt or config.description or "",
         "system_prompt": config.system_prompt or "",
         "allowed_tools": config.allowed_tools,
         "structured_output_schema": _resolve_schema(config.structured_output_schema),

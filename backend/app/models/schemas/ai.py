@@ -184,6 +184,11 @@ class AIAssistantConfigBase(BaseModel):
 
     name: str = Field(..., max_length=255)
     description: str | None = Field(None, max_length=2000)
+    presentation_prompt: str | None = Field(
+        None,
+        max_length=5000,
+        description="Text shown to planner/supervisor agents to describe this specialist's capabilities. Falls back to description if not set. Specialist-only.",
+    )
     model_id: UUID | None = Field(
         None,
         description="Model to use. Required for main agents; specialists inherit from the main agent.",
@@ -249,6 +254,7 @@ class AIAssistantConfigUpdate(BaseModel):
 
     name: str | None = Field(None, max_length=255)
     description: str | None = Field(None, max_length=2000)
+    presentation_prompt: str | None = Field(None, max_length=5000)
     system_prompt: str | None = Field(None, max_length=10000)
     planner_prompt: str | None = Field(
         None,

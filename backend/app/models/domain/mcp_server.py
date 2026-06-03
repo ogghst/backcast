@@ -5,8 +5,7 @@ provide external tools to AI agents. Satisfies SimpleEntityProtocol
 via SimpleEntityBase.
 """
 
-from sqlalchemy import Boolean, String
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Boolean, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base.base import SimpleEntityBase
@@ -21,15 +20,14 @@ class MCPServer(SimpleEntityBase):
     Attributes:
         id: UUID primary key.
         name: Human-readable server name (unique).
-        config: JSONB with server connection parameters (transport,
-                URL, headers, etc.).
+        config: Encrypted blob (TEXT) containing the full JSON config.
         is_active: Whether this server is currently enabled.
     """
 
     __tablename__ = "mcp_servers"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
-    config: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    config: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
