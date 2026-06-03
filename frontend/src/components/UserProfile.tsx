@@ -21,6 +21,7 @@ import {
   SafetyOutlined,
   CloudServerOutlined,
   ControlOutlined,
+  DatabaseOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -140,6 +141,15 @@ export const UserProfile: React.FC = () => {
         icon: <ControlOutlined />,
         label: "Change Order Config",
         onClick: () => navigate("/admin/change-order-config"),
+      });
+    }
+
+    if (can("system-dump-reseed")) {
+      adminItems.push({
+        key: "/admin/system",
+        icon: <DatabaseOutlined />,
+        label: "System Admin",
+        onClick: () => navigate("/admin/system"),
       });
     }
 

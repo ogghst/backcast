@@ -42,6 +42,7 @@ from app.api.routes import (
     rbac_admin,
     schedule_baselines,
     search,
+    system_admin,
     user_role_assignments,
     users,
     wbs_elements,
@@ -512,6 +513,11 @@ app.include_router(
     user_role_assignments.router,
     prefix=f"{settings.API_V1_STR}/role-assignments",
     tags=["Role Assignments"],
+)
+app.include_router(
+    system_admin.router,
+    prefix=f"{settings.API_V1_STR}/admin/system",
+    tags=["System Admin"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)

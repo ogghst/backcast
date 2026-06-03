@@ -1,6 +1,6 @@
 """Database reseed CLI script.
 
-Truncates all data tables and re-seeds from JSON seed files.
+Truncates all data tables and re-seeds from the unified seed_data.json file.
 
 Usage:
     python -m app.db.reseed          # With confirmation prompt
@@ -26,6 +26,7 @@ from app.db.session import async_session_maker, engine
 logger = logging.getLogger(__name__)
 
 SEED_DIR = Path(__file__).resolve().parent.parent.parent / "seed"
+SEED_FILE = SEED_DIR / "seed_data.json"
 
 # Tables to truncate in reverse dependency order (dependents first).
 # CASCADE handles FK constraints; RESTART IDENTITY resets sequences.
@@ -93,10 +94,9 @@ async def truncate_all_tables() -> None:
     logger.info("Truncated %d tables", len(TABLES_TO_TRUNCATE))
 
 
-def _load_json(filename: str) -> Any:
-    """Load a JSON file from the seed directory."""
-    path = SEED_DIR / filename
-    with open(path) as f:
+def _load_seed_data() -> dict[str, Any]:
+    """Load the unified seed_data.json file."""
+    with open(SEED_FILE) as f:
         return json.load(f)
 
 
@@ -108,11 +108,170 @@ def _parse_datetimes(data: dict[str, Any], fields: list[str]) -> dict[str, Any]:
     return data
 
 
-async def _seed_organizational_units(session: AsyncSession) -> None:
-    """Seed organizational units from JSON."""
+# ---------------------------------------------------------------------------
+# CO Workflow config seeding via direct SQL (matching seed_database.py pattern)
+# ---------------------------------------------------------------------------
+
+# Column type sets for type coercion during SQL insertion
+_DATETIME_COLS: set[str] = {
+    "changed_at",
+    "control_date",
+    "created_at",
+    "updated_at",
+    "effective_date",
+    "event_date",
+    "registration_date",
+    "sla_assigned_at",
+    "sla_due_date",
+    "start_date",
+    "end_date",
+    "approved_date",
+}
+_DECIMAL_COLS: set[str] = {
+    "amount",
+    "contract_value",
+    "estimated_impact",
+    "escalation_trigger_pct",
+    "impact_score",
+    "progress_percentage",
+    "quantity",
+    "revenue_allocation",
+    "score_threshold_max",
+    "score_threshold_min",
+    "threshold_amount",
+    "budget_amount",
+    "eac_amount",
+}
+_BOOL_COLS: set[str] = {
+    "is_active",
+    "is_encrypted",
+    "is_quality",
+}
+_INT_COLS: set[str] = {
+    "business_days",
+    "level_order",
+    "max_tokens",
+    "recursion_limit",
+    "schedule_impact_days",
+    "version",
+}
+_UUID_COLS: set[str] = {
+    "approver_role",  # not UUID, but string
+}
+_JSONB_COLS: set[str] = {
+    "impact_weights",
+    "score_boundaries",
+    "workflow_transitions",
+    "custom_fields",
+    "custom_field_values",
+    "config_snapshot",
+    "impact_analysis_results",
+    "delegation_config",
+}
+
+
+def _coerce_value(col: str, value: Any) -> Any:
+    """Coerce a JSON value to the correct Python type for SQL insertion."""
+    if value is None:
+        return None
+    if col in _DATETIME_COLS and isinstance(value, str):
+        return datetime.fromisoformat(value)
+    if col in _DECIMAL_COLS and isinstance(value, str):
+        from decimal import Decimal
+
+        return Decimal(value)
+    if col in _BOOL_COLS and isinstance(value, str):
+        return value.lower() in ("true", "1", "yes")
+    if col in _INT_COLS and isinstance(value, str):
+        return int(value)
+    return value
+
+
+async def _seed_change_order_workflow(
+    session: AsyncSession, workflow_data: dict[str, Any]
+) -> None:
+    """Seed change order workflow config using direct SQL insertion."""
+    from app.models.domain.change_order_config import (
+        ChangeOrderApprovalRuleConfig,
+        ChangeOrderImpactLevelConfig,
+        ChangeOrderSLARuleConfig,
+        ChangeOrderWorkflowConfig,
+    )
+
+    config_data = workflow_data["config"]
+
+    # Seed main config
+    config = ChangeOrderWorkflowConfig(
+        id=UUID(config_data["id"]),
+        config_id=UUID(config_data["config_id"]),
+        project_id=UUID(config_data["project_id"])
+        if config_data.get("project_id")
+        else None,
+        is_active=config_data["is_active"],
+        version=config_data.get("version", 1),
+        created_by=UUID(config_data["created_by"]),
+        updated_by=UUID(config_data["updated_by"])
+        if config_data.get("updated_by")
+        else None,
+        impact_weights=config_data["impact_weights"],
+        score_boundaries=config_data["score_boundaries"],
+        workflow_transitions=config_data.get("workflow_transitions"),
+        holiday_country_code=config_data.get("holiday_country_code"),
+        custom_fields=config_data.get("custom_fields"),
+    )
+    session.add(config)
+
+    # Seed impact levels
+    for level_data in workflow_data.get("impact_levels", []):
+        level = ChangeOrderImpactLevelConfig(
+            id=UUID(level_data["id"]),
+            config_id=UUID(level_data["config_id"]),
+            level_name=level_data["level_name"],
+            level_order=level_data["level_order"],
+            threshold_amount=level_data["threshold_amount"],
+            score_threshold_min=level_data["score_threshold_min"],
+            score_threshold_max=level_data["score_threshold_max"],
+            is_active=level_data.get("is_active", True),
+        )
+        session.add(level)
+
+    # Seed approval rules
+    for rule_data in workflow_data.get("approval_rules", []):
+        rule = ChangeOrderApprovalRuleConfig(
+            id=UUID(rule_data["id"]),
+            config_id=UUID(rule_data["config_id"]),
+            impact_level_name=rule_data["impact_level_name"],
+            required_authority_level=rule_data["required_authority_level"],
+            approver_role=rule_data["approver_role"],
+        )
+        session.add(rule)
+
+    # Seed SLA rules
+    for sla_data in workflow_data.get("sla_rules", []):
+        sla = ChangeOrderSLARuleConfig(
+            id=UUID(sla_data["id"]),
+            config_id=UUID(sla_data["config_id"]),
+            impact_level_name=sla_data["impact_level_name"],
+            business_days=sla_data["business_days"],
+            escalation_trigger_pct=sla_data.get("escalation_trigger_pct"),
+        )
+        session.add(sla)
+
+    await session.flush()
+    logger.info("Seeded change order workflow config")
+
+
+# ---------------------------------------------------------------------------
+# Individual seed functions (accept data parameter)
+# ---------------------------------------------------------------------------
+
+
+async def _seed_organizational_units(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed organizational units from data list."""
     from app.services.organizational_unit_service import OrganizationalUnitService
 
-    data = _load_json("organizational_units.json")
     service = OrganizationalUnitService(session)
 
     for unit_data in data:
@@ -128,6 +287,9 @@ async def _seed_organizational_units(session: AsyncSession) -> None:
         manager_id = unit_data.pop("manager_id", None)
         if manager_id is not None:
             unit_data["manager_id"] = UUID(manager_id)
+        # Remove fields not accepted by create_root
+        unit_data.pop("branch", None)
+        unit_data.pop("id", None)
 
         await service.create_root(
             root_id=root_id,
@@ -138,12 +300,13 @@ async def _seed_organizational_units(session: AsyncSession) -> None:
     logger.info("Seeded %d organizational units", len(data))
 
 
-async def _seed_cost_element_types(session: AsyncSession) -> None:
-    """Seed cost element types from JSON."""
+async def _seed_cost_element_types(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed cost element types from data list."""
     from app.models.schemas.cost_element_type import CostElementTypeCreate
     from app.services.cost_element_type_service import CostElementTypeService
 
-    data = _load_json("cost_element_types.json")
     service = CostElementTypeService(session)
 
     for type_data in data:
@@ -153,12 +316,13 @@ async def _seed_cost_element_types(session: AsyncSession) -> None:
     logger.info("Seeded %d cost element types", len(data))
 
 
-async def _seed_cost_event_types(session: AsyncSession) -> None:
-    """Seed cost event types from JSON."""
+async def _seed_cost_event_types(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed cost event types from data list."""
     from app.models.schemas.cost_event_type import CostEventTypeCreate
     from app.services.cost_event_type_service import CostEventTypeService
 
-    data = _load_json("cost_event_types.json")
     service = CostEventTypeService(session)
 
     for type_data in data:
@@ -168,8 +332,8 @@ async def _seed_cost_event_types(session: AsyncSession) -> None:
     logger.info("Seeded %d cost event types", len(data))
 
 
-async def _seed_demo_project(session: AsyncSession) -> None:
-    """Seed the full demo project from JSON, respecting dependency order."""
+async def _seed_demo_project(session: AsyncSession, demo: dict[str, Any]) -> None:
+    """Seed the full demo project from data dict, respecting dependency order."""
     from app.models.schemas.cost_element import CostElementCreate
     from app.models.schemas.cost_event import CostEventCreate
     from app.models.schemas.cost_registration import CostRegistrationCreate
@@ -187,13 +351,10 @@ async def _seed_demo_project(session: AsyncSession) -> None:
     from app.services.wbs_element_service import WBSElementService
     from app.services.work_package_service import WorkPackageService
 
-    demo = _load_json("demo_project.json")
     actor_id = UUID(demo["_created_by"])
     dependency_order = demo["_dependency_order"]
 
     # Pre-extract WP-to-SB and WP-to-FC mappings before dicts get mutated.
-    # Work packages have schedule_baseline_id and forecast_id that are set
-    # via UpdateCommand after creation (not through the Create schema).
     wp_sb_map: dict[str, str | None] = {}
     wp_fc_map: dict[str, str | None] = {}
     wp_branch_map: dict[str, str] = {}
@@ -233,8 +394,6 @@ async def _seed_demo_project(session: AsyncSession) -> None:
             item.pop("deleted_at", None)
             item.pop("deleted_by", None)
             branch = item.pop("branch", "main")
-            # Use create_root directly to bypass revenue allocation validation
-            # (seed data intentionally has allocations on parent + child WBS)
             await service.create_root(
                 root_id=root_id,
                 actor_id=UUID(created_by),
@@ -271,16 +430,12 @@ async def _seed_demo_project(session: AsyncSession) -> None:
         service = WorkPackageService(session)
         count = 0
         for item in items:
-            # Remove fields not in WorkPackageCreate schema
             item.pop("id", None)
             created_by = item.pop("created_by")
             item.pop("parent_id", None)
             item.pop("merge_from_branch", None)
             item.pop("deleted_at", None)
             item.pop("deleted_by", None)
-            # schedule_baseline_id and forecast_id are not in WorkPackageCreate;
-            # they are linked after creation by schedule_baseline/forecast seeders.
-            # Store them in the dict before popping so linkers can find them.
             item.pop("schedule_baseline_id", None)
             item.pop("forecast_id", None)
             schema = WorkPackageCreate(**item)
@@ -332,7 +487,7 @@ async def _seed_demo_project(session: AsyncSession) -> None:
         linked = 0
         for wp_id_str, sb_id_str in wp_sb_map.items():
             if sb_id_str is not None:
-                cmd = UpdateCommand(  # type: ignore[type-var]
+                cmd = UpdateCommand(
                     entity_class=WorkPackage,
                     root_id=UUID(wp_id_str),
                     actor_id=actor_id,
@@ -367,7 +522,7 @@ async def _seed_demo_project(session: AsyncSession) -> None:
         linked = 0
         for wp_id_str, fc_id_str in wp_fc_map.items():
             if fc_id_str is not None:
-                cmd = UpdateCommand(  # type: ignore[type-var]
+                cmd = UpdateCommand(
                     entity_class=WorkPackage,
                     root_id=UUID(wp_id_str),
                     actor_id=actor_id,
@@ -391,7 +546,6 @@ async def _seed_demo_project(session: AsyncSession) -> None:
             created_by = item.pop("created_by")
             item.pop("deleted_at", None)
             item.pop("deleted_by", None)
-            # Convert progress_percentage from string to Decimal
             if "progress_percentage" in item and isinstance(
                 item["progress_percentage"], str
             ):
@@ -433,6 +587,42 @@ async def _seed_demo_project(session: AsyncSession) -> None:
             count += 1
         logger.info("Seeded %d cost registrations", count)
 
+    async def seed_change_orders() -> None:
+        items = demo.get("change_orders", [])
+        if not items:
+            return
+        from app.models.domain.change_order import ChangeOrder
+
+        count = 0
+        for item in items:
+            item.pop("id", None)
+            co_id = item["change_order_id"]
+            co = ChangeOrder(
+                id=UUID(co_id),
+                **{k: _coerce_value(k, v) for k, v in item.items()},
+            )
+            session.add(co)
+            count += 1
+        await session.flush()
+        logger.info("Seeded %d change orders", count)
+
+    async def seed_change_order_audit_logs() -> None:
+        items = demo.get("change_order_audit_logs", [])
+        if not items:
+            return
+        from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
+
+        count = 0
+        for item in items:
+            alog = ChangeOrderAuditLog(
+                id=UUID(item.pop("id")),
+                **{k: _coerce_value(k, v) for k, v in item.items()},
+            )
+            session.add(alog)
+            count += 1
+        await session.flush()
+        logger.info("Seeded %d change order audit logs", count)
+
     seed_map = {
         "project": seed_project,
         "wbs_elements": seed_wbs_elements,
@@ -444,6 +634,8 @@ async def _seed_demo_project(session: AsyncSession) -> None:
         "progress_entries": seed_progress_entries,
         "cost_events": seed_cost_events,
         "cost_registrations": seed_cost_registrations,
+        "change_orders": seed_change_orders,
+        "change_order_audit_logs": seed_change_order_audit_logs,
     }
 
     # Seed in dependency order
@@ -456,11 +648,9 @@ async def _seed_demo_project(session: AsyncSession) -> None:
         await seed_fn()
 
 
-async def _seed_ai_providers(session: AsyncSession) -> None:
-    """Seed AI providers, their configs, and models from JSON."""
+async def _seed_ai_providers(session: AsyncSession, data: list[dict[str, Any]]) -> None:
+    """Seed AI providers, their configs, and models from data list."""
     from app.models.domain.ai import AIModel, AIProvider, AIProviderConfig
-
-    data = _load_json("ai_providers.json")
 
     with seed_operation():
         provider_count = 0
@@ -507,16 +697,11 @@ async def _seed_ai_providers(session: AsyncSession) -> None:
     )
 
 
-async def _seed_ai_assistant_configs(session: AsyncSession) -> None:
-    """Seed AI assistant configs (main agents) from JSON.
-
-    All numeric parameters (temperature, max_tokens, recursion_limit) and
-    boolean flags (is_active) are managed via the UI/DB and should not have
-    env-var overrides.
-    """
+async def _seed_ai_assistant_configs(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed AI assistant configs (main agents) from data list."""
     from app.models.domain.ai import AIAssistantConfig
-
-    data = _load_json("ai_assistant_configs.json")
 
     with seed_operation():
         for assistant_data in data:
@@ -531,12 +716,11 @@ async def _seed_ai_assistant_configs(session: AsyncSession) -> None:
     logger.info("Seeded %d AI assistant configs", len(data))
 
 
-async def _seed_mcp_servers(session: AsyncSession) -> None:
-    """Seed MCP server configurations from JSON."""
+async def _seed_mcp_servers(session: AsyncSession, data: list[dict[str, Any]]) -> None:
+    """Seed MCP server configurations from data list."""
     from app.models.domain.mcp_server import MCPServer
     from app.services.mcp_server_service import MCPServerService
 
-    data = _load_json("mcp_servers.json")
     service = MCPServerService(session)
 
     with seed_operation():
@@ -553,16 +737,13 @@ async def _seed_mcp_servers(session: AsyncSession) -> None:
     logger.info("Seeded %d MCP servers", len(data))
 
 
-async def _seed_ai_specialist_configs(session: AsyncSession) -> None:
-    """Seed AI specialist configs from JSON (idempotent by name).
-
-    All parameters are managed via the UI/DB or the seed JSON file.
-    """
+async def _seed_ai_specialist_configs(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed AI specialist configs from data list (idempotent by name)."""
     from sqlalchemy import select as sql_select
 
     from app.models.domain.ai import AIAssistantConfig
-
-    data = _load_json("ai_specialist_configs.json")
 
     with seed_operation():
         seeded = 0
@@ -590,6 +771,53 @@ async def _seed_ai_specialist_configs(session: AsyncSession) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Core reseed function (accepts data dict, used by both CLI and API)
+# ---------------------------------------------------------------------------
+
+
+async def reseed_from_data(session: AsyncSession, data: dict[str, Any]) -> None:
+    """Reseed database from a seed data dict.
+
+    This is the core function called by both the CLI entry point and the API.
+    Assumes tables have already been truncated before calling.
+    """
+    with seed_operation():
+        print("  Seeding users and RBAC...")
+        from app.db.seed_users_rbac import seed_users_and_rbac_from_data
+
+        await seed_users_and_rbac_from_data(session, data)
+
+        print("  Seeding AI providers...")
+        await _seed_ai_providers(session, data["ai_providers"])
+
+        print("  Seeding AI assistant configs...")
+        await _seed_ai_assistant_configs(session, data["ai_assistant_configs"])
+
+        print("  Seeding AI specialist configs...")
+        await _seed_ai_specialist_configs(session, data["ai_specialist_configs"])
+
+        print("  Seeding MCP servers...")
+        await _seed_mcp_servers(session, data["mcp_servers"])
+
+        print("  Seeding organizational units...")
+        await _seed_organizational_units(session, data["organizational_units"])
+
+        print("  Seeding cost element types...")
+        await _seed_cost_element_types(session, data["cost_element_types"])
+
+        print("  Seeding cost event types...")
+        await _seed_cost_event_types(session, data["cost_event_types"])
+
+        print("  Seeding change order workflow...")
+        await _seed_change_order_workflow(session, data["change_order_workflow"])
+
+        print("  Seeding demo project...")
+        await _seed_demo_project(session, data["demo_project"])
+
+        await session.commit()
+
+
 async def reseed(skip_confirm: bool = False) -> None:
     """Run the full reseed: truncate then seed_all.
 
@@ -607,39 +835,11 @@ async def reseed(skip_confirm: bool = False) -> None:
     await truncate_all_tables()
     print(f"Truncated {len(TABLES_TO_TRUNCATE)} tables.")
 
-    print("Seeding database from JSON files...")
+    print("Seeding database from seed_data.json...")
+    data = _load_seed_data()
+
     async with async_session_maker() as session:
-        with seed_operation():
-            print("  Seeding users and RBAC...")
-            from app.db.seed_users_rbac import seed_users_and_rbac
-
-            await seed_users_and_rbac(session)
-
-            print("  Seeding AI providers...")
-            await _seed_ai_providers(session)
-
-            print("  Seeding AI assistant configs...")
-            await _seed_ai_assistant_configs(session)
-
-            print("  Seeding AI specialist configs...")
-            await _seed_ai_specialist_configs(session)
-
-            print("  Seeding MCP servers...")
-            await _seed_mcp_servers(session)
-
-            print("  Seeding organizational units...")
-            await _seed_organizational_units(session)
-
-            print("  Seeding cost element types...")
-            await _seed_cost_element_types(session)
-
-            print("  Seeding cost event types...")
-            await _seed_cost_event_types(session)
-
-            print("  Seeding demo project...")
-            await _seed_demo_project(session)
-
-            await session.commit()
+        await reseed_from_data(session, data)
 
     print("Reseed complete.")
     await engine.dispose()

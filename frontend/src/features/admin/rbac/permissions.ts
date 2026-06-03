@@ -144,6 +144,9 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "project-documents-write": { topic: "Project Documents", description: "Upload and edit project documents" },
   "project-documents-delete": { topic: "Project Documents", description: "Remove project documents" },
 
+  // System
+  "system-dump-reseed": { topic: "System", description: "Dump and reseed database from admin interface" },
+
   // MCP Server
   "mcp-server-read": { topic: "MCP Server", description: "View MCP server configs" },
   "mcp-server-create": { topic: "MCP Server", description: "Create MCP server configs" },
@@ -181,6 +184,7 @@ const TOPIC_ORDER: string[] = [
   "Budget Settings",
   "Project Documents",
   "MCP Server",
+  "System",
 ];
 
 /**

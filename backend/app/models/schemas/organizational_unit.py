@@ -27,6 +27,9 @@ class OrganizationalUnitBase(BaseModel):
     description: str | None = Field(
         None, max_length=5000, description="Organizational unit description"
     )
+    parent_unit_id: UUID | None = Field(
+        None, description="Parent Organizational Unit root ID for hierarchy"
+    )
 
 
 class OrganizationalUnitCreate(OrganizationalUnitBase):
@@ -60,6 +63,7 @@ class OrganizationalUnitUpdate(BaseModel):
     manager_id: UUID | None = None
     is_active: bool | None = None
     description: str | None = Field(None, max_length=5000)
+    parent_unit_id: UUID | None = None
     branch: str | None = Field(
         None, description="Branch name for update (defaults to current branch)"
     )
@@ -74,6 +78,9 @@ class OrganizationalUnitRead(OrganizationalUnitBase):
     id: UUID
     organizational_unit_id: UUID
     code: str
+    parent_unit_name: str | None = Field(
+        None, description="Parent unit display name (computed)"
+    )
     branch: str
     is_active: bool
     created_at: datetime | None = None
