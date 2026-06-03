@@ -1,7 +1,7 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { Collapse, Checkbox, Tag, Space, Spin, Alert, Button, Typography, Tooltip, theme } from "antd";
 import type { CollapseProps } from "antd/es/collapse";
-import { InfoCircleOutlined, ApiOutlined } from "@ant-design/icons";
+import { InfoCircleOutlined, ApiOutlined, CloseOutlined } from "@ant-design/icons";
 import { useAITools } from "../api";
 import { ToolDetailModal } from "./ToolDetailModal";
 import type { AIToolPublic } from "../types";
@@ -295,15 +295,49 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
 
   // Stale tools section: selected tools no longer available
   if (staleTools.length > 0) {
+    const handleRemoveStale = (toolName: string) => {
+      if (!onChange) return;
+      onChange(safeValue.filter((v) => v !== toolName));
+    };
+
+    const handleRemoveAllStale = () => {
+      if (!onChange) return;
+      const staleSet = new Set(staleTools);
+      onChange(safeValue.filter((v) => !staleSet.has(v)));
+    };
+
     collapseItems.push({
       key: "unavailable-tools",
       label: (
-        <Space>
-          <Text strong type="warning">Unavailable Tools</Text>
-          <Tag color="warning" style={{ marginLeft: spacing.sm }}>
-            {staleTools.length}
-          </Tag>
-        </Space>
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          width: "100%",
+          paddingRight: spacing.md
+        }}>
+          <Space>
+            <Text strong type="warning">Unavailable Tools</Text>
+            <Tag color="warning" style={{ marginLeft: spacing.sm }}>
+              {staleTools.length}
+            </Tag>
+          </Space>
+          <div onClick={(e) => e.stopPropagation()}>
+            <Button
+              type="text"
+              size="small"
+              danger
+              style={{
+                fontSize: typography.sizes.xs,
+                height: "auto",
+                padding: `${spacing.xs}px ${spacing.sm}px`
+              }}
+              onClick={handleRemoveAllStale}
+            >
+              Remove All
+            </Button>
+          </div>
+        </div>
       ),
       children: (
         <div style={{
@@ -337,6 +371,14 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
                 </Checkbox>
                 <Tag color="warning">(unavailable)</Tag>
               </Space>
+              <Tooltip title="Remove tool">
+                <Button
+                  type="text"
+                  icon={<CloseOutlined style={{ color: token.colorTextTertiary }} />}
+                  size="small"
+                  onClick={() => handleRemoveStale(toolName)}
+                />
+              </Tooltip>
             </div>
           ))}
         </div>
