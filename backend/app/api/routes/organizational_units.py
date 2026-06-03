@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
+from app.core.exceptions.hierarchy import CircularReferenceError
 from app.db.session import get_db
 from app.models.domain.organizational_unit import OrganizationalUnit
 from app.models.schemas.organizational_unit import (
@@ -106,14 +107,30 @@ async def create_organizational_unit(
 )
 async def read_organizational_unit_tree(
     service: OrganizationalUnitService = Depends(get_organizational_unit_service),
-) -> Sequence[OrganizationalUnit]:
+) -> list[OrganizationalUnitPublic]:
     """Get the full OBS (Organizational Breakdown Structure) tree.
 
     Returns all organizational units as a flat list with parent references.
     Requires read permission.
     """
+    from app.models.schemas.organizational_unit import OrganizationalUnitPublic
+
     items, _total = await service.list_organizational_units()
-    return items
+
+    # Build name lookup map
+    name_map: dict[str, str] = {
+        str(item.organizational_unit_id): item.name for item in items
+    }
+
+    # Convert to Pydantic models and enrich with parent_unit_name
+    result = []
+    for item in items:
+        unit_out = OrganizationalUnitPublic.model_validate(item)
+        if unit_out.parent_unit_id and str(unit_out.parent_unit_id) in name_map:
+            unit_out.parent_unit_name = name_map[str(unit_out.parent_unit_id)]
+        result.append(unit_out)
+
+    return result
 
 
 @router.get(
@@ -125,7 +142,7 @@ async def read_organizational_unit_tree(
 async def read_organizational_unit(
     organizational_unit_id: UUID,
     service: OrganizationalUnitService = Depends(get_organizational_unit_service),
-) -> OrganizationalUnit:
+) -> OrganizationalUnitPublic:
     """Get a specific organizational unit by root ID. Requires read permission."""
     unit = await service.get_as_of(entity_id=organizational_unit_id)
     if not unit:
@@ -133,7 +150,12 @@ async def read_organizational_unit(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Organizational Unit not found",
         )
-    return unit
+    unit_out = OrganizationalUnitPublic.model_validate(unit)
+    if unit_out.parent_unit_id:
+        parent = await service.get_as_of(entity_id=unit_out.parent_unit_id)
+        if parent:
+            unit_out.parent_unit_name = parent.name
+    return unit_out
 
 
 @router.put(
@@ -157,8 +179,10 @@ async def update_organizational_unit(
             unit_in=unit_in,
             actor_id=current_user.user_id,
         )
+    except CircularReferenceError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.delete(
