@@ -115,7 +115,7 @@ export const WorkPackageLayout: React.FC = () => {
 
   if (!workPackage && !workPackageLoading) {
     return (
-      <div style={{ padding: token.paddingXL }}>
+      <div style={{ padding: `${token.paddingXL}px 0` }}>
         <Typography.Title level={3}>
           Work Package Not Found
         </Typography.Title>
@@ -125,12 +125,8 @@ export const WorkPackageLayout: React.FC = () => {
     );
   }
 
-  const displayTitle = workPackage
-    ? `${workPackage.code} - ${workPackage.name}`
-    : "Work Package";
-
   return (
-    <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
+    <div style={{ padding: isMobile ? `${token.paddingMD}px 0` : `${token.paddingXL}px 0` }}>
       <PageNavigation items={navItems} />
 
       <EntityBreadcrumb
@@ -173,7 +169,7 @@ export const WorkPackageLayout: React.FC = () => {
             fontSize: isMobile ? token.fontSizeXL : undefined,
           }}
         >
-          {displayTitle}
+          Work Package
         </Typography.Title>
         <Space size={token.marginSM} wrap={isMobile}>
           <Can permission="work-package-update">

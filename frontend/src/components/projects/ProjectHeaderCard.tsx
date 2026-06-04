@@ -80,7 +80,7 @@ export const ProjectHeaderCard = ({
       }}
       styles={{
         body: {
-          padding: isMobile ? token.paddingMD : token.paddingXL,
+          padding: isMobile ? `${token.paddingMD}px 0` : `${token.paddingXL}px 0`,
         },
       }}
     >

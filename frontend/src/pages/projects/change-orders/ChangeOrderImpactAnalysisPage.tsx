@@ -45,7 +45,7 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
   const isLoading = isLoadingChangeOrder || isLoadingProject;
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: `24px 0` }}>
       {/* Breadcrumbs */}
       <EntityBreadcrumb
         items={[

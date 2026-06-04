@@ -12,6 +12,7 @@ import {
   Tag,
   Grid,
   Space,
+  Flex,
 } from "antd";
 import {
   PlusOutlined,
@@ -23,13 +24,12 @@ import {
 } from "@ant-design/icons";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import { formatCurrency, formatCompactCurrency, formatTemporalRange, getCurrencySymbol } from "@/utils/formatters";
+import { formatCurrency, formatCompactCurrency, getCurrencySymbol } from "@/utils/formatters";
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useViewMode } from "@/hooks/useViewMode";
 import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
 import { useWorkPackage, useWorkPackageBudgetStatus } from "@/features/work-packages/api/useWorkPackages";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
-import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { WorkPackagesPmiService, type CostElementRead, type ForecastRead } from "@/api/generated";
@@ -65,7 +65,6 @@ const PROGRESSION_LABELS: Record<string, string> = {
 export const WorkPackageOverview = () => {
   const { id, projectId } = useParams<{ id: string; projectId?: string }>();
   const { token } = theme.useToken();
-  const { spacing } = useThemeTokens();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
@@ -288,56 +287,72 @@ export const WorkPackageOverview = () => {
     },
   ];
 
-  // Responsive column config for Descriptions
-  const descColumns = { xs: 1, sm: 2 };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: spacing.lg }}>
-      {/* Section 1: Work Package Details */}
-      <Card size="small">
-        <Descriptions column={descColumns} bordered size="small">
-          <Descriptions.Item label="Code">
-            <Text strong>{workPackage.code}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="Name">
-            {workPackage.name}
-          </Descriptions.Item>
-          <Descriptions.Item label="Status">
-            {workPackage.status || "-"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Control Account">
-            {workPackage.control_account_name || "Unknown Control Account"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Budget Amount">
-            <Text strong>{formatCurrency(Number(workPackage.budget_amount || 0), currency)}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="Description">
-            {workPackage.description || "-"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Created By">
-            {workPackage.created_by_name || workPackage.created_by}
-          </Descriptions.Item>
-          <Descriptions.Item label="Valid Time">
-            {workPackage.valid_time_formatted
-              ? formatTemporalRange(workPackage.valid_time_formatted)
-              : "-"}
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      {/* Header Card: Timeline + Cost rings + CostHistoryChart */}
+    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      {/* Header Card: Title + Timeline + Cost rings + CostHistoryChart */}
       <Card
-        size="small"
         style={{
           borderRadius: token.borderRadiusLG,
           border: `1px solid ${token.colorBorder}`,
         }}
-        styles={{
-          body: {
-            padding: isMobile ? token.paddingMD : token.paddingLG,
-          },
-        }}
       >
+        {/* Title row */}
+        <Flex
+          justify="space-between"
+          align={isMobile ? "flex-start" : "center"}
+          vertical={isMobile}
+          gap={isMobile ? token.marginXS : 0}
+          style={{ marginBottom: token.marginMD }}
+        >
+          <Typography.Title
+            level={3}
+            style={{
+              margin: 0,
+              fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
+              fontWeight: 600,
+              color: token.colorText,
+            }}
+          >
+            {workPackage.code} &mdash; {workPackage.name}
+          </Typography.Title>
+          <Tag
+            style={{
+              fontSize: token.fontSize,
+              padding: `${token.paddingXS}px ${token.paddingMD}px`,
+              borderRadius: token.borderRadius,
+              fontWeight: token.fontWeightMedium,
+              margin: 0,
+            }}
+          >
+            {workPackage.status || "draft"}
+          </Tag>
+        </Flex>
+
+        {/* Description */}
+        {workPackage.description && (
+          <Typography.Paragraph
+            type="secondary"
+            style={{
+              margin: 0,
+              marginBottom: token.marginLG,
+              fontSize: token.fontSize,
+              lineHeight: token.lineHeight,
+            }}
+          >
+            {workPackage.description}
+          </Typography.Paragraph>
+        )}
+
+        {/* Control Account label */}
+        {workPackage.control_account_name && (
+          <Text
+            type="secondary"
+            style={{ display: "block", marginBottom: token.marginMD, fontSize: token.fontSizeSM }}
+          >
+            Control Account: <Text strong>{workPackage.control_account_name}</Text>
+          </Text>
+        )}
+
         <Row gutter={[token.marginLG, token.marginLG]} align="top">
           {/* Timeline Progress Ring */}
           <Col xs={24} sm={12} md={6}>
@@ -480,7 +495,7 @@ export const WorkPackageOverview = () => {
       </Card>
 
       {/* Section 2: Schedule Baseline + Forecast side-by-side on desktop */}
-      <Row gutter={[spacing.lg, spacing.lg]}>
+      <Row gutter={[token.marginLG, token.marginLG]}>
         <Col xs={24} lg={12}>
           <Card
             title={
@@ -489,7 +504,6 @@ export const WorkPackageOverview = () => {
                 <span>Schedule Baseline</span>
               </Space>
             }
-            size="small"
             extra={
               <Space>
                 {scheduleBaseline ? (
@@ -567,7 +581,6 @@ export const WorkPackageOverview = () => {
                 <span>Forecast</span>
               </Space>
             }
-            size="small"
             extra={
               <Space>
                 {forecast ? (
@@ -661,7 +674,6 @@ export const WorkPackageOverview = () => {
             <span>Cost Elements</span>
           </Space>
         }
-        size="small"
         extra={
           <Space>
             <ViewModeToggle viewMode={ceViewMode} onCycleViewMode={ceCycleViewMode} />
@@ -685,7 +697,7 @@ export const WorkPackageOverview = () => {
           }
           if (useCeCard) {
             return (
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(280px, 1fr))`, gap: spacing.md }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(280px, 1fr))`, gap: token.marginMD }}>
                 {costElements.map((ce) => (
                   <CostElementCard
                     key={ce.cost_element_id}
@@ -766,6 +778,6 @@ export const WorkPackageOverview = () => {
             : undefined
         }
       />
-    </div>
+    </Space>
   );
 };

@@ -27,14 +27,14 @@ export const ExplorerCard = ({
       }}
       styles={{
         header: {
-          background: token.colorBgLayout,
-          padding: `${token.paddingSM}px ${token.paddingMD}px`,
+          background: token.colorBgContainer,
+          padding: `${token.paddingXS}px ${token.paddingSM}px`,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
           minHeight: "auto",
         },
         body: {
           background: token.colorBgContainer,
-          padding: token.paddingMD,
+          padding: token.paddingXS,
         },
       }}
       title={

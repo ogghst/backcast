@@ -116,7 +116,7 @@ export const WBSElementLayout: React.FC = () => {
   // Not found state
   if (!wbe && !wbeLoading) {
     return (
-      <div style={{ padding: token.paddingXL }}>
+      <div style={{ padding: `${token.paddingXL}px 0` }}>
         <Typography.Title level={3}>WBE Not Found</Typography.Title>
         <p>The requested Work Breakdown Element could not be found.</p>
         <Button onClick={() => navigate(`/projects/${projectId}`)}>
@@ -127,7 +127,7 @@ export const WBSElementLayout: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
+    <div style={{ padding: isMobile ? `${token.paddingMD}px 0` : `${token.paddingXL}px 0` }}>
       <PageNavigation items={navItems} />
 
       {/* Shared header rendered on all sub-pages */}

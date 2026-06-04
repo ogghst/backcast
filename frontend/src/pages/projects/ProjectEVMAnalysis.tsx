@@ -83,7 +83,7 @@ export const ProjectEVMAnalysis: React.FC = () => {
   // Error state
   if (metricsError || timeSeriesError) {
     return (
-      <div style={{ padding: token.paddingXL }}>
+      <div style={{ padding: `${token.paddingXL}px 0` }}>
         <p>Error loading EVM data. Please try again.</p>
       </div>
     );

@@ -23,7 +23,7 @@ export const ProjectChangeOrdersPage = () => {
   const { data: project } = useProject(projectId!);
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: `24px 0` }}>
       <EntityBreadcrumb
         items={[
           { label: project?.code || "Project", to: `/projects/${projectId}` },

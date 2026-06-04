@@ -21,7 +21,7 @@ export const ProjectAdminPage = () => {
 
   if (!projectId) {
     return (
-      <div style={{ padding: token.paddingXL }}>
+      <div style={{ padding: `${token.paddingXL}px 0` }}>
         <Title level={2}>Project Administration</Title>
         <Card>
           <Typography.Text type="secondary">
@@ -33,7 +33,7 @@ export const ProjectAdminPage = () => {
   }
 
   return (
-    <div style={{ padding: token.paddingXL }}>
+    <div style={{ padding: `${token.paddingXL}px 0` }}>
       <Title level={2} style={{ marginBottom: token.paddingLG }}>
         Project Administration
       </Title>

@@ -207,8 +207,8 @@ export const COLORS = {
  * Provides consistent spacing for card components.
  */
 export const CARD_STYLES = {
-  marginBottom: SPACING.MD,
-  padding: SPACING.LG,
+  marginBottom: SPACING.XS,
+  padding: SPACING.XS,
 } as const;
 
 /**

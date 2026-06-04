@@ -125,7 +125,7 @@ export const ProjectOverview = () => {
   };
 
   return (
-    <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
+    <div style={{ padding: isMobile ? `${token.paddingMD}px 0` : `${token.paddingXL}px 0` }}>
       <EntityBreadcrumb
         items={[{ label: project?.code || "Project" }]}
       />
@@ -203,6 +203,7 @@ export const ProjectOverview = () => {
           <Card
             title="Root WBS Elements"
             style={{ marginBottom: token.marginLG }}
+            styles={{ body: { padding: `${token.paddingSM}px 0` } }}
             extra={
               <Space>
                 <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />

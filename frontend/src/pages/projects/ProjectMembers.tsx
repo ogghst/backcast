@@ -20,7 +20,7 @@ export const ProjectMembers = () => {
 
   if (isProjectLoading) {
     return (
-      <div style={{ padding: spacing.md }}>
+      <div style={{ padding: `${spacing.md}px 0` }}>
         <div>Loading project information...</div>
       </div>
     );
@@ -28,7 +28,7 @@ export const ProjectMembers = () => {
 
   if (!project) {
     return (
-      <div style={{ padding: spacing.md }}>
+      <div style={{ padding: `${spacing.md}px 0` }}>
         <div>Project not found</div>
       </div>
     );

@@ -162,8 +162,8 @@ export const theme: ThemeConfig & {
 } = {
   components: {
     Card: {
-      colorBgContainer: "#f2f7f4", // Subtle green tint on warm cream
-      actionsBg: "#f2f7f4",
+      colorBgContainer: "#faf9f7", // Warm off-white card fill
+      actionsBg: "#faf9f7",
     },
   },
   token: {
@@ -234,13 +234,13 @@ export const theme: ThemeConfig & {
     borderRadiusLG: 12,
     borderRadiusXL: 16,
 
-    // === Shadow Tokens (3D Panel Effect) ===
-    // Warm brown tint (139, 125, 107) to match the cream palette borders
+    // === Shadow Tokens (Subtle Elevation) ===
+    // Lighter shadows for a flatter, more professional feel
     colorShadow: "rgba(139, 125, 107, 1)",
-    boxShadowTertiary: "0 1px 3px 0 rgba(139, 125, 107, 0.1), 0 3px 8px -1px rgba(139, 125, 107, 0.06)",
-    boxShadowSecondary: "0 3px 6px -2px rgba(139, 125, 107, 0.08), 0 6px 16px -4px rgba(139, 125, 107, 0.05)",
-    boxShadow: "0 6px 16px 0 rgba(139, 125, 107, 0.1), 0 3px 6px -4px rgba(139, 125, 107, 0.14), 0 9px 28px 8px rgba(139, 125, 107, 0.06)",
-    boxShadowCard: "0 2px 4px -1px rgba(139, 125, 107, 0.08), 0 4px 12px 0 rgba(139, 125, 107, 0.05), 0 1px 3px 0 rgba(139, 125, 107, 0.04)",
+    boxShadowTertiary: "0 1px 2px 0 rgba(139, 125, 107, 0.06)",
+    boxShadowSecondary: "0 1px 3px 0 rgba(139, 125, 107, 0.06), 0 2px 6px -1px rgba(139, 125, 107, 0.04)",
+    boxShadow: "0 2px 8px 0 rgba(139, 125, 107, 0.08), 0 1px 3px -1px rgba(139, 125, 107, 0.06)",
+    boxShadowCard: "0 1px 2px 0 rgba(139, 125, 107, 0.04)",
   },
   /**
    * Dark Mode Tokens
@@ -285,12 +285,12 @@ export const theme: ThemeConfig & {
     colorChartForecast: "#d4a549", // Warm amber - Forecast
     colorChartActual: "#c95d5f", // Soft red - Actual
 
-    // === Shadow Tokens (Dark Mode) ===
+    // === Shadow Tokens (Dark Mode — subtle) ===
     colorShadow: "rgba(0, 0, 0, 1)",
-    boxShadowTertiary: "0 1px 3px 0 rgba(0, 0, 0, 0.24), 0 3px 8px -1px rgba(0, 0, 0, 0.18)",
-    boxShadowSecondary: "0 3px 6px -2px rgba(0, 0, 0, 0.24), 0 6px 16px -4px rgba(0, 0, 0, 0.18)",
-    boxShadow: "0 6px 16px 0 rgba(0, 0, 0, 0.28), 0 3px 6px -4px rgba(0, 0, 0, 0.24), 0 9px 28px 8px rgba(0, 0, 0, 0.15)",
-    boxShadowCard: "0 2px 4px -1px rgba(0, 0, 0, 0.2), 0 4px 12px 0 rgba(0, 0, 0, 0.15), 0 1px 3px 0 rgba(0, 0, 0, 0.1)",
+    boxShadowTertiary: "0 1px 2px 0 rgba(0, 0, 0, 0.16)",
+    boxShadowSecondary: "0 1px 3px 0 rgba(0, 0, 0, 0.14), 0 2px 6px -1px rgba(0, 0, 0, 0.1)",
+    boxShadow: "0 2px 8px 0 rgba(0, 0, 0, 0.18), 0 1px 3px -1px rgba(0, 0, 0, 0.12)",
+    boxShadowCard: "0 1px 2px 0 rgba(0, 0, 0, 0.1)",
   },
   /**
    * Dark Mode Component Tokens
@@ -300,8 +300,8 @@ export const theme: ThemeConfig & {
    */
   darkModeComponents: {
     Card: {
-      colorBgContainer: "#1c2820", // Dark green-tinted gray
-      actionsBg: "#1c2820",
+      colorBgContainer: "#1f1f1f", // Dark card fill
+      actionsBg: "#1f1f1f",
     },
   },
 };

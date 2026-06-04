@@ -43,7 +43,7 @@ export const ProjectSchedulePage: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: token.paddingXL }}>
+    <div style={{ padding: `${token.paddingXL}px 0` }}>
       <h1 style={{ margin: 0, marginBottom: token.marginLG }}>Project Schedule</h1>
       <Card
         styles={{ body: { padding: token.paddingMD } }}
