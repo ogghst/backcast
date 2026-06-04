@@ -20,9 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.versioning.enums import BranchMode
 from app.models.domain.control_account import ControlAccount
 from app.models.domain.schedule_baseline import ScheduleBaseline
+from app.models.domain.schedule_dependency import ScheduleDependency
 from app.models.domain.wbs_element import WBSElement
 from app.models.domain.work_package import WorkPackage
-from app.models.schemas.gantt import GanttDataResponse, GanttItem
+from app.models.schemas.gantt import GanttDataResponse, GanttDependencyLink, GanttItem
 
 logger = logging.getLogger(__name__)
 
@@ -149,10 +150,30 @@ class GanttService:
                 )
             )
 
+        # Fetch dependency links for this project
+        dep_stmt = select(ScheduleDependency).where(
+            ScheduleDependency.project_id == project_id,
+            ScheduleDependency.branch == branch,
+        )
+        dep_result = await self.session.execute(dep_stmt)
+        dep_rows = dep_result.scalars().all()
+
+        dependencies = [
+            GanttDependencyLink(
+                dependency_id=dep.schedule_dependency_id,
+                predecessor_id=dep.predecessor_id,
+                successor_id=dep.successor_id,
+                dependency_type=dep.dependency_type,
+                lag_days=dep.lag_days,
+            )
+            for dep in dep_rows
+        ]
+
         return GanttDataResponse(
             items=items,
             project_start=project_start,
             project_end=project_end,
+            dependencies=dependencies,
         )
 
     def _build_wbe_subquery(

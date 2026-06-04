@@ -86,6 +86,7 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   organizationalUnits: {
     all: ["organizational-units"] as const,
     list: ["organizational-units", "list"] as const,
+    tree: ["organizational-units", "tree"] as const,
     detail: (id: string) => ["organizational-units", "detail", id] as const,
   },
 
@@ -260,6 +261,15 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     history: (id: string) => ["schedule-baselines", "history", id] as const,
     pv: (id: string, params: unknown) =>
       ["schedule-baselines", "pv", id, params] as const,
+  },
+
+  // Schedule Dependencies
+  scheduleDependencies: {
+    all: ["schedule-dependencies"] as const,
+    list: (projectId: string, branch?: string) =>
+      ["schedule-dependencies", "list", projectId, branch] as const,
+    detail: (id: string) =>
+      ["schedule-dependencies", "detail", id] as const,
   },
 
   // AI Configuration

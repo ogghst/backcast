@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
-import { Modal, Form, Input, Select } from "antd";
+import { Modal, Form, Input, Select, TreeSelect } from "antd";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useWBSElements } from "@/features/wbs-elements/api/useWBSElements";
+import { useOrgUnitTree } from "@/features/organizational-units/hooks/useOrgUnitTree";
+import { buildOrgUnitTreeSelectData } from "@/features/organizational-units/utils/orgUnitTree";
 import type {
   ControlAccountCreate,
   ControlAccountUpdate,
@@ -42,8 +44,9 @@ export const ControlAccountModal = ({
     value: wbs.wbs_element_id,
   }));
 
-  // Organizational Unit options
-  const orgUnitOptions = useOrgUnitOptions();
+  // Organizational Unit tree
+  const { items: orgUnitItems } = useOrgUnitTree();
+  const orgUnitTreeData = buildOrgUnitTreeSelectData(orgUnitItems);
 
   // Track previous open state to detect transitions
   const prevOpenRef = useRef(false);
@@ -149,12 +152,13 @@ export const ControlAccountModal = ({
               { required: true, message: "Please select an Organizational Unit" },
             ]}
           >
-            <Select
+            <TreeSelect
               placeholder="Select Org Unit"
-              options={orgUnitOptions}
+              treeData={orgUnitTreeData}
               showSearch
-              optionFilterProp="label"
+              treeNodeFilterProp="title"
               allowClear
+              treeLine
             />
           </Form.Item>
         </div>
@@ -162,34 +166,3 @@ export const ControlAccountModal = ({
     </Modal>
   );
 };
-
-// ---------------------------------------------------------------------------
-// Helper: fetch org unit options via the generated service directly
-// ---------------------------------------------------------------------------
-
-import { useQuery } from "@tanstack/react-query";
-import { queryKeys as qk } from "@/api/queryKeys";
-import { OrganizationalUnitsService } from "@/api/generated/services/OrganizationalUnitsService";
-
-function useOrgUnitOptions() {
-  const { data } = useQuery({
-    queryKey: qk.organizationalUnits.list,
-    queryFn: async () => {
-      const res = await OrganizationalUnitsService.getOrganizationalUnits(
-        1,
-        10000,
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const items = Array.isArray(res) ? res : (res as any)?.items || [];
-      return items.map(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (ou: any) => ({
-          label: ou.name || ou.organizational_unit_id,
-          value: ou.organizational_unit_id,
-        }),
-      );
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-  return data || [];
-}

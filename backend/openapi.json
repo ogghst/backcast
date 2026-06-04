@@ -3916,6 +3916,57 @@
         }
       }
     },
+    "/api/v1/cost-elements/{cost_element_id}/breadcrumb": {
+      "get": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Read Cost Element Breadcrumb",
+        "description": "Get breadcrumb trail for a Cost Element (project -> WBS -> CE).\n\nRequires read permission.",
+        "operationId": "get_cost_element_breadcrumb",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Cost Element Breadcrumb"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cost-elements/{cost_element_id}": {
       "get": {
         "tags": [
@@ -15634,6 +15685,101 @@
           }
         }
       }
+    },
+    "/api/v1/admin/system/dump": {
+      "get": {
+        "tags": [
+          "System Admin"
+        ],
+        "summary": "Dump Database",
+        "description": "Dump all database tables to a seed_data.json-compatible JSON structure.",
+        "operationId": "dump_database",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/system/reseed": {
+      "post": {
+        "tags": [
+          "System Admin"
+        ],
+        "summary": "Reseed Database",
+        "description": "Upload a seed_data.json file and reseed the database.\n\nThis will DELETE ALL DATA and reseed from the uploaded file.",
+        "operationId": "reseed_database",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_reseed_database"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/system/seed-file": {
+      "get": {
+        "tags": [
+          "System Admin"
+        ],
+        "summary": "Download Seed File",
+        "description": "Download the current seed_data.json file.",
+        "operationId": "download_seed_file",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -15656,6 +15802,19 @@
               }
             ],
             "title": "Description"
+          },
+          "presentation_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presentation Prompt",
+            "description": "Text shown to planner/supervisor agents to describe this specialist's capabilities. Falls back to description if not set. Specialist-only."
           },
           "model_id": {
             "anyOf": [
@@ -15681,6 +15840,32 @@
               }
             ],
             "title": "System Prompt"
+          },
+          "planner_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planner Prompt",
+            "description": "Custom planner prompt template for main agents. Use {specialist_section} for dynamic specialist list."
+          },
+          "supervisor_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supervisor Prompt",
+            "description": "Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list."
           },
           "temperature": {
             "anyOf": [
@@ -15788,12 +15973,6 @@
             ],
             "title": "Structured Output Schema",
             "description": "Fully qualified Pydantic model class name for structured output (specialist-only)"
-          },
-          "is_system": {
-            "type": "boolean",
-            "title": "Is System",
-            "description": "System agents cannot be deleted, only disabled",
-            "default": false
           }
         },
         "type": "object",
@@ -15822,6 +16001,19 @@
             ],
             "title": "Description"
           },
+          "presentation_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presentation Prompt",
+            "description": "Text shown to planner/supervisor agents to describe this specialist's capabilities. Falls back to description if not set. Specialist-only."
+          },
           "model_id": {
             "anyOf": [
               {
@@ -15846,6 +16038,32 @@
               }
             ],
             "title": "System Prompt"
+          },
+          "planner_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planner Prompt",
+            "description": "Custom planner prompt template for main agents. Use {specialist_section} for dynamic specialist list."
+          },
+          "supervisor_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supervisor Prompt",
+            "description": "Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list."
           },
           "temperature": {
             "anyOf": [
@@ -15953,12 +16171,6 @@
             ],
             "title": "Structured Output Schema",
             "description": "Fully qualified Pydantic model class name for structured output (specialist-only)"
-          },
-          "is_system": {
-            "type": "boolean",
-            "title": "Is System",
-            "description": "System agents cannot be deleted, only disabled",
-            "default": false
           },
           "id": {
             "type": "string",
@@ -16012,6 +16224,18 @@
             ],
             "title": "Description"
           },
+          "presentation_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presentation Prompt"
+          },
           "system_prompt": {
             "anyOf": [
               {
@@ -16023,6 +16247,32 @@
               }
             ],
             "title": "System Prompt"
+          },
+          "planner_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planner Prompt",
+            "description": "Custom planner prompt template for main agents."
+          },
+          "supervisor_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supervisor Prompt",
+            "description": "Custom supervisor prompt template for main agents."
           },
           "temperature": {
             "anyOf": [
@@ -16149,17 +16399,6 @@
               }
             ],
             "title": "Structured Output Schema"
-          },
-          "is_system": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is System"
           }
         },
         "type": "object",
@@ -16807,6 +17046,17 @@
           "version": {
             "type": "string",
             "title": "Version"
+          },
+          "risk_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Level"
           }
         },
         "type": "object",
@@ -17223,6 +17473,20 @@
           "password"
         ],
         "title": "Body_login"
+      },
+      "Body_reseed_database": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_reseed_database"
       },
       "Body_upload_ai_file": {
         "properties": {
@@ -23617,6 +23881,19 @@
             "title": "Description",
             "description": "Organizational unit description"
           },
+          "parent_unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Unit Id",
+            "description": "Parent Organizational Unit root ID for hierarchy"
+          },
           "organizational_unit_id": {
             "anyOf": [
               {
@@ -23703,6 +23980,19 @@
             "title": "Description",
             "description": "Organizational unit description"
           },
+          "parent_unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Unit Id",
+            "description": "Parent Organizational Unit root ID for hierarchy"
+          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -23716,6 +24006,18 @@
           "code": {
             "type": "string",
             "title": "Code"
+          },
+          "parent_unit_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Unit Name",
+            "description": "Parent unit display name (computed)"
           },
           "branch": {
             "type": "string",
@@ -23858,6 +24160,18 @@
               }
             ],
             "title": "Description"
+          },
+          "parent_unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Unit Id"
           },
           "branch": {
             "anyOf": [

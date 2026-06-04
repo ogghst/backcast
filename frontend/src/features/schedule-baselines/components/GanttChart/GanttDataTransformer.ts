@@ -219,3 +219,19 @@ export function transformGanttData(
 export function formatRowLabel(row: GanttRow): string {
   return row.name;
 }
+
+/**
+ * Build a map from costElementId (which represents work_package_id / schedule_baseline_id)
+ * to the y-axis index in the rows array. Used for dependency arrow coordinate resolution.
+ *
+ * Only includes rows that have a costElementId (non-WBE rows with schedule data).
+ */
+export function buildScheduleBaselineIndex(rows: GanttRow[]): Map<string, number> {
+  const index = new Map<string, number>();
+  rows.forEach((row, i) => {
+    if (row.costElementId && row.startDate && row.endDate) {
+      index.set(row.costElementId, i);
+    }
+  });
+  return index;
+}

@@ -452,9 +452,15 @@
   "organizational_units": [
     { "organizational_unit_id": "00000000-0000-4000-8000-000000000001", "code": "ENG", "name": "Engineering", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Engineering department" },
     { "organizational_unit_id": "00000000-0000-4000-8000-000000000002", "code": "ENG-MECH", "name": "Mechanical Engineering", "parent_unit_id": "00000000-0000-4000-8000-000000000001", "manager_id": null, "is_active": true, "description": "Mechanical engineering team" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000006", "code": "ENG-MECH-DSG", "name": "Design Team", "parent_unit_id": "00000000-0000-4000-8000-000000000002", "manager_id": null, "is_active": true, "description": "Mechanical design and drafting" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000007", "code": "ENG-MECH-ANL", "name": "Analysis Team", "parent_unit_id": "00000000-0000-4000-8000-000000000002", "manager_id": null, "is_active": true, "description": "Structural and thermal analysis" },
     { "organizational_unit_id": "00000000-0000-4000-8000-000000000003", "code": "ENG-ELEC", "name": "Electrical Engineering", "parent_unit_id": "00000000-0000-4000-8000-000000000001", "manager_id": null, "is_active": true, "description": "Electrical engineering team" },
     { "organizational_unit_id": "00000000-0000-4000-8000-000000000004", "code": "PM", "name": "Project Management", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Project management office" },
-    { "organizational_unit_id": "00000000-0000-4000-8000-000000000005", "code": "QA", "name": "Quality Assurance", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Quality assurance team" }
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000005", "code": "QA", "name": "Quality Assurance", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Quality assurance team" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000008", "code": "QA-INP", "name": "Incoming Inspection", "parent_unit_id": "00000000-0000-4000-8000-000000000005", "manager_id": null, "is_active": true, "description": "Incoming material inspection" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000009", "code": "QA-FIN", "name": "Final Inspection", "parent_unit_id": "00000000-0000-4000-8000-000000000005", "manager_id": null, "is_active": true, "description": "Final product inspection and acceptance" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-00000000000a", "code": "PROC", "name": "Procurement", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Procurement and supply chain" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-00000000000b", "code": "PROC-SUP", "name": "Supplier Management", "parent_unit_id": "00000000-0000-4000-8000-00000000000a", "manager_id": null, "is_active": true, "description": "Supplier qualification and management" }
   ],
 
   "cost_element_types": [

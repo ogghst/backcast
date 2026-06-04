@@ -11,6 +11,7 @@ export type OrganizationalUnitUpdate = {
     manager_id?: (string | null);
     is_active?: (boolean | null);
     description?: (string | null);
+    parent_unit_id?: (string | null);
     /**
      * Branch name for update (defaults to current branch)
      */

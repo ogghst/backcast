@@ -41,6 +41,7 @@ from app.api.routes import (
     projects,
     rbac_admin,
     schedule_baselines,
+    schedule_dependencies,
     search,
     system_admin,
     user_role_assignments,
@@ -438,6 +439,11 @@ app.include_router(
     schedule_baselines.router,
     prefix=f"{settings.API_V1_STR}/schedule-baselines",
     tags=["Schedule Baselines"],
+)
+app.include_router(
+    schedule_dependencies.router,
+    prefix=f"{settings.API_V1_STR}/schedule-dependencies",
+    tags=["Schedule Dependencies"],
 )
 app.include_router(
     progress_entries.router,
