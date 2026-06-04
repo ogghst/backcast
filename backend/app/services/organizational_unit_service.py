@@ -244,7 +244,9 @@ class OrganizationalUnitService(BranchableService[OrganizationalUnit]):  # type:
         # Validate parent_unit_id hierarchy
         branch = unit_data.get("branch", "main")
         if unit_data.get("parent_unit_id"):
-            await self._validate_parent_unit_id(unit_data["parent_unit_id"], branch=branch)
+            await self._validate_parent_unit_id(
+                unit_data["parent_unit_id"], branch=branch
+            )
 
         cmd = CreateVersionCommand(
             entity_class=OrganizationalUnit,
@@ -276,7 +278,10 @@ class OrganizationalUnitService(BranchableService[OrganizationalUnit]):  # type:
         branch = update_data.pop("branch", None) or "main"
 
         # Validate parent_unit_id hierarchy if being changed
-        if "parent_unit_id" in update_data and update_data["parent_unit_id"] is not None:
+        if (
+            "parent_unit_id" in update_data
+            and update_data["parent_unit_id"] is not None
+        ):
             await self._validate_parent_unit_id(
                 update_data["parent_unit_id"],
                 exclude_root_id=organizational_unit_id,

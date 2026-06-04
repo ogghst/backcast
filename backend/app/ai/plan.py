@@ -35,12 +35,8 @@ class PlanStep(BaseModel):
 class PlannerStepOutput(BaseModel):
     """Single step in the planner's structured LLM output."""
 
-    step_index: int = Field(
-        description="Sequential step index starting from 0"
-    )
-    specialist: str = Field(
-        description="Specialist name from the available list"
-    )
+    step_index: int = Field(description="Sequential step index starting from 0")
+    specialist: str = Field(description="Specialist name from the available list")
     task_description: str = Field(
         description="Focused, actionable description of what this step should do"
     )
@@ -55,9 +51,7 @@ class PlannerStepOutput(BaseModel):
 class PlannerOutput(BaseModel):
     """Structured output schema for the planner LLM call."""
 
-    original_request: str = Field(
-        description="The user's request verbatim"
-    )
+    original_request: str = Field(description="The user's request verbatim")
     requires_planning: bool = Field(
         description="True if multi-step execution is needed"
     )

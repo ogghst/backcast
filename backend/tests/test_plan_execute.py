@@ -17,7 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from app.ai.briefing import BriefingDocument, BriefingSection
 from app.ai.handoff_tools import create_handoff_tool
-from app.ai.plan import PlanDocument, PlanStep, PlannerOutput, PlannerStepOutput
+from app.ai.plan import PlanDocument, PlannerOutput, PlannerStepOutput, PlanStep
 from app.ai.planner import (
     _build_planner_prompt,
     _convert_planner_output,
@@ -603,9 +603,7 @@ class TestPlannerNode:
 
         state: dict[str, Any] = {
             "messages": [
-                HumanMessage(
-                    content="Analyze EVM performance and create dashboard"
-                )
+                HumanMessage(content="Analyze EVM performance and create dashboard")
             ],
         }
         result = await planner_node(
@@ -888,9 +886,7 @@ class TestBriefingWithPlan:
         md = doc.to_markdown()
         assert "## Execution Plan" in md
         assert "Step 1: [evm_analyst] Calculate metrics — completed" in md
-        assert (
-            "Step 2: [visualization_specialist] Build charts — pending" in md
-        )
+        assert "Step 2: [visualization_specialist] Build charts — pending" in md
 
     def test_briefing_without_plan(self) -> None:
         """No plan section renders nothing plan-related (backward compatible)."""
@@ -949,7 +945,6 @@ class TestBriefingWithPlan:
         assert "### evm_analyst (Iteration 2)" in md
 
 
-
 # =====================================================================
 # Handoff tool tests
 # =====================================================================
@@ -965,9 +960,7 @@ class TestHandoffTool:
         return {
             "messages": [],
             "briefing_data": briefing_data
-            or BriefingDocument(
-                original_request="test"
-            ).model_dump(),
+            or BriefingDocument(original_request="test").model_dump(),
         }
 
     def test_handoff_with_step_index(self) -> None:

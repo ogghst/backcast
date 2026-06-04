@@ -258,9 +258,7 @@ class SupervisorOrchestrator:
             try:
                 subagent_configs = await load_specialists_from_db()
             except Exception as exc:
-                logger.error(
-                    "[SUPERVISOR] DB specialist loading failed: %s", exc
-                )
+                logger.error("[SUPERVISOR] DB specialist loading failed: %s", exc)
                 subagent_configs = []
 
         # Filter specialists by delegation config
@@ -390,7 +388,10 @@ class SupervisorOrchestrator:
 
         # --- 6b. Build the planner node ---
         specialist_catalog = [
-            {"name": sg["name"], "description": sg.get("presentation_prompt", sg.get("description", ""))}
+            {
+                "name": sg["name"],
+                "description": sg.get("presentation_prompt", sg.get("description", "")),
+            }
             for sg in specialist_graphs
         ]
 
@@ -798,9 +799,7 @@ class SupervisorOrchestrator:
 
                 # Inject plan completion status so the supervisor LLM knows
                 # whether to delegate the next step or wrap up.
-                pending = [
-                    s for s in active_plan.steps if s.status == "pending"
-                ]
+                pending = [s for s in active_plan.steps if s.status == "pending"]
                 if pending:
                     next_step = pending[0]
                     plan_msg = (
@@ -816,9 +815,7 @@ class SupervisorOrchestrator:
                         "Respond to the user with the briefing findings. "
                         "Do NOT delegate further."
                     )
-                cmd_update["messages"] = [
-                    SystemMessage(content=plan_msg)
-                ]
+                cmd_update["messages"] = [SystemMessage(content=plan_msg)]
 
             return Command(update=cmd_update, goto="supervisor")
 

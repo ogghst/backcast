@@ -970,7 +970,9 @@ class ImpactAnalysisService:
             if wbs_id:
                 main_wp = main_wp_for_ce.get(ce.work_package_id)
                 main_wbe_budgets[wbs_id] += (
-                    main_wp.budget_amount if main_wp and main_wp.budget_amount else Decimal("0")
+                    main_wp.budget_amount
+                    if main_wp and main_wp.budget_amount
+                    else Decimal("0")
                 )
 
         merged_wbe_budgets: dict[UUID, Decimal] = defaultdict(Decimal)
@@ -989,7 +991,9 @@ class ImpactAnalysisService:
             if wbs_id:
                 merged_wp = wp_map.get(ce.work_package_id)
                 merged_wbe_budgets[wbs_id] += (
-                    merged_wp.budget_amount if merged_wp and merged_wp.budget_amount else Decimal("0")
+                    merged_wp.budget_amount
+                    if merged_wp and merged_wp.budget_amount
+                    else Decimal("0")
                 )
 
         # Compare WBEs: main vs merged view using aggregated Cost Element budgets

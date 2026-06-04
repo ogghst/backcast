@@ -34,7 +34,9 @@ def get_mcp_server_service(
     return MCPServerService(session)
 
 
-def _decrypt_and_public(service: MCPServerService, server: MCPServer) -> MCPServerPublic:
+def _decrypt_and_public(
+    service: MCPServerService, server: MCPServer
+) -> MCPServerPublic:
     """Build a MCPServerPublic with decrypted config."""
     decrypted = service.decrypt_config(server.config)
     return MCPServerPublic(

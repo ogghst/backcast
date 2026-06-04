@@ -81,14 +81,16 @@ def build_backcast_middleware(
     middleware: list[Any] = []
     if AI_SEQUENTIAL_TOOL_CALLS:
         middleware.append(SequentialToolCallsMiddleware())
-    middleware.extend([
-        TemporalContextMiddleware(context),
-        BackcastSecurityMiddleware(
-            context,
-            tools=tools,
-            interrupt_node=None,
-        ),
-    ])
+    middleware.extend(
+        [
+            TemporalContextMiddleware(context),
+            BackcastSecurityMiddleware(
+                context,
+                tools=tools,
+                interrupt_node=None,
+            ),
+        ]
+    )
     return middleware
 
 

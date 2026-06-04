@@ -235,6 +235,7 @@ class AIAssistantConfigBase(BaseModel):
         max_length=100,
         description="Fully qualified Pydantic model class name for structured output (specialist-only)",
     )
+
     @model_validator(mode="after")
     def validate_main_agent_model(self) -> Self:
         """Require model_id for main agents; specialists may omit it."""

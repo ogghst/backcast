@@ -102,9 +102,7 @@ def _strip_disallowed_tool_calls(
         return ai_message  # nothing to strip
 
     removed_names = [
-        tc.get("name", "?")
-        for tc in ai_message.tool_calls
-        if tc not in filtered_calls
+        tc.get("name", "?") for tc in ai_message.tool_calls if tc not in filtered_calls
     ]
     logger.warning(
         "[PLAN_AWARE_TOOLS] Post-filter: stripped %d disallowed tool_call(s) "

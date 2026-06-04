@@ -53,7 +53,8 @@ class MCPClientManager:
 
         for server in servers:
             try:
-                tools = await self._connect_server(server.name, server.config)
+                decrypted_config = service.decrypt_config(server.config)
+                tools = await self._connect_server(server.name, decrypted_config)
                 self._tools.extend(tools)
                 logger.info("MCP server '%s': %d tools loaded", server.name, len(tools))
             except Exception:

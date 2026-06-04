@@ -158,9 +158,7 @@ def _convert_planner_output(
         )
 
     if not steps:
-        logger.warning(
-            "[PLANNER] Empty steps from structured output, falling back"
-        )
+        logger.warning("[PLANNER] Empty steps from structured output, falling back")
         return _fallback_plan(output.original_request)
 
     return PlanDocument(
@@ -283,9 +281,7 @@ async def planner_node(
                 type(planner_output).__name__,
             )
             return {"plan_data": _fallback_plan(user_request).model_dump()}
-        plan = _convert_planner_output(
-            planner_output, valid_specialists=valid_names
-        )
+        plan = _convert_planner_output(planner_output, valid_specialists=valid_names)
     except Exception:
         logger.exception("[PLANNER] LLM call failed, falling back to single step")
         plan = _fallback_plan(user_request)
