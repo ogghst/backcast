@@ -31,6 +31,11 @@ export const App = () => {
           themeMode === "dark"
             ? { ...theme.token, ...theme.darkModeTokens }
             : theme.token,
+        // Apply dark mode component tokens when dark mode is enabled
+        components:
+          themeMode === "dark"
+            ? { ...theme.components, ...theme.darkModeComponents }
+            : theme.components,
       }}
     >
       <AntApp>

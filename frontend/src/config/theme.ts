@@ -144,7 +144,28 @@ type DarkModeTokens = {
  * - Sophisticated accent colors that guide attention
  * - Harmonious relationships between elements
  */
-export const theme: ThemeConfig & { token: CustomTokenConfig; darkModeTokens?: DarkModeTokens } = {
+/**
+ * Component-level token overrides.
+ * Keys match Ant Design component names. Values are component tokens for that component.
+ */
+type ComponentTokens = {
+  Card?: {
+    colorBgContainer?: string;
+    actionsBg?: string;
+  };
+};
+
+export const theme: ThemeConfig & {
+  token: CustomTokenConfig;
+  darkModeTokens?: DarkModeTokens;
+  darkModeComponents?: ComponentTokens;
+} = {
+  components: {
+    Card: {
+      colorBgContainer: "#f2f7f4", // Subtle green tint on warm cream
+      actionsBg: "#f2f7f4",
+    },
+  },
   token: {
     // === Brand & Typography ===
     colorPrimary: "#4a7c91", // Soft teal-blue - sophisticated primary
@@ -270,5 +291,17 @@ export const theme: ThemeConfig & { token: CustomTokenConfig; darkModeTokens?: D
     boxShadowSecondary: "0 3px 6px -2px rgba(0, 0, 0, 0.24), 0 6px 16px -4px rgba(0, 0, 0, 0.18)",
     boxShadow: "0 6px 16px 0 rgba(0, 0, 0, 0.28), 0 3px 6px -4px rgba(0, 0, 0, 0.24), 0 9px 28px 8px rgba(0, 0, 0, 0.15)",
     boxShadowCard: "0 2px 4px -1px rgba(0, 0, 0, 0.2), 0 4px 12px 0 rgba(0, 0, 0, 0.15), 0 1px 3px 0 rgba(0, 0, 0, 0.1)",
+  },
+  /**
+   * Dark Mode Component Tokens
+   *
+   * Component-level token overrides applied when dark mode is active.
+   * Merged into ConfigProvider's theme.components alongside light mode overrides.
+   */
+  darkModeComponents: {
+    Card: {
+      colorBgContainer: "#1c2820", // Dark green-tinted gray
+      actionsBg: "#1c2820",
+    },
   },
 };

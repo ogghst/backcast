@@ -23,15 +23,25 @@ def upgrade() -> None:
     """Change mcp_servers.config from JSONB to TEXT.
 
     Existing data is truncated — reseed will populate with encrypted blobs.
+    Idempotent: skip if column is already TEXT.
     """
-    op.execute("TRUNCATE TABLE mcp_servers")
-    op.alter_column(
-        "mcp_servers",
-        "config",
-        existing_type=JSONB,
-        type_=sa.Text,
-        existing_nullable=False,
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.text(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_name = 'mcp_servers' AND column_name = 'config'"
+        )
     )
+    data_type = result.scalar()
+    if data_type and data_type.lower() != "text":
+        op.execute("TRUNCATE TABLE mcp_servers")
+        op.alter_column(
+            "mcp_servers",
+            "config",
+            existing_type=JSONB,
+            type_=sa.Text,
+            existing_nullable=False,
+        )
 
 
 def downgrade() -> None:
