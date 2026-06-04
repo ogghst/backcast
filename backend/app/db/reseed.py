@@ -1,6 +1,7 @@
 """Database reseed CLI script.
 
-Truncates all data tables and re-seeds from the unified seed_data.json file.
+Truncates all data tables and re-seeds from split seed files
+(seed_system_config.json + seed_projects.json).
 
 Usage:
     python -m app.db.reseed          # With confirmation prompt
@@ -11,7 +12,6 @@ import argparse
 import asyncio
 import json
 import logging
-from collections.abc import Callable, Coroutine
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -26,7 +26,8 @@ from app.db.session import async_session_maker, engine
 logger = logging.getLogger(__name__)
 
 SEED_DIR = Path(__file__).resolve().parent.parent.parent / "seed"
-SEED_FILE = SEED_DIR / "seed_data.json"
+SEED_SYSTEM_CONFIG_FILE = SEED_DIR / "seed_system_config.json"
+SEED_PROJECTS_FILE = SEED_DIR / "seed_projects.json"
 
 # Tables to truncate in reverse dependency order (dependents first).
 # CASCADE handles FK constraints; RESTART IDENTITY resets sequences.
@@ -40,10 +41,15 @@ TABLES_TO_TRUNCATE: list[str] = [
     # Notifications and quality
     "notifications",
     # Project data (leaf tables first)
+    "document_entity_links",
+    "document_versions",
+    "documents",
+    "document_folders",
     "cost_registrations",
     "progress_entries",
     "cost_elements",
     "forecasts",
+    "schedule_dependencies",
     "schedule_baselines",
     "work_packages",
     "control_accounts",
@@ -94,9 +100,15 @@ async def truncate_all_tables() -> None:
     logger.info("Truncated %d tables", len(TABLES_TO_TRUNCATE))
 
 
-def _load_seed_data() -> dict[str, Any]:
-    """Load the unified seed_data.json file."""
-    with open(SEED_FILE) as f:
+def _load_system_config() -> dict[str, Any]:
+    """Load the system config seed file."""
+    with open(SEED_SYSTEM_CONFIG_FILE) as f:
+        return json.load(f)
+
+
+def _load_projects() -> dict[str, Any]:
+    """Load the projects seed file."""
+    with open(SEED_PROJECTS_FILE) as f:
         return json.load(f)
 
 
@@ -198,7 +210,10 @@ async def _seed_change_order_workflow(
         ChangeOrderWorkflowConfig,
     )
 
-    config_data = workflow_data["config"]
+    config_data = workflow_data.get("config", {})
+    if not config_data:
+        logger.info("No change order workflow config to seed, skipping")
+        return
 
     # Seed main config
     config = ChangeOrderWorkflowConfig(
@@ -332,322 +347,6 @@ async def _seed_cost_event_types(
     logger.info("Seeded %d cost event types", len(data))
 
 
-async def _seed_demo_project(session: AsyncSession, demo: dict[str, Any]) -> None:
-    """Seed the full demo project from data dict, respecting dependency order."""
-    from app.models.schemas.cost_element import CostElementCreate
-    from app.models.schemas.cost_event import CostEventCreate
-    from app.models.schemas.cost_registration import CostRegistrationCreate
-    from app.models.schemas.forecast import ForecastCreate
-    from app.models.schemas.project import ProjectCreate
-    from app.models.schemas.work_package import WorkPackageCreate
-    from app.services.control_account_service import ControlAccountService
-    from app.services.cost_element_service import CostElementService
-    from app.services.cost_event_service import CostEventService
-    from app.services.cost_registration_service import CostRegistrationService
-    from app.services.forecast_service import ForecastService
-    from app.services.progress_entry_service import ProgressEntryService
-    from app.services.project import ProjectService
-    from app.services.schedule_baseline_service import ScheduleBaselineService
-    from app.services.wbs_element_service import WBSElementService
-    from app.services.work_package_service import WorkPackageService
-
-    actor_id = UUID(demo["_created_by"])
-    dependency_order = demo["_dependency_order"]
-
-    # Pre-extract WP-to-SB and WP-to-FC mappings before dicts get mutated.
-    wp_sb_map: dict[str, str | None] = {}
-    wp_fc_map: dict[str, str | None] = {}
-    wp_branch_map: dict[str, str] = {}
-    for wp in demo["work_packages"]:
-        wp_id = wp["work_package_id"]
-        wp_sb_map[wp_id] = wp.get("schedule_baseline_id")
-        wp_fc_map[wp_id] = wp.get("forecast_id")
-        wp_branch_map[wp_id] = wp.get("branch", "main")
-
-    # Map entity type keys to their seed functions
-    seed_map: dict[str, Callable[[], Coroutine[Any, Any, None]]] = {}
-
-    async def seed_project() -> None:
-        project_data = demo["project"]
-        # Remove fields not in ProjectCreate schema
-        project_data.pop("id", None)
-        project_data.pop("parent_id", None)
-        project_data.pop("merge_from_branch", None)
-        project_data.pop("deleted_at", None)
-        project_data.pop("deleted_by", None)
-        created_by = project_data.pop("created_by")
-        service = ProjectService(session)
-        schema = ProjectCreate(**project_data)
-        await service.create_project(schema, actor_id=UUID(created_by))
-        logger.info("Seeded project: %s", project_data.get("name"))
-
-    async def seed_wbs_elements() -> None:
-        items = demo["wbs_elements"]
-        service = WBSElementService(session)
-        count = 0
-        for item in items:
-            root_id = UUID(item.pop("wbs_element_id"))
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("parent_id", None)
-            item.pop("merge_from_branch", None)
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            branch = item.pop("branch", "main")
-            await service.create_root(
-                root_id=root_id,
-                actor_id=UUID(created_by),
-                branch=branch,
-                **item,
-            )
-            count += 1
-        logger.info("Seeded %d WBS elements", count)
-
-    async def seed_control_accounts() -> None:
-        items = demo["control_accounts"]
-        service = ControlAccountService(session)
-        count = 0
-        for item in items:
-            root_id = UUID(item.pop("control_account_id"))
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("parent_id", None)
-            item.pop("merge_from_branch", None)
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            branch = item.pop("branch", "main")
-            await service.create_root(
-                root_id=root_id,
-                actor_id=UUID(created_by),
-                branch=branch,
-                **item,
-            )
-            count += 1
-        logger.info("Seeded %d control accounts", count)
-
-    async def seed_work_packages() -> None:
-        items = demo["work_packages"]
-        service = WorkPackageService(session)
-        count = 0
-        for item in items:
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("parent_id", None)
-            item.pop("merge_from_branch", None)
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            item.pop("schedule_baseline_id", None)
-            item.pop("forecast_id", None)
-            schema = WorkPackageCreate(**item)
-            await service.create_work_package(schema, actor_id=UUID(created_by))
-            count += 1
-        logger.info("Seeded %d work packages", count)
-
-    async def seed_cost_elements() -> None:
-        items = demo["cost_elements"]
-        service = CostElementService(session)
-        count = 0
-        for item in items:
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            schema = CostElementCreate(**item)
-            await service.create_cost_element(schema, actor_id=UUID(created_by))
-            count += 1
-        logger.info("Seeded %d cost elements", count)
-
-    async def seed_schedule_baselines() -> None:
-        items = demo["schedule_baselines"]
-        service = ScheduleBaselineService(session)
-        count = 0
-        for item in items:
-            root_id = UUID(item.pop("schedule_baseline_id"))
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("parent_id", None)
-            item.pop("merge_from_branch", None)
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            branch = item.pop("branch", "main")
-            _parse_datetimes(item, ["start_date", "end_date"])
-            await service.create_root(
-                root_id=root_id,
-                actor_id=UUID(created_by),
-                branch=branch,
-                **item,
-            )
-            count += 1
-        logger.info("Seeded %d schedule baselines", count)
-
-        # Link work packages to their schedule baselines
-        from app.core.branching.commands import UpdateCommand
-        from app.models.domain.work_package import WorkPackage
-
-        linked = 0
-        for wp_id_str, sb_id_str in wp_sb_map.items():
-            if sb_id_str is not None:
-                cmd = UpdateCommand(
-                    entity_class=WorkPackage,
-                    root_id=UUID(wp_id_str),
-                    actor_id=actor_id,
-                    branch=wp_branch_map[wp_id_str],
-                    updates={"schedule_baseline_id": UUID(sb_id_str)},
-                )
-                await cmd.execute(session)
-                linked += 1
-        if linked:
-            logger.info("Linked %d work packages to schedule baselines", linked)
-
-    async def seed_forecasts() -> None:
-        items = demo["forecasts"]
-        service = ForecastService(session)
-        count = 0
-        for item in items:
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("parent_id", None)
-            item.pop("merge_from_branch", None)
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            schema = ForecastCreate(**item)
-            await service.create_forecast(schema, actor_id=UUID(created_by))
-            count += 1
-        logger.info("Seeded %d forecasts", count)
-
-        # Link work packages to their forecasts
-        from app.core.branching.commands import UpdateCommand
-        from app.models.domain.work_package import WorkPackage
-
-        linked = 0
-        for wp_id_str, fc_id_str in wp_fc_map.items():
-            if fc_id_str is not None:
-                cmd = UpdateCommand(
-                    entity_class=WorkPackage,
-                    root_id=UUID(wp_id_str),
-                    actor_id=actor_id,
-                    branch=wp_branch_map[wp_id_str],
-                    updates={"forecast_id": UUID(fc_id_str)},
-                )
-                await cmd.execute(session)
-                linked += 1
-        if linked:
-            logger.info("Linked %d work packages to forecasts", linked)
-
-    async def seed_progress_entries() -> None:
-        from decimal import Decimal
-
-        items = demo["progress_entries"]
-        service = ProgressEntryService(session)
-        count = 0
-        for item in items:
-            root_id = UUID(item.pop("progress_entry_id"))
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            if "progress_percentage" in item and isinstance(
-                item["progress_percentage"], str
-            ):
-                item["progress_percentage"] = Decimal(item["progress_percentage"])
-            await service.create(
-                actor_id=UUID(created_by),
-                root_id=root_id,
-                progress_in=None,
-                **item,
-            )
-            count += 1
-        logger.info("Seeded %d progress entries", count)
-
-    async def seed_cost_events() -> None:
-        items = demo["cost_events"]
-        service = CostEventService(session)
-        count = 0
-        for item in items:
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            schema = CostEventCreate(**item)
-            await service.create_cost_event(schema, actor_id=UUID(created_by))
-            count += 1
-        logger.info("Seeded %d cost events", count)
-
-    async def seed_cost_registrations() -> None:
-        items = demo["cost_registrations"]
-        service = CostRegistrationService(session)
-        count = 0
-        for item in items:
-            item.pop("id", None)
-            created_by = item.pop("created_by")
-            item.pop("deleted_at", None)
-            item.pop("deleted_by", None)
-            schema = CostRegistrationCreate(**item)
-            await service.create_cost_registration(schema, actor_id=UUID(created_by))
-            count += 1
-        logger.info("Seeded %d cost registrations", count)
-
-    async def seed_change_orders() -> None:
-        items = demo.get("change_orders", [])
-        if not items:
-            return
-        from app.models.domain.change_order import ChangeOrder
-
-        count = 0
-        for item in items:
-            item.pop("id", None)
-            co_id = item["change_order_id"]
-            co = ChangeOrder(
-                id=UUID(co_id),
-                **{k: _coerce_value(k, v) for k, v in item.items()},
-            )
-            session.add(co)
-            count += 1
-        await session.flush()
-        logger.info("Seeded %d change orders", count)
-
-    async def seed_change_order_audit_logs() -> None:
-        items = demo.get("change_order_audit_logs", [])
-        if not items:
-            return
-        from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
-
-        count = 0
-        for item in items:
-            alog = ChangeOrderAuditLog(
-                id=UUID(item.pop("id")),
-                **{k: _coerce_value(k, v) for k, v in item.items()},
-            )
-            session.add(alog)
-            count += 1
-        await session.flush()
-        logger.info("Seeded %d change order audit logs", count)
-
-    seed_map = {
-        "project": seed_project,
-        "wbs_elements": seed_wbs_elements,
-        "control_accounts": seed_control_accounts,
-        "work_packages": seed_work_packages,
-        "cost_elements": seed_cost_elements,
-        "schedule_baselines": seed_schedule_baselines,
-        "forecasts": seed_forecasts,
-        "progress_entries": seed_progress_entries,
-        "cost_events": seed_cost_events,
-        "cost_registrations": seed_cost_registrations,
-        "change_orders": seed_change_orders,
-        "change_order_audit_logs": seed_change_order_audit_logs,
-    }
-
-    # Seed in dependency order
-    for entity_type in dependency_order:
-        seed_fn = seed_map.get(entity_type)
-        if seed_fn is None:
-            logger.warning("Unknown entity type in dependency order: %s", entity_type)
-            continue
-        print(f"  Seeding {entity_type}...")
-        await seed_fn()
-
-
 async def _seed_ai_providers(session: AsyncSession, data: list[dict[str, Any]]) -> None:
     """Seed AI providers, their configs, and models from data list."""
     from app.models.domain.ai import AIModel, AIProvider, AIProviderConfig
@@ -771,6 +470,518 @@ async def _seed_ai_specialist_configs(
     )
 
 
+async def _seed_project_budget_settings(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed project budget settings from data list."""
+    from app.models.domain.project_budget_settings import ProjectBudgetSettings
+
+    with seed_operation():
+        count = 0
+        for item in data:
+            item_copy = dict(item)
+            root_id = UUID(item_copy.pop("project_budget_settings_id"))
+            item_copy.pop("id", None)
+            created_by = UUID(item_copy.pop("created_by"))
+            item_copy.pop("deleted_at", None)
+            item_copy.pop("deleted_by", None)
+
+            settings = ProjectBudgetSettings(
+                id=root_id,
+                project_budget_settings_id=root_id,
+                project_id=UUID(item_copy.pop("project_id")),
+                created_by=created_by,
+                **{k: _coerce_value(k, v) for k, v in item_copy.items()},
+            )
+            session.add(settings)
+            count += 1
+        await session.flush()
+    logger.info("Seeded %d project budget settings", count)
+
+
+async def _seed_branches(session: AsyncSession, data: list[dict[str, Any]]) -> None:
+    """Seed branches from data list."""
+    from app.models.domain.branch import Branch
+
+    with seed_operation():
+        count = 0
+        for item in data:
+            item_copy = dict(item)
+            item_copy.pop("id", None)
+            created_by = UUID(item_copy.pop("created_by"))
+            item_copy.pop("parent_id", None)
+            item_copy.pop("merge_from_branch", None)
+            item_copy.pop("deleted_at", None)
+            item_copy.pop("deleted_by", None)
+            # DB column is branch_metadata_info, but ORM attribute is branch_metadata
+            if "branch_metadata_info" in item_copy:
+                item_copy["branch_metadata"] = item_copy.pop("branch_metadata_info")
+
+            branch = Branch(
+                created_by=created_by,
+                **{k: _coerce_value(k, v) for k, v in item_copy.items()},
+            )
+            session.add(branch)
+            count += 1
+        await session.flush()
+    logger.info("Seeded %d branches", count)
+
+
+async def _seed_schedule_dependencies(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed schedule dependencies from data list."""
+    from app.models.domain.schedule_dependency import ScheduleDependency
+
+    with seed_operation():
+        count = 0
+        for item in data:
+            item_copy = dict(item)
+            item_copy.pop("id", None)
+
+            dep = ScheduleDependency(
+                schedule_dependency_id=UUID(item_copy.pop("schedule_dependency_id")),
+                predecessor_id=UUID(item_copy.pop("predecessor_id")),
+                successor_id=UUID(item_copy.pop("successor_id")),
+                dependency_type=item_copy.pop("dependency_type", "FS"),
+                lag_days=item_copy.pop("lag_days", 0),
+                branch=item_copy.pop("branch", "main"),
+                project_id=UUID(item_copy.pop("project_id")),
+            )
+            session.add(dep)
+            count += 1
+        await session.flush()
+    logger.info("Seeded %d schedule dependencies", count)
+
+
+# ---------------------------------------------------------------------------
+# Flat project seeding helpers (new top-level array format)
+# ---------------------------------------------------------------------------
+
+
+async def _seed_projects(session: AsyncSession, data: list[dict[str, Any]]) -> None:
+    """Seed projects from flat array data."""
+    from app.models.schemas.project import ProjectCreate
+    from app.services.project import ProjectService
+
+    service = ProjectService(session)
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        item_copy.pop("id", None)
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        schema = ProjectCreate(**item_copy)
+        await service.create_project(schema, actor_id=created_by)
+        count += 1
+    logger.info("Seeded %d projects", count)
+
+
+async def _seed_wbs_elements_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed WBS elements from flat array data."""
+    from app.services.wbs_element_service import WBSElementService
+
+    service = WBSElementService(session)
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("wbs_element_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        branch = item_copy.pop("branch", "main")
+        await service.create_root(
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        count += 1
+    logger.info("Seeded %d WBS elements", count)
+
+
+async def _seed_control_accounts_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed control accounts from flat array data."""
+    from app.services.control_account_service import ControlAccountService
+
+    service = ControlAccountService(session)
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("control_account_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        branch = item_copy.pop("branch", "main")
+        await service.create_root(
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d control accounts", count)
+
+
+async def _seed_work_packages_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed work packages from flat array data."""
+    from app.services.work_package_service import WorkPackageService
+
+    service = WorkPackageService(session)
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("work_package_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        item_copy.pop("schedule_baseline_id", None)
+        item_copy.pop("forecast_id", None)
+        branch = item_copy.pop("branch", "main")
+        await service.create_root(
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d work packages", count)
+
+
+async def _seed_cost_elements_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed cost elements from flat array data."""
+    from app.core.versioning.commands import CreateVersionCommand
+    from app.models.domain.cost_element import CostElement
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("cost_element_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        branch = item_copy.pop("branch", "main")
+        cmd = CreateVersionCommand(
+            entity_class=CostElement,
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        await cmd.execute(session)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d cost elements", count)
+
+
+async def _seed_schedule_baselines_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed schedule baselines from flat array data."""
+    from app.services.schedule_baseline_service import ScheduleBaselineService
+
+    service = ScheduleBaselineService(session)
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("schedule_baseline_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        branch = item_copy.pop("branch", "main")
+        _parse_datetimes(item_copy, ["start_date", "end_date"])
+        await service.create_root(
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        count += 1
+    logger.info("Seeded %d schedule baselines", count)
+
+
+async def _seed_forecasts_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed forecasts from flat array data."""
+    from app.services.forecast_service import ForecastService
+
+    service = ForecastService(session)
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("forecast_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        branch = item_copy.pop("branch", "main")
+        await service.create_root(
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d forecasts", count)
+
+
+async def _seed_progress_entries_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed progress entries from flat array data."""
+    from decimal import Decimal
+
+    from app.core.versioning.commands import CreateVersionCommand
+    from app.models.domain.progress_entry import ProgressEntry
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("progress_entry_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        if "progress_percentage" in item_copy and isinstance(
+            item_copy["progress_percentage"], str
+        ):
+            item_copy["progress_percentage"] = Decimal(item_copy["progress_percentage"])
+        branch = item_copy.pop("branch", "main")
+        cmd = CreateVersionCommand(
+            entity_class=ProgressEntry,
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        await cmd.execute(session)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d progress entries", count)
+
+
+async def _seed_cost_events_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed cost events from flat array data."""
+    from app.core.versioning.commands import CreateVersionCommand
+    from app.models.domain.cost_event import CostEvent
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("cost_event_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        branch = item_copy.pop("branch", "main")
+        cmd = CreateVersionCommand(
+            entity_class=CostEvent,
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        await cmd.execute(session)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d cost events", count)
+
+
+async def _seed_cost_registrations_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed cost registrations from flat array data."""
+    from app.core.versioning.commands import CreateVersionCommand
+    from app.models.domain.cost_registration import CostRegistration
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        root_id = UUID(item_copy.pop("cost_registration_id"))
+        item_copy.pop("id", None)
+        created_by = UUID(item_copy.pop("created_by"))
+        item_copy.pop("deleted_at", None)
+        item_copy.pop("deleted_by", None)
+        item_copy.pop("parent_id", None)
+        item_copy.pop("merge_from_branch", None)
+        branch = item_copy.pop("branch", "main")
+        cmd = CreateVersionCommand(
+            entity_class=CostRegistration,
+            root_id=root_id,
+            actor_id=created_by,
+            branch=branch,
+            **item_copy,
+        )
+        await cmd.execute(session)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d cost registrations", count)
+
+
+async def _seed_change_orders_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed change orders from flat array data."""
+    if not data:
+        return
+    from app.models.domain.change_order import ChangeOrder
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        item_copy.pop("id", None)
+        co_id = item_copy["change_order_id"]
+        co = ChangeOrder(
+            id=UUID(co_id),
+            **{k: _coerce_value(k, v) for k, v in item_copy.items()},
+        )
+        session.add(co)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d change orders", count)
+
+
+async def _seed_change_order_audit_logs_flat(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed change order audit logs from flat array data."""
+    if not data:
+        return
+    from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        alog = ChangeOrderAuditLog(
+            id=UUID(item_copy.pop("id")),
+            **{k: _coerce_value(k, v) for k, v in item_copy.items()},
+        )
+        session.add(alog)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d change order audit logs", count)
+
+
+async def _seed_document_folders(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed document folders from flat array data."""
+    if not data:
+        return
+    from app.models.domain.document_folder import DocumentFolder
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        folder = DocumentFolder(
+            id=UUID(item_copy.pop("id")),
+            **{k: _coerce_value(k, v) for k, v in item_copy.items()},
+        )
+        session.add(folder)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d document folders", count)
+
+
+async def _seed_documents(session: AsyncSession, data: list[dict[str, Any]]) -> None:
+    """Seed documents from flat array data."""
+    if not data:
+        return
+    from app.models.domain.document import Document
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        doc = Document(
+            id=UUID(item_copy.pop("id")),
+            **{k: _coerce_value(k, v) for k, v in item_copy.items()},
+        )
+        session.add(doc)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d documents", count)
+
+
+async def _seed_document_versions(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed document versions from flat array data."""
+    if not data:
+        return
+    from app.models.domain.document_version import DocumentVersion
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        ver = DocumentVersion(
+            id=UUID(item_copy.pop("id")),
+            **{k: _coerce_value(k, v) for k, v in item_copy.items()},
+        )
+        session.add(ver)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d document versions", count)
+
+
+async def _seed_document_entity_links(
+    session: AsyncSession, data: list[dict[str, Any]]
+) -> None:
+    """Seed document entity links from flat array data."""
+    if not data:
+        return
+    from app.models.domain.document_entity_link import DocumentEntityLink
+
+    count = 0
+    for item in data:
+        item_copy = dict(item)
+        link = DocumentEntityLink(
+            id=UUID(item_copy.pop("id")),
+            **{k: _coerce_value(k, v) for k, v in item_copy.items()},
+        )
+        session.add(link)
+        count += 1
+    await session.flush()
+    logger.info("Seeded %d document entity links", count)
+
+
 # ---------------------------------------------------------------------------
 # Core reseed function (accepts data dict, used by both CLI and API)
 # ---------------------------------------------------------------------------
@@ -781,6 +992,9 @@ async def reseed_from_data(session: AsyncSession, data: dict[str, Any]) -> None:
 
     This is the core function called by both the CLI entry point and the API.
     Assumes tables have already been truncated before calling.
+
+    Expects flat top-level arrays for all project entities
+    (``projects``, ``project_budget_settings``, ``branches``, etc.).
     """
     with seed_operation():
         print("  Seeding users and RBAC...")
@@ -812,10 +1026,123 @@ async def reseed_from_data(session: AsyncSession, data: dict[str, Any]) -> None:
         print("  Seeding change order workflow...")
         await _seed_change_order_workflow(session, data["change_order_workflow"])
 
-        print("  Seeding demo project...")
-        await _seed_demo_project(session, data["demo_project"])
+        print("  Seeding projects...")
+        await _seed_projects(session, data.get("projects", []))
+
+        print("  Seeding project budget settings...")
+        await _seed_project_budget_settings(
+            session, data.get("project_budget_settings", [])
+        )
+
+        print("  Seeding branches...")
+        await _seed_branches(session, data.get("branches", []))
+
+        print("  Seeding WBS elements...")
+        await _seed_wbs_elements_flat(session, data.get("wbs_elements", []))
+
+        print("  Seeding control accounts...")
+        await _seed_control_accounts_flat(session, data.get("control_accounts", []))
+
+        print("  Seeding work packages...")
+        await _seed_work_packages_flat(session, data.get("work_packages", []))
+
+        print("  Seeding cost elements...")
+        await _seed_cost_elements_flat(session, data.get("cost_elements", []))
+
+        print("  Seeding schedule baselines...")
+        await _seed_schedule_baselines_flat(session, data.get("schedule_baselines", []))
+
+        print("  Seeding schedule dependencies...")
+        await _seed_schedule_dependencies(
+            session, data.get("schedule_dependencies", [])
+        )
+
+        print("  Seeding forecasts...")
+        await _seed_forecasts_flat(session, data.get("forecasts", []))
+
+        print("  Seeding progress entries...")
+        await _seed_progress_entries_flat(session, data.get("progress_entries", []))
+
+        print("  Seeding cost events...")
+        await _seed_cost_events_flat(session, data.get("cost_events", []))
+
+        print("  Seeding cost registrations...")
+        await _seed_cost_registrations_flat(session, data.get("cost_registrations", []))
+
+        print("  Seeding document folders...")
+        await _seed_document_folders(session, data.get("document_folders", []))
+
+        print("  Seeding documents...")
+        await _seed_documents(session, data.get("documents", []))
+
+        print("  Seeding document versions...")
+        await _seed_document_versions(session, data.get("document_versions", []))
+
+        print("  Seeding document entity links...")
+        await _seed_document_entity_links(
+            session, data.get("document_entity_links", [])
+        )
+
+        print("  Seeding change orders...")
+        await _seed_change_orders_flat(session, data.get("change_orders", []))
+
+        print("  Seeding change order audit logs...")
+        await _seed_change_order_audit_logs_flat(
+            session, data.get("change_order_audit_logs", [])
+        )
 
         await session.commit()
+
+
+async def reseed_from_split_files(session: AsyncSession) -> None:
+    """Load both split seed files and reseed from the merged result.
+
+    Loads ``seed_system_config.json`` and ``seed_projects.json``, merges them
+    into a single dict compatible with :func:`reseed_from_data`, then
+    executes the reseed.
+    """
+    system_config = _load_system_config()
+    projects = _load_projects()
+
+    # Merge both files into a single dict for reseed_from_data
+    merged: dict[str, Any] = {
+        "_version": system_config.get("_version", 1),
+        "_comment": "Merged from split seed files",
+        # System config sections
+        "rbac_roles": system_config.get("rbac_roles", {}),
+        "users": system_config.get("users", []),
+        "user_role_assignments": system_config.get("user_role_assignments", {}),
+        "ai_providers": system_config.get("ai_providers", []),
+        "ai_assistant_configs": system_config.get("ai_assistant_configs", []),
+        "ai_specialist_configs": system_config.get("ai_specialist_configs", []),
+        "mcp_servers": system_config.get("mcp_servers", []),
+        "change_order_workflow": system_config.get("change_order_workflow", {}),
+        # Project sections (flat top-level arrays)
+        "organizational_units": projects.get("organizational_units", []),
+        "cost_element_types": projects.get("cost_element_types", []),
+        "cost_event_types": projects.get("cost_event_types", []),
+        "projects": projects.get("projects", []),
+        "project_budget_settings": projects.get("project_budget_settings", []),
+        "branches": projects.get("branches", []),
+        "wbs_elements": projects.get("wbs_elements", []),
+        "control_accounts": projects.get("control_accounts", []),
+        "work_packages": projects.get("work_packages", []),
+        "cost_elements": projects.get("cost_elements", []),
+        "schedule_baselines": projects.get("schedule_baselines", []),
+        "schedule_dependencies": projects.get("schedule_dependencies", []),
+        "forecasts": projects.get("forecasts", []),
+        "progress_entries": projects.get("progress_entries", []),
+        "cost_events": projects.get("cost_events", []),
+        "cost_registrations": projects.get("cost_registrations", []),
+        "document_folders": projects.get("document_folders", []),
+        "documents": projects.get("documents", []),
+        "document_versions": projects.get("document_versions", []),
+        "document_entity_links": projects.get("document_entity_links", []),
+        "change_orders": projects.get("change_orders", []),
+        "change_order_audit_logs": projects.get("change_order_audit_logs", []),
+    }
+
+    await reseed_from_data(session, merged)
 
 
 async def reseed(skip_confirm: bool = False) -> None:
@@ -835,11 +1162,9 @@ async def reseed(skip_confirm: bool = False) -> None:
     await truncate_all_tables()
     print(f"Truncated {len(TABLES_TO_TRUNCATE)} tables.")
 
-    print("Seeding database from seed_data.json...")
-    data = _load_seed_data()
-
+    print("Seeding database from split seed files...")
     async with async_session_maker() as session:
-        await reseed_from_data(session, data)
+        await reseed_from_split_files(session)
 
     print("Reseed complete.")
     await engine.dispose()

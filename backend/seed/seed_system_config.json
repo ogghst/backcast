@@ -1,0 +1,489 @@
+{
+  "_version": 1,
+  "_comment": "System configuration: users, RBAC, AI providers, MCP servers, and change order workflow settings",
+  "_dependency_order": [
+    "rbac_roles", "users", "user_role_assignments",
+    "ai_providers", "ai_assistant_configs", "ai_specialist_configs",
+    "mcp_servers", "change_order_workflow"
+  ],
+
+  "rbac_roles": {
+    "admin": {
+      "description": "Full system administrator with unrestricted access",
+      "permissions": [
+        "user-read", "user-create", "user-update", "user-delete",
+        "organizational-unit-read", "organizational-unit-create", "organizational-unit-update", "organizational-unit-delete",
+        "project-read", "project-create", "project-update", "project-delete",
+        "project-documents-read", "project-documents-write", "project-documents-delete",
+        "wbs-element-read", "wbs-element-create", "wbs-element-update", "wbs-element-delete",
+        "control-account-read", "control-account-create", "control-account-update", "control-account-delete",
+        "work-package-read", "work-package-create", "work-package-update", "work-package-delete",
+        "cost-element-type-read", "cost-element-type-create", "cost-element-type-update", "cost-element-type-delete",
+        "cost-event-type-read", "cost-event-type-create", "cost-event-type-update", "cost-event-type-delete",
+        "cost-element-read", "cost-element-create", "cost-element-update", "cost-element-delete",
+        "cost-event-read", "cost-event-create", "cost-event-update", "cost-event-delete",
+        "cost-registration-read", "cost-registration-create", "cost-registration-update", "cost-registration-delete",
+        "change-order-read", "change-order-create", "change-order-update", "change-order-delete",
+        "change-order-submit", "change-order-approve", "change-order-implement", "change-order-recover",
+        "forecast-read", "forecast-create", "forecast-update", "forecast-delete",
+        "schedule-baseline-read", "schedule-baseline-create", "schedule-baseline-update", "schedule-baseline-delete",
+        "progress-entry-read", "progress-entry-create", "progress-entry-update", "progress-entry-delete",
+        "evm-read", "evm-create", "evm-update", "evm-delete",
+        "ai-config-read", "ai-config-create", "ai-config-update", "ai-config-delete",
+        "ai-chat",
+        "mcp-server-read", "mcp-server-create", "mcp-server-update", "mcp-server-delete", "mcp-tool-execute",
+        "dashboard-template-update",
+        "project-budget-settings-read", "project-budget-settings-write",
+        "change-order-workflow-config-manage", "change-order-workflow-config-override",
+        "change-order-escalate",
+        "temporal-write",
+        "system-dump-reseed"
+      ]
+    },
+    "manager": {
+      "description": "Project manager with most CRUD permissions",
+      "permissions": [
+        "user-read", "user-update",
+        "organizational-unit-read", "organizational-unit-create", "organizational-unit-update", "organizational-unit-delete",
+        "project-read", "project-create", "project-update", "project-delete",
+        "project-documents-read", "project-documents-write",
+        "wbs-element-read", "wbs-element-create", "wbs-element-update", "wbs-element-delete",
+        "control-account-read", "control-account-create", "control-account-update", "control-account-delete",
+        "work-package-read", "work-package-create", "work-package-update", "work-package-delete",
+        "cost-element-read", "cost-element-create", "cost-element-update",
+        "cost-element-type-read",
+        "cost-event-type-read",
+        "cost-event-read", "cost-event-create", "cost-event-update", "cost-event-delete",
+        "cost-registration-read", "cost-registration-create", "cost-registration-update",
+        "change-order-read", "change-order-create", "change-order-update", "change-order-delete",
+        "change-order-submit", "change-order-approve", "change-order-implement", "change-order-escalate",
+        "forecast-read", "forecast-create", "forecast-update", "forecast-delete",
+        "schedule-baseline-read", "schedule-baseline-create", "schedule-baseline-update", "schedule-baseline-delete",
+        "progress-entry-read", "progress-entry-create", "progress-entry-update", "progress-entry-delete",
+        "evm-read", "evm-create", "evm-update", "evm-delete",
+        "ai-chat",
+        "project-budget-settings-read", "project-budget-settings-write"
+      ]
+    },
+    "viewer": {
+      "description": "Read-only access across the system",
+      "permissions": [
+        "organizational-unit-read",
+        "project-read",
+        "project-documents-read",
+        "wbs-element-read",
+        "control-account-read",
+        "work-package-read",
+        "cost-element-read",
+        "cost-element-type-read",
+        "cost-event-type-read",
+        "cost-event-read",
+        "cost-registration-read",
+        "change-order-read",
+        "change-order-approve",
+        "forecast-read",
+        "schedule-baseline-read"
+      ]
+    },
+    "ai-viewer": {
+      "description": "Read access with AI chat capability",
+      "permissions": [
+        "project-read", "project-documents-read",
+        "wbs-element-read", "control-account-read", "work-package-read",
+        "cost-element-read", "cost-element-type-read", "cost-event-type-read",
+        "cost-event-read", "cost-registration-read", "change-order-read",
+        "forecast-read", "schedule-baseline-read", "evm-read",
+        "user-read", "organizational-unit-read",
+        "ai-chat", "mcp-tool-execute",
+        "progress-entry-read"
+      ]
+    },
+    "ai-manager": {
+      "description": "AI agent with read/write access",
+      "permissions": [
+        "project-read", "project-create", "project-update", "project-delete",
+        "project-documents-read", "project-documents-write",
+        "wbs-element-read", "wbs-element-create", "wbs-element-update", "wbs-element-delete",
+        "control-account-read", "control-account-create", "control-account-update", "control-account-delete",
+        "work-package-read", "work-package-create", "work-package-update", "work-package-delete",
+        "cost-element-read", "cost-element-create", "cost-element-update", "cost-element-delete",
+        "cost-element-type-read", "cost-element-type-create", "cost-element-type-update", "cost-element-type-delete",
+        "cost-event-type-read",
+        "cost-event-read", "cost-event-create", "cost-event-update", "cost-event-delete",
+        "cost-registration-read", "cost-registration-create", "cost-registration-update", "cost-registration-delete",
+        "change-order-read", "change-order-create", "change-order-update", "change-order-delete",
+        "change-order-submit", "change-order-approve", "change-order-implement", "change-order-escalate",
+        "forecast-read", "forecast-create", "forecast-update", "forecast-delete",
+        "schedule-baseline-read", "schedule-baseline-create", "schedule-baseline-update", "schedule-baseline-delete",
+        "mcp-server-read", "mcp-tool-execute",
+        "progress-entry-read", "progress-entry-create", "progress-entry-update", "progress-entry-delete",
+        "evm-read", "evm-create", "evm-update", "evm-delete",
+        "ai-chat", "user-read", "organizational-unit-read", "project-delete"
+      ]
+    },
+    "ai-admin": {
+      "description": "AI agent with full administrative access",
+      "permissions": [
+        "user-read", "user-create", "user-update", "user-delete",
+        "organizational-unit-read", "organizational-unit-create", "organizational-unit-update", "organizational-unit-delete",
+        "project-read", "project-create", "project-update", "project-delete",
+        "project-documents-read", "project-documents-write", "project-documents-delete",
+        "wbs-element-read", "wbs-element-create", "wbs-element-update", "wbs-element-delete",
+        "control-account-read", "control-account-create", "control-account-update", "control-account-delete",
+        "work-package-read", "work-package-create", "work-package-update", "work-package-delete",
+        "cost-element-type-read", "cost-element-type-create", "cost-element-type-update", "cost-element-type-delete",
+        "cost-event-type-read", "cost-event-type-create", "cost-event-type-update", "cost-event-type-delete",
+        "cost-element-read", "cost-element-create", "cost-element-update", "cost-element-delete",
+        "cost-event-read", "cost-event-create", "cost-event-update", "cost-event-delete",
+        "cost-registration-read", "cost-registration-create", "cost-registration-update", "cost-registration-delete",
+        "change-order-read", "change-order-create", "change-order-update", "change-order-delete",
+        "change-order-submit", "change-order-approve", "change-order-implement", "change-order-escalate",
+        "forecast-read", "forecast-create", "forecast-update", "forecast-delete",
+        "schedule-baseline-read", "schedule-baseline-create", "schedule-baseline-update", "schedule-baseline-delete",
+        "progress-entry-read", "progress-entry-create", "progress-entry-update", "progress-entry-delete",
+        "evm-read", "evm-create", "evm-update", "evm-delete",
+        "ai-config-read", "ai-config-create", "ai-config-update", "ai-config-delete",
+        "ai-chat",
+        "mcp-server-read", "mcp-server-create", "mcp-server-update", "mcp-server-delete", "mcp-tool-execute",
+        "dashboard-template-update",
+        "project-budget-settings-read", "project-budget-settings-write",
+        "change-order-workflow-config-manage", "change-order-workflow-config-override",
+        "temporal-write"
+      ]
+    }
+  },
+
+  "users": [
+    {
+      "user_id": "e03556f3-4385-5d68-a685-af307fc8af5c",
+      "email": "admin@backcast.org",
+      "password": "adminadmin",
+      "full_name": "Admin User"
+    },
+    {
+      "user_id": "4395b53f-d92a-4ad5-aca4-33ba78cc876b",
+      "email": "pm@backcast.org",
+      "password": "backcast",
+      "full_name": "Project Manager"
+    },
+    {
+      "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "email": "viewer@backcast.org",
+      "password": "backcast",
+      "full_name": "Viewer User"
+    }
+  ],
+
+  "user_role_assignments": {
+    "admin@backcast.org": "admin",
+    "pm@backcast.org": "manager",
+    "viewer@backcast.org": "viewer"
+  },
+
+  "ai_providers": [
+    {
+      "id": "01234567-89ab-cdef-0123-456789abcdef",
+      "provider_type": "openai",
+      "name": "OpenAI",
+      "base_url": "https://api.openai.com/v1",
+      "is_active": false,
+      "configs": [
+        {
+          "id": "11111111-1111-1111-1111-111111111111",
+          "key": "api_key",
+          "value": "",
+          "is_encrypted": true
+        }
+      ],
+      "models": [
+        { "id": "22222222-2222-2222-2222-222222222222", "model_id": "gpt-4o", "display_name": "GPT-4o", "is_active": true },
+        { "id": "33333333-3333-3333-3333-333333333333", "model_id": "gpt-4o-mini", "display_name": "GPT-4o Mini", "is_active": true },
+        { "id": "44444444-4444-4444-4444-444444444444", "model_id": "o1-preview", "display_name": "o1-preview", "is_active": false }
+      ]
+    },
+    {
+      "id": "01234567-89ab-cdef-0123-456789abcde0",
+      "provider_type": "Z.AI",
+      "name": "Z.AI",
+      "base_url": "https://api.z.ai/api/coding/paas/v4",
+      "is_active": true,
+      "configs": [
+        {
+          "id": "11111111-1111-1111-1111-111111111112",
+          "key": "api_key",
+          "value": "",
+          "is_encrypted": true
+        }
+      ],
+      "models": [
+        { "id": "11111111-1111-1111-1111-111111111112", "model_id": "glm-4.7", "display_name": "glm-4.7", "is_active": true }
+      ]
+    },
+    {
+      "id": "01234567-89ab-cdef-0123-456789abcde1",
+      "provider_type": "ollama",
+      "name": "Ollama",
+      "base_url": "http://localhost:11434/v1",
+      "is_active": false,
+      "configs": [],
+      "models": [
+        { "id": "55555555-5555-5555-5555-555555555555", "model_id": "qwen3.5:4b", "display_name": "Qwen 3.5 (4b)", "is_active": true },
+        { "id": "66666666-6666-6666-6666-666666666666", "model_id": "mistral", "display_name": "Mistral", "is_active": true }
+      ]
+    },
+    {
+      "id": "01234567-89ab-cdef-0123-456789abcde2",
+      "provider_type": "deepseek",
+      "name": "DeepSeek",
+      "base_url": "https://api.deepseek.com/v1",
+      "is_active": false,
+      "configs": [
+        {
+          "id": "11111111-1111-1111-1111-111111111113",
+          "key": "api_key",
+          "value": "",
+          "is_encrypted": true
+        }
+      ],
+      "models": [
+        { "id": "77777777-7777-7777-7777-777777777777", "model_id": "deepseek-v4-flash", "display_name": "DeepSeek V4 Flash", "is_active": true }
+      ]
+    }
+  ],
+
+  "ai_assistant_configs": [
+    {
+      "id": "77777777-7777-7777-7777-777777777777",
+      "name": "Friendly Project Analyzer",
+      "description": "Read-only project insights for all team members. Explains EVM metrics, budgets, and performance in clear, jargon-free language.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "system_prompt": "You are a friendly and accessible project analyst for the Backcast system.\n\nYou help all team members understand project status, budgets, and performance metrics through clear, jargon-free explanations.\n\nYour strengths:\n- Explaining Earned Value Management (EVM) in simple terms\n- Highlighting key insights from project data\n- Answering \"what does this mean?\" questions\n- Creating visual summaries with diagrams\n\nWhen responding:\n- Be conversational and approachable\n- Explain technical concepts clearly\n- Focus on actionable insights\n- Use examples to clarify complex metrics\n- Only use tools you have been explicitly granted access to",
+      "temperature": 0.1,
+      "max_tokens": 3000,
+      "recursion_limit": 25,
+      "is_active": true,
+      "default_role": "ai-viewer",
+      "agent_type": "main",
+      "allowed_tools": null,
+      "delegation_config": {
+        "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search", "list_projects", "get_project", "get_project_context", "get_project_structure", "find_wbs_elements", "find_cost_elements", "find_cost_element_types", "find_cost_event_types", "find_work_packages", "find_control_accounts", "find_cost_events", "find_users", "find_organizational_units", "get_cost_element_details", "get_progress_data", "get_work_package_budget_status", "get_control_account_budget", "get_project_analysis", "get_project_forecast", "get_coq_data", "search_documents", "read_document"],
+        "allowed_specialists": ["evm_analyst", "visualization_specialist", "accountant"]
+      },
+      "planner_prompt": "You are a request planner for a read-only project analysis assistant.\n\nAnalyze the user's request and produce a plan. Most queries need only one specialist.\n\n{specialist_section}\n\n## Rules\n\n- Prefer single-step plans. Use multi-step only when visualization must follow analysis.\n- Maximum 3 steps.\n- Use ONLY specialist names from the list above.\n- Keep task descriptions focused and actionable.\n- Only add dependencies when step N genuinely needs output from step M.",
+      "supervisor_prompt": "You are the supervisor for a read-only project analysis assistant. You execute plans by delegating to specialists.\n\n{specialist_section}\n\n## Your Role\n\nYou receive a pre-built execution plan. Your job is to execute it — not to modify it.\n1. Read the plan from state. It tells you which specialist to call and what to ask.\n2. Delegate ONE step at a time, in order.\n3. After each step, check the briefing for results before proceeding.\n4. When all steps are done, the briefing is sent to the user automatically.\n\n## Rules\n\n- Follow the plan exactly. Do NOT reassign steps to different specialists.\n- Do NOT summarize or repeat the briefing — the user reads it directly.\n- Only respond directly to the user for clarification questions.\n- Check the briefing before each delegation to avoid duplicate work.\n- Keep responses conversational and accessible.",
+      "structured_output_schema": null
+    },
+    {
+      "id": "88888888-8888-8888-8888-888888888888",
+      "name": "Senior Project Manager",
+      "description": "Full project operations for project managers including create/update workflows, change orders, forecasts, and progress tracking.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "system_prompt": "You are a senior project manager assistant for the Backcast system with expertise in Earned Value Management and project controls.\n\nYou help project managers:\n- Create and update projects and work breakdown elements\n- Manage change orders through the approval workflow\n- Track cost registrations and progress entries\n- Update forecasts and schedules\n- Analyze project health and performance\n\nTemporal context:\n- You can change the viewing date (as_of) or switch branches using the set_temporal_context tool\n- When analyzing a change order's impact, switch to its branch in isolated mode for accurate data\n- Use set_temporal_context to time-travel when the user asks about historical project states\n\nWhen responding:\n- Be concise and action-oriented\n- Highlight risks and opportunities\n- Provide data-driven recommendations\n- Confirm before making significant changes\n- Follow project management best practices\n- Only use tools you have been explicitly granted access to",
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "recursion_limit": 40,
+      "is_active": true,
+      "default_role": "ai-manager",
+      "agent_type": "main",
+      "allowed_tools": null,
+      "delegation_config": {
+        "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search", "list_projects", "get_project", "get_project_context", "get_project_structure", "find_wbs_elements", "find_cost_elements", "find_cost_element_types", "find_cost_event_types", "find_work_packages", "find_control_accounts", "find_cost_events", "find_users", "find_organizational_units", "get_cost_element_details", "get_progress_data", "get_work_package_budget_status", "get_control_account_budget", "get_project_analysis", "get_project_forecast", "get_coq_data", "search_documents", "read_document", "batch_get_work_package_budget_status"],
+        "allowed_specialists": ["project_manager", "change_order_manager", "evm_analyst", "visualization_specialist", "accountant"]
+      },
+      "planner_prompt": "You are a request planner for a project management assistant with full operational access.\n\nAnalyze the user's request and produce a structured execution plan.\n\n{specialist_section}\n\n## Decision Guide\n\nSingle-step: status queries, simple lookups, single CRUD operations.\nMulti-step: analysis + visualization, cross-domain workflows, data collection + processing.\n\n## Rules\n\n- Maximum 5 steps.\n- Use ONLY specialist names from the list above.\n- Keep task descriptions focused and actionable.\n- Only add dependencies when step N genuinely needs output from step M.",
+      "supervisor_prompt": "You are the supervisor for a senior project management assistant. You execute plans by delegating to specialists.\n\n{specialist_section}\n\n## Your Role\n\nYou receive a pre-built execution plan. Your job is to execute it — not to modify it.\n1. Read the plan from state. It tells you which specialist to call and what to ask.\n2. Delegate ONE step at a time, in order.\n3. After each step, check the briefing for results before proceeding.\n4. If a step fails, decide whether to retry with a modified task description or skip it.\n5. When all steps are done, the briefing is sent to the user automatically.\n\n## Rules\n\n- Follow the plan. Do NOT reassign steps to different specialists.\n- Do NOT summarize or repeat the briefing — the user reads it directly.\n- Only respond directly to the user for clarification questions or confirmation before destructive operations.\n- Check the briefing before each delegation to avoid duplicate work.\n- Be concise and action-oriented.",
+      "structured_output_schema": null
+    },
+    {
+      "id": "99999999-9999-9999-9999-999999999999",
+      "name": "System Manager",
+      "description": "System configuration and user management. Handles user accounts, organizational units, cost element types, and administrative operations.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "system_prompt": "You are a system administrator assistant for the Backcast configuration.\n\nYou help administrators:\n- Manage user accounts and permissions\n- Configure organizational units and structure\n- Set up cost element types and system defaults\n- Maintain system configuration data\n\nWhen responding:\n- Exercise extreme caution with destructive operations\n- Verify configuration changes before applying\n- Maintain data integrity and referential consistency\n- Document configuration changes\n- Only use tools you have been explicitly granted access to\n\nWARNING: You have access to deletion operations that permanently remove data. Always confirm the implications before executing delete operations.",
+      "temperature": 0.0,
+      "max_tokens": 3000,
+      "recursion_limit": 25,
+      "is_active": true,
+      "default_role": "ai-admin",
+      "agent_type": "main",
+      "allowed_tools": null,
+      "delegation_config": {
+        "direct_tools": ["get_temporal_context", "set_temporal_context", "global_search", "list_projects", "get_project", "get_project_context", "get_project_structure", "find_wbs_elements", "find_cost_elements", "find_cost_element_types", "find_cost_event_types", "find_work_packages", "find_control_accounts", "find_cost_events", "find_users", "find_organizational_units", "get_cost_element_details", "get_progress_data", "get_work_package_budget_status", "get_control_account_budget", "get_project_analysis", "get_project_forecast", "get_coq_data", "search_documents", "read_document"],
+        "allowed_specialists": ["user_admin", "accountant"]
+      },
+      "planner_prompt": "You are a request planner for a system administration assistant.\n\nAlmost all admin requests are single-step. Produce a plan accordingly.\n\n{specialist_section}\n\n## Rules\n\n- Default to single-step plans (requires_planning=false).\n- Maximum 2 steps.\n- Use ONLY specialist names from the list above.\n- Keep task descriptions focused and actionable.",
+      "supervisor_prompt": "You are the supervisor for a system administration assistant. You execute plans by delegating to specialists.\n\n{specialist_section}\n\n## Your Role\n\nYou receive a pre-built execution plan. Your job is to execute it — not to modify it.\n1. Read the plan from state. It tells you which specialist to call and what to ask.\n2. Delegate the step.\n3. Check the briefing for results.\n\n## Rules\n\n- Follow the plan exactly. Do NOT reassign steps to different specialists.\n- Do NOT summarize or repeat the briefing — the user reads it directly.\n- Only respond directly to the user for clarification or to confirm destructive operations.\n- Always confirm the implications before executing delete operations.",
+      "structured_output_schema": null
+    }
+  ],
+
+  "ai_specialist_configs": [
+    {
+      "name": "project_manager",
+      "description": "Specialist for project, WBS Element, cost element, cost tracking, and progress entry management",
+      "presentation_prompt": "Specialist for project, Work Breakdown Element (WBE), cost element, cost tracking, and progress entry management",
+      "system_prompt": "You are a project management specialist.\n\nYou help with:\n- Creating, updating, and retrieving projects\n- Managing WBS Elements\n- Managing cost elements (EOCs) and cost element types\n- Managing cost registrations (create, update, delete)\n- Budget status tracking for work packages\n- Managing progress entries (create, update, delete, and track work progress)\n- Cost element details and aggregations\n- Control Account management (ANSI-748 matrix intersections)\n- Project structure organization\n- Project metadata management\n- Creating, updating, and managing forecasts (EAC) for cost elements\n\nAlways validate user permissions before making changes.\nEnsure data integrity and proper validation.\nProvide clear summaries of project structures and cost/progress trends.\n\nIMPORTANT BUDGET WORKFLOW (ANSI-748):\n- Control Accounts are the management control points where WBS Elements meet Organizational Units\n- Work Packages are created under Control Accounts and hold the budget via their budget_amount field (the BAC)\n- WBS Elements do NOT store budget directly. Budget is allocated at the Work Package level.\n- When a user requests budgets:\n  1. Create a Work Package with budget_amount set to the total budget\n  2. Create Cost Elements (EOCs) under the Work Package for cost categorization (Labor, Material, etc.) — no amount needed\n  3. Cost Elements categorize costs for tracking and reporting, not budget allocation\n\nEFFICIENCY RULES:\n- Call find/read tools ONCE and reuse the results. Never call the same query multiple times.\n- Prefer parallel batch operations when creating multiple entities of the same type.\n- For simple updates (e.g., rename), call the update tool directly — do not run analytics or health checks.\n\nBATCH TOOLS:\n- When creating/updating/deleting 2+ entities of the same type, ALWAYS use the batch tool variant (e.g., batch_create_cost_elements instead of create_cost_element).\n- For single items, use the standard single-entity tool.\n- Batch tools share common parameters (work_package_id, project_id) at the top level; each item only needs its own unique fields.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "default_role": "ai-manager",
+      "agent_type": "specialist",
+      "is_active": true,
+      "temperature": 0.1,
+      "max_tokens": 4096,
+      "recursion_limit": 25,
+      "allowed_tools": ["ask_user", "batch_create_cost_elements", "batch_create_cost_registrations", "batch_create_progress_entries", "batch_create_wbs_elements", "batch_delete_cost_elements", "batch_update_wbs_elements", "create_control_account", "create_cost_element", "create_cost_element_type", "create_cost_event", "create_cost_registration", "create_forecast", "create_progress_entry", "create_project", "create_wbs_element", "create_work_package", "delete_control_account", "delete_cost_element", "delete_cost_element_type", "delete_cost_event", "delete_cost_registration", "delete_forecast", "delete_progress_entry", "delete_project", "delete_wbs_element", "delete_work_package", "find_control_accounts", "find_cost_element_types", "find_cost_elements", "find_cost_events", "find_wbs_elements", "find_work_packages", "get_briefing", "get_control_account_budget", "get_coq_data", "get_cost_element_details", "get_progress_data", "get_project", "get_project_context", "get_project_forecast", "get_project_structure", "get_temporal_context", "get_work_package_budget_status", "global_search", "list_cost_registrations", "list_projects", "read_document", "search_documents", "set_temporal_context", "update_control_account", "update_cost_element", "update_cost_element_type", "update_cost_event", "update_cost_registration", "update_forecast", "update_progress_entry", "update_project", "update_wbs_element", "update_work_package"],
+      "structured_output_schema": null
+    },
+    {
+      "name": "evm_analyst",
+      "description": "Specialist for earned value management calculations and performance analysis",
+      "presentation_prompt": "Specialist for earned value management calculations and performance analysis",
+      "system_prompt": "You are an EVM analysis specialist.\n\nYou calculate and analyze earned value metrics using project analysis tools:\n- CPI (Cost Performance Index) - cost efficiency\n- SPI (Schedule Performance Index) - schedule efficiency\n- CV (Cost Variance) - budget variance\n- SV (Schedule Variance) - schedule variance\n- EAC (Estimate at Completion) - projected final cost\n- ETC (Estimate to Complete) - remaining work cost\n- VAC (Variance at Completion) - final budget variance\n- TCPI (To-Complete Performance Index) - required efficiency\n\nYou also provide:\n- Performance trend analysis via get_project_analysis\n- Project health assessments\n- Cost element detail analysis\n- Progress data analysis\n\nAlways use the get_project_analysis tool for comprehensive EVM calculations.\nProvide clear explanations of what the metrics mean and actionable insights.\nIdentify trends and potential risks early.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "default_role": "ai-viewer",
+      "agent_type": "specialist",
+      "is_active": true,
+      "temperature": 0.0,
+      "max_tokens": 3000,
+      "recursion_limit": 15,
+      "allowed_tools": ["get_briefing", "get_temporal_context", "global_search", "get_project_analysis", "get_project_forecast", "find_control_accounts", "get_control_account_budget", "find_work_packages", "find_cost_elements", "get_cost_element_details", "get_progress_data", "get_work_package_budget_status"],
+      "structured_output_schema": null
+    },
+    {
+      "name": "change_order_manager",
+      "description": "Specialist for change order management workflows and impact analysis",
+      "presentation_prompt": "Specialist for change order management workflows and impact analysis",
+      "system_prompt": "You are a change order management specialist.\n\nYou help with:\n- Creating change orders with proper documentation\n- Generating change order drafts\n- Managing approval workflows\n- Submitting, approving, and rejecting change orders\n- Analyzing change order impact on budget and schedule\n- Tracking change order status\n\nTOOL USAGE GUIDELINES:\n- For creating change orders, always use `generate_change_order_draft` — it automatically generates the business code and runs AI impact analysis.\n- Minimize tool calls — trust the briefing document context. Do NOT re-search for projects or entities already described in the briefing.\n- After creating a change order, one `find_change_orders` call is sufficient to confirm. Do not repeatedly check status.\n\nHOW CHANGE ORDERS WORK IN BACKCAST:\n- Each change order creates an isolated branch (named BR-{code}, e.g. BR-CO-2026-001)\n- The branch contains modified versions of project entities (WBS Elements, cost elements, schedule baselines)\n- Changes in a branch do NOT affect the main project baseline until the change order is approved and implemented\n- When a change order is submitted for approval, the branch is locked to prevent further edits\n\nBRANCH VIEWING MODES:\n- Use set_temporal_context with branch_mode=\"isolated\" to see ONLY the change order's modifications\n- Use set_temporal_context with branch_mode=\"merged\" to see the combined view (main baseline + change order delta)\n- Always switch to the appropriate branch before querying data about a specific change order\n\nCHANGE ORDER WORKFLOW:\nDraft → Submitted for Approval → Under Review → Approved/Rejected → Implemented\n- Draft: Only status where details can be freely edited\n- Approval authority depends on financial impact:\n  - LOW (< €10K): Project Manager\n  - MEDIUM (€10K-€50K): Department Head\n  - HIGH (€50K-€100K): Director\n  - CRITICAL (> €100K): Executive Committee\n\nIMPACT ANALYSIS:\n- Use analyze_change_order_impact to get financial deltas, BAC changes, and schedule impact\n- Impact analysis runs automatically on creation but can be re-run at any time\n\nCritical operations require user approval. Always explain the impact\nof proposed changes before proceeding.\nEnsure proper documentation and audit trails.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "default_role": "ai-manager",
+      "agent_type": "specialist",
+      "is_active": true,
+      "temperature": 0.1,
+      "max_tokens": 3000,
+      "recursion_limit": 25,
+      "allowed_tools": ["get_briefing", "get_temporal_context", "set_temporal_context", "global_search", "find_change_orders", "create_change_order", "generate_change_order_draft", "submit_change_order_for_approval", "approve_change_order", "reject_change_order", "analyze_change_order_impact", "delete_change_order", "find_control_accounts", "get_control_account_budget"],
+      "structured_output_schema": null
+    },
+    {
+      "name": "user_admin",
+      "description": "Specialist for user and organizational unit management",
+      "presentation_prompt": "Specialist for user and department management",
+      "system_prompt": "You are a user administration specialist.\n\nYou help with:\n- Creating, updating, and retrieving users\n- Managing user accounts and permissions\n- Organizational unit management (create, update, delete, retrieve)\n- Organizational structure management\n\nAlways validate admin permissions before making changes.\nEnsure data integrity and proper validation.\nFollow security best practices for user management.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "default_role": "ai-admin",
+      "agent_type": "specialist",
+      "is_active": true,
+      "temperature": 0.0,
+      "max_tokens": 3000,
+      "recursion_limit": 15,
+      "allowed_tools": ["get_briefing", "get_temporal_context", "global_search", "find_users", "create_user", "update_user", "delete_user", "find_organizational_units", "create_organizational_unit", "update_organizational_unit", "delete_organizational_unit"],
+      "structured_output_schema": null
+    },
+    {
+      "name": "visualization_specialist",
+      "description": "Specialist for generating project visualizations and diagrams",
+      "presentation_prompt": "Specialist for generating project visualizations and diagrams",
+      "system_prompt": "You are a visualization specialist.\n\nYou help with:\n- Generating Mermaid diagrams for project structures\n- Creating visual representations of WBS Element hierarchies\n- Diagramming change order impacts\n- Visualizing cost breakdowns\n\nAlways ensure diagrams are clear and well-structured.\nUse appropriate diagram types for the information being presented.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "default_role": "ai-viewer",
+      "agent_type": "specialist",
+      "is_active": true,
+      "temperature": 0.3,
+      "max_tokens": 3000,
+      "recursion_limit": 10,
+      "allowed_tools": ["get_briefing", "get_temporal_context", "global_search", "find_control_accounts", "generate_mermaid_diagram"],
+      "structured_output_schema": null
+    },
+    {
+      "name": "accountant",
+      "description": "Specialist for cost registrations, cost events, and documentation management",
+      "presentation_prompt": "Specialist for cost registrations, cost events, and documentation management",
+      "system_prompt": "You are a cost accounting specialist.\n\nYou help with:\n- Recording and managing cost registrations (actual costs against cost elements)\n- Managing cost events and cost of quality (COQ) tracking\n- Batch cost registration processing\n- Invoice and vendor reference management\n- Document search and retrieval for supporting documentation\n- Cost element details and budget status lookups\n\nAlways ensure accurate financial records.\nValidate amounts, dates, and references before processing.\nProvide clear audit trails for all financial transactions.\n\nBATCH TOOLS:\n- When creating 2+ cost registrations, ALWAYS use batch_create_cost_registrations.\n- For single items, use the standard create_cost_registration tool.\n\nEFFICIENCY RULES:\n- Call find/read tools ONCE and reuse the results.\n- Do not call the same query multiple times.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "default_role": "ai-manager",
+      "agent_type": "specialist",
+      "is_active": true,
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "recursion_limit": 25,
+      "allowed_tools": ["get_briefing", "get_temporal_context", "set_temporal_context", "global_search", "get_project_context", "get_project_structure", "list_projects", "get_project", "find_wbs_elements", "find_cost_elements", "find_cost_element_types", "find_cost_event_types", "find_work_packages", "find_control_accounts", "get_cost_element_details", "get_work_package_budget_status", "get_control_account_budget", "get_progress_data", "create_cost_registration", "update_cost_registration", "delete_cost_registration", "batch_create_cost_registrations", "list_cost_registrations", "find_cost_events", "create_cost_event", "update_cost_event", "delete_cost_event", "get_coq_data", "search_documents", "read_document"],
+      "structured_output_schema": null
+    },
+    {
+      "name": "general_purpose",
+      "description": "General-purpose agent for tasks that don't fit a specialist. Has access to all tools. Use as fallback when no specialized agent is suitable.",
+      "presentation_prompt": "General-purpose agent for tasks that don't fit a specialist. Has access to all tools. Use as fallback when no specialized agent is suitable.",
+      "system_prompt": "You are a fallback assistant for the Backcast project budget management system, invoked when no specialist subagent matches the user's request. Use any available tools to complete the task. Be concise.",
+      "model_id": "11111111-1111-1111-1111-111111111112",
+      "default_role": "ai-manager",
+      "agent_type": "specialist",
+      "is_active": true,
+      "temperature": 0.1,
+      "max_tokens": 4096,
+      "recursion_limit": 25,
+      "allowed_tools": ["*"],
+      "structured_output_schema": null
+    }
+  ],
+
+  "mcp_servers": [
+    {
+      "name": "tavily",
+      "config": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "tavily-mcp@latest"],
+        "env": {
+          "TAVILY_API_KEY": "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"
+        }
+      },
+      "is_active": true
+    }
+  ],
+
+  "change_order_workflow": {
+    "config": {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "config_id": "40000000-0000-4000-8000-000000000001",
+      "project_id": null,
+      "is_active": true,
+      "version": 1,
+      "created_by": "00000000-0000-0000-0000-000000000001",
+      "updated_by": null,
+      "impact_weights": { "budget": 0.4, "schedule": 0.3, "revenue": 0.2, "evm": 0.1 },
+      "score_boundaries": { "LOW": 10, "MEDIUM": 30, "HIGH": 50, "CRITICAL": 999 },
+      "workflow_transitions": {
+        "transitions": {
+          "draft": ["submitted_for_approval"],
+          "submitted_for_approval": ["under_review", "approved", "rejected"],
+          "under_review": ["approved", "rejected"],
+          "rejected": ["draft", "submitted_for_approval"],
+          "approved": ["implemented"],
+          "implemented": []
+        },
+        "lock_transitions": [["draft", "submitted_for_approval"]],
+        "unlock_transitions": [["under_review", "rejected"]],
+        "editable_statuses": ["draft", "rejected"]
+      },
+      "holiday_country_code": "IT",
+      "custom_fields": null
+    },
+    "impact_levels": [
+      { "id": "41000000-0000-4000-8000-000000000001", "config_id": "40000000-0000-4000-8000-000000000001", "level_name": "LOW", "level_order": 1, "threshold_amount": "10000.00", "score_threshold_min": "0.00", "score_threshold_max": "10.00", "is_active": true },
+      { "id": "41000000-0000-4000-8000-000000000002", "config_id": "40000000-0000-4000-8000-000000000001", "level_name": "MEDIUM", "level_order": 2, "threshold_amount": "50000.00", "score_threshold_min": "10.01", "score_threshold_max": "30.00", "is_active": true },
+      { "id": "41000000-0000-4000-8000-000000000003", "config_id": "40000000-0000-4000-8000-000000000001", "level_name": "HIGH", "level_order": 3, "threshold_amount": "100000.00", "score_threshold_min": "30.01", "score_threshold_max": "50.00", "is_active": true },
+      { "id": "41000000-0000-4000-8000-000000000004", "config_id": "40000000-0000-4000-8000-000000000001", "level_name": "CRITICAL", "level_order": 4, "threshold_amount": "999999.99", "score_threshold_min": "50.01", "score_threshold_max": "999.99", "is_active": true }
+    ],
+    "approval_rules": [
+      { "id": "42000000-0000-4000-8000-000000000001", "config_id": "40000000-0000-4000-8000-000000000001", "impact_level_name": "LOW", "required_authority_level": "LOW", "approver_role": "editor_pm" },
+      { "id": "42000000-0000-4000-8000-000000000002", "config_id": "40000000-0000-4000-8000-000000000001", "impact_level_name": "MEDIUM", "required_authority_level": "MEDIUM", "approver_role": "dept_head" },
+      { "id": "42000000-0000-4000-8000-000000000003", "config_id": "40000000-0000-4000-8000-000000000001", "impact_level_name": "HIGH", "required_authority_level": "HIGH", "approver_role": "director" },
+      { "id": "42000000-0000-4000-8000-000000000004", "config_id": "40000000-0000-4000-8000-000000000001", "impact_level_name": "CRITICAL", "required_authority_level": "CRITICAL", "approver_role": "admin" }
+    ],
+    "sla_rules": [
+      { "id": "43000000-0000-4000-8000-000000000001", "config_id": "40000000-0000-4000-8000-000000000001", "impact_level_name": "LOW", "business_days": 10, "escalation_trigger_pct": "50.00" },
+      { "id": "43000000-0000-4000-8000-000000000002", "config_id": "40000000-0000-4000-8000-000000000001", "impact_level_name": "MEDIUM", "business_days": 7, "escalation_trigger_pct": "50.00" },
+      { "id": "43000000-0000-4000-8000-000000000003", "config_id": "40000000-0000-4000-8000-000000000001", "impact_level_name": "HIGH", "business_days": 5, "escalation_trigger_pct": "50.00" },
+      { "id": "43000000-0000-4000-8000-000000000004", "config_id": "40000000-0000-4000-8000-000000000001", "impact_level_name": "CRITICAL", "business_days": 3, "escalation_trigger_pct": "50.00" }
+    ]
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "_version": 1,
+  "_comment": "Project data: organizational units, reference types, and all project entities",
+  "_dependency_order": [
+    "organizational_units",
+    "cost_element_types",
+    "cost_event_types",
+    "projects",
+    "project_budget_settings",
+    "branches",
+    "wbs_elements",
+    "control_accounts",
+    "work_packages",
+    "cost_elements",
+    "schedule_baselines",
+    "schedule_dependencies",
+    "forecasts",
+    "progress_entries",
+    "cost_events",
+    "cost_registrations",
+    "document_folders",
+    "documents",
+    "document_versions",
+    "document_entity_links",
+    "change_orders",
+    "change_order_audit_logs"
+  ],
+
+  "organizational_units": [
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000001", "code": "ENG", "name": "Engineering", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Engineering department" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000002", "code": "ENG-MECH", "name": "Mechanical Engineering", "parent_unit_id": "00000000-0000-4000-8000-000000000001", "manager_id": null, "is_active": true, "description": "Mechanical engineering team" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000006", "code": "ENG-MECH-DSG", "name": "Design Team", "parent_unit_id": "00000000-0000-4000-8000-000000000002", "manager_id": null, "is_active": true, "description": "Mechanical design and drafting" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000007", "code": "ENG-MECH-ANL", "name": "Analysis Team", "parent_unit_id": "00000000-0000-4000-8000-000000000002", "manager_id": null, "is_active": true, "description": "Structural and thermal analysis" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000003", "code": "ENG-ELEC", "name": "Electrical Engineering", "parent_unit_id": "00000000-0000-4000-8000-000000000001", "manager_id": null, "is_active": true, "description": "Electrical engineering team" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000004", "code": "PM", "name": "Project Management", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Project management office" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000005", "code": "QA", "name": "Quality Assurance", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Quality assurance team" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000008", "code": "QA-INP", "name": "Incoming Inspection", "parent_unit_id": "00000000-0000-4000-8000-000000000005", "manager_id": null, "is_active": true, "description": "Incoming material inspection" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-000000000009", "code": "QA-FIN", "name": "Final Inspection", "parent_unit_id": "00000000-0000-4000-8000-000000000005", "manager_id": null, "is_active": true, "description": "Final product inspection and acceptance" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-00000000000a", "code": "PROC", "name": "Procurement", "parent_unit_id": null, "manager_id": null, "is_active": true, "description": "Procurement and supply chain" },
+    { "organizational_unit_id": "00000000-0000-4000-8000-00000000000b", "code": "PROC-SUP", "name": "Supplier Management", "parent_unit_id": "00000000-0000-4000-8000-00000000000a", "manager_id": null, "is_active": true, "description": "Supplier qualification and management" }
+  ],
+
+  "cost_element_types": [
+    { "cost_element_type_id": "00000000-0000-4000-8000-000000000101", "organizational_unit_id": "00000000-0000-4000-8000-000000000001", "code": "LAB", "name": "Labor", "description": "Internal staff labor costs" },
+    { "cost_element_type_id": "00000000-0000-4000-8000-000000000102", "organizational_unit_id": "00000000-0000-4000-8000-000000000001", "code": "MAT", "name": "Material", "description": "Raw materials and components" },
+    { "cost_element_type_id": "00000000-0000-4000-8000-000000000103", "organizational_unit_id": "00000000-0000-4000-8000-000000000001", "code": "EQP", "name": "Equipment", "description": "Equipment and tooling costs" },
+    { "cost_element_type_id": "00000000-0000-4000-8000-000000000104", "organizational_unit_id": "00000000-0000-4000-8000-000000000004", "code": "SUB", "name": "Subcontract", "description": "Subcontractor services" },
+    { "cost_element_type_id": "00000000-0000-4000-8000-000000000105", "organizational_unit_id": "00000000-0000-4000-8000-000000000004", "code": "TRV", "name": "Travel", "description": "Travel and accommodation" }
+  ],
+
+  "cost_event_types": [
+    { "cost_event_type_id": "00000000-0000-4000-8000-000000000201", "code": "NC-", "name": "Non Conformity", "color": "red", "is_quality": true, "description": "Nonconformity report - cost of poor quality" },
+    { "cost_event_type_id": "00000000-0000-4000-8000-000000000202", "code": "SI-", "name": "Site Inspection", "color": "blue", "is_quality": false, "description": "Site visit and inspection activities" },
+    { "cost_event_type_id": "00000000-0000-4000-8000-000000000203", "code": "PP-", "name": "Production Phase", "color": "green", "is_quality": false, "description": "Production phase tracking" },
+    { "cost_event_type_id": "00000000-0000-4000-8000-000000000204", "code": "WC-", "name": "Warranty Claim", "color": "orange", "is_quality": true, "description": "Warranty claim - external failure cost" }
+  ],
+
+  "projects": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "project_id": "10000000-0000-4000-8000-000000000001",
+      "name": "Line Alpha",
+      "code": "LINE-ALPHA",
+      "description": "End-of-line automation project for an automotive assembly line. Includes robot cells, conveyor systems, and paint booth integration.",
+      "contract_value": "500000.00",
+      "currency": "EUR",
+      "status": "active",
+      "start_date": "2026-01-15T00:00:00+00:00",
+      "end_date": "2026-12-31T00:00:00+00:00",
+      "created_by": "00000000-0000-0000-0000-000000000001",
+      "branch": "main",
+      "parent_id": null,
+      "merge_from_branch": null,
+      "deleted_at": null,
+      "deleted_by": null
+    }
+  ],
+
+  "project_budget_settings": [],
+
+  "branches": [],
+
+  "wbs_elements": [
+    { "id": "20000000-0000-4000-8000-000000000001", "wbs_element_id": "20000000-0000-4000-8000-000000000001", "project_id": "10000000-0000-4000-8000-000000000001", "parent_wbs_element_id": null, "code": "1.0", "name": "Assembly Station 1", "level": 1, "revenue_allocation": "250000.00", "description": "Primary assembly station with robot cells and conveyor sections", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "20000000-0000-4000-8000-000000000002", "wbs_element_id": "20000000-0000-4000-8000-000000000002", "project_id": "10000000-0000-4000-8000-000000000001", "parent_wbs_element_id": "20000000-0000-4000-8000-000000000001", "code": "1.1", "name": "Robot Cell A", "level": 2, "revenue_allocation": "150000.00", "description": "6-axis robot cell for welding and assembly operations", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "20000000-0000-4000-8000-000000000003", "wbs_element_id": "20000000-0000-4000-8000-000000000003", "project_id": "10000000-0000-4000-8000-000000000001", "parent_wbs_element_id": "20000000-0000-4000-8000-000000000001", "code": "1.2", "name": "Conveyor Section B", "level": 2, "revenue_allocation": "80000.00", "description": "Belt conveyor with sorting and accumulation zones", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "20000000-0000-4000-8000-000000000004", "wbs_element_id": "20000000-0000-4000-8000-000000000004", "project_id": "10000000-0000-4000-8000-000000000001", "parent_wbs_element_id": null, "code": "2.0", "name": "Assembly Station 2", "level": 1, "revenue_allocation": "200000.00", "description": "Secondary assembly station with paint booth", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "20000000-0000-4000-8000-000000000005", "wbs_element_id": "20000000-0000-4000-8000-000000000005", "project_id": "10000000-0000-4000-8000-000000000001", "parent_wbs_element_id": "20000000-0000-4000-8000-000000000004", "code": "2.1", "name": "Paint Booth", "level": 2, "revenue_allocation": "120000.00", "description": "Automated paint booth with curing oven", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null }
+  ],
+
+  "control_accounts": [
+    { "id": "30000000-0000-4000-8000-000000000001", "control_account_id": "30000000-0000-4000-8000-000000000001", "wbs_element_id": "20000000-0000-4000-8000-000000000002", "organizational_unit_id": "00000000-0000-4000-8000-000000000001", "name": "CA-1.1-ENG", "code": "CA-1.1-ENG", "description": "Robot Cell A x Engineering intersection", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "30000000-0000-4000-8000-000000000002", "control_account_id": "30000000-0000-4000-8000-000000000002", "wbs_element_id": "20000000-0000-4000-8000-000000000002", "organizational_unit_id": "00000000-0000-4000-8000-000000000004", "name": "CA-1.1-PM", "code": "CA-1.1-PM", "description": "Robot Cell A x Project Management intersection", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "30000000-0000-4000-8000-000000000003", "control_account_id": "30000000-0000-4000-8000-000000000003", "wbs_element_id": "20000000-0000-4000-8000-000000000003", "organizational_unit_id": "00000000-0000-4000-8000-000000000001", "name": "CA-1.2-ENG", "code": "CA-1.2-ENG", "description": "Conveyor Section B x Engineering intersection", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null }
+  ],
+
+  "work_packages": [
+    { "id": "40000000-0000-4000-8000-000000000001", "work_package_id": "40000000-0000-4000-8000-000000000001", "control_account_id": "30000000-0000-4000-8000-000000000001", "name": "Robot Cell A - Design & Engineering", "code": "WP-1.1-ENG-001", "budget_amount": "150000.00", "description": "Complete design and engineering work for Robot Cell A including mechanical design, electrical schematics, and PLC programming", "status": "open", "schedule_baseline_id": "60000000-0000-4000-8000-000000000001", "forecast_id": "70000000-0000-4000-8000-000000000001", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "40000000-0000-4000-8000-000000000002", "work_package_id": "40000000-0000-4000-8000-000000000002", "control_account_id": "30000000-0000-4000-8000-000000000002", "name": "Robot Cell A - Project Management", "code": "WP-1.1-PM-001", "budget_amount": "40000.00", "description": "Project management activities for Robot Cell A including scheduling, coordination, and reporting", "status": "open", "schedule_baseline_id": "60000000-0000-4000-8000-000000000002", "forecast_id": null, "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "40000000-0000-4000-8000-000000000003", "work_package_id": "40000000-0000-4000-8000-000000000003", "control_account_id": "30000000-0000-4000-8000-000000000003", "name": "Conveyor B - Engineering", "code": "WP-1.2-ENG-001", "budget_amount": "80000.00", "description": "Engineering work for Conveyor Section B including layout design and drive system specification", "status": "open", "schedule_baseline_id": null, "forecast_id": null, "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null }
+  ],
+
+  "cost_elements": [
+    { "id": "50000000-0000-4000-8000-000000000001", "cost_element_id": "50000000-0000-4000-8000-000000000001", "work_package_id": "40000000-0000-4000-8000-000000000001", "cost_element_type_id": "00000000-0000-4000-8000-000000000101", "description": "Labor costs for Robot Cell A design and engineering", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "50000000-0000-4000-8000-000000000002", "cost_element_id": "50000000-0000-4000-8000-000000000002", "work_package_id": "40000000-0000-4000-8000-000000000001", "cost_element_type_id": "00000000-0000-4000-8000-000000000102", "description": "Material costs for Robot Cell A components", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "50000000-0000-4000-8000-000000000003", "cost_element_id": "50000000-0000-4000-8000-000000000003", "work_package_id": "40000000-0000-4000-8000-000000000001", "cost_element_type_id": "00000000-0000-4000-8000-000000000103", "description": "Equipment and tooling costs for Robot Cell A", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "50000000-0000-4000-8000-000000000004", "cost_element_id": "50000000-0000-4000-8000-000000000004", "work_package_id": "40000000-0000-4000-8000-000000000002", "cost_element_type_id": "00000000-0000-4000-8000-000000000104", "description": "Subcontractor costs for Robot Cell A project management support", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "50000000-0000-4000-8000-000000000005", "cost_element_id": "50000000-0000-4000-8000-000000000005", "work_package_id": "40000000-0000-4000-8000-000000000002", "cost_element_type_id": "00000000-0000-4000-8000-000000000105", "description": "Travel costs for Robot Cell A site visits", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "50000000-0000-4000-8000-000000000006", "cost_element_id": "50000000-0000-4000-8000-000000000006", "work_package_id": "40000000-0000-4000-8000-000000000003", "cost_element_type_id": "00000000-0000-4000-8000-000000000101", "description": "Labor costs for Conveyor B engineering", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "50000000-0000-4000-8000-000000000007", "cost_element_id": "50000000-0000-4000-8000-000000000007", "work_package_id": "40000000-0000-4000-8000-000000000003", "cost_element_type_id": "00000000-0000-4000-8000-000000000102", "description": "Material costs for Conveyor B components", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "50000000-0000-4000-8000-000000000008", "cost_element_id": "50000000-0000-4000-8000-000000000008", "work_package_id": "40000000-0000-4000-8000-000000000003", "cost_element_type_id": "00000000-0000-4000-8000-000000000103", "description": "Equipment costs for Conveyor B drive system", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null }
+  ],
+
+  "schedule_baselines": [
+    { "id": "60000000-0000-4000-8000-000000000001", "schedule_baseline_id": "60000000-0000-4000-8000-000000000001", "name": "Robot Cell A - Design Baseline", "start_date": "2026-02-01T00:00:00+00:00", "end_date": "2026-04-30T00:00:00+00:00", "progression_type": "LINEAR", "description": "3-month linear baseline for Robot Cell A design and engineering", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null },
+    { "id": "60000000-0000-4000-8000-000000000002", "schedule_baseline_id": "60000000-0000-4000-8000-000000000002", "name": "Robot Cell A - PM Baseline", "start_date": "2026-01-15T00:00:00+00:00", "end_date": "2026-07-15T00:00:00+00:00", "progression_type": "GAUSSIAN", "description": "6-month Gaussian S-curve baseline for project management activities", "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null }
+  ],
+
+  "schedule_dependencies": [],
+
+  "forecasts": [
+    { "id": "70000000-0000-4000-8000-000000000001", "forecast_id": "70000000-0000-4000-8000-000000000001", "eac_amount": "155000.00", "basis_of_estimate": "Bottom-up re-estimate after calibration deviation NC-001. Material costs trending 5% above budget due to supply chain lead time increases.", "approved_date": null, "approved_by": null, "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "deleted_at": null, "deleted_by": null }
+  ],
+
+  "progress_entries": [
+    { "id": "80000000-0000-4000-8000-000000000001", "progress_entry_id": "80000000-0000-4000-8000-000000000001", "work_package_id": "40000000-0000-4000-8000-000000000001", "progress_percentage": "35.00", "notes": "Mechanical design complete, electrical schematics in progress. Robot arm calibration deviation identified.", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "80000000-0000-4000-8000-000000000002", "progress_entry_id": "80000000-0000-4000-8000-000000000002", "work_package_id": "40000000-0000-4000-8000-000000000002", "progress_percentage": "20.00", "notes": "Project kickoff complete, scheduling baseline established.", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "80000000-0000-4000-8000-000000000003", "progress_entry_id": "80000000-0000-4000-8000-000000000003", "work_package_id": "40000000-0000-4000-8000-000000000003", "progress_percentage": "10.00", "notes": "Preliminary layout design started.", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null }
+  ],
+
+  "cost_events": [
+    { "id": "90000000-0000-4000-8000-000000000001", "cost_event_id": "90000000-0000-4000-8000-000000000001", "project_id": "10000000-0000-4000-8000-000000000001", "wbs_element_id": "20000000-0000-4000-8000-000000000002", "cost_event_type_id": "00000000-0000-4000-8000-000000000201", "name": "NC-001", "description": "Robot arm calibration deviation - joint tolerance exceeded on axis 3 during acceptance test. Requires recalibration and potential servo motor replacement.", "status": "open", "external_event_id": "NC-2026-001", "event_date": "2026-03-15T00:00:00+00:00", "coq_category": "internal_failure", "estimated_impact": "12000.00", "schedule_impact_days": 5, "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "90000000-0000-4000-8000-000000000002", "cost_event_id": "90000000-0000-4000-8000-000000000002", "project_id": "10000000-0000-4000-8000-000000000001", "wbs_element_id": "20000000-0000-4000-8000-000000000001", "cost_event_type_id": "00000000-0000-4000-8000-000000000202", "name": "SI-001", "description": "Factory acceptance test visit for Assembly Station 1. Includes travel for 2 engineers and 1 project manager to OEM facility.", "status": "open", "external_event_id": "SV-2026-001", "event_date": "2026-04-10T00:00:00+00:00", "coq_category": null, "estimated_impact": "3500.00", "schedule_impact_days": null, "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null }
+  ],
+
+  "cost_registrations": [
+    { "id": "a0000000-0000-4000-8000-000000000001", "cost_registration_id": "a0000000-0000-4000-8000-000000000001", "cost_element_id": "50000000-0000-4000-8000-000000000001", "cost_event_id": "90000000-0000-4000-8000-000000000001", "amount": "25000.00", "quantity": "320.00", "unit_of_measure": "hours", "registration_date": "2026-03-01T00:00:00+00:00", "description": "Labor charges for Robot Cell A design - mechanical and electrical engineering hours", "invoice_number": "INV-2026-0042", "vendor_reference": null, "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "a0000000-0000-4000-8000-000000000002", "cost_registration_id": "a0000000-0000-4000-8000-000000000002", "cost_element_id": "50000000-0000-4000-8000-000000000002", "cost_event_id": null, "amount": "15000.00", "quantity": null, "unit_of_measure": null, "registration_date": "2026-02-20T00:00:00+00:00", "description": "Material procurement for Robot Cell A - structural steel and fasteners", "invoice_number": "INV-2026-0038", "vendor_reference": "PO-2026-0115", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "a0000000-0000-4000-8000-000000000003", "cost_registration_id": "a0000000-0000-4000-8000-000000000003", "cost_element_id": "50000000-0000-4000-8000-000000000004", "cost_event_id": null, "amount": "8000.00", "quantity": null, "unit_of_measure": null, "registration_date": "2026-02-15T00:00:00+00:00", "description": "Subcontractor payment for safety analysis consultant", "invoice_number": "INV-2026-0031", "vendor_reference": "SC-2026-007", "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null },
+    { "id": "a0000000-0000-4000-8000-000000000004", "cost_registration_id": "a0000000-0000-4000-8000-000000000004", "cost_element_id": "50000000-0000-4000-8000-000000000005", "cost_event_id": "90000000-0000-4000-8000-000000000002", "amount": "5000.00", "quantity": null, "unit_of_measure": null, "registration_date": "2026-04-12T00:00:00+00:00", "description": "Travel and accommodation for factory acceptance test visit - 3 engineers, 3 days", "invoice_number": "INV-2026-0051", "vendor_reference": null, "created_by": "00000000-0000-0000-0000-000000000001", "deleted_at": null, "deleted_by": null }
+  ],
+
+  "document_folders": [],
+
+  "documents": [],
+
+  "document_versions": [],
+
+  "document_entity_links": [],
+
+  "change_orders": [
+    { "id": "b0000000-0000-4000-8000-000000000001", "change_order_id": "b0000000-0000-4000-8000-000000000001", "code": "CO-2026-001", "project_id": "10000000-0000-4000-8000-000000000001", "title": "Add Secondary Conveyor System", "description": "Install a parallel conveyor system in zone B to increase throughput by 40% and provide redundancy for the main conveyor line.", "justification": "Current single-conveyor design creates a bottleneck during peak production. A parallel system reduces downtime risk and supports planned capacity increase.", "effective_date": "2026-07-01T00:00:00+00:00", "status": "submitted_for_approval", "impact_level": "MEDIUM", "assigned_approver_id": null, "sla_assigned_at": "2026-05-20T09:00:00+00:00", "sla_due_date": "2026-05-29T09:00:00+00:00", "sla_status": "pending", "impact_analysis_status": "completed", "impact_analysis_results": null, "impact_score": "22.50", "config_snapshot": null, "custom_field_values": null, "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "branch_name": null, "deleted_at": null, "deleted_by": null },
+    { "id": "b0000000-0000-4000-8000-000000000002", "change_order_id": "b0000000-0000-4000-8000-000000000002", "code": "CO-2026-002", "project_id": "10000000-0000-4000-8000-000000000001", "title": "Safety Upgrades - Emergency Stop System", "description": "Upgrade the emergency stop system across all robot cells with dual-channel safety relays and additional e-stop buttons at operator stations.", "justification": "Safety audit identified insufficient e-stop coverage in zones C and D. Regulatory compliance requires resolution before next inspection.", "effective_date": "2026-06-15T00:00:00+00:00", "status": "approved", "impact_level": "HIGH", "assigned_approver_id": null, "sla_assigned_at": "2026-05-10T14:00:00+00:00", "sla_due_date": "2026-05-16T14:00:00+00:00", "sla_status": "pending", "impact_analysis_status": "completed", "impact_analysis_results": null, "impact_score": "38.75", "config_snapshot": null, "custom_field_values": null, "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "branch_name": null, "deleted_at": null, "deleted_by": null },
+    { "id": "b0000000-0000-4000-8000-000000000003", "change_order_id": "b0000000-0000-4000-8000-000000000003", "code": "CO-2026-003", "project_id": "10000000-0000-4000-8000-000000000001", "title": "Control Panel Layout Modification", "description": "Redesign control panel layout in cell 3 to accommodate new PLC module and improve cable routing.", "justification": "New PLC module requires additional rack space. Current cable routing causes interference with signal lines.", "effective_date": null, "status": "draft", "impact_level": null, "assigned_approver_id": null, "sla_assigned_at": null, "sla_due_date": null, "sla_status": null, "impact_analysis_status": null, "impact_analysis_results": null, "impact_score": null, "config_snapshot": null, "custom_field_values": null, "created_by": "00000000-0000-0000-0000-000000000001", "branch": "main", "parent_id": null, "merge_from_branch": null, "branch_name": null, "deleted_at": null, "deleted_by": null }
+  ],
+
+  "change_order_audit_logs": [
+    { "id": "b1000000-0000-4000-8000-000000000001", "change_order_id": "b0000000-0000-4000-8000-000000000001", "old_status": "draft", "new_status": "submitted_for_approval", "comment": "Submitted for approval. Impact level: MEDIUM.", "changed_by": "00000000-0000-0000-0000-000000000001", "changed_at": "2026-05-20T09:00:00+00:00", "control_date": "2026-05-20T09:00:00+00:00" },
+    { "id": "b1000000-0000-4000-8000-000000000002", "change_order_id": "b0000000-0000-4000-8000-000000000002", "old_status": "draft", "new_status": "submitted_for_approval", "comment": "Submitted for approval. Impact level: HIGH.", "changed_by": "00000000-0000-0000-0000-000000000001", "changed_at": "2026-05-10T14:00:00+00:00", "control_date": "2026-05-10T14:00:00+00:00" },
+    { "id": "b1000000-0000-4000-8000-000000000003", "change_order_id": "b0000000-0000-4000-8000-000000000002", "old_status": "submitted_for_approval", "new_status": "approved", "comment": "Approved - safety compliance priority.", "changed_by": "00000000-0000-0000-0000-000000000001", "changed_at": "2026-05-14T10:30:00+00:00", "control_date": "2026-05-14T10:30:00+00:00" }
+  ]
+}
