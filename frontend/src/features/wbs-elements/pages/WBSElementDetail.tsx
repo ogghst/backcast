@@ -6,7 +6,7 @@
  */
 
 import { useState } from "react";
-import { Spin, Alert, Descriptions, Typography, Card } from "antd";
+import { Spin, Alert, Descriptions, Typography, Card, theme } from "antd";
 import { useParams } from "react-router-dom";
 import { EVMSummaryView } from "@/features/evm/components/EVMSummaryView";
 import { EVMAnalyzerModal } from "@/features/evm/components/EVMAnalyzerModal";
@@ -15,6 +15,7 @@ import { useWBSElement } from "../api/useWBSElements";
 import { EntityType } from "@/features/evm/types";
 import { EVMTimeSeriesGranularity } from "@/features/evm/types";
 import { formatDate, formatTemporalRange } from "@/utils/formatters";
+import { PageWrapper } from "@/components/layout";
 
 const { Title } = Typography;
 
@@ -35,6 +36,7 @@ export interface WBSElementDetailProps {
 export const WBSElementDetail: React.FC<WBSElementDetailProps> = ({ wbsElementId: propId }) => {
   const { wbsElementId: paramId } = useParams<{ wbsElementId?: string }>();
   const wbsElementId = propId || paramId;
+  const { token } = theme.useToken();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [granularity, setGranularity] = useState<EVMTimeSeriesGranularity>(EVMTimeSeriesGranularity.WEEK);
@@ -59,9 +61,9 @@ export const WBSElementDetail: React.FC<WBSElementDetailProps> = ({ wbsElementId
 
   if (wbsLoading) {
     return (
-      <div style={{ textAlign: "center", padding: "40px" }}>
+      <div style={{ textAlign: "center", padding: token.paddingXL }}>
         <Spin size="large" />
-        <div style={{ marginTop: "16px" }}>Loading WBS Element details...</div>
+        <div style={{ marginTop: token.paddingMD }}>Loading WBS Element details...</div>
       </div>
     );
   }
@@ -73,7 +75,7 @@ export const WBSElementDetail: React.FC<WBSElementDetailProps> = ({ wbsElementId
         description={wbsError instanceof Error ? wbsError.message : "Failed to load WBS Element"}
         type="error"
         showIcon
-        style={{ margin: "24px" }}
+        style={{ margin: token.paddingLG }}
       />
     );
   }
@@ -91,9 +93,9 @@ export const WBSElementDetail: React.FC<WBSElementDetailProps> = ({ wbsElementId
   };
 
   return (
-    <div style={{ padding: "24px" }}>
+    <PageWrapper>
       {/* WBS Element Basic Information */}
-      <Card style={{ marginBottom: "24px" }}>
+      <Card style={{ marginBottom: token.marginLG }}>
         <Title level={2}>{wbsData.name}</Title>
         <Descriptions column={2} bordered>
           <Descriptions.Item label="Code">{wbsData.code}</Descriptions.Item>
@@ -125,9 +127,9 @@ export const WBSElementDetail: React.FC<WBSElementDetailProps> = ({ wbsElementId
           onAdvanced={handleAdvancedClick}
         />
       ) : evmLoading ? (
-        <div style={{ textAlign: "center", padding: "40px" }}>
+        <div style={{ textAlign: "center", padding: token.paddingXL }}>
           <Spin size="large" />
-          <div style={{ marginTop: "16px" }}>Loading EVM metrics...</div>
+          <div style={{ marginTop: token.paddingMD }}>Loading EVM metrics...</div>
         </div>
       ) : null}
 
@@ -140,7 +142,7 @@ export const WBSElementDetail: React.FC<WBSElementDetailProps> = ({ wbsElementId
         loading={evmLoading || timeSeriesLoading}
         onGranularityChange={handleGranularityChange}
       />
-    </div>
+    </PageWrapper>
   );
 };
 

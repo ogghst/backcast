@@ -1,4 +1,4 @@
-import { App, Button, Space, Input, Tag, Grid, Badge, Typography, Alert, theme, Empty, Spin, Card } from "antd";
+import { App, Button, Space, Input, Tag, Grid, Badge, Typography, Alert, Modal, theme, Empty, Spin } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -111,6 +111,10 @@ export const CostRegistrationsTab = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRegistration, setSelectedRegistration] =
     useState<CostRegistrationRead | null>(null);
+  const [selectedCostElementId, setSelectedCostElementId] = useState<
+    string | null
+  >(null);
+  const [costElementPickerOpen, setCostElementPickerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // History hook
@@ -133,6 +137,7 @@ export const CostRegistrationsTab = ({
         ),
       });
       setModalOpen(false);
+      setSelectedCostElementId(null);
     },
   });
 
@@ -180,7 +185,22 @@ export const CostRegistrationsTab = ({
 
   const handleAddCost = () => {
     if (costElements.length === 0) return;
+
+    if (costElements.length === 1) {
+      // Only one cost element -- go straight to the modal
+      setSelectedRegistration(null);
+      setSelectedCostElementId(costElements[0].cost_element_id);
+      setModalOpen(true);
+    } else {
+      // Multiple cost elements -- show picker first
+      setCostElementPickerOpen(true);
+    }
+  };
+
+  const handleCostElementSelected = (costElementId: string) => {
     setSelectedRegistration(null);
+    setSelectedCostElementId(costElementId);
+    setCostElementPickerOpen(false);
     setModalOpen(true);
   };
 
@@ -193,7 +213,7 @@ export const CostRegistrationsTab = ({
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.paddingXS }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -201,7 +221,7 @@ export const CostRegistrationsTab = ({
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginXS, display: "block" }}
         />
         <Space>
           <Button
@@ -364,6 +384,7 @@ export const CostRegistrationsTab = ({
               icon={<EditOutlined />}
               onClick={() => {
                 setSelectedRegistration(record);
+                setSelectedCostElementId(record.cost_element_id);
                 setModalOpen(true);
               }}
               title="Edit"
@@ -396,95 +417,134 @@ export const CostRegistrationsTab = ({
           description="Create cost elements first in the Work Package overview before adding cost registrations."
           type="info"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         />
       )}
 
-      <Card
-        title={
-          <Space>
-            <span style={{ fontSize: "16px", fontWeight: "bold" }}>
-              Cost Registrations
-            </span>
-            <Tag color="blue">
-              Total: {currencySymbol}
-              {totalCosts.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </Tag>
-          </Space>
-        }
-        extra={
-          <Space>
-            <ViewModeToggle viewMode={crViewMode} onCycleViewMode={crCycleViewMode} />
-            {costElements.length > 0 && (
-              <Can permission="cost-registration-create">
-                <Button type="primary" icon={<PlusOutlined />} onClick={handleAddCost}>
-                  Add Cost
-                </Button>
-              </Can>
-            )}
-          </Space>
-        }
-      >
-        {/* Card view */}
-        {useCard ? (
-          isLoading ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>
-          ) : costRegistrations.length === 0 ? (
-            <Empty description="No cost registrations" />
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
-              {costRegistrations.map((cr) => (
-                <CostRegistrationCard
-                  key={cr.id || cr.cost_registration_id}
-                  registration={cr}
-                  currencySymbol={currencySymbol}
-                />
-              ))}
-            </div>
-          )
+      {/* Toolbar - shared between card and table views */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: token.marginMD }}>
+        <Space>
+          <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+            Cost Registrations
+          </div>
+          <Tag color="blue">
+            Total: {currencySymbol}
+            {totalCosts.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </Tag>
+        </Space>
+        <Space>
+          <ViewModeToggle viewMode={crViewMode} onCycleViewMode={crCycleViewMode} />
+          {costElements.length > 0 && (
+            <Can permission="cost-registration-create">
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddCost}>
+                Add Cost
+              </Button>
+            </Can>
+          )}
+        </Space>
+      </div>
+
+      {/* Card view */}
+      {useCard ? (
+        isLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>
+        ) : costRegistrations.length === 0 ? (
+          <Empty description="No cost registrations" />
         ) : (
-          /* Table view */
-          <StandardTable<CostRegistrationRead>
-            tableParams={{
-              ...tableParams,
-              pagination: { ...tableParams.pagination, total },
-            }}
-            onChange={handleTableChange}
-            loading={isLoading}
-            dataSource={costRegistrations}
-            columns={columns}
-            rowKey="id"
-            searchable={true}
-            searchPlaceholder="Search cost registrations..."
-            onSearch={handleSearch}
-            scroll={{ x: isMobile ? "max-content" : undefined }}
-            size={isMobile ? "small" : "middle"}
-          />
-        )}
-      </Card>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
+            {costRegistrations.map((cr) => (
+              <CostRegistrationCard
+                key={cr.id || cr.cost_registration_id}
+                registration={cr}
+                currencySymbol={currencySymbol}
+              />
+            ))}
+          </div>
+        )
+      ) : (
+        /* Table view */
+        <StandardTable<CostRegistrationRead>
+          tableParams={{
+            ...tableParams,
+            pagination: { ...tableParams.pagination, total },
+          }}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={costRegistrations}
+          columns={columns}
+          rowKey="id"
+          searchable={true}
+          searchPlaceholder="Search cost registrations..."
+          onSearch={handleSearch}
+          scroll={{ x: isMobile ? "max-content" : undefined }}
+          size={isMobile ? "small" : "middle"}
+        />
+      )}
 
       {/* Cost element picker modal -- shown when multiple cost elements exist */}
+      <Modal
+        title="Select Cost Element"
+        open={costElementPickerOpen}
+        onCancel={() => setCostElementPickerOpen(false)}
+        footer={null}
+        width={480}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: token.marginXS }}>
+          {costElements.map((ce) => (
+            <Button
+              key={ce.cost_element_id}
+              block
+              onClick={() => handleCostElementSelected(ce.cost_element_id)}
+              style={{ textAlign: "left", height: "auto", padding: "8px 16px" }}
+            >
+              <Space direction="vertical" size={0}>
+                <span>
+                  {ce.cost_element_type_name || "Unknown Type"}
+                </span>
+                {ce.description && (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {ce.description}
+                  </Text>
+                )}
+              </Space>
+            </Button>
+          ))}
+        </div>
+      </Modal>
+
       {/* Create/Edit modal */}
-      <CostRegistrationModal
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={async (values) => {
-          if (selectedRegistration) {
-            await updateCostRegistration({
-              id: selectedRegistration.cost_registration_id,
-              data: values,
-              costElementId: selectedRegistration.cost_element_id,
-            });
-          } else {
-            await createCostRegistration(values as CostRegistrationCreate);
-          }
-        }}
-        confirmLoading={isLoading}
-        initialValues={selectedRegistration}
-        costElementId={selectedRegistration?.cost_element_id}
-        workPackageId={workPackage.work_package_id}
-        projectId={projectId || ""}
-      />
+      {selectedCostElementId && (
+        <CostRegistrationModal
+          open={modalOpen}
+          onCancel={() => {
+            setModalOpen(false);
+            if (!selectedRegistration) {
+              setSelectedCostElementId(null);
+            }
+          }}
+          onOk={async (values) => {
+            if (selectedRegistration) {
+              await updateCostRegistration({
+                id: selectedRegistration.cost_registration_id,
+                data: values,
+                costElementId: selectedCostElementId,
+              });
+            } else {
+              const { amount, ...rest } = values as CostRegistrationCreate;
+              const createData: Parameters<typeof createCostRegistration>[0] = {
+                cost_element_id: selectedCostElementId,
+                amount: amount ?? 0,
+                ...(rest && typeof rest === "object" ? rest : {}),
+              };
+              await createCostRegistration(createData);
+            }
+          }}
+          confirmLoading={isLoading}
+          initialValues={selectedRegistration}
+          costElementId={selectedCostElementId}
+          projectId={projectId || ""}
+        />
+      )}
 
       <VersionHistoryDrawer
         open={historyOpen}

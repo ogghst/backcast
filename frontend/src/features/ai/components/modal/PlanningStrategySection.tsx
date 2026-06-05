@@ -25,7 +25,7 @@ export const PlanningStrategySection = () => {
           description="Customize how the AI plans and decomposes requests into specialist tasks. Leave blank to use the default planner. The {specialist_section} placeholder is replaced with the dynamic specialist list."
           type="info"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         />
         <Form.Item
           name="planner_prompt"

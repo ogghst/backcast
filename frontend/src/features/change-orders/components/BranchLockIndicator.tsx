@@ -1,4 +1,4 @@
-import { Tooltip, Space } from "antd";
+import { theme, Tooltip, Space } from "antd";
 import { LockOutlined, UnlockOutlined } from "@ant-design/icons";
 
 interface BranchLockIndicatorProps {
@@ -22,6 +22,7 @@ export function BranchLockIndicator({
   text,
   position = "inline",
 }: BranchLockIndicatorProps) {
+  const { token } = theme.useToken();
   const icon = locked ? <LockOutlined /> : <UnlockOutlined />;
   const tooltipTitle = locked
     ? "Branch is locked - no modifications allowed"
@@ -36,7 +37,7 @@ export function BranchLockIndicator({
 
   if (position === "standalone") {
     return (
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: token.marginXS }}>
         <Tooltip title={tooltipTitle}>{content}</Tooltip>
       </div>
     );

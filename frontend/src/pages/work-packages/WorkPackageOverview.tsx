@@ -6,13 +6,16 @@ import {
   theme,
   Row,
   Col,
+  Statistic,
   Progress,
+  Alert,
   Button,
   Table,
   Tag,
   Grid,
   Space,
   Flex,
+  Divider,
 } from "antd";
 import {
   PlusOutlined,
@@ -20,16 +23,15 @@ import {
   EditOutlined,
   CalendarOutlined,
   LineChartOutlined,
+  DollarOutlined,
   PieChartOutlined,
 } from "@ant-design/icons";
-import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
-import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import { formatCurrency, formatCompactCurrency, getCurrencySymbol } from "@/utils/formatters";
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useViewMode } from "@/hooks/useViewMode";
 import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
 import { useWorkPackage, useWorkPackageBudgetStatus } from "@/features/work-packages/api/useWorkPackages";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { formatCurrency, formatTemporalRange, getCurrencySymbol } from "@/utils/formatters";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { WorkPackagesPmiService, type CostElementRead, type ForecastRead } from "@/api/generated";
@@ -37,7 +39,6 @@ import { useState, useMemo } from "react";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import {
   useCreateCostElement,
-  useUpdateCostElement,
   useDeleteCostElement,
 } from "@/features/cost-elements/api/useCostElements";
 import {
@@ -63,18 +64,13 @@ const PROGRESSION_LABELS: Record<string, string> = {
 };
 
 export const WorkPackageOverview = () => {
-  const { id, projectId } = useParams<{ id: string; projectId?: string }>();
+  const { id } = useParams<{ id: string }>();
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
-  // Time machine for timeline ring
-  const { asOf } = useTimeMachineParams();
-  const [nowTime] = useState(() => Date.now());
-  const referenceTime = asOf ? new Date(asOf).getTime() : nowTime;
-
   const { data: workPackage, isLoading } = useWorkPackage(id!);
-  const { data: budgetStatus } = useWorkPackageBudgetStatus(id!);
+  const { data: budgetStatus, isLoading: budgetLoading } = useWorkPackageBudgetStatus(id!);
   const queryClient = useQueryClient();
   const { modal } = App.useApp();
 
@@ -93,7 +89,6 @@ export const WorkPackageOverview = () => {
 
   // Modal states
   const [ceModalOpen, setCeModalOpen] = useState(false);
-  const [selectedCostElement, setSelectedCostElement] = useState<CostElementRead | null>(null);
   const [sbModalOpen, setSbModalOpen] = useState(false);
   const [fcModalOpen, setFcModalOpen] = useState(false);
 
@@ -103,18 +98,6 @@ export const WorkPackageOverview = () => {
   const { mutateAsync: upsertForecast } = useUpsertWorkPackageForecast();
   const { mutate: deleteForecast } = useDeleteWorkPackageForecast();
   const { mutate: deleteScheduleBaseline } = useDeleteWorkPackageScheduleBaseline();
-
-  // Timeline progress from schedule baseline
-  const sbStartDate = scheduleBaseline?.start_date;
-  const sbEndDate = scheduleBaseline?.end_date;
-  const timePercent = useMemo(() => {
-    if (!sbStartDate || !sbEndDate) return 0;
-    const start = new Date(sbStartDate).getTime();
-    const end = new Date(sbEndDate).getTime();
-    if (end <= start) return 0;
-    const pct = Math.round(((referenceTime - start) / (end - start)) * 100);
-    return Math.max(0, Math.min(100, pct));
-  }, [sbStartDate, sbEndDate, referenceTime]);
 
   // View mode for cost elements
   const { viewMode: ceViewMode, resolvedMode: ceResolvedMode, cycleViewMode: ceCycleViewMode } = useViewMode("cost-elements", isMobile);
@@ -134,15 +117,6 @@ export const WorkPackageOverview = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.costElements.lists() });
       setCeModalOpen(false);
-      setSelectedCostElement(null);
-    },
-  });
-
-  const { mutateAsync: updateCostElement } = useUpdateCostElement({
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.costElements.lists() });
-      setCeModalOpen(false);
-      setSelectedCostElement(null);
     },
   });
 
@@ -160,16 +134,6 @@ export const WorkPackageOverview = () => {
       okType: "danger",
       onOk: () => deleteCostElement(ce.cost_element_id),
     });
-  };
-
-  const handleEditCE = (ce: CostElementRead) => {
-    setSelectedCostElement(ce);
-    setCeModalOpen(true);
-  };
-
-  const handleAddCE = () => {
-    setSelectedCostElement(null);
-    setCeModalOpen(true);
   };
 
   const handleDeleteForecast = () => {
@@ -215,11 +179,29 @@ export const WorkPackageOverview = () => {
     ? Number(budgetStatus.budget)
     : Number(workPackage.budget_amount || 0);
   const used = budgetStatus?.used ? Number(budgetStatus.used) : 0;
+  const remaining = budgetStatus?.remaining
+    ? Number(budgetStatus.remaining)
+    : budget - used;
   const percentage = budgetStatus?.percentage
     ? Number(budgetStatus.percentage)
     : budget > 0
       ? (used / budget) * 100
       : 0;
+
+  // Determine status color
+  let statusColor = token.colorSuccess;
+  let statusText = "Healthy";
+
+  if (percentage >= 100) {
+    statusColor = token.colorError;
+    statusText = "Exceeded";
+  } else if (percentage >= 90) {
+    statusColor = token.colorWarning;
+    statusText = "Warning";
+  } else if (percentage >= 75) {
+    statusColor = token.colorPrimary;
+    statusText = "Monitoring";
+  }
 
   const ceColumns = [
     {
@@ -260,238 +242,57 @@ export const WorkPackageOverview = () => {
     {
       title: "Actions",
       key: "actions",
-      width: 80,
+      width: 60,
       render: (_: unknown, record: CostElementRead) => (
-        <Space>
-          <Can permission="cost-element-update">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleEditCE(record)}
-              title="Edit"
-            />
-          </Can>
-          <Can permission="cost-element-delete">
-            <Button
-              danger
-              type="text"
-              size="small"
-              icon={<DeleteOutlined />}
-              onClick={() => handleDeleteCE(record)}
-              title="Delete"
-            />
-          </Can>
-        </Space>
+        <Can permission="cost-element-delete">
+          <Button
+            danger
+            type="text"
+            size="small"
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteCE(record)}
+            title="Delete"
+          />
+        </Can>
       ),
     },
   ];
 
+  // Responsive column config for Descriptions
+  const descColumns = { xs: 1, sm: 2 };
+
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      {/* Header Card: Title + Timeline + Cost rings + CostHistoryChart */}
-      <Card
-        style={{
-          borderRadius: token.borderRadiusLG,
-          border: `1px solid ${token.colorBorder}`,
-        }}
-      >
-        {/* Title row */}
-        <Flex
-          justify="space-between"
-          align={isMobile ? "flex-start" : "center"}
-          vertical={isMobile}
-          gap={isMobile ? token.marginXS : 0}
-          style={{ marginBottom: token.marginMD }}
-        >
-          <Typography.Title
-            level={3}
-            style={{
-              margin: 0,
-              fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
-              fontWeight: 600,
-              color: token.colorText,
-            }}
-          >
-            {workPackage.code} &mdash; {workPackage.name}
-          </Typography.Title>
-          <Tag
-            style={{
-              fontSize: token.fontSize,
-              padding: `${token.paddingXS}px ${token.paddingMD}px`,
-              borderRadius: token.borderRadius,
-              fontWeight: token.fontWeightMedium,
-              margin: 0,
-            }}
-          >
-            {workPackage.status || "draft"}
-          </Tag>
-        </Flex>
-
-        {/* Description */}
-        {workPackage.description && (
-          <Typography.Paragraph
-            type="secondary"
-            style={{
-              margin: 0,
-              marginBottom: token.marginLG,
-              fontSize: token.fontSize,
-              lineHeight: token.lineHeight,
-            }}
-          >
-            {workPackage.description}
-          </Typography.Paragraph>
-        )}
-
-        {/* Control Account label */}
-        {workPackage.control_account_name && (
-          <Text
-            type="secondary"
-            style={{ display: "block", marginBottom: token.marginMD, fontSize: token.fontSizeSM }}
-          >
-            Control Account: <Text strong>{workPackage.control_account_name}</Text>
-          </Text>
-        )}
-
-        <Row gutter={[token.marginLG, token.marginLG]} align="top">
-          {/* Timeline Progress Ring */}
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center", padding: token.paddingSM }}>
-              <Progress
-                type="circle"
-                percent={scheduleBaseline ? timePercent : 0}
-                size={isMobile ? 120 : 160}
-                format={(percent) => (
-                  <div>
-                    <div
-                      style={{
-                        fontSize: isMobile ? token.fontSizeLG : token.fontSizeXL,
-                        fontWeight: token.fontWeightSemiBold,
-                      }}
-                    >
-                      {scheduleBaseline ? `${percent}%` : "—"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: token.fontSizeXS,
-                        color: token.colorTextSecondary,
-                      }}
-                    >
-                      {scheduleBaseline ? "elapsed" : "no baseline"}
-                    </div>
-                  </div>
-                )}
-                strokeColor={
-                  !scheduleBaseline
-                    ? token.colorTextDisabled
-                    : timePercent > 90
-                      ? token.colorError
-                      : timePercent > 70
-                        ? token.colorWarning
-                        : token.colorPrimary
-                }
-              />
-              <div style={{ marginTop: token.marginMD }}>
-                <div>
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                    Timeline
-                  </Text>
-                </div>
-                {scheduleBaseline ? (
-                  <div>
-                    <Text strong>
-                      {formatDate(scheduleBaseline.start_date)}
-                    </Text>
-                    <Text
-                      type="secondary"
-                      style={{ margin: `0 ${token.marginXS}px` }}
-                    >
-                      &rarr;
-                    </Text>
-                    <Text strong>
-                      {formatDate(scheduleBaseline.end_date)}
-                    </Text>
-                  </div>
-                ) : (
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                    No schedule baseline
-                  </Text>
-                )}
-              </div>
-            </div>
-          </Col>
-
-          {/* Cost Progress Ring */}
-          <Col xs={24} sm={12} md={6}>
-            <div style={{ textAlign: "center", padding: token.paddingSM }}>
-              <Progress
-                type="circle"
-                percent={budget > 0 ? Math.min(Math.round(percentage), 100) : 0}
-                size={isMobile ? 120 : 160}
-                strokeWidth={6}
-                strokeColor={
-                  percentage > 100
-                    ? token.colorError
-                    : percentage > 85
-                      ? token.colorWarning
-                      : token.colorPrimary
-                }
-                format={(percent) => (
-                  <div>
-                    <div style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightSemiBold }}>
-                      {percent}%
-                    </div>
-                    <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
-                      of budget
-                    </div>
-                  </div>
-                )}
-              />
-              <div style={{ marginTop: token.marginMD }}>
-                <div>
-                  <Text strong>{formatCompactCurrency(budget, currency)}</Text>
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
-                    budget
-                  </Text>
-                </div>
-                <div style={{ marginTop: token.marginXS }}>
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: percentage > 100
-                        ? token.colorError
-                        : percentage > 85
-                          ? token.colorWarning
-                          : token.colorPrimary,
-                      marginRight: token.marginXS,
-                    }}
-                  />
-                  <Text style={{ fontSize: token.fontSizeSM }}>
-                    {formatCompactCurrency(used, currency)} costs
-                  </Text>
-                  {budget > 0 && (
-                    <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
-                      ({Math.round(percentage)}%)
-                    </Text>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Col>
-
-          {/* Cost History Chart */}
-          <Col xs={24} sm={24} md={12}>
-            <CostHistoryChart
-              entityType="work_package"
-              entityId={id!}
-              headless
-              projectId={projectId}
-            />
-          </Col>
-        </Row>
+    <div style={{ display: "flex", flexDirection: "column", gap: token.marginLG }}>
+      {/* Section 1: Work Package Details */}
+      <Card size="small">
+        <Descriptions column={descColumns} bordered size="small">
+          <Descriptions.Item label="Code">
+            <Text strong>{workPackage.code}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Name">
+            {workPackage.name}
+          </Descriptions.Item>
+          <Descriptions.Item label="Status">
+            {workPackage.status || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Control Account">
+            {workPackage.control_account_name || "Unknown Control Account"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Budget Amount">
+            <Text strong>{formatCurrency(Number(workPackage.budget_amount || 0), currency)}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Description">
+            {workPackage.description || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Created By">
+            {workPackage.created_by_name || workPackage.created_by}
+          </Descriptions.Item>
+          <Descriptions.Item label="Valid Time">
+            {workPackage.valid_time_formatted
+              ? formatTemporalRange(workPackage.valid_time_formatted)
+              : "-"}
+          </Descriptions.Item>
+        </Descriptions>
       </Card>
 
       {/* Section 2: Schedule Baseline + Forecast side-by-side on desktop */}
@@ -504,6 +305,7 @@ export const WorkPackageOverview = () => {
                 <span>Schedule Baseline</span>
               </Space>
             }
+            size="small"
             extra={
               <Space>
                 {scheduleBaseline ? (
@@ -581,6 +383,7 @@ export const WorkPackageOverview = () => {
                 <span>Forecast</span>
               </Space>
             }
+            size="small"
             extra={
               <Space>
                 {forecast ? (
@@ -666,6 +469,89 @@ export const WorkPackageOverview = () => {
         </Col>
       </Row>
 
+      {/* Section 3: Budget Summary */}
+      {!budgetLoading && (
+        <>
+          <Card size="small">
+            <Flex justify="space-between" align="center" style={{ marginBottom: token.marginMD }}>
+              <Space>
+                <DollarOutlined style={{ color: token.colorPrimary }} />
+                <Text strong style={{ fontSize: token.fontSizeLG }}>Budget Summary</Text>
+              </Space>
+              <Tag color={percentage >= 100 ? "red" : percentage >= 90 ? "orange" : "blue"}>
+                {statusText}
+              </Tag>
+            </Flex>
+
+            <Row gutter={[token.marginMD, token.marginMD]}>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Budget"
+                  value={budget}
+                  precision={2}
+                  prefix={currencySymbol}
+                  valueStyle={{ color: token.colorPrimary, fontSize: isMobile ? token.fontSizeLG : undefined }}
+                />
+              </Col>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Used"
+                  value={used}
+                  precision={2}
+                  prefix={currencySymbol}
+                  valueStyle={{
+                    color: percentage >= 100 ? token.colorError : token.colorSuccess,
+                    fontSize: isMobile ? token.fontSizeLG : undefined,
+                  }}
+                />
+              </Col>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Remaining"
+                  value={remaining}
+                  precision={2}
+                  prefix={currencySymbol}
+                  valueStyle={{
+                    color: remaining < 0 ? token.colorError : token.colorSuccess,
+                    fontSize: isMobile ? token.fontSizeLG : undefined,
+                  }}
+                />
+              </Col>
+              <Col xs={12} sm={6}>
+                <Statistic
+                  title="Used %"
+                  value={percentage}
+                  precision={1}
+                  suffix="%"
+                  valueStyle={{ color: statusColor, fontSize: isMobile ? token.fontSizeLG : undefined }}
+                />
+              </Col>
+            </Row>
+
+            <Divider style={{ margin: `${token.marginMD} 0` }} />
+
+            <Progress
+              percent={Math.min(percentage, 100)}
+              strokeColor={statusColor}
+              status={percentage >= 100 ? "exception" : undefined}
+            />
+          </Card>
+
+          {(percentage >= 100 || (percentage >= 90 && percentage < 100)) && (
+            <Alert
+              message={percentage >= 100 ? "Budget Exceeded" : "Budget Warning"}
+              description={
+                percentage >= 100
+                  ? `This work package has exceeded its budget by ${formatCurrency(Math.abs(remaining), currency)}.`
+                  : `This work package has used ${percentage.toFixed(1)}% of its budget. Consider reviewing before adding more costs.`
+              }
+              type="warning"
+              showIcon
+            />
+          )}
+        </>
+      )}
+
       {/* Section 4: Cost Elements (EOC) */}
       <Card
         title={
@@ -674,6 +560,7 @@ export const WorkPackageOverview = () => {
             <span>Cost Elements</span>
           </Space>
         }
+        size="small"
         extra={
           <Space>
             <ViewModeToggle viewMode={ceViewMode} onCycleViewMode={ceCycleViewMode} />
@@ -682,7 +569,7 @@ export const WorkPackageOverview = () => {
                 type="primary"
                 size="small"
                 icon={<PlusOutlined />}
-                onClick={handleAddCE}
+                onClick={() => setCeModalOpen(true)}
               >
                 {isMobile ? undefined : "Add Cost Element"}
               </Button>
@@ -723,23 +610,16 @@ export const WorkPackageOverview = () => {
       {/* Modals */}
       <CostElementModal
         open={ceModalOpen}
-        onCancel={() => { setCeModalOpen(false); setSelectedCostElement(null); }}
+        onCancel={() => setCeModalOpen(false)}
         onOk={async (values) => {
-          if (selectedCostElement) {
-            await updateCostElement({
-              id: selectedCostElement.id,
-              data: values,
-            });
-          } else {
-            await createCostElement({
-              cost_element_type_id: values.cost_element_type_id,
-              description: values.description,
-              work_package_id: id!,
-            } as Parameters<typeof createCostElement>[0]);
-          }
+          await createCostElement({
+            cost_element_type_id: values.cost_element_type_id,
+            description: values.description,
+            work_package_id: id!,
+          } as Parameters<typeof createCostElement>[0]);
         }}
         confirmLoading={false}
-        initialValues={selectedCostElement}
+        initialValues={null}
         currentBranch="main"
         workPackageId={id}
         workPackageName={workPackage ? `${workPackage.code} - ${workPackage.name}` : undefined}
@@ -778,6 +658,6 @@ export const WorkPackageOverview = () => {
             : undefined
         }
       />
-    </Space>
+    </div>
   );
 };

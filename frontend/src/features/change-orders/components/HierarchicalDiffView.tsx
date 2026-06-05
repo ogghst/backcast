@@ -3,8 +3,7 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import {
-  Card,
+import { theme, Card,
   Tree,
   Badge,
   Tag,
@@ -15,8 +14,7 @@ import {
   Switch,
   Typography,
   Space,
-  Tooltip,
-} from "antd";
+  Tooltip, } from "antd";
 import {
   PlusOutlined,
   EditOutlined,
@@ -203,6 +201,7 @@ export const HierarchicalDiffView = ({
   showUnchanged = false,
   defaultExpandedLevel = 1,
 }: HierarchicalDiffViewProps) => {
+  const { token } = theme.useToken();
   const [showUnchangedLocal, setShowUnchangedLocal] = useState(showUnchanged);
 
   // Transform data into hierarchical structure
@@ -365,7 +364,7 @@ export const HierarchicalDiffView = ({
   return (
     <Card>
       {/* Summary Section */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: token.marginMD }}>
         <Row gutter={16} align="middle">
           <Col>
             <Statistic title="Total Changes" value={project.changes.total} />
@@ -426,7 +425,7 @@ export const HierarchicalDiffView = ({
         onSelect={handleSelect}
         style={{
           backgroundColor: "#fafafa",
-          padding: 16,
+          padding: token.paddingMD,
           borderRadius: 4,
         }}
       />

@@ -1,4 +1,4 @@
-import { Steps } from "antd";
+import { theme, Steps } from "antd";
 import { CheckCircleOutlined, LoadingOutlined } from "@ant-design/icons";
 import { WORKFLOW_STEPS, getStepIndex } from "./WorkflowConstants";
 
@@ -20,6 +20,7 @@ export function WorkflowStepper({
   status,
   processingStatus,
 }: WorkflowStepperProps) {
+  const { token } = theme.useToken();
   const currentIndex = getStepIndex(status);
 
   const items = WORKFLOW_STEPS.map((step, index) => {
@@ -51,7 +52,7 @@ export function WorkflowStepper({
       current={currentIndex}
       items={items}
       size="small"
-      style={{ marginBottom: 24 }}
+      style={{ marginBottom: token.marginXL }}
     />
   );
 }

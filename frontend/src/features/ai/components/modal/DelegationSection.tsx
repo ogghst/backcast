@@ -39,7 +39,7 @@ export const DelegationSection = ({ specialists }: DelegationSectionProps) => {
           tooltip="Specialists this main agent can delegate to. Leave empty for all specialists."
         >
           <Checkbox.Group
-            style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            style={{ display: "flex", flexDirection: "column", gap: token.marginXS }}
           >
             {specialists
               .filter(s => s.is_active)

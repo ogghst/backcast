@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { message, Card, Tabs } from "antd";
+import { message, Card, Tabs, theme } from "antd";
 import { useState } from "react";
 import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { ChangeOrderWorkflowSection } from "@/features/change-orders/components/ChangeOrderWorkflowSection";
@@ -57,6 +57,7 @@ function getPageTitle(isCreate: boolean): string {
 }
 
 export function ChangeOrderUnifiedPage(): JSX.Element {
+  const { token } = theme.useToken();
   const { projectId, changeOrderId } = useParams<{
     projectId: string;
     changeOrderId?: string;
@@ -146,7 +147,7 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
       {/* Page Header */}
       <PageHeader title={pageTitle} />
 
-      <p style={{ color: "#8c8c8c", marginTop: -8, marginBottom: 16 }}>
+      <p style={{ color: token.colorTextSecondary, marginTop: -8, marginBottom: token.marginMD }}>
         Project: {project?.code || projectId}
         {!createMode &&
           ` • Change Order: ${changeOrder?.code || changeOrderId}`}

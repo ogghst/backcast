@@ -9,7 +9,7 @@
 
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { Card } from "antd";
+import { theme, Card } from "antd";
 import { GanttChart } from "@/features/schedule-baselines/components/GanttChart/GanttChart";
 import { ScheduleDependencyPanel } from "@/features/schedule-baselines/components/ScheduleDependencyPanel";
 import { useGanttData } from "@/features/schedule-baselines/api/useGanttData";
@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageContent } from "@/components/layout/PageContent";
 
 export const ProjectSchedulePage: React.FC = () => {
+  const { token } = theme.useToken();
   const { projectId } = useParams<{ projectId: string }>();
 
   // NOTE: useGanttData is also called inside GanttChart. TanStack Query deduplicates
@@ -48,7 +49,7 @@ export const ProjectSchedulePage: React.FC = () => {
     <PageWrapper>
       <PageHeader title="Project Schedule" />
       <PageContent>
-        <Card styles={{ body: { padding: 16 } }}>
+        <Card styles={{ body: { padding: token.paddingMD } }}>
           <GanttChart projectId={projectId} />
         </Card>
         <ScheduleDependencyPanel projectId={projectId} schedules={schedules} />

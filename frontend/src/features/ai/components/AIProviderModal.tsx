@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Modal, Form, Input, Select, Switch, Button, Space, Divider } from "antd";
+import { theme, Modal, Form, Input, Select, Switch, Button, Space, Divider } from "antd";
 import { DatabaseOutlined, SettingOutlined } from "@ant-design/icons";
 import type { AIProviderPublic, AIProviderCreate, AIProviderUpdate } from "../types";
 import { PROVIDER_TYPES } from "../types";
@@ -23,6 +23,7 @@ export const AIProviderModal = ({
   onOpenModels,
   onOpenConfiguration,
 }: AIProviderModalProps) => {
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
 
@@ -65,7 +66,7 @@ export const AIProviderModal = ({
       footer={
         <>
           {isEdit && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: token.marginMD }}>
               <Space>
                 <Button
                   icon={<DatabaseOutlined />}
@@ -88,7 +89,7 @@ export const AIProviderModal = ({
               <Divider style={{ margin: "12px 0" }} />
             </div>
           )}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: token.marginXS }}>
             <Button onClick={onCancel}>Cancel</Button>
             <Button
               type="primary"

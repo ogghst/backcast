@@ -1,4 +1,4 @@
-import { Drawer, List, Button, Typography, Space, Divider } from "antd";
+import { theme, Drawer, List, Button, Typography, Space, Divider } from "antd";
 import { HistoryOutlined, UndoOutlined, ClockCircleOutlined } from "@ant-design/icons";
 import {
   formatDate,
@@ -52,6 +52,7 @@ export const VersionHistoryDrawer = ({
   isLoading,
   dateFormatStyle = "medium",
 }: VersionHistoryDrawerProps) => {
+  const { token } = theme.useToken();
   return (
     <Drawer
       title={
@@ -110,7 +111,7 @@ export const VersionHistoryDrawer = ({
                   <Text type="secondary">Valid from {validFrom}</Text>
                 }
                 description={
-                  <div style={{ marginTop: 8 }}>
+                  <div style={{ marginTop: token.marginXS }}>
                     <Space direction="vertical" size="small" style={{ width: "100%" }}>
                       {/* Valid Time Range */}
                       <div>

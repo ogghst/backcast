@@ -1,4 +1,4 @@
-import { Menu, Affix } from "antd";
+import { Menu, Affix, theme } from "antd";
 import { Link } from "react-router-dom";
 import {
   FileTextOutlined,
@@ -21,6 +21,7 @@ interface ChangeOrderPageNavProps {
 export function ChangeOrderPageNav({
   createMode,
 }: ChangeOrderPageNavProps): JSX.Element | null {
+  const { token } = theme.useToken();
   const menuItems = [
     {
       key: "details",
@@ -45,7 +46,7 @@ export function ChangeOrderPageNav({
           background: "#fff",
           borderBottom: "1px solid #f0f0f0",
           padding: "8px 24px",
-          marginBottom: 16,
+          marginBottom: token.marginMD,
         }}
       >
         <Menu

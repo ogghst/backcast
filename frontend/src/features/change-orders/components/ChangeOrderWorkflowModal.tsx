@@ -1,4 +1,4 @@
-import { Modal, Tabs, Spin, Alert, Space, Button } from "antd";
+import { theme, Modal, Tabs, Spin, Alert, Space, Button } from "antd";
 import { useState, useCallback } from "react";
 import { ReloadOutlined } from "@ant-design/icons";
 import { useChangeOrder } from "../api/useChangeOrders";
@@ -34,6 +34,7 @@ export function ChangeOrderWorkflowModal({
   onCancel,
   changeOrderId,
 }: ChangeOrderWorkflowModalProps) {
+  const { token } = theme.useToken();
   const [activeTab, setActiveTab] = useState("workflow");
 
   // Fetch Change Order data
@@ -109,7 +110,7 @@ export function ChangeOrderWorkflowModal({
                   <WorkflowStepper status={changeOrder.status || "draft"} />
 
                   {/* Action buttons */}
-                  <div style={{ marginBottom: 24 }}>
+                  <div style={{ marginBottom: token.marginXL }}>
                     <WorkflowButtons changeOrder={changeOrder} />
                   </div>
 

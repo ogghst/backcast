@@ -1,4 +1,4 @@
-import { Modal, Alert } from "antd";
+import { theme, Modal, Alert } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { useWBSElements } from "@/features/wbs-elements/api/useWBSElements";
 
@@ -17,6 +17,7 @@ export const DeleteProjectModal = ({
   onConfirm,
   confirmLoading,
 }: DeleteProjectModalProps) => {
+  const { token } = theme.useToken();
   // Check for WBEs
   // Only fetching 1 item to check existence
   const { data: wbes, isLoading } = useWBSElements({
@@ -43,7 +44,7 @@ export const DeleteProjectModal = ({
           message="Cascade Delete Warning"
           description="This project has Work Breakdown Elements (WBEs). Deleting it will also delete all its WBEs, their children, and associated cost elements. This action cannot be undone."
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         />
       )}
       <p>

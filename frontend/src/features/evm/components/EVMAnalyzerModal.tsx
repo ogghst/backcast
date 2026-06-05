@@ -179,7 +179,7 @@ export const EVMAnalyzerModal = ({
     if (categoryMetrics.length === 0) return null;
 
     return (
-      <Row gutter={[12, 12]} style={{ marginTop: 8 }}>
+      <Row gutter={[12, 12]} style={{ marginTop: token.marginXS }}>
         {categoryMetrics.map((metric) => (
           <Col xs={12} sm={8} md={6} key={metric.key}>
             <MetricCard
@@ -374,7 +374,7 @@ export const EVMAnalyzerModal = ({
                   height: "100%",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 16,
+                  gap: token.marginMD,
                 },
               }}
               style={{
@@ -524,7 +524,7 @@ export const EVMAnalyzerModal = ({
         style={{ top: 20 }}
         styles={{
           body: {
-            padding: 16,
+            padding: token.paddingMD,
             maxHeight: "85vh",
             overflow: "hidden",
           },

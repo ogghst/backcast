@@ -11,7 +11,7 @@
  */
 
 import { useMemo } from "react";
-import { Row, Col, Empty } from "antd";
+import { theme, Row, Col, Empty } from "antd";
 import type { TimeSeriesData } from "@/api/generated";
 import { SCurveChart, type SCurveMetric } from "./SCurveChart";
 
@@ -77,6 +77,7 @@ export const MultiSCurveDisplay = ({
   layout = "grid",
   className,
 }: MultiSCurveDisplayProps) => {
+  const { token } = theme.useToken();
   // Extract each metric's data (memoized to avoid recalculation)
   const metricData = useMemo(() => {
     const data: Record<string, TimeSeriesData | undefined> = {};
@@ -94,7 +95,7 @@ export const MultiSCurveDisplay = ({
   // Handle loading state
   if (loading) {
     return (
-      <div className={className} style={{ padding: 24 }}>
+      <div className={className} style={{ padding: token.paddingXL }}>
         {/* Loading is handled by individual chart components */}
         <Row gutter={[16, 16]}>
           {CHART_CONFIGS.map((config) => (

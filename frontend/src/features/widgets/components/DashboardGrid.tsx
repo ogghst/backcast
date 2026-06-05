@@ -55,7 +55,7 @@ class WidgetErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 16, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ padding: token.paddingMD, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Result
             status="warning"
             title="Widget Error"

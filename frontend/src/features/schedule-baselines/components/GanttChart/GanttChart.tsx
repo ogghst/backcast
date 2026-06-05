@@ -168,7 +168,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
   if (isError) {
     return (
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: token.paddingMD }}>
         <p>Error loading schedule data. Please try again.</p>
       </div>
     );

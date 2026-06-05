@@ -37,7 +37,7 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ projectId }) => {
         </Space>
       }
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 140 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: token.marginXS, minWidth: 140 }}>
         <DatabaseOutlined style={{ color: token.colorTextSecondary, fontSize: 14 }} />
         <Progress
           percent={percent}

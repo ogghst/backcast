@@ -3,7 +3,7 @@
  *
  * Displays a list/table of change orders that have been in the same status too long.
  */
-import { Card, Typography, Empty, Spin, Table, Tag, Button } from "antd";
+import { theme, Card, Typography, Empty, Spin, Table, Tag, Button } from "antd";
 import { ExclamationCircleOutlined, ClockCircleOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import type { ColumnsType } from "antd/es/table";
@@ -33,6 +33,7 @@ export const AgingItemsList = ({
   loading,
   thresholdDays = 7,
 }: AgingItemsListProps) => {
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const { impactTagColors } = useImpactLevelConfig(projectId);
 
@@ -138,7 +139,7 @@ export const AgingItemsList = ({
         pagination={false}
         size="small"
         loading={loading}
-        style={{ marginTop: 16 }}
+        style={{ marginTop: token.marginMD }}
       />
     </Card>
   );
