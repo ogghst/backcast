@@ -1,6 +1,6 @@
 import React from "react";
 import { useParams, useNavigate, Outlet } from "react-router-dom";
-import { Button, Grid, Modal, Space, theme, Typography, Flex, Tag } from "antd";
+import { Button, Grid, Modal, Space, theme, Typography, Tag } from "antd";
 import { EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
 import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,9 @@ import type {
 import { ControlAccountModal } from "@/features/control-accounts/components/ControlAccountModal";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NotFoundState } from "@/components/layout/NotFoundState";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ControlAccountsService } from "@/api/generated";
@@ -116,13 +119,11 @@ export const ControlAccountLayout: React.FC = () => {
   // Not found state
   if (!ca && !caLoading) {
     return (
-      <div style={{ padding: token.paddingXL }}>
-        <Typography.Title level={3}>Control Account Not Found</Typography.Title>
-        <p>The requested control account could not be found.</p>
-        <Button onClick={() => navigate(`/projects/${projectId}`)}>
-          Back to Project
-        </Button>
-      </div>
+      <NotFoundState
+        title="Control Account Not Found"
+        message="The requested control account could not be found."
+        onBack={() => navigate(`/projects/${projectId}`)}
+      />
     );
   }
 
@@ -140,61 +141,59 @@ export const ControlAccountLayout: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
+    <PageWrapper>
       <PageNavigation items={navItems} />
 
       <EntityBreadcrumb loading={caLoading || !wbsElement} items={breadcrumbEntries} />
 
-      <Flex
-        justify="space-between"
-        align={isMobile ? "flex-start" : "center"}
-        vertical={isMobile}
-        gap={isMobile ? token.marginSM : 0}
-        style={{ marginBottom: token.paddingMD }}
-      >
-        <Space align="center" size={token.marginSM}>
-          <Typography.Title
-            level={1}
-            style={{
-              margin: 0,
-              fontSize: isMobile ? token.fontSizeXL : undefined,
-            }}
-          >
-            {ca ? `${ca.code || ""} ${ca.name}`.trim() : "Control Account"}
-          </Typography.Title>
-          {ca && ca.branch && (
-            <Tag color={getBranchColor(ca.branch)}>{ca.branch}</Tag>
-          )}
-        </Space>
-        <Space size={token.marginSM} wrap={isMobile}>
-          <Can permission="control-account-update">
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={handleEditCurrent}
+      <PageHeader
+        title={
+          <Space align="center" size={token.marginSM}>
+            <Typography.Title
+              level={1}
+              style={{
+                margin: 0,
+                fontSize: isMobile ? token.fontSizeXL : undefined,
+              }}
             >
-              {isMobile ? undefined : "Edit"}
-            </Button>
-          </Can>
-          <Can permission="control-account-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={openHistory}
-            >
-              {isMobile ? undefined : "History"}
-            </Button>
-          </Can>
-          <Can permission="control-account-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={handleDeleteCurrent}
-            >
-              {isMobile ? undefined : "Delete"}
-            </Button>
-          </Can>
-        </Space>
-      </Flex>
+              {ca ? `${ca.code || ""} ${ca.name}`.trim() : "Control Account"}
+            </Typography.Title>
+            {ca && ca.branch && (
+              <Tag color={getBranchColor(ca.branch)}>{ca.branch}</Tag>
+            )}
+          </Space>
+        }
+        actions={
+          <>
+            <Can permission="control-account-update">
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={handleEditCurrent}
+              >
+                {isMobile ? undefined : "Edit"}
+              </Button>
+            </Can>
+            <Can permission="control-account-read">
+              <Button
+                icon={<HistoryOutlined />}
+                onClick={openHistory}
+              >
+                {isMobile ? undefined : "History"}
+              </Button>
+            </Can>
+            <Can permission="control-account-delete">
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDeleteCurrent}
+              >
+                {isMobile ? undefined : "Delete"}
+              </Button>
+            </Can>
+          </>
+        }
+      />
 
       {/* Sub-page content */}
       <Outlet context={{ ca }} />
@@ -279,6 +278,6 @@ export const ControlAccountLayout: React.FC = () => {
           })}
         />
       )}
-    </div>
+    </PageWrapper>
   );
 };

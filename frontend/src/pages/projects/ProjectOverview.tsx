@@ -10,7 +10,7 @@ import { WBSElementTable } from "@/components/hierarchy/WBSElementTable";
 import { WBSElementCreate, WBSElementRead, ProjectUpdate } from "@/api/generated";
 import { useProjectBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
 import type { Version } from "@/components/common/VersionHistory";
-import { Button, Skeleton, Card, theme, Typography, Space, Flex, Grid } from "antd";
+import { Button, Skeleton, Card, theme, Space, Grid } from "antd";
 import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined } from "@ant-design/icons";
 import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useState } from "react";
@@ -26,6 +26,9 @@ import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 import { ProjectHeaderCard } from "@/components/projects/ProjectHeaderCard";
 import { ProjectInfoCard } from "@/components/projects/ProjectInfoCard";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageContent } from "@/components/layout/PageContent";
 
 /**
  * ProjectOverview component
@@ -125,62 +128,50 @@ export const ProjectOverview = () => {
   };
 
   return (
-    <div style={{ padding: isMobile ? `${token.paddingMD}px 0` : `${token.paddingXL}px 0` }}>
+    <PageWrapper>
       <EntityBreadcrumb
         items={[{ label: project?.code || "Project" }]}
       />
-      <Flex
-        justify="space-between"
-        align={isMobile ? "flex-start" : "center"}
-        vertical={isMobile}
-        gap={isMobile ? token.marginSM : 0}
-        style={{ marginBottom: token.paddingMD }}
-      >
-        <Typography.Title
-          level={1}
-          style={{
-            margin: 0,
-            fontSize: isMobile ? token.fontSizeXL : undefined,
-          }}
-        >
-          Project Details
-        </Typography.Title>
-        <Space size={token.marginSM} wrap={isMobile}>
-          <Can permission="project-update">
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={() => setEditModalOpen(true)}
-            >
-              {isMobile ? undefined : "Edit"}
-            </Button>
-          </Can>
-          <Can permission="project-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={() => setHistoryOpen(true)}
-            >
-              {isMobile ? undefined : "History"}
-            </Button>
-          </Can>
-          <Can permission="project-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => setDeleteProjectModalOpen(true)}
-            >
-              {isMobile ? undefined : "Delete"}
-            </Button>
-          </Can>
-        </Space>
-      </Flex>
+      <PageHeader
+        title="Project Details"
+        actions={
+          <>
+            <Can permission="project-update">
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={() => setEditModalOpen(true)}
+              >
+                {isMobile ? undefined : "Edit"}
+              </Button>
+            </Can>
+            <Can permission="project-read">
+              <Button
+                icon={<HistoryOutlined />}
+                onClick={() => setHistoryOpen(true)}
+              >
+                {isMobile ? undefined : "History"}
+              </Button>
+            </Can>
+            <Can permission="project-delete">
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => setDeleteProjectModalOpen(true)}
+              >
+                {isMobile ? undefined : "Delete"}
+              </Button>
+            </Can>
+          </>
+        }
+      />
       {/* Loading State */}
       {projectLoading && !project && (
         <Skeleton active paragraph={{ rows: 4 }} />
       )}
 
       {project && (
-        <>
+        <PageContent>
           {/* Project Header - replaces Scope, Time, Costs cards */}
           <ProjectHeaderCard
             project={project}
@@ -230,7 +221,7 @@ export const ProjectOverview = () => {
 
           {/* Project Info - collapsible system metadata (replaces System Info card) */}
           <ProjectInfoCard project={project} />
-        </>
+        </PageContent>
       )}
 
       {project && (
@@ -293,6 +284,6 @@ export const ProjectOverview = () => {
         parentWbsElementId={null}
         parentName="Project Root"
       />
-    </div>
+    </PageWrapper>
   );
 };

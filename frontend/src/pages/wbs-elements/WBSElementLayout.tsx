@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams, useNavigate, Outlet } from "react-router-dom";
 import { useState } from "react";
-import { Button, Grid, Space, theme, Typography, Flex } from "antd";
+import { Button } from "antd";
 import { EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -16,6 +16,9 @@ import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbsElementsService } from "@/api/generated";
 import { PageNavigation } from "@/components/navigation";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NotFoundState } from "@/components/layout/NotFoundState";
 
 interface BreadcrumbItem {
   code: string;
@@ -38,10 +41,7 @@ interface BreadcrumbData {
 export const WBSElementLayout: React.FC = () => {
   const { projectId, wbsElementId } = useParams<{ projectId: string; wbsElementId: string }>();
   const navigate = useNavigate();
-  const { token } = theme.useToken();
   const queryClient = useQueryClient();
-  const screens = Grid.useBreakpoint();
-  const isMobile = !screens.md;
 
   // Data fetching
   const { data: wbe, isLoading: wbeLoading } = useWBSElement(wbsElementId!);
@@ -116,18 +116,16 @@ export const WBSElementLayout: React.FC = () => {
   // Not found state
   if (!wbe && !wbeLoading) {
     return (
-      <div style={{ padding: `${token.paddingXL}px 0` }}>
-        <Typography.Title level={3}>WBE Not Found</Typography.Title>
-        <p>The requested Work Breakdown Element could not be found.</p>
-        <Button onClick={() => navigate(`/projects/${projectId}`)}>
-          Back to Project
-        </Button>
-      </div>
+      <NotFoundState
+        title="WBE Not Found"
+        message="The requested Work Breakdown Element could not be found."
+        onBack={() => navigate(`/projects/${projectId}`)}
+      />
     );
   }
 
   return (
-    <div style={{ padding: isMobile ? `${token.paddingMD}px 0` : `${token.paddingXL}px 0` }}>
+    <PageWrapper>
       <PageNavigation items={navItems} />
 
       {/* Shared header rendered on all sub-pages */}
@@ -162,51 +160,39 @@ export const WBSElementLayout: React.FC = () => {
         }
       />
 
-      <Flex
-        justify="space-between"
-        align={isMobile ? "flex-start" : "center"}
-        vertical={isMobile}
-        gap={isMobile ? token.marginSM : 0}
-        style={{ marginBottom: token.paddingMD }}
-      >
-        <Typography.Title
-          level={1}
-          style={{
-            margin: 0,
-            fontSize: isMobile ? token.fontSizeXL : undefined,
-          }}
-        >
-          WBS Element Details
-        </Typography.Title>
-        <Space size={token.marginSM} wrap={isMobile}>
-          <Can permission="wbs-element-update">
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={handleEditCurrent}
-            >
-              {isMobile ? undefined : "Edit"}
-            </Button>
-          </Can>
-          <Can permission="wbs-element-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={openHistory}
-            >
-              {isMobile ? undefined : "History"}
-            </Button>
-          </Can>
-          <Can permission="wbs-element-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={handleDeleteCurrent}
-            >
-              {isMobile ? undefined : "Delete"}
-            </Button>
-          </Can>
-        </Space>
-      </Flex>
+      <PageHeader
+        title="WBS Element Details"
+        actions={
+          <>
+            <Can permission="wbs-element-update">
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={handleEditCurrent}
+              >
+                Edit
+              </Button>
+            </Can>
+            <Can permission="wbs-element-read">
+              <Button
+                icon={<HistoryOutlined />}
+                onClick={openHistory}
+              >
+                History
+              </Button>
+            </Can>
+            <Can permission="wbs-element-delete">
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDeleteCurrent}
+              >
+                Delete
+              </Button>
+            </Can>
+          </>
+        }
+      />
 
       {/* Sub-page content */}
       <Outlet />
@@ -295,6 +281,6 @@ export const WBSElementLayout: React.FC = () => {
           })}
         />
       )}
-    </div>
+    </PageWrapper>
   );
 };

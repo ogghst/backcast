@@ -1,6 +1,6 @@
 import React from "react";
 import { useParams, useNavigate, Outlet } from "react-router-dom";
-import { Button, Grid, Space, theme, Typography, Flex, Modal } from "antd";
+import { Button, Modal } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -19,6 +19,9 @@ import { CostElementModal } from "@/features/cost-elements/components/CostElemen
 import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { PageNavigation } from "@/components/navigation";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NotFoundState } from "@/components/layout/NotFoundState";
 
 /**
  * CostElementLayout - Layout for EOC (Element of Cost) detail pages.
@@ -29,10 +32,7 @@ import { PageNavigation } from "@/components/navigation";
 export const CostElementLayout: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { token } = theme.useToken();
   const queryClient = useQueryClient();
-  const screens = Grid.useBreakpoint();
-  const isMobile = !screens.md;
 
   const { data: costElement, isLoading: costElementLoading } = useCostElement(
     id!,
@@ -104,13 +104,11 @@ export const CostElementLayout: React.FC = () => {
 
   if (!costElement && !costElementLoading) {
     return (
-      <div style={{ padding: token.paddingXL }}>
-        <Typography.Title level={3}>
-          Cost Element Not Found
-        </Typography.Title>
-        <p>The requested cost element could not be found.</p>
-        <Button onClick={() => navigate(-1)}>Go Back</Button>
-      </div>
+      <NotFoundState
+        title="Cost Element Not Found"
+        message="The requested cost element could not be found."
+        onBack={() => navigate(-1)}
+      />
     );
   }
 
@@ -122,7 +120,7 @@ export const CostElementLayout: React.FC = () => {
     : "Cost Element";
 
   return (
-    <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
+    <PageWrapper>
       <PageNavigation items={navItems} />
 
       <EntityBreadcrumb
@@ -153,44 +151,31 @@ export const CostElementLayout: React.FC = () => {
             : []
         }
       />
-
-      <Flex
-        justify="space-between"
-        align={isMobile ? "flex-start" : "center"}
-        vertical={isMobile}
-        gap={isMobile ? token.marginSM : 0}
-        style={{ marginBottom: token.paddingMD }}
-      >
-        <Typography.Title
-          level={1}
-          style={{
-            margin: 0,
-            fontSize: isMobile ? token.fontSizeXL : undefined,
-          }}
-        >
-          {displayTitle}
-        </Typography.Title>
-        <Space size={token.marginSM} wrap={isMobile}>
-          <Can permission="cost-element-update">
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={handleEditCurrent}
-            >
-              {isMobile ? undefined : "Edit"}
-            </Button>
-          </Can>
-          <Can permission="cost-element-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={handleDeleteCurrent}
-            >
-              {isMobile ? undefined : "Delete"}
-            </Button>
-          </Can>
-        </Space>
-      </Flex>
+      <PageHeader
+        title={displayTitle}
+        actions={
+          <>
+            <Can permission="cost-element-update">
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={handleEditCurrent}
+              >
+                Edit
+              </Button>
+            </Can>
+            <Can permission="cost-element-delete">
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDeleteCurrent}
+              >
+                Delete
+              </Button>
+            </Can>
+          </>
+        }
+      />
 
       <Outlet context={{ costElement }} />
 
@@ -233,6 +218,6 @@ export const CostElementLayout: React.FC = () => {
           Are you sure you want to delete this cost element?
         </p>
       </Modal>
-    </div>
+    </PageWrapper>
   );
 };

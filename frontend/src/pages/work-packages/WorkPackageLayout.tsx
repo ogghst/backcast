@@ -1,6 +1,6 @@
 import React from "react";
 import { useParams, useNavigate, Outlet } from "react-router-dom";
-import { Button, Grid, Space, theme, Typography, Flex, Modal } from "antd";
+import { Button, Modal } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -20,14 +20,14 @@ import { WorkPackageModal } from "@/features/work-packages/components/WorkPackag
 import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { PageNavigation } from "@/components/navigation";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NotFoundState } from "@/components/layout/NotFoundState";
 
 export const WorkPackageLayout: React.FC = () => {
   const { id, projectId } = useParams<{ id: string; projectId?: string }>();
   const navigate = useNavigate();
-  const { token } = theme.useToken();
   const queryClient = useQueryClient();
-  const screens = Grid.useBreakpoint();
-  const isMobile = !screens.md;
 
   const { data: workPackage, isLoading: workPackageLoading } = useWorkPackage(
     id!,
@@ -115,18 +115,16 @@ export const WorkPackageLayout: React.FC = () => {
 
   if (!workPackage && !workPackageLoading) {
     return (
-      <div style={{ padding: `${token.paddingXL}px 0` }}>
-        <Typography.Title level={3}>
-          Work Package Not Found
-        </Typography.Title>
-        <p>The requested work package could not be found.</p>
-        <Button onClick={() => { if (projectId) navigate(`/projects/${projectId}`); else navigate("/"); }}>Go Back</Button>
-      </div>
+      <NotFoundState
+        title="Work Package Not Found"
+        message="The requested work package could not be found."
+        onBack={() => { if (projectId) navigate(`/projects/${projectId}`); else navigate("/"); }}
+      />
     );
   }
 
   return (
-    <div style={{ padding: isMobile ? `${token.paddingMD}px 0` : `${token.paddingXL}px 0` }}>
+    <PageWrapper>
       <PageNavigation items={navItems} />
 
       <EntityBreadcrumb
@@ -155,43 +153,31 @@ export const WorkPackageLayout: React.FC = () => {
         }
       />
 
-      <Flex
-        justify="space-between"
-        align={isMobile ? "flex-start" : "center"}
-        vertical={isMobile}
-        gap={isMobile ? token.marginSM : 0}
-        style={{ marginBottom: token.paddingMD }}
-      >
-        <Typography.Title
-          level={1}
-          style={{
-            margin: 0,
-            fontSize: isMobile ? token.fontSizeXL : undefined,
-          }}
-        >
-          Work Package
-        </Typography.Title>
-        <Space size={token.marginSM} wrap={isMobile}>
-          <Can permission="work-package-update">
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={handleEditCurrent}
-            >
-              {isMobile ? undefined : "Edit"}
-            </Button>
-          </Can>
-          <Can permission="work-package-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={handleDeleteCurrent}
-            >
-              {isMobile ? undefined : "Delete"}
-            </Button>
-          </Can>
-        </Space>
-      </Flex>
+      <PageHeader
+        title="Work Package"
+        actions={
+          <>
+            <Can permission="work-package-update">
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={handleEditCurrent}
+              >
+                Edit
+              </Button>
+            </Can>
+            <Can permission="work-package-delete">
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDeleteCurrent}
+              >
+                Delete
+              </Button>
+            </Can>
+          </>
+        }
+      />
 
       <Outlet context={{ workPackage }} />
 
@@ -229,6 +215,6 @@ export const WorkPackageLayout: React.FC = () => {
           Are you sure you want to delete this work package?
         </p>
       </Modal>
-    </div>
+    </PageWrapper>
   );
 };

@@ -9,14 +9,16 @@
 
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { Card, theme } from "antd";
+import { Card } from "antd";
 import { GanttChart } from "@/features/schedule-baselines/components/GanttChart/GanttChart";
 import { ScheduleDependencyPanel } from "@/features/schedule-baselines/components/ScheduleDependencyPanel";
 import { useGanttData } from "@/features/schedule-baselines/api/useGanttData";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageContent } from "@/components/layout/PageContent";
 
 export const ProjectSchedulePage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { token } = theme.useToken();
 
   // NOTE: useGanttData is also called inside GanttChart. TanStack Query deduplicates
   // by query key, so only one network request is made. This call is kept at the page
@@ -43,17 +45,14 @@ export const ProjectSchedulePage: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: `${token.paddingXL}px 0` }}>
-      <h1 style={{ margin: 0, marginBottom: token.marginLG }}>Project Schedule</h1>
-      <Card
-        styles={{ body: { padding: token.paddingMD } }}
-        loading={false}
-      >
-        <GanttChart projectId={projectId} />
-      </Card>
-      <div style={{ marginTop: token.marginLG }}>
+    <PageWrapper>
+      <PageHeader title="Project Schedule" />
+      <PageContent>
+        <Card styles={{ body: { padding: 16 } }}>
+          <GanttChart projectId={projectId} />
+        </Card>
         <ScheduleDependencyPanel projectId={projectId} schedules={schedules} />
-      </div>
-    </div>
+      </PageContent>
+    </PageWrapper>
   );
 };

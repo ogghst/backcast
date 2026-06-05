@@ -5,6 +5,8 @@ import { ChangeOrderAnalytics } from "@/features/change-orders/components/Change
 import { Tabs } from "antd";
 import { useState } from "react";
 import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 /**
  * ProjectChangeOrdersPage component
@@ -23,14 +25,14 @@ export const ProjectChangeOrdersPage = () => {
   const { data: project } = useProject(projectId!);
 
   return (
-    <div style={{ padding: `24px 0` }}>
+    <PageWrapper>
       <EntityBreadcrumb
         items={[
           { label: project?.code || "Project", to: `/projects/${projectId}` },
           { label: "Change Orders" },
         ]}
       />
-      <h1 style={{ margin: 0, marginBottom: 16 }}>Change Orders</h1>
+      <PageHeader title="Change Orders" />
 
       <Tabs
         activeKey={activeTab}
@@ -53,6 +55,6 @@ export const ProjectChangeOrdersPage = () => {
           },
         ]}
       />
-    </div>
+    </PageWrapper>
   );
 };
