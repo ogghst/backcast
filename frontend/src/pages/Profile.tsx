@@ -1,5 +1,6 @@
 import { Card, Typography, Descriptions, Tag } from "antd";
 import { useAuth } from "@/hooks/useAuth";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 const { Title } = Typography;
 
@@ -9,7 +10,7 @@ export const Profile = () => {
   if (!user) return null;
 
   return (
-    <div style={{ padding: "24px" }}>
+    <PageWrapper>
       <Title level={2}>My Profile</Title>
       <Card variant="borderless">
         <Descriptions title="User Info" bordered>
@@ -27,6 +28,6 @@ export const Profile = () => {
           )}
         </Descriptions>
       </Card>
-    </div>
+    </PageWrapper>
   );
 };

@@ -10,8 +10,9 @@
 
 import { useParams } from "react-router-dom";
 import { useState } from "react";
-import { Space, Card, Spin, theme } from "antd";
+import { Space, Collapse, Spin, theme } from "antd";
 import { LineChartOutlined } from "@ant-design/icons";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 import {
   useEVMMetrics,
@@ -83,18 +84,22 @@ export const ProjectEVMAnalysis: React.FC = () => {
   // Error state
   if (metricsError || timeSeriesError) {
     return (
-      <div style={{ padding: `${token.paddingXL}px 0` }}>
+      <PageWrapper>
         <p>Error loading EVM data. Please try again.</p>
-      </div>
+      </PageWrapper>
     );
   }
 
   return (
+    <PageWrapper>
     <Space
       direction="vertical"
       size="large"
       style={{ width: "100%" }}
     >
+      {/* Page Title */}
+      <h1 style={{ margin: 0 }}>EVM Analysis</h1>
+
       {/* EVM Summary View */}
       {evmMetrics && (
         <EVMSummaryView
@@ -105,23 +110,40 @@ export const ProjectEVMAnalysis: React.FC = () => {
       )}
 
       {/* Historical Trends Chart */}
-      <Card
-        title={
-          <Space>
-            <LineChartOutlined />
-            <span>Historical Trends</span>
-          </Space>
-        }
-      >
-        <EVMTimeSeriesChart
-          timeSeries={timeSeries}
-          loading={timeSeriesLoading}
-          onGranularityChange={setGranularity}
-          currentGranularity={granularity}
-          headless={true}
-          height={400}
-        />
-      </Card>
+      <Collapse
+        defaultActiveKey={["historical-trends"]}
+        bordered
+        style={{ backgroundColor: "transparent" }}
+        items={[
+          {
+            key: "historical-trends",
+            label: (
+              <Space>
+                <LineChartOutlined />
+                <span>Historical Trends</span>
+              </Space>
+            ),
+            children: (
+              <div
+                style={{
+                  backgroundColor: token.colorBgContainer,
+                  padding: token.paddingMD,
+                  borderRadius: token.borderRadiusLG,
+                }}
+              >
+                <EVMTimeSeriesChart
+                  timeSeries={timeSeries}
+                  loading={timeSeriesLoading}
+                  onGranularityChange={setGranularity}
+                  currentGranularity={granularity}
+                  headless={true}
+                  height={400}
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {/* EVM Analyzer Modal */}
       <EVMAnalyzerModal
@@ -133,5 +155,6 @@ export const ProjectEVMAnalysis: React.FC = () => {
         onGranularityChange={setGranularity}
       />
     </Space>
+    </PageWrapper>
   );
 };

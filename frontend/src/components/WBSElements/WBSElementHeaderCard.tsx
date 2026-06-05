@@ -1,8 +1,9 @@
 import React from "react";
-import { Card, Grid, Tag, Typography, Progress, Flex, Row, Col } from "antd";
+import { Card, Grid, Typography, Progress, Row, Col } from "antd";
 import { WBSElementRead } from "@/api/generated";
 import { formatCompactCurrency, getBranchColor } from "@/utils/formatters";
 import { useExtendedToken } from "@/hooks/useToken";
+import { CardTitleRow, StatusTag } from "@/components/layout";
 
 const { Text } = Typography;
 
@@ -59,37 +60,10 @@ export const WBSElementHeaderCard = ({
       }}
     >
       {/* Title row */}
-      <Flex
-        justify="space-between"
-        align={isMobile ? "flex-start" : "center"}
-        vertical={isMobile}
-        gap={isMobile ? token.marginXS : 0}
-        style={{ marginBottom: token.marginMD }}
-      >
-        <Typography.Title
-          level={3}
-          style={{
-            margin: 0,
-            fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
-            fontWeight: token.fontWeightSemiBold,
-            color: token.colorText,
-          }}
-        >
-          {wbsElement.code} &mdash; {wbsElement.name}
-        </Typography.Title>
-        <Tag
-          color={getBranchColor(wbsElement.branch)}
-          style={{
-            fontSize: token.fontSize,
-            padding: `${token.paddingXS}px ${token.paddingMD}px`,
-            borderRadius: token.borderRadius,
-            fontWeight: token.fontWeightMedium,
-            margin: 0,
-          }}
-        >
-          {wbsElement.branch || "main"}
-        </Tag>
-      </Flex>
+      <CardTitleRow
+        title={`${wbsElement.code} — ${wbsElement.name}`}
+        badge={<StatusTag color={getBranchColor(wbsElement.branch)}>{wbsElement.branch || "main"}</StatusTag>}
+      />
 
       {/* Description */}
       {wbsElement.description && (

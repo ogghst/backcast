@@ -1,4 +1,4 @@
-import { Card, Table, Tag, Typography, Empty } from "antd";
+import { Card, Table, Tag, Typography, Empty, theme } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EntityChanges, EntityChange, EntityChangeType } from "@/api/generated";
 
@@ -50,6 +50,7 @@ export const EntityImpactGrid = ({
   entityChanges,
   loading,
 }: EntityImpactGridProps) => {
+  const { token } = theme.useToken();
   // Combine WBEs and Cost Elements into a single list
   const allChanges: Array<EntityChange & { entityType: string }> = [
     ...(entityChanges?.wbes?.map((wbe) => ({ ...wbe, entityType: "WBE" })) || []),
@@ -74,7 +75,7 @@ export const EntityImpactGrid = ({
       render: (name: string, record) => (
         <div>
           <div style={{ fontWeight: 500 }}>{name}</div>
-          <div style={{ fontSize: 12, color: "#8c8c8c" }}>ID: {record.id}</div>
+          <div style={{ fontSize: 12, color: token.colorTextSecondary }}>ID: {record.id}</div>
         </div>
       ),
     },
@@ -101,7 +102,7 @@ export const EntityImpactGrid = ({
       width: "15%",
       align: "right" as const,
       render: (value: string | null | undefined) => {
-        if (value === null || value === undefined) return <span style={{ color: "#8c8c8c" }}>-</span>;
+        if (value === null || value === undefined) return <span style={{ color: token.colorTextSecondary }}>-</span>;
         const num = Number(value);
         const color = num > 0 ? "#cf1322" : num < 0 ? "#3f8600" : undefined;
         return <span style={{ color, fontWeight: 500 }}>{formatCurrency(value)}</span>;
@@ -114,7 +115,7 @@ export const EntityImpactGrid = ({
       width: "15%",
       align: "right" as const,
       render: (value: string | null | undefined) => {
-        if (value === null || value === undefined) return <span style={{ color: "#8c8c8c" }}>-</span>;
+        if (value === null || value === undefined) return <span style={{ color: token.colorTextSecondary }}>-</span>;
         const num = Number(value);
         const color = num > 0 ? "#cf1322" : num < 0 ? "#3f8600" : undefined;
         return <span style={{ color, fontWeight: 500 }}>{formatCurrency(value)}</span>;
@@ -127,7 +128,7 @@ export const EntityImpactGrid = ({
       width: "15%",
       align: "right" as const,
       render: (value: string | null | undefined) => {
-        if (value === null || value === undefined) return <span style={{ color: "#8c8c8c" }}>-</span>;
+        if (value === null || value === undefined) return <span style={{ color: token.colorTextSecondary }}>-</span>;
         const num = Number(value);
         const color = num > 0 ? "#cf1322" : num < 0 ? "#3f8600" : undefined;
         return <span style={{ color, fontWeight: 500 }}>{formatCurrency(value)}</span>;

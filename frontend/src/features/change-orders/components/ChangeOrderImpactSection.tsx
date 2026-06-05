@@ -49,13 +49,13 @@ export function ChangeOrderImpactSection({
   const renderContent = (title: string, content: React.ReactNode) => {
     if (useCollapsibleCard) {
       return (
-        <CollapsibleCard id="impact" title={title} style={{ marginBottom: 16 }}>
+        <CollapsibleCard id="impact" title={title} style={{ marginBottom: token.marginMD }}>
           {content}
         </CollapsibleCard>
       );
     }
     return (
-      <Card id="impact" title={title} style={{ marginBottom: 16 }}>
+      <Card id="impact" title={title} style={{ marginBottom: token.marginMD }}>
         {content}
       </Card>
     );
@@ -67,7 +67,7 @@ export function ChangeOrderImpactSection({
       "Impact Analysis",
       <div style={{ textAlign: "center", padding: "40px 0" }}>
         <Spin size="large" />
-        <div style={{ marginTop: 16, color: token.colorTextSecondary }}>
+        <div style={{ marginTop: token.marginMD, color: token.colorTextSecondary }}>
           Loading impact analysis...
         </div>
       </div>,
@@ -160,8 +160,8 @@ export function ChangeOrderImpactSection({
       {/* This is a placeholder - integrate with actual dashboard components */}
       <div
         style={{
-          marginTop: 24,
-          padding: 16,
+          marginTop: token.marginXL,
+          padding: token.paddingMD,
           background: token.colorFillSecondary,
           borderRadius: 4,
         }}

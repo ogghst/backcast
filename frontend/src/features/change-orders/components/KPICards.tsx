@@ -1,4 +1,4 @@
-import { Card, Col, Row, Statistic, Typography, Spin, Divider } from "antd";
+import { Card, Col, Row, Statistic, Typography, Spin, Divider, theme } from "antd";
 import {
   ArrowUpOutlined,
   ArrowDownOutlined,
@@ -111,6 +111,7 @@ const KPIMetricCard = ({
   metric: KPIMetric;
   currency: string;
 }) => {
+  const { token } = theme.useToken();
   const { color, icon } = getDeltaDisplay(metric.delta);
   const mainValue = formatCurrencyValue(metric.main_value, currency);
   const changeValue = formatCurrencyValue(metric.change_value, currency);
@@ -131,7 +132,7 @@ const KPIMetricCard = ({
         prefix={icon}
         formatter={(value) => formatCurrencyValue(String(value), currency)}
       />
-      <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
+      <div style={{ marginTop: token.marginXS, fontSize: 12, color: token.colorTextSecondary }}>
         <div>
           Main: <strong>{mainValue}</strong>
         </div>
@@ -176,6 +177,7 @@ const PerformanceIndexCard = ({
   metric: KPIMetric;
   target: string;
 }) => {
+  const { token } = theme.useToken();
   const mergedValue = metric.merged_value ?? metric.change_value ?? "0";
   const color = getPerformanceIndexColor(mergedValue);
   const mainValue = formatNumber(metric.main_value);
@@ -189,7 +191,7 @@ const PerformanceIndexCard = ({
         precision={2}
         styles={{ content: { color } }}
       />
-      <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
+      <div style={{ marginTop: token.marginXS, fontSize: 12, color: token.colorTextSecondary }}>
         <div>
           Main: <strong>{mainValue}</strong>
         </div>
@@ -226,6 +228,7 @@ const ScheduleDurationCard = ({
   title: string;
   metric: KPIMetric;
 }) => {
+  const { token } = theme.useToken();
   const color = getScheduleDurationColor(metric.delta);
   const { icon, prefix } = getDeltaDisplay(metric.delta);
   const mainValue = formatDays(metric.main_value);
@@ -247,7 +250,7 @@ const ScheduleDurationCard = ({
         prefix={icon}
         formatter={(value) => formatDays(String(value))}
       />
-      <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
+      <div style={{ marginTop: token.marginXS, fontSize: 12, color: token.colorTextSecondary }}>
         <div>
           Main: <strong>{mainValue}</strong>
         </div>

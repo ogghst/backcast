@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from "react";
-import { Card, Grid, Tag, Typography, Row, Col, Progress, Flex } from "antd";
+import { Card, Grid, Typography, Row, Col, Progress } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { getProjectStatusColor } from "@/lib/status";
+import { CardTitleRow, StatusTag } from "@/components/layout";
 import { formatDate, formatCompactCurrency } from "@/utils/formatters";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useExtendedToken } from "@/hooks/useToken";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 interface ProjectHeaderCardProps {
   project: ProjectRead;
@@ -80,42 +81,15 @@ export const ProjectHeaderCard = ({
       }}
       styles={{
         body: {
-          padding: isMobile ? `${token.paddingMD}px 0` : `${token.paddingXL}px 0`,
+          padding: isMobile ? token.paddingMD : token.paddingXL,
         },
       }}
     >
       {/* Title row */}
-      <Flex
-        justify="space-between"
-        align={isMobile ? "flex-start" : "center"}
-        vertical={isMobile}
-        gap={isMobile ? token.marginXS : 0}
-        style={{ marginBottom: token.marginMD }}
-      >
-        <Title
-          level={3}
-          style={{
-            margin: 0,
-            fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
-            fontWeight: token.fontWeightSemiBold,
-            color: token.colorText,
-          }}
-        >
-          {project.code} &mdash; {project.name}
-        </Title>
-        <Tag
-          color={getProjectStatusColor(project.status)}
-          style={{
-            fontSize: token.fontSize,
-            padding: `${token.paddingXS}px ${token.paddingMD}px`,
-            borderRadius: token.borderRadius,
-            fontWeight: token.fontWeightMedium,
-            margin: 0,
-          }}
-        >
-          {project.status || "draft"}
-        </Tag>
-      </Flex>
+      <CardTitleRow
+        title={`${project.code} — ${project.name}`}
+        badge={<StatusTag color={getProjectStatusColor(project.status)}>{project.status || "draft"}</StatusTag>}
+      />
 
       {/* Description */}
       {project.description && (
@@ -144,7 +118,7 @@ export const ProjectHeaderCard = ({
             <Progress
               type="circle"
               percent={timePercent}
-              size={isMobile ? 120 : 160}
+              size={isMobile ? 120 : 140}
               format={(percent) => (
                 <div>
                   <div

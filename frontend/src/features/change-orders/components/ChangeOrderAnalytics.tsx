@@ -7,7 +7,7 @@
  * - Approval workload table
  * - Aging items list
  */
-import { Card, Row, Col, Statistic, Spin, Alert, Empty } from "antd";
+import { Card, Row, Col, Statistic, Spin, Alert, Empty, theme } from "antd";
 import {
   DollarOutlined,
   FileTextOutlined,
@@ -31,6 +31,7 @@ export const ChangeOrderAnalytics = ({
   projectId,
   branch = "main",
 }: ChangeOrderAnalyticsProps) => {
+  const { token } = theme.useToken();
   const { data: stats, isLoading, error } = useChangeOrderStats({
     projectId,
     branch,
@@ -77,7 +78,7 @@ export const ChangeOrderAnalytics = ({
   return (
     <div>
       {/* Summary KPI Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: token.marginXL }}>
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
@@ -120,7 +121,7 @@ export const ChangeOrderAnalytics = ({
       </Row>
 
       {/* Charts Row 1: Status & Impact */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: token.marginMD }}>
         <Col xs={24} md={12}>
           <StatusDistributionChart
             data={stats.by_status}
@@ -138,7 +139,7 @@ export const ChangeOrderAnalytics = ({
       </Row>
 
       {/* Charts Row 2: Cost Trend */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: token.marginMD }}>
         <Col xs={24}>
           <CostTrendChart data={stats.cost_trend} loading={isLoading} currency={currency} />
         </Col>
@@ -164,7 +165,7 @@ export const ChangeOrderAnalytics = ({
 
       {/* Average Approval Time (if available) */}
       {stats.avg_approval_time_days !== null && (
-        <Row style={{ marginTop: 16 }}>
+        <Row style={{ marginTop: token.marginMD }}>
           <Col xs={24}>
             <Card size="small">
               <Statistic

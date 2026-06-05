@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { Spin, Alert, Tabs } from "antd";
+import { Spin, Alert, Tabs, theme } from "antd";
 import { useImpactAnalysis } from "../api/useImpactAnalysis";
 import { useChangeOrder } from "../api/useChangeOrders";
 import { KPICards } from "./KPICards";
@@ -37,6 +37,7 @@ export const ImpactAnalysisDashboard = ({
   branchName,
   showHeader = true,
 }: ImpactAnalysisDashboardProps) => {
+  const { token } = theme.useToken();
   // Get changeOrderId from URL params if not provided as prop
   const urlParams = useParams<{ changeOrderId: string }>();
   const changeOrderId = changeOrderIdProp || urlParams.changeOrderId;
@@ -93,7 +94,7 @@ export const ImpactAnalysisDashboard = ({
       key: "overview",
       label: "Overview",
       children: (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: token.marginXL }}>
           <KPICards kpiScorecard={impactData.kpi_scorecard} />
           <WaterfallChart data={impactData.waterfall} />
         </div>
@@ -103,7 +104,7 @@ export const ImpactAnalysisDashboard = ({
       key: "scurve",
       label: "S-Curve Comparison",
       children: (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: token.marginXL }}>
           <MultiSCurveDisplay
             timeSeries={impactData.time_series}
             loading={impactLoading}
@@ -116,7 +117,7 @@ export const ImpactAnalysisDashboard = ({
       key: "entities",
       label: "Entity Changes",
       children: (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: token.marginXL }}>
           <EntityImpactGrid entityChanges={impactData.entity_changes} />
         </div>
       ),
@@ -125,7 +126,7 @@ export const ImpactAnalysisDashboard = ({
       key: "forecasts",
       label: "Forecast Impact",
       children: (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: token.marginXL }}>
           <ForecastImpactList
             forecasts={impactData.forecast_changes?.forecasts || []}
             branchName={actualBranchName}
@@ -136,7 +137,7 @@ export const ImpactAnalysisDashboard = ({
   ];
 
   return (
-    <div style={showHeader ? { padding: 24 } : undefined}>
+    <div style={showHeader ? { padding: token.paddingXL } : undefined}>
       {showHeader && (
         <>
           {/* Breadcrumbs */}
@@ -150,16 +151,16 @@ export const ImpactAnalysisDashboard = ({
           />
 
           {/* Page Title */}
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: token.marginXL }}>
             <h1>
               Impact Analysis: {changeOrder?.code || "N/A"}
               {impactData.branch_name !== "main" && (
-                <span style={{ marginLeft: 12, fontSize: 14, fontWeight: "normal", color: "#8c8c8c" }}>
+                <span style={{ marginLeft: 12, fontSize: 14, fontWeight: "normal", color: token.colorTextSecondary }}>
                   Branch: {impactData.branch_name}
                 </span>
               )}
             </h1>
-            <p style={{ color: "#8c8c8c", marginTop: 8 }}>
+            <p style={{ color: token.colorTextSecondary, marginTop: token.marginXS }}>
               Comparing <strong>main</strong> branch with{" "}
               <strong>{impactData.branch_name}</strong> branch
             </p>

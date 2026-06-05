@@ -1,7 +1,8 @@
 import React from "react";
-import { Card, Grid, Typography, theme, Flex, Row, Col } from "antd";
+import { Card, Grid, Typography, theme, Row, Col } from "antd";
 import { CostElementRead } from "@/api/generated";
 import { BudgetProgressRing } from "@/components/common/BudgetProgressRing";
+import { CardTitleRow } from "@/components/layout";
 
 interface CostElementHeaderCardProps {
   costElement: CostElementRead;
@@ -40,24 +41,7 @@ export const CostElementHeaderCard = ({
         },
       }}
     >
-      <Flex
-        justify="space-between"
-        align={isMobile ? "flex-start" : "center"}
-        vertical={isMobile}
-        gap={isMobile ? token.marginXS : 0}
-        style={{ marginBottom: token.marginMD }}
-      >
-        <Typography.Title
-          level={3}
-          style={{
-            margin: 0,
-            color: token.colorText,
-          }}
-        >
-          {title}
-        </Typography.Title>
-        {/* Branch tag removed - CostElement (EOC) no longer has branch */}
-      </Flex>
+      <CardTitleRow title={title} />
 
       {costElement.description && (
         <Typography.Paragraph
