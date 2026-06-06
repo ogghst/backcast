@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
-from fastapi.encoders import jsonable_encoder
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -127,15 +126,12 @@ from app.ai.message_utils import extract_tool_output_content
 from app.ai.message_utils import is_transient_stream_error as _is_transient_stream_error
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
-from app.ai.telemetry import (
-    initialize_telemetry,
-    trace_context,
-)
+from app.ai.telemetry import initialize_telemetry
 from app.ai.token_estimator import (
     log_actual_usage,
     log_context_usage_estimate,
 )
-from app.ai.tools import ToolContext, create_project_tools, filter_tools_by_role
+from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.sequential_tool_node import patch_tool_node_for_sequential_execution
 from app.ai.tools.session_manager import ToolSessionManager
@@ -151,9 +147,8 @@ from app.models.domain.ai import (
 from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
 from app.models.domain.wbs_element import WBSElement
+from app.models.domain.work_package import WorkPackage
 from app.models.schemas.ai import (
-    AIChatResponse,
-    AIConversationMessagePublic,
     PlanningStep,
     WSCompleteMessage,
 )
@@ -262,6 +257,20 @@ _HANDLED_EVENTS = frozenset(
         "on_tool_end",
         "on_tool_error",
         "on_end",
+    }
+)
+
+# Non-specialist node names in the parent graph.  Specialist names are
+# everything NOT in this set — used to detect subagent transitions.
+_NON_SPECIALIST_NODES = frozenset(
+    {
+        "__start__",
+        "__end__",
+        "agent",
+        "initialize_briefing",
+        "planner",
+        "supervisor",
+        "tools",
     }
 )
 
@@ -590,264 +599,6 @@ class AgentService:
                 session_id,
             )
 
-    async def chat(
-        self,
-        message: str,
-        assistant_config: AIAssistantConfig,
-        session_id: UUID | None,
-        user_id: UUID,
-    ) -> AIChatResponse:
-        """Process a chat message using LangGraph.
-
-        Context: Main entry point for the AI conversation. Manages the session, invokes the graph, and saves history.
-                Uses the new StateGraph with ainvoke for non-streaming responses.
-
-        Args:
-            message: The user's input message
-            assistant_config: Configuration defining the model and allowed tools
-            session_id: Optional existing session ID to continue. If None, a new session is created
-            user_id: ID of the user sending the message
-
-        Returns:
-            Structured response containing the assistant's message, any tool calls, and the session ID
-
-        Raises:
-            ValueError: If session creation fails or no assistant response is generated
-        """
-        with trace_context(
-            "agent.chat",
-            attributes={
-                "session_id": str(session_id) if session_id else "new",
-                "user_id": str(user_id),
-                "assistant_id": str(assistant_config.id),
-            },
-        ):
-            return await self._chat_impl(message, assistant_config, session_id, user_id)
-
-    async def _chat_impl(
-        self,
-        message: str,
-        assistant_config: AIAssistantConfig,
-        session_id: UUID | None,
-        user_id: UUID,
-    ) -> AIChatResponse:
-        """Internal implementation of chat processing.
-
-        Args:
-            message: The user's input message
-            assistant_config: Configuration defining the model and allowed tools
-            session_id: Optional existing session ID to continue. If None, a new session is created
-            user_id: ID of the user sending the message
-
-        Returns:
-            Structured response containing the assistant's message, any tool calls, and the session ID
-
-        Raises:
-            ValueError: If session creation fails or no assistant response is generated
-        """
-        db_session: AIConversationSession | None
-        if session_id:
-            db_session = await self.config_service.get_session(session_id)
-            if not db_session:
-                raise ValueError(f"Session {session_id} not found")
-        else:
-            # Create new session
-            db_session = await self.config_service.create_session(
-                user_id=user_id,
-                assistant_config_id=assistant_config.id,
-            )
-            session_id = db_session.id
-        if not session_id:
-            raise ValueError("Failed to create session")
-
-        _ = await self.config_service.add_message(
-            session_id=session_id,
-            role="user",
-            content=message,
-        )
-
-        # Load context from session
-        session_project_id = (
-            UUID(db_session.project_id)
-            if db_session and db_session.project_id
-            else None
-        )
-        session_context = db_session.context if db_session else None
-
-        # Build history first (needed before system prompt)
-        history = await self._build_conversation_history(session_id)
-
-        # Enrich context with entity names from DB
-        enriched_context = session_context
-        if session_context:
-            enriched_context = await self._resolve_context_names(
-                session_context, session_project_id
-            )
-
-        base_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
-        system_prompt = self._build_system_prompt(
-            base_prompt=base_prompt,
-            project_id=session_project_id,
-            context=enriched_context,
-        )
-        history.insert(0, SystemMessage(content=system_prompt))
-
-        if assistant_config.model_id is None:
-            raise ValueError(
-                f"Agent '{assistant_config.name}' has no model_id configured"
-            )
-        client_config, model_name, provider_type = await self._get_llm_client_config(
-            UUID(str(assistant_config.model_id))
-        )
-
-        llm = await self._create_langchain_llm(
-            client_config,
-            model_name,
-            assistant_config.temperature,
-            assistant_config.max_tokens,
-        )
-
-        user_role = await _get_user_role(self.session, user_id)
-
-        tool_context = ToolContext(
-            self.session,
-            str(user_id),
-            user_role=user_role,
-            project_id=str(session_project_id) if session_project_id else None,
-        )
-        available_tools = create_project_tools(tool_context)
-        tools_dict = {tool.name: tool for tool in available_tools}
-
-        if assistant_config.default_role:
-            filtered = await filter_tools_by_role(
-                list(tools_dict.values()), assistant_config.default_role
-            )
-            tools_dict = {t.name: t for t in filtered}
-
-        # Filter by user's actual role
-        filtered = await filter_tools_by_role(list(tools_dict.values()), user_role)
-        tools_dict = {t.name: t for t in filtered}
-
-        graph, _interrupt_node = create_graph(
-            llm=llm, tools=list(tools_dict.values()), context=tool_context
-        )
-
-        recursion_limit = (
-            assistant_config.recursion_limit
-            if assistant_config.recursion_limit is not None
-            else 25
-        )
-
-        # Invoke the graph
-        try:
-            existing_briefing = await self.config_service.get_session_briefing(
-                session_id
-            )
-            if existing_briefing:
-                logger.info(
-                    "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (non-streaming)",
-                    len(existing_briefing.get("sections", [])),
-                )
-
-            result = await graph.ainvoke(
-                input_state={
-                    "messages": history,
-                    "tool_call_count": 0,
-                    "max_tool_iterations": recursion_limit,
-                    "next": "agent",
-                    "briefing_data": existing_briefing,
-                },
-                config={
-                    "recursion_limit": recursion_limit,
-                    "configurable": {"thread_id": str(session_id)},
-                },
-            )
-
-            final_briefing = result.get("briefing_data")
-            if final_briefing:
-                section_count = len(final_briefing.get("sections", []))
-                await self.config_service.save_session_briefing(
-                    session_id, final_briefing
-                )
-                logger.info(
-                    "[BRIEFING_PERSIST_SUCCESS] Saved briefing to DB with %d sections (non-streaming) | session_id=%s",
-                    section_count,
-                    session_id,
-                )
-            else:
-                logger.info(
-                    "[BRIEFING_PERSIST_SUCCESS] No briefing_data to save (non-streaming) | session_id=%s",
-                    session_id,
-                )
-
-            shared_checkpointer.delete_thread(str(session_id))
-            logger.info(
-                "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (non-streaming) | session_id=%s",
-                session_id,
-            )
-        finally:
-            try:
-                await ToolSessionManager.commit()
-                logger.debug(
-                    f"Cleaned up task-local sessions after graph invocation for session {session_id}"
-                )
-            except Exception as cleanup_error:
-                logger.debug(
-                    f"No task-local sessions to clean up or cleanup failed: {cleanup_error}"
-                )
-                # Ignore cleanup errors - sessions may have already been removed
-
-        final_message = None
-        messages = result.get("messages", [])
-        for msg in reversed(messages):
-            if isinstance(msg, AIMessage) and not msg.tool_calls:
-                final_message = msg
-                break
-
-        if not final_message:
-            raise ValueError("No assistant response generated")
-
-        tool_calls_data: list[dict[str, Any]] = []
-
-        for msg in messages:
-            if isinstance(msg, AIMessage) and msg.tool_calls:
-                # Convert ToolCall objects to dict format
-                for tc in msg.tool_calls:
-                    tool_calls_data.append(
-                        {
-                            "id": tc.get("id", ""),
-                            "name": tc.get("name", ""),
-                            "args": tc.get("args", {}),
-                        }
-                    )
-            # Note: Tool messages are not directly accessible from the result
-            # In a real implementation, you might want to track these separately
-
-        # Convert AIMessage content to string (can be str | list)
-        content_str = (
-            final_message.content
-            if isinstance(final_message.content, str)
-            else str(final_message.content)
-            if final_message.content
-            else ""
-        )
-        rc_metadata = _extract_reasoning_content(final_message)
-        assistant_msg = await self.config_service.add_message(
-            session_id=session_id,
-            role="assistant",
-            content=content_str,
-            tool_calls=tool_calls_data if tool_calls_data else None,
-            tool_results=None,  # No tool results in non-streaming mode
-            message_metadata=rc_metadata,
-        )
-
-        # Build response
-        return AIChatResponse(
-            session_id=session_id,
-            message=AIConversationMessagePublic.model_validate(assistant_msg),
-            tool_calls=tool_calls_data if tool_calls_data else None,
-        )
-
     async def _persist_briefing_from_checkpoint(
         self,
         session_id: UUID,
@@ -989,9 +740,6 @@ class AgentService:
                 assistant_config=assistant_config,
                 websocket=None,
                 session_id=session_id,
-                enable_subagents=True,
-                provider_type=provider_type,
-                model_name=model_name,
                 available_tools=available_tools,
                 event_bus=event_bus,
                 user_role=user_role,
@@ -1391,28 +1139,7 @@ class AgentService:
                 )
 
             # Subagent completion
-            state.publish(
-                AgentEventType.AGENT_COMPLETE,
-                {
-                    "type": AgentEventType.AGENT_COMPLETE,
-                    "agent_type": "subagent",
-                    "invocation_id": state.current_invocation_id,
-                    "agent_name": state.current_subagent_name,
-                },
-            )
-
-            # Content reset after subagent
-            state.publish(
-                AgentEventType.CONTENT_RESET,
-                {
-                    "type": AgentEventType.CONTENT_RESET,
-                    "reason": "subagent_completed",
-                },
-            )
-
-            state.current_subagent_name = None
-            state.current_invocation_id = None
-            state.task_initiating_main_invocation_id = None
+            self._complete_subagent(state, reason="subagent_completed")
 
         # Generate new main invocation_id after task tool completion only
         # (subagent delegation). For other tools, the same agent continues.
@@ -1444,7 +1171,7 @@ class AgentService:
             {
                 "type": AgentEventType.TOOL_RESULT,
                 "tool": tool_name,
-                "result": jsonable_encoder(tool_result_dict),
+                "result": tool_result_dict,
                 "invocation_id": (
                     state.current_invocation_id
                     if state.current_subagent_name
@@ -1453,19 +1180,49 @@ class AgentService:
             },
         )
 
+    def _complete_subagent(self, state: StreamState, *, reason: str) -> None:
+        """Publish AGENT_COMPLETE + CONTENT_RESET and clear subagent tracking state.
+
+        Captures invocation_id and agent_name BEFORE clearing to ensure the
+        frontend can correlate the completion with the preceding AGENT_TRANSITION
+        enter event.
+        """
+        inv_id = state.current_invocation_id
+        agent_name = state.current_subagent_name
+        state.publish(
+            AgentEventType.AGENT_COMPLETE,
+            {
+                "type": AgentEventType.AGENT_COMPLETE,
+                "agent_type": "subagent",
+                "invocation_id": inv_id,
+                "agent_name": agent_name,
+            },
+        )
+        state.publish(
+            AgentEventType.CONTENT_RESET,
+            {
+                "type": AgentEventType.CONTENT_RESET,
+                "reason": reason,
+            },
+        )
+        state.current_subagent_name = None
+        state.current_invocation_id = None
+        state.task_initiating_main_invocation_id = None
+
     def _handle_tool_error(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_tool_error -- record tool failure."""
         data = event.get("data", {})
         tool_name = event.get("name", "")
         error = data.get("error")
 
+        error_result_dict: dict[str, Any] = {
+            "tool": tool_name,
+            "success": False,
+            "result": None,
+            "error": (str(error) if error else "Unknown error"),
+        }
+
         if state.current_subagent_name is None:
-            error_result_dict: dict[str, Any] = {
-                "tool": tool_name,
-                "success": False,
-                "result": None,
-                "error": (str(error) if error else "Unknown error"),
-            }
             state.all_tool_results.append(error_result_dict)
 
             state.publish(
@@ -1473,14 +1230,22 @@ class AgentService:
                 {
                     "type": AgentEventType.TOOL_RESULT,
                     "tool": tool_name,
-                    "result": jsonable_encoder(error_result_dict),
-                    "invocation_id": (
-                        state.current_invocation_id
-                        if state.current_subagent_name
-                        else state.main_invocation_id
-                    ),
+                    "result": error_result_dict,
+                    "invocation_id": state.main_invocation_id,
                 },
             )
+        else:
+            # Subagent task tool threw — publish error and clear subagent state
+            state.publish(
+                AgentEventType.TOOL_RESULT,
+                {
+                    "type": AgentEventType.TOOL_RESULT,
+                    "tool": tool_name,
+                    "result": error_result_dict,
+                    "invocation_id": state.current_invocation_id,
+                },
+            )
+            self._complete_subagent(state, reason="subagent_error")
 
     def _handle_graph_end(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_end -- extract final tool calls from graph output."""
@@ -1657,7 +1422,7 @@ class AgentService:
                     else None
                 )
 
-                await self.config_service.add_message(
+                segment_msg = await self.config_service.add_message(
                     session_id=state.session_id,
                     role="assistant",
                     content=segment_content,
@@ -1666,6 +1431,7 @@ class AgentService:
                     message_metadata=metadata,
                 )
                 await self.session.commit()
+                state.last_persisted_message_id = segment_msg.id
 
                 if inv_id in state.subagent_messages:
                     for subagent_msg_data in state.subagent_messages[inv_id]:
@@ -1748,7 +1514,7 @@ class AgentService:
             WSCompleteMessage(
                 type="complete",
                 session_id=state.session_id,
-                message_id=None,
+                message_id=state.last_persisted_message_id,
                 token_usage=usage_dict,
             ).model_dump(mode="json"),
         )
@@ -1802,17 +1568,6 @@ class AgentService:
         ctx, existing_briefing = await self._prepare_graph_execution(params)
 
         # Step 2: Initialize mutable stream state
-        # Non-specialist node names in the parent graph.
-        _NON_SPECIALIST_NODES = frozenset(
-            {
-                "__start__",
-                "__end__",
-                "initialize_briefing",
-                "planner",
-                "supervisor",
-                "tools",
-            }
-        )
         state = StreamState(
             event_bus=ctx.event_bus,
             session_id=ctx.session_id,
@@ -1897,6 +1652,113 @@ class AgentService:
         except Exception:
             pass
 
+    @staticmethod
+    async def _preflight_execution(
+        execution_id: str,
+        session_id: UUID,
+        execution_mode: ExecutionMode,
+    ) -> dict[str, Any] | None:
+        """Create execution row and capture session context in a short-lived session.
+
+        Opens its own DB session, creates the AIAgentExecution tracking row,
+        sets active_execution_id on the conversation session, and returns the
+        session context dict.  No live ORM objects escape — only serializable data.
+
+        Returns:
+            Session context dict, or None if the session has no context.
+        """
+        from app.db.session import async_session_maker
+
+        async with async_session_maker() as db:
+            # Fetch conversation session row
+            session_stmt = select(AIConversationSession).where(
+                AIConversationSession.id == str(session_id)
+            )
+            session_result = await db.execute(session_stmt)
+            db_session = session_result.scalar_one_or_none()
+
+            # Create execution tracking row — use execution_id as the PK
+            # so the DB row ID matches the event bus key (required for
+            # WebSocket re-subscribe: the client sends the DB execution.id
+            # and the subscribe handler looks up the bus by the same key).
+            execution = AIAgentExecution(
+                id=UUID(execution_id),
+                session_id=str(session_id),
+                status=ExecutionStatus.RUNNING,
+                execution_mode=execution_mode.value,
+            )
+            db.add(execution)
+            await db.commit()
+
+            # Set active_execution_id on session
+            if db_session is not None:
+                db_session.active_execution_id = str(execution.id)
+                await db.commit()
+
+            # Capture serializable context — no ORM objects escape
+            return db_session.context if db_session else None
+
+    @staticmethod
+    async def _postflight_execution(
+        execution_id: str,
+        session_id: UUID,
+        metrics: AgentExecutionMetrics | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        """Update execution status and metrics in a short-lived session.
+
+        Opens its own DB session, queries the execution row by ID (fresh
+        session, no detachment issues), sets COMPLETED or ERROR status,
+        and clears active_execution_id.  Best-effort: logs failures but
+        does not re-raise.
+        """
+        from app.db.session import async_session_maker
+
+        try:
+            async with async_session_maker() as db:
+                stmt = select(AIAgentExecution).where(
+                    AIAgentExecution.id == execution_id
+                )
+                result = await db.execute(stmt)
+                row = result.scalar_one_or_none()
+
+                if row is None:
+                    logger.warning(
+                        "[POSTFLIGHT] Execution row %s not found", execution_id
+                    )
+                    return
+
+                if error is not None:
+                    row.status = ExecutionStatus.ERROR
+                    row.error_message = str(error)[:2000]
+                else:
+                    row.status = ExecutionStatus.COMPLETED
+
+                row.completed_at = datetime.now(UTC)  # type: ignore[assignment]
+
+                if metrics is not None:
+                    row.total_tokens = metrics.total_tokens
+                    row.tool_calls_count = metrics.tool_calls_count
+
+                await db.commit()
+
+                # Clear active_execution_id on the conversation session
+                session_stmt = select(AIConversationSession).where(
+                    AIConversationSession.id == str(session_id)
+                )
+                session_result = await db.execute(session_stmt)
+                session_row = session_result.scalar_one_or_none()
+                if session_row is not None:
+                    session_row.active_execution_id = None
+                    await db.commit()
+
+        except Exception:
+            logger.error(
+                "[POSTFLIGHT] Failed to update execution %s",
+                execution_id,
+                exc_info=True,
+            )
+
     async def start_execution(
         self,
         message: str,
@@ -1918,6 +1780,14 @@ class AgentService:
         run from any specific WebSocket connection. Events are published to an
         AgentEventBus registered with the runner_manager, allowing any consumer
         (REST SSE, WebSocket reconnection) to subscribe by execution ID.
+
+        Uses three independent DB sessions for resilient connection management:
+        1. Pre-flight: creates execution row, captures context (~ms)
+        2. Graph execution: runs the agent graph (~minutes)
+        3. Post-flight: updates execution status and metrics (~ms)
+
+        Each phase opens and closes its own session, so connections are returned
+        to the pool between phases instead of being held for the full duration.
 
         The caller may pre-create an execution_id and event_bus and pass them in.
         This is useful when the caller needs to subscribe to the bus immediately
@@ -1957,54 +1827,16 @@ class AgentService:
             event_bus = runner_manager.create_bus(execution_id)
             should_remove_bus = True
 
-        # Create independent DB session for this execution
-        async with async_session_maker() as db:
-            from app.db.session import log_pool_status
-
-            log_pool_status(f"start_execution entry | execution_id={execution_id}")
-
-            # Pre-fetch the session row so it is accessible in except/finally blocks
-            session_stmt = select(AIConversationSession).where(
-                AIConversationSession.id == str(session_id)
+        try:
+            # Phase 1: Pre-flight — create execution row, capture context
+            session_context = await self._preflight_execution(
+                execution_id, session_id, execution_mode,
             )
-            session_result = await db.execute(session_stmt)
-            db_session = session_result.scalar_one_or_none()
 
-            try:
-                metrics: AgentExecutionMetrics | None = None
-
-                # Create execution tracking row — use execution_id as the PK
-                # so the DB row ID matches the event bus key (required for
-                # WebSocket re-subscribe: the client sends the DB execution.id
-                # and the subscribe handler looks up the bus by the same key).
-                execution = AIAgentExecution(
-                    id=UUID(execution_id),
-                    session_id=str(session_id),
-                    status=ExecutionStatus.RUNNING,
-                    execution_mode=execution_mode.value,
-                )
-                db.add(execution)
-                await db.commit()
-                await db.refresh(execution)
-
-                # Set active_execution_id on session
-                if db_session is not None:
-                    db_session.active_execution_id = str(execution.id)
-                    await db.commit()
-
-                # Capture context before releasing the connection
-                session_context = db_session.context if db_session else None
-
-                # Release the DB connection back to the pool before entering
-                # the graph. The session stays usable — it will re-checkout a
-                # connection on the next query. This prevents holding a
-                # connection for the entire graph execution (minutes).
-                await db.close()
-
-                # Create agent service with this DB session
+            # Phase 2: Graph execution — own session for the full graph run
+            metrics: AgentExecutionMetrics | None = None
+            async with async_session_maker() as db:
                 exec_service = AgentService(db)
-
-                # Run the agent graph, publishing events to the bus
                 metrics = await exec_service._run_agent_graph(
                     GraphExecutionParams(
                         message=message,
@@ -2022,77 +1854,49 @@ class AgentService:
                     )
                 )
 
-                # Re-query since db.close() detached the object
-                exec_stmt = select(AIAgentExecution).where(
-                    AIAgentExecution.id == str(execution.id)
+            # Phase 3: Post-flight — update execution status and metrics
+            await self._postflight_execution(
+                execution_id, session_id, metrics=metrics,
+            )
+
+        except Exception as e:
+            logger.error(
+                "Error in start_execution %s: %s", execution_id, e, exc_info=True
+            )
+
+            # Best-effort error status update (own session)
+            await self._postflight_execution(
+                execution_id, session_id, metrics=metrics, error=e,
+            )
+
+            # Publish execution status so frontend clears activeExecutionIdRef
+            event_bus.publish(
+                AgentEvent(
+                    event_type=AgentEventType.EXECUTION_STATUS,
+                    data={
+                        "type": AgentEventType.EXECUTION_STATUS,
+                        "execution_id": execution_id,
+                        "status": ExecutionStatus.ERROR,
+                        "session_id": str(session_id),
+                    },
+                    timestamp=datetime.now(UTC),
                 )
-                exec_result = await db.execute(exec_stmt)
-                execution = exec_result.scalar_one()
-                execution.status = ExecutionStatus.COMPLETED
-                execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
-                execution.total_tokens = metrics.total_tokens
-                execution.tool_calls_count = metrics.tool_calls_count
-                await db.commit()
+            )
 
-                await self._clear_active_execution(db, session_id)
-
-            except Exception as e:
-                logger.error(
-                    f"Error in start_execution {execution_id}: {e}", exc_info=True
+            # Publish error event
+            event_bus.publish(
+                AgentEvent(
+                    event_type=AgentEventType.ERROR,
+                    data={"message": str(e), "code": 500},
+                    timestamp=datetime.now(UTC),
                 )
-                # Update execution tracking row with error and partial metrics.
-                # Always re-query since db.close() may have detached the object.
-                try:
-                    stmt = select(AIAgentExecution).where(
-                        AIAgentExecution.id == str(execution.id)
-                    )
-                    result = await db.execute(stmt)
-                    fresh_execution = result.scalar_one_or_none()
-                    if fresh_execution is not None:
-                        fresh_execution.status = ExecutionStatus.ERROR
-                        fresh_execution.error_message = str(e)[:2000]
-                        fresh_execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
-                        if metrics is not None:
-                            fresh_execution.total_tokens = metrics.total_tokens
-                            fresh_execution.tool_calls_count = metrics.tool_calls_count
-                        await db.commit()
-                except Exception:
-                    await db.rollback()
-                    logger.error(
-                        "Failed to update execution row on error path",
-                        exc_info=True,
-                    )
+            )
 
-                await self._clear_active_execution(db, session_id)
-
-                # Publish execution status so frontend clears activeExecutionIdRef
-                event_bus.publish(
-                    AgentEvent(
-                        event_type=AgentEventType.EXECUTION_STATUS,
-                        data={
-                            "type": AgentEventType.EXECUTION_STATUS,
-                            "execution_id": execution_id,
-                            "status": ExecutionStatus.ERROR,
-                            "session_id": str(session_id),
-                        },
-                        timestamp=datetime.now(UTC),
-                    )
-                )
-
-                # Publish error event
-                event_bus.publish(
-                    AgentEvent(
-                        event_type=AgentEventType.ERROR,
-                        data={"message": str(e), "code": 500},
-                        timestamp=datetime.now(UTC),
-                    )
-                )
-
-                raise
-            finally:
-                # Clean up the event bus from runner_manager only if we created it
-                if should_remove_bus:
-                    runner_manager.remove_bus(execution_id)
+            raise
+        finally:
+            # Clean up the event bus from runner_manager only if we created it
+            if should_remove_bus:
+                runner_manager.remove_bus(execution_id)
 
         return execution_id
 
@@ -2210,6 +2014,37 @@ class AgentService:
                     except (ValueError, AttributeError):
                         pass
 
+            elif context_type == "work_package":
+                stmt = (
+                    select(WorkPackage.name)
+                    .where(WorkPackage.work_package_id == entity_uuid)
+                    .where(sa_func.upper(WorkPackage.valid_time).is_(None))
+                    .where(WorkPackage.deleted_at.is_(None))
+                    .limit(1)
+                )
+                result = await self.session.execute(stmt)
+                name = result.scalar_one_or_none()
+                if name:
+                    enriched["name"] = name
+                # Also look up parent project name when project_id is available
+                pid = context.get("project_id") or project_id
+                if pid:
+                    try:
+                        pid_uuid = UUID(str(pid))
+                        p_stmt = (
+                            select(Project.name)
+                            .where(Project.project_id == pid_uuid)
+                            .where(sa_func.upper(Project.valid_time).is_(None))
+                            .where(Project.deleted_at.is_(None))
+                            .limit(1)
+                        )
+                        p_result = await self.session.execute(p_stmt)
+                        p_name = p_result.scalar_one_or_none()
+                        if p_name:
+                            enriched["project_name"] = p_name
+                    except (ValueError, AttributeError):
+                        pass
+
         except Exception:
             logger.warning(
                 "Failed to resolve context name for %s %s",
@@ -2300,6 +2135,19 @@ class AgentService:
                     f"Parent project ID: {context.get('project_id', project_id)}. "
                     "Focus your responses on this specific cost element. "
                     "Use cost element tools to query and analyze this element."
+                )
+            elif context_type == "work_package":
+                name_part = (
+                    f" the Work Package: {context_name}"
+                    if context_name
+                    else " a Work Package"
+                )
+                context_sections.append(
+                    f"This conversation is about{name_part}. "
+                    f"Work Package ID: {context.get('id')}. "
+                    f"Parent project ID: {context.get('project_id', project_id)}. "
+                    "Focus your responses on this specific work package. "
+                    "Use work package tools to query and analyze this element."
                 )
         elif project_id:
             # Legacy support for project_id without context
@@ -2523,6 +2371,8 @@ class AgentService:
             # For other types, try string conversion
             return str(obj)
 
+    _INTERRUPT_NODE_MAX = 20
+
     def register_interrupt_node(
         self, session_id: UUID, interrupt_node: "InterruptNode"
     ) -> None:
@@ -2532,6 +2382,20 @@ class AgentService:
             session_id: The session ID
             interrupt_node: The InterruptNode instance to register
         """
+        # Auto-evict oldest entry to prevent unbounded growth
+        if len(self._interrupt_nodes) >= self._INTERRUPT_NODE_MAX:
+            oldest_key = next(iter(self._interrupt_nodes))
+            evicted = self._interrupt_nodes.pop(oldest_key, None)
+            if evicted is not None:
+                evicted.pending_approvals.clear()
+                evicted.interrupt_state.clear()
+            logger.warning(
+                "Interrupt node registry reached %d entries — evicted oldest "
+                "(session=%s) to make room for session=%s",
+                self._INTERRUPT_NODE_MAX,
+                oldest_key,
+                session_id,
+            )
         self._interrupt_nodes[session_id] = interrupt_node
 
     def get_interrupt_node(self, session_id: UUID) -> "InterruptNode | None":
@@ -2619,7 +2483,7 @@ class AgentService:
             tool_result = {
                 "tool": interrupt_state.get("tool_name", "unknown"),
                 "success": True,
-                "result": result.content,
+                "result": self._make_json_serializable(result.content),
                 "error": None,
             }
 
@@ -2628,7 +2492,7 @@ class AgentService:
                     msg_data = WSToolResultMessage(
                         type="tool_result",
                         tool=tool_result["tool"],
-                        result=jsonable_encoder(tool_result),
+                        result=tool_result,
                     ).model_dump(mode="json")
                     logger.debug(
                         f"Sending tool_result after approval: tool={tool_result['tool']}, result_type={type(result.content).__name__}"
