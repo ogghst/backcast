@@ -76,6 +76,23 @@ End-user guide for interacting with the Backcast  AI Chat assistant using natura
 - Change managers managing change orders
 - Any end user interacting with the AI assistant
 
+### [Configuring Backcast for Your Organization](./backcast-configuration-guide.md)
+
+Adaptation guide for administrators covering roles, workflows, AI assistance, and team structure configuration.
+
+**Topics Covered:**
+- Organizational role configuration and delegation styles (centralized, balanced, distributed)
+- Change management workflow configuration (lean, formal CCB, enterprise governance)
+- AI assistant persona selection, customization, and maturity-based deployment
+- Execution safety tiers and role-matching guidelines
+- Quick-reference matrix by team size (solo to enterprise)
+- Step-by-step configuration checklist
+
+**Target Audience:**
+- System administrators deploying Backcast
+- PMO directors defining governance policies
+- IT leads managing user accounts and security
+
 ### [Frontend Navigation Patterns](./navigation-patterns.md)
 
 Guide to the navigation patterns used in the Backcast  frontend application.
