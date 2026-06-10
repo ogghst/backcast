@@ -276,99 +276,212 @@ The impact scoring system evaluates every change order across four dimensions: B
 
 ---
 
+
 ## 4. AI Assistant Configuration
 
-### 4.1 Persona Selection and Customization
+### 4.1 The Job Description Paradigm
 
-Backcast ships with three AI personas, each designed for a distinct purpose and matched to a specific access level:
+Backcast's AI assistants are configured the same way you staff a professional services engagement: you define roles, assign responsibilities, and establish operating procedures. Each AI component has a job description that specifies its scope of authority, behavioral expectations, and the specialist skills it can draw upon. Administrators write these job descriptions to mirror the organization's own structure, terminology, and processes.
 
-**Friendly Project Analyzer** (access level: read-only). This persona explains project status, EVM metrics, budget performance, and schedule data in clear language. It cannot create, modify, or delete any data. Use this persona for stakeholders who need insights without write access, for team members new to EVM who benefit from explanatory interaction, and for executive reporting where the AI summarizes project health without risk of data modification.
+**The engagement model.** When a team member opens a chat session, they are assigned a primary contact -- the main assistant -- whose role is comparable to a department coordinator. This coordinator receives the request, determines what expertise is needed, and brings in the right subject-matter specialists. A planning coordinator breaks down complex requests into structured subtasks before any work begins. A team lead then manages the execution, handing each subtask to the appropriate specialist and monitoring progress. This mirrors how a well-run project office operates: a single point of contact for the client, clear work breakdown, and structured delegation to domain experts.
 
-**Senior Project Manager** (access level: full project delivery). This persona can create and update projects, WBS elements, control accounts, work packages, cost elements, change orders, forecasts, and progress entries. It cannot manage users, system configuration, or organizational structure. Use this persona for project managers who want to delegate data entry and routine calculations to the AI while retaining decision-making authority.
+**The three tiers of job descriptions.**
 
-**System Manager** (access level: full system). This persona can manage user accounts, organizational units, cost element types, and system configuration. It operates with caution and verification-first behavior. Use this persona for IT administrators and PMO staff who manage the Backcast system itself.
+The **main assistant** is the engagement lead -- the person the user interacts with directly. Three engagement leads ship with Backcast, each designed for a distinct organizational function:
 
-**Persona access alignment.** The AI persona's access level should never exceed the human user's role. A Viewer should interact with the Friendly Project Analyzer, not the Senior Project Manager. This is enforced by Backcast's triple-layer access control: the persona's RBAC role, the execution mode selected at chat time, and the individual tool's permission requirements all filter independently. A read-only persona simply cannot invoke write tools regardless of execution mode.
+| Main Assistant | Organizational Analogy | Scope of Authority |
+|---|---|---|
+| **Friendly Project Analyzer** | Read-only business analyst | View and explain project data, EVM metrics, budget performance. Cannot create, modify, or delete anything. |
+| **Senior Project Manager** | Senior PM with full project delivery authority | Create and update projects, WBS elements, work packages, cost elements, change orders, forecasts, and progress entries. Cannot manage users or system configuration. |
+| **System Manager** | IT system administrator | Manage user accounts, organizational units, cost element types, and system configuration. Operates with caution and a verification-first approach. |
 
-**Customizing behavior.** Administrators can adjust several aspects of each persona:
+Each main assistant's job description defines its communication style, its organizational terminology, and which specialist team members it can call upon. A Friendly Project Analyzer speaks in clear, explanatory language and has access only to read-only specialists. A Senior Project Manager communicates concisely and can delegate to the full range of project delivery specialists.
 
-- **Communication style and guidelines:** Defines the persona's personality, behavioral rules, and interaction patterns. Adjust this to match your organization's terminology, reporting standards, and communication culture.
-- **Response precision:** Controls how deterministic or conversational the AI's responses are. Precision-oriented settings produce consistent, analytical answers suitable for financial work. Conversational settings allow more exploratory dialogue.
-- **Response depth:** Controls how detailed the AI's responses are. Longer responses suit comprehensive reports and analyses; shorter responses keep interactions concise and action-oriented.
-- **AI model selection:** Different personas can use different AI models to balance capability and cost. For example, the System Manager might use a cost-effective model for routine tasks, while the Senior Project Manager uses a more capable model for complex analysis.
+**Specialists** are the subject-matter experts the main assistant calls in for specific tasks. Each specialist has a detailed job description that defines their domain expertise, procedural rules, and exact tool inventory. Nine specialists are available:
 
----
+| Specialist | Organizational Analogy | Domain |
+|---|---|---|
+| **Project Structure Coordinator** | Project setup specialist | Create and modify project hierarchies: projects, WBS elements, control accounts, work packages, and cost elements. Batch operations and ANSI-748 structure validation. |
+| **EVM Analyst** | Earned value performance analyst | Calculate CPI, SPI, CV, SV, EAC, ETC, VAC, TCPI. Assess health trends. Read-only analysis with no data modification. |
+| **Change Order Processing Specialist** | Change management coordinator | Full change order lifecycle: creation, AI-powered draft generation, impact analysis, approval workflows, and branch management for change isolation. |
+| **Cost Accountant** | Cost registration clerk | Record actual costs and cost events, track Cost of Quality, create and update forecasts, retrieve project documents. |
+| **Reporting and Visualization Analyst** | Management reporting specialist | Generate structural diagrams for project hierarchies, WBS trees, cost breakdowns, and workflow visualizations. Read-only access to source data. |
+| **IT User Administrator** | User account manager | Create, update, and delete user accounts with security best-practices enforcement. |
+| **Master Data Controller** | Configuration data steward | Manage cost element types, cost event types, and organizational units -- configuration shared across all projects. |
+| **Records and Audit Clerk** | Temporal context specialist | Change the point-in-time viewing context, switch between branches and branch modes, explain the implications of temporal perspective changes. |
+| **General Duty Officer** | General-purpose fallback | Handle tasks that do not fit a specific domain. Access to all available capabilities as a safety net for ambiguous or cross-cutting requests. |
 
-### 4.2 Adapting AI Assistance to Team Maturity
+**The planner and supervisor** share a third tier of job descriptions that govern how work is organized and executed internally. The planner functions like a project management office analyst: it receives the user's request, considers which specialists are available, and produces a structured work plan -- either a single step for straightforward requests ("show me the budget status") or a multi-step plan with dependencies for complex ones ("analyze EVM performance across all control accounts, then generate a structural diagram of the cost breakdown"). Plans are capped at five steps maximum, and the planner always falls back to a single-step general-purpose assignment if analysis fails, ensuring the system never deadlocks.
 
-#### Example 1: AI-Supported Onboarding — New Team Unfamiliar with EVM
+The supervisor functions like a team lead following your organization's standard operating procedures. It receives the plan, delegates each step to the assigned specialist, monitors progress, and ensures quality standards are met. The supervisor never performs domain work itself -- it manages the team. Each main assistant persona can have its own supervisor instructions, tailored to how that persona's engagement type should be managed. A Friendly Project Analyzer's supervisor might follow a simple, conversational delegation style, while a Senior Project Manager's supervisor follows a structured, action-oriented process.
 
-A manufacturing company has adopted earned value management for the first time. The project team includes experienced engineers who understand the technical work but are unfamiliar with CPI, SPI, EAC, and variance analysis. The AI assistant serves as a tutor and guide during the transition.
-
-**Phase 1 — Learning (Months 1-2):**
-All team members receive the Friendly Project Analyzer persona in Safe execution mode. The AI can only read data and respond to questions. Team members learn to ask questions like "What does a CPI of 0.85 mean for this control account?" and "Why is the schedule variance negative on the electrical installation work package?" The AI explains metrics in plain language, building EVM literacy across the team.
-
-**Phase 2 — Guided Practice (Months 3-4):**
-Project managers are upgraded to the Senior Project Manager persona in Standard execution mode. The AI can now create and update data, but every write operation requires explicit user approval before execution. This safety net ensures that new PMs learn the correct data entry patterns without risk of accidental modifications.
-
-**Phase 3 — Full Operation (Month 5+):**
-Experienced PMs switch to Expert execution mode. The AI executes immediately without confirmation, reflecting the PM's growing confidence and competence. New team members continue at the Standard tier until they demonstrate proficiency.
-
-**Persona customization.** The AI's behavioral guidelines are enhanced with instructions like "Explain EVM concepts when the user asks about metrics. Use analogies relevant to manufacturing operations. Always define acronyms on first use." This ensures the AI adapts its communication style to the team's learning curve.
-
----
-
-#### Example 2: Experienced Team Augmentation — Seasoned PM Team
-
-A project management team with decades of combined EVM experience uses AI to accelerate routine work, not to learn fundamentals. The team knows what CPI means and does not need explanations. They want the AI to handle data lookups, calculate forecasts, and populate routine entries so they can focus on judgment and stakeholder management.
-
-**Configuration:**
-- All PMs receive the Senior Project Manager persona in Expert execution mode from day one. No approval workflow, no training wheels. The AI executes immediately, reflecting the trust placed in experienced professionals.
-- The AI's behavioral guidelines are customized to remove explanatory language: "Provide concise, data-dense responses. Do not define EVM acronyms. Present variances as numbers with trend direction. Prioritize action items over descriptions."
-- Response precision is set to maximum for consistent, analytical output. The AI acts as a fast calculator and data retrieval engine rather than a tutor.
-- Response depth is set to maximum to accommodate detailed cost breakdowns and comprehensive project analyses in a single response.
-- Cost registration and forecast capabilities are enabled so PMs can delegate routine financial entries through conversational interaction.
-
-**Result.** PMs describe what they want ("Update the forecast for the mechanical installation work package to reflect the 3-week delay") and the AI handles the data operations. The PM reviews the result and moves on to the next decision.
+**How job descriptions are assembled.** Every job description is stored in the Backcast system configuration and can be modified without code changes. When a chat session begins, the system assembles the full team dynamically: the main assistant's job description is loaded, its assigned specialists are compiled, and the planner and supervisor receive instructions that include the current specialist roster. This ensures that the planner always knows which specialists are available and the supervisor can always reach the specialists the planner assigns -- there is never a mismatch between planning and execution.
 
 ---
 
-#### Example 3: Mixed Maturity Organization — Large Org with Varying Experience Levels
+### 4.2 Delegation Levels -- Your Per-Session Choice
 
-A large engineering firm has assembled a project team that mixes experienced PMs with junior engineers and functional specialists (cost controllers, schedulers, document controllers) who have varying familiarity with EVM and with AI tools.
+When you open a chat session, you decide how much authority to grant the AI team for that conversation. This is not a system setting locked by an administrator -- it is your choice, made fresh each session, reflecting your comfort level and the situation at hand.
 
-**Tiered persona assignment:**
+Think of it this way: when you assign a task to a junior team member, you might ask them to confirm every action with you before proceeding. When you assign the same task to a trusted senior colleague, you might simply say "handle it" and review the results afterward. Backcast's delegation levels work the same way.
 
-| Team Role | AI Persona | Execution Mode | Rationale |
-|-----------|-----------|:---:|---|
-| Senior PM | Senior Project Manager | Expert | Full capability, immediate execution |
-| Junior PM | Senior Project Manager | Standard | Full capability with approval safety net |
-| Cost Controller | Friendly Project Analyzer | Standard | Read-only insights; write operations via human PM |
-| Discipline Engineer | Friendly Project Analyzer | Safe | Read-only, no risk of data modification |
-| Executive Sponsor | Friendly Project Analyzer | Safe | Summaries and explanations only |
-| IT Administrator | System Manager | Expert | Full system management capability |
+**Three delegation levels are available:**
 
-**Delegation configuration.** The Senior PM's AI assistant is configured with a curated set of capabilities: WBS and work package operations, cost registrations and forecasts, performance analysis, change order lifecycle management, and diagram generation for project structure visualization. The temporal analysis capability is excluded to prevent accidental context shifts during critical reporting periods.
+**Supervised delegation (Safe mode).** The AI team operates in a read-only capacity. Specialists can view data, run calculations, and produce reports, but they cannot create, modify, or delete anything. This is equivalent to hiring an auditor for a review engagement -- the team observes, analyzes, and advises, but takes no action.
 
-The Junior PM's main agent uses the same specialist set but with Standard execution mode providing the approval safety net. As the junior PM gains experience over several months, the execution mode is upgraded to Expert.
+Choose supervised delegation when:
+- You are learning the system and want to understand what the AI can do before granting it broader authority
+- You are reviewing project status with stakeholders and want insights without any risk of data modification
+- You are demonstrating Backcast to a new team member or during a presentation
+- You are working in a sensitive period such as month-end closing or audit preparation and want to ensure no changes occur
 
-**Result.** Each team member receives AI assistance appropriate to their role and experience level. The experienced PM works at full speed, the junior PM learns with a safety net, and non-PM roles get read-only insights without risk. The AI adapts to the organization's skill distribution rather than forcing a one-size-fits-all approach.
+**Guided delegation (Standard mode, the default).** The AI team can read data and perform standard project operations -- creating records, updating existing data, and running routine processes. Critical operations such as bulk deletions and sensitive administrative actions remain blocked. This is equivalent to engaging a full-service project team with normal approval gates: the team handles day-to-day work, but high-stakes decisions require elevated authority.
+
+Choose guided delegation when:
+- You are performing day-to-day project management and want the AI to handle data entry, calculations, and routine updates
+- You want a safety net -- the AI can act, but within controlled boundaries
+- You are working with a new or unfamiliar project and want assistance without exposing critical operations
+- You are a project manager who wants to delegate routine work while retaining oversight of significant actions
+
+**Autonomous delegation (Expert mode).** The AI team has full authority over all available operations, including critical-risk actions such as bulk deletions, administrative configuration changes, and sensitive operations. No additional approval gates apply at the individual action level. This is equivalent to granting power of attorney -- you trust the team to exercise judgment and act decisively.
+
+Choose autonomous delegation when:
+- You are an experienced user who understands the implications of AI-initiated actions and accepts responsibility for them
+- You are performing time-critical operations where approval delays are unacceptable
+- You are executing batch operations that would be impractical to confirm one by one
+- You are working on a well-understood project and want maximum speed
+
+**Delegation applies uniformly across the specialist team.** The delegation level you choose gates the entire tool pool before any specialist is compiled. A specialist configured with write capabilities will find those capabilities unavailable in supervised mode, just as a cost accountant would find their spending authority revoked during a read-only audit engagement. The delegation level works alongside the main assistant's access level -- even in autonomous mode, a read-only main assistant cannot perform write operations because its underlying role does not permit them.
+
+**Choosing the right level.** The delegation level is a reflection of your relationship with the AI team in that moment, not a permanent categorization of your role. A senior project manager might use supervised delegation when exploring an unfamiliar project, guided delegation for routine management, and autonomous delegation during a time-critical change order implementation -- all in the same day. Choose the level that matches your comfort, the task's urgency, and the data's sensitivity.
 
 ---
 
-### 4.3 Execution Safety Configuration
+### 4.3 Configuring Assistant Job Descriptions
 
-Backcast provides three execution safety tiers that control what actions the AI can perform and what safeguards are in place. The execution mode is selected by the user at the start of each conversation and applies for the duration of that session.
+Administrators customize AI assistants to reflect the organization's culture, processes, and terminology. Every configurable element is stored in Backcast's system configuration and can be adjusted without code changes.
 
-**Safe mode.** Only read operations are available. The AI can query projects, retrieve metrics, and display information, but cannot create, modify, or delete any data. Use Safe mode for demonstrations, for training sessions, for stakeholder reviews, and for any situation where you want AI insights without any risk of data modification.
+**Main assistant behavioral guidelines.** Each main assistant has a job description that defines:
 
-**Standard mode (default).** Read and write operations are available, but critical operations (deletion, bulk operations) are blocked. Write operations require explicit user approval: the AI pauses and presents the proposed action for review and confirmation. Use Standard mode for day-to-day project management where the AI assists with routine data entry but the user retains control over every modification.
+- **Communication style:** How the assistant speaks -- formal or conversational, detailed or concise, explanatory or action-oriented. For example, the Friendly Project Analyzer is instructed to explain EVM concepts in plain language and define acronyms on first use, while the Senior Project Manager provides concise, data-dense responses and does not define standard EVM terms.
+- **Organizational terminology:** Industry-specific terms, project naming conventions, and reporting standards that the assistant should use. An organization that calls control accounts "budget accounts" can instruct the assistant to adopt that terminology.
+- **Scope of authority:** Which specialist team members the main assistant can call upon (the allowed specialists list) and which tasks the assistant can handle directly without delegation (the direct tools list). A main assistant with no direct handling capabilities must delegate every operation to a specialist -- analogous to a policy requiring all technical work to go through qualified experts.
+- **Operating boundaries:** Rules about what the assistant should and should not do, such as "always confirm before creating change orders" or "never delete data without explicit user instruction."
 
-**Expert mode.** All operations are available, including deletion and bulk actions. No approval workflow is triggered; the AI executes immediately. Use Expert mode for experienced users who accept full responsibility for AI-initiated actions, for time-critical operations where approval delays are unacceptable, and for batch operations that would be impractical to approve one by one.
+**Specialist availability and scope.** Administrators control which specialists are active and what each one can do:
 
-**Matching tiers to roles.** As a general guideline: assign Safe mode to Viewers and external stakeholders, assign Standard mode to new managers and anyone still building confidence with AI-assisted workflows, and assign Expert mode to experienced managers who understand the implications of AI-initiated write operations. Remember that the execution mode acts as a secondary filter on top of the persona's RBAC role — even in Expert mode, a read-only persona cannot write data because it lacks the underlying RBAC permissions.
+- **Active roster:** Specialists can be activated or deactivated. An organization that does not use AI-assisted user management can deactivate the IT User Administrator specialist, removing it from the team entirely.
+- **Capability assignments:** Each specialist's exact tool inventory is configurable. A Cost Accountant can be given forecast creation authority, or that capability can be removed. The General Duty Officer has access to all tools by default (a wildcard assignment), but this can be narrowed to a specific set if the organization prefers tighter control.
+- **Domain descriptions:** Each specialist's area of expertise and procedural rules are defined in their job description. The EVM Analyst is instructed to use comprehensive analysis calculations and to explain what metrics mean, while the Change Order Processing Specialist is instructed to generate draft change orders for new requests and to switch to the appropriate branch context before querying branch-specific data.
+
+**Supervisor operating procedures.** Each main assistant can have customized supervisor instructions that define:
+
+- **Delegation rules:** How the supervisor routes work to specialists and when to ask the user clarifying questions before proceeding.
+- **Plan management:** How multi-step execution plans are managed -- the supervisor walks through plans one step at a time, checking dependencies and marking steps complete before delegating the next.
+- **Quality standards:** What the supervisor checks before reporting results back, and how findings are compiled into the briefing document that the user sees.
+- **Delegation enforcement:** A global policy option (set by the administrator) can lock the supervisor out of all domain tools entirely, forcing pure delegation to specialists. This is analogous to a corporate policy requiring all technical work to go through qualified specialists rather than being handled informally by a coordinator.
+
+**Planner approach.** Each main assistant can have customized planner instructions that define:
+
+- **Complexity thresholds:** When the planner produces a single-step plan versus a multi-step plan with dependencies. A read-only analyst might default to simpler plans, while a senior PM's planner recognizes multi-domain workflows that require coordination across several specialists.
+- **Step limits:** The maximum number of steps the planner will produce (capped at five). A conservative configuration might limit plans to three steps, keeping engagement simpler and more predictable.
+- **Specialist assignment preferences:** Which specialist the planner prefers for common task types, ensuring consistent routing patterns that match the organization's workflow habits.
+
+**RBAC alignment.** Each main assistant operates under an AI-specific Role-Based Access Control (RBAC) role that further constrains what the assistant and its specialists can do, independent of tool assignments and delegation level:
+
+| Main Assistant | Access Level | What This Means |
+|---|---|---|
+| Friendly Project Analyzer | Read-only | The assistant and all its specialists can only read data, regardless of delegation level chosen. |
+| Senior Project Manager | Full project delivery | The assistant and its specialists can create, update, and delete project delivery data, but cannot manage users or system configuration. |
+| System Manager | System administration | The assistant has system management capabilities including user accounts and organizational configuration. |
+
+The main assistant's RBAC role should never exceed the human user's own role. A Viewer interacting with the System Manager would find the assistant's write operations blocked by the user's own permission boundaries.
 
 ---
+
+### 4.4 Scenarios -- AI Assistants Adapted to Organizational Culture
+
+#### Scenario 1: Formal Engineering Company -- Risk-Averse Culture with Hierarchical Approval
+
+**Company profile.** A 35-person automation integrator serving the pharmaceutical industry. Projects are regulated, audits are frequent, and the Change Control Board meets weekly. The organizational culture values thorough documentation, clear accountability, and conservative decision-making. Every action must be traceable to an authorized individual.
+
+**Main assistant configuration.**
+
+The organization uses all three main assistants but configures them with conservative behavioral guidelines:
+
+**Friendly Project Analyzer** -- Job description customized with: "Communicate formally. Cite data sources for every claim. Use PMBOK terminology consistently. When presenting variances, always include the threshold value and whether the current value is within contractual tolerance. Never use informal language or analogies." The specialist roster is limited to the EVM Analyst and the Reporting and Visualization Analyst -- no write-capable specialists are available even if the delegation level is raised.
+
+**Senior Project Manager** -- Job description customized with: "Before creating or modifying any entity, summarize the intended action and its downstream impact. Use full entity names (never abbreviations). When creating change orders, always include impact analysis across all four dimensions (budget, schedule, revenue, EVM). Flag any action that would affect a control account currently under audit." The allowed specialists include the Project Structure Coordinator, EVM Analyst, Change Order Processing Specialist, Cost Accountant, and Reporting and Visualization Analyst. The supervisor has no direct handling capabilities -- every operation is delegated to a specialist, mirroring the company's policy that all technical work goes through qualified personnel.
+
+**System Manager** -- Job description customized with: "Before any destructive action (deletion, bulk modification), present the full list of affected entities and request explicit confirmation. Never perform administrative changes during the first or last business day of the month (closing periods). Maintain a conservative posture: when uncertain, ask rather than act." The allowed specialists are the IT User Administrator and Master Data Controller only.
+
+**Delegation enforcement.** The global delegation enforcement policy is enabled, ensuring the supervisor never handles domain work directly. This mirrors the company's standard operating procedure: the department coordinator routes work to specialists but never performs technical tasks themselves.
+
+**Planner configuration.** The planner is configured with a three-step maximum (below the five-step system cap) to keep plans simple and auditable. The planner's instructions emphasize: "Prefer sequential over parallel steps. Each step should have a single, clear deliverable. If a request could be interpreted multiple ways, produce a single-step plan that asks the user for clarification rather than assuming."
+
+**Team member delegation patterns.** Project managers typically use guided delegation (Standard mode) even after months of experience, reflecting the company's cautious culture. Only the PMO director uses autonomous delegation (Expert mode), and only for batch operations during controlled maintenance windows. All other team members use supervised delegation (Safe mode). The delegation level is a conscious choice each session -- the PM might use supervised delegation when reviewing a project they are unfamiliar with, even though they are authorized for guided delegation.
+
+**Result.** The AI assistants operate as a structured, hierarchical team that mirrors the company's existing processes. Every action passes through a specialist, every plan is simple and auditable, and the delegation level reflects the organization's risk tolerance. The CCB sees the same rigor in AI-assisted operations that they expect from human team members.
+
+---
+
+#### Scenario 2: Agile System Integrator -- Fast-Moving Culture with Flat Hierarchy
+
+**Company profile.** A 12-person system integrator that designs and installs packaging lines. The team is experienced, communication is informal, and decisions are made quickly. The company runs three to five concurrent projects, each managed by a senior PM who has full authority over their project. There is no formal CCB -- the PM handles change management directly, escalating to the director only for budget overruns above 15 percent.
+
+**Main assistant configuration.**
+
+The organization uses two main assistants, configured for speed and directness:
+
+**Friendly Project Analyzer** -- Job description customized with: "Be brief. Lead with the number, then provide context if asked. Use the team's shorthand: 'WP' for work package, 'CA' for control account, 'CO' for change order. Skip explanations of standard EVM metrics unless the user explicitly asks." The specialist roster includes the EVM Analyst, Reporting and Visualization Analyst, and Records and Audit Clerk -- giving even the read-only assistant access to temporal navigation for quick date-based comparisons.
+
+**Senior Project Manager** -- Job description customized with: "Act first, explain if asked. When the user requests an operation, execute it immediately and report what was done. Do not ask for confirmation on routine creates and updates. Ask before deletions and before any operation that affects more than five entities. Use the project's own naming conventions found in the project context." The allowed specialists include the full project delivery roster: Project Structure Coordinator, EVM Analyst, Change Order Processing Specialist, Cost Accountant, and Reporting and Visualization Analyst. The supervisor has direct handling capabilities for quick lookups -- it can pull up project data, budget status, and structure information without delegating to a specialist, keeping routine queries fast.
+
+**System Manager** -- Used only by the IT lead. Configured with default behavioral guidelines.
+
+**Delegation enforcement.** The global delegation enforcement policy is disabled. The supervisor can handle quick lookups directly without routing through a specialist, reducing turnaround time on simple requests.
+
+**Planner configuration.** The planner uses the full five-step maximum to handle complex multi-domain requests efficiently. The planner's instructions emphasize: "Recognize common multi-step patterns: EVM analysis followed by visualization, structure creation followed by budget allocation, cost recording followed by performance analysis. Produce multi-step plans for these patterns proactively. Only fall back to single-step for truly simple queries."
+
+**Team member delegation patterns.** All three PMs use autonomous delegation (Expert mode) as their standard choice. They are experienced, they trust the AI team, and they want speed. The cost engineer uses guided delegation (Standard mode) with the Friendly Project Analyzer -- they occasionally need to ask the AI to create forecasts on their behalf, but they want the safety net of confirmation. Discipline engineers use supervised delegation (Safe mode) for read-only queries during design reviews.
+
+**Result.** The AI team operates like an extension of the company's flat, fast-moving structure. There is no unnecessary process overhead. The PM says "update the forecast for mechanical installation to reflect the three-week delay" and the AI handles it. The briefing document compiles results concisely, the PM reviews, and moves on. The configuration reflects trust in experienced professionals.
+
+---
+
+#### Scenario 3: Multi-Site Organization with Varying Maturity -- Corporate Template, Regional Adaptation
+
+**Company profile.** A multinational OEM with 200 employees across headquarters (Europe) and three regional offices (North America, Middle East, Asia-Pacific). The PMO at headquarters defines standards, but each region operates with significant autonomy. Project maturity varies: the European office has used EVM for a decade, the North American office adopted it two years ago, and the Middle East and Asia-Pacific offices are new to formal earned value management.
+
+**Corporate template configuration.**
+
+Headquarters defines a standard set of AI assistant job descriptions that all regions start from:
+
+**Friendly Project Analyzer (corporate template)** -- "Communicate clearly and professionally. Define all EVM acronyms on first use in each conversation. Use PMBOK 7th Edition terminology. When presenting variances, include both the numeric value and its significance (favorable/unfavorable, trending direction)." The specialist roster includes the EVM Analyst, Reporting and Visualization Analyst, and Records and Audit Clerk.
+
+**Senior Project Manager (corporate template)** -- "Follow a structured approach: confirm understanding of the request, outline the planned actions, execute, and summarize results. Use full entity names. When creating or modifying control accounts, verify that the organizational unit assignment matches the project's responsibility assignment matrix." The allowed specialists include the full project delivery roster. The supervisor has no direct handling capabilities (delegation enforcement enabled at corporate level).
+
+**Regional adaptation -- Europe (mature EVM practice).** The European office customizes the Senior Project Manager's job description: "The team is experienced with EVM. Do not define standard acronyms (CPI, SPI, EAC, ETC, VAC, TCPI). Provide concise, data-dense responses. Prioritize action items over descriptions. When analyzing performance, benchmark against the project's contractual thresholds automatically." The planner is configured to allow five-step plans and recognize complex multi-domain workflows. PMs use autonomous delegation (Expert mode) as standard practice.
+
+**Regional adaptation -- North America (intermediate EVM practice).** The North American office keeps the corporate template largely unchanged but adds: "When the user asks about performance metrics, provide both the calculation and a brief explanation of what the metric indicates about project health. Highlight metrics that fall outside the typical range (CPI below 0.90 or above 1.10, SPI below 0.95)." The planner is limited to three-step plans to keep interactions manageable while the team builds familiarity. PMs use guided delegation (Standard mode) as their standard choice, with the option to switch to autonomous when they are confident.
+
+**Regional adaptation -- Middle East and Asia-Pacific (new to EVM).** These offices enhance the Friendly Project Analyzer's job description significantly: "This team is learning earned value management. Explain every metric the first time it appears in a conversation. Use analogies from construction and manufacturing operations. When the user asks 'how is the project doing,' provide a narrative summary before presenting numbers. Always explain whether a variance is good or bad and why." The specialist roster is expanded to include all read-only specialists. The Senior Project Manager is initially restricted to the Project Structure Coordinator and Cost Accountant specialists only -- change order management is handled manually until the teams complete EVM training. All team members use supervised delegation (Safe mode) for the first three months, transitioning to guided delegation as they build confidence. The planner is configured with a two-step maximum to keep interactions simple and educational.
+
+**Result.** The corporate template ensures consistency -- every region uses the same specialist definitions, the same RBAC role assignments, and the same organizational terminology. But each region tailors the behavioral guidelines, specialist access, planner complexity, and recommended delegation levels to match their team's maturity and culture. A PM transferring from the European office to the Middle East office would find the same underlying structure but a communication style and delegation pattern adapted to the local team's needs.
+
+---
+
+### 4.5 Customization Quick Reference
+
+The table below summarizes what administrators can configure for each AI team component and what is fixed by the system.
+
+| Component | Configurable by Administrators | Fixed by System |
+|---|---|---|
+| **Main Assistant** | Communication style and behavioral guidelines; organizational terminology and reporting standards; specialist roster (which experts are available); direct handling capabilities (what the coordinator can do without delegation); supervisor instructions; planner instructions; RBAC role assignment; AI model selection; response precision and depth | The internal coordination workflow (planning before delegation, delegation before reporting); specialist findings are always compiled into a shared briefing for the user |
+| **Specialists** | Activation or deactivation of each specialist; domain description and procedural rules; exact capability inventory (which tools each specialist can use); specialist RBAC role; AI model selection; response precision and depth | Maximum plan size (five steps); automatic fallback to the General Duty Officer for requests that do not match a specific domain; capability availability is automatically adjusted based on the delegation level chosen for the session |
+| **Supervisor** | Delegation rules and quality standards; plan management approach; per-assistant supervisor instructions; whether the supervisor can handle tasks directly or must always delegate (delegation enforcement policy) | Sequential plan execution (steps are completed in order with dependency checks); specialist work is isolated and findings are compiled into a single briefing |
+| **Planner** | Complexity thresholds (when to produce multi-step plans); step limits (up to five); specialist assignment preferences; per-assistant planner instructions | Maximum plan size (five steps); automatic fallback to single-step assignment on analysis failure; plan structure always includes specialist assignment, task description, and dependencies |
+| **Delegation Level** | Not administrator-configured — chosen by the user at the start of each chat session | Three levels (Supervised, Guided, Autonomous); risk classification of each capability; delegation level applies uniformly across all specialists; delegation level works alongside (never overrides) the main assistant's RBAC role |
 
 ## 5. Configuration by Team Size — Quick Reference
 
@@ -381,12 +494,14 @@ Backcast provides three execution safety tiers that control what actions the AI 
 | **CRITICAL threshold** | 150,000 EUR | 100,000 EUR (default) | 75,000 EUR | 50,000 EUR | 25,000 - 50,000 EUR |
 | **Default SLA (LOW)** | 15 days | 10 days (default) | 10 days (default) | 10 days (default) | 10 days |
 | **Default SLA (CRITICAL)** | 5 days | 3 days (default) | 3 days (default) | 3 days (default) | 2 days |
-| **AI persona for PM** | Senior PM (Expert) | Senior PM (Standard) | Senior PM (Standard/Expert) | Senior PM (Standard/Expert) | Senior PM (Expert) |
-| **AI persona for team** | Friendly Analyzer (Safe) | Friendly Analyzer (Safe) | Friendly Analyzer (Safe) | Mixed per role | Mixed per role |
+| **Main assistant for PM** | Senior PM | Senior PM | Senior PM | Senior PM | Senior PM |
+| **Main assistant for team** | Friendly Analyzer | Friendly Analyzer | Friendly Analyzer | Mixed per role | Mixed per role |
+| **Typical PM delegation** | Autonomous | Guided | Guided / Autonomous | Guided / Autonomous | Autonomous |
+| **Typical team delegation** | Supervised | Supervised | Supervised | Mixed per role | Mixed per role |
 | **Change management** | Lean | Lean-to-default | Default (CCB optional) | Formal (CCB recommended) | Enterprise governance |
 | **Impact weight priority** | Budget-heavy | Budget-heavy | Balanced | Balanced-to-EVM | EVM-weighted |
 | **Per-project overrides** | Rarely needed | Optional | Recommended for key projects | Standard practice | Required per contract |
-| **Execution mode default** | Expert | Standard | Standard | Standard | Standard |
+| **Planner step limit** | 5 (full) | 3-5 | 3-5 | 3-5 | 3-5 (corporate standard) |
 
 ---
 
@@ -408,19 +523,20 @@ Use this ordered checklist when deploying Backcast for the first time or onboard
 7. **Configure SLA rules** — Set business-day deadlines per impact level and the escalation trigger percentage. Select the appropriate holiday calendar. Refer to Section 3.2 for SLA examples.
 8. **Customize the workflow (optional)** — Adjust state transitions, lock/unlock rules, and editable statuses. Add custom fields if your change orders require additional information. Refer to Section 3.1 for workflow adaptability.
 
-**Phase 3: AI Configuration (System Administrator)**
+**Phase 3: AI Assistant Configuration (System Administrator)**
 
 9. **Configure AI providers** — Set up the connection to your chosen AI service. Refer to your Backcast deployment documentation for supported providers and connection instructions.
-10. **Review AI persona assignments** — Confirm that each user's assigned AI persona matches their organizational role. The persona's access level should not exceed the user's RBAC role. Refer to Section 4.1 for persona descriptions.
-11. **Customize AI behavior (optional)** — Adjust communication style, response precision, and response depth to match your organization's communication culture. Refer to Section 4.1 for customization options.
-12. **Set default execution mode** — Determine whether Standard mode (the default) is appropriate for your team or whether specific users should start in Safe or Expert mode. Refer to Section 4.3 for execution safety guidance.
+10. **Review main assistant job descriptions** — Confirm that each main assistant's job description — communication style, specialist roster, direct handling capabilities, and access level — matches the organizational role it serves. The assistant's access level should never exceed the user's own role. Refer to Section 4.1 for the job description paradigm and Section 4.3 for configuration details.
+11. **Customize assistant behavior** — Adjust each main assistant's behavioral guidelines, specialist roster, supervisor operating procedures, and planner approach to reflect your organization's processes and communication culture. Refer to Section 4.3 for all customization options.
+12. **Configure supervisor and planner (optional)** — Decide whether delegation enforcement is enabled (supervisor must always route to specialists), set planner step limits, and define specialist assignment preferences. Refer to Section 4.3 for supervisor and planner configuration.
+13. **Document delegation level recommendations** — Prepare guidance for your team on which delegation level (Supervised, Guided, or Autonomous) to choose for common scenarios. Delegation level is each user's per-session choice — administrators provide recommendations, not restrictions. Refer to Section 4.2 for delegation level descriptions.
 
 **Phase 4: Project Setup (Project Manager or Administrator)**
 
-13. **Configure project budget settings** — Set the budget warning threshold percentage and decide whether to enforce budget limits for the project. Refer to your project settings page.
-14. **Apply per-project workflow overrides (if needed)** — If a specific project requires different impact thresholds or approval tiers than the global configuration, create a project-level override. Refer to Section 3.3 for per-project override scenarios.
-15. **Assign project-scoped roles** — For matrix organizations, assign users to project-specific roles. Refer to Section 2.2 for scoped role assignment examples.
-16. **Verify the configuration** — Create a test change order and walk it through the full approval lifecycle to confirm that impact scoring, approval routing, and SLA tracking behave as expected.
+14. **Configure project budget settings** — Set the budget warning threshold percentage and decide whether to enforce budget limits for the project. Refer to your project settings page.
+15. **Apply per-project workflow overrides (if needed)** — If a specific project requires different impact thresholds or approval tiers than the global configuration, create a project-level override. Refer to Section 3.3 for per-project override scenarios.
+16. **Assign project-scoped roles** — For matrix organizations, assign users to project-specific roles. Refer to Section 2.2 for scoped role assignment examples.
+17. **Verify the configuration** — Create a test change order and walk it through the full approval lifecycle to confirm that impact scoring, approval routing, and SLA tracking behave as expected. Open a chat session and test each delegation level to confirm the AI team responds as configured.
 
 ---
 
