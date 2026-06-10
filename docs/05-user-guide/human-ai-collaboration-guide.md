@@ -35,9 +35,9 @@
 
 Industrial automation projects for end-of-line manufacturing systems are among the most complex capital undertakings in modern industry. They span multiple engineering disciplines, involve long procurement lead times, require precise coordination between factories and installation sites, and carry significant financial exposure from the moment a proposal is submitted through final commissioning and handover.
 
-Backcast is a collaborative project budget management and Earned Value Management (EVM) platform purpose-built for this domain. It provides ANSI/EIA-748-compliant cost control, a structured Work Breakdown Structure (WBS), formal change management with branch isolation, and complete audit trails for every financial decision.
+Backcast is a collaborative project budget management and Earned Value Management (EVM) platform purpose-built for this domain. It provides your team with AI assistants that understand your project management world — ANSI/EIA-748-compliant cost control, a structured Work Breakdown Structure (WBS), formal change management with branch isolation, and complete audit trails for every financial decision. The AI assistant knows your terminology, your approval thresholds, and your reporting standards.
 
-This guide describes how human project team members -- project managers, department heads, cost engineers, quality managers, and executives -- collaborate with AI assistants within Backcast throughout the full project lifecycle. The AI does not replace human judgment. It accelerates data preparation, identifies risks, generates forecasts, and produces analyses that humans review, validate, and act upon. Every significant decision -- approving a change order, signing off a baseline, committing to a revised Estimate at Completion (EAC) -- remains firmly in human hands.
+This guide describes how human project team members collaborate with AI assistants that are tailored to how they work. The AI assistant is configured like a team member's job description — it knows which information is needed for a change order, what a low CPI means for your project, and how to present findings to your Change Control Board. It accelerates data preparation, identifies risks, generates forecasts, and produces analyses that humans review, validate, and act upon. Every significant decision remains firmly in human hands.
 
 The collaborative model follows three principles:
 
@@ -76,7 +76,7 @@ Each Control Account in the WBS represents the intersection of a Work Breakdown 
 
 ### 2.3 The AI Assistant's Role
 
-The AI assistant is not an additional organizational role. It is a capability available to existing role-holders. Three assistant personas are available, each aligned to a different level of operational responsibility:
+The AI assistant is not an additional organizational role — it is a team member configured to support existing role-holders. Three assistant personas are available, each understanding the responsibilities and boundaries of the organizational role it supports:
 
 | Assistant Persona | Aligned Role | Access Level | Purpose |
 |---|---|---|---|
@@ -92,7 +92,7 @@ The assistant persona determines what the AI can do on behalf of the user. A Pro
 
 ### 3.1 What the AI Can Do
 
-The AI assistant provides the following capabilities through a natural-language conversational interface:
+The AI assistant provides the following capabilities through a natural-language conversational interface. It already understands your project structure, your EVM methodology, and your change governance procedures — so you can focus on the decision, not the data gathering:
 
 **Analysis and Reporting**
 - Calculate and explain all EVM metrics (Cost Performance Index, Schedule Performance Index, Cost Variance, Schedule Variance, Estimate at Completion, Variance at Completion, To Complete Performance Index)
@@ -126,7 +126,7 @@ The AI assistant provides the following capabilities through a natural-language 
 
 ### 3.2 What the AI Cannot Do
 
-The following actions are reserved exclusively for human decision-makers and cannot be performed by the AI:
+The AI understands where its authority ends. The following actions are reserved exclusively for human decision-makers — the AI will always defer to the accountable person:
 
 | Restricted Action | Reason |
 |---|---|
@@ -146,13 +146,13 @@ Every write operation performed by the AI follows a confirmation protocol:
 2. **Confirm.** The user must explicitly approve the action. For destructive operations (deletions, high-risk changes), a separate confirmation dialog is required.
 3. **Audit.** The completed action is recorded in the immutable audit trail with the human user identified as the responsible party, along with the AI assistant's role.
 
-The AI also follows three execution safety tiers, configurable based on the user's role and the operational context:
+The AI also supports three delegation levels — chosen by the user at the start of each chat session, not locked by an administrator (see the *Configuration Guide*, Section 4.2 for the full description):
 
-| Tier | Behavior | When to Use |
+| Delegation Level | Behavior | When to Choose |
 |---|---|---|
-| **Read-Only** | The AI can analyze and report but cannot modify any project data. | Executive reviews, stakeholder demonstrations, external audits |
-| **Standard** | The AI can create and update data, with confirmation required for all changes and additional approval for high-impact operations. | Day-to-day project management, routine data entry |
-| **Full Access** | The AI can perform all operations including batch changes, with confirmation required for each action. Experienced users who accept direct responsibility for outcomes. | Bulk data entry during project setup, administrative operations |
+| **Supervised** | The AI can analyze and report but cannot modify any project data. | Executive reviews, stakeholder demonstrations, external audits, learning the system |
+| **Guided** | The AI can create and update data, with confirmation required for all changes and additional approval for high-impact operations. | Day-to-day project management, routine data entry |
+| **Autonomous** | The AI can perform all operations including batch changes, with confirmation required for each action. Experienced users who accept direct responsibility for outcomes. | Bulk data entry, time-critical operations, well-understood projects |
 
 ---
 
@@ -617,6 +617,8 @@ Contact your Backcast account representative for technical integration specifica
 
 ## 8. Best Practices for Human-AI Collaboration
 
+Your AI assistant is most effective when you work with it the way you would work with a skilled team member. These practices help you get the most from the collaboration:
+
 ### 8.1 Start with Clear Context
 
 Always scope your AI conversation to the relevant project, WBS Element, or Work Package. The AI operates within the boundaries you set. An ambiguous request like "show me the budget" is less effective than "show me the budget for Robot Cell A in LINE-ALPHA as of today."
@@ -651,7 +653,7 @@ Before proposing a change order, use the isolated workspace feature to model the
 
 ### 8.9 Validate AI Outputs Against Your Expertise
 
-The AI processes data mathematically and identifies patterns, but it cannot know factors outside the system: a key supplier's financial instability, a client relationship consideration, or a strategic decision to accept a short-term loss. Always validate AI recommendations against your professional judgment and organizational context.
+The AI assistant knows your data, your procedures, and your policies — but it cannot know factors outside the system: a key supplier's financial instability, a client relationship consideration, or a strategic decision to accept a short-term loss. Always validate AI recommendations against your professional judgment and organizational context. Think of it as reviewing the work of a capable analyst who lacks your institutional knowledge.
 
 ### 8.10 Close the Loop on Variance Alerts
 

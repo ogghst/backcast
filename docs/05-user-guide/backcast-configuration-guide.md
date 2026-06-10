@@ -1,6 +1,6 @@
 # Configuring Backcast for Your Organization
 
-## Adaptation Guide: Roles, Workflows, AI Assistance, and Team Structure
+## Adaptation Guide: Tailoring AI Assistants, Roles, Workflows, and Team Structure to How You Work
 
 ---
 
@@ -8,7 +8,7 @@
 
 This guide is a companion to the *Human-AI Collaboration Guide* and addresses the decisions that administrators and PMO directors face when deploying Backcast across an organization. While the Collaboration Guide describes how people and AI assistants work together day to day, this guide explains how to configure Backcast so that it reflects your organizational structure, authority model, and change management culture.
 
-**Configuration philosophy.** Backcast adapts to your organization, not the other way around. The system provides a granular permission model spanning project delivery, change management, EVM reporting, AI interaction, and system administration. A fully configurable change order workflow, adjustable impact scoring, and customizable AI personas give administrators precise control over governance, delegation, and automation. Every configuration choice described in this guide can be adjusted at the global level and, where it matters most, overridden at the individual project level.
+**Configuration philosophy.** Backcast adapts to your organization, not the other way around. The AI assistant is configured like a team member's job description — it knows your terminology, your approval thresholds, your reporting standards. A granular permission model spans project delivery, change management, EVM reporting, AI interaction, and system administration. A fully configurable change order workflow, adjustable impact scoring, and customizable AI personas give administrators precise control over how the AI assistant supports each team and each project. Every configuration choice described in this guide can be adjusted at the global level and, where it matters most, overridden at the individual project level.
 
 **Who should read this guide.** System administrators responsible for the initial Backcast deployment, PMO directors defining governance policies, IT leads managing user accounts and security, and project managers who will serve as project-level administrators.
 
@@ -281,9 +281,9 @@ The impact scoring system evaluates every change order across four dimensions: B
 
 ### 4.1 The Job Description Paradigm
 
-Backcast's AI assistants are configured the same way you staff a professional services engagement: you define roles, assign responsibilities, and establish operating procedures. Each AI component has a job description that specifies its scope of authority, behavioral expectations, and the specialist skills it can draw upon. Administrators write these job descriptions to mirror the organization's own structure, terminology, and processes.
+Backcast's AI assistants are configured the way you would write a team member's job description: you define their role, their responsibilities, their operating procedures, and the boundaries of their authority. The result is an AI assistant that knows your terminology, understands your governance policies, and speaks your team's language. Each AI component has a job description that specifies its scope of authority, behavioral expectations, and the specialist skills it can draw upon. Administrators write these job descriptions to mirror the organization's own structure, terminology, and processes.
 
-**The engagement model.** When a team member opens a chat session, they are assigned a primary contact -- the main assistant -- whose role is comparable to a department coordinator. This coordinator receives the request, determines what expertise is needed, and brings in the right subject-matter specialists. A planning coordinator breaks down complex requests into structured subtasks before any work begins. A team lead then manages the execution, handing each subtask to the appropriate specialist and monitoring progress. This mirrors how a well-run project office operates: a single point of contact for the client, clear work breakdown, and structured delegation to domain experts.
+**The engagement model.** The engagement model mirrors how a well-run project office works. When a team member opens a chat session, they are assigned a primary contact — the main assistant — who already understands the team's context, terminology, and governance rules. This coordinator receives the request, determines what expertise is needed, and brings in the right subject-matter specialists. A planning coordinator breaks down complex requests into structured subtasks before any work begins. A team lead then manages the execution, handing each subtask to the appropriate specialist and monitoring progress. This mirrors how a well-run project office operates: a single point of contact for the client, clear work breakdown, and structured delegation to domain experts.
 
 **The three tiers of job descriptions.**
 
@@ -321,7 +321,7 @@ The supervisor functions like a team lead following your organization's standard
 
 ### 4.2 Delegation Levels -- Your Per-Session Choice
 
-When you open a chat session, you decide how much authority to grant the AI team for that conversation. This is not a system setting locked by an administrator -- it is your choice, made fresh each session, reflecting your comfort level and the situation at hand.
+When you open a chat session, you decide how much authority to grant the AI team for that conversation. This is not a system setting locked by an administrator — it is your choice, made fresh each session, reflecting your comfort level and the situation at hand. Think of it as choosing how much autonomy to give a team member for a specific task. The AI assistant adapts to your comfort level, not the other way around.
 
 Think of it this way: when you assign a task to a junior team member, you might ask them to confirm every action with you before proceeding. When you assign the same task to a trusted senior colleague, you might simply say "handle it" and review the results afterward. Backcast's delegation levels work the same way.
 
@@ -403,6 +403,8 @@ The main assistant's RBAC role should never exceed the human user's own role. A 
 
 #### Scenario 1: Formal Engineering Company -- Risk-Averse Culture with Hierarchical Approval
 
+These scenarios show how the same AI assistant platform takes on the character of each organization — not through code changes, but through job descriptions that reflect how each team actually works.
+
 **Company profile.** A 35-person automation integrator serving the pharmaceutical industry. Projects are regulated, audits are frequent, and the Change Control Board meets weekly. The organizational culture values thorough documentation, clear accountability, and conservative decision-making. Every action must be traceable to an authorized individual.
 
 **Main assistant configuration.**
@@ -467,7 +469,7 @@ Headquarters defines a standard set of AI assistant job descriptions that all re
 
 **Regional adaptation -- Middle East and Asia-Pacific (new to EVM).** These offices enhance the Friendly Project Analyzer's job description significantly: "This team is learning earned value management. Explain every metric the first time it appears in a conversation. Use analogies from construction and manufacturing operations. When the user asks 'how is the project doing,' provide a narrative summary before presenting numbers. Always explain whether a variance is good or bad and why." The specialist roster is expanded to include all read-only specialists. The Senior Project Manager is initially restricted to the Project Structure Coordinator and Cost Accountant specialists only -- change order management is handled manually until the teams complete EVM training. All team members use supervised delegation (Safe mode) for the first three months, transitioning to guided delegation as they build confidence. The planner is configured with a two-step maximum to keep interactions simple and educational.
 
-**Result.** The corporate template ensures consistency -- every region uses the same specialist definitions, the same RBAC role assignments, and the same organizational terminology. But each region tailors the behavioral guidelines, specialist access, planner complexity, and recommended delegation levels to match their team's maturity and culture. A PM transferring from the European office to the Middle East office would find the same underlying structure but a communication style and delegation pattern adapted to the local team's needs.
+**Result.** The corporate template ensures consistency -- every region uses the same specialist definitions, the same RBAC role assignments, and the same organizational terminology. But each region tailors the behavioral guidelines, specialist access, planner complexity, and recommended delegation levels to match their team's maturity and culture. A PM transferring from the European office to the Middle East office would find the same underlying structure but a communication style and delegation pattern adapted to the local team's needs. Same platform, same specialists — different communication style, different delegation pattern, as natural as onboarding a new team member into a regional office. Same platform, same specialists — different communication style, different delegation pattern, as natural as onboarding a new team member into a regional office.
 
 ---
 

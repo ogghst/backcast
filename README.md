@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>Version-controlled project budgets and earned value management<br>for industrial automation teams that can't afford surprises.</strong>
+  <strong>AI assistants that understand your project management world —<br>version-controlled budgets, earned value management, and change governance<br>for industrial automation teams.</strong>
 </p>
 
 <p align="center">
@@ -14,21 +14,21 @@
 
 ---
 
-Industrial automation projects run 40-80% over budget. Your spreadsheet tells you everything is green until the month it turns red. By then, the cost drift has compounded for weeks and the recovery options are gone.
-
-The problem isn't your team. It's the tools. Project controllers reconcile EVM data from five disconnected systems at quarter-end. Change orders live in email threads. Audit trails are whatever someone remembered to save. And variance analysis means opening three spreadsheets and hoping the formulas still link.
+Your team knows how to deliver industrial automation projects. Backcast gives them AI assistants that speak their language — assistants that understand your data, your procedures, and your governance policies. When a project controller needs to know what a CPI of 0.89 means for the change order they are preparing, the AI already knows your approval thresholds, your contractual requirements, and how to present the findings to your Change Control Board.
 
 ---
 
-**Backcast** is a project budget management and earned value platform built for capital project organizations delivering end-of-line automation. It gives your PMO a single source of truth for scope, cost, and schedule — with Git-style versioning that makes every financial decision auditable, every change order reversible, and every EVM metric defensible.
+**Backcast** is a project budget management and earned value platform built for capital project organizations delivering end-of-line automation. It gives your PMO AI assistants that are tailored to how you work — combined with a single source of truth for scope, cost, and schedule, Git-style versioning that makes every financial decision auditable, every change order reversible, and every EVM metric defensible.
 
 Three things set Backcast apart:
 
-1. **Bitemporal versioning** — every change to budgets, forecasts, work packages, and cost elements is automatically versioned. You can reconstruct the exact state of any project at any past date, compare two points in time, and trace exactly when and why a number changed.
+1. **AI assistants configured like team members** — the AI knows which information is needed for a change order, what a low CPI means for your project, and how to present it to your CCB. Configured like a job description, not a feature toggle.
 
-2. **Branch-isolated change orders** — change orders work like Git branches. Your team experiments in an isolated sandbox, sees the full diff before merging, and nothing touches the live project baseline until an approver explicitly says yes.
+2. **Bitemporal versioning** — every change to budgets, forecasts, work packages, and cost elements is automatically versioned. You can reconstruct the exact state of any project at any past date, compare two points in time, and trace exactly when and why a number changed.
 
-3. **AI agents that respect your authority** — the AI drafts, calculates, and recommends, but it can never approve, reject, sign off baselines, commit forecasts, or authorize budget transfers. Accountability always rests with a named human role.
+3. **Branch-isolated change orders** — change orders work like Git branches. Your team experiments in an isolated sandbox, sees the full diff before merging, and nothing touches the live project baseline until an approver explicitly says yes.
+
+The AI drafts, calculates, and recommends, but it can never approve, reject, sign off baselines, commit forecasts, or authorize budget transfers. Accountability always rests with a named human role.
 
 ---
 
@@ -40,6 +40,8 @@ Three things set Backcast apart:
 - **Password:** `adminadmin`
 
 Jump in, create projects, open change orders, travel through time. The demo is built to be tested hard.
+
+Your AI assistant already knows your WBS naming conventions, your approval thresholds, and your reporting standards. Here is what that looks like in practice:
 
 Imagine opening a chat and saying:
 
@@ -65,7 +67,7 @@ You control how autonomous each agent is — from "act and notify me" to "always
 
 ## Built for how your team actually works
 
-Backcast adapts to your organization, not the other way around. A solo project manager on a single automation line and a 200-person OEM delivering across three regions use the same system, configured differently.
+Backcast adapts to your organization, not the other way around. The AI assistant is configured like a team member's job description — it knows your terminology, your approval thresholds, your reporting standards. A solo project manager on a single automation line and a 200-person OEM delivering across three regions use the same system, with AI assistants tailored to each team's maturity and governance model.
 
 | Dimension | Solo PM or Small Team | 25-Person Program | Enterprise OEM (50+) |
 |---|---|---|---|
@@ -81,7 +83,7 @@ Whether you run a formal Change Control Board with four-tier approval routing, o
 
 ### EVM expertise is not a prerequisite
 
-Your team in the Middle East office is new to earned value. Your European team has been running EVM for a decade. Backcast adapts. For beginners, the AI explains every metric on first use with manufacturing analogies: "For every euro spent, the project earned only 89 cents of value." For veterans, it skips the definitions and benchmarks against your contractual CPI thresholds automatically.
+Your AI assistant meets your team where they are. Your team in the Middle East office is new to earned value. Your European team has been running EVM for a decade. Backcast adapts. For beginners, the AI explains every metric on first use with manufacturing analogies: "For every euro spent, the project earned only 89 cents of value." For veterans, it skips the definitions and benchmarks against your contractual CPI thresholds automatically.
 
 ---
 
@@ -89,7 +91,9 @@ Your team in the Middle East office is new to earned value. Your European team h
 
 ### AI agents that respect your authority
 
-Each AI persona — Analyzer for read-only analysis, Senior PM for operational data management, System Manager for administration — inherits the requesting user's permissions. The AI can never exceed the human's authorization boundary. It drafts change orders, performs impact analysis, and generates stakeholder-specific reports. But it never approves, rejects, commits forecasts, or authorizes budget transfers.
+Each AI persona understands its role in your organization. The Analyzer speaks the language of executive review — concise, data-backed, read-only. The Senior PM handles operational conversations — creating work packages, preparing change orders, running impact analysis — the way your best project controller would. The System Manager handles administration carefully, with a verification-first approach.
+
+Every persona inherits the requesting user's permissions. The AI can never exceed the human's authorization boundary. It drafts change orders, performs impact analysis, and generates stakeholder-specific reports. But it never approves, rejects, commits forecasts, or authorizes budget transfers.
 
 Three delegation levels let you dial autonomy to match context: read-only for audits and executive reviews, confirmation-gated for daily project management, and full delegation for experienced users during bulk operations. RACI enforcement means the AI is always Responsible for data processing but never Accountable for decisions.
 
@@ -119,9 +123,9 @@ Control Accounts sit at the intersection of WBS Element and Organizational Unit,
 
 Forecasting supports three concurrent methodologies per cost element — bottom-up re-estimate, performance-based (BAC/CPI), and management judgment — with stability tracking via EAC standard deviation to measure forecast convergence over time. Cost of Quality is tracked from incoming inspection through site commissioning with root-cause attribution.
 
-### Configurable to your standards
+### Tailored to your organization's way of working
 
-Role definitions, approval thresholds, impact score weights, SLA durations, org unit hierarchies, WBS templates, and AI behavior are all configurable. Not through code changes — through system settings that can be overridden per project or per contract.
+Role definitions, approval thresholds, impact score weights, SLA durations, org unit hierarchies, WBS templates, and AI behavior are all configured the way you would write a team member's job description — not through code changes, but through system settings that capture how your organization actually operates. Settings can be overridden per project or per contract, because a defense contract and a commercial line installation don't follow the same rules.
 
 Five defined roles (Administrator, Project Manager, Department Manager, Project Controller, Executive Viewer) map to PMI governance structures. Custom roles can be added. Permissions scope at three levels: global, project, and change-order — so a single user can hold different roles in different contexts, supporting matrix organizations.
 
@@ -148,6 +152,8 @@ Backcast supports the full lifecycle of an end-of-line automation project:
 ---
 
 ## How organizations configure it
+
+The AI assistant is not one-size-fits-all. It is configured to match how each organization works:
 
 **A formal defense contractor (35 people, risk-averse).** Conservative AI behavioral guidelines — the system cites data sources for every claim. All work routes through specialists. Planner is capped at three sequential steps. Guided delegation is standard, even for experienced PMs. Approval thresholds are tight: CRITICAL at €50K, four distinct approver levels, holiday-aware SLA calculations.
 
