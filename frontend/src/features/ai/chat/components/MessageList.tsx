@@ -6,8 +6,8 @@
  * Supports progressive rendering for streaming responses.
  */
 
-import { useEffect, useRef, useMemo, useState, useCallback } from "react";
-import { List, Empty, Typography, Spin, theme, Input, Button, Tag } from "antd";
+import { useEffect, useRef, useMemo, useState } from "react";
+import { List, Empty, Typography, Spin, theme, Tag } from "antd";
 import type { GlobalToken } from "antd/es/theme/interface";
 import {
   UserOutlined,
@@ -16,9 +16,6 @@ import {
   CheckOutlined,
   DownOutlined,
   UpOutlined,
-  SendOutlined,
-  CloseOutlined,
-  QuestionCircleOutlined,
 } from "@ant-design/icons";
 import type { ChatMessage } from "../../types";
 import type { SubagentStream, StreamingState, TokenUsage, ToolCallRemark } from "../types";
@@ -67,10 +64,6 @@ interface MessageListProps {
   isMobile?: boolean;
   /** Token usage metrics from the last completed response */
   tokenUsage?: TokenUsage | null;
-  /** Active ask_user request from the agent (null when none pending) */
-  askUserRequest?: { question: string; askId: string; context?: string; options?: string[] } | null;
-  /** Callback to submit an answer to the agent's ask_user prompt */
-  onAskUserResponse?: (answer: string) => void;
 }
 
 /**
@@ -577,165 +570,6 @@ const PersistedSubagentMessage = ({
   );
 };
 
-/**
- * AskUserCard sub-component for displaying inline agent questions
- * Rendered as a chat bubble with a distinct accent border.
- */
-interface AskUserCardProps {
-  request: { question: string; askId: string; context?: string; options?: string[] };
-  token: GlobalToken;
-  isMobile?: boolean;
-  onSubmit: (answer: string) => void;
-  onDismiss: () => void;
-}
-
-const AskUserCard = ({
-  request,
-  token,
-  isMobile = false,
-  onSubmit,
-  onDismiss,
-}: AskUserCardProps) => {
-  const { spacing, typography, borderRadius, colors } = useThemeTokens();
-  const [inputValue, setInputValue] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Auto-focus the input when the card appears
-  useEffect(() => {
-    // Small delay to ensure the DOM is ready
-    const timer = setTimeout(() => {
-      inputRef.current?.focus();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleSubmit = useCallback(() => {
-    if (inputValue.trim()) {
-      onSubmit(inputValue.trim());
-      setInputValue("");
-    }
-  }, [inputValue, onSubmit]);
-
-  const handleOptionClick = useCallback((option: string) => {
-    onSubmit(option);
-  }, [onSubmit]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-    if (e.key === "Escape") {
-      onDismiss();
-    }
-  }, [handleSubmit, onDismiss]);
-
-  const hasOptions = request.options && request.options.length > 0;
-
-  return (
-    <List.Item
-      style={{
-        border: "none",
-        display: "flex",
-        justifyContent: "center",
-        padding: `${spacing.sm}px ${isMobile ? spacing.sm : spacing.md}px`,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: spacing.sm,
-          backgroundColor: token.colorFillSecondary,
-          color: token.colorText,
-          marginRight: "auto",
-          maxWidth: isMobile ? "85%" : "70%",
-          borderRadius: isMobile ? borderRadius.md : borderRadius.lg,
-          padding: `${spacing.sm * 0.75}px ${isMobile ? spacing.sm : spacing.md}px`,
-          wordBreak: "break-word",
-          borderLeft: `4px solid ${token.colorPrimary}`,
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
-          <QuestionCircleOutlined style={{ color: token.colorPrimary }} />
-          <Text strong style={{ fontSize: typography.sizes.sm }}>
-            Agent asks
-          </Text>
-          <Button
-            type="text"
-            size="small"
-            icon={<CloseOutlined style={{ fontSize: typography.sizes.xs }} />}
-            onClick={onDismiss}
-            style={{
-              marginLeft: "auto",
-              minWidth: 24,
-              height: 24,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: colors.textTertiary,
-            }}
-            aria-label="Dismiss"
-          />
-        </div>
-
-        {/* Question text */}
-        <Text style={{ fontSize: typography.sizes.md }}>
-          {request.question}
-        </Text>
-
-        {/* Optional context */}
-        {request.context && (
-          <Text style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>
-            {request.context}
-          </Text>
-        )}
-
-        {/* Option buttons */}
-        {hasOptions && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: spacing.sm }}>
-            {request.options!.map((opt, i) => (
-              <Button
-                key={i}
-                size="small"
-                onClick={() => handleOptionClick(opt)}
-                style={{
-                  borderRadius: borderRadius.md,
-                }}
-              >
-                {opt}
-              </Button>
-            ))}
-          </div>
-        )}
-
-        {/* Free-text input (always visible so user can type a custom answer) */}
-        <div style={{ display: "flex", gap: spacing.xs }}>
-          <Input
-            ref={inputRef as React.Ref<typeof Input>}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your answer..."
-            size="small"
-            style={{ flex: 1, borderRadius: borderRadius.md }}
-          />
-          <Button
-            type="primary"
-            size="small"
-            icon={<SendOutlined />}
-            onClick={handleSubmit}
-            disabled={!inputValue.trim()}
-            style={{ borderRadius: borderRadius.md }}
-            aria-label="Send answer"
-          />
-        </div>
-      </div>
-    </List.Item>
-  );
-};
-
 const getMessageIcon = (role: ChatMessage["role"]) => {
   switch (role) {
     case "user":
@@ -791,8 +625,6 @@ export const MessageList = ({
   showSeparator = false,
   isMobile = false,
   tokenUsage,
-  askUserRequest,
-  onAskUserResponse,
 }: MessageListProps) => {
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius } = useThemeTokens();
@@ -922,7 +754,7 @@ export const MessageList = ({
         scrollRafRef.current = null;
       }
     };
-  }, [displayMessages, streamingState?.main, streamingState?.subagents, isStreaming, askUserRequest]);
+  }, [displayMessages, streamingState?.main, streamingState?.subagents, isStreaming]);
 
   if (loading && messages.length === 0) {
     return (
@@ -1072,17 +904,6 @@ export const MessageList = ({
           invocationNumber={sa.invocation_number}
         />
       ))}
-
-      {/* Inline ask_user card — agent needs user input */}
-      {askUserRequest && onAskUserResponse && (
-        <AskUserCard
-          request={askUserRequest}
-          token={token}
-          isMobile={isMobile}
-          onSubmit={onAskUserResponse}
-          onDismiss={() => onAskUserResponse("")}
-        />
-      )}
 
       {/* Typing indicator when waiting for first token */}
       {isStreaming && !mergedMainContent && !(streamingState?.main) && subagentStreams.length === 0 && (

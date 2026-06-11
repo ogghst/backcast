@@ -15,7 +15,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message, Spin } from "antd";
+import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message, Spin, Modal, Input, Typography } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
@@ -23,6 +23,8 @@ import {
   MoreOutlined,
   CloseOutlined,
   BugOutlined,
+  QuestionCircleOutlined,
+  SendOutlined,
 } from "@ant-design/icons";
 import {
   useDeleteSession,
@@ -85,6 +87,122 @@ const EMPTY_STREAMING_STATE: StreamingState = {
   main: "",
   mainStreams: new Map<string, MainAgentStream>(),
   subagents: new Map<string, SubagentStream>(),
+};
+
+const { Text } = Typography;
+
+/** Modal dialog for responding to agent ask_user prompts. */
+interface AskUserModalProps {
+  open: boolean;
+  request: {
+    question: string;
+    askId: string;
+    context?: string;
+    options?: string[];
+  } | null;
+  onSubmit: (answer: string) => void;
+  onCancel: () => void;
+}
+
+const AskUserModal = ({ open, request, onSubmit, onCancel }: AskUserModalProps) => {
+  const { token } = theme.useToken();
+  const [inputValue, setInputValue] = useState("");
+
+  const handleSubmit = useCallback(() => {
+    if (inputValue.trim()) {
+      onSubmit(inputValue.trim());
+      setInputValue("");
+    }
+  }, [inputValue, onSubmit]);
+
+  const handleOptionClick = useCallback(
+    (option: string) => {
+      onSubmit(option);
+    },
+    [onSubmit],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit],
+  );
+
+  if (!request) return null;
+
+  const hasOptions = request.options && request.options.length > 0;
+
+  return (
+    <Modal
+      title={
+        <span>
+          <QuestionCircleOutlined style={{ color: token.colorPrimary, marginRight: token.marginXS }} />
+          Agent asks
+        </span>
+      }
+      open={open}
+      onCancel={onCancel}
+      width={520}
+      destroyOnHidden
+      footer={
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: token.marginXS }}>
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            onClick={handleSubmit}
+            disabled={!inputValue.trim()}
+          >
+            Send
+          </Button>
+        </div>
+      }
+    >
+      {/* Question text */}
+      <Text style={{ fontSize: token.fontSizeLG, display: "block", marginBottom: token.marginSM }}>
+        {request.question}
+      </Text>
+
+      {/* Optional context */}
+      {request.context && (
+        <Text
+          type="secondary"
+          style={{ fontSize: token.fontSizeSM, display: "block", marginBottom: token.marginMD }}
+        >
+          {request.context}
+        </Text>
+      )}
+
+      {/* Option buttons */}
+      {hasOptions && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: token.marginXS, marginBottom: token.marginMD }}>
+          {request.options!.map((opt, i) => (
+            <Button
+              key={i}
+              size="small"
+              onClick={() => handleOptionClick(opt)}
+              style={{ borderRadius: token.borderRadiusSM }}
+            >
+              {opt}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Free-text input */}
+      <Input
+        autoFocus
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Type your answer..."
+      />
+    </Modal>
+  );
 };
 
 export const ChatInterface = ({
@@ -1187,6 +1305,14 @@ export const ChatInterface = ({
     }
   }, [askUserRequest, streamingChat]);
 
+  // Ask user dismiss handler (sends empty answer to unblock the agent)
+  const handleAskUserDismiss = useCallback(() => {
+    if (askUserRequest) {
+      streamingChat.sendAskUserResponse(askUserRequest.askId, "");
+      setAskUserRequest(null);
+    }
+  }, [askUserRequest, streamingChat]);
+
   // Handle clearing debug messages
   const handleClearDebugMessages = useCallback(() => {
     setDebugMessages([]);
@@ -1587,8 +1713,6 @@ export const ChatInterface = ({
                   showSeparator={showStreamSeparator}
                   isMobile={isMobile}
                   tokenUsage={lastTokenUsage}
-                  askUserRequest={askUserRequest}
-                  onAskUserResponse={handleAskUserSubmit}
                 />
               </div>
 
@@ -1677,6 +1801,14 @@ export const ChatInterface = ({
         onApprove={handleApprove}
         onReject={handleReject}
         onCancel={handleApprovalCancel}
+      />
+
+      {/* Ask User Modal for agent questions */}
+      <AskUserModal
+        open={askUserRequest !== null}
+        request={askUserRequest}
+        onSubmit={handleAskUserSubmit}
+        onCancel={handleAskUserDismiss}
       />
 
     </>

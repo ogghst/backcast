@@ -383,6 +383,11 @@ export const useStreamingChat = (
     images?: string[];
   } | null>(null);
 
+  // Ref to store pending ask_user response to send once connection is established.
+  // Prevents silent data loss when the user answers the modal while the WS is
+  // reconnecting (e.g. WS in CLOSING state).
+  const pendingAskResponseRef = useRef<{ ask_id: string; answer: string } | null>(null);
+
   // Initialize last message time on mount
   // Only run once on mount - no dependencies needed
   useEffect(() => {
@@ -1019,15 +1024,20 @@ export const useStreamingChat = (
    * Send an answer to an ask_user prompt
    */
   const sendAskUserResponse = useCallback((askId: string, answer: string) => {
+    const response = {
+      type: "ask_user_response" as const,
+      ask_id: askId,
+      answer,
+    };
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      const response = {
-        type: "ask_user_response" as const,
-        ask_id: askId,
-        answer,
-      };
       callbacksRef.current.onRawMessage?.(response, "out");
       ws.send(JSON.stringify(response));
+    } else {
+      // Queue the response — it will be sent once the connection reopens.
+      // This prevents silent data loss when the user answers the modal
+      // while the WebSocket is closing or reconnecting.
+      pendingAskResponseRef.current = { ask_id: askId, answer };
     }
   }, []);
 
@@ -1202,6 +1212,23 @@ export const useStreamingChat = (
                   : "Failed to send message";
               callbacks.onError(errorMsg);
               setError(new Error(errorMsg));
+            }
+          }
+
+          // Flush queued ask_user response (queued when WS was closing)
+          const pendingAsk = pendingAskResponseRef.current;
+          if (pendingAsk) {
+            pendingAskResponseRef.current = null;
+            const response = {
+              type: "ask_user_response" as const,
+              ask_id: pendingAsk.ask_id,
+              answer: pendingAsk.answer,
+            };
+            try {
+              callbacksRef.current.onRawMessage?.(response, "out");
+              ws.send(JSON.stringify(response));
+            } catch {
+              // Silently ignore — the ask_user will time out on the backend
             }
           }
         });
