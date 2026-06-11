@@ -1,10 +1,12 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Button } from "antd";
+import { Button, Typography, theme } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { ImpactAnalysisDashboard } from "@/features/change-orders/components/ImpactAnalysisDashboard";
 import { useChangeOrder } from "@/features/change-orders/api/useChangeOrders";
 import { useProject } from "@/features/projects/api/useProjects";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 /**
  * ChangeOrderImpactAnalysisPage - Dedicated page for comprehensive impact analysis.
@@ -27,6 +29,7 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
     changeOrderId: string;
   }>();
   const navigate = useNavigate();
+  const { token } = theme.useToken();
 
   // Fetch change order data
   const { data: changeOrder, isLoading: isLoadingChangeOrder } = useChangeOrder(
@@ -45,7 +48,7 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
   const isLoading = isLoadingChangeOrder || isLoadingProject;
 
   return (
-    <div style={{ padding: 24 }}>
+    <PageWrapper>
       {/* Breadcrumbs */}
       <EntityBreadcrumb
         items={[
@@ -57,27 +60,24 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
       />
 
       {/* Page Header with Back Button */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 24,
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, marginBottom: 8 }}>
-            Impact Analysis: {changeOrder?.code || changeOrderId}
-          </h1>
-          <p style={{ color: "#8c8c8c", margin: 0 }}>
-            Project: {project?.code || projectId}
-            {changeOrder && ` • Branch: BR-${changeOrder.code}`}
-          </p>
-        </div>
-        <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
-          Back to Change Order
-        </Button>
-      </div>
+      <PageHeader
+        title={
+          <div>
+            <Typography.Title level={1} style={{ margin: 0, marginBottom: token.marginXS }}>
+              Impact Analysis: {changeOrder?.code || changeOrderId}
+            </Typography.Title>
+            <Typography.Text type="secondary">
+              Project: {project?.code || projectId}
+              {changeOrder && ` • Branch: BR-${changeOrder.code}`}
+            </Typography.Text>
+          </div>
+        }
+        actions={
+          <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
+            Back to Change Order
+          </Button>
+        }
+      />
 
       {/* Impact Analysis Dashboard */}
       {!isLoading && changeOrder && (
@@ -87,6 +87,6 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
           showHeader={false}
         />
       )}
-    </div>
+    </PageWrapper>
   );
 }

@@ -61,7 +61,7 @@ export const EntityCard: React.FC<EntityCardProps> = ({
         background: token.colorBgContainer,
         border: `1px solid ${token.colorBorderSecondary}`,
         borderRadius: token.borderRadiusLG,
-        padding: token.paddingMD,
+        padding: token.paddingXS,
         cursor: onClick ? "pointer" : undefined,
         transition: "all 150ms ease",
         ...style,

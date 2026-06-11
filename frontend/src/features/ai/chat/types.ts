@@ -33,6 +33,7 @@ export interface SubagentStream {
   started_at: number; // Timestamp when streaming started
   invocation_number?: number; // Invocation count for this subagent name (e.g., 2 for second invocation)
   sequence?: number; // Order in which this stream was created (for proper rendering)
+  tool_calls?: ToolCallRemark[]; // Tool calls that occurred during this subagent
 }
 
 /**
@@ -57,6 +58,7 @@ export interface ToolCallRemark {
   name: string; // Tool name
   args: Record<string, unknown>; // Tool arguments
   position: number; // Character position in content where tool was called
+  completed?: boolean; // Whether the tool has finished executing
 }
 
 /**
@@ -299,7 +301,7 @@ export interface WSAgentCompleteMessage {
   agent_type: "main" | "subagent";
   invocation_id: string;
   agent_name?: string; // Agent name for display
-  completed_at: string; // ISO datetime timestamp
+  completed_at?: string; // ISO datetime timestamp
 }
 
 /**
@@ -314,12 +316,35 @@ export interface WSAgentTransitionMessage {
 }
 
 /**
+ * Structured briefing section from a single specialist
+ */
+export interface BriefingSectionData {
+  specialist_name: string;
+  summary: string;
+  key_findings: string[];
+  open_questions: string[];
+  delegation_notes: string;
+  task_description?: string | null;
+  step_index?: number | null;
+}
+
+/**
+ * Structured briefing document with sections per specialist
+ */
+export interface BriefingDocumentData {
+  original_request: string;
+  sections: BriefingSectionData[];
+  supervisor_analysis?: string | null;
+  markdown: string;
+}
+
+/**
  * Server -> Client: Briefing update event
  * Sent when a specialist agent updates the compiled briefing document
  */
 export interface WSBriefingMessage {
   type: "briefing_update";
-  briefing: string; // Compiled briefing markdown
+  briefing: BriefingDocumentData; // Structured briefing document (was flat string)
   specialist_name: string; // Name of the specialist that updated
   completed_specialists: string[]; // List of completed specialist names
 }
@@ -403,6 +428,28 @@ export interface WSTemporalContextChangeMessage {
 }
 
 /**
+ * Server -> Client: Ask user event
+ * Sent when the agent needs user input via the ask_user tool
+ */
+export interface WSAskUserMessage {
+  type: "ask_user";
+  question: string;
+  ask_id: string;
+  context?: string;
+  options?: string[];
+}
+
+/**
+ * Client -> Server: Ask user response
+ * Sent when the user answers an ask_user prompt
+ */
+export interface WSAskUserResponseMessage {
+  type: "ask_user_response";
+  ask_id: string;
+  answer: string;
+}
+
+/**
  * Discriminated union of all server message types
  * Use the `type` field to discriminate between message variants
  */
@@ -426,7 +473,8 @@ export type WSServerMessage =
   | WSExecutionStatusMessage
   | WSBriefingMessage
   | WSPlanUpdateMessage
-  | WSTemporalContextChangeMessage;
+  | WSTemporalContextChangeMessage
+  | WSAskUserMessage;
 
 /**
  * Type guard to check if a server message is a token message.
@@ -671,4 +719,24 @@ export function isTemporalContextChangeMessage(
   message: WSServerMessage
 ): message is WSTemporalContextChangeMessage {
   return message.type === "temporal_context_change";
+}
+
+/**
+ * Type guard to check if a server message is an ask_user message
+ *
+ * Context: Used by handleMessage to detect when the agent needs user input
+ * via the ask_user tool. Validates ask_id and question to ensure the dialog
+ * can render correctly.
+ *
+ * @param message - Raw server message to validate
+ * @returns True if message is a well-formed WSAskUserMessage
+ */
+export function isAskUserMessage(
+  message: WSServerMessage
+): message is WSAskUserMessage {
+  return (
+    message.type === "ask_user" &&
+    typeof (message as WSAskUserMessage).ask_id === "string" &&
+    typeof (message as WSAskUserMessage).question === "string"
+  );
 }

@@ -501,6 +501,9 @@ async def find_organizational_units(
                     "code": org_unit.code,
                     "name": org_unit.name,
                     "description": org_unit.description,
+                    "parent_unit_id": str(org_unit.parent_unit_id)
+                    if org_unit.parent_unit_id
+                    else None,
                     "manager_id": str(org_unit.manager_id)
                     if org_unit.manager_id
                     else None,
@@ -524,6 +527,9 @@ async def find_organizational_units(
                         "code": ou.code,
                         "name": ou.name,
                         "description": ou.description,
+                        "parent_unit_id": str(ou.parent_unit_id)
+                        if ou.parent_unit_id
+                        else None,
                         "manager_id": str(ou.manager_id) if ou.manager_id else None,
                         "is_active": ou.is_active,
                     }
@@ -558,6 +564,7 @@ async def create_organizational_unit(
     code: str,
     name: str,
     description: str | None = None,
+    parent_unit_id: str | None = None,
     manager_id: str | None = None,
     is_active: bool = True,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
@@ -570,6 +577,7 @@ async def create_organizational_unit(
         code: Unique organizational unit code (uppercase alphanumeric)
         name: Organizational unit display name
         description: Optional organizational unit description
+        parent_unit_id: Optional UUID of the parent organizational unit for hierarchy
         manager_id: Optional UUID of the organizational unit manager
         is_active: Whether the organizational unit is active (default: True)
         context: Injected tool execution context
@@ -600,6 +608,7 @@ async def create_organizational_unit(
             code=code,
             name=name,
             description=description,
+            parent_unit_id=UUID(parent_unit_id) if parent_unit_id else None,
             manager_id=UUID(manager_id) if manager_id else None,
             is_active=is_active,
             branch=context.branch_name or "main",
@@ -617,6 +626,9 @@ async def create_organizational_unit(
             "code": org_unit.code,
             "name": org_unit.name,
             "description": org_unit.description,
+            "parent_unit_id": str(org_unit.parent_unit_id)
+            if org_unit.parent_unit_id
+            else None,
             "manager_id": str(org_unit.manager_id) if org_unit.manager_id else None,
             "is_active": org_unit.is_active,
             "message": "Organizational unit created successfully",

@@ -10,6 +10,7 @@ import {
   Col,
   Empty,
   Spin,
+  theme,
 } from "antd";
 import {
   HistoryOutlined,
@@ -39,6 +40,7 @@ export const ForecastHistoryView = ({
   costElementId,
   currentBranch = "main",
 }: ForecastHistoryViewProps) => {
+  const { token } = theme.useToken();
   const { asOf } = useTimeMachineParams();
   const [selectedBranch, setSelectedBranch] = useState<string>(currentBranch);
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
@@ -52,7 +54,7 @@ export const ForecastHistoryView = ({
   if (isLoading) {
     return (
       <Card title={<Space><HistoryOutlined /><span>Forecast History</span></Space>}>
-        <div style={{ textAlign: "center", padding: 24 }}>
+        <div style={{ textAlign: "center", padding: token.paddingXL }}>
           <Spin />
         </div>
       </Card>
@@ -97,12 +99,12 @@ export const ForecastHistoryView = ({
       <Card
         type="inner"
         title="Filters"
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: token.marginMD }}
         size="small"
       >
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12}>
-            <div style={{ marginBottom: 8 }}>
+            <div style={{ marginBottom: token.marginXS }}>
               <BranchesOutlined style={{ marginRight: 8 }} />
               <span>Branch:</span>
             </div>
@@ -117,7 +119,7 @@ export const ForecastHistoryView = ({
             />
           </Col>
           <Col xs={24} sm={12}>
-            <div style={{ marginBottom: 8 }}>
+            <div style={{ marginBottom: token.marginXS }}>
               <CalendarOutlined style={{ marginRight: 8 }} />
               <span>Date Range:</span>
             </div>
@@ -156,7 +158,7 @@ export const ForecastHistoryView = ({
                 <Card
                   size="small"
                   style={{
-                    marginBottom: 8,
+                    marginBottom: token.marginXS,
                     borderLeft: "3px solid #52c41a",
                   }}
                 >

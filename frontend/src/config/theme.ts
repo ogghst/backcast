@@ -98,6 +98,11 @@ type CustomTokenConfig = {
   borderRadiusSM?: number;
   borderRadiusLG?: number;
   borderRadiusXL?: number;
+  colorShadow?: string;
+  boxShadowTertiary?: string;
+  boxShadowSecondary?: string;
+  boxShadow?: string;
+  boxShadowCard?: string;
 };
 
 // Dark mode token overrides
@@ -120,6 +125,11 @@ type DarkModeTokens = {
   colorChartAC?: string;
   colorChartForecast?: string;
   colorChartActual?: string;
+  colorShadow?: string;
+  boxShadowTertiary?: string;
+  boxShadowSecondary?: string;
+  boxShadow?: string;
+  boxShadowCard?: string;
 };
 
 /**
@@ -134,7 +144,28 @@ type DarkModeTokens = {
  * - Sophisticated accent colors that guide attention
  * - Harmonious relationships between elements
  */
-export const theme: ThemeConfig & { token: CustomTokenConfig; darkModeTokens?: DarkModeTokens } = {
+/**
+ * Component-level token overrides.
+ * Keys match Ant Design component names. Values are component tokens for that component.
+ */
+type ComponentTokens = {
+  Card?: {
+    colorBgContainer?: string;
+    actionsBg?: string;
+  };
+};
+
+export const theme: ThemeConfig & {
+  token: CustomTokenConfig;
+  darkModeTokens?: DarkModeTokens;
+  darkModeComponents?: ComponentTokens;
+} = {
+  components: {
+    Card: {
+      colorBgContainer: "#faf9f7", // Warm off-white card fill
+      actionsBg: "#faf9f7",
+    },
+  },
   token: {
     // === Brand & Typography ===
     colorPrimary: "#4a7c91", // Soft teal-blue - sophisticated primary
@@ -202,6 +233,14 @@ export const theme: ThemeConfig & { token: CustomTokenConfig; darkModeTokens?: D
     borderRadiusSM: 4,
     borderRadiusLG: 12,
     borderRadiusXL: 16,
+
+    // === Shadow Tokens (Subtle Elevation) ===
+    // Lighter shadows for a flatter, more professional feel
+    colorShadow: "rgba(139, 125, 107, 1)",
+    boxShadowTertiary: "0 1px 2px 0 rgba(139, 125, 107, 0.06)",
+    boxShadowSecondary: "0 1px 3px 0 rgba(139, 125, 107, 0.06), 0 2px 6px -1px rgba(139, 125, 107, 0.04)",
+    boxShadow: "0 2px 8px 0 rgba(139, 125, 107, 0.08), 0 1px 3px -1px rgba(139, 125, 107, 0.06)",
+    boxShadowCard: "0 1px 2px 0 rgba(139, 125, 107, 0.04)",
   },
   /**
    * Dark Mode Tokens
@@ -245,5 +284,24 @@ export const theme: ThemeConfig & { token: CustomTokenConfig; darkModeTokens?: D
     colorChartAC: "#8b7b94", // Soft lavender-gray - Actual Cost
     colorChartForecast: "#d4a549", // Warm amber - Forecast
     colorChartActual: "#c95d5f", // Soft red - Actual
+
+    // === Shadow Tokens (Dark Mode — subtle) ===
+    colorShadow: "rgba(0, 0, 0, 1)",
+    boxShadowTertiary: "0 1px 2px 0 rgba(0, 0, 0, 0.16)",
+    boxShadowSecondary: "0 1px 3px 0 rgba(0, 0, 0, 0.14), 0 2px 6px -1px rgba(0, 0, 0, 0.1)",
+    boxShadow: "0 2px 8px 0 rgba(0, 0, 0, 0.18), 0 1px 3px -1px rgba(0, 0, 0, 0.12)",
+    boxShadowCard: "0 1px 2px 0 rgba(0, 0, 0, 0.1)",
+  },
+  /**
+   * Dark Mode Component Tokens
+   *
+   * Component-level token overrides applied when dark mode is active.
+   * Merged into ConfigProvider's theme.components alongside light mode overrides.
+   */
+  darkModeComponents: {
+    Card: {
+      colorBgContainer: "#1f1f1f", // Dark card fill
+      actionsBg: "#1f1f1f",
+    },
   },
 };

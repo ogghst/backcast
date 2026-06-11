@@ -32,7 +32,7 @@ export const WBSElementChat = () => {
   return (
     <ChatInterface
       contextOverride={{
-        type: "wbs_element",
+        type: "wbe",
         id: wbe?.wbs_element_id,
         project_id: wbe?.project_id,
         name: wbe?.name,

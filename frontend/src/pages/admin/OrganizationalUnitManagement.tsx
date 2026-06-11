@@ -1,13 +1,15 @@
-import { App, Button, Input, Space, theme } from "antd";
+import { App, Button, Card, Space, Tag, Tree, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   HistoryOutlined,
-  SearchOutlined,
+  ApartmentOutlined,
+  NodeIndexOutlined,
 } from "@ant-design/icons";
-import { useState } from "react";
-import type { ColumnType } from "antd/es/table";
+import { useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import type { OrgUnitTreeNode } from "@/features/organizational-units/utils/orgUnitTree";
 import { createResourceHooks } from "@/hooks/useCrud";
 import { OrganizationalUnitsService } from "@/api/generated";
 import type {
@@ -17,12 +19,12 @@ import type {
 } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import { OrganizationalUnitModal } from "@/features/organizational-units/components/OrganizationalUnitModal";
-import { StandardTable } from "@/components/common/StandardTable";
-import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { useOrgUnitTree } from "@/features/organizational-units/hooks/useOrgUnitTree";
+import { queryKeys as qk } from "@/api/queryKeys";
 
-// Create CRUD hooks using the generated API service
+// Keep existing CRUD hooks using the generated API service
 const organizationalUnitApi = {
   list: async (params?: {
     pagination?: { current?: number; pageSize?: number };
@@ -35,7 +37,6 @@ const organizationalUnitApi = {
     const page = pagination?.current || 1;
     const perPage = pagination?.pageSize || 20;
 
-    // Convert Ant Design table filters to server format
     let filterString: string | undefined;
     if (filters) {
       const filterParts: string[] = [];
@@ -70,56 +71,56 @@ const organizationalUnitApi = {
     OrganizationalUnitsService.createOrganizationalUnit(data) as Promise<OrganizationalUnitRead>,
   update: (id: string, data: OrganizationalUnitUpdate) =>
     OrganizationalUnitsService.updateOrganizationalUnit(id, data) as Promise<OrganizationalUnitRead>,
-  delete: (id: string) => OrganizationalUnitsService.deleteOrganizationalUnit(id),
+  delete: (id: string) =>
+    OrganizationalUnitsService.deleteOrganizationalUnit(id),
 };
 
-const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
+const { useCreate, useUpdate, useDelete } = createResourceHooks<
   OrganizationalUnitRead,
   OrganizationalUnitCreate,
   OrganizationalUnitUpdate
 >("organizational-units", organizationalUnitApi as never);
 
-import { OrganizationalUnitFilters } from "@/types/filters";
-
 export const OrganizationalUnitManagement = () => {
   const { token } = theme.useToken();
-  const { tableParams, handleTableChange, handleSearch } = useTableParams<
-    OrganizationalUnitRead,
-    OrganizationalUnitFilters
-  >();
-  const { data: departments, isLoading, refetch } = useList(tableParams);
+  const queryClient = useQueryClient();
+  const { treeData, items, flatMap, isLoading } = useOrgUnitTree();
 
+  const invalidateTree = () =>
+    queryClient.invalidateQueries({ queryKey: qk.organizationalUnits.tree });
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] =
     useState<OrganizationalUnitRead | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // Fetch version history
-  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
-    {
-      resource: "organizational-units",
-      entityId: selectedDepartment?.organizational_unit_id,
-      fetchFn: (id) => OrganizationalUnitsService.getOrganizationalUnitHistory(id),
-      enabled: historyOpen,
-    }
-  );
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
+    resource: "organizational-units",
+    entityId: selectedDepartment?.organizational_unit_id,
+    fetchFn: (id) =>
+      OrganizationalUnitsService.getOrganizationalUnitHistory(id),
+    enabled: historyOpen,
+  });
 
   const { mutateAsync: createDepartment } = useCreate({
     onSuccess: () => {
-      refetch();
+      invalidateTree();
       setModalOpen(false);
     },
   });
 
   const { mutateAsync: updateDepartment } = useUpdate({
     onSuccess: () => {
-      refetch();
+      invalidateTree();
       setModalOpen(false);
     },
   });
 
   const { mutate: deleteDepartment } = useDelete({
-    onSuccess: () => refetch(),
+    onSuccess: () => {
+      invalidateTree();
+    },
   });
 
   const { modal } = App.useApp();
@@ -134,143 +135,114 @@ export const OrganizationalUnitManagement = () => {
     });
   };
 
-  const getColumnSearchProps = (
-    dataIndex: keyof OrganizationalUnitRead
-  ): ColumnType<OrganizationalUnitRead> => ({
-    filterDropdown: ({
-      setSelectedKeys,
-      selectedKeys,
-      confirm,
-      clearFilters,
-    }) => (
-      <div style={{ padding: token.paddingSM }}>
-        <Input
-          placeholder={`Search ${String(dataIndex)}`}
-          value={selectedKeys[0]}
-          onChange={(e) =>
-            setSelectedKeys(e.target.value ? [e.target.value] : [])
-          }
-          onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
-        />
-        <Space>
-          <Button
-            type="primary"
-            onClick={() => confirm()}
-            icon={<SearchOutlined />}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Search
-          </Button>
-          <Button
-            onClick={() => clearFilters && clearFilters()}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Reset
-          </Button>
-        </Space>
-      </div>
-    ),
-    filterIcon: (filtered: boolean) => (
-      <SearchOutlined
-        style={{ color: filtered ? token.colorPrimary : undefined }}
-      />
-    ),
-    onFilter: (value, record) => {
-      const fieldVal = record[dataIndex];
-      return fieldVal
-        ? String(fieldVal)
-            .toLowerCase()
-            .includes((value as string).toLowerCase())
-        : false;
-    },
-  });
-
-  const columns: ColumnType<OrganizationalUnitRead>[] = [
-    {
-      title: "Name",
-      dataIndex: "name",
-      key: "name",
-      sorter: true,
-      ...getColumnSearchProps("name"),
-    },
-    {
-      title: "Code",
-      dataIndex: "code",
-      key: "code",
-      sorter: true,
-      ...getColumnSearchProps("code"),
-    },
-    {
-      title: "Description",
-      dataIndex: "description",
-      key: "description",
-      sorter: true,
-      ...getColumnSearchProps("description"),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      render: (_, record) => (
-        <Space>
-          <Can permission="organizational-unit-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={() => {
-                setSelectedDepartment(record);
-                setHistoryOpen(true);
-              }}
-              title="View History"
-            />
-          </Can>
-          <Can permission="organizational-unit-update">
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => {
-                setSelectedDepartment(record);
-                setModalOpen(true);
-              }}
-              title="Edit Organizational Unit"
-            />
-          </Can>
-          <Can permission="organizational-unit-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.organizational_unit_id)}
-              title="Delete Organizational Unit"
-            />
-          </Can>
-        </Space>
-      ),
-    },
-  ];
-
-  return (
-    <div>
-      <StandardTable<OrganizationalUnitRead>
-        tableParams={tableParams}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={(departments as OrganizationalUnitRead[]) || []}
-        columns={columns}
-        rowKey="organizational_unit_id"
-        searchable={true}
-        searchPlaceholder="Search organizational units..."
-        onSearch={handleSearch}
-        toolbar={
+  // Build tree data with action buttons in title
+  const enrichedTreeData = useMemo(() => {
+    const enrich = (nodes: OrgUnitTreeNode[]): OrgUnitTreeNode[] =>
+      nodes.map((node) => {
+        const unit = flatMap.get(node.key as string);
+        const title = unit ? (
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
               alignItems: "center",
+              justifyContent: "space-between",
+              gap: token.paddingSM,
+              paddingRight: token.paddingXS,
             }}
           >
-            <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
+            <Space>
+              <ApartmentOutlined style={{ color: token.colorPrimary }} />
+              <span style={{ fontWeight: 500 }}>{unit.code}</span>
+              <span style={{ color: token.colorTextSecondary }}>&mdash;</span>
+              <span>{unit.name}</span>
+              {!unit.is_active && <Tag color="red">Inactive</Tag>}
+            </Space>
+            <Space size={0}>
+              <Can permission="organizational-unit-read">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<HistoryOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedDepartment(unit);
+                    setHistoryOpen(true);
+                  }}
+                  title="View History"
+                />
+              </Can>
+              <Can permission="organizational-unit-update">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedDepartment(unit);
+                    setModalOpen(true);
+                  }}
+                  title="Edit"
+                />
+              </Can>
+              <Can permission="organizational-unit-delete">
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(unit.organizational_unit_id);
+                  }}
+                  title="Delete"
+                />
+              </Can>
+            </Space>
+          </div>
+        ) : (
+          node.title
+        );
+        return {
+          ...node,
+          title,
+          children: node.children ? enrich(node.children) : undefined,
+        };
+      });
+    return enrich(treeData);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- enrich uses stable refs only (flatMap, token, handleDelete)
+  }, [treeData, flatMap, token]);
+
+  // Auto-expand all on first load
+  const allKeys = useMemo(
+    () => items.map((item) => item.organizational_unit_id),
+    [items]
+  );
+
+  return (
+    <>
+      <Card
+        title={
+          <Space>
+            <NodeIndexOutlined />
+            <span style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
               Organizational Unit Management
-            </div>
+            </span>
+          </Space>
+        }
+        extra={
+          <Space>
+            <Button
+              onClick={() => setExpandedKeys(allKeys)}
+              size="small"
+            >
+              Expand All
+            </Button>
+            <Button
+              onClick={() => setExpandedKeys([])}
+              size="small"
+            >
+              Collapse All
+            </Button>
             <Can permission="organizational-unit-create">
               <Button
                 type="primary"
@@ -283,9 +255,18 @@ export const OrganizationalUnitManagement = () => {
                 Add Organizational Unit
               </Button>
             </Can>
-          </div>
+          </Space>
         }
-      />
+      >
+        <Tree
+          treeData={enrichedTreeData}
+          showLine
+          expandedKeys={expandedKeys}
+          onExpand={(keys) => setExpandedKeys(keys)}
+          defaultExpandAll
+          blockNode
+        />
+      </Card>
 
       <OrganizationalUnitModal
         open={modalOpen}
@@ -302,21 +283,28 @@ export const OrganizationalUnitManagement = () => {
         }}
         confirmLoading={isLoading}
         initialValues={selectedDepartment}
+        excludeIds={
+          selectedDepartment
+            ? new Set([selectedDepartment.organizational_unit_id])
+            : undefined
+        }
       />
 
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={(historyVersions || []).map((version: Record<string, unknown>, idx: number, arr: unknown[]) => ({
-          id: `v${arr.length - idx}`,
-          valid_from: (version.created_at as string) || new Date().toISOString(),
-          transaction_time: new Date().toISOString(),
-          changed_by: (version.created_by_name as string) || "System",
-          changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
-        }))}
+        versions={(historyVersions || []).map(
+          (version: Record<string, unknown>, idx: number, arr: unknown[]) => ({
+            id: `v${arr.length - idx}`,
+            valid_from: (version.created_at as string) || new Date().toISOString(),
+            transaction_time: new Date().toISOString(),
+            changed_by: (version.created_by_name as string) || "System",
+            changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
+          })
+        )}
         entityName={`Organizational Unit: ${selectedDepartment?.name || ""}`}
         isLoading={historyLoading}
       />
-    </div>
+    </>
   );
 };

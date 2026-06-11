@@ -7,6 +7,7 @@ import {
 } from "@ant-design/icons";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { BriefingSectionCard } from "./BriefingSectionCard";
 import {
   BriefingState,
   SpecialistBadge,
@@ -284,10 +285,20 @@ export const BriefingPeekBar = memo(
                   color: token.colorText,
                 }}
               >
-                <MarkdownRenderer
-                  content={briefing.markdown}
-                  isStreaming={isStreaming}
-                />
+                {briefing.document?.sections.length ? (
+                  briefing.document.sections.map((section) => (
+                    <BriefingSectionCard
+                      key={`${section.specialist_name}-${section.step_index ?? 0}`}
+                      section={section}
+                      isStreaming={isStreaming && section.specialist_name === briefing.lastSpecialist}
+                    />
+                  ))
+                ) : (
+                  <MarkdownRenderer
+                    content={briefing.markdown}
+                    isStreaming={isStreaming}
+                  />
+                )}
               </div>
             </div>
           </div>

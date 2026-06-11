@@ -1,4 +1,4 @@
-import { Modal, Alert } from "antd";
+import { theme, Modal, Alert } from "antd";
 import { WBSElementRead } from "@/api/generated";
 import { useWBSElements } from "@/features/wbs-elements/api/useWBSElements";
 
@@ -17,6 +17,7 @@ export const DeleteWBSElementModal = ({
   onConfirm,
   confirmLoading,
 }: DeleteWBSElementModalProps) => {
+  const { token } = theme.useToken();
   // Check for children
   // Only fetching 1 item to check existence
   const { data: children, isLoading } = useWBSElements({
@@ -43,7 +44,7 @@ export const DeleteWBSElementModal = ({
           message="Cascade Delete Warning"
           description="This WBE has child elements. Deleting it will also delete all its children and their cost elements. This action cannot be undone."
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         />
       )}
       <p>

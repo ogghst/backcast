@@ -80,7 +80,7 @@ export const ForecastImpactList = ({
       render: (_, record) => (
         <div>
           <div style={{ fontWeight: 500 }}>{record.costElementCode}</div>
-          <div style={{ fontSize: 12, color: "#8c8c8c" }}>{record.costElementName}</div>
+          <div style={{ fontSize: 12, color: token.colorTextSecondary }}>{record.costElementName}</div>
           <div style={{ fontSize: 11, color: token.colorTextTertiary }}>BAC: {formatCurrencyValue(Number(record.budgetAmount), currency)}</div>
         </div>
       ),

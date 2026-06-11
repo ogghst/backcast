@@ -1,4 +1,4 @@
-import { Alert, Empty, Space, Tag, Typography } from "antd";
+import { theme, Alert, Empty, Space, Tag, Typography } from "antd";
 import { InfoCircleOutlined } from "@ant-design/icons";
 
 const { Text, Paragraph } = Typography;
@@ -23,6 +23,7 @@ export function StepDetailsSection({
   availableTransitions,
   branchLocked,
 }: StepDetailsSectionProps) {
+  const { token } = theme.useToken();
   // Get content for current status
   const getStatusContent = () => {
     switch (status) {
@@ -123,7 +124,7 @@ export function StepDetailsSection({
         <Text strong style={{ fontSize: 16 }}>
           {content.title}
         </Text>
-        <Paragraph style={{ marginBottom: 8, marginTop: 8 }}>
+        <Paragraph style={{ marginBottom: token.marginXS, marginTop: token.marginXS }}>
           {content.description}
         </Paragraph>
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
@@ -148,7 +149,7 @@ export function StepDetailsSection({
           <Text strong style={{ fontSize: 12 }}>
             Available Actions:
           </Text>
-          <Space wrap style={{ marginTop: 8 }}>
+          <Space wrap style={{ marginTop: token.marginXS }}>
             {content.availableActions.map((action) => (
               <Tag key={action}>{action}</Tag>
             ))}

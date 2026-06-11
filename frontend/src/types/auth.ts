@@ -97,7 +97,8 @@ export type Permission =
   | "schedule-baseline-read"
   | "schedule-baseline-create"
   | "schedule-baseline-update"
-  | "schedule-baseline-delete";
+  | "schedule-baseline-delete"
+  | "system-dump-reseed";
 
 // Type alias for role strings
 export type Role = "admin" | "manager" | "viewer";

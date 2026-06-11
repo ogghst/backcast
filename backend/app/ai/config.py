@@ -39,52 +39,6 @@ class AgentConfig:
     user_role: str | None = None
 
 
-def get_specialist_tools(
-    specialist_name: str,
-    defaults: list[str] | None,
-) -> list[str] | None:
-    """Resolve tool list for a specialist from env var override or defaults.
-
-    Reads the ``AI_TOOLS_{SPECIALIST_NAME}`` environment variable (uppercased,
-    non-alphanumeric characters replaced with underscores).  If set, the
-    comma-separated value is parsed into a list:
-
-    - ``""`` (empty) → ``None`` (no tools)
-    - ``"*"`` → ``["*"]`` (wildcard / all tools)
-    - ``"tool_a,tool_b"`` → ``["tool_a", "tool_b"]``
-
-    Falls back to *defaults* when the env var is not set.
-
-    Args:
-        specialist_name: The subagent identifier (e.g. ``"project_manager"``).
-        defaults: Hardcoded tool list used when no env override exists.
-
-    Returns:
-        Tool list, ``["*"]`` for wildcard, or ``None`` for no tools.
-    """
-    env_key = (
-        "AI_TOOLS_"
-        + "".join(c if c.isalnum() else "_" for c in specialist_name).upper()
-    )
-    env_value = os.environ.get(env_key)
-
-    if env_value is None:
-        return defaults
-
-    env_value = env_value.strip()
-    if not env_value:
-        logger.info(
-            "Tools for %s overridden via %s: no tools (empty)", specialist_name, env_key
-        )
-        return None
-
-    tools = [t.strip() for t in env_value.split(",") if t.strip()]
-    logger.info(
-        "Tools for %s overridden via %s: %d tools", specialist_name, env_key, len(tools)
-    )
-    return tools
-
-
 # ---------------------------------------------------------------------------
 # System-level runtime settings (NOT configurable via UI / DB).
 # Controlled via environment variables for deployment tuning.
@@ -122,7 +76,7 @@ AI_SEQUENTIAL_TOOL_CALLS: bool = os.environ.get(
     "yes",
 )
 
-#: Tool-category prefix used to identify MCP tools for the mcp_specialist.
+#: Tool-category prefix used to identify MCP tools from external servers.
 AI_MCP_TOOL_CATEGORY_PREFIX: str = os.environ.get("AI_MCP_TOOL_CATEGORY_PREFIX", "mcp:")
 
 
@@ -134,7 +88,6 @@ AI_TOOLS_DEFAULT_PAGE_SIZE: int = int(
 __all__ = [
     "AgentConfig",
     "OrchestratorMode",
-    "get_specialist_tools",
     "AI_CONTEXT_TOKEN_LIMIT",
     "AI_CONTEXT_SUMMARY_THRESHOLD_PCT",
     "AI_CONTEXT_KEEP_RECENT",

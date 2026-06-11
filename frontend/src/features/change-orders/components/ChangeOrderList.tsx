@@ -1,4 +1,4 @@
-import { App, Button, Space, Tag } from "antd";
+import { App, Button, Card, Space, Tag } from "antd";
 import {
   HistoryOutlined,
   FileTextOutlined,
@@ -133,63 +133,46 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
   ];
 
   return (
-    <div>
-      <StandardTable<ChangeOrderPublic>
-        tableParams={{
-          pagination: { current: 1, pageSize: 20, total },
-        }}
-        onChange={() => {}} // Placeholder as pagination logic is static/missing
-        loading={isLoading}
-        dataSource={changeOrders}
-        columns={columns}
-        rowKey="change_order_id"
-        onRow={(record) => ({
-          onClick: () => {
-            navigate(`/projects/${projectId}/change-orders/${record.change_order_id}`);
-          },
-          style: { cursor: "pointer" },
-        })}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "16px",
-                fontWeight: "bold",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <FileTextOutlined />
-              Change Orders
-            </div>
-            <Can permission="change-order-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  navigate(`/projects/${projectId}/change-orders/new`);
-                }}
-              >
-                New Change Order
-              </Button>
-            </Can>
-          </div>
+    <>
+      <Card
+        title={
+          <Space>
+            <FileTextOutlined />
+            <span>Change Orders</span>
+          </Space>
         }
-      />
+        extra={
+          <Can permission="change-order-create">
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("new")}>
+              New Change Order
+            </Button>
+          </Can>
+        }
+      >
+        <StandardTable<ChangeOrderPublic>
+          tableParams={{
+            pagination: { current: 1, pageSize: 20, total },
+          }}
+          onChange={() => {}} // Placeholder as pagination logic is static/missing
+          loading={isLoading}
+          dataSource={changeOrders}
+          columns={columns}
+          rowKey="change_order_id"
+          onRow={(record) => ({
+            onClick: () => {
+              navigate(`/projects/${projectId}/change-orders/${record.change_order_id}`);
+            },
+            style: { cursor: "pointer" },
+          })}
+        />
+      </Card>
 
       <HistoryDrawerWrapper
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         changeOrder={selectedChangeOrder}
       />
-    </div>
+    </>
   );
 };
 

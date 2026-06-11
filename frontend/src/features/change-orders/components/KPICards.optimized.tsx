@@ -1,4 +1,4 @@
-import { Card, Col, Row, Statistic, Typography, Spin, Divider } from "antd";
+import { Card, Col, Row, Statistic, Typography, Spin, Divider, theme } from "antd";
 import {
   ArrowUpOutlined,
   ArrowDownOutlined,
@@ -106,6 +106,7 @@ const KPIMetricCard = memo(function KPIMetricCard({
   title: string;
   metric: KPIMetric;
 }) {
+  const { token } = theme.useToken();
   const { color, icon } = getDeltaDisplay(metric.delta);
   const mainValue = formatCurrency(metric.main_value);
   const changeValue = formatCurrency(metric.change_value);
@@ -121,7 +122,7 @@ const KPIMetricCard = memo(function KPIMetricCard({
         suffix="€"
         formatter={(value) => formatCurrency(String(value))}
       />
-      <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
+      <div style={{ marginTop: token.marginXS, fontSize: 12, color: token.colorTextSecondary }}>
         <div>
           Main: <strong>{mainValue}</strong>
         </div>
@@ -159,6 +160,7 @@ const PerformanceIndexCard = memo(function PerformanceIndexCard({
   metric: KPIMetric;
   target: string;
 }) {
+  const { token } = theme.useToken();
   const value = metric.change_value ?? "0";
   const color = getPerformanceIndexColor(value);
   const mainValue = formatNumber(metric.main_value);
@@ -172,7 +174,7 @@ const PerformanceIndexCard = memo(function PerformanceIndexCard({
         precision={2}
         styles={{ content: { color } }}
       />
-      <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
+      <div style={{ marginTop: token.marginXS, fontSize: 12, color: token.colorTextSecondary }}>
         <div>
           Main: <strong>{mainValue}</strong>
         </div>
@@ -203,6 +205,7 @@ const ScheduleDurationCard = memo(function ScheduleDurationCard({
   title: string;
   metric: KPIMetric;
 }) {
+  const { token } = theme.useToken();
   const color = getScheduleDurationColor(metric.delta);
   const { icon, prefix } = getDeltaDisplay(metric.delta);
   const mainValue = formatDays(metric.main_value);
@@ -219,7 +222,7 @@ const ScheduleDurationCard = memo(function ScheduleDurationCard({
         suffix="days"
         formatter={(value) => formatDays(String(value))}
       />
-      <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
+      <div style={{ marginTop: token.marginXS, fontSize: 12, color: token.colorTextSecondary }}>
         <div>
           Main: <strong>{mainValue}</strong>
         </div>

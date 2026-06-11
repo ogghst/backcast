@@ -41,7 +41,9 @@ from app.api.routes import (
     projects,
     rbac_admin,
     schedule_baselines,
+    schedule_dependencies,
     search,
+    system_admin,
     user_role_assignments,
     users,
     wbs_elements,
@@ -439,6 +441,11 @@ app.include_router(
     tags=["Schedule Baselines"],
 )
 app.include_router(
+    schedule_dependencies.router,
+    prefix=f"{settings.API_V1_STR}/schedule-dependencies",
+    tags=["Schedule Dependencies"],
+)
+app.include_router(
     progress_entries.router,
     prefix=f"{settings.API_V1_STR}/progress-entries",
     tags=["Progress Entries"],
@@ -512,6 +519,11 @@ app.include_router(
     user_role_assignments.router,
     prefix=f"{settings.API_V1_STR}/role-assignments",
     tags=["Role Assignments"],
+)
+app.include_router(
+    system_admin.router,
+    prefix=f"{settings.API_V1_STR}/admin/system",
+    tags=["System Admin"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)

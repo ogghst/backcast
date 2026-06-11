@@ -5,16 +5,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "antd";
 import { OrganizationalUnitManagement } from "./OrganizationalUnitManagement";
-import { OrganizationalUnitsService } from "@/api/generated";
+import { OrganizationalUnitsService } from "@/api/generated/services/OrganizationalUnitsService";
 import type { OrganizationalUnitRead } from "@/api/generated";
 
-// Mock the OrganizationalUnitsService
-vi.mock("@/api/generated", () => ({
+// Mock the generated service (CRUD operations used by createResourceHooks)
+vi.mock("@/api/generated/services/OrganizationalUnitsService", () => ({
   OrganizationalUnitsService: {
     getOrganizationalUnits: vi.fn(),
+    getOrganizationalUnitTree: vi.fn(),
+    getOrganizationalUnit: vi.fn(),
     createOrganizationalUnit: vi.fn(),
     updateOrganizationalUnit: vi.fn(),
     deleteOrganizationalUnit: vi.fn(),
+    getOrganizationalUnitHistory: vi.fn(),
   },
 }));
 
@@ -48,6 +51,7 @@ const mockDepartments: OrganizationalUnitRead[] = [
     code: "ENG",
     is_active: true,
     manager_id: null,
+    parent_unit_id: null,
     branch: "main",
     created_at: "2024-01-01T00:00:00Z",
     created_by: "system",
@@ -59,6 +63,7 @@ const mockDepartments: OrganizationalUnitRead[] = [
     code: "SALES",
     is_active: true,
     manager_id: null,
+    parent_unit_id: null,
     branch: "main",
     created_at: "2024-01-01T00:00:00Z",
     created_by: "system",
@@ -85,12 +90,15 @@ const createWrapper = () => {
 describe("OrganizationalUnitManagement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(OrganizationalUnitsService.getOrganizationalUnitTree).mockResolvedValue(
+      mockDepartments as never
+    );
     vi.mocked(OrganizationalUnitsService.getOrganizationalUnits).mockResolvedValue(
       mockDepartments as never
     );
   });
 
-  it("renders the page with Department Management title", () => {
+  it("renders the page with Organizational Unit Management title", () => {
     // Arrange & Act
     render(<OrganizationalUnitManagement />, { wrapper: createWrapper() });
 
@@ -98,7 +106,7 @@ describe("OrganizationalUnitManagement", () => {
     expect(screen.getByText(/Organizational Unit Management/i)).toBeInTheDocument();
   });
 
-  it("renders department table with data from API", async () => {
+  it("renders tree with data from API", async () => {
     // Arrange & Act
     render(<OrganizationalUnitManagement />, { wrapper: createWrapper() });
 
@@ -108,10 +116,10 @@ describe("OrganizationalUnitManagement", () => {
     });
     expect(screen.getByText("ENG")).toBeInTheDocument();
     expect(screen.getByText("Sales")).toBeInTheDocument();
-    expect(OrganizationalUnitsService.getOrganizationalUnits).toHaveBeenCalled();
+    expect(OrganizationalUnitsService.getOrganizationalUnitTree).toHaveBeenCalled();
   });
 
-  it("renders Add Department button", () => {
+  it("renders Add Organizational Unit button", () => {
     // Arrange & Act
     render(<OrganizationalUnitManagement />, { wrapper: createWrapper() });
 
@@ -119,6 +127,15 @@ describe("OrganizationalUnitManagement", () => {
     expect(
       screen.getByRole("button", { name: /Add Organizational Unit/i })
     ).toBeInTheDocument();
+  });
+
+  it("renders Expand All and Collapse All buttons", () => {
+    // Arrange & Act
+    render(<OrganizationalUnitManagement />, { wrapper: createWrapper() });
+
+    // Assert
+    expect(screen.getByRole("button", { name: /Expand All/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Collapse All/i })).toBeInTheDocument();
   });
 
   it("opens create modal when Add Organizational Unit button is clicked", async () => {
@@ -136,7 +153,7 @@ describe("OrganizationalUnitManagement", () => {
     });
   });
 
-  it("shows edit and delete buttons for each department", async () => {
+  it("shows edit and delete buttons for each department in tree", async () => {
     // Arrange & Act
     render(<OrganizationalUnitManagement />, { wrapper: createWrapper() });
 
@@ -146,8 +163,8 @@ describe("OrganizationalUnitManagement", () => {
     });
 
     // Should have edit and delete buttons for both departments
-    const editButtons = screen.getAllByTitle(/Edit Organizational Unit/i);
-    const deleteButtons = screen.getAllByTitle(/Delete Organizational Unit/i);
+    const editButtons = screen.getAllByTitle(/Edit/i);
+    const deleteButtons = screen.getAllByTitle(/Delete/i);
 
     expect(editButtons).toHaveLength(2);
     expect(deleteButtons).toHaveLength(2);
@@ -163,6 +180,7 @@ describe("OrganizationalUnitManagement", () => {
       code: "MKT",
       is_active: true,
       manager_id: null,
+      parent_unit_id: null,
       branch: "main",
       created_at: "2024-01-01T00:00:00Z",
       created_by: "system",

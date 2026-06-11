@@ -76,6 +76,23 @@ End-user guide for interacting with the Backcast  AI Chat assistant using natura
 - Change managers managing change orders
 - Any end user interacting with the AI assistant
 
+### [Configuring Backcast for Your Organization](./backcast-configuration-guide.md)
+
+Adaptation guide for administrators covering roles, workflows, AI assistance, and team structure configuration.
+
+**Topics Covered:**
+- Organizational role configuration and delegation styles (centralized, balanced, distributed)
+- Change management workflow configuration (lean, formal CCB, enterprise governance)
+- AI assistant persona selection, customization, and maturity-based deployment
+- Execution safety tiers and role-matching guidelines
+- Quick-reference matrix by team size (solo to enterprise)
+- Step-by-step configuration checklist
+
+**Target Audience:**
+- System administrators deploying Backcast
+- PMO directors defining governance policies
+- IT leads managing user accounts and security
+
 ### [Frontend Navigation Patterns](./navigation-patterns.md)
 
 Guide to the navigation patterns used in the Backcast  frontend application.
@@ -94,7 +111,27 @@ Guide to the navigation patterns used in the Backcast  frontend application.
 - UI/UX designers
 - Contributors working on navigation features
 
-## Additional Resources
+### [Human-AI Collaboration Guide](./human-ai-collaboration-guide.md)
+
+A corporate-facing guide explaining how human project team members and AI assistants collaborate throughout the industrial automation project lifecycle — from order acquisition through commissioning.
+
+**Topics Covered:**
+- Organizational roles and responsibilities (PMI-aligned)
+- AI assistant capabilities and boundaries
+- Phase-by-phase collaboration guide with concrete examples
+- Change management and governance (CCB process, tiered approval)
+- Earned Value Management integration
+- Corporate tool landscape coordination (ERP, CAD, scheduling, DMS)
+- Best practices for human-AI collaboration
+- RACI matrix template
+
+**Target Audience:**
+- Executives and PMO Directors evaluating Backcast
+- Project Managers and Department Heads planning deployment
+- Project Controllers and Cost Engineers
+- External stakeholders and client organizations
+
+### [Frontend Navigation Patterns](./navigation-patterns.md)
 
 - [Architecture Documentation](../02-architecture/) - System design and architecture
 - [Product Scope](../01-product-scope/) - Feature requirements and vision

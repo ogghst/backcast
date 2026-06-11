@@ -11,6 +11,7 @@
 import type { EChartsOption } from "echarts";
 import type { EChartsColorPalette, EChartsTooltipConfig } from "@/features/evm/utils/echartsTheme";
 import type { GanttRow } from "./GanttDataTransformer";
+import type { GanttDependencyLink } from "../../api/useGanttData";
 
 /** Color mapping for progression types. */
 const PROGRESSION_COLORS: Record<string, string> = {
@@ -42,6 +43,8 @@ export function buildGanttOptions(
   tooltipConfig: EChartsTooltipConfig,
   gridLeft: number = 300,
   currency: string = "EUR",
+  dependencies: GanttDependencyLink[] = [],
+  scheduleIndex: Map<string, number> = new Map(),
 ): EChartsOption {
   const yLabels = rows.map((row) => row.name);
 
@@ -53,6 +56,28 @@ export function buildGanttOptions(
       barData.push([index, row.startDate.getTime(), row.endDate.getTime(), row]);
     }
   });
+
+  // Build dependency arrow data: [predYIdx, predStartTs, predEndTs, succYIdx, succStartTs, succEndTs, dep]
+  const depData: Array<[number, number, number, number, number, number, GanttDependencyLink]> = [];
+  for (const dep of dependencies) {
+    const predIdx = scheduleIndex.get(dep.predecessor_id);
+    const succIdx = scheduleIndex.get(dep.successor_id);
+    if (predIdx !== undefined && succIdx !== undefined) {
+      const predRow = rows[predIdx];
+      const succRow = rows[succIdx];
+      if (predRow?.startDate && predRow?.endDate && succRow?.startDate && succRow?.endDate) {
+        depData.push([
+          predIdx,
+          predRow.startDate.getTime(),
+          predRow.endDate.getTime(),
+          succIdx,
+          succRow.startDate.getTime(),
+          succRow.endDate.getTime(),
+          dep,
+        ]);
+      }
+    }
+  }
 
   // Determine x-axis range
   const now = new Date();
@@ -71,8 +96,27 @@ export function buildGanttOptions(
       ...tooltipConfig,
       trigger: "item",
       formatter: (params: unknown) => {
-        const p = params as { data: [number, number, number, GanttRow] };
-        const row = p.data[3];
+        const p = params as { data: unknown[] };
+
+        // Dependency arrow tooltip (7-element data array)
+        if (p.data.length === 7) {
+          const dep = p.data[6] as GanttDependencyLink;
+          const depTypeLabels: Record<string, string> = {
+            FS: "Finish-Start",
+            SS: "Start-Start",
+            FF: "Finish-Finish",
+            SF: "Start-Finish",
+          };
+          return `<div style="font-weight:600;margin-bottom:4px;">Dependency Link</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Type</span><span style="font-weight:600;">${depTypeLabels[dep.dependency_type] ?? dep.dependency_type}</span>
+</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Lag</span><span style="font-weight:600;">${dep.lag_days} day${dep.lag_days !== 1 ? "s" : ""}</span>
+</div>`;
+        }
+
+        const row = p.data[3] as GanttRow;
         const start = row.startDate!;
         const end = row.endDate!;
         const durationDays = Math.ceil(
@@ -415,6 +459,100 @@ ${
             opacity: 0.6,
           },
           data: [{ xAxis: now.getTime() }],
+        },
+      },
+      // Dependency arrow series: right-angle arrows with endpoints driven by dependency type
+      // FS: pred finish → succ start | SS: pred start → succ start
+      // FF: pred finish → succ finish | SF: pred start → succ finish
+      {
+        type: "custom",
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        clip: true,
+        silent: false,
+        renderItem: (
+          params: { dataIndex: number },
+          api: { value: (dim: number) => number; coord: (data: number[]) => number[] },
+        ) => {
+          const predY = api.value(0);
+          const succY = api.value(3);
+
+          // Access data array directly — api.value() doesn't handle objects reliably
+          const dep = depData[params.dataIndex][6];
+
+          // Pick source/target edge based on dependency type
+          const usePredStart = dep.dependency_type === "SS" || dep.dependency_type === "SF";
+          const useSuccStart = dep.dependency_type === "FS" || dep.dependency_type === "SS";
+
+          const predTs = usePredStart ? api.value(1) : api.value(2);
+          const succTs = useSuccStart ? api.value(4) : api.value(5);
+
+          const srcCoord = api.coord([predTs, predY]);
+          const tgtCoord = api.coord([succTs, succY]);
+
+          // Right-angle routing: source edge -> midpoint -> vertical -> target edge
+          const midX = (srcCoord[0] + tgtCoord[0]) / 2;
+          const srcY_px = srcCoord[1];
+          const tgtY_px = tgtCoord[1];
+
+          const arrowColor = colors.textSecondary;
+          const arrowOpacity = 0.6;
+
+          // Arrow head size
+          const headLen = 6;
+          const headAngle = Math.PI / 6;
+
+          // Direction of the arrow at the target endpoint
+          const endDx = tgtCoord[0] - midX;
+          const angle = endDx >= 0 ? 0 : Math.PI;
+
+          const children: unknown[] = [
+            // Line path: source edge -> midX -> vertical -> target edge
+            {
+              type: "polyline",
+              shape: {
+                points: [
+                  [srcCoord[0], srcY_px],
+                  [midX, srcY_px],
+                  [midX, tgtY_px],
+                  [tgtCoord[0], tgtY_px],
+                ],
+              },
+              style: {
+                stroke: arrowColor,
+                lineWidth: 1.5,
+                opacity: arrowOpacity,
+                fill: "none",
+              },
+            },
+            // Arrowhead at the target endpoint
+            {
+              type: "polygon",
+              shape: {
+                points: [
+                  [tgtCoord[0], tgtY_px],
+                  [tgtCoord[0] - headLen * Math.cos(angle - headAngle),
+                   tgtY_px - headLen * Math.sin(angle - headAngle)],
+                  [tgtCoord[0] - headLen * Math.cos(angle + headAngle),
+                   tgtY_px + headLen * Math.sin(angle + headAngle)],
+                ],
+              },
+              style: {
+                fill: arrowColor,
+                opacity: arrowOpacity,
+              },
+            },
+          ];
+
+          return {
+            type: "group",
+            children,
+          };
+        },
+        data: depData,
+        encode: {
+          x: [1, 2, 4, 5],
+          y: [0, 3],
         },
       },
     ],

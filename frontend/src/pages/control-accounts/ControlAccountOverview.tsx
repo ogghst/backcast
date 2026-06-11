@@ -1,11 +1,12 @@
 import React from "react";
 import { useParams, useNavigate, useOutletContext } from "react-router-dom";
-import { Card, Descriptions, Table, Tag, Grid, Space } from "antd";
+import { Card, Descriptions, Table, Tag, Grid } from "antd";
 import { useWorkPackages } from "@/features/work-packages/api/useWorkPackages";
 import { useWBSElement } from "@/features/wbs-elements/api/useWBSElements";
 import { formatCurrency } from "@/utils/formatters";
 import { getBranchColor } from "@/utils/formatters";
 import type { ControlAccountRead } from "@/api/generated";
+import { PageContent } from "@/components/layout";
 
 /** Status color map for work packages */
 const WP_STATUS_COLOR_MAP: Record<string, string> = {
@@ -45,7 +46,7 @@ export const ControlAccountOverview: React.FC = () => {
   const { data: wbsElement } = useWBSElement(ca?.wbs_element_id || "");
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <PageContent>
       {/* Control Account Information */}
       <Card title="Control Account Information">
         <Descriptions
@@ -167,6 +168,6 @@ export const ControlAccountOverview: React.FC = () => {
           ]}
         />
       </Card>
-    </Space>
+    </PageContent>
   );
 };

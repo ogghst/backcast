@@ -9,7 +9,16 @@ import type { DelegationConfig } from './DelegationConfig';
 export type AIAssistantConfigUpdate = {
     name?: (string | null);
     description?: (string | null);
+    presentation_prompt?: (string | null);
     system_prompt?: (string | null);
+    /**
+     * Custom planner prompt template for main agents.
+     */
+    planner_prompt?: (string | null);
+    /**
+     * Custom supervisor prompt template for main agents.
+     */
+    supervisor_prompt?: (string | null);
     temperature?: (number | null);
     max_tokens?: (number | null);
     recursion_limit?: (number | null);
@@ -23,6 +32,5 @@ export type AIAssistantConfigUpdate = {
     allowed_tools?: (Array<string> | null);
     delegation_config?: (DelegationConfig | null);
     structured_output_schema?: (string | null);
-    is_system?: (boolean | null);
 };
 

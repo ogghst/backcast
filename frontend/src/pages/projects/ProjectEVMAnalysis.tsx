@@ -12,6 +12,7 @@ import { useParams } from "react-router-dom";
 import { useState } from "react";
 import { Space, Collapse, Spin, theme } from "antd";
 import { LineChartOutlined } from "@ant-design/icons";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 import {
   useEVMMetrics,
@@ -83,17 +84,18 @@ export const ProjectEVMAnalysis: React.FC = () => {
   // Error state
   if (metricsError || timeSeriesError) {
     return (
-      <div style={{ padding: token.paddingXL }}>
+      <PageWrapper>
         <p>Error loading EVM data. Please try again.</p>
-      </div>
+      </PageWrapper>
     );
   }
 
   return (
+    <PageWrapper>
     <Space
       direction="vertical"
       size="large"
-      style={{ width: "100%", padding: token.paddingXL }}
+      style={{ width: "100%" }}
     >
       {/* Page Title */}
       <h1 style={{ margin: 0 }}>EVM Analysis</h1>
@@ -153,5 +155,6 @@ export const ProjectEVMAnalysis: React.FC = () => {
         onGranularityChange={setGranularity}
       />
     </Space>
+    </PageWrapper>
   );
 };

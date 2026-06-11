@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { App, Button, Space, Tag, Typography, theme } from "antd";
+import { App, Button, Card, Space, Tag, Typography, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -141,40 +141,33 @@ export const AIProviderList = () => {
   ];
 
   return (
-    <div>
-      <StandardTable<AIProviderPublic>
-        tableParams={tableParams}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={providers || []}
-        columns={columns}
-        rowKey="id"
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: typography.sizes.xl, fontWeight: typography.weights.bold }}>
-              AI Providers
-            </div>
-            <Can permission="ai-config-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedProvider(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add Provider
-              </Button>
-            </Can>
-          </div>
+    <>
+      <Card
+        title="AI Providers"
+        extra={
+          <Can permission="ai-config-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedProvider(null);
+                setModalOpen(true);
+              }}
+            >
+              Add Provider
+            </Button>
+          </Can>
         }
-      />
+      >
+        <StandardTable<AIProviderPublic>
+          tableParams={tableParams}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={providers || []}
+          columns={columns}
+          rowKey="id"
+        />
+      </Card>
 
       <AIProviderModal
         open={modalOpen}
@@ -231,6 +224,6 @@ export const AIProviderList = () => {
           )}
         </>
       )}
-    </div>
+    </>
   );
 };

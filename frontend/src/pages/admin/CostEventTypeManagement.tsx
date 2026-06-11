@@ -1,4 +1,4 @@
-import { App, Button, Space, Tag } from "antd";
+import { App, Button, Card, Space, Tag } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -215,42 +215,35 @@ export const CostEventTypeManagement = () => {
   ];
 
   return (
-    <div>
-      <StandardTable<CostEventTypeRead>
-        tableParams={tableParams}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={(types as CostEventTypeRead[]) || []}
-        columns={columns}
-        rowKey="cost_event_type_id"
-        searchable={true}
-        onSearch={handleSearch}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-              Cost Event Types
-            </div>
-            <Can permission="cost-event-type-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedType(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add Cost Event Type
-              </Button>
-            </Can>
-          </div>
+    <>
+      <Card
+        title="Cost Event Types"
+        extra={
+          <Can permission="cost-event-type-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedType(null);
+                setModalOpen(true);
+              }}
+            >
+              Add Cost Event Type
+            </Button>
+          </Can>
         }
-      />
+      >
+        <StandardTable<CostEventTypeRead>
+          tableParams={tableParams}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={(types as CostEventTypeRead[]) || []}
+          columns={columns}
+          rowKey="cost_event_type_id"
+          searchable={true}
+          onSearch={handleSearch}
+        />
+      </Card>
 
       <CostEventTypeModal
         open={modalOpen}
@@ -289,6 +282,6 @@ export const CostEventTypeManagement = () => {
         entityName={`Type: ${selectedType?.name || ""}`}
         isLoading={historyLoading}
       />
-    </div>
+    </>
   );
 };

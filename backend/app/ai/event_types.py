@@ -35,6 +35,7 @@ class ExecutionStatus(str, Enum):
     COMPLETED = "completed"
     ERROR = "error"
     AWAITING_APPROVAL = "awaiting_approval"
+    STOPPED = "stopped"
 
 
 # Tool names that require special handling in the event loop

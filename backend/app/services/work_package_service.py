@@ -345,41 +345,65 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         """
         from app.models.domain.project import Project
 
-        stmt = (
-            select(WorkPackage, ControlAccount, WBSElement, Project)
-            .join(
-                ControlAccount,
-                ControlAccount.control_account_id == WorkPackage.control_account_id,
-            )
-            .join(
-                WBSElement,
-                WBSElement.wbs_element_id == ControlAccount.wbs_element_id,
-            )
-            .join(
-                Project,
-                Project.project_id == WBSElement.project_id,
-            )
+        # Step 1: Find the Work Package
+        wp_stmt = (
+            select(WorkPackage)
             .where(
                 WorkPackage.work_package_id == work_package_id,
                 func.upper(cast(Any, WorkPackage).valid_time).is_(None),
                 cast(Any, WorkPackage).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        wp_result = await self.session.execute(wp_stmt)
+        wp = wp_result.scalar_one_or_none()
+        if wp is None:
+            raise ValueError(f"Work Package {work_package_id} not found")
+
+        # Step 2: Find the Control Account
+        ca_stmt = (
+            select(ControlAccount)
+            .where(
+                ControlAccount.control_account_id == wp.control_account_id,
                 func.upper(cast(Any, ControlAccount).valid_time).is_(None),
                 cast(Any, ControlAccount).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        ca_result = await self.session.execute(ca_stmt)
+        ca = ca_result.scalar_one_or_none()
+        if ca is None:
+            raise ValueError(f"Control Account {wp.control_account_id} not found")
+
+        # Step 3: Find the WBS Element
+        wbs_stmt = (
+            select(WBSElement)
+            .where(
+                WBSElement.wbs_element_id == ca.wbs_element_id,
                 func.upper(cast(Any, WBSElement).valid_time).is_(None),
                 cast(Any, WBSElement).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        wbs_result = await self.session.execute(wbs_stmt)
+        wbs = wbs_result.scalar_one_or_none()
+        if wbs is None:
+            raise ValueError(f"WBS Element {ca.wbs_element_id} not found")
+
+        # Step 4: Find the Project
+        project_stmt = (
+            select(Project)
+            .where(
+                Project.project_id == wbs.project_id,
                 func.upper(cast(Any, Project).valid_time).is_(None),
                 cast(Any, Project).deleted_at.is_(None),
             )
             .limit(1)
         )
-
-        result = await self.session.execute(stmt)
-        row = result.one_or_none()
-
-        if row is None:
-            raise ValueError(f"Work Package {work_package_id} not found")
-
-        wp, ca, wbs, project = row
+        project_result = await self.session.execute(project_stmt)
+        project = project_result.scalar_one_or_none()
+        if project is None:
+            raise ValueError(f"Project {wbs.project_id} not found")
 
         return {
             "project": {

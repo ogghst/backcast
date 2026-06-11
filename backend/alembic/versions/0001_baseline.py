@@ -36,29 +36,34 @@ def upgrade() -> None:
     import app.models.domain.ai  # noqa: F401
     import app.models.domain.branch  # noqa: F401
     import app.models.domain.change_order  # noqa: F401
+    import app.models.domain.change_order_audit_log  # noqa: F401
+    import app.models.domain.change_order_config  # noqa: F401
     import app.models.domain.control_account  # noqa: F401
     import app.models.domain.cost_element  # noqa: F401
+    import app.models.domain.cost_element_type  # noqa: F401
     import app.models.domain.cost_event  # noqa: F401
+    import app.models.domain.cost_event_type  # noqa: F401
     import app.models.domain.cost_registration  # noqa: F401
-    import app.models.domain.dashboard  # noqa: F401
-    import app.models.domain.department  # noqa: F401
+    import app.models.domain.cost_registration_attachment  # noqa: F401
+    import app.models.domain.dashboard_layout  # noqa: F401
     import app.models.domain.document  # noqa: F401
+    import app.models.domain.document_entity_link  # noqa: F401
+    import app.models.domain.document_folder  # noqa: F401
+    import app.models.domain.document_version  # noqa: F401
     import app.models.domain.forecast  # noqa: F401
-    import app.models.domain.holiday  # noqa: F401
     import app.models.domain.mcp_server  # noqa: F401
     import app.models.domain.notification  # noqa: F401
-    import app.models.domain.progress  # noqa: F401
+    import app.models.domain.organizational_unit  # noqa: F401
+    import app.models.domain.progress_entry  # noqa: F401
     import app.models.domain.project  # noqa: F401
+    import app.models.domain.project_budget_settings  # noqa: F401
     import app.models.domain.rbac  # noqa: F401
+    import app.models.domain.refresh_token  # noqa: F401
+    import app.models.domain.schedule_baseline  # noqa: F401
     import app.models.domain.user  # noqa: F401
+    import app.models.domain.user_role_assignment  # noqa: F401
     import app.models.domain.wbs_element  # noqa: F401
     import app.models.domain.work_package  # noqa: F401
-    import app.models.domain.schedule_baseline  # noqa: F401
-    import app.models.domain.cost_element_type  # noqa: F401
-    import app.models.domain.quality_impact  # noqa: F401
-    import app.models.domain.cost_registration_attachment  # noqa: F401
-    import app.models.domain.change_order_audit  # noqa: F401
-    import app.models.domain.project_budget_settings  # noqa: F401
 
     connection = op.get_bind()
     Base.metadata.create_all(connection)
@@ -73,29 +78,34 @@ def downgrade() -> None:
     import app.models.domain.ai  # noqa: F401
     import app.models.domain.branch  # noqa: F401
     import app.models.domain.change_order  # noqa: F401
+    import app.models.domain.change_order_audit_log  # noqa: F401
+    import app.models.domain.change_order_config  # noqa: F401
     import app.models.domain.control_account  # noqa: F401
     import app.models.domain.cost_element  # noqa: F401
+    import app.models.domain.cost_element_type  # noqa: F401
     import app.models.domain.cost_event  # noqa: F401
+    import app.models.domain.cost_event_type  # noqa: F401
     import app.models.domain.cost_registration  # noqa: F401
-    import app.models.domain.dashboard  # noqa: F401
-    import app.models.domain.department  # noqa: F401
+    import app.models.domain.cost_registration_attachment  # noqa: F401
+    import app.models.domain.dashboard_layout  # noqa: F401
     import app.models.domain.document  # noqa: F401
+    import app.models.domain.document_entity_link  # noqa: F401
+    import app.models.domain.document_folder  # noqa: F401
+    import app.models.domain.document_version  # noqa: F401
     import app.models.domain.forecast  # noqa: F401
-    import app.models.domain.holiday  # noqa: F401
     import app.models.domain.mcp_server  # noqa: F401
     import app.models.domain.notification  # noqa: F401
-    import app.models.domain.progress  # noqa: F401
+    import app.models.domain.organizational_unit  # noqa: F401
+    import app.models.domain.progress_entry  # noqa: F401
     import app.models.domain.project  # noqa: F401
+    import app.models.domain.project_budget_settings  # noqa: F401
     import app.models.domain.rbac  # noqa: F401
+    import app.models.domain.refresh_token  # noqa: F401
+    import app.models.domain.schedule_baseline  # noqa: F401
     import app.models.domain.user  # noqa: F401
+    import app.models.domain.user_role_assignment  # noqa: F401
     import app.models.domain.wbs_element  # noqa: F401
     import app.models.domain.work_package  # noqa: F401
-    import app.models.domain.schedule_baseline  # noqa: F401
-    import app.models.domain.cost_element_type  # noqa: F401
-    import app.models.domain.quality_impact  # noqa: F401
-    import app.models.domain.cost_registration_attachment  # noqa: F401
-    import app.models.domain.change_order_audit  # noqa: F401
-    import app.models.domain.project_budget_settings  # noqa: F401
 
     connection = op.get_bind()
     # Drop all tables registered in metadata (reverse dependency order)

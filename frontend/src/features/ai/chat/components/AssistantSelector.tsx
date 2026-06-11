@@ -49,6 +49,11 @@ export const AssistantSelector = ({
   // Find the current assistant for locked state display
   const currentAssistant = activeAssistants.find((a) => a.id === value);
 
+  const { data: allAssistants } = useAIAssistants(true, {
+    enabled: locked && !!value && !activeAssistants.some((a) => a.id === value),
+  });
+  const inactiveAssistant = allAssistants?.find((a) => a.id === value);
+
   const options: SelectProps["options"] = activeAssistants.map(
     (assistant: AIAssistantPublic) => ({
       label: assistant.name,
@@ -56,6 +61,52 @@ export const AssistantSelector = ({
       title: assistant.description || undefined,
     })
   );
+
+  // Show deactivated state for locked sessions with inactive assistants
+  if (locked && value && !currentAssistant && inactiveAssistant) {
+    return (
+      <Tooltip title="This assistant has been deactivated. Start a new chat to use a different assistant.">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: spacing.xs,
+            padding: `${spacing.xs}px ${spacing.sm}px`,
+            backgroundColor: token.colorFillTertiary,
+            border: `1px solid ${token.colorBorder}`,
+            borderRadius: 8,
+            cursor: "not-allowed",
+            height: 36,
+            boxSizing: "border-box",
+          }}
+        >
+          <span
+            style={{
+              fontSize: typography.sizes.sm,
+              fontWeight: typography.weights.medium,
+              color: token.colorTextSecondary,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {inactiveAssistant.name}
+          </span>
+          <Tag
+            color="error"
+            style={{
+              fontSize: 11,
+              lineHeight: "18px",
+              margin: 0,
+              padding: "0 4px",
+            }}
+          >
+            Deactivated
+          </Tag>
+        </div>
+      </Tooltip>
+    );
+  }
 
   // When locked, show visual feedback
   if (locked && value && currentAssistant) {

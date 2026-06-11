@@ -1,10 +1,10 @@
 import { useParams } from "react-router-dom";
-import { Typography, Card, Row, Col, theme } from "antd";
+import { Card, Row, Col, theme } from "antd";
 import { BudgetSettingsWidget } from "@/features/projects/widgets/BudgetSettingsWidget";
 import { ProjectConfigPanel } from "@/features/change-orders/components/ProjectConfigPanel";
 import { Can } from "@/components/auth/Can";
-
-const { Title } = Typography;
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 /**
  * ProjectAdminPage Component
@@ -21,22 +21,19 @@ export const ProjectAdminPage = () => {
 
   if (!projectId) {
     return (
-      <div style={{ padding: token.paddingXL }}>
-        <Title level={2}>Project Administration</Title>
+      <PageWrapper>
+        <PageHeader title="Project Administration" />
         <Card>
-          <Typography.Text type="secondary">
-            Project ID is required. Please navigate to this page from a valid project.
-          </Typography.Text>
+          No project selected. Please navigate to this page from a valid
+          project.
         </Card>
-      </div>
+      </PageWrapper>
     );
   }
 
   return (
-    <div style={{ padding: token.paddingXL }}>
-      <Title level={2} style={{ marginBottom: token.paddingLG }}>
-        Project Administration
-      </Title>
+    <PageWrapper>
+      <PageHeader title="Project Administration" />
 
       <Row gutter={[token.paddingLG, token.paddingLG]}>
         <Col xs={24} lg={12} xl={8}>
@@ -51,12 +48,15 @@ export const ProjectAdminPage = () => {
         </Col>
       </Row>
 
-      <Row gutter={[token.paddingLG, token.paddingLG]} style={{ marginTop: token.paddingLG }}>
+      <Row
+        gutter={[token.paddingLG, token.paddingLG]}
+        style={{ marginTop: token.paddingLG }}
+      >
         <Col xs={24}>
           <ProjectConfigPanel projectId={projectId} />
         </Col>
       </Row>
-    </div>
+    </PageWrapper>
   );
 };
 

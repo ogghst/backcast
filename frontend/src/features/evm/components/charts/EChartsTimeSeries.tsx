@@ -9,7 +9,7 @@
  */
 
 import React, { useMemo, useRef, useCallback } from "react";
-import { Button, Space, Radio } from "antd";
+import { Button, Space, Radio, theme } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import type { ECharts } from "echarts";
 import ReactECharts from "echarts-for-react";
@@ -98,6 +98,8 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
 }) => {
   const chartRef = useRef<ReactECharts | null>(null);
   const chart2Ref = useRef<ReactECharts | null>(null);
+
+  const { token } = theme.useToken();
 
   // Get theme configuration at top level (hook must be called at component level)
   const echartsTheme = useEChartsTheme();
@@ -313,7 +315,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
             <div style={{ ...chartWrapperStyle, marginBottom: hasPerformanceIndicesData ? 12 : 0 }}>
               <div
                 style={{
-                  marginBottom: 8,
+                  marginBottom: token.marginXS,
                   fontSize: 14,
                   fontWeight: 500,
                   color: "rgba(0,0,0,0.88)",
@@ -349,7 +351,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
             <div style={chartWrapperStyle}>
               <div
                 style={{
-                  marginBottom: 8,
+                  marginBottom: token.marginXS,
                   fontSize: 14,
                   fontWeight: 500,
                   color: "rgba(0,0,0,0.88)",
@@ -388,7 +390,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
             <div>
               <div
                 style={{
-                  marginBottom: 8,
+                  marginBottom: token.marginXS,
                   fontSize: 14,
                   fontWeight: 500,
                   color: "rgba(0,0,0,0.88)",
@@ -421,7 +423,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
             <div>
               <div
                 style={{
-                  marginBottom: 8,
+                  marginBottom: token.marginXS,
                   fontSize: 14,
                   fontWeight: 500,
                   color: "rgba(0,0,0,0.88)",

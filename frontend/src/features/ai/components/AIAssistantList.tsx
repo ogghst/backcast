@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { App, Button, Segmented, Space, Tag, theme } from "antd";
+import { App, Button, Card, Segmented, Space, Tag, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -105,7 +105,10 @@ export const AIAssistantList = () => {
       title: "Model",
       dataIndex: "model_id",
       key: "model_id",
-      render: (modelId: string) => {
+      render: (modelId: string | null, record: AIAssistantPublic) => {
+        if (!modelId) {
+          return <Tag>{record.agent_type === "specialist" ? "Supervisor default" : "—"}</Tag>;
+        }
         const model = availableModels.find(m => m.id === modelId);
         return <Tag>{model?.display_name || modelId}</Tag>;
       },
@@ -152,19 +155,11 @@ export const AIAssistantList = () => {
   ];
 
   return (
-    <div>
-      <StandardTable<AIAssistantPublic>
-        tableParams={tableParams}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={filteredAssistants}
-        columns={columns}
-        rowKey="id"
-        toolbar={
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: typography.sizes.xl, fontWeight: typography.weights.bold }}>
-              AI Assistants
-            </div>
+    <>
+      <Card
+        title="AI Assistants"
+        extra={
+          <Space>
             <Segmented
               options={[
                 { label: "All", value: "all" },
@@ -179,9 +174,18 @@ export const AIAssistantList = () => {
                 Add Assistant
               </Button>
             </Can>
-          </div>
+          </Space>
         }
-      />
+      >
+        <StandardTable<AIAssistantPublic>
+          tableParams={tableParams}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={filteredAssistants}
+          columns={columns}
+          rowKey="id"
+        />
+      </Card>
 
       <AIAssistantModal
         open={modalOpen}
@@ -201,6 +205,6 @@ export const AIAssistantList = () => {
         models={availableModels}
         specialists={specialists}
       />
-    </div>
+    </>
   );
 };

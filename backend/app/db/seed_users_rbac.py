@@ -6,6 +6,7 @@ and skips if already present.
 
 import logging
 from collections.abc import Callable
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -136,6 +137,7 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "change-order-workflow-config-override",
             "change-order-escalate",
             "temporal-write",
+            "system-dump-reseed",
         ],
     },
     "manager": {
@@ -246,6 +248,7 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "user-read",
             "organizational-unit-read",
             "ai-chat",
+            "mcp-tool-execute",
             "progress-entry-read",
         ],
     },
@@ -303,6 +306,7 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "schedule-baseline-update",
             "schedule-baseline-delete",
             "mcp-server-read",
+            "mcp-tool-execute",
             "progress-entry-read",
             "progress-entry-create",
             "progress-entry-update",
@@ -430,6 +434,144 @@ async def seed_users_and_rbac(session: AsyncSession) -> None:
     await _seed_users(session, get_password_hash)
     role_map = await _seed_rbac_roles(session)
     await _seed_role_assignments(session, role_map)
+
+
+async def seed_users_and_rbac_from_data(
+    session: AsyncSession,
+    data: dict[str, Any],
+) -> None:
+    """Seed users, RBAC roles/permissions, and role assignments from a data dict.
+
+    Accepts a dict matching the seed_data.json schema:
+    {
+        "rbac_roles": { "<role_name>": { "description": "...", "permissions": [...] } },
+        "users": [{ "user_id": "...", "email": "...", "password": "...", "full_name": "..." }],
+        "user_role_assignments": { "email@domain": "role_name" }
+    }
+
+    This is the function the API reseed endpoint calls.
+    """
+    from app.core.security import get_password_hash
+    from app.models.domain.rbac import RBACRole, RBACRolePermission
+    from app.models.domain.user import User
+    from app.models.domain.user_role_assignment import ScopeType, UserRoleAssignment
+
+    rbac_roles = data["rbac_roles"]
+    users_data = data["users"]
+    role_assignments = data["user_role_assignments"]
+
+    # Seed users
+    # Build a map of user_id -> password from default users for fallback
+    default_passwords: dict[str, str] = {
+        str(u["user_id"]): str(u["password"]) for u in DEFAULT_USERS
+    }
+
+    for user_def in users_data:
+        user_id = UUID(user_def["user_id"])
+        stmt = select(User).where(User.user_id == user_id)
+        result = await session.execute(stmt)
+        if result.scalar_one_or_none() is not None:
+            continue
+
+        # Use provided password, or fall back to default, or use "backcast"
+        password = str(user_def.get("password", ""))
+        if not password:
+            password = default_passwords.get(str(user_id), "backcast")
+
+        user = User(
+            id=user_id,
+            user_id=user_id,
+            email=str(user_def["email"]),
+            hashed_password=get_password_hash(password),
+            full_name=str(user_def["full_name"]),
+            is_active=True,
+            created_by=SYSTEM_ACTOR,
+        )
+        session.add(user)
+        logger.info("Seeded user %s", user_def["email"])
+
+    await session.flush()
+
+    # Seed RBAC roles and permissions
+    existing_result = await session.execute(select(RBACRole))
+    existing_roles: dict[str, UUID] = {
+        r.name: r.id for r in existing_result.scalars().all()
+    }
+    role_map: dict[str, UUID] = {}
+
+    for role_name, role_def in rbac_roles.items():
+        if role_name in existing_roles:
+            role_map[role_name] = existing_roles[role_name]
+        else:
+            role_id = uuid4()
+            session.add(
+                RBACRole(
+                    id=role_id,
+                    name=role_name,
+                    description=str(role_def["description"]),
+                    is_system=True,
+                )
+            )
+            role_map[role_name] = role_id
+            logger.info("Seeded role %s", role_name)
+
+    await session.flush()
+
+    # Seed permissions for each role
+    for role_name, role_def in rbac_roles.items():
+        role_id = role_map[role_name]
+        result = await session.execute(
+            select(RBACRolePermission.permission).where(
+                RBACRolePermission.role_id == role_id
+            )
+        )
+        existing_perms: set[str] = {row[0] for row in result.all()}
+
+        permissions = role_def["permissions"]
+        assert isinstance(permissions, list)
+        new_perms = set(permissions) - existing_perms
+        for perm in sorted(new_perms):
+            session.add(
+                RBACRolePermission(
+                    id=uuid4(),
+                    role_id=role_id,
+                    permission=perm,
+                )
+            )
+        if new_perms:
+            logger.info("Seeded %d permissions for role %s", len(new_perms), role_name)
+
+    await session.flush()
+
+    # Seed role assignments
+    # Build email -> user_id mapping
+    email_to_user_id: dict[str, UUID] = {
+        u["email"]: UUID(u["user_id"]) for u in users_data
+    }
+
+    existing_assignments = await session.execute(select(UserRoleAssignment))
+    existing: set[tuple[str, str]] = {
+        (str(a.user_id), str(a.role_id)) for a in existing_assignments.scalars().all()
+    }
+
+    for email, role_name in role_assignments.items():
+        user_id = email_to_user_id[email]
+        role_id = role_map[role_name]
+        key = (str(user_id), str(role_id))
+        if key in existing:
+            continue
+        assignment = UserRoleAssignment(
+            id=uuid4(),
+            user_id=user_id,
+            role_id=role_id,
+            scope_type=ScopeType.GLOBAL.value,
+            scope_id=None,
+            granted_by=SYSTEM_ACTOR,
+        )
+        session.add(assignment)
+        logger.info("Seeded role assignment: %s -> %s", email, role_name)
+
+    await session.flush()
 
 
 async def _seed_users(

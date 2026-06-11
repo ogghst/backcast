@@ -11,5 +11,6 @@ export type AIToolPublic = {
     permissions: Array<string>;
     category?: (string | null);
     version: string;
+    risk_level?: (string | null);
 };
 

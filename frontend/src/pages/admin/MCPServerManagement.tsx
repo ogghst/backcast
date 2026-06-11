@@ -7,9 +7,5 @@
 import { MCPServerList } from "@/features/ai/components/MCPServerList";
 
 export const MCPServerManagement = () => {
-  return (
-    <div>
-      <MCPServerList />
-    </div>
-  );
+  return <MCPServerList />;
 };

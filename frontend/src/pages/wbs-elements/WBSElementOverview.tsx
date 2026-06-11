@@ -32,6 +32,8 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { ControlAccountCard } from "@/features/control-accounts/components/ControlAccountCard";
 import { WorkPackageCard } from "@/features/work-packages/components/WorkPackageCard";
 import { formatCurrency } from "@/utils/formatters";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageContent } from "@/components/layout/PageContent";
 
 /** Status color map matching WorkPackageCard */
 const WP_STATUS_COLOR_MAP: Record<string, string> = {
@@ -190,290 +192,292 @@ export const WBSElementOverview = () => {
   }, [location.state]);
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      {/* WBS Element Header with cost visualization */}
-      {wbe && (
-        <WBSElementHeaderCard
-          wbsElement={wbe}
-          loading={wbeLoading}
-          actualCosts={(budgetStatus as Record<string, unknown> | undefined)?.total_spend as number | undefined}
-          extraContent={
-            wbsElementId ? (
-              <CostHistoryChart
-                entityType="wbs_element"
-                entityId={wbsElementId}
-                headless
-                controlDate={controlDate || undefined}
-                projectId={projectId}
+    <PageWrapper>
+      <PageContent>
+        {/* WBS Element Header with cost visualization */}
+        {wbe && (
+          <WBSElementHeaderCard
+            wbsElement={wbe}
+            loading={wbeLoading}
+            actualCosts={(budgetStatus as Record<string, unknown> | undefined)?.total_spend as number | undefined}
+            extraContent={
+              wbsElementId ? (
+                <CostHistoryChart
+                  entityType="wbs_element"
+                  entityId={wbsElementId}
+                  headless
+                  controlDate={controlDate || undefined}
+                  projectId={projectId}
+                />
+              ) : undefined
+            }
+          />
+        )}
+
+        {/* Child WBEs Section */}
+        <Card
+          title="Child WBS Elements"
+          extra={
+            <Space>
+              <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
+              <Can permission="wbs-element-create">
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateChild}>
+                  {isMobile ? undefined : "Add Child WBS Element"}
+                </Button>
+              </Can>
+            </Space>
+          }
+        >
+          <WBSElementTable
+            wbes={childWbes}
+            loading={childrenLoading}
+            onRowClick={handleRowClick}
+            variant={resolvedMode}
+          />
+        </Card>
+
+        {/* Cost Elements are now managed under Work Packages */}
+
+        {/* Control Accounts Section */}
+        <Card
+          ref={caSectionRef}
+          title="Control Accounts"
+          extra={
+            <Space>
+              <ViewModeToggle viewMode={caViewMode} onCycleViewMode={caCycleViewMode} />
+              <Can permission="control-account-create">
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCaModalOpen(true)}>
+                  {isMobile ? undefined : "Add Control Account"}
+                </Button>
+              </Can>
+            </Space>
+          }
+        >
+          {(() => {
+            const useCaCard = caResolvedMode === "card";
+            if (useCaCard) {
+              if (!caData) return <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>;
+              if (controlAccounts.length === 0) return <Empty description="No control accounts" />;
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
+                  {controlAccounts.map((ca) => (
+                    <ControlAccountCard
+                      key={ca.control_account_id}
+                      controlAccount={ca}
+                    />
+                  ))}
+                </div>
+              );
+            }
+            return (
+              <Table
+                dataSource={controlAccounts}
+                rowKey="control_account_id"
+                loading={!caData}
+                pagination={false}
+                columns={[
+                  { title: "Code", dataIndex: "code", key: "code", width: 150 },
+                  { title: "Name", dataIndex: "name", key: "name" },
+                  { title: "Organizational Unit", dataIndex: "organizational_unit_name", key: "ou", responsive: ["lg"] },
+                  {
+                    title: "Actions",
+                    key: "actions",
+                    width: isMobile ? 80 : 120,
+                    render: (_, record: ControlAccountRead) => (
+                      <Space>
+                        <Can permission="control-account-update">
+                          <Button
+                            icon={<EditOutlined />}
+                            onClick={() => {
+                              setCaEditing(record);
+                              setCaEditModalOpen(true);
+                            }}
+                            title="Edit"
+                          />
+                        </Can>
+                        <Can permission="control-account-delete">
+                          <Button
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => handleDeleteCA(record.control_account_id)}
+                            title="Delete"
+                          />
+                        </Can>
+                      </Space>
+                    ),
+                  },
+                ]}
               />
-            ) : undefined
-          }
-        />
-      )}
-
-      {/* Child WBEs Section */}
-      <Card
-        title="Child WBS Elements"
-        extra={
-          <Space>
-            <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
-            <Can permission="wbs-element-create">
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateChild}>
-                {isMobile ? undefined : "Add Child WBS Element"}
-              </Button>
-            </Can>
-          </Space>
-        }
-      >
-        <WBSElementTable
-          wbes={childWbes}
-          loading={childrenLoading}
-          onRowClick={handleRowClick}
-          variant={resolvedMode}
-        />
-      </Card>
-
-      {/* Cost Elements are now managed under Work Packages */}
-
-      {/* Control Accounts Section */}
-      <Card
-        ref={caSectionRef}
-        title="Control Accounts"
-        extra={
-          <Space>
-            <ViewModeToggle viewMode={caViewMode} onCycleViewMode={caCycleViewMode} />
-            <Can permission="control-account-create">
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCaModalOpen(true)}>
-                {isMobile ? undefined : "Add Control Account"}
-              </Button>
-            </Can>
-          </Space>
-        }
-      >
-        {(() => {
-          const useCaCard = caResolvedMode === "card";
-          if (useCaCard) {
-            if (!caData) return <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>;
-            if (controlAccounts.length === 0) return <Empty description="No control accounts" />;
-            return (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
-                {controlAccounts.map((ca) => (
-                  <ControlAccountCard
-                    key={ca.control_account_id}
-                    controlAccount={ca}
-                  />
-                ))}
-              </div>
             );
-          }
-          return (
-            <Table
-              dataSource={controlAccounts}
-              rowKey="control_account_id"
-              loading={!caData}
-              pagination={false}
-              columns={[
-                { title: "Code", dataIndex: "code", key: "code", width: 150 },
-                { title: "Name", dataIndex: "name", key: "name" },
-                { title: "Organizational Unit", dataIndex: "organizational_unit_name", key: "ou", responsive: ["lg"] },
-                {
-                  title: "Actions",
-                  key: "actions",
-                  width: isMobile ? 80 : 120,
-                  render: (_, record: ControlAccountRead) => (
-                    <Space>
-                      <Can permission="control-account-update">
-                        <Button
-                          icon={<EditOutlined />}
-                          onClick={() => {
-                            setCaEditing(record);
-                            setCaEditModalOpen(true);
-                          }}
-                          title="Edit"
-                        />
-                      </Can>
-                      <Can permission="control-account-delete">
-                        <Button
-                          danger
-                          icon={<DeleteOutlined />}
-                          onClick={() => handleDeleteCA(record.control_account_id)}
-                          title="Delete"
-                        />
-                      </Can>
-                    </Space>
-                  ),
-                },
-              ]}
-            />
-          );
-        })()}
-      </Card>
+          })()}
+        </Card>
 
-      {/* Work Packages Section */}
-      <Card
-        title="Work Packages"
-        extra={
-          <Space>
-            <ViewModeToggle viewMode={wpViewMode} onCycleViewMode={wpCycleViewMode} />
-            <Can permission="work-package-create">
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setWpModalOpen(true)}>
-                {isMobile ? undefined : "Add Work Package"}
-              </Button>
-            </Can>
-          </Space>
-        }
-      >
-        {(() => {
-          const useWpCard = wpResolvedMode === "card";
-          if (useWpCard) {
-            if (wpLoading) return <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>;
-            if (workPackages.length === 0) return <Empty description="No work packages" />;
+        {/* Work Packages Section */}
+        <Card
+          title="Work Packages"
+          extra={
+            <Space>
+              <ViewModeToggle viewMode={wpViewMode} onCycleViewMode={wpCycleViewMode} />
+              <Can permission="work-package-create">
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setWpModalOpen(true)}>
+                  {isMobile ? undefined : "Add Work Package"}
+                </Button>
+              </Can>
+            </Space>
+          }
+        >
+          {(() => {
+            const useWpCard = wpResolvedMode === "card";
+            if (useWpCard) {
+              if (wpLoading) return <div style={{ display: "flex", justifyContent: "center", padding: token.paddingXL }}><Spin /></div>;
+              if (workPackages.length === 0) return <Empty description="No work packages" />;
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
+                  {workPackages.map((wp) => (
+                    <WorkPackageCard
+                      key={wp.work_package_id}
+                      workPackage={wp}
+                      onClick={() => navigate(`/projects/${projectId}/work-packages/${wp.work_package_id}`)}
+                    />
+                  ))}
+                </div>
+              );
+            }
             return (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: token.marginMD }}>
-                {workPackages.map((wp) => (
-                  <WorkPackageCard
-                    key={wp.work_package_id}
-                    workPackage={wp}
-                    onClick={() => navigate(`/projects/${projectId}/work-packages/${wp.work_package_id}`)}
-                  />
-                ))}
-              </div>
+              <Table
+                dataSource={workPackages}
+                rowKey="work_package_id"
+                loading={wpLoading}
+                pagination={{
+                  defaultPageSize: 10,
+                  showSizeChanger: true,
+                  pageSizeOptions: ["10", "20", "50", "100"],
+                  showTotal: (total) => `Total ${total} items`,
+                  position: ["bottomRight"],
+                }}
+                onRow={(record) => ({
+                  onClick: () => navigate(`/projects/${projectId}/work-packages/${record.work_package_id}`),
+                  style: { cursor: "pointer" },
+                })}
+                columns={[
+                  {
+                    title: "Code",
+                    dataIndex: "code",
+                    key: "code",
+                    width: 120,
+                    sorter: (a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }),
+                  },
+                  {
+                    title: "Name",
+                    dataIndex: "name",
+                    key: "name",
+                    sorter: (a, b) => a.name.localeCompare(b.name),
+                  },
+                  {
+                    title: "Status",
+                    dataIndex: "status",
+                    key: "status",
+                    width: 130,
+                    render: (status: string) => (
+                      <Tag color={WP_STATUS_COLOR_MAP[status || "open"] || "default"}>
+                        {status || "open"}
+                      </Tag>
+                    ),
+                  },
+                  {
+                    title: "Budget",
+                    dataIndex: "budget_amount",
+                    key: "budget_amount",
+                    width: 140,
+                    align: "right",
+                    render: (val: string) => formatCurrency(val),
+                    sorter: (a, b) => Number(a.budget_amount || 0) - Number(b.budget_amount || 0),
+                  },
+                  {
+                    title: "Control Account",
+                    dataIndex: "control_account_name_resolved",
+                    key: "control_account_name_resolved",
+                    width: 180,
+                    responsive: ["lg"],
+                  },
+                ]}
+              />
             );
-          }
-          return (
-            <Table
-              dataSource={workPackages}
-              rowKey="work_package_id"
-              loading={wpLoading}
-              pagination={{
-                defaultPageSize: 10,
-                showSizeChanger: true,
-                pageSizeOptions: ["10", "20", "50", "100"],
-                showTotal: (total) => `Total ${total} items`,
-                position: ["bottomRight"],
-              }}
-              onRow={(record) => ({
-                onClick: () => navigate(`/projects/${projectId}/work-packages/${record.work_package_id}`),
-                style: { cursor: "pointer" },
-              })}
-              columns={[
-                {
-                  title: "Code",
-                  dataIndex: "code",
-                  key: "code",
-                  width: 120,
-                  sorter: (a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }),
-                },
-                {
-                  title: "Name",
-                  dataIndex: "name",
-                  key: "name",
-                  sorter: (a, b) => a.name.localeCompare(b.name),
-                },
-                {
-                  title: "Status",
-                  dataIndex: "status",
-                  key: "status",
-                  width: 130,
-                  render: (status: string) => (
-                    <Tag color={WP_STATUS_COLOR_MAP[status || "open"] || "default"}>
-                      {status || "open"}
-                    </Tag>
-                  ),
-                },
-                {
-                  title: "Budget",
-                  dataIndex: "budget_amount",
-                  key: "budget_amount",
-                  width: 140,
-                  align: "right",
-                  render: (val: string) => formatCurrency(val),
-                  sorter: (a, b) => Number(a.budget_amount || 0) - Number(b.budget_amount || 0),
-                },
-                {
-                  title: "Control Account",
-                  dataIndex: "control_account_name_resolved",
-                  key: "control_account_name_resolved",
-                  width: 180,
-                  responsive: ["lg"],
-                },
-              ]}
-            />
-          );
-        })()}
-      </Card>
+          })()}
+        </Card>
 
-      {/* WBS Element Info (collapsible metadata) */}
-      {wbe && <WBSElementInfoCard wbsElement={wbe} loading={wbeLoading} />}
+        {/* WBS Element Info (collapsible metadata) */}
+        {wbe && <WBSElementInfoCard wbsElement={wbe} loading={wbeLoading} />}
 
-      {/* Child WBS Element Create Modal */}
-      <WBSElementModal
-        open={modalOpen}
-        onCancel={() => {
-          setModalOpen(false);
-        }}
-        onOk={async (values) => {
-          if (wbe) {
-            await createWBE({
-              ...values,
-              project_id: projectId!,
-              level: (wbe.level || 1) + 1,
-            } as WBSElementCreate);
-          }
-        }}
-        confirmLoading={isCreatingWBE}
-        initialValues={null}
-        projectId={projectId}
-        parentWbsElementId={wbe?.wbs_element_id}
-        parentName={wbe?.name}
-      />
+        {/* Child WBS Element Create Modal */}
+        <WBSElementModal
+          open={modalOpen}
+          onCancel={() => {
+            setModalOpen(false);
+          }}
+          onOk={async (values) => {
+            if (wbe) {
+              await createWBE({
+                ...values,
+                project_id: projectId!,
+                level: (wbe.level || 1) + 1,
+              } as WBSElementCreate);
+            }
+          }}
+          confirmLoading={isCreatingWBE}
+          initialValues={null}
+          projectId={projectId}
+          parentWbsElementId={wbe?.wbs_element_id}
+          parentName={wbe?.name}
+        />
 
-      {/* Work Package Create Modal */}
-      <WorkPackageModal
-        open={wpModalOpen}
-        onCancel={() => setWpModalOpen(false)}
-        onOk={async (values) => {
-          await createWP(values as WorkPackageCreate);
-        }}
-        confirmLoading={isCreatingWP}
-        wbsElementId={wbsElementId}
-      />
+        {/* Work Package Create Modal */}
+        <WorkPackageModal
+          open={wpModalOpen}
+          onCancel={() => setWpModalOpen(false)}
+          onOk={async (values) => {
+            await createWP(values as WorkPackageCreate);
+          }}
+          confirmLoading={isCreatingWP}
+          wbsElementId={wbsElementId}
+        />
 
-      {/* Control Account Create Modal */}
-      <ControlAccountModal
-        open={caModalOpen}
-        onCancel={() => setCaModalOpen(false)}
-        onOk={async (values) => {
-          await createCA({
-            ...(values as ControlAccountCreate),
-            wbs_element_id: wbsElementId!,
-          });
-        }}
-        confirmLoading={isCreatingCA}
-        initialValues={null}
-        defaultValues={{ wbs_element_id: wbsElementId }}
-        projectId={projectId!}
-      />
-
-      {/* Control Account Edit Modal */}
-      <ControlAccountModal
-        open={caEditModalOpen}
-        onCancel={() => {
-          setCaEditModalOpen(false);
-          setCaEditing(null);
-        }}
-        onOk={async (values) => {
-          if (caEditing) {
-            await updateCA({
-              id: caEditing.control_account_id,
-              data: values as ControlAccountUpdate,
+        {/* Control Account Create Modal */}
+        <ControlAccountModal
+          open={caModalOpen}
+          onCancel={() => setCaModalOpen(false)}
+          onOk={async (values) => {
+            await createCA({
+              ...(values as ControlAccountCreate),
+              wbs_element_id: wbsElementId!,
             });
-          }
-        }}
-        confirmLoading={isUpdatingCA}
-        initialValues={caEditing}
-        projectId={projectId!}
-      />
-    </Space>
+          }}
+          confirmLoading={isCreatingCA}
+          initialValues={null}
+          defaultValues={{ wbs_element_id: wbsElementId }}
+          projectId={projectId!}
+        />
+
+        {/* Control Account Edit Modal */}
+        <ControlAccountModal
+          open={caEditModalOpen}
+          onCancel={() => {
+            setCaEditModalOpen(false);
+            setCaEditing(null);
+          }}
+          onOk={async (values) => {
+            if (caEditing) {
+              await updateCA({
+                id: caEditing.control_account_id,
+                data: values as ControlAccountUpdate,
+              });
+            }
+          }}
+          confirmLoading={isUpdatingCA}
+          initialValues={caEditing}
+          projectId={projectId!}
+        />
+      </PageContent>
+    </PageWrapper>
   );
 };

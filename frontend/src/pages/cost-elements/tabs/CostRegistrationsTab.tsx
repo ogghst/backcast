@@ -1,4 +1,4 @@
-import { App, Button, Space, Input, Tag, Grid, Badge, Typography } from "antd";
+import { theme, App, Button, Space, Input, Tag, Grid, Badge, Typography } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -56,6 +56,7 @@ interface CostRegistrationApiParams {
 export const CostRegistrationsTab = ({
   costElement,
 }: CostRegistrationsTabProps) => {
+  const { token } = theme.useToken();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     CostRegistrationRead,
     Record<string, FilterValue | null>
@@ -163,7 +164,7 @@ export const CostRegistrationsTab = ({
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.paddingXS }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -171,7 +172,7 @@ export const CostRegistrationsTab = ({
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginXS, display: "block" }}
         />
         <Space>
           <Button

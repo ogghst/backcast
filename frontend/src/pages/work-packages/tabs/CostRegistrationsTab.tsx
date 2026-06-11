@@ -213,7 +213,7 @@ export const CostRegistrationsTab = ({
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.paddingXS }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -221,7 +221,7 @@ export const CostRegistrationsTab = ({
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginXS, display: "block" }}
         />
         <Space>
           <Button
@@ -417,7 +417,7 @@ export const CostRegistrationsTab = ({
           description="Create cost elements first in the Work Package overview before adding cost registrations."
           type="info"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         />
       )}
 
@@ -489,7 +489,7 @@ export const CostRegistrationsTab = ({
         footer={null}
         width={480}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: token.marginXS }}>
           {costElements.map((ce) => (
             <Button
               key={ce.cost_element_id}

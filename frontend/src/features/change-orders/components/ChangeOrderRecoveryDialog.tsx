@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Modal, Form, Select, Input, message } from "antd";
+import { theme, Modal, Form, Select, Input, message } from "antd";
 import { ToolOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import type { ChangeOrderPublic } from "@/api/generated";
@@ -74,6 +74,7 @@ export function ChangeOrderRecoveryDialog({
   onClose,
   onSuccess,
 }: ChangeOrderRecoveryDialogProps) {
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
 
   // Recovery mutation
@@ -166,7 +167,7 @@ export function ChangeOrderRecoveryDialog({
         width={600}
         destroyOnHidden
       >
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: token.marginMD }}>
           <p>
             Recovering this change order will manually set the impact level and
             assign an approver, bypassing the automated impact analysis.

@@ -1,4 +1,4 @@
-import { Breadcrumb, Skeleton } from "antd";
+import { Breadcrumb, Skeleton, theme } from "antd";
 import { Link } from "react-router-dom";
 import { HomeOutlined } from "@ant-design/icons";
 import type { WorkPackageBreadcrumb } from "@/features/work-packages/api/useWorkPackages";
@@ -12,8 +12,9 @@ export const WorkPackageBreadcrumbBuilder = ({
   breadcrumb,
   loading,
 }: WorkPackageBreadcrumbBuilderProps) => {
+  const { token } = theme.useToken();
   if (loading) {
-    return <Skeleton.Input active style={{ width: 300, marginBottom: 16 }} />;
+    return <Skeleton.Input active style={{ width: 300, marginBottom: token.marginMD }} />;
   }
 
   if (!breadcrumb) {
@@ -61,5 +62,5 @@ export const WorkPackageBreadcrumbBuilder = ({
     },
   ];
 
-  return <Breadcrumb items={items} style={{ marginBottom: 16 }} />;
+  return <Breadcrumb items={items} style={{ marginBottom: token.marginMD }} />;
 };

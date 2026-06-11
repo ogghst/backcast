@@ -56,6 +56,29 @@ export class CostElementsService {
         });
     }
     /**
+     * Read Cost Element Breadcrumb
+     * Get breadcrumb trail for a Cost Element (project -> WBS -> CE).
+     *
+     * Requires read permission.
+     * @param costElementId
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getCostElementBreadcrumb(
+        costElementId: string,
+    ): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-elements/{cost_element_id}/breadcrumb',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Read Cost Element
      * Get a specific cost element by root ID. Requires read permission.
      *

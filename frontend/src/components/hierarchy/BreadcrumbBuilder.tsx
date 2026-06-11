@@ -1,4 +1,4 @@
-import { Breadcrumb, Skeleton } from "antd";
+import { Breadcrumb, Skeleton, theme } from "antd";
 import { Link } from "react-router-dom";
 import { HomeOutlined } from "@ant-design/icons";
 
@@ -28,8 +28,9 @@ export const BreadcrumbBuilder = ({
   breadcrumb,
   loading,
 }: BreadcrumbBuilderProps) => {
+  const { token } = theme.useToken();
   if (loading) {
-    return <Skeleton.Input active style={{ width: 300, marginBottom: 16 }} />;
+    return <Skeleton.Input active style={{ width: 300, marginBottom: token.marginMD }} />;
   }
 
   if (!breadcrumb) {
@@ -81,5 +82,5 @@ export const BreadcrumbBuilder = ({
     }),
   ];
 
-  return <Breadcrumb items={items} style={{ marginBottom: 16 }} />;
+  return <Breadcrumb items={items} style={{ marginBottom: token.marginMD }} />;
 };

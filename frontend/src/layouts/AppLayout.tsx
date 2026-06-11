@@ -43,7 +43,6 @@ const AppLayout: React.FC = () => {
       fontSizeXL,
       paddingMD,
       paddingLG,
-      paddingXL,
     },
   } = theme.useToken();
 
@@ -164,13 +163,14 @@ const AppLayout: React.FC = () => {
         />
       )}
 
-      <Content style={{ position: "relative", zIndex: 1, margin: `${paddingXL}px ${paddingMD}px 0` }}>
+      <Content style={{ position: "relative", zIndex: 1, margin: "2px auto 0", maxWidth: 1600, width: "100%" }}>
         <div
           style={{
-            padding: paddingXL,
+            padding: 2,
             minHeight: 360,
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
+            margin: 2,
           }}
         >
           <Outlet />

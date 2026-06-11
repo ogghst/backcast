@@ -7,11 +7,10 @@
 import { useParams } from "react-router-dom";
 import { useProject } from "@/features/projects/api/useProjects";
 import { ProjectMemberManager } from "@/features/projects/components/ProjectMemberManager";
-import { useThemeTokens } from "@/hooks/useThemeTokens";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 export const ProjectMembers = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { spacing } = useThemeTokens();
   const { data: project, isLoading: isProjectLoading } = useProject(projectId || "");
 
   if (!projectId) {
@@ -20,23 +19,23 @@ export const ProjectMembers = () => {
 
   if (isProjectLoading) {
     return (
-      <div style={{ padding: spacing.md }}>
+      <PageWrapper>
         <div>Loading project information...</div>
-      </div>
+      </PageWrapper>
     );
   }
 
   if (!project) {
     return (
-      <div style={{ padding: spacing.md }}>
+      <PageWrapper>
         <div>Project not found</div>
-      </div>
+      </PageWrapper>
     );
   }
 
   return (
-    <div style={{ padding: spacing.md }}>
+    <PageWrapper>
       <ProjectMemberManager projectId={projectId} projectName={project.name} />
-    </div>
+    </PageWrapper>
   );
 };

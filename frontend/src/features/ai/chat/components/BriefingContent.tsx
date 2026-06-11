@@ -4,12 +4,15 @@ import { FileTextOutlined, UserOutlined } from "@ant-design/icons";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { PlanStepIndicator } from "./PlanStepIndicator";
-import type { PlanStep } from "../types";
+import { BriefingSectionCard } from "./BriefingSectionCard";
+import type { PlanStep, BriefingDocumentData } from "../types";
 
 export interface BriefingState {
   markdown: string;
   completedSpecialists: string[];
   lastSpecialist: string;
+  /** Structured briefing document — null if not available (e.g. session restore) */
+  document: BriefingDocumentData | null;
   /** Execution plan with live step status — null if no plan was created */
   plan: {
     steps: PlanStep[];
@@ -154,10 +157,20 @@ export const BriefingContent = memo(
                 color: colors.text,
               }}
             >
-              <MarkdownRenderer
-                content={briefing.markdown}
-                isStreaming={false}
-              />
+              {briefing.document?.sections.length ? (
+                briefing.document.sections.map((section) => (
+                  <BriefingSectionCard
+                    key={`${section.specialist_name}-${section.step_index ?? 0}`}
+                    section={section}
+                    isStreaming={isStreaming && section.specialist_name === briefing.lastSpecialist}
+                  />
+                ))
+              ) : (
+                <MarkdownRenderer
+                  content={briefing.markdown}
+                  isStreaming={false}
+                />
+              )}
             </div>
           </div>
         </div>

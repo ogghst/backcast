@@ -9,7 +9,7 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { Typography, Tag, Space, Button, Input, Empty } from "antd";
+import { theme, Typography, Tag, Space, Button, Input, Empty } from "antd";
 import {
   ArrowUpOutlined,
   ArrowDownOutlined,
@@ -128,6 +128,7 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
   messages,
   onClear,
 }) => {
+  const { token } = theme.useToken();
   const { spacing, colors, borderRadius } = useThemeTokens();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -316,7 +317,7 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
                       borderBottom: `1px solid ${colors.border}`,
                       display: "flex",
                       alignItems: "center",
-                      gap: 8,
+                      gap: token.marginXS,
                     }}
                   >
                     {msg.direction === "in" ? (

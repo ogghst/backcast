@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { message, Card, Tabs } from "antd";
+import { message, Card, Tabs, theme } from "antd";
 import { useState } from "react";
 import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { ChangeOrderWorkflowSection } from "@/features/change-orders/components/ChangeOrderWorkflowSection";
@@ -18,6 +18,9 @@ import { useProject } from "@/features/projects/api/useProjects";
 import type { ChangeOrderCreate, ChangeOrderUpdate } from "@/api/generated";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
+import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageContent } from "@/components/layout/PageContent";
 
 interface ServerErrors {
   code?: string;
@@ -54,6 +57,7 @@ function getPageTitle(isCreate: boolean): string {
 }
 
 export function ChangeOrderUnifiedPage(): JSX.Element {
+  const { token } = theme.useToken();
   const { projectId, changeOrderId } = useParams<{
     projectId: string;
     changeOrderId?: string;
@@ -130,7 +134,7 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
   };
 
   return (
-    <div style={{ padding: 24 }}>
+    <PageWrapper>
       {/* Breadcrumbs */}
       <EntityBreadcrumb
         items={[
@@ -141,27 +145,102 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
       />
 
       {/* Page Header */}
-      <h1 style={{ margin: 0, marginBottom: 16 }}>{pageTitle}</h1>
-      <p style={{ color: "#8c8c8c", marginTop: 8 }}>
+      <PageHeader title={pageTitle} />
+
+      <p style={{ color: token.colorTextSecondary, marginTop: -8, marginBottom: token.marginMD }}>
         Project: {project?.code || projectId}
         {!createMode &&
           ` • Change Order: ${changeOrder?.code || changeOrderId}`}
       </p>
 
-      {/* Form Section - Only show summary card if not in create mode (modal handles creation) */}
-      {!createMode && (
-        <div style={{ marginBottom: 16 }}>
-          {isLoading && !changeOrder ? (
-            <Card loading title="Change Order Details" />
-          ) : changeOrder ? (
-            <ChangeOrderSummaryCard
-              changeOrder={changeOrder}
-              onEdit={() => setIsModalOpen(true)}
-              isLoading={isLoading}
-            />
-          ) : null}
-        </div>
-      )}
+      <PageContent>
+        {/* Form Section - Only show summary card if not in create mode (modal handles creation) */}
+        {!createMode && (
+          <>
+            {isLoading && !changeOrder ? (
+              <Card loading title="Change Order Details" />
+            ) : changeOrder ? (
+              <ChangeOrderSummaryCard
+                changeOrder={changeOrder}
+                onEdit={() => setIsModalOpen(true)}
+                isLoading={isLoading}
+              />
+            ) : null}
+          </>
+        )}
+
+        {/* Tabbed Interface for Approval, Workflow, and Impact Analysis (hidden in create mode) */}
+        {!createMode && changeOrder && (
+          <Tabs
+            defaultActiveKey="approval"
+            items={[
+              {
+                key: "approval",
+                label: "Approval",
+                children: (
+                  <CollapsibleCard
+                    id="approval-info"
+                    title={<span>Approval Information</span>}
+                    collapsed={false}
+                  >
+                    <ApprovalInfo
+                      approvalInfo={approvalInfo || null}
+                      isLoading={isLoadingApprovalInfo}
+                    />
+                  </CollapsibleCard>
+                ),
+              },
+              {
+                key: "workflow",
+                label: "Workflow",
+                children: (
+                  <ChangeOrderWorkflowSection
+                    changeOrder={changeOrder || null}
+                    onActionSuccess={async () => {
+                      // Invalidate all change order queries (covers list, detail, approval-info, stats)
+                      await queryClient.invalidateQueries({
+                        queryKey: queryKeys.changeOrders.all,
+                      });
+                      // Force refetch detail and approval queries for this specific CO
+                      // to ensure the summary card and approval info update immediately
+                      if (changeOrderId) {
+                        await queryClient.refetchQueries({
+                          predicate: (query) => {
+                            const key = query.queryKey;
+                            return (
+                              Array.isArray(key) &&
+                              key[0] === "change-orders" &&
+                              (key[1] === changeOrderId || key[2] === changeOrderId)
+                            );
+                          },
+                        });
+                      }
+                      // Invalidate project branches to reflect status changes
+                      queryClient.invalidateQueries({
+                        queryKey: queryKeys.projects.branches(projectId!),
+                      });
+                    }}
+                    useCollapsibleCard
+                  />
+                ),
+              },
+              {
+                key: "impact",
+                label: "Impact Analysis",
+                children: (
+                  <ImpactAnalysisDashboard
+                    changeOrderId={changeOrder.change_order_id}
+                    branchName={
+                      changeOrder ? `BR-${changeOrder.code}` : undefined
+                    }
+                    showHeader={false}
+                  />
+                ),
+              },
+            ]}
+          />
+        )}
+      </PageContent>
 
       {/* Modal for Create/Edit */}
       <ChangeOrderModal
@@ -177,78 +256,6 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
         projectId={projectId!}
         serverErrors={serverErrors}
       />
-
-      {/* Tabbed Interface for Approval, Workflow, and Impact Analysis (hidden in create mode) */}
-      {!createMode && changeOrder && (
-        <Tabs
-          defaultActiveKey="approval"
-          items={[
-            {
-              key: "approval",
-              label: "Approval",
-              children: (
-                <CollapsibleCard
-                  id="approval-info"
-                  title={<span>Approval Information</span>}
-                  collapsed={false}
-                >
-                  <ApprovalInfo
-                    approvalInfo={approvalInfo || null}
-                    isLoading={isLoadingApprovalInfo}
-                  />
-                </CollapsibleCard>
-              ),
-            },
-            {
-              key: "workflow",
-              label: "Workflow",
-              children: (
-                <ChangeOrderWorkflowSection
-                  changeOrder={changeOrder || null}
-                  onActionSuccess={async () => {
-                    // Invalidate all change order queries (covers list, detail, approval-info, stats)
-                    await queryClient.invalidateQueries({
-                      queryKey: queryKeys.changeOrders.all,
-                    });
-                    // Force refetch detail and approval queries for this specific CO
-                    // to ensure the summary card and approval info update immediately
-                    if (changeOrderId) {
-                      await queryClient.refetchQueries({
-                        predicate: (query) => {
-                          const key = query.queryKey;
-                          return (
-                            Array.isArray(key) &&
-                            key[0] === "change-orders" &&
-                            (key[1] === changeOrderId || key[2] === changeOrderId)
-                          );
-                        },
-                      });
-                    }
-                    // Invalidate project branches to reflect status changes
-                    queryClient.invalidateQueries({
-                      queryKey: queryKeys.projects.branches(projectId!),
-                    });
-                  }}
-                  useCollapsibleCard
-                />
-              ),
-            },
-            {
-              key: "impact",
-              label: "Impact Analysis",
-              children: (
-                <ImpactAnalysisDashboard
-                  changeOrderId={changeOrder.change_order_id}
-                  branchName={
-                    changeOrder ? `BR-${changeOrder.code}` : undefined
-                  }
-                  showHeader={false}
-                />
-              ),
-            },
-          ]}
-        />
-      )}
-    </div>
+    </PageWrapper>
   );
 }

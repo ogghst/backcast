@@ -15,7 +15,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message, Spin } from "antd";
+import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message, Spin, Modal, Input, Typography } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
@@ -23,6 +23,8 @@ import {
   MoreOutlined,
   CloseOutlined,
   BugOutlined,
+  QuestionCircleOutlined,
+  SendOutlined,
 } from "@ant-design/icons";
 import {
   useDeleteSession,
@@ -40,7 +42,7 @@ import { BriefingPeekBar } from "./BriefingPeekBar";
 import { type BriefingState } from "./BriefingContent";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
 import type { ChatMessage } from "../../types";
-import type { MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../types";
+import type { MainAgentStream, SubagentStream, StreamingState, TokenUsage, ToolCallRemark } from "../types";
 import type { WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
@@ -48,9 +50,11 @@ import { useExecutionMode } from "../../hooks/useExecutionMode";
 import { useLastAssistantId } from "../../hooks/useLastAssistantId";
 import { ApprovalDialog } from "../../components/ApprovalDialog";
 import { useAIChatContext } from "@/hooks/navigation/useAIChatContext";
+import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
 import type { SessionContext } from "../../types";
 import type { WSTemporalContextChangeMessage } from "../types";
 import type { WSPlanUpdateMessage } from "../types";
+import type { BriefingDocumentData } from "../types";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { stripPlanJson, PlanJsonStreamFilter } from "../utils/planContentFilter";
 
@@ -84,6 +88,122 @@ const EMPTY_STREAMING_STATE: StreamingState = {
   main: "",
   mainStreams: new Map<string, MainAgentStream>(),
   subagents: new Map<string, SubagentStream>(),
+};
+
+const { Text } = Typography;
+
+/** Modal dialog for responding to agent ask_user prompts. */
+interface AskUserModalProps {
+  open: boolean;
+  request: {
+    question: string;
+    askId: string;
+    context?: string;
+    options?: string[];
+  } | null;
+  onSubmit: (answer: string) => void;
+  onCancel: () => void;
+}
+
+const AskUserModal = ({ open, request, onSubmit, onCancel }: AskUserModalProps) => {
+  const { token } = theme.useToken();
+  const [inputValue, setInputValue] = useState("");
+
+  const handleSubmit = useCallback(() => {
+    if (inputValue.trim()) {
+      onSubmit(inputValue.trim());
+      setInputValue("");
+    }
+  }, [inputValue, onSubmit]);
+
+  const handleOptionClick = useCallback(
+    (option: string) => {
+      onSubmit(option);
+    },
+    [onSubmit],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit],
+  );
+
+  if (!request) return null;
+
+  const hasOptions = request.options && request.options.length > 0;
+
+  return (
+    <Modal
+      title={
+        <span>
+          <QuestionCircleOutlined style={{ color: token.colorPrimary, marginRight: token.marginXS }} />
+          Agent asks
+        </span>
+      }
+      open={open}
+      onCancel={onCancel}
+      width={520}
+      destroyOnHidden
+      footer={
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: token.marginXS }}>
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            onClick={handleSubmit}
+            disabled={!inputValue.trim()}
+          >
+            Send
+          </Button>
+        </div>
+      }
+    >
+      {/* Question text */}
+      <Text style={{ fontSize: token.fontSizeLG, display: "block", marginBottom: token.marginSM }}>
+        {request.question}
+      </Text>
+
+      {/* Optional context */}
+      {request.context && (
+        <Text
+          type="secondary"
+          style={{ fontSize: token.fontSizeSM, display: "block", marginBottom: token.marginMD }}
+        >
+          {request.context}
+        </Text>
+      )}
+
+      {/* Option buttons */}
+      {hasOptions && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: token.marginXS, marginBottom: token.marginMD }}>
+          {request.options!.map((opt, i) => (
+            <Button
+              key={i}
+              size="small"
+              onClick={() => handleOptionClick(opt)}
+              style={{ borderRadius: token.borderRadiusSM }}
+            >
+              {opt}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Free-text input */}
+      <Input
+        autoFocus
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Type your answer..."
+      />
+    </Modal>
+  );
 };
 
 export const ChatInterface = ({
@@ -127,9 +247,6 @@ export const ChatInterface = ({
     subagents: new Map<string, SubagentStream>(),
   });
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
-  const [activeToolCalls, setActiveToolCalls] = useState<
-    Array<{ name: string; args: Record<string, unknown> }>
-  >([]);
   const [toolJustFinished, setToolJustFinished] = useState(false);
   const [showStreamSeparator, setShowStreamSeparator] = useState(false);
   const [lastTokenUsage, setLastTokenUsage] = useState<TokenUsage | null>(null);
@@ -176,6 +293,14 @@ export const ChatInterface = ({
   const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [approvalRemaining, setApprovalRemaining] = useState<number | null>(null);
+
+  // Ask user state (agent needs user input via ask_user tool)
+  const [askUserRequest, setAskUserRequest] = useState<{
+    question: string;
+    askId: string;
+    context?: string;
+    options?: string[];
+  } | null>(null);
 
   // Attachment state
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
@@ -237,6 +362,8 @@ export const ChatInterface = ({
   );
   const deleteSession = useDeleteSession();
 
+  const { data: activeAssistants } = useAIAssistants(false);
+
   // Auto-select session with active execution on mount (session recovery after page reload).
   // When the browser kills the tab and the user reopens the chat, currentSessionId is
   // undefined. If any session has a running/awaiting_approval execution, auto-select it
@@ -269,6 +396,14 @@ export const ChatInterface = ({
 
   // Find current session to get its assistant ID
   const currentSession = sessions?.find((s) => s.id === currentSessionId);
+
+  const isAssistantInactive = useMemo(() => {
+    if (!currentSessionId || !currentSession) return false;
+    if (!activeAssistants) return false;
+    const assistantId = currentSession.assistant_config_id;
+    return !activeAssistants.some((a) => a.is_active && a.agent_type === "main" && a.id === assistantId);
+  }, [currentSessionId, currentSession, activeAssistants]);
+
   const prevSessionIdRef = useRef<string | undefined>(currentSession?.id);
 
   // Set assistant from session when session changes (only if not already set)
@@ -297,9 +432,8 @@ export const ChatInterface = ({
       streamingState.main.length > 0 ||
       Array.from(streamingState.mainStreams.values()).some(ms => ms.is_active) ||
       Array.from(streamingState.subagents.values()).some(sa => sa.is_active) ||
-      activeToolCalls.length > 0 ||
       isWaitingForResponse,
-    [streamingState.main, streamingState.mainStreams, streamingState.subagents, activeToolCalls.length, isWaitingForResponse]
+    [streamingState.main, streamingState.mainStreams, streamingState.subagents, isWaitingForResponse]
   );
 
   // Safety net: clear waiting spinner if stuck for 15+ seconds.
@@ -607,7 +741,6 @@ export const ChatInterface = ({
       // Update session ID if this was a new session (do this first)
       setCurrentSessionId((prev) => prev || sessionId);
       setIsWaitingForResponse(false);
-      setActiveToolCalls([]);
       // Intentionally keep briefing state — users should review
       // the compiled briefing after the agent finishes
       setShowStreamSeparator(false);
@@ -665,7 +798,6 @@ export const ChatInterface = ({
     setPendingUserMessage(null);
     // Clear stuck streaming state
     setStreamingState(EMPTY_STREAMING_STATE);
-    setActiveToolCalls([]);
   }, []);
 
   // Debug: Capture all raw WebSocket messages
@@ -712,11 +844,12 @@ export const ChatInterface = ({
 
   // Briefing update handler
   const handleBriefingUpdate = useCallback(
-    (briefingMarkdown: string, specialistName: string, completedSpecialists: string[]) => {
+    (briefingDoc: BriefingDocumentData, specialistName: string, completedSpecialists: string[]) => {
       setBriefing((prev) => ({
-        markdown: briefingMarkdown,
+        markdown: briefingDoc.markdown,
         completedSpecialists: completedSpecialists,
         lastSpecialist: specialistName,
+        document: briefingDoc,
         plan: prev?.plan ?? null,
       }));
       // Auto-open briefing rail on first specialist contribution (desktop only)
@@ -742,6 +875,7 @@ export const ChatInterface = ({
           markdown: prev?.markdown ?? msg.plan_markdown,
           completedSpecialists: prev?.completedSpecialists ?? [],
           lastSpecialist: prev?.lastSpecialist ?? "",
+          document: prev?.document ?? null,
           plan: {
             steps,
             totalSteps: msg.total_steps,
@@ -761,82 +895,55 @@ export const ChatInterface = ({
     [isMobile],
   );
 
-  /**
-   * Handles tool call events by injecting inline tool remarks.
-   *
-   * Context: Called by useStreamingChat when the AI agent invokes a tool.
-   * Routes tool remarks to the correct stream based on invocation_id:
-   * - If invocation_id matches a subagent, inject into subagent stream
-   * - If invocation_id matches a main stream, inject into that main stream
-   * - Otherwise, inject into active main stream (backward compatibility)
-   *
-   * @param tool - Name of the tool being invoked
-   * @param args - Arguments passed to the tool
-   * @param invocationId - Unique ID for the stream segment that called the tool
-   */
   const handleToolCall = useCallback((tool: string, args: Record<string, unknown>, invocationId?: string) => {
-    // Create tool remark with markdown formatting
-    const toolRemark = `\n\n*${tool}*\n\n`;
-
     setStreamingState((prev) => {
-      // If invocation_id is provided, try to route to the correct stream
+      // Route to correct stream by invocation_id
       if (invocationId) {
-        // First check if this invocation_id belongs to a subagent
+        // Check subagent streams
         const subagents = new Map(prev.subagents);
         const subagent = subagents.get(invocationId);
         if (subagent) {
-          // Inject tool remark into subagent stream
           subagents.set(invocationId, {
             ...subagent,
-            content: subagent.content + toolRemark,
+            tool_calls: [
+              ...(subagent.tool_calls || []),
+              { name: tool, args, position: (subagent.content || "").length },
+            ],
           });
           return { ...prev, subagents };
         }
 
-        // Then check if this invocation_id belongs to a main stream
+        // Check main streams
         const mainStreams = new Map(prev.mainStreams);
         const mainStream = mainStreams.get(invocationId);
         if (mainStream) {
-          // Inject tool remark into main stream
           mainStreams.set(invocationId, {
             ...mainStream,
-            content: mainStream.content + toolRemark,
             tool_calls: [
               ...(mainStream.tool_calls || []),
-              { name: tool, args, position: mainStream.content.length }
+              { name: tool, args, position: mainStream.content.length },
             ],
           });
           return { ...prev, mainStreams };
         }
       }
 
-      // Fallback: inject into active main stream (backward compatibility)
+      // Fallback: inject into active main stream
       const mainStreams = new Map(prev.mainStreams);
-      let foundActiveStream = false;
-
       for (const [id, stream] of mainStreams) {
         if (stream.is_active) {
-          foundActiveStream = true;
           mainStreams.set(id, {
             ...stream,
-            content: stream.content + toolRemark,
             tool_calls: [
               ...(stream.tool_calls || []),
-              { name: tool, args, position: stream.content.length }
+              { name: tool, args, position: stream.content.length },
             ],
           });
+          return { ...prev, mainStreams };
         }
       }
 
-      // If no active main stream exists, create a new one or add to legacy field
-      if (!foundActiveStream) {
-        if (prev.main) {
-          return { ...prev, main: prev.main + toolRemark };
-        }
-        return { ...prev, mainStreams };
-      }
-
-      return { ...prev, mainStreams };
+      return prev;
     });
 
     // Track tool execution steps
@@ -844,23 +951,59 @@ export const ChatInterface = ({
     const currentStep = toolStepCounter.current.get(tool)!;
     const totalSteps = totalToolSteps.current.get(tool) || currentStep;
     totalToolSteps.current.set(tool, Math.max(totalSteps, currentStep));
-
-    // Add tool to active calls (for activity panel)
-    setActiveToolCalls((prev) => [...prev, { name: tool, args }]);
   }, []);
 
-  const handleToolResult = useCallback((tool: string) => {
-    // Remove tool from active calls
-    setActiveToolCalls((prev) =>
-      prev.filter((t) => t.name !== tool)
-    );
+  const handleToolResult = useCallback((tool: string, _result?: unknown, invocationId?: string) => {
+    const updateToolCalls = (toolCalls: ToolCallRemark[] | undefined): ToolCallRemark[] => {
+      const calls = toolCalls || [];
+      // Find the last matching tool call that isn't already completed
+      const idx = calls.findLastIndex(tc => tc.name === tool && !tc.completed);
+      if (idx === -1) return calls;
+      const updated = [...calls];
+      updated[idx] = { ...updated[idx], completed: true };
+      return updated;
+    };
 
-    // Clear the step counter for this tool when it completes
+    setStreamingState((prev) => {
+      if (invocationId) {
+        // Try subagent
+        const subagents = new Map(prev.subagents);
+        const subagent = subagents.get(invocationId);
+        if (subagent) {
+          subagents.set(invocationId, { ...subagent, tool_calls: updateToolCalls(subagent.tool_calls) });
+          return { ...prev, subagents };
+        }
+
+        // Try main stream
+        const mainStreams = new Map(prev.mainStreams);
+        const mainStream = mainStreams.get(invocationId);
+        if (mainStream) {
+          mainStreams.set(invocationId, { ...mainStream, tool_calls: updateToolCalls(mainStream.tool_calls) });
+          return { ...prev, mainStreams };
+        }
+      }
+
+      // Fallback: mark in any active main stream
+      const mainStreams = new Map(prev.mainStreams);
+      for (const [id, stream] of mainStreams) {
+        if (stream.is_active && stream.tool_calls?.some(tc => tc.name === tool && !tc.completed)) {
+          mainStreams.set(id, { ...stream, tool_calls: updateToolCalls(stream.tool_calls) });
+          return { ...prev, mainStreams };
+        }
+      }
+
+      return prev;
+    });
+
+    // Clear step counters
     toolStepCounter.current.delete(tool);
     totalToolSteps.current.delete(tool);
-
-    // Set flag to add separator before next text stream
     setToolJustFinished(true);
+  }, []);
+
+  // Ask user handler (receives ask_user events from the agent)
+  const handleAskUser = useCallback((question: string, askId: string, context?: string, options?: string[]) => {
+    setAskUserRequest({ question, askId, context, options });
   }, []);
 
   // Streaming chat hook
@@ -962,6 +1105,7 @@ export const ChatInterface = ({
       // Invalidate caches so the UI reflects the cleared active_execution.
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
     }, [queryClient]),
+    onAskUser: handleAskUser,
   });
 
   // Destructure isReplaying from hook after config
@@ -984,7 +1128,6 @@ export const ChatInterface = ({
     setPendingUserMessage(null);
     // Clear all streaming/briefing state from previous session
     setStreamingState(EMPTY_STREAMING_STATE);
-    setActiveToolCalls([]);
     setIsWaitingForResponse(false);
     setLastTokenUsage(null);
     setBriefing(null);
@@ -1008,7 +1151,6 @@ export const ChatInterface = ({
         mainStreams: new Map<string, MainAgentStream>(),
         subagents: new Map<string, SubagentStream>(),
       });
-      setActiveToolCalls([]);
       setIsWaitingForResponse(false);
       setLastTokenUsage(null);
       setSubagentInvocationCounts({});
@@ -1020,6 +1162,21 @@ export const ChatInterface = ({
       // Restore briefing from session data if available
       const session = sessions?.find((s) => s.id === sessionId);
       if (session?.briefing_markdown) {
+        // Restore plan from persisted plan_data if available
+        let restoredPlan: BriefingState["plan"] = null;
+        if (session.plan_data) {
+          const pd = session.plan_data;
+          const steps = pd.steps;
+          const completedSteps = steps.filter(
+            (s) => s.status === "completed",
+          ).length;
+          restoredPlan = {
+            steps,
+            totalSteps: steps.length,
+            completedSteps,
+            complexity: pd.estimated_complexity,
+          };
+        }
         setBriefing({
           markdown: session.briefing_markdown,
           completedSpecialists: session.briefing_specialists ?? [],
@@ -1027,7 +1184,8 @@ export const ChatInterface = ({
             session.briefing_specialists?.[
               session.briefing_specialists.length - 1
             ] ?? "",
-          plan: null,
+          document: null, // Not available from REST session list
+          plan: restoredPlan,
         });
         userDismissedBriefing.current = false;
         if (window.innerWidth >= 1024) {
@@ -1086,7 +1244,6 @@ export const ChatInterface = ({
         mainStreams: new Map<string, MainAgentStream>(),
         subagents: new Map<string, SubagentStream>(),
       });
-      setActiveToolCalls([]);
       setIsWaitingForResponse(true);
       setLastTokenUsage(null);
       setShowStreamSeparator(false);
@@ -1101,13 +1258,14 @@ export const ChatInterface = ({
       // Generate title for new sessions (when no current session exists)
       const title = currentSessionId ? undefined : generateSessionTitle(messageContent);
 
-      // Send message via streaming hook with execution mode and attachments
-      // sendMessage now handles lazy connection if not connected
+      // Send message via streaming hook with execution mode and attachments.
+      // The backend detects resume mode automatically from session.plan_data.
       streamingChat.sendMessage(
         messageContent,
         title ?? undefined,
         executionMode,
-        pendingAttachments.length > 0 ? pendingAttachments : undefined
+        pendingAttachments.length > 0 ? pendingAttachments : undefined,
+        undefined, // images
       );
 
       // Clear attachments after sending
@@ -1120,7 +1278,6 @@ export const ChatInterface = ({
   const handleCancel = useCallback(() => {
     streamingChat.cancel();
     setStreamingState(EMPTY_STREAMING_STATE);
-    setActiveToolCalls([]);
     setIsWaitingForResponse(false);
     setShowStreamSeparator(false);
     setToolJustFinished(false);
@@ -1159,6 +1316,22 @@ export const ChatInterface = ({
     setApprovalRequest(null);
     setApprovalRemaining(null);
   }, []);
+
+  // Ask user submit handler (depends on streamingChat, so defined after the hook)
+  const handleAskUserSubmit = useCallback((answer: string) => {
+    if (askUserRequest) {
+      streamingChat.sendAskUserResponse(askUserRequest.askId, answer);
+      setAskUserRequest(null);
+    }
+  }, [askUserRequest, streamingChat]);
+
+  // Ask user dismiss handler (sends empty answer to unblock the agent)
+  const handleAskUserDismiss = useCallback(() => {
+    if (askUserRequest) {
+      streamingChat.sendAskUserResponse(askUserRequest.askId, "");
+      setAskUserRequest(null);
+    }
+  }, [askUserRequest, streamingChat]);
 
   // Handle clearing debug messages
   const handleClearDebugMessages = useCallback(() => {
@@ -1504,6 +1677,43 @@ export const ChatInterface = ({
                 overflow: "hidden",
               }}
             >
+              {isAssistantInactive && (
+                <Alert
+                  type="warning"
+                  message="Assistant deactivated"
+                  description="This assistant has been deactivated and cannot accept new messages. Start a new chat with an active assistant."
+                  showIcon
+                  style={{
+                    margin: isMobile ? spacing.sm : spacing.md,
+                    borderRadius: isMobile ? 8 : token.borderRadius,
+                  }}
+                  action={
+                    <Button size="small" type="primary" onClick={handleNewChat}>
+                      New Chat
+                    </Button>
+                  }
+                />
+              )}
+
+              {/* Interrupted session indicator — shows when a stopped execution has incomplete plan steps */}
+              {currentSession?.can_resume && !isStreaming && (
+                <Alert
+                  type="info"
+                  message="Execution interrupted"
+                  description={
+                    currentSession.plan_data
+                      ? `This session was stopped with ${currentSession.plan_data.steps.filter(s => s.status === "completed").length}/${currentSession.plan_data.steps.length} steps completed. Send a message to resume from where it left off.`
+                      : "This session was interrupted. Send a message to continue."
+                  }
+                  showIcon
+                  closable
+                  style={{
+                    margin: isMobile ? spacing.sm : spacing.md,
+                    borderRadius: isMobile ? 8 : token.borderRadius,
+                  }}
+                />
+              )}
+
               {/* Error Alert - mobile optimized */}
               {error && (
                 <Alert
@@ -1539,7 +1749,6 @@ export const ChatInterface = ({
                   loading={messagesLoading}
                   streamingState={streamingState}
                   isStreaming={isStreaming}
-                  activeToolCalls={activeToolCalls}
                   showSeparator={showStreamSeparator}
                   isMobile={isMobile}
                   tokenUsage={lastTokenUsage}
@@ -1559,7 +1768,7 @@ export const ChatInterface = ({
               {/* Input - fixed at bottom for mobile feel */}
               <MessageInput
                 onSend={handleSendMessage}
-                disabled={!selectedAssistantId}
+                disabled={!selectedAssistantId || isAssistantInactive}
                 loading={messagesLoading}
                 isStreaming={isStreaming}
                 onCancel={handleCancel}
@@ -1568,11 +1777,13 @@ export const ChatInterface = ({
                 onExecutionModeChange={setExecutionMode}
                 onAttachmentsChange={handleAttachmentsChange}
                 placeholder={
-                  !selectedAssistantId
-                    ? isSmallMobile
-                      ? "Select an assistant"
-                      : "Select an assistant to start chatting"
-                    : "Type your message..."
+                  isAssistantInactive
+                    ? "Assistant is deactivated"
+                    : !selectedAssistantId
+                      ? isSmallMobile
+                        ? "Select an assistant"
+                        : "Select an assistant to start chatting"
+                      : "Type your message..."
                 }
               />
 
@@ -1630,6 +1841,15 @@ export const ChatInterface = ({
         onReject={handleReject}
         onCancel={handleApprovalCancel}
       />
+
+      {/* Ask User Modal for agent questions */}
+      <AskUserModal
+        open={askUserRequest !== null}
+        request={askUserRequest}
+        onSubmit={handleAskUserSubmit}
+        onCancel={handleAskUserDismiss}
+      />
+
     </>
   );
 };

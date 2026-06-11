@@ -409,7 +409,7 @@ describe("useStreamingChat", () => {
     await waitFor(() => {
       expect(mockOnToolResult).toHaveBeenCalledWith("list_projects", {
         items: [{ id: "proj-1", name: "Project 1" }],
-      });
+      }, undefined);
     });
   });
 

@@ -1,4 +1,5 @@
-import { App as AntApp, ConfigProvider, theme as antTheme } from "antd";
+import { useEffect } from "react";
+import { App as AntApp, ConfigProvider, Grid, theme as antTheme } from "antd";
 import { Toaster } from "sonner";
 import { RouterProvider } from "react-router-dom";
 import { router } from "@/routes";
@@ -8,12 +9,20 @@ import { useTokenRefreshTimer } from "@/utils/tokenRefresh";
 
 export const App = () => {
   const { themeMode } = useUserPreferencesStore();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   // Initialize token refresh timer
   useTokenRefreshTimer();
 
+  // Sync data-theme attribute for CSS-based theme queries
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", themeMode);
+  }, [themeMode]);
+
   return (
     <ConfigProvider
+      card={{ variant: isMobile ? "borderless" : undefined }}
       theme={{
         ...theme,
         algorithm:
@@ -25,6 +34,11 @@ export const App = () => {
           themeMode === "dark"
             ? { ...theme.token, ...theme.darkModeTokens }
             : theme.token,
+        // Apply dark mode component tokens when dark mode is enabled
+        components:
+          themeMode === "dark"
+            ? { ...theme.components, ...theme.darkModeComponents }
+            : theme.components,
       }}
     >
       <AntApp>

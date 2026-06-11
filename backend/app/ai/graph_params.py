@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -32,13 +33,11 @@ class GraphCreationParams:
     tool_context: ToolContext
     assistant_config: AIAssistantConfig
     session_id: UUID | None = None
-    enable_subagents: bool = True
-    provider_type: str | None = None
-    model_name: str | None = None
     available_tools: list[Any] | None = None
     event_bus: AgentEventBus | None = None
     user_role: str = "guest"
     websocket: WebSocket | None = None
+    specialist_models: dict[str, Any] | None = None
 
 
 @dataclass
@@ -57,6 +56,7 @@ class GraphExecutionParams:
     branch_mode: Literal["merged", "isolated"] | None = None
     execution_mode: ExecutionMode = field(default=ExecutionMode.STANDARD)
     context: dict[str, Any] | None = None
+    stop_event: asyncio.Event | None = None
 
 
 @dataclass
@@ -86,6 +86,8 @@ class GraphContext:
     branch_mode: Literal["merged", "isolated"] | None
     execution_mode: ExecutionMode
     assistant_config: Any  # AIAssistantConfig
+    stop_event: asyncio.Event | None = None
+    resume_plan_data: dict[str, Any] | None = None
 
 
 @dataclass
@@ -143,6 +145,7 @@ class StreamState:
     # Status
     graph_error: Exception | None = None
     briefing_persisted: bool = False
+    last_persisted_message_id: UUID | None = None
 
     def __post_init__(self) -> None:
         from app.ai.token_estimator import TokenUsageAccumulator
@@ -192,7 +195,11 @@ class StreamState:
     ) -> None:
         """Extract briefing data from a chain output and publish a briefing_update event."""
         from app.ai.briefing import BriefingDocument
-        from app.models.schemas.ai import WSBriefingMessage
+        from app.models.schemas.ai import (
+            BriefingDocumentPublic,
+            BriefingSectionPublic,
+            WSBriefingMessage,
+        )
 
         if not isinstance(chain_output, dict) or "briefing_data" not in chain_output:
             return
@@ -207,7 +214,23 @@ class StreamState:
             AgentEventType.BRIEFING_UPDATE,
             WSBriefingMessage(
                 type=AgentEventType.BRIEFING_UPDATE,
-                briefing=briefing_md,
+                briefing=BriefingDocumentPublic(
+                    original_request=doc.original_request,
+                    sections=[
+                        BriefingSectionPublic(
+                            specialist_name=s.specialist_name,
+                            summary=s.findings,
+                            key_findings=s.key_findings or [],
+                            open_questions=s.open_questions or [],
+                            delegation_notes=s.delegation_notes or "",
+                            task_description=s.task_description,
+                            step_index=s.step_index,
+                        )
+                        for s in doc.sections
+                    ],
+                    supervisor_analysis=doc.supervisor_analysis,
+                    markdown=briefing_md,
+                ),
                 specialist_name=chain_name,
                 completed_specialists=completed_list,
             ).model_dump(mode="json"),

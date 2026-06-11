@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { App, Button, Space, Tag, Typography, theme, List } from "antd";
+import { App, Button, Card, Space, Tag, Typography, theme, List } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -215,46 +215,37 @@ export const MCPServerList = () => {
   ];
 
   return (
-    <div>
-      <StandardTable<MCPServerPublic>
-        tableParams={tableParams}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={servers || []}
-        columns={columns}
-        rowKey="id"
-        expandable={{
-          expandedRowRender: (record) => <ExpandedToolsRow serverId={record.id} />,
-          rowExpandable: (record) => record.is_active,
-        }}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div
-              style={{ fontSize: typography.sizes.xl, fontWeight: typography.weights.bold }}
+    <>
+      <Card
+        title="MCP Servers"
+        extra={
+          <Can permission="ai-config-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedServer(null);
+                setModalOpen(true);
+              }}
             >
-              MCP Servers
-            </div>
-            <Can permission="ai-config-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedServer(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add Server
-              </Button>
-            </Can>
-          </div>
+              Add Server
+            </Button>
+          </Can>
         }
-      />
+      >
+        <StandardTable<MCPServerPublic>
+          tableParams={tableParams}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={servers || []}
+          columns={columns}
+          rowKey="id"
+          expandable={{
+            expandedRowRender: (record) => <ExpandedToolsRow serverId={record.id} />,
+            rowExpandable: (record) => record.is_active,
+          }}
+        />
+      </Card>
 
       <MCPServerModal
         open={modalOpen}
@@ -272,6 +263,6 @@ export const MCPServerList = () => {
         confirmLoading={selectedServer ? isUpdating : isCreating}
         initialValues={selectedServer}
       />
-    </div>
+    </>
   );
 };

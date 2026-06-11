@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_SYSTEM_PROMPT = """You are a Backcast project management assistant.
+Before calling tools, review your briefing context to avoid redundant queries.
 
 When using tools:
 - Use exact field names expected by the tools
@@ -81,14 +82,16 @@ def build_backcast_middleware(
     middleware: list[Any] = []
     if AI_SEQUENTIAL_TOOL_CALLS:
         middleware.append(SequentialToolCallsMiddleware())
-    middleware.extend([
-        TemporalContextMiddleware(context),
-        BackcastSecurityMiddleware(
-            context,
-            tools=tools,
-            interrupt_node=None,
-        ),
-    ])
+    middleware.extend(
+        [
+            TemporalContextMiddleware(context),
+            BackcastSecurityMiddleware(
+                context,
+                tools=tools,
+                interrupt_node=None,
+            ),
+        ]
+    )
     return middleware
 
 
@@ -99,6 +102,7 @@ def compile_subagents(
     available_tools: list[BaseTool],
     allowed_tools: list[str] | None = None,
     *,
+    specialist_models: dict[str, BaseChatModel] | None = None,
     label: str = "subagent",
 ) -> list[dict[str, Any]]:
     """Compile subagent configs into runnable LangChain agent graphs.
@@ -124,7 +128,9 @@ def compile_subagents(
 
     for cfg in subagent_configs:
         name = cfg.get("name", "")
+        specialist_model = (specialist_models or {}).get(name, model)
         description = cfg.get("description", "")
+        presentation_prompt = cfg.get("presentation_prompt", description)
         system_prompt = cfg.get("system_prompt", "")
         allowed_tool_names = cfg.get("allowed_tools")
         schema = cfg.get("structured_output_schema") or SpecialistOutput
@@ -169,7 +175,7 @@ def compile_subagents(
         middleware = build_backcast_middleware(context, subagent_tools)
 
         runnable = langchain_create_agent(
-            model=model,
+            model=specialist_model,
             tools=subagent_tools,
             system_prompt=system_prompt,
             middleware=middleware,
@@ -210,6 +216,7 @@ def compile_subagents(
             {
                 "name": name,
                 "description": description,
+                "presentation_prompt": presentation_prompt,
                 "runnable": runnable,
                 "structured_output_schema": schema,
                 "tools": subagent_tools,

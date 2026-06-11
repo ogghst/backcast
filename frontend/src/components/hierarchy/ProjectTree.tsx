@@ -130,13 +130,13 @@ const NodeTitle = ({
 }) => {
   const showRight = (showBudget && budget) || (showDates && dates);
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flex: 1 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: token.marginXS, flex: 1 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: token.marginXS, minWidth: 0 }}>
         {icon}
         <Text strong={strong} ellipsis style={{ minWidth: 0 }}>{name}</Text>
       </div>
       {showRight ? (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: token.marginXS, alignItems: "center", flexShrink: 0 }}>
           {showBudget && budget && <InfoPill>{budget}</InfoPill>}
           {showDates && dates && <InfoPill>{dates}</InfoPill>}
         </div>

@@ -31,7 +31,8 @@ from app.ai.plan import PlanDocument
 logger = logging.getLogger(__name__)
 
 # Tool name prefixes that are ALWAYS allowed, even under a plan.
-_ALLOWED_PREFIXES = ("get_briefing", "handoff_to_")
+# ask_user is also permitted so the supervisor can ask clarifying questions mid-plan.
+_ALLOWED_PREFIXES = ("get_briefing", "handoff_to_", "ask_user")
 
 _PLAN_DELEGATION_SUFFIX = (
     "\n\n"
@@ -102,9 +103,7 @@ def _strip_disallowed_tool_calls(
         return ai_message  # nothing to strip
 
     removed_names = [
-        tc.get("name", "?")
-        for tc in ai_message.tool_calls
-        if tc not in filtered_calls
+        tc.get("name", "?") for tc in ai_message.tool_calls if tc not in filtered_calls
     ]
     logger.warning(
         "[PLAN_AWARE_TOOLS] Post-filter: stripped %d disallowed tool_call(s) "

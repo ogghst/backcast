@@ -1,4 +1,4 @@
-import { App, Button, Input, Space, Tag, Tooltip, theme } from "antd";
+import { App, Button, Card, Input, Space, Tag, Tooltip, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -341,49 +341,42 @@ export const UserList = () => {
   }, [users, tableParams.search]);
 
   return (
-    <div>
-      <StandardTable<User>
-        tableParams={{
-          ...tableParams,
-          pagination: {
-            ...tableParams.pagination,
-            total: filteredUsers.length,
-          },
-        }}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={filteredUsers}
-        columns={columns}
-        rowKey="user_id"
-        searchable={true}
-        searchPlaceholder="Search users..."
-        onSearch={handleSearch}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
-              User Management
-            </div>
-            <Can permission="user-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedUser(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add User
-              </Button>
-            </Can>
-          </div>
+    <>
+      <Card
+        title={<span style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>User Management</span>}
+        extra={
+          <Can permission="user-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedUser(null);
+                setModalOpen(true);
+              }}
+            >
+              Add User
+            </Button>
+          </Can>
         }
-      />
+      >
+        <StandardTable<User>
+          tableParams={{
+            ...tableParams,
+            pagination: {
+              ...tableParams.pagination,
+              total: filteredUsers.length,
+            },
+          }}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={filteredUsers}
+          columns={columns}
+          rowKey="user_id"
+          searchable={true}
+          searchPlaceholder="Search users..."
+          onSearch={handleSearch}
+        />
+      </Card>
 
       <UserModal
         open={modalOpen}
@@ -420,6 +413,6 @@ export const UserList = () => {
         entityName={`User: ${selectedUser?.full_name || ""}`}
         isLoading={historyLoading}
       />
-    </div>
+    </>
   );
 };

@@ -150,7 +150,7 @@ export const WorkPackageScheduleBaselineModal: React.FC<
           <Input placeholder="e.g., Q1 2026 Baseline" />
         </Form.Item>
 
-        <Space.Compact style={{ width: "100%", marginBottom: 16 }}>
+        <Space.Compact style={{ width: "100%", marginBottom: token.marginMD }}>
           <Form.Item
             label="Start Date"
             name="start_date"
@@ -217,7 +217,7 @@ export const WorkPackageScheduleBaselineModal: React.FC<
             </Space>
           }
           size="small"
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         >
           <ProgressionPreviewChart
             progressionType={progressionType}
@@ -231,7 +231,7 @@ export const WorkPackageScheduleBaselineModal: React.FC<
           description="PV will be calculated as: PV = BAC × Progress, where Progress is determined by the selected progression type and current date."
           type="info"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         />
 
         <div style={{ textAlign: "right" }}>

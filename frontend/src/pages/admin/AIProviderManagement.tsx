@@ -8,9 +8,5 @@
 import { AIProviderList } from "@/features/ai/components/AIProviderList";
 
 export const AIProviderManagement = () => {
-  return (
-    <div>
-      <AIProviderList />
-    </div>
-  );
+  return <AIProviderList />;
 };

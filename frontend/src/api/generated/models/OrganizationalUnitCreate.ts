@@ -23,6 +23,10 @@ export type OrganizationalUnitCreate = {
      */
     description?: (string | null);
     /**
+     * Parent Organizational Unit root ID for hierarchy
+     */
+    parent_unit_id?: (string | null);
+    /**
      * Root Organizational Unit ID (internal use only for seeding)
      */
     organizational_unit_id?: (string | null);

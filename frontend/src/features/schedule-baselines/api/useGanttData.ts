@@ -27,11 +27,21 @@ export interface GanttItem {
   progression_type: string | null;
 }
 
+/** A dependency arrow between two schedule bars. */
+export interface GanttDependencyLink {
+  dependency_id: string;
+  predecessor_id: string;
+  successor_id: string;
+  dependency_type: string;
+  lag_days: number;
+}
+
 /** Top-level response from the Gantt data API. */
 export interface GanttDataResponse {
   items: GanttItem[];
   project_start: string | null;
   project_end: string | null;
+  dependencies: GanttDependencyLink[];
 }
 
 /**

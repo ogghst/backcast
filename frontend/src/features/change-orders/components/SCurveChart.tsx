@@ -12,7 +12,7 @@
  */
 
 import React, { useMemo, useRef } from "react";
-import { Card, Typography, Button } from "antd";
+import { Card, Typography, Button, theme } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import type { TimeSeriesData } from "@/api/generated";
 import { EChartsBaseChart } from "@/features/evm/components/charts/EChartsBaseChart";
@@ -134,6 +134,7 @@ export const SCurveChart = React.forwardRef<
     },
     ref,
   ) => {
+    const { token } = theme.useToken();
     const chartRef = useRef<ReactECharts | null>(null);
     const echartsTheme = useEChartsTheme();
 
@@ -211,7 +212,7 @@ export const SCurveChart = React.forwardRef<
         extra={cardExtra}
         loading={loading}
         className={className}
-        styles={{ body: { padding: 16 } }}
+        styles={{ body: { padding: token.paddingMD } }}
       >
         <EChartsBaseChart
           ref={(node) => {

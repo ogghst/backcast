@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { EChartsBaseChart } from "@/features/evm/components/charts/EChartsBaseChart";
 import { useEChartsTheme } from "@/features/evm/utils/echartsTheme";
 import { useGanttData } from "../../api/useGanttData";
-import { transformGanttData, type GanttRow } from "./GanttDataTransformer";
+import { transformGanttData, buildScheduleBaselineIndex, type GanttRow } from "./GanttDataTransformer";
 import { buildGanttOptions, TIME_LEGEND_HEIGHT, CHART_BOTTOM_PADDING } from "./GanttChartOptions";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 
@@ -33,7 +33,7 @@ interface GanttChartProps {
 
 /** ECharts click event params shape for custom series. */
 interface ChartClickParams {
-  data?: [number, number, number, GanttRow];
+  data?: [number, number, number, GanttRow] | unknown[];
 }
 
 export const GanttChart: React.FC<GanttChartProps> = ({
@@ -80,6 +80,12 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     [data, collapsedWbeIds],
   );
 
+  // Build schedule baseline index for dependency arrow coordinate resolution
+  const scheduleIndex = useMemo(
+    () => buildScheduleBaselineIndex(rows),
+    [rows],
+  );
+
   // Dynamic height computation based on visible row count
   const chartHeight = useMemo(() => {
     const visibleRows = rows.length;
@@ -102,18 +108,22 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
   // Build ECharts options (y-axis labels hidden — rendered by React panel)
   const chartOption = useMemo(
-    () => buildGanttOptions(rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft, currency),
-    [rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft, currency],
+    () => buildGanttOptions(
+      rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft, currency,
+      data?.dependencies ?? [],
+      scheduleIndex,
+    ),
+    [rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft, currency, data?.dependencies, scheduleIndex],
   );
 
   // Handle bar clicks for cost element navigation only (WBE collapse handled by React panel)
+  // Dependency arrows have 7-element data arrays — skip them explicitly
   const handleEvents = useMemo(() => ({
     click: (params: ChartClickParams) => {
-      if (params.data && params.data[3]) {
-        const row = params.data[3];
-        if (!row.isWbe && row.costElementId) {
-          navigate(`/cost-elements/${row.costElementId}`);
-        }
+      if (!params.data || params.data.length !== 4) return;
+      const row = params.data[3];
+      if (!row.isWbe && row.costElementId) {
+        navigate(`/cost-elements/${row.costElementId}`);
       }
     },
   }), [navigate]);
@@ -158,7 +168,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
   if (isError) {
     return (
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: token.paddingMD }}>
         <p>Error loading schedule data. Please try again.</p>
       </div>
     );

@@ -12,6 +12,7 @@ import { AIAssistantManagement } from "@/pages/admin/AIAssistantManagement";
 import { MCPServerManagement } from "@/pages/admin/MCPServerManagement";
 import { RBACConfiguration } from "@/pages/admin/RBACConfiguration";
 import { RoleAssignments } from "@/pages/admin/RoleAssignments";
+import { SystemAdminPage } from "@/pages/admin/SystemAdminPage";
 import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
@@ -130,6 +131,10 @@ export const router = createBrowserRouter([
       {
         path: "/admin/rbac",
         element: <RBACConfiguration />,
+      },
+      {
+        path: "/admin/system",
+        element: <SystemAdminPage />,
       },
       {
         path: "/admin/role-assignments",

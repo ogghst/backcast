@@ -371,7 +371,8 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             )
             .join(
                 CostElementType,
-                CostElementType.cost_element_type_id == CostElement.cost_element_type_id,
+                CostElementType.cost_element_type_id
+                == CostElement.cost_element_type_id,
             )
             .where(
                 CostElement.cost_element_id == cost_element_id,

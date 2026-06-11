@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AIAssistantModal } from "../AIAssistantModal";
 import type { AIAssistantPublic } from "../../types";
@@ -33,6 +33,7 @@ describe("AIAssistantModal", () => {
       id: "123",
       name: "Test Assistant",
       description: "Test description",
+      presentation_prompt: null,
       model_id: "model-1",
       system_prompt: "You are helpful",
       planner_prompt: null,
@@ -102,6 +103,7 @@ describe("AIAssistantModal", () => {
       id: "123",
       name: "Test Assistant",
       description: "Test description",
+      presentation_prompt: null,
       model_id: "model-1",
       system_prompt: "You are helpful",
       planner_prompt: null,
@@ -154,6 +156,60 @@ describe("AIAssistantModal", () => {
     expect(await screen.findByText("AI Viewer")).toBeInTheDocument();
     expect(await screen.findByText("AI Manager")).toBeInTheDocument();
     expect(await screen.findByText("AI Admin")).toBeInTheDocument();
+  });
+
+  it("should show presentation prompt field for specialist agents", async () => {
+    render(
+      <AIAssistantModal
+        open={true}
+        onCancel={vi.fn()}
+        onOk={vi.fn()}
+        confirmLoading={false}
+        models={mockModels}
+      />
+    );
+
+    // Create mode defaults to "specialist", so presentation prompt should be visible
+    expect(await screen.findByLabelText(/presentation prompt/i)).toBeInTheDocument();
+  });
+
+  it("should not show presentation prompt field for main agents", async () => {
+    const mainAssistant: AIAssistantPublic = {
+      id: "456",
+      name: "Main Agent",
+      description: "Main orchestrator",
+      presentation_prompt: null,
+      model_id: "model-1",
+      system_prompt: "You are a planner",
+      planner_prompt: null,
+      supervisor_prompt: null,
+      temperature: 0.7,
+      max_tokens: 2048,
+      recursion_limit: 25,
+      default_role: "ai-manager",
+      is_active: true,
+      agent_type: "main",
+      allowed_tools: ["list_projects"],
+      delegation_config: null,
+      structured_output_schema: null,
+      created_at: "2026-03-07T00:00:00Z",
+      updated_at: "2026-03-07T00:00:00Z",
+    };
+
+    render(
+      <AIAssistantModal
+        open={true}
+        onCancel={vi.fn()}
+        onOk={vi.fn()}
+        confirmLoading={false}
+        initialValues={mainAssistant}
+        models={mockModels}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/presentation prompt/i)).not.toBeInTheDocument();
+    });
   });
 
 });

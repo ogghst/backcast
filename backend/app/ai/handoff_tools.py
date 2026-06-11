@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from typing import Annotated, Any
 
 from langchain.tools import InjectedToolCallId, tool
@@ -123,6 +124,7 @@ def create_handoff_tool(
             "messages": [ai_message, tool_message],
             "active_agent": agent_name,
             "briefing_data": updated_data,
+            "current_invocation_id": str(uuid.uuid4()),
         }
         if step_index is not None:
             update["current_step_index"] = step_index
@@ -152,7 +154,7 @@ def create_all_handoff_tools(
     tools: list[BaseTool] = []
     for config in subagent_configs:
         name = config.get("name", "")
-        description = config.get("description", "")
+        description = config.get("presentation_prompt", config.get("description", ""))
         if not name:
             continue
         tools.append(

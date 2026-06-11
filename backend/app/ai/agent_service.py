@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
-from fastapi.encoders import jsonable_encoder
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -69,8 +68,8 @@ if HAS_DEEPSEEK:
 
     _lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
 
-    # Patch ChatDeepSeek.bind_tools() to strip tool_choice parameter
-    # DeepSeek-reasoner rejects tool_choice, but langchain_create_agent() passes it
+    # Patch ChatDeepSeek.bind_tools() to strip tool_choice parameter.
+    # DeepSeek V4 Flash with thinking mode rejects tool_choice.
     _original_bind_tools = ChatDeepSeek.bind_tools
 
     def _patched_bind_tools(  # type: ignore[no-untyped-def]
@@ -82,10 +81,10 @@ if HAS_DEEPSEEK:
         ) = None,
         **kwargs: Any,
     ) -> Any:
-        """Strip tool_choice for DeepSeek models — the API rejects it."""
+        """Strip tool_choice for DeepSeek models — thinking mode rejects it."""
         if tool_choice is not None:
             logger.info(
-                "Stripping tool_choice=%s for DeepSeek model (API rejects this parameter)",
+                "Stripping tool_choice=%s for DeepSeek model (thinking mode rejects this parameter)",
                 tool_choice,
             )
             tool_choice = None
@@ -105,6 +104,7 @@ from app.ai.event_types import (
     AgentEventType,
     ExecutionStatus,
 )
+from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.agent_metrics import AgentExecutionMetrics
@@ -126,16 +126,14 @@ from app.ai.graph_params import (
 from app.ai.message_utils import extract_tool_output_content
 from app.ai.message_utils import is_transient_stream_error as _is_transient_stream_error
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
+from app.ai.subagents.db_loader import load_specialists_from_db
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
-from app.ai.telemetry import (
-    initialize_telemetry,
-    trace_context,
-)
+from app.ai.telemetry import initialize_telemetry
 from app.ai.token_estimator import (
     log_actual_usage,
     log_context_usage_estimate,
 )
-from app.ai.tools import ToolContext, create_project_tools, filter_tools_by_role
+from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.sequential_tool_node import patch_tool_node_for_sequential_execution
 from app.ai.tools.session_manager import ToolSessionManager
@@ -151,9 +149,8 @@ from app.models.domain.ai import (
 from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
 from app.models.domain.wbs_element import WBSElement
+from app.models.domain.work_package import WorkPackage
 from app.models.schemas.ai import (
-    AIChatResponse,
-    AIConversationMessagePublic,
     PlanningStep,
     WSCompleteMessage,
 )
@@ -265,6 +262,20 @@ _HANDLED_EVENTS = frozenset(
     }
 )
 
+# Non-specialist node names in the parent graph.  Specialist names are
+# everything NOT in this set — used to detect subagent transitions.
+_NON_SPECIALIST_NODES = frozenset(
+    {
+        "__start__",
+        "__end__",
+        "agent",
+        "initialize_briefing",
+        "planner",
+        "supervisor",
+        "tools",
+    }
+)
+
 # Caches (shared across all requests)
 _llm_cache = LLMClientCache()
 
@@ -304,6 +315,7 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
     return role
 
 
+
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
@@ -311,6 +323,57 @@ class AgentService:
     # execution (which may create a separate AgentService) are visible
     # to the approval-handling instance.
     _interrupt_nodes: ClassVar[dict[UUID, "InterruptNode"]] = {}
+
+    # Shared stop-event registry: maps execution_id -> asyncio.Event.
+    # Set externally via request_stop(), checked in the supervisor loop.
+    _stop_events: ClassVar[dict[str, asyncio.Event]] = {}
+    _STOP_EVENTS_MAX: ClassVar[int] = 50
+
+    @classmethod
+    def request_stop(cls, execution_id: str) -> bool:
+        """Signal a running execution to stop gracefully.
+
+        Sets the ``asyncio.Event`` associated with *execution_id*.  The
+        supervisor loop checks this event after each specialist completes
+        and raises :class:`ExecutionStoppedError` when set.
+
+        Args:
+            execution_id: The execution to stop.
+
+        Returns:
+            ``True`` if the execution was found and signalled, ``False`` otherwise.
+        """
+        stop_evt = cls._stop_events.get(execution_id)
+        if stop_evt is None:
+            logger.warning(
+                "[REQUEST_STOP] No stop event found for execution %s",
+                execution_id,
+            )
+            return False
+        stop_evt.set()
+        logger.info("[REQUEST_STOP] Stop signalled for execution %s", execution_id)
+        return True
+
+    @classmethod
+    def _register_stop_event(cls, execution_id: str) -> asyncio.Event:
+        """Create and register a stop event for an execution.
+
+        Evicts the oldest entry when the registry exceeds ``_STOP_EVENTS_MAX``
+        to prevent unbounded memory growth (mirrors the ``_interrupt_nodes``
+        eviction pattern).
+        """
+        if len(cls._stop_events) >= cls._STOP_EVENTS_MAX:
+            oldest_key = next(iter(cls._stop_events))
+            evicted = cls._stop_events.pop(oldest_key, None)
+            if evicted is not None:
+                evicted.set()
+            logger.warning(
+                "Stop event registry reached %d entries — evicted oldest",
+                cls._STOP_EVENTS_MAX,
+            )
+        event = asyncio.Event()
+        cls._stop_events[execution_id] = event
+        return event
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -558,6 +621,7 @@ class AgentService:
                 context=tool_context,
                 system_prompt=system_prompt,
                 main_assistant_config=assistant_config,
+                specialist_models=params.specialist_models,
             )
             graph = await supervisor_orchestrator.create_supervisor_graph(agent_config)
 
@@ -590,274 +654,16 @@ class AgentService:
                 session_id,
             )
 
-    async def chat(
-        self,
-        message: str,
-        assistant_config: AIAssistantConfig,
-        session_id: UUID | None,
-        user_id: UUID,
-    ) -> AIChatResponse:
-        """Process a chat message using LangGraph.
-
-        Context: Main entry point for the AI conversation. Manages the session, invokes the graph, and saves history.
-                Uses the new StateGraph with ainvoke for non-streaming responses.
-
-        Args:
-            message: The user's input message
-            assistant_config: Configuration defining the model and allowed tools
-            session_id: Optional existing session ID to continue. If None, a new session is created
-            user_id: ID of the user sending the message
-
-        Returns:
-            Structured response containing the assistant's message, any tool calls, and the session ID
-
-        Raises:
-            ValueError: If session creation fails or no assistant response is generated
-        """
-        with trace_context(
-            "agent.chat",
-            attributes={
-                "session_id": str(session_id) if session_id else "new",
-                "user_id": str(user_id),
-                "assistant_id": str(assistant_config.id),
-            },
-        ):
-            return await self._chat_impl(message, assistant_config, session_id, user_id)
-
-    async def _chat_impl(
-        self,
-        message: str,
-        assistant_config: AIAssistantConfig,
-        session_id: UUID | None,
-        user_id: UUID,
-    ) -> AIChatResponse:
-        """Internal implementation of chat processing.
-
-        Args:
-            message: The user's input message
-            assistant_config: Configuration defining the model and allowed tools
-            session_id: Optional existing session ID to continue. If None, a new session is created
-            user_id: ID of the user sending the message
-
-        Returns:
-            Structured response containing the assistant's message, any tool calls, and the session ID
-
-        Raises:
-            ValueError: If session creation fails or no assistant response is generated
-        """
-        db_session: AIConversationSession | None
-        if session_id:
-            db_session = await self.config_service.get_session(session_id)
-            if not db_session:
-                raise ValueError(f"Session {session_id} not found")
-        else:
-            # Create new session
-            db_session = await self.config_service.create_session(
-                user_id=user_id,
-                assistant_config_id=assistant_config.id,
-            )
-            session_id = db_session.id
-        if not session_id:
-            raise ValueError("Failed to create session")
-
-        _ = await self.config_service.add_message(
-            session_id=session_id,
-            role="user",
-            content=message,
-        )
-
-        # Load context from session
-        session_project_id = (
-            UUID(db_session.project_id)
-            if db_session and db_session.project_id
-            else None
-        )
-        session_context = db_session.context if db_session else None
-
-        # Build history first (needed before system prompt)
-        history = await self._build_conversation_history(session_id)
-
-        # Enrich context with entity names from DB
-        enriched_context = session_context
-        if session_context:
-            enriched_context = await self._resolve_context_names(
-                session_context, session_project_id
-            )
-
-        base_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
-        system_prompt = self._build_system_prompt(
-            base_prompt=base_prompt,
-            project_id=session_project_id,
-            context=enriched_context,
-        )
-        history.insert(0, SystemMessage(content=system_prompt))
-
-        if assistant_config.model_id is None:
-            raise ValueError(
-                f"Agent '{assistant_config.name}' has no model_id configured"
-            )
-        client_config, model_name, provider_type = await self._get_llm_client_config(
-            UUID(str(assistant_config.model_id))
-        )
-
-        llm = await self._create_langchain_llm(
-            client_config,
-            model_name,
-            assistant_config.temperature,
-            assistant_config.max_tokens,
-        )
-
-        user_role = await _get_user_role(self.session, user_id)
-
-        tool_context = ToolContext(
-            self.session,
-            str(user_id),
-            user_role=user_role,
-            project_id=str(session_project_id) if session_project_id else None,
-        )
-        available_tools = create_project_tools(tool_context)
-        tools_dict = {tool.name: tool for tool in available_tools}
-
-        if assistant_config.default_role:
-            filtered = await filter_tools_by_role(
-                list(tools_dict.values()), assistant_config.default_role
-            )
-            tools_dict = {t.name: t for t in filtered}
-
-        # Filter by user's actual role
-        filtered = await filter_tools_by_role(list(tools_dict.values()), user_role)
-        tools_dict = {t.name: t for t in filtered}
-
-        graph, _interrupt_node = create_graph(
-            llm=llm, tools=list(tools_dict.values()), context=tool_context
-        )
-
-        recursion_limit = (
-            assistant_config.recursion_limit
-            if assistant_config.recursion_limit is not None
-            else 25
-        )
-
-        # Invoke the graph
-        try:
-            existing_briefing = await self.config_service.get_session_briefing(
-                session_id
-            )
-            if existing_briefing:
-                logger.info(
-                    "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (non-streaming)",
-                    len(existing_briefing.get("sections", [])),
-                )
-
-            result = await graph.ainvoke(
-                input_state={
-                    "messages": history,
-                    "tool_call_count": 0,
-                    "max_tool_iterations": recursion_limit,
-                    "next": "agent",
-                    "briefing_data": existing_briefing,
-                },
-                config={
-                    "recursion_limit": recursion_limit,
-                    "configurable": {"thread_id": str(session_id)},
-                },
-            )
-
-            final_briefing = result.get("briefing_data")
-            if final_briefing:
-                section_count = len(final_briefing.get("sections", []))
-                await self.config_service.save_session_briefing(
-                    session_id, final_briefing
-                )
-                logger.info(
-                    "[BRIEFING_PERSIST_SUCCESS] Saved briefing to DB with %d sections (non-streaming) | session_id=%s",
-                    section_count,
-                    session_id,
-                )
-            else:
-                logger.info(
-                    "[BRIEFING_PERSIST_SUCCESS] No briefing_data to save (non-streaming) | session_id=%s",
-                    session_id,
-                )
-
-            shared_checkpointer.delete_thread(str(session_id))
-            logger.info(
-                "[BRIEFING_PERSIST_SUCCESS] Deleted checkpoint after save (non-streaming) | session_id=%s",
-                session_id,
-            )
-        finally:
-            try:
-                await ToolSessionManager.commit()
-                logger.debug(
-                    f"Cleaned up task-local sessions after graph invocation for session {session_id}"
-                )
-            except Exception as cleanup_error:
-                logger.debug(
-                    f"No task-local sessions to clean up or cleanup failed: {cleanup_error}"
-                )
-                # Ignore cleanup errors - sessions may have already been removed
-
-        final_message = None
-        messages = result.get("messages", [])
-        for msg in reversed(messages):
-            if isinstance(msg, AIMessage) and not msg.tool_calls:
-                final_message = msg
-                break
-
-        if not final_message:
-            raise ValueError("No assistant response generated")
-
-        tool_calls_data: list[dict[str, Any]] = []
-
-        for msg in messages:
-            if isinstance(msg, AIMessage) and msg.tool_calls:
-                # Convert ToolCall objects to dict format
-                for tc in msg.tool_calls:
-                    tool_calls_data.append(
-                        {
-                            "id": tc.get("id", ""),
-                            "name": tc.get("name", ""),
-                            "args": tc.get("args", {}),
-                        }
-                    )
-            # Note: Tool messages are not directly accessible from the result
-            # In a real implementation, you might want to track these separately
-
-        # Convert AIMessage content to string (can be str | list)
-        content_str = (
-            final_message.content
-            if isinstance(final_message.content, str)
-            else str(final_message.content)
-            if final_message.content
-            else ""
-        )
-        rc_metadata = _extract_reasoning_content(final_message)
-        assistant_msg = await self.config_service.add_message(
-            session_id=session_id,
-            role="assistant",
-            content=content_str,
-            tool_calls=tool_calls_data if tool_calls_data else None,
-            tool_results=None,  # No tool results in non-streaming mode
-            message_metadata=rc_metadata,
-        )
-
-        # Build response
-        return AIChatResponse(
-            session_id=session_id,
-            message=AIConversationMessagePublic.model_validate(assistant_msg),
-            tool_calls=tool_calls_data if tool_calls_data else None,
-        )
-
     async def _persist_briefing_from_checkpoint(
         self,
         session_id: UUID,
         log_label: str = "BRIEFING_PERSIST",
     ) -> bool:
-        """Load briefing from checkpoint and persist to database.
+        """Load briefing and plan from checkpoint and persist to database.
 
-        Extracts briefing_data from the LangGraph checkpoint, saves it to the
-        session via config_service, and deletes the checkpoint. Returns True
-        if briefing was found and saved.
+        Extracts briefing_data and plan_data from the LangGraph checkpoint,
+        saves them to the session via config_service, and deletes the
+        checkpoint.  Returns True if briefing was found and saved.
 
         We persist from checkpoint (not graph state) because the streaming
         events don't carry the final briefing -- it's only in the checkpoint
@@ -883,7 +689,12 @@ class AgentService:
                 return False
 
             section_count = len(briefing_data.get("sections", []))
-            await self.config_service.save_session_briefing(session_id, briefing_data)
+            plan_data: dict[str, Any] | None = cast(
+                Any, channel_values.get("plan_data")
+            )
+            await self.config_service.save_session_briefing(
+                session_id, briefing_data, plan_data=plan_data
+            )
             # Checkpoint is always deleted to prevent state bloat across sessions.
             shared_checkpointer.delete_thread(str(session_id))
             logger.info(
@@ -966,6 +777,43 @@ class AgentService:
             assistant_config.max_tokens,
         )
 
+        # Resolve specialist-specific models (each specialist may use a different provider)
+        specialist_models: dict[str, ChatOpenAI | ChatDeepSeek] = {}
+        try:
+            specialist_configs = await load_specialists_from_db()
+        except Exception as exc:
+            logger.warning(
+                "[SPECIALIST_MODELS] Failed to load specialist configs: %s", exc
+            )
+            specialist_configs = []
+
+        for sc in specialist_configs:
+            smid = sc.get("model_id")
+            if smid is None:
+                continue
+            try:
+                s_client_config, s_model_name, _ = await self._get_llm_client_config(
+                    UUID(smid)
+                )
+                s_llm = await self._create_langchain_llm(
+                    s_client_config,
+                    s_model_name,
+                    temperature=sc.get("temperature"),
+                    max_tokens=sc.get("max_tokens"),
+                )
+                specialist_models[sc["name"]] = s_llm
+                logger.info(
+                    "[SPECIALIST_MODELS] Resolved specialist '%s' -> model %s",
+                    sc["name"],
+                    s_model_name,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[SPECIALIST_MODELS] Failed to resolve model for specialist '%s': %s",
+                    sc["name"],
+                    exc,
+                )
+
         user_role = await _get_user_role(self.session, user_id)
 
         tool_context = ToolContext(
@@ -980,6 +828,7 @@ class AgentService:
             execution_mode=execution_mode,
             _event_bus=event_bus,
         )
+        tool_context._stop_event = params.stop_event
         available_tools = create_project_tools(tool_context)
 
         graph, interrupt_node = await self._create_deep_agent_graph(
@@ -989,12 +838,10 @@ class AgentService:
                 assistant_config=assistant_config,
                 websocket=None,
                 session_id=session_id,
-                enable_subagents=True,
-                provider_type=provider_type,
-                model_name=model_name,
                 available_tools=available_tools,
                 event_bus=event_bus,
                 user_role=user_role,
+                specialist_models=specialist_models,
             )
         )
 
@@ -1036,6 +883,7 @@ class AgentService:
             branch_mode=branch_mode,
             execution_mode=execution_mode,
             assistant_config=assistant_config,
+            stop_event=params.stop_event,
         )
 
         existing_briefing = await self.config_service.get_session_briefing(session_id)
@@ -1044,6 +892,33 @@ class AgentService:
                 "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (streaming)",
                 len(existing_briefing.get("sections", [])),
             )
+
+        # Resume injection: when the session has persisted plan_data with
+        # incomplete steps, load it so the planner can skip the LLM call and
+        # the supervisor can skip completed specialist steps.  Detected
+        # automatically from session state — no explicit parameter needed.
+        resume_plan_data: dict[str, Any] | None = None
+        # Load plan_data directly from the session row
+        stmt = select(AIConversationSession).where(
+            AIConversationSession.id == str(session_id)
+        )
+        result = await self.session.execute(stmt)
+        db_session = result.scalar_one_or_none()
+        if db_session and db_session.plan_data:
+            from app.ai.plan import PlanDocument
+
+            plan = PlanDocument.from_state(db_session.plan_data)
+            if plan.get_first_incomplete_step_index() is not None:
+                resume_plan_data = db_session.plan_data
+                logger.info(
+                    "[RESUME] Loaded plan_data for session %s: %d steps, "
+                    "%d incomplete — will inject into graph state",
+                    session_id,
+                    len(plan.steps),
+                    len(plan.steps) - len(plan.completed_step_indices()),
+                )
+
+        ctx.resume_plan_data = resume_plan_data
 
         return ctx, existing_briefing
 
@@ -1059,80 +934,53 @@ class AgentService:
             state.planner_active = True
             return
 
-        if chain_name not in state.specialist_names:
+        # Specialist chain start — set the invocation_id from the graph state
+        # so that specialist-internal TOOL_CALL/TOOL_RESULT events (from ainvoke
+        # callback propagation) are tagged with the correct invocation_id.
+        # The SUBAGENT event is published directly by the specialist wrapper.
+        if chain_name in state.specialist_names:
+            # Read the invocation_id generated by the handoff tool from the
+            # chain input (graph state).  astream_events v1 may not always
+            # emit on_chain_start for plain async function nodes — if the
+            # event fires, great; if not, the wrapper already publishes the
+            # SUBAGENT event directly.
+            data = event.get("data", {})
+            input_state = data.get("input", {})
+            inv_id = input_state.get("current_invocation_id", "")
+            if inv_id and not state.current_invocation_id:
+                state.current_invocation_id = inv_id
+                logger.info(
+                    "[SPECIALIST_CHAIN_START] name=%s | invocation_id=%s",
+                    chain_name,
+                    inv_id,
+                )
             return
-        # LangGraph emits on_chain_start twice per specialist
-        # (outer node + inner graph) -- deduplicate via last_entered_agent.
-        if state.last_entered_agent == chain_name:
-            return  # duplicate inner-graph event — skip to prevent double balloon
-        state.flush_tokens(state.current_invocation_id or state.main_invocation_id)
-        state.current_subagent_name = chain_name
-        state.current_invocation_id = str(uuid.uuid4())
-        state.last_entered_agent = chain_name
-        state.publish(
-            AgentEventType.AGENT_TRANSITION,
-            {
-                "type": AgentEventType.AGENT_TRANSITION,
-                "agent_name": chain_name,
-                "direction": "enter",
-                "invocation_id": state.current_invocation_id,
-            },
-        )
+
+        # Non-specialist, non-planner chains — currently no handling needed.
 
     def _handle_chain_end(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_chain_end events for specialist, supervisor, and other nodes."""
         chain_name = event.get("name", "")
         data = event.get("data", {})
 
-        # Specialist agent chain end
+        # Specialist chain end — clear StreamState tracking.  The wrapper
+        # publishes SUBAGENT / token_batch / AGENT_COMPLETE directly via the
+        # event bus, so we only flush any remaining buffered tokens and reset
+        # the tracking state.  Guard against double-fire (LangGraph may emit
+        # multiple on_chain_end for the same specialist node).
         if chain_name in state.specialist_names:
-            chain_output = data.get("output")
-
-            # Extract briefing data from either dict output or Command.update.
-            # Specialist nodes return Command objects, so isinstance(dict) is
-            # False -- we must check Command.update as a fallback.
-            output_dict: dict[str, Any] | None = None
-            is_outer_node = False
-            if isinstance(chain_output, dict):
-                output_dict = chain_output
-            elif hasattr(chain_output, "update") and isinstance(
-                getattr(chain_output, "update", None), dict
-            ):
-                output_dict = chain_output.update
-                is_outer_node = True
-
-            if output_dict and "briefing_data" in output_dict:
-                # Outer specialist_node (wrapper) completed.  Publish
-                # BRIEFING_UPDATE and AGENT_TRANSITION exit with the
-                # invocation_id that was active when the specialist entered.
-                # Use the invocation_id from the output_dict's plan_data
-                # when available, falling back to current tracking state.
-                exit_invocation_id = state.current_invocation_id
-                state.publish_briefing_update(output_dict, chain_name)
-                state.publish(
-                    AgentEventType.AGENT_TRANSITION,
-                    {
-                        "type": AgentEventType.AGENT_TRANSITION,
-                        "agent_name": chain_name,
-                        "direction": "exit",
-                        "invocation_id": exit_invocation_id,
-                    },
-                )
-            elif chain_name == state.current_subagent_name:
+            if state.current_invocation_id:
                 state.flush_tokens(state.current_invocation_id)
-
-            # Reset specialist tracking.  The inner specialist graph chain_end
-            # fires first (dict output), followed by the outer specialist_node
-            # wrapper chain_end (Command output).  We must preserve
-            # current_invocation_id across the inner chain_end so the outer
-            # chain_end can emit a correct AGENT_TRANSITION exit with the
-            # original invocation_id.  Only clear invocation_id on the outer
-            # chain_end; current_subagent_name is always cleared to prevent
-            # token misattribution in subsequent stream events.
-            state.current_subagent_name = None
-            if is_outer_node:
+                logger.info(
+                    "[SPECIALIST_CHAIN_END] name=%s | invocation_id=%s",
+                    chain_name,
+                    state.current_invocation_id,
+                )
+                # Clear subagent tracking — prevent subsequent supervisor
+                # tokens from being misrouted to the specialist bubble.
+                state.current_subagent_name = None
                 state.current_invocation_id = None
-                state.last_entered_agent = None
+                state.task_initiating_main_invocation_id = None
             return
 
         # Supervisor node completion
@@ -1157,6 +1005,13 @@ class AgentService:
         self, state: StreamState, event: dict[str, Any]
     ) -> None:
         """Handle on_chat_model_start -- track LLM call count and timing."""
+        # The planner uses ainvoke() (non-streaming), so any streaming
+        # LLM event is guaranteed to NOT be from the planner. Clear the
+        # flag to ensure subsequent token streaming is not suppressed.
+        # (Fixes TD-015: planner_active was never cleared because
+        # on_chain_end for the planner node doesn't fire.)
+        state.planner_active = False
+
         data = event.get("data", {})
         state.llm_call_count += 1
         state.llm_call_start = time.time()
@@ -1235,6 +1090,11 @@ class AgentService:
             state.llm_call_start = None
         state.token_accumulator.accumulate_from_event(data)
 
+    @staticmethod
+    def _is_delegation_tool(tool_name: str) -> bool:
+        """Return True if this tool delegates to a specialist subgraph."""
+        return tool_name == TOOL_NAME_TASK or tool_name.startswith("handoff_to_")
+
     def _handle_tool_start(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_tool_start -- discard intermediate reasoning, track tool invocation."""
         data = event.get("data", {})
@@ -1259,14 +1119,33 @@ class AgentService:
             state.estimated_total_steps or "?",
         )
 
-        if tool_name == TOOL_NAME_TASK:
-            state.current_subagent_name = (
-                tool_input.get("subagent_type")
-                if isinstance(tool_input, dict)
-                else None
-            )
-            state.current_invocation_id = str(uuid.uuid4())
+        if self._is_delegation_tool(tool_name):
+            if tool_name == TOOL_NAME_TASK:
+                state.current_subagent_name = (
+                    tool_input.get("subagent_type")
+                    if isinstance(tool_input, dict)
+                    else None
+                )
+                # Legacy task tool — generate invocation_id here
+                state.current_invocation_id = str(uuid.uuid4())
+            else:
+                # handoff_to_* — extract specialist name from tool name.
+                # The invocation_id is generated inside the handoff tool
+                # and passed through the graph state; the specialist
+                # wrapper reads it and uses it for all published events.
+                # We set current_subagent_name here only so that
+                # specialist-internal TOOL_CALL/TOOL_RESULT events from
+                # ainvoke callback propagation are tagged with the
+                # subagent source.  The invocation_id will be set by
+                # _handle_chain_start when the specialist node starts.
+                state.current_subagent_name = tool_name.removeprefix("handoff_to_")
             state.task_initiating_main_invocation_id = state.main_invocation_id
+            logger.info(
+                "[DELEGATION] tool=%s -> specialist=%s | invocation_id=%s",
+                tool_name,
+                state.current_subagent_name,
+                state.current_invocation_id,
+            )
 
         # Planning event
         if tool_name == TOOL_NAME_WRITE_TODOS:
@@ -1293,7 +1172,10 @@ class AgentService:
                 },
             )
 
-        # Subagent delegation event
+        # Subagent delegation event — only for the legacy `task` tool.
+        # For handoff_to_* the specialist wrapper publishes the SUBAGENT
+        # event directly via the event bus with the invocation_id from the
+        # graph state, ensuring a single consistent ID across all events.
         elif tool_name == TOOL_NAME_TASK:
             subagent_type = (
                 tool_input.get("subagent_type")
@@ -1347,7 +1229,10 @@ class AgentService:
             )
             state.tool_call_start = None
 
-        # Subagent result handling
+        # Subagent result handling — only for the `task` tool where the specialist
+        # completes INSIDE the tool execution.  handoff_to_* tools return a
+        # Command(goto=…) and the specialist runs afterwards as a separate
+        # subgraph; its completion is handled by _handle_chain_end.
         if tool_name == TOOL_NAME_TASK and state.current_invocation_id is not None:
             # Flush subagent tokens before processing result
             state.flush_tokens(state.current_invocation_id)
@@ -1391,31 +1276,11 @@ class AgentService:
                 )
 
             # Subagent completion
-            state.publish(
-                AgentEventType.AGENT_COMPLETE,
-                {
-                    "type": AgentEventType.AGENT_COMPLETE,
-                    "agent_type": "subagent",
-                    "invocation_id": state.current_invocation_id,
-                    "agent_name": state.current_subagent_name,
-                },
-            )
+            self._complete_subagent(state, reason="subagent_completed")
 
-            # Content reset after subagent
-            state.publish(
-                AgentEventType.CONTENT_RESET,
-                {
-                    "type": AgentEventType.CONTENT_RESET,
-                    "reason": "subagent_completed",
-                },
-            )
-
-            state.current_subagent_name = None
-            state.current_invocation_id = None
-            state.task_initiating_main_invocation_id = None
-
-        # Generate new main invocation_id after task tool completion only
-        # (subagent delegation). For other tools, the same agent continues.
+        # Generate new main invocation_id after `task` tool completion only.
+        # handoff_to_* tools return a Command — the specialist hasn't run yet,
+        # so we must not orphan the invocation_id the specialist will use.
         if tool_name == TOOL_NAME_TASK:
             state.main_invocation_id = str(uuid.uuid4())
 
@@ -1444,7 +1309,7 @@ class AgentService:
             {
                 "type": AgentEventType.TOOL_RESULT,
                 "tool": tool_name,
-                "result": jsonable_encoder(tool_result_dict),
+                "result": tool_result_dict,
                 "invocation_id": (
                     state.current_invocation_id
                     if state.current_subagent_name
@@ -1453,19 +1318,49 @@ class AgentService:
             },
         )
 
+    def _complete_subagent(self, state: StreamState, *, reason: str) -> None:
+        """Publish AGENT_COMPLETE + CONTENT_RESET and clear subagent tracking state.
+
+        Captures invocation_id and agent_name BEFORE clearing to ensure the
+        frontend can correlate the completion with the preceding AGENT_TRANSITION
+        enter event.
+        """
+        inv_id = state.current_invocation_id
+        agent_name = state.current_subagent_name
+        state.publish(
+            AgentEventType.AGENT_COMPLETE,
+            {
+                "type": AgentEventType.AGENT_COMPLETE,
+                "agent_type": "subagent",
+                "invocation_id": inv_id,
+                "agent_name": agent_name,
+            },
+        )
+        state.publish(
+            AgentEventType.CONTENT_RESET,
+            {
+                "type": AgentEventType.CONTENT_RESET,
+                "reason": reason,
+            },
+        )
+        state.current_subagent_name = None
+        state.current_invocation_id = None
+        state.task_initiating_main_invocation_id = None
+
     def _handle_tool_error(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_tool_error -- record tool failure."""
         data = event.get("data", {})
         tool_name = event.get("name", "")
         error = data.get("error")
 
+        error_result_dict: dict[str, Any] = {
+            "tool": tool_name,
+            "success": False,
+            "result": None,
+            "error": (str(error) if error else "Unknown error"),
+        }
+
         if state.current_subagent_name is None:
-            error_result_dict: dict[str, Any] = {
-                "tool": tool_name,
-                "success": False,
-                "result": None,
-                "error": (str(error) if error else "Unknown error"),
-            }
             state.all_tool_results.append(error_result_dict)
 
             state.publish(
@@ -1473,14 +1368,22 @@ class AgentService:
                 {
                     "type": AgentEventType.TOOL_RESULT,
                     "tool": tool_name,
-                    "result": jsonable_encoder(error_result_dict),
-                    "invocation_id": (
-                        state.current_invocation_id
-                        if state.current_subagent_name
-                        else state.main_invocation_id
-                    ),
+                    "result": error_result_dict,
+                    "invocation_id": state.main_invocation_id,
                 },
             )
+        else:
+            # Subagent task tool threw — publish error and clear subagent state
+            state.publish(
+                AgentEventType.TOOL_RESULT,
+                {
+                    "type": AgentEventType.TOOL_RESULT,
+                    "tool": tool_name,
+                    "result": error_result_dict,
+                    "invocation_id": state.current_invocation_id,
+                },
+            )
+            self._complete_subagent(state, reason="subagent_error")
 
     def _handle_graph_end(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_end -- extract final tool calls from graph output."""
@@ -1521,6 +1424,8 @@ class AgentService:
             history: Message history including system prompt.
             existing_briefing: Previously persisted briefing or None.
         """
+        from app.ai.plan import PlanDocument
+
         state.publish(AgentEventType.THINKING, {"type": AgentEventType.THINKING})
 
         max_retries = 2
@@ -1542,6 +1447,20 @@ class AgentService:
                         "max_tool_iterations": ctx.recursion_limit,
                         "next": "agent",
                         "briefing_data": existing_briefing,
+                        **(
+                            # Inline resume state injection: when plan_data was
+                            # loaded from the session, pass it with completed step
+                            # indices so the planner skips the LLM call and the
+                            # supervisor skips completed specialist steps.
+                            {
+                                "plan_data": ctx.resume_plan_data,
+                                "completed_steps": PlanDocument.from_state(
+                                    ctx.resume_plan_data
+                                ).completed_step_indices(),
+                            }
+                            if ctx.resume_plan_data is not None
+                            else {}
+                        ),
                     },
                     config={
                         # Supervisor orchestrator uses nested subgraphs — each
@@ -1558,6 +1477,7 @@ class AgentService:
                         project_id=str(ctx.project_id) if ctx.project_id else None,
                         branch_id=str(ctx.branch_id) if ctx.branch_id else None,
                         execution_mode=ctx.execution_mode.value,
+                        stop_event=ctx.stop_event,
                     ),
                 ):
                     events_processed += 1
@@ -1657,7 +1577,7 @@ class AgentService:
                     else None
                 )
 
-                await self.config_service.add_message(
+                segment_msg = await self.config_service.add_message(
                     session_id=state.session_id,
                     role="assistant",
                     content=segment_content,
@@ -1666,6 +1586,7 @@ class AgentService:
                     message_metadata=metadata,
                 )
                 await self.session.commit()
+                state.last_persisted_message_id = segment_msg.id
 
                 if inv_id in state.subagent_messages:
                     for subagent_msg_data in state.subagent_messages[inv_id]:
@@ -1748,7 +1669,7 @@ class AgentService:
             WSCompleteMessage(
                 type="complete",
                 session_id=state.session_id,
-                message_id=None,
+                message_id=state.last_persisted_message_id,
                 token_usage=usage_dict,
             ).model_dump(mode="json"),
         )
@@ -1802,17 +1723,6 @@ class AgentService:
         ctx, existing_briefing = await self._prepare_graph_execution(params)
 
         # Step 2: Initialize mutable stream state
-        # Non-specialist node names in the parent graph.
-        _NON_SPECIALIST_NODES = frozenset(
-            {
-                "__start__",
-                "__end__",
-                "initialize_briefing",
-                "planner",
-                "supervisor",
-                "tools",
-            }
-        )
         state = StreamState(
             event_bus=ctx.event_bus,
             session_id=ctx.session_id,
@@ -1837,6 +1747,32 @@ class AgentService:
             await self._process_stream_events(
                 ctx, state, ctx.history, existing_briefing
             )
+        except ExecutionStoppedError:
+            # Graceful stop — re-raise so start_execution() can persist
+            # partial state with STOPPED status.  Briefing and messages
+            # are saved in the finally block below before propagating.
+            logger.info(
+                "[RUN_AGENT_GRAPH] ExecutionStoppedError caught, "
+                "persisting partial state before re-raise"
+            )
+            # Persist briefing before re-raising (finally also tries, but
+            # the re-raise skips the normal briefing persist path).
+            if not state.briefing_persisted:
+                await self._persist_briefing_from_checkpoint(
+                    ctx.session_id, log_label="BRIEFING_PERSIST_STOPPED"
+                )
+            raise
+        except asyncio.CancelledError:
+            # Task cancelled externally — persist what we have and re-raise.
+            logger.info(
+                "[RUN_AGENT_GRAPH] CancelledError caught, "
+                "persisting partial state before re-raise"
+            )
+            if not state.briefing_persisted:
+                await self._persist_briefing_from_checkpoint(
+                    ctx.session_id, log_label="BRIEFING_PERSIST_CANCELLED"
+                )
+            raise
         except Exception as e:
             state.graph_error = e
             logger.error(f"Error in _run_agent_graph: {e}", exc_info=True)
@@ -1897,6 +1833,155 @@ class AgentService:
         except Exception:
             pass
 
+    @staticmethod
+    async def _preflight_execution(
+        execution_id: str,
+        session_id: UUID,
+        execution_mode: ExecutionMode,
+    ) -> dict[str, Any] | None:
+        """Create execution row and capture session context in a short-lived session.
+
+        Opens its own DB session, creates the AIAgentExecution tracking row,
+        sets active_execution_id on the conversation session, and returns the
+        session context dict.  No live ORM objects escape — only serializable data.
+
+        Returns:
+            Session context dict, or None if the session has no context.
+        """
+        from app.db.session import async_session_maker
+
+        async with async_session_maker() as db:
+            # Fetch conversation session row
+            session_stmt = select(AIConversationSession).where(
+                AIConversationSession.id == str(session_id)
+            )
+            session_result = await db.execute(session_stmt)
+            db_session = session_result.scalar_one_or_none()
+
+            # Create execution tracking row — use execution_id as the PK
+            # so the DB row ID matches the event bus key (required for
+            # WebSocket re-subscribe: the client sends the DB execution.id
+            # and the subscribe handler looks up the bus by the same key).
+            execution = AIAgentExecution(
+                id=UUID(execution_id),
+                session_id=str(session_id),
+                status=ExecutionStatus.RUNNING,
+                execution_mode=execution_mode.value,
+            )
+            db.add(execution)
+            await db.commit()
+
+            # Set active_execution_id on session
+            if db_session is not None:
+                db_session.active_execution_id = str(execution.id)
+                await db.commit()
+
+            # Capture serializable context — no ORM objects escape
+            return db_session.context if db_session else None
+
+    @staticmethod
+    async def _finalize_stopped_execution(
+        execution_id: str,
+        session_id: UUID,
+        metrics: AgentExecutionMetrics | None,
+        event_bus: AgentEventBus,
+    ) -> None:
+        """Run postflight and publish STOPPED status event.
+
+        Shared by ExecutionStoppedError and CancelledError handlers
+        so the same cleanup logic doesn't need to be duplicated.
+        """
+        await AgentService._postflight_execution(
+            execution_id,
+            session_id,
+            metrics=metrics,
+            status=ExecutionStatus.STOPPED,
+        )
+        event_bus.publish(
+            AgentEvent(
+                event_type=AgentEventType.EXECUTION_STATUS,
+                data={
+                    "type": AgentEventType.EXECUTION_STATUS,
+                    "execution_id": execution_id,
+                    "status": ExecutionStatus.STOPPED,
+                    "session_id": str(session_id),
+                },
+                timestamp=datetime.now(UTC),
+            )
+        )
+
+    @staticmethod
+    async def _postflight_execution(
+        execution_id: str,
+        session_id: UUID,
+        metrics: AgentExecutionMetrics | None = None,
+        error: Exception | None = None,
+        status: ExecutionStatus | None = None,
+    ) -> None:
+        """Update execution status and metrics in a short-lived session.
+
+        Opens its own DB session, queries the execution row by ID (fresh
+        session, no detachment issues), sets COMPLETED or ERROR status,
+        and clears active_execution_id.  Best-effort: logs failures but
+        does not re-raise.
+
+        Args:
+            execution_id: The execution row UUID as string.
+            session_id: The conversation session UUID.
+            metrics: Optional aggregated token usage and tool call count.
+            error: If provided, status is set to ERROR with this message.
+            status: Explicit status override (e.g. ``ExecutionStatus.STOPPED``).
+                Takes precedence over the error/completed default.
+        """
+        from app.db.session import async_session_maker
+
+        try:
+            async with async_session_maker() as db:
+                stmt = select(AIAgentExecution).where(
+                    AIAgentExecution.id == execution_id
+                )
+                result = await db.execute(stmt)
+                row = result.scalar_one_or_none()
+
+                if row is None:
+                    logger.warning(
+                        "[POSTFLIGHT] Execution row %s not found", execution_id
+                    )
+                    return
+
+                if status is not None:
+                    row.status = status
+                elif error is not None:
+                    row.status = ExecutionStatus.ERROR
+                    row.error_message = str(error)[:2000]
+                else:
+                    row.status = ExecutionStatus.COMPLETED
+
+                row.completed_at = datetime.now(UTC)  # type: ignore[assignment]
+
+                if metrics is not None:
+                    row.total_tokens = metrics.total_tokens
+                    row.tool_calls_count = metrics.tool_calls_count
+
+                await db.commit()
+
+                # Clear active_execution_id on the conversation session
+                session_stmt = select(AIConversationSession).where(
+                    AIConversationSession.id == str(session_id)
+                )
+                session_result = await db.execute(session_stmt)
+                session_row = session_result.scalar_one_or_none()
+                if session_row is not None:
+                    session_row.active_execution_id = None
+                    await db.commit()
+
+        except Exception:
+            logger.error(
+                "[POSTFLIGHT] Failed to update execution %s",
+                execution_id,
+                exc_info=True,
+            )
+
     async def start_execution(
         self,
         message: str,
@@ -1918,6 +2003,14 @@ class AgentService:
         run from any specific WebSocket connection. Events are published to an
         AgentEventBus registered with the runner_manager, allowing any consumer
         (REST SSE, WebSocket reconnection) to subscribe by execution ID.
+
+        Uses three independent DB sessions for resilient connection management:
+        1. Pre-flight: creates execution row, captures context (~ms)
+        2. Graph execution: runs the agent graph (~minutes)
+        3. Post-flight: updates execution status and metrics (~ms)
+
+        Each phase opens and closes its own session, so connections are returned
+        to the pool between phases instead of being held for the full duration.
 
         The caller may pre-create an execution_id and event_bus and pass them in.
         This is useful when the caller needs to subscribe to the bus immediately
@@ -1957,54 +2050,21 @@ class AgentService:
             event_bus = runner_manager.create_bus(execution_id)
             should_remove_bus = True
 
-        # Create independent DB session for this execution
-        async with async_session_maker() as db:
-            from app.db.session import log_pool_status
+        # Create and register stop event for graceful cancellation
+        stop_event = self._register_stop_event(execution_id)
 
-            log_pool_status(f"start_execution entry | execution_id={execution_id}")
-
-            # Pre-fetch the session row so it is accessible in except/finally blocks
-            session_stmt = select(AIConversationSession).where(
-                AIConversationSession.id == str(session_id)
+        try:
+            # Phase 1: Pre-flight — create execution row, capture context
+            session_context = await self._preflight_execution(
+                execution_id,
+                session_id,
+                execution_mode,
             )
-            session_result = await db.execute(session_stmt)
-            db_session = session_result.scalar_one_or_none()
 
-            try:
-                metrics: AgentExecutionMetrics | None = None
-
-                # Create execution tracking row — use execution_id as the PK
-                # so the DB row ID matches the event bus key (required for
-                # WebSocket re-subscribe: the client sends the DB execution.id
-                # and the subscribe handler looks up the bus by the same key).
-                execution = AIAgentExecution(
-                    id=UUID(execution_id),
-                    session_id=str(session_id),
-                    status=ExecutionStatus.RUNNING,
-                    execution_mode=execution_mode.value,
-                )
-                db.add(execution)
-                await db.commit()
-                await db.refresh(execution)
-
-                # Set active_execution_id on session
-                if db_session is not None:
-                    db_session.active_execution_id = str(execution.id)
-                    await db.commit()
-
-                # Capture context before releasing the connection
-                session_context = db_session.context if db_session else None
-
-                # Release the DB connection back to the pool before entering
-                # the graph. The session stays usable — it will re-checkout a
-                # connection on the next query. This prevents holding a
-                # connection for the entire graph execution (minutes).
-                await db.close()
-
-                # Create agent service with this DB session
+            # Phase 2: Graph execution — own session for the full graph run
+            metrics: AgentExecutionMetrics | None = None
+            async with async_session_maker() as db:
                 exec_service = AgentService(db)
-
-                # Run the agent graph, publishing events to the bus
                 metrics = await exec_service._run_agent_graph(
                     GraphExecutionParams(
                         message=message,
@@ -2019,80 +2079,87 @@ class AgentService:
                         branch_mode=branch_mode,
                         execution_mode=execution_mode,
                         context=session_context,
+                        stop_event=stop_event,
                     )
                 )
 
-                # Re-query since db.close() detached the object
-                exec_stmt = select(AIAgentExecution).where(
-                    AIAgentExecution.id == str(execution.id)
-                )
-                exec_result = await db.execute(exec_stmt)
-                execution = exec_result.scalar_one()
-                execution.status = ExecutionStatus.COMPLETED
-                execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
-                execution.total_tokens = metrics.total_tokens
-                execution.tool_calls_count = metrics.tool_calls_count
-                await db.commit()
+            # Phase 3: Post-flight — update execution status and metrics
+            await self._postflight_execution(
+                execution_id,
+                session_id,
+                metrics=metrics,
+            )
 
-                await self._clear_active_execution(db, session_id)
+        except ExecutionStoppedError:
+            logger.info("[EXECUTION_STOPPED] %s — saving partial state", execution_id)
+            # Post-flight with STOPPED status (briefing already persisted
+            # inside _run_agent_graph before re-raise).
+            await self._finalize_stopped_execution(
+                execution_id, session_id, metrics, event_bus,
+            )
 
-            except Exception as e:
+        except asyncio.CancelledError:
+            logger.info("[EXECUTION_CANCELLED] %s — saving partial state", execution_id)
+            # Persist briefing if not already done
+            try:
+                async with async_session_maker() as db:
+                    svc = AgentService(db)
+                    await svc._persist_briefing_from_checkpoint(
+                        session_id, log_label="BRIEFING_PERSIST_CANCELLED"
+                    )
+            except Exception:
                 logger.error(
-                    f"Error in start_execution {execution_id}: {e}", exc_info=True
+                    "[EXECUTION_CANCELLED] Failed to persist briefing for %s",
+                    execution_id,
+                    exc_info=True,
                 )
-                # Update execution tracking row with error and partial metrics.
-                # Always re-query since db.close() may have detached the object.
-                try:
-                    stmt = select(AIAgentExecution).where(
-                        AIAgentExecution.id == str(execution.id)
-                    )
-                    result = await db.execute(stmt)
-                    fresh_execution = result.scalar_one_or_none()
-                    if fresh_execution is not None:
-                        fresh_execution.status = ExecutionStatus.ERROR
-                        fresh_execution.error_message = str(e)[:2000]
-                        fresh_execution.completed_at = datetime.now(UTC)  # type: ignore[assignment]
-                        if metrics is not None:
-                            fresh_execution.total_tokens = metrics.total_tokens
-                            fresh_execution.tool_calls_count = metrics.tool_calls_count
-                        await db.commit()
-                except Exception:
-                    await db.rollback()
-                    logger.error(
-                        "Failed to update execution row on error path",
-                        exc_info=True,
-                    )
+            await self._finalize_stopped_execution(
+                execution_id, session_id, metrics, event_bus,
+            )
+            raise
 
-                await self._clear_active_execution(db, session_id)
+        except Exception as e:
+            logger.error(
+                "Error in start_execution %s: %s", execution_id, e, exc_info=True
+            )
 
-                # Publish execution status so frontend clears activeExecutionIdRef
-                event_bus.publish(
-                    AgentEvent(
-                        event_type=AgentEventType.EXECUTION_STATUS,
-                        data={
-                            "type": AgentEventType.EXECUTION_STATUS,
-                            "execution_id": execution_id,
-                            "status": ExecutionStatus.ERROR,
-                            "session_id": str(session_id),
-                        },
-                        timestamp=datetime.now(UTC),
-                    )
+            # Best-effort error status update (own session)
+            await self._postflight_execution(
+                execution_id,
+                session_id,
+                metrics=metrics,
+                error=e,
+            )
+
+            # Publish execution status so frontend clears activeExecutionIdRef
+            event_bus.publish(
+                AgentEvent(
+                    event_type=AgentEventType.EXECUTION_STATUS,
+                    data={
+                        "type": AgentEventType.EXECUTION_STATUS,
+                        "execution_id": execution_id,
+                        "status": ExecutionStatus.ERROR,
+                        "session_id": str(session_id),
+                    },
+                    timestamp=datetime.now(UTC),
                 )
+            )
 
-                # Publish error event
-                event_bus.publish(
-                    AgentEvent(
-                        event_type=AgentEventType.ERROR,
-                        data={"message": str(e), "code": 500},
-                        timestamp=datetime.now(UTC),
-                    )
+            # Publish error event
+            event_bus.publish(
+                AgentEvent(
+                    event_type=AgentEventType.ERROR,
+                    data={"message": str(e), "code": 500},
+                    timestamp=datetime.now(UTC),
                 )
+            )
 
-                raise
-            finally:
-                # Clean up the event bus from runner_manager only if we created it
-                if should_remove_bus:
-                    runner_manager.remove_bus(execution_id)
+            raise
+        finally:
+            # Clean up stop event and event bus
+            self._stop_events.pop(execution_id, None)
+            if should_remove_bus:
+                runner_manager.remove_bus(execution_id)
 
         return execution_id
 
@@ -2210,6 +2277,37 @@ class AgentService:
                     except (ValueError, AttributeError):
                         pass
 
+            elif context_type == "work_package":
+                stmt = (
+                    select(WorkPackage.name)
+                    .where(WorkPackage.work_package_id == entity_uuid)
+                    .where(sa_func.upper(WorkPackage.valid_time).is_(None))
+                    .where(WorkPackage.deleted_at.is_(None))
+                    .limit(1)
+                )
+                result = await self.session.execute(stmt)
+                name = result.scalar_one_or_none()
+                if name:
+                    enriched["name"] = name
+                # Also look up parent project name when project_id is available
+                pid = context.get("project_id") or project_id
+                if pid:
+                    try:
+                        pid_uuid = UUID(str(pid))
+                        p_stmt = (
+                            select(Project.name)
+                            .where(Project.project_id == pid_uuid)
+                            .where(sa_func.upper(Project.valid_time).is_(None))
+                            .where(Project.deleted_at.is_(None))
+                            .limit(1)
+                        )
+                        p_result = await self.session.execute(p_stmt)
+                        p_name = p_result.scalar_one_or_none()
+                        if p_name:
+                            enriched["project_name"] = p_name
+                    except (ValueError, AttributeError):
+                        pass
+
         except Exception:
             logger.warning(
                 "Failed to resolve context name for %s %s",
@@ -2300,6 +2398,19 @@ class AgentService:
                     f"Parent project ID: {context.get('project_id', project_id)}. "
                     "Focus your responses on this specific cost element. "
                     "Use cost element tools to query and analyze this element."
+                )
+            elif context_type == "work_package":
+                name_part = (
+                    f" the Work Package: {context_name}"
+                    if context_name
+                    else " a Work Package"
+                )
+                context_sections.append(
+                    f"This conversation is about{name_part}. "
+                    f"Work Package ID: {context.get('id')}. "
+                    f"Parent project ID: {context.get('project_id', project_id)}. "
+                    "Focus your responses on this specific work package. "
+                    "Use work package tools to query and analyze this element."
                 )
         elif project_id:
             # Legacy support for project_id without context
@@ -2523,6 +2634,8 @@ class AgentService:
             # For other types, try string conversion
             return str(obj)
 
+    _INTERRUPT_NODE_MAX = 20
+
     def register_interrupt_node(
         self, session_id: UUID, interrupt_node: "InterruptNode"
     ) -> None:
@@ -2532,6 +2645,20 @@ class AgentService:
             session_id: The session ID
             interrupt_node: The InterruptNode instance to register
         """
+        # Auto-evict oldest entry to prevent unbounded growth
+        if len(self._interrupt_nodes) >= self._INTERRUPT_NODE_MAX:
+            oldest_key = next(iter(self._interrupt_nodes))
+            evicted = self._interrupt_nodes.pop(oldest_key, None)
+            if evicted is not None:
+                evicted.pending_approvals.clear()
+                evicted.interrupt_state.clear()
+            logger.warning(
+                "Interrupt node registry reached %d entries — evicted oldest "
+                "(session=%s) to make room for session=%s",
+                self._INTERRUPT_NODE_MAX,
+                oldest_key,
+                session_id,
+            )
         self._interrupt_nodes[session_id] = interrupt_node
 
     def get_interrupt_node(self, session_id: UUID) -> "InterruptNode | None":
@@ -2619,7 +2746,7 @@ class AgentService:
             tool_result = {
                 "tool": interrupt_state.get("tool_name", "unknown"),
                 "success": True,
-                "result": result.content,
+                "result": self._make_json_serializable(result.content),
                 "error": None,
             }
 
@@ -2628,7 +2755,7 @@ class AgentService:
                     msg_data = WSToolResultMessage(
                         type="tool_result",
                         tool=tool_result["tool"],
-                        result=jsonable_encoder(tool_result),
+                        result=tool_result,
                     ).model_dump(mode="json")
                     logger.debug(
                         f"Sending tool_result after approval: tool={tool_result['tool']}, result_type={type(result.content).__name__}"

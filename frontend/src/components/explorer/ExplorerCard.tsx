@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { Card, theme } from "antd";
-import { FONT_WEIGHT } from "@/config/design-tokens";
 
 export interface ExplorerCardProps {
   title: ReactNode;
@@ -44,7 +43,7 @@ export const ExplorerCard = ({
             alignItems: "center",
             gap: token.paddingXS,
             fontSize: token.fontSize,
-            fontWeight: token.fontWeightStrong ?? FONT_WEIGHT.SEMIBOLD,
+            fontWeight: token.fontWeightStrong,
           }}
         >
           {icon}

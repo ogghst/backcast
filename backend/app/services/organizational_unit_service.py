@@ -12,6 +12,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
+from app.core.exceptions.hierarchy import CircularReferenceError
 from app.core.versioning.commands import CreateVersionCommand
 from app.core.versioning.enums import BranchMode
 from app.models.domain.organizational_unit import OrganizationalUnit
@@ -94,7 +95,7 @@ class OrganizationalUnitService(BranchableService[OrganizationalUnit]):  # type:
             )
 
         if filter_string:
-            allowed_fields = ["code", "name"]
+            allowed_fields = ["code", "name", "parent_unit_id"]
             parsed_filters = FilterParser.parse_filters(filter_string)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
                 cast(Any, OrganizationalUnit),
@@ -165,6 +166,46 @@ class OrganizationalUnitService(BranchableService[OrganizationalUnit]):  # type:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def _validate_parent_unit_id(
+        self,
+        parent_unit_id: UUID | None,
+        exclude_root_id: UUID | None = None,
+        *,
+        branch: str = "main",
+    ) -> None:
+        """Validate parent_unit_id: existence check and circular reference prevention."""
+        if parent_unit_id is None:
+            return
+
+        # Prevent self-reference
+        if exclude_root_id and parent_unit_id == exclude_root_id:
+            raise CircularReferenceError("Organizational unit cannot be its own parent")
+
+        # Verify parent exists as active current version
+        parent = await self.get_as_of(entity_id=parent_unit_id, branch=branch)
+        if not parent:
+            raise ValueError(f"Parent organizational unit {parent_unit_id} not found")
+
+        # Walk parent chain to detect circular references
+        visited: set[UUID] = {parent_unit_id}
+        if exclude_root_id:
+            visited.add(exclude_root_id)
+
+        current = parent.parent_unit_id
+        depth = 0
+        max_depth = 20
+        while current is not None and depth < max_depth:
+            if current in visited:
+                raise CircularReferenceError(
+                    "Circular reference detected in parent_unit_id hierarchy"
+                )
+            visited.add(current)
+            ancestor = await self.get_as_of(entity_id=current, branch=branch)
+            if not ancestor:
+                break
+            current = ancestor.parent_unit_id
+            depth += 1
+
     async def create_organizational_unit(
         self, unit_in: OrganizationalUnitCreate, actor_id: UUID
     ) -> OrganizationalUnit:
@@ -200,6 +241,13 @@ class OrganizationalUnitService(BranchableService[OrganizationalUnit]):  # type:
             if not user_exists.scalar_one_or_none():
                 raise ValueError(f"Manager (User) {unit_data['manager_id']} not found")
 
+        # Validate parent_unit_id hierarchy
+        branch = unit_data.get("branch", "main")
+        if unit_data.get("parent_unit_id"):
+            await self._validate_parent_unit_id(
+                unit_data["parent_unit_id"], branch=branch
+            )
+
         cmd = CreateVersionCommand(
             entity_class=OrganizationalUnit,
             root_id=root_id,
@@ -228,6 +276,17 @@ class OrganizationalUnitService(BranchableService[OrganizationalUnit]):  # type:
         update_data = unit_in.model_dump(exclude_unset=True)
         control_date = update_data.pop("control_date", None)
         branch = update_data.pop("branch", None) or "main"
+
+        # Validate parent_unit_id hierarchy if being changed
+        if (
+            "parent_unit_id" in update_data
+            and update_data["parent_unit_id"] is not None
+        ):
+            await self._validate_parent_unit_id(
+                update_data["parent_unit_id"],
+                exclude_root_id=organizational_unit_id,
+                branch=branch,
+            )
 
         from app.core.branching.commands import UpdateCommand
 

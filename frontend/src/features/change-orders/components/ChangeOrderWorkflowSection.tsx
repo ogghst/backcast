@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Card, Badge, Button, Space, Alert, Tag } from "antd";
+import { Card, Badge, Button, Space, Alert, Tag, theme } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -42,6 +42,7 @@ export function ChangeOrderWorkflowSection({
   onActionSuccess,
   useCollapsibleCard = false,
 }: ChangeOrderWorkflowSectionProps): JSX.Element | null {
+  const { token } = theme.useToken();
   // Recovery dialog state
   const [recoveryDialogVisible, setRecoveryDialogVisible] = useState(false);
 
@@ -97,14 +98,14 @@ export function ChangeOrderWorkflowSection({
           description="This change order is currently under review. The branch is locked and no modifications are allowed."
           type="warning"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         />
       )}
 
       {/* Current status */}
       <Space orientation="vertical" style={{ width: "100%" }} size="large">
         <div>
-          <div style={{ marginBottom: 8, color: "#8c8c8c" }}>
+          <div style={{ marginBottom: token.marginXS, color: token.colorTextSecondary }}>
             Current Status
           </div>
           <Badge
@@ -124,7 +125,7 @@ export function ChangeOrderWorkflowSection({
         {/* Available transitions */}
         {available_transitions && available_transitions.length > 0 && (
           <div>
-            <div style={{ marginBottom: 8, color: "#8c8c8c" }}>
+            <div style={{ marginBottom: token.marginXS, color: token.colorTextSecondary }}>
               Available Transitions
             </div>
             <Space wrap>
@@ -139,7 +140,7 @@ export function ChangeOrderWorkflowSection({
 
         {/* Action buttons */}
         <div>
-          <div style={{ marginBottom: 8, color: "#8c8c8c" }}>Actions</div>
+          <div style={{ marginBottom: token.marginXS, color: token.colorTextSecondary }}>Actions</div>
           <Space wrap>
             {canSubmit && (
               <Button
@@ -230,7 +231,7 @@ export function ChangeOrderWorkflowSection({
         <CollapsibleCard
           id="workflow"
           title={<Space>Workflow Status</Space>}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: token.marginMD }}
         >
           {content}
         </CollapsibleCard>
@@ -252,7 +253,7 @@ export function ChangeOrderWorkflowSection({
       <Card
         id="workflow"
         title={<Space>Workflow Status</Space>}
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: token.marginMD }}
       >
         {content}
       </Card>

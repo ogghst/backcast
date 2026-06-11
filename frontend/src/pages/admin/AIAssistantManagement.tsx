@@ -7,9 +7,5 @@
 import { AIAssistantList } from "@/features/ai/components/AIAssistantList";
 
 export const AIAssistantManagement = () => {
-  return (
-    <div>
-      <AIAssistantList />
-    </div>
-  );
+  return <AIAssistantList />;
 };

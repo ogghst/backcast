@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef, useMemo, useState } from "react";
-import { List, Empty, Typography, Spin, theme } from "antd";
+import { List, Empty, Typography, Spin, theme, Tag } from "antd";
 import type { GlobalToken } from "antd/es/theme/interface";
 import {
   UserOutlined,
@@ -18,7 +18,7 @@ import {
   UpOutlined,
 } from "@ant-design/icons";
 import type { ChatMessage } from "../../types";
-import type { SubagentStream, StreamingState, TokenUsage } from "../types";
+import type { SubagentStream, StreamingState, TokenUsage, ToolCallRemark } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TokenUsageBar } from "./TokenUsageBar";
@@ -58,11 +58,6 @@ interface MessageListProps {
   streamingState?: StreamingState;
   /** Whether a message is currently being streamed */
   isStreaming?: boolean;
-  /** Active tool calls being executed */
-  activeToolCalls?: Array<{
-    name: string;
-    args: Record<string, unknown>;
-  }>;
   /** Whether to show a separator (when new text stream starts after tool execution) */
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
@@ -86,11 +81,8 @@ interface StreamingMessageProps {
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
   isMobile?: boolean;
-  /** Active tool calls being executed (for tool use preview) */
-  activeToolCalls?: Array<{
-    name: string;
-    args: Record<string, unknown>;
-  }>;
+  /** Tool calls tracked in this stream segment */
+  toolCalls?: ToolCallRemark[];
 }
 
 const StreamingMessage = ({
@@ -100,6 +92,7 @@ const StreamingMessage = ({
   token,
   showSeparator,
   isMobile = false,
+  toolCalls = [],
 }: StreamingMessageProps) => {
   const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
@@ -206,6 +199,29 @@ const StreamingMessage = ({
         {/* Streaming content with markdown rendering */}
         {content && (
           <MarkdownRenderer content={content} isStreaming={isStreaming} />
+        )}
+
+        {/* Tool call chips — persist after completion */}
+        {toolCalls.length > 0 && (
+          <div
+            style={{
+              marginTop: spacing.xs,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: spacing.xs,
+            }}
+          >
+            {toolCalls.map((tc, index) => (
+              <Tag
+                key={`${tc.name}-${index}`}
+                color={tc.completed ? "default" : "processing"}
+                icon={tc.completed ? <CheckOutlined style={{ fontSize: typography.sizes.xs }} /> : <LoadingOutlined spin style={{ fontSize: typography.sizes.xs }} />}
+                style={{ margin: 0, fontSize: typography.sizes.xs }}
+              >
+                {tc.name}
+              </Tag>
+            ))}
+          </div>
         )}
 
         {/* Typing indicator dots when streaming with no content yet */}
@@ -598,7 +614,6 @@ const getMessageStyle = (role: ChatMessage["role"], token: GlobalToken, isMobile
  * @param props.loading - Whether messages are being fetched initially
  * @param props.streamingState - Current active streaming state with main and subagent streams
  * @param props.isStreaming - Whether a response is actively being streamed
- * @param props.activeToolCalls - Tools currently executing (for legacy fallback display)
  * @param props.showSeparator - Whether to show a divider before new text after tool execution
  * @param props.isMobile - Whether the viewport is below the md breakpoint
  */
@@ -607,7 +622,6 @@ export const MessageList = ({
   loading,
   streamingState,
   isStreaming = false,
-  activeToolCalls = [],
   showSeparator = false,
   isMobile = false,
   tokenUsage,
@@ -622,7 +636,7 @@ export const MessageList = ({
   // All MainAgentStream segments are merged into a single unified assistant
   // balloon (one balloon per user message). Subagent streams appear inline
   // between segments within that balloon.
-  const { mergedMainContent, isMainActive, isMainComplete, subagentStreams } = useMemo(() => {
+  const { mergedMainContent, isMainActive, isMainComplete, subagentStreams, mergedToolCalls } = useMemo(() => {
     const mainStreams = streamingState?.mainStreams;
     const subagents = streamingState?.subagents;
 
@@ -630,18 +644,18 @@ export const MessageList = ({
     let merged = "";
     let active = false;
     let complete = true;
+    const sorted = mainStreams && mainStreams.size > 0
+      ? Array.from(mainStreams.values()).sort(
+          (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+        )
+      : [];
 
-    if (mainStreams && mainStreams.size > 0) {
-      const sorted = Array.from(mainStreams.values()).sort(
-        (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
-      );
-      for (const stream of sorted) {
-        if (stream.content) {
-          merged += stream.content;
-        }
-        if (stream.is_active) active = true;
-        if (!stream.is_complete) complete = false;
+    for (const stream of sorted) {
+      if (stream.content) {
+        merged += stream.content;
       }
+      if (stream.is_active) active = true;
+      if (!stream.is_complete) complete = false;
     }
 
     // Collect subagent streams sorted by sequence for inline rendering.
@@ -654,11 +668,14 @@ export const MessageList = ({
       );
     }
 
+    const mergedToolCalls = sorted.flatMap(s => s.tool_calls || []);
+
     return {
       mergedMainContent: merged,
       isMainActive: active,
       isMainComplete: complete,
       subagentStreams: sortedSubagents,
+      mergedToolCalls,
     };
   }, [streamingState]);
 
@@ -860,7 +877,7 @@ export const MessageList = ({
           token={token}
           showSeparator={showSeparator}
           isMobile={isMobile}
-          activeToolCalls={activeToolCalls}
+          toolCalls={[]}
         />
       )}
 
@@ -873,7 +890,7 @@ export const MessageList = ({
           token={token}
           showSeparator={false}
           isMobile={isMobile}
-          activeToolCalls={activeToolCalls}
+          toolCalls={mergedToolCalls}
         />
       )}
 
@@ -895,7 +912,7 @@ export const MessageList = ({
           isStreaming={true}
           token={token}
           isMobile={isMobile}
-          activeToolCalls={activeToolCalls}
+          toolCalls={[]}
         />
       )}
 

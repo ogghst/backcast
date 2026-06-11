@@ -184,6 +184,11 @@ class AIAssistantConfigBase(BaseModel):
 
     name: str = Field(..., max_length=255)
     description: str | None = Field(None, max_length=2000)
+    presentation_prompt: str | None = Field(
+        None,
+        max_length=5000,
+        description="Text shown to planner/supervisor agents to describe this specialist's capabilities. Falls back to description if not set. Specialist-only.",
+    )
     model_id: UUID | None = Field(
         None,
         description="Model to use. Required for main agents; specialists inherit from the main agent.",
@@ -230,6 +235,7 @@ class AIAssistantConfigBase(BaseModel):
         max_length=100,
         description="Fully qualified Pydantic model class name for structured output (specialist-only)",
     )
+
     @model_validator(mode="after")
     def validate_main_agent_model(self) -> Self:
         """Require model_id for main agents; specialists may omit it."""
@@ -249,6 +255,7 @@ class AIAssistantConfigUpdate(BaseModel):
 
     name: str | None = Field(None, max_length=255)
     description: str | None = Field(None, max_length=2000)
+    presentation_prompt: str | None = Field(None, max_length=5000)
     system_prompt: str | None = Field(None, max_length=10000)
     planner_prompt: str | None = Field(
         None,
@@ -294,6 +301,7 @@ class AIToolPublic(BaseModel):
     permissions: list[str]
     category: str | None = None
     version: str
+    risk_level: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -342,7 +350,7 @@ class ApprovalRequest(BaseModel):
 
 
 # Session Context Types
-SessionContextType = Literal["general", "project", "wbe", "cost_element"]
+SessionContextType = Literal["general", "project", "wbe", "cost_element", "work_package"]
 
 
 class SessionContext(BaseModel):
@@ -383,6 +391,11 @@ class SessionContext(BaseModel):
                 raise ValueError("Cost element context requires 'id' field")
             if not self.project_id:
                 raise ValueError("Cost element context requires 'project_id' field")
+        elif self.type == "work_package":
+            if not self.id:
+                raise ValueError("Work package context requires 'id' field")
+            if not self.project_id:
+                raise ValueError("Work package context requires 'project_id' field")
         return self
 
 
@@ -409,6 +422,14 @@ class AIConversationSessionPublic(BaseModel):
     briefing_specialists: list[str] = Field(
         default_factory=list,
         description="Names of specialists that contributed to the briefing",
+    )
+    plan_data: dict[str, Any] | None = Field(
+        None,
+        description="Serialized PlanDocument with execution steps and progress",
+    )
+    can_resume: bool = Field(
+        False,
+        description="True when the latest execution was stopped with incomplete plan steps",
     )
     created_at: datetime
     updated_at: datetime
@@ -690,6 +711,43 @@ class WSAgentTransitionMessage(BaseModel):
     )
 
 
+class BriefingSectionPublic(BaseModel):
+    """Structured briefing section for WebSocket transport.
+
+    Maps from the internal ``BriefingSection`` model, renaming ``findings``
+    to ``summary`` to align with ``SpecialistOutput``.
+    """
+
+    specialist_name: str
+    summary: str = Field(default="", description="Specialist's markdown summary")
+    key_findings: list[str] = Field(
+        default_factory=list, description="Important discoveries or results"
+    )
+    open_questions: list[str] = Field(
+        default_factory=list, description="Questions needing further investigation"
+    )
+    delegation_notes: str = Field(
+        default="", description="Context for follow-up work"
+    )
+    task_description: str | None = None
+    step_index: int | None = None
+
+
+class BriefingDocumentPublic(BaseModel):
+    """Structured briefing document for WebSocket transport.
+
+    Carries the full structured data alongside a pre-rendered markdown
+    fallback for backward compatibility.
+    """
+
+    original_request: str
+    sections: list[BriefingSectionPublic] = Field(default_factory=list)
+    supervisor_analysis: str | None = None
+    markdown: str = Field(
+        default="", description="Pre-rendered markdown fallback"
+    )
+
+
 class WSBriefingMessage(BaseModel):
     """WebSocket briefing update message from server.
 
@@ -700,7 +758,9 @@ class WSBriefingMessage(BaseModel):
     type: Literal["briefing_update"] = Field(
         default="briefing_update", description="Message type discriminator"
     )
-    briefing: str = Field(..., description="Compiled briefing markdown document")
+    briefing: BriefingDocumentPublic = Field(
+        ..., description="Structured briefing document"
+    )
     specialist_name: str = Field(
         ..., description="Name of the specialist that updated the briefing"
     )

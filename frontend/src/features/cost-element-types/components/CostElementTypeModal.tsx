@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
-import { Modal, Form, Input, Select } from "antd";
+import { useEffect } from "react";
+import { Modal, Form, Input, TreeSelect } from "antd";
 import type {
   CostElementTypeRead,
   CostElementTypeCreate,
   CostElementTypeUpdate,
-  OrganizationalUnitRead,
 } from "@/api/generated";
-import { OrganizationalUnitsService } from "@/api/generated";
+import { useOrgUnitTree } from "@/features/organizational-units/hooks/useOrgUnitTree";
+import { buildOrgUnitTreeSelectData } from "@/features/organizational-units/utils/orgUnitTree";
 
 interface CostElementTypeModalProps {
   open: boolean;
@@ -25,8 +25,8 @@ export const CostElementTypeModal = ({
 }: CostElementTypeModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
-  const [departments, setDepartments] = useState<OrganizationalUnitRead[]>([]);
-  const [loadingDepts, setLoadingDepts] = useState(false);
+  const { items: orgUnitItems, isLoading: orgUnitsLoading } = useOrgUnitTree();
+  const orgUnitTreeData = buildOrgUnitTreeSelectData(orgUnitItems);
 
   useEffect(() => {
     if (open) {
@@ -35,23 +35,6 @@ export const CostElementTypeModal = ({
       } else {
         form.resetFields();
       }
-
-      // Fetch departments for dropdown
-      const fetchDepts = async () => {
-        try {
-          setLoadingDepts(true);
-          // Fetch all departments (limit 100k for dropdown)
-          const res = await OrganizationalUnitsService.getOrganizationalUnits(1, 100000);
-          const items = Array.isArray(res) ? res : res.items || [];
-          setDepartments(items);
-        } catch (err) {
-          console.error("Failed to fetch departments", err);
-        } finally {
-          setLoadingDepts(false);
-        }
-      };
-
-      fetchDepts();
     }
   }, [open, initialValues, form]);
 
@@ -108,17 +91,14 @@ export const CostElementTypeModal = ({
           label="Organizational Unit"
           rules={[{ required: true, message: "Please select a department" }]}
         >
-          <Select
-            placeholder="Select Department"
-            loading={loadingDepts}
+          <TreeSelect
+            placeholder="Select Org Unit"
+            treeData={orgUnitTreeData}
             showSearch
-            filterOption={(input, option) =>
-              (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
-            }
-            options={departments.map((d) => ({
-              label: d.name,
-              value: d.organizational_unit_id,
-            }))}
+            treeNodeFilterProp="title"
+            allowClear
+            treeLine
+            loading={orgUnitsLoading}
           />
         </Form.Item>
 

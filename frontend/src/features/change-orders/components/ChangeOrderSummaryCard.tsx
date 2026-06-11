@@ -1,4 +1,4 @@
-import { Card, Descriptions, Tag, Button, Space } from "antd";
+import { theme, Card, Descriptions, Tag, Button, Space } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { ChangeOrderPublic } from "@/api/generated";
 import { formatDate } from "@/utils/formatters";
@@ -15,6 +15,7 @@ export const ChangeOrderSummaryCard = ({
   onEdit,
   isLoading,
 }: ChangeOrderSummaryCardProps) => {
+  const { token } = theme.useToken();
   const { isStatusDisabled } = useWorkflowInfo(
     changeOrder.status,
     changeOrder.available_transitions,
@@ -27,7 +28,7 @@ export const ChangeOrderSummaryCard = ({
       title="Change Order Details"
       loading={isLoading}
       id="details"
-      style={{ marginBottom: 16 }}
+      style={{ marginBottom: token.marginMD }}
       extra={
         <Space>
           <Button

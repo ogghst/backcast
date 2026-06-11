@@ -1,12 +1,10 @@
 import { useState } from "react";
-import {
-  Modal,
+import { theme, Modal,
   Form,
   InputNumber,
   Input,
   Alert,
-  Space,
-} from "antd";
+  Space, } from "antd";
 import type {
   ProgressEntryCreate,
 } from "@/api/generated";
@@ -37,6 +35,7 @@ export const ProgressEntryModal = ({
   confirmLoading,
   costElementId,
 }: ProgressEntryModalProps) => {
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
   const { asOf } = useTimeMachineParams();
 
@@ -104,7 +103,7 @@ export const ProgressEntryModal = ({
             description="You are recording a decrease in progress. Please add notes explaining why this has occurred."
             type="warning"
             showIcon
-            style={{ marginBottom: 16 }}
+            style={{ marginBottom: token.marginMD }}
           />
         )}
 

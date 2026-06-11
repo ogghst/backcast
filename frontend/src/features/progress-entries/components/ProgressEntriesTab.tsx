@@ -1,10 +1,8 @@
-import {
-  Button,
+import { theme, Button,
   Space,
   Input,
   Tooltip,
-  Progress,
-} from "antd";
+  Progress, } from "antd";
 import {
   PlusOutlined,
   HistoryOutlined,
@@ -54,6 +52,7 @@ interface ProgressEntryApiParams {
 export const ProgressEntriesTab = ({
   costElement,
 }: ProgressEntriesTabProps) => {
+  const { token } = theme.useToken();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     ProgressEntryRead,
     Record<string, FilterValue | null>
@@ -108,7 +107,7 @@ export const ProgressEntriesTab = ({
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.paddingXS }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -116,7 +115,7 @@ export const ProgressEntriesTab = ({
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginXS, display: "block" }}
         />
         <Space>
           <Button

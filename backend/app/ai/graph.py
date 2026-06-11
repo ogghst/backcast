@@ -126,7 +126,9 @@ def create_agent_node(
 
         # Bind tools to LLM
         # This is the LangGraph 1.0+ way to enable tool calling
-        llm_with_tools = llm.bind_tools(tools, parallel_tool_calls=not AI_SEQUENTIAL_TOOL_CALLS)
+        llm_with_tools = llm.bind_tools(
+            tools, parallel_tool_calls=not AI_SEQUENTIAL_TOOL_CALLS
+        )
 
         # Invoke the LLM asynchronously
         # The response will be an AIMessage, possibly with tool_calls

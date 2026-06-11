@@ -126,6 +126,11 @@ body {
     flex-wrap: nowrap !important;
     overflow-x: hidden !important;
   }
+
+  /* Borderless cards: suppress shadow on mobile */
+  .ant-card:not(.ant-card-bordered) {
+    box-shadow: none !important;
+  }
 }
 
 /* Technical grid pattern for chat backgrounds */
@@ -134,4 +139,19 @@ body {
     linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
   background-size: 20px 20px;
+}
+
+/* ========================================
+ * Card Shadows — Minimal Elevation
+ * ======================================== */
+
+/* Light mode shadow (default) */
+.ant-card.ant-card-bordered {
+  box-shadow: 0 1px 2px 0 rgba(139, 125, 107, 0.04);
+  transition: box-shadow 0.2s ease;
+}
+
+/* Dark mode shadow */
+[data-theme="dark"] .ant-card.ant-card-bordered {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
 }

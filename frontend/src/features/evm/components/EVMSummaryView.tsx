@@ -94,7 +94,7 @@ export const EVMSummaryView: React.FC<EVMSummaryViewProps> = ({
       }}
       styles={{ body: { padding: token.paddingLG } }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: token.marginMD }}>
         {!hideHeader && (
           <div
             style={{
@@ -124,7 +124,7 @@ export const EVMSummaryView: React.FC<EVMSummaryViewProps> = ({
           style={{
             display: "flex",
             flexWrap: "wrap",
-            gap: 16,
+            gap: token.marginMD,
           }}
         >
           <EVMKPIIndicator

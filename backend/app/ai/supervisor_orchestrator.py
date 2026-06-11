@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -33,6 +34,7 @@ from app.ai.briefing_compiler import (
 )
 from app.ai.config import AI_DELEGATION_ENFORCED, AgentConfig
 from app.ai.event_types import AgentEventType
+from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.handoff_tools import create_all_handoff_tools
 from app.ai.message_utils import (
@@ -48,7 +50,6 @@ from app.ai.subagent_compiler import (
     compile_subagents,
     filter_tools_for_context,
 )
-from app.ai.subagents import get_all_subagents
 from app.ai.subagents.db_loader import load_specialists_from_db
 from app.ai.supervisor_state import BackcastSupervisorState
 from app.ai.tools.briefing_tools import set_briefing
@@ -112,9 +113,8 @@ def _build_supervisor_specialist_section(
     lines = ["\n\n## Available Specialists"]
     for sg in specialist_graphs:
         name = sg.get("name", "")
-        desc = sg.get("description", "")
-        short_desc = desc.split(".")[0] if desc else name
-        lines.append(f"- {name} -> {short_desc}")
+        desc = sg.get("presentation_prompt", sg.get("description", ""))
+        lines.append(f"- {name} -> {desc}")
     return "\n".join(lines)
 
 
@@ -200,11 +200,13 @@ class SupervisorOrchestrator:
         context: ToolContext,
         system_prompt: str | None = None,
         main_assistant_config: Any | None = None,
+        specialist_models: dict[str, BaseChatModel] | None = None,
     ) -> None:
         self.model = model
         self.context = context
         self.system_prompt = system_prompt
         self.main_assistant_config = main_assistant_config
+        self.specialist_models = specialist_models or {}
         self._event_bus = context._event_bus
 
     def _publish_plan_update(self, plan: PlanDocument) -> None:
@@ -259,15 +261,9 @@ class SupervisorOrchestrator:
         else:
             try:
                 subagent_configs = await load_specialists_from_db()
-                if not subagent_configs:
-                    logger.info("[SUPERVISOR] No DB specialists found, using hardcoded")
-                    subagent_configs = get_all_subagents()
             except Exception as exc:
-                logger.warning(
-                    "[SUPERVISOR] DB specialist loading failed, using hardcoded: %s",
-                    exc,
-                )
-                subagent_configs = get_all_subagents()
+                logger.error("[SUPERVISOR] DB specialist loading failed: %s", exc)
+                subagent_configs = []
 
         # Filter specialists by delegation config
         if self.main_assistant_config and self.main_assistant_config.delegation_config:
@@ -284,6 +280,7 @@ class SupervisorOrchestrator:
             subagent_configs,
             all_tools,
             allowed_tools=config.allowed_tools,
+            specialist_models=self.specialist_models,
             label="specialist",
         )
 
@@ -383,20 +380,22 @@ class SupervisorOrchestrator:
             existing_briefing = state.get("briefing_data")
             if existing_briefing:
                 doc = BriefingDocument.from_state(existing_briefing)
-                if doc.original_request != "(recovered)":
-                    doc.original_request = user_request
-                    logger.info(
-                        "[SUPERVISOR] Reusing existing briefing with %d sections",
-                        len(doc.sections),
-                    )
-                    return _briefing_update(doc, plan_data=state.get("plan_data"))
+                doc.original_request = user_request
+                logger.info(
+                    "[SUPERVISOR] Reusing existing briefing with %d sections",
+                    len(doc.sections),
+                )
+                return _briefing_update(doc, plan_data=state.get("plan_data"))
 
             doc = initialize_briefing(user_request)
             return _briefing_update(doc)
 
         # --- 6b. Build the planner node ---
         specialist_catalog = [
-            {"name": sg["name"], "description": sg["description"]}
+            {
+                "name": sg["name"],
+                "description": sg.get("presentation_prompt", sg.get("description", "")),
+            }
             for sg in specialist_graphs
         ]
 
@@ -580,14 +579,14 @@ class SupervisorOrchestrator:
                         active_step = step
                         break
 
-            # Early-exit guard: prevent redundant non-plan re-dispatch.
-            # For plan-driven execution, allow re-entry when a pending step
-            # exists for this specialist (same specialist may handle multiple
-            # plan steps). For non-plan mode, use completed_specialists.
-            if active_step is None and active_plan is not None:
-                # Plan exists but no pending step for this specialist
+            # Re-dispatch guard: prevent running the same specialist twice
+            # UNLESS a plan has a pending step for this specialist.  Plans
+            # can assign multiple steps to the same specialist; the guard
+            # only blocks when there is no matching pending step.
+            completed = state.get("completed_specialists", set())
+            if specialist_name in completed and active_step is None:
                 logger.info(
-                    "[SUPERVISOR] Specialist %s has no pending plan step, early exit",
+                    "[SUPERVISOR] Specialist %s already completed, early exit",
                     specialist_name,
                 )
                 return Command(
@@ -598,26 +597,6 @@ class SupervisorOrchestrator:
                     },
                     goto=END,
                 )
-
-            if active_plan is None:
-                # Non-plan mode: block via completed_specialists
-                completed = state.get("completed_specialists", set())
-                if specialist_name in completed:
-                    logger.info(
-                        "[SUPERVISOR] Specialist %s already completed "
-                        "(non-plan), early exit",
-                        specialist_name,
-                    )
-                    return Command(
-                        update={
-                            "active_agent": "supervisor",
-                            "supervisor_iterations": state.get(
-                                "supervisor_iterations", 0
-                            )
-                            + 1,
-                        },
-                        goto=END,
-                    )
 
             task_desc = "Execute specialist task from briefing"
             rationale: str | None = None
@@ -702,6 +681,26 @@ class SupervisorOrchestrator:
             max_iterations = state.get("max_tool_iterations", 25)
             max_retries = settings.AI_SPECIALIST_MAX_RETRIES
             result = None
+            # Read the invocation_id generated by the handoff tool from the
+            # graph state.  A single consistent ID ensures the frontend can
+            # correlate SUBAGENT, token_batch, and AGENT_COMPLETE events.
+            invocation_id = state.get("current_invocation_id", "") or str(uuid.uuid4())
+
+            # Publish SUBAGENT so the frontend creates the specialist bubble
+            # immediately.  astream_events v1 does NOT emit on_chain_start
+            # for plain async function nodes, so we publish directly.
+            if self._event_bus is not None:
+                self._event_bus.publish(
+                    AgentEvent(
+                        event_type=AgentEventType.SUBAGENT,
+                        data={
+                            "type": AgentEventType.SUBAGENT,
+                            "subagent": specialist_name,
+                            "invocation_id": invocation_id,
+                        },
+                        timestamp=datetime.now(UTC),
+                    )
+                )
 
             for _attempt in range(max_retries + 1):
                 try:
@@ -754,13 +753,83 @@ class SupervisorOrchestrator:
                         )
                         error_update["plan_data"] = active_plan.model_dump()
                         self._publish_plan_update(active_plan)
+
+                    # Publish BRIEFING_UPDATE + AGENT_COMPLETE
+                    # for the error path — same as success path below.
+                    if self._event_bus is not None:
+                        from app.models.schemas.ai import (
+                            BriefingDocumentPublic,
+                            BriefingSectionPublic,
+                            WSBriefingMessage,
+                        )
+
+                        error_doc = BriefingDocument.from_state(updated_data)
+                        error_briefing_md = error_doc.to_markdown()
+                        if error_briefing_md:
+                            self._event_bus.publish(
+                                AgentEvent(
+                                    event_type=AgentEventType.BRIEFING_UPDATE,
+                                    data=WSBriefingMessage(
+                                        type=AgentEventType.BRIEFING_UPDATE,
+                                        briefing=BriefingDocumentPublic(
+                                            original_request=error_doc.original_request,
+                                            sections=[
+                                                BriefingSectionPublic(
+                                                    specialist_name=s.specialist_name,
+                                                    summary=s.findings,
+                                                    key_findings=s.key_findings or [],
+                                                    open_questions=s.open_questions or [],
+                                                    delegation_notes=s.delegation_notes or "",
+                                                    task_description=s.task_description,
+                                                    step_index=s.step_index,
+                                                )
+                                                for s in error_doc.sections
+                                            ],
+                                            supervisor_analysis=error_doc.supervisor_analysis,
+                                            markdown=error_briefing_md,
+                                        ),
+                                        specialist_name=specialist_name,
+                                        completed_specialists=[],
+                                    ).model_dump(mode="json"),
+                                    timestamp=datetime.now(UTC),
+                                )
+                            )
+                        self._event_bus.publish(
+                            AgentEvent(
+                                event_type=AgentEventType.AGENT_COMPLETE,
+                                data={
+                                    "type": AgentEventType.AGENT_COMPLETE,
+                                    "agent_type": "subagent",
+                                    "agent_name": specialist_name,
+                                    "invocation_id": invocation_id,
+                                },
+                                timestamp=datetime.now(UTC),
+                            )
+                        )
+
                     return Command(update=error_update, goto="supervisor")
 
             assert result is not None
-            messages = result.get("messages", [])
-            findings = extract_final_ai_response(messages)
 
-            cleaned_findings, parsed = parse_and_clean(findings)
+            # Prefer LangChain's parsed structured response (SpecialistOutput)
+            # when available — avoids the ToolMessage concatenation fallback in
+            # extract_final_ai_response() that produces raw JSON tool outputs.
+            structured = result.get("structured_response")
+            if structured and hasattr(structured, "summary"):
+                cleaned_findings = str(structured.summary)
+                parsed: dict[str, Any] = {
+                    "key_findings": list(structured.key_findings)
+                    if structured.key_findings
+                    else None,
+                    "open_questions": list(structured.open_questions)
+                    if structured.open_questions
+                    else None,
+                    "delegation_notes": structured.delegation_notes or None,
+                }
+            else:
+                messages = result.get("messages", [])
+                findings = extract_final_ai_response(messages)
+                cleaned_findings, parsed = parse_and_clean(findings)
 
             updated_data = compile_specialist_output(
                 briefing_data=state.get("briefing_data", {}),
@@ -804,9 +873,7 @@ class SupervisorOrchestrator:
 
                 # Inject plan completion status so the supervisor LLM knows
                 # whether to delegate the next step or wrap up.
-                pending = [
-                    s for s in active_plan.steps if s.status == "pending"
-                ]
+                pending = [s for s in active_plan.steps if s.status == "pending"]
                 if pending:
                     next_step = pending[0]
                     plan_msg = (
@@ -822,9 +889,90 @@ class SupervisorOrchestrator:
                         "Respond to the user with the briefing findings. "
                         "Do NOT delegate further."
                     )
-                cmd_update["messages"] = [
-                    SystemMessage(content=plan_msg)
-                ]
+                cmd_update["messages"] = [SystemMessage(content=plan_msg)]
+
+            # Check stop event between specialist runs for graceful cancellation.
+            # The stop_event is set externally via AgentService.request_stop()
+            # when the user clicks stop or the WebSocket disconnects.
+            stop_evt = self.context._stop_event
+            if stop_evt is not None and stop_evt.is_set():
+                logger.info(
+                    "[EXECUTION_STOP] Stop event detected after specialist %s "
+                    "completed — raising ExecutionStoppedError",
+                    specialist_name,
+                )
+                raise ExecutionStoppedError(
+                    execution_id=str(self.context._event_bus.execution_id)
+                    if self.context._event_bus
+                    else "unknown",
+                )
+
+            # Publish BRIEFING_UPDATE + specialist findings + AGENT_COMPLETE
+            # for the success path.  astream_events v1 does NOT emit
+            # on_chain_end for plain async function nodes, so we publish
+            # directly.
+            if self._event_bus is not None:
+                from app.models.schemas.ai import (
+                    BriefingDocumentPublic,
+                    BriefingSectionPublic,
+                    WSBriefingMessage,
+                )
+
+                success_doc = BriefingDocument.from_state(updated_data)
+                success_briefing_md = success_doc.to_markdown()
+                if success_briefing_md:
+                    completed_set = cmd_update.get("completed_specialists", set())
+                    completed_list = (
+                        sorted(completed_set) if isinstance(completed_set, set) else []
+                    )
+                    self._event_bus.publish(
+                        AgentEvent(
+                            event_type=AgentEventType.BRIEFING_UPDATE,
+                            data=WSBriefingMessage(
+                                type=AgentEventType.BRIEFING_UPDATE,
+                                briefing=BriefingDocumentPublic(
+                                    original_request=success_doc.original_request,
+                                    sections=[
+                                        BriefingSectionPublic(
+                                            specialist_name=s.specialist_name,
+                                            summary=s.findings,
+                                            key_findings=s.key_findings or [],
+                                            open_questions=s.open_questions or [],
+                                            delegation_notes=s.delegation_notes or "",
+                                            task_description=s.task_description,
+                                            step_index=s.step_index,
+                                        )
+                                        for s in success_doc.sections
+                                    ],
+                                    supervisor_analysis=success_doc.supervisor_analysis,
+                                    markdown=success_briefing_md,
+                                ),
+                                specialist_name=specialist_name,
+                                completed_specialists=completed_list,
+                            ).model_dump(mode="json"),
+                            timestamp=datetime.now(UTC),
+                        )
+                    )
+
+                # NOTE: The specialist's text findings are NOT published here
+                # because the parent astream_events loop already captures
+                # on_chat_model_stream events from inside the specialist's
+                # ainvoke call and delivers them as token_batch events via
+                # StreamState.flush_tokens().  Publishing cleaned_findings
+                # here would duplicate the text in the specialist's chat bubble.
+
+                self._event_bus.publish(
+                    AgentEvent(
+                        event_type=AgentEventType.AGENT_COMPLETE,
+                        data={
+                            "type": AgentEventType.AGENT_COMPLETE,
+                            "agent_type": "subagent",
+                            "agent_name": specialist_name,
+                            "invocation_id": invocation_id,
+                        },
+                        timestamp=datetime.now(UTC),
+                    )
+                )
 
             return Command(update=cmd_update, goto="supervisor")
 

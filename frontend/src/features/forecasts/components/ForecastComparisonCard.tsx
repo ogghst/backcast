@@ -61,7 +61,7 @@ export const ForecastComparisonCard = ({
             </Tooltip>
           </Space>
         }
-        style={{ marginTop: 16 }}
+        style={{ marginTop: token.marginMD }}
       >
         <Empty
           description="Loading EVM metrics..."
@@ -83,7 +83,7 @@ export const ForecastComparisonCard = ({
             </Tooltip>
           </Space>
         }
-        style={{ marginTop: 16 }}
+        style={{ marginTop: token.marginMD }}
       >
         <Empty
           description="No forecast created yet. Create a forecast to see EVM analysis."
@@ -105,7 +105,7 @@ export const ForecastComparisonCard = ({
             </Tooltip>
           </Space>
         }
-        style={{ marginTop: 16 }}
+        style={{ marginTop: token.marginMD }}
       >
         <EVMSummaryView metrics={metrics} onAdvanced={handleAdvancedClick} />
       </CollapsibleCard>

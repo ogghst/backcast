@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Button, Table, Space, Tag, Empty, App, Typography, theme } from "antd";
+import { Button, Card, Table, Space, Tag, Empty, App, Typography, theme } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   DeleteOutlined,
@@ -131,70 +131,54 @@ export const EntityDocumentsTab: React.FC<EntityDocumentsTabProps> = ({
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: token.paddingMD,
-          gap: token.paddingXS,
-        }}
+    <>
+      <Card
+        title={<Text strong>Linked Documents ({documents.length})</Text>}
+        extra={
+          <Space wrap>
+            <Button icon={<UploadOutlined />} onClick={() => setUploadModalOpen(true)}>
+              Upload & Link
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setLinkModalOpen(true)}>
+              Link Document
+            </Button>
+          </Space>
+        }
       >
-        <Text strong>
-          Linked Documents ({documents.length})
-        </Text>
-        <Space wrap>
-          <Button
-            icon={<UploadOutlined />}
-            onClick={() => setUploadModalOpen(true)}
-          >
-            Upload & Link
-          </Button>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setLinkModalOpen(true)}
-          >
-            Link Document
-          </Button>
-        </Space>
-      </div>
-
-      <Table<DocumentPublic>
-        dataSource={documents}
-        columns={columns}
-        rowKey="id"
-        loading={isLoading}
-        size="small"
-        scroll={{ x: 500 }}
-        pagination={false}
-        locale={{
-          emptyText: (
-            <Empty
-              description={
-                <Space direction="vertical" size={4}>
-                  <Text type="secondary">No documents linked to this item</Text>
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                    Upload a new file or link an existing project document
-                  </Text>
+        <Table<DocumentPublic>
+          dataSource={documents}
+          columns={columns}
+          rowKey="id"
+          loading={isLoading}
+          size="small"
+          scroll={{ x: 500 }}
+          pagination={false}
+          locale={{
+            emptyText: (
+              <Empty
+                description={
+                  <Space direction="vertical" size={4}>
+                    <Text type="secondary">No documents linked to this item</Text>
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                      Upload a new file or link an existing project document
+                    </Text>
+                  </Space>
+                }
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              >
+                <Space>
+                  <Button icon={<UploadOutlined />} onClick={() => setUploadModalOpen(true)}>
+                    Upload
+                  </Button>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setLinkModalOpen(true)}>
+                    Link Existing
+                  </Button>
                 </Space>
-              }
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            >
-              <Space>
-                <Button icon={<UploadOutlined />} onClick={() => setUploadModalOpen(true)}>
-                  Upload
-                </Button>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setLinkModalOpen(true)}>
-                  Link Existing
-                </Button>
-              </Space>
-            </Empty>
-          ),
-        }}
-      />
+              </Empty>
+            ),
+          }}
+        />
+      </Card>
 
       <DocumentLinkModal
         projectId={projectId}
@@ -211,7 +195,7 @@ export const EntityDocumentsTab: React.FC<EntityDocumentsTabProps> = ({
         open={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
       />
-    </div>
+    </>
   );
 };
 

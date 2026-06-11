@@ -7,6 +7,7 @@ import {
   Tag,
   Tooltip,
   Typography,
+  theme,
 } from "antd";
 import {
   ClockCircleOutlined,
@@ -77,6 +78,7 @@ export function ApprovalInfo({
   approvalInfo,
   isLoading = false,
 }: ApprovalInfoProps) {
+  const { token } = theme.useToken();
   const { getImpactLevelStyle } = useImpactLevelConfig();
 
   // Don't render if no approval info exists
@@ -104,7 +106,7 @@ export function ApprovalInfo({
         {/* Impact Level Badge */}
         <div>
           <Text type="secondary">Impact Level</Text>
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: token.marginXS }}>
             <Badge
               count={impactStyle.label}
               style={{
@@ -129,7 +131,7 @@ export function ApprovalInfo({
             <Descriptions
               column={1}
               size="small"
-              style={{ marginTop: 8 }}
+              style={{ marginTop: token.marginXS }}
               items={[
                 {
                   label: "Name",
@@ -167,7 +169,7 @@ export function ApprovalInfo({
             <Text type="secondary">
               <ClockCircleOutlined /> SLA Deadline
             </Text>
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: token.marginXS }}>
               <Space size="large">
                 <Statistic
                   title="Due Date"
@@ -217,7 +219,7 @@ export function ApprovalInfo({
             <Descriptions
               column={2}
               size="small"
-              style={{ marginTop: 8 }}
+              style={{ marginTop: token.marginXS }}
               items={[
                 {
                   label: "Budget Delta",

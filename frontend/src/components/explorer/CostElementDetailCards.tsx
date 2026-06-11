@@ -32,7 +32,6 @@ import { EntityType } from "@/features/evm/types";
 import { formatTemporalRange } from "@/utils/formatters";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol } from "@/utils/formatters";
-import { SPACING } from "@/config/design-tokens";
 
 const { Text } = Typography;
 
@@ -68,7 +67,7 @@ export const CostElementDetailCards = ({
 
   if (isLoading) {
     return (
-      <div style={{ textAlign: "center", padding: SPACING.XXL }}>
+      <div style={{ textAlign: "center", padding: token.paddingXL }}>
         <Spin size="large" />
       </div>
     );

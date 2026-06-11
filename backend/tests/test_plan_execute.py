@@ -9,7 +9,6 @@ Covers:
 
 from __future__ import annotations
 
-import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -18,12 +17,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from app.ai.briefing import BriefingDocument, BriefingSection
 from app.ai.handoff_tools import create_handoff_tool
-from app.ai.plan import PlanDocument, PlanStep
+from app.ai.plan import PlanDocument, PlannerOutput, PlannerStepOutput, PlanStep
 from app.ai.planner import (
     _build_planner_prompt,
+    _convert_planner_output,
     _extract_user_request,
     _fallback_plan,
-    _parse_plan_response,
     planner_node,
 )
 
@@ -36,6 +35,17 @@ _TEST_SPECIALIST_CATALOG: list[dict[str, str]] = [
     {"name": "general_purpose", "description": "Catch-all"},
 ]
 _TEST_SPECIALIST_NAMES = frozenset(e["name"] for e in _TEST_SPECIALIST_CATALOG)
+
+
+def _make_mock_llm(planner_output: PlannerOutput) -> AsyncMock:
+    """Create a mock LLM that returns an AIMessage with JSON content."""
+    from langchain_core.messages import AIMessage
+
+    llm = AsyncMock()
+    llm.ainvoke = AsyncMock(
+        return_value=AIMessage(content=planner_output.model_dump_json())
+    )
+    return llm
 
 
 # =====================================================================
@@ -540,26 +550,21 @@ class TestPlannerNode:
     @pytest.mark.asyncio
     async def test_planner_simple_request(self) -> None:
         """Single-domain request produces requires_planning=false."""
-        llm_response = json.dumps(
-            {
-                "original_request": "Show me project ACME budget status",
-                "requires_planning": False,
-                "estimated_complexity": "simple",
-                "steps": [
-                    {
-                        "step_index": 0,
-                        "specialist": "project_manager",
-                        "task_description": "Show project ACME budget status",
-                        "dependencies": [],
-                        "expected_output": "Budget summary for ACME",
-                    }
-                ],
-            }
+        output = PlannerOutput(
+            original_request="Show me project ACME budget status",
+            requires_planning=False,
+            estimated_complexity="simple",
+            steps=[
+                PlannerStepOutput(
+                    step_index=0,
+                    specialist="project_manager",
+                    task_description="Show project ACME budget status",
+                    dependencies=[],
+                    expected_output="Budget summary for ACME",
+                )
+            ],
         )
-        mock_response = MagicMock()
-        mock_response.content = llm_response
-        llm = AsyncMock()
-        llm.ainvoke = AsyncMock(return_value=mock_response)
+        llm = _make_mock_llm(output)
 
         state: dict[str, Any] = {
             "messages": [HumanMessage(content="Show me project ACME budget status")],
@@ -575,39 +580,32 @@ class TestPlannerNode:
     @pytest.mark.asyncio
     async def test_planner_complex_request(self) -> None:
         """Multi-domain request produces requires_planning=true with multiple steps."""
-        llm_response = json.dumps(
-            {
-                "original_request": "Analyze EVM performance and create dashboard",
-                "requires_planning": True,
-                "estimated_complexity": "complex",
-                "steps": [
-                    {
-                        "step_index": 0,
-                        "specialist": "evm_analyst",
-                        "task_description": "Calculate EVM metrics",
-                        "dependencies": [],
-                        "expected_output": "CPI, SPI values",
-                    },
-                    {
-                        "step_index": 1,
-                        "specialist": "visualization_specialist",
-                        "task_description": "Build dashboard from metrics",
-                        "dependencies": [0],
-                        "expected_output": "EVM dashboard",
-                    },
-                ],
-            }
+        output = PlannerOutput(
+            original_request="Analyze EVM performance and create dashboard",
+            requires_planning=True,
+            estimated_complexity="complex",
+            steps=[
+                PlannerStepOutput(
+                    step_index=0,
+                    specialist="evm_analyst",
+                    task_description="Calculate EVM metrics",
+                    dependencies=[],
+                    expected_output="CPI, SPI values",
+                ),
+                PlannerStepOutput(
+                    step_index=1,
+                    specialist="visualization_specialist",
+                    task_description="Build dashboard from metrics",
+                    dependencies=[0],
+                    expected_output="EVM dashboard",
+                ),
+            ],
         )
-        mock_response = MagicMock()
-        mock_response.content = llm_response
-        llm = AsyncMock()
-        llm.ainvoke = AsyncMock(return_value=mock_response)
+        llm = _make_mock_llm(output)
 
         state: dict[str, Any] = {
             "messages": [
-                HumanMessage(
-                    content="Analyze EVM performance and create dashboard"
-                )
+                HumanMessage(content="Analyze EVM performance and create dashboard")
             ],
         }
         result = await planner_node(
@@ -622,8 +620,10 @@ class TestPlannerNode:
     @pytest.mark.asyncio
     async def test_planner_fallback_on_error(self) -> None:
         """LLM exception triggers single-step fallback."""
+        structured_mock = AsyncMock()
+        structured_mock.ainvoke = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
         llm = AsyncMock()
-        llm.ainvoke = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
+        llm.with_structured_output = MagicMock(return_value=structured_mock)
 
         state: dict[str, Any] = {
             "messages": [HumanMessage(content="Do something complex")],
@@ -637,26 +637,21 @@ class TestPlannerNode:
     @pytest.mark.asyncio
     async def test_planner_preserves_user_request(self) -> None:
         """original_request in the plan matches the user message."""
-        llm_response = json.dumps(
-            {
-                "original_request": "What is the CPI for PRJ-100?",
-                "requires_planning": False,
-                "estimated_complexity": "simple",
-                "steps": [
-                    {
-                        "step_index": 0,
-                        "specialist": "evm_analyst",
-                        "task_description": "Calculate CPI for PRJ-100",
-                        "dependencies": [],
-                        "expected_output": "CPI value",
-                    }
-                ],
-            }
+        output = PlannerOutput(
+            original_request="What is the CPI for PRJ-100?",
+            requires_planning=False,
+            estimated_complexity="simple",
+            steps=[
+                PlannerStepOutput(
+                    step_index=0,
+                    specialist="evm_analyst",
+                    task_description="Calculate CPI for PRJ-100",
+                    dependencies=[],
+                    expected_output="CPI value",
+                )
+            ],
         )
-        mock_response = MagicMock()
-        mock_response.content = llm_response
-        llm = AsyncMock()
-        llm.ainvoke = AsyncMock(return_value=mock_response)
+        llm = _make_mock_llm(output)
 
         state: dict[str, Any] = {
             "messages": [HumanMessage(content="What is the CPI for PRJ-100?")],
@@ -677,91 +672,24 @@ class TestPlannerNode:
         assert plan_data["original_request"] == "(no request)"
         assert plan_data["requires_planning"] is False
         # LLM should not have been called
-        llm.ainvoke.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_planner_handles_list_content(self) -> None:
-        """LLM returning content as a list (multi-part) is handled."""
-        llm_response = json.dumps(
-            {
-                "original_request": "test",
-                "requires_planning": False,
-                "estimated_complexity": "simple",
-                "steps": [
-                    {
-                        "step_index": 0,
-                        "specialist": "general_purpose",
-                        "task_description": "test",
-                    }
-                ],
-            }
-        )
-        mock_response = MagicMock()
-        # Some LLM providers return content as a list of parts
-        mock_response.content = [llm_response]
-        llm = AsyncMock()
-        llm.ainvoke = AsyncMock(return_value=mock_response)
-
-        state: dict[str, Any] = {
-            "messages": [HumanMessage(content="test")],
-        }
-        result = await planner_node(state, llm)
-        plan_data = result["plan_data"]
-        assert "steps" in plan_data
-
-    @pytest.mark.asyncio
-    async def test_planner_strips_markdown_fences(self) -> None:
-        """LLM wrapping JSON in markdown fences is handled gracefully."""
-        raw_json = json.dumps(
-            {
-                "original_request": "test fenced",
-                "requires_planning": True,
-                "estimated_complexity": "moderate",
-                "steps": [
-                    {
-                        "step_index": 0,
-                        "specialist": "project_manager",
-                        "task_description": "Fenced task",
-                    }
-                ],
-            }
-        )
-        fenced = f"```json\n{raw_json}\n```"
-        mock_response = MagicMock()
-        mock_response.content = fenced
-        llm = AsyncMock()
-        llm.ainvoke = AsyncMock(return_value=mock_response)
-
-        state: dict[str, Any] = {
-            "messages": [HumanMessage(content="test fenced")],
-        }
-        result = await planner_node(
-            state, llm, specialist_catalog=_TEST_SPECIALIST_CATALOG
-        )
-        plan_data = result["plan_data"]
-        assert plan_data["requires_planning"] is True
-        assert len(plan_data["steps"]) == 1
+        llm.with_structured_output.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_planner_unknown_specialist_defaults(self) -> None:
         """Unknown specialist name from LLM defaults to general_purpose."""
-        llm_response = json.dumps(
-            {
-                "original_request": "test unknown",
-                "requires_planning": False,
-                "steps": [
-                    {
-                        "step_index": 0,
-                        "specialist": "super_hacker",
-                        "task_description": "break things",
-                    }
-                ],
-            }
+        output = PlannerOutput(
+            original_request="test unknown",
+            requires_planning=False,
+            estimated_complexity="simple",
+            steps=[
+                PlannerStepOutput(
+                    step_index=0,
+                    specialist="super_hacker",
+                    task_description="break things",
+                )
+            ],
         )
-        mock_response = MagicMock()
-        mock_response.content = llm_response
-        llm = AsyncMock()
-        llm.ainvoke = AsyncMock(return_value=mock_response)
+        llm = _make_mock_llm(output)
 
         state: dict[str, Any] = {
             "messages": [HumanMessage(content="test unknown")],
@@ -812,20 +740,110 @@ class TestPlannerHelpers:
         assert len(plan.steps) == 1
         assert plan.steps[0].specialist == "general_purpose"
 
-    def test_parse_plan_response_invalid_json(self) -> None:
-        plan = _parse_plan_response("not json at all", "fallback req")
-        assert plan.requires_planning is False
+
+# =====================================================================
+# _convert_planner_output tests
+# =====================================================================
+
+
+class TestConvertPlannerOutput:
+    """Tests for _convert_planner_output: PlannerOutput -> PlanDocument conversion."""
+
+    def test_basic_conversion(self) -> None:
+        output = PlannerOutput(
+            original_request="Analyze EVM",
+            requires_planning=True,
+            estimated_complexity="moderate",
+            steps=[
+                PlannerStepOutput(
+                    step_index=0,
+                    specialist="evm_analyst",
+                    task_description="Calculate EVM metrics",
+                    dependencies=[],
+                    expected_output="CPI, SPI values",
+                ),
+            ],
+        )
+        plan = _convert_planner_output(output, valid_specialists=_TEST_SPECIALIST_NAMES)
+        assert isinstance(plan, PlanDocument)
+        assert plan.original_request == "Analyze EVM"
+        assert plan.requires_planning is True
+        assert plan.estimated_complexity == "moderate"
+        assert len(plan.steps) == 1
+        assert plan.steps[0].status == "pending"
+        assert plan.steps[0].result_summary is None
+
+    def test_unknown_specialist_defaults(self) -> None:
+        output = PlannerOutput(
+            original_request="test",
+            requires_planning=False,
+            estimated_complexity="simple",
+            steps=[
+                PlannerStepOutput(
+                    step_index=0,
+                    specialist="nonexistent_specialist",
+                    task_description="Do something",
+                ),
+            ],
+        )
+        plan = _convert_planner_output(output, valid_specialists=_TEST_SPECIALIST_NAMES)
         assert plan.steps[0].specialist == "general_purpose"
 
-    def test_parse_plan_response_missing_steps(self) -> None:
-        plan = _parse_plan_response('{"original_request": "test"}', "fallback")
-        assert plan.requires_planning is False
-
-    def test_parse_plan_response_steps_not_list(self) -> None:
-        plan = _parse_plan_response(
-            '{"steps": "not a list"}', "fallback"
+    def test_unknown_specialist_no_catalog(self) -> None:
+        """Without catalog, all specialists default to general_purpose."""
+        output = PlannerOutput(
+            original_request="test",
+            requires_planning=False,
+            estimated_complexity="simple",
+            steps=[
+                PlannerStepOutput(
+                    step_index=0,
+                    specialist="project_manager",
+                    task_description="Do something",
+                ),
+            ],
         )
-        assert plan.requires_planning is False
+        plan = _convert_planner_output(output)  # No valid_specialists
+        assert plan.steps[0].specialist == "general_purpose"
+
+    def test_empty_steps_triggers_fallback(self) -> None:
+        output = PlannerOutput(
+            original_request="test",
+            requires_planning=False,
+            estimated_complexity="simple",
+            steps=[],
+        )
+        plan = _convert_planner_output(output)
+        assert plan.original_request == "test"
+        assert len(plan.steps) == 1
+        assert plan.steps[0].specialist == "general_purpose"
+
+    def test_multiple_steps_with_dependencies(self) -> None:
+        output = PlannerOutput(
+            original_request="Analyze and visualize",
+            requires_planning=True,
+            estimated_complexity="complex",
+            steps=[
+                PlannerStepOutput(
+                    step_index=0,
+                    specialist="evm_analyst",
+                    task_description="Calculate metrics",
+                    expected_output="EVM indices",
+                ),
+                PlannerStepOutput(
+                    step_index=1,
+                    specialist="visualization_specialist",
+                    task_description="Build dashboard",
+                    dependencies=[0],
+                    expected_output="Dashboard charts",
+                ),
+            ],
+        )
+        plan = _convert_planner_output(output, valid_specialists=_TEST_SPECIALIST_NAMES)
+        assert len(plan.steps) == 2
+        assert plan.steps[0].specialist == "evm_analyst"
+        assert plan.steps[1].specialist == "visualization_specialist"
+        assert plan.steps[1].dependencies == [0]
 
 
 # =====================================================================
@@ -870,9 +888,7 @@ class TestBriefingWithPlan:
         md = doc.to_markdown()
         assert "## Execution Plan" in md
         assert "Step 1: [evm_analyst] Calculate metrics — completed" in md
-        assert (
-            "Step 2: [visualization_specialist] Build charts — pending" in md
-        )
+        assert "Step 2: [visualization_specialist] Build charts — pending" in md
 
     def test_briefing_without_plan(self) -> None:
         """No plan section renders nothing plan-related (backward compatible)."""
@@ -931,7 +947,6 @@ class TestBriefingWithPlan:
         assert "### evm_analyst (Iteration 2)" in md
 
 
-
 # =====================================================================
 # Handoff tool tests
 # =====================================================================
@@ -947,9 +962,7 @@ class TestHandoffTool:
         return {
             "messages": [],
             "briefing_data": briefing_data
-            or BriefingDocument(
-                original_request="test"
-            ).model_dump(),
+            or BriefingDocument(original_request="test").model_dump(),
         }
 
     def test_handoff_with_step_index(self) -> None:

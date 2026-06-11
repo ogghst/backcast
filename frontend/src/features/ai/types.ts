@@ -85,12 +85,13 @@ export interface AIAssistantPublic {
   id: string;
   name: string;
   description: string | null;
-  model_id: string;
+  presentation_prompt: string | null;
+  model_id: string | null;
   system_prompt: string | null;
   planner_prompt: string | null;
   supervisor_prompt: string | null;
-  temperature: number;
-  max_tokens: number;
+  temperature: number | null;
+  max_tokens: number | null;
   recursion_limit: number | null;
   default_role: string | null;
   is_active: boolean;
@@ -105,12 +106,13 @@ export interface AIAssistantPublic {
 export interface AIAssistantCreate {
   name: string;
   description?: string | null;
-  model_id: string;
+  presentation_prompt?: string | null;
+  model_id: string | null;
   system_prompt?: string | null;
   planner_prompt?: string | null;
   supervisor_prompt?: string | null;
-  temperature?: number;
-  max_tokens?: number;
+  temperature?: number | null;
+  max_tokens?: number | null;
   recursion_limit?: number | null;
   default_role?: string | null;
   is_active?: boolean;
@@ -123,12 +125,13 @@ export interface AIAssistantCreate {
 export interface AIAssistantUpdate {
   name?: string;
   description?: string | null;
-  model_id?: string;
+  presentation_prompt?: string | null;
+  model_id?: string | null;
   system_prompt?: string | null;
   planner_prompt?: string | null;
   supervisor_prompt?: string | null;
-  temperature?: number;
-  max_tokens?: number;
+  temperature?: number | null;
+  max_tokens?: number | null;
   recursion_limit?: number | null;
   default_role?: string | null;
   is_active?: boolean;
@@ -177,6 +180,7 @@ export interface AIToolPublic {
   permissions: string[];
   category: string | null;
   version: string;
+  risk_level?: string | null;
 }
 
 /**
@@ -189,7 +193,7 @@ export interface AIToolPublic {
  * Matches backend SessionContext schema
  */
 export interface SessionContext {
-  type: "general" | "project" | "wbs_element" | "cost_element";
+  type: "general" | "project" | "wbe" | "cost_element" | "work_package";
   id?: string;
   project_id?: string;
   name?: string;
@@ -227,7 +231,7 @@ export interface ToolResult {
 export interface AgentExecutionPublic {
   id: string;
   session_id: string;
-  status: "running" | "completed" | "error" | "awaiting_approval";
+  status: "running" | "completed" | "error" | "awaiting_approval" | "stopped";
   started_at: string;
   completed_at: string | null;
   error_message: string | null;
@@ -247,6 +251,22 @@ export interface AIConversationSessionPublic {
   active_execution: AgentExecutionPublic | null;
   briefing_markdown?: string | null;
   briefing_specialists?: string[];
+  plan_data?: {
+    original_request: string;
+    steps: Array<{
+      step_index: number;
+      specialist: string;
+      task_description: string;
+      dependencies: number[];
+      input_from_dependencies?: string | null;
+      expected_output: string;
+      status: "pending" | "in_progress" | "completed" | "skipped" | "failed";
+      result_summary?: string | null;
+    }>;
+    estimated_complexity: "simple" | "moderate" | "complex";
+    requires_planning: boolean;
+  } | null;
+  can_resume?: boolean;
 }
 
 export interface AIConversationMessagePublic {

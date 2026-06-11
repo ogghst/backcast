@@ -41,6 +41,11 @@ export function CollapsibleCard({
     <Card
       id={id}
       style={style}
+      styles={{
+        body: {
+          padding: token.paddingXS,
+        },
+      }}
       title={
         <div
           onClick={toggleCollapse}

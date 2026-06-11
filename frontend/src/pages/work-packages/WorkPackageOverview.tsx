@@ -32,7 +32,6 @@ import { CostElementCard } from "@/features/cost-elements/components/CostElement
 import { useWorkPackage, useWorkPackageBudgetStatus } from "@/features/work-packages/api/useWorkPackages";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { formatCurrency, formatTemporalRange, getCurrencySymbol } from "@/utils/formatters";
-import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { WorkPackagesPmiService, type CostElementRead, type ForecastRead } from "@/api/generated";
@@ -67,7 +66,6 @@ const PROGRESSION_LABELS: Record<string, string> = {
 export const WorkPackageOverview = () => {
   const { id } = useParams<{ id: string }>();
   const { token } = theme.useToken();
-  const { colors, spacing } = useThemeTokens();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
@@ -191,17 +189,17 @@ export const WorkPackageOverview = () => {
       : 0;
 
   // Determine status color
-  let statusColor = colors.success;
+  let statusColor = token.colorSuccess;
   let statusText = "Healthy";
 
   if (percentage >= 100) {
-    statusColor = colors.error;
+    statusColor = token.colorError;
     statusText = "Exceeded";
   } else if (percentage >= 90) {
-    statusColor = colors.warning;
+    statusColor = token.colorWarning;
     statusText = "Warning";
   } else if (percentage >= 75) {
-    statusColor = colors.primary;
+    statusColor = token.colorPrimary;
     statusText = "Monitoring";
   }
 
@@ -264,7 +262,7 @@ export const WorkPackageOverview = () => {
   const descColumns = { xs: 1, sm: 2 };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: spacing.lg }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: token.marginLG }}>
       {/* Section 1: Work Package Details */}
       <Card size="small">
         <Descriptions column={descColumns} bordered size="small">
@@ -298,7 +296,7 @@ export const WorkPackageOverview = () => {
       </Card>
 
       {/* Section 2: Schedule Baseline + Forecast side-by-side on desktop */}
-      <Row gutter={[spacing.lg, spacing.lg]}>
+      <Row gutter={[token.marginLG, token.marginLG]}>
         <Col xs={24} lg={12}>
           <Card
             title={
@@ -475,7 +473,7 @@ export const WorkPackageOverview = () => {
       {!budgetLoading && (
         <>
           <Card size="small">
-            <Flex justify="space-between" align="center" style={{ marginBottom: spacing.md }}>
+            <Flex justify="space-between" align="center" style={{ marginBottom: token.marginMD }}>
               <Space>
                 <DollarOutlined style={{ color: token.colorPrimary }} />
                 <Text strong style={{ fontSize: token.fontSizeLG }}>Budget Summary</Text>
@@ -485,7 +483,7 @@ export const WorkPackageOverview = () => {
               </Tag>
             </Flex>
 
-            <Row gutter={[spacing.md, spacing.md]}>
+            <Row gutter={[token.marginMD, token.marginMD]}>
               <Col xs={12} sm={6}>
                 <Statistic
                   title="Budget"
@@ -530,7 +528,7 @@ export const WorkPackageOverview = () => {
               </Col>
             </Row>
 
-            <Divider style={{ margin: `${spacing.md} 0` }} />
+            <Divider style={{ margin: `${token.marginMD} 0` }} />
 
             <Progress
               percent={Math.min(percentage, 100)}
@@ -586,7 +584,7 @@ export const WorkPackageOverview = () => {
           }
           if (useCeCard) {
             return (
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(280px, 1fr))`, gap: spacing.md }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(280px, 1fr))`, gap: token.marginMD }}>
                 {costElements.map((ce) => (
                   <CostElementCard
                     key={ce.cost_element_id}

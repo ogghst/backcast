@@ -20,6 +20,7 @@ import type {
   WSSubscribeMessage,
   TokenUsage,
   FileAttachment,
+  BriefingDocumentData,
 } from "../types";
 import type { SessionContext } from "../../types";
 import {
@@ -45,6 +46,7 @@ import {
   isAgentTransitionMessage,
   isBriefingMessage,
   isPlanUpdateMessage,
+  isAskUserMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -71,7 +73,7 @@ export interface UseStreamingChatConfig {
   /** Optional callback invoked when a tool is called */
   onToolCall?: (tool: string, args: Record<string, unknown>, invocationId?: string) => void;
   /** Optional callback invoked when a tool result is received */
-  onToolResult?: (tool: string, result?: unknown) => void;
+  onToolResult?: (tool: string, result?: unknown, invocationId?: string) => void;
   /** Optional callback invoked when an approval request is received */
   onApprovalRequest?: (request: WSApprovalRequestMessage) => void;
   /** Optional callback invoked on each heartbeat with remaining seconds */
@@ -93,7 +95,7 @@ export interface UseStreamingChatConfig {
   /** Optional callback invoked when an execution status update is received */
   onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
   /** Optional callback invoked when a briefing update is received */
-  onBriefingUpdate?: (briefing: string, specialistName: string, completedSpecialists: string[]) => void;
+  onBriefingUpdate?: (briefing: BriefingDocumentData, specialistName: string, completedSpecialists: string[]) => void;
   /** Optional callback invoked when a plan update is received */
   onPlanUpdate?: (plan: import("../types").WSPlanUpdateMessage) => void;
   /** Optional callback invoked when temporal context changes via AI tool */
@@ -103,6 +105,8 @@ export interface UseStreamingChatConfig {
   /** Optional callback invoked when a stale/orphaned execution is detected (404 on subscribe).
    * The frontend should invalidate session caches so the UI reflects the cleaned-up state. */
   onSessionRecovery?: () => void;
+  /** Optional callback invoked when the agent needs user input via the ask_user tool */
+  onAskUser?: (question: string, askId: string, context?: string, options?: string[]) => void;
 }
 
 /**
@@ -113,6 +117,8 @@ export interface UseStreamingChatReturn {
   sendMessage: (message: string, title?: string, executionMode?: "safe" | "standard" | "expert", attachments?: File[], images?: File[]) => void;
   /** Send an approval response for a critical tool execution */
   sendApprovalResponse: (approvalId: string, approved: boolean) => void;
+  /** Send an answer to an ask_user prompt */
+  sendAskUserResponse: (askId: string, answer: string) => void;
   /** Cancel the current request and close the connection */
   cancel: () => void;
   /** Current WebSocket connection state */
@@ -223,6 +229,7 @@ export const useStreamingChat = (
     onTemporalContextChange,
     onReplayEnd,
     onSessionRecovery,
+    onAskUser,
   } = config;
 
   // Get JWT token from auth store
@@ -318,6 +325,7 @@ export const useStreamingChat = (
     onTemporalContextChange,
     onReplayEnd,
     onSessionRecovery,
+    onAskUser,
   });
 
   // Keep callbacks ref updated (run on every render to capture latest callbacks)
@@ -344,6 +352,7 @@ export const useStreamingChat = (
       onTemporalContextChange,
       onReplayEnd,
       onSessionRecovery,
+      onAskUser,
     };
   });
 
@@ -374,6 +383,11 @@ export const useStreamingChat = (
     attachments?: FileAttachment[];
     images?: string[];
   } | null>(null);
+
+  // Ref to store pending ask_user response to send once connection is established.
+  // Prevents silent data loss when the user answers the modal while the WS is
+  // reconnecting (e.g. WS in CLOSING state).
+  const pendingAskResponseRef = useRef<{ ask_id: string; answer: string } | null>(null);
 
   // Initialize last message time on mount
   // Only run once on mount - no dependencies needed
@@ -566,22 +580,18 @@ export const useStreamingChat = (
       if (isSubagentResultMessage(serverMessage)) {
         callbacks.onSubagentComplete?.(serverMessage.invocation_id);
         // Also call tool_result handler for activity panel
-        callbacks.onToolResult?.("task", serverMessage.content);
+        callbacks.onToolResult?.("task", serverMessage.content, serverMessage.invocation_id);
         return;
       }
 
-      // Handle agent transition messages (supervisor pattern specialist enter/exit)
+      // Handle agent transition messages (supervisor pattern specialist enter/exit).
+      // These are used for UI indicators only — stream creation/completion is
+      // handled by SUBAGENT / SUBAGENT_RESULT / AGENT_COMPLETE events which
+      // carry the correct invocation_id from agent_service.py. Calling
+      // onSubagentStart/Complete here would create duplicate subagent streams
+      // because the orchestrator generates a different invocation_id than
+      // the one used for tokens and tool calls.
       if (isAgentTransitionMessage(serverMessage)) {
-        if (serverMessage.invocation_id) {
-          if (serverMessage.direction === "enter") {
-            callbacks.onSubagentStart?.(
-              serverMessage.agent_name,
-              serverMessage.invocation_id
-            );
-          } else if (serverMessage.direction === "exit") {
-            callbacks.onSubagentComplete?.(serverMessage.invocation_id);
-          }
-        }
         return;
       }
 
@@ -603,7 +613,7 @@ export const useStreamingChat = (
 
       // Handle tool result messages
       if (isToolResultMessage(serverMessage)) {
-        callbacks.onToolResult?.(serverMessage.tool, serverMessage.result);
+        callbacks.onToolResult?.(serverMessage.tool, serverMessage.result, serverMessage.invocation_id);
         return;
       }
 
@@ -615,8 +625,17 @@ export const useStreamingChat = (
 
       // Handle briefing update messages
       if (isBriefingMessage(serverMessage)) {
+        // Backward compat: old backend sends briefing as string
+        const briefingData: BriefingDocumentData =
+          typeof serverMessage.briefing === "string"
+            ? {
+                original_request: "",
+                sections: [],
+                markdown: serverMessage.briefing as unknown as string,
+              }
+            : serverMessage.briefing;
         callbacks.onBriefingUpdate?.(
-          serverMessage.briefing,
+          briefingData,
           serverMessage.specialist_name,
           serverMessage.completed_specialists,
         );
@@ -632,6 +651,17 @@ export const useStreamingChat = (
       // Handle temporal context change messages (AI tool changed viewing context)
       if (serverMessage.type === "temporal_context_change") {
         callbacks.onTemporalContextChange?.(serverMessage as import("../types").WSTemporalContextChangeMessage);
+        return;
+      }
+
+      // Handle ask_user messages (agent needs user input)
+      if (isAskUserMessage(serverMessage)) {
+        callbacks.onAskUser?.(
+          serverMessage.question,
+          serverMessage.ask_id,
+          serverMessage.context,
+          serverMessage.options,
+        );
         return;
       }
 
@@ -903,11 +933,11 @@ export const useStreamingChat = (
       const branchMode = getViewMode();
 
       // Derive project_id from context if not explicitly provided
-      // This ensures WBE and cost_element contexts include their project_id
+      // This ensures WBE, cost_element, and work_package contexts include their project_id
       const effectiveProjectId = projectIdRef.current ?? contextRef.current?.project_id;
 
       // Log context derivation for debugging
-      if (contextRef.current?.type === "wbs_element" || contextRef.current?.type === "cost_element") {
+      if (contextRef.current?.type === "wbe" || contextRef.current?.type === "cost_element" || contextRef.current?.type === "work_package") {
         console.log(
           `[AI Chat Context] Deriving project_id for ${contextRef.current.type}: ` +
           `projectId=${projectIdRef.current}, ` +
@@ -999,6 +1029,27 @@ export const useStreamingChat = (
     },
     [onError]
   );
+
+  /**
+   * Send an answer to an ask_user prompt
+   */
+  const sendAskUserResponse = useCallback((askId: string, answer: string) => {
+    const response = {
+      type: "ask_user_response" as const,
+      ask_id: askId,
+      answer,
+    };
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      callbacksRef.current.onRawMessage?.(response, "out");
+      ws.send(JSON.stringify(response));
+    } else {
+      // Queue the response — it will be sent once the connection reopens.
+      // This prevents silent data loss when the user answers the modal
+      // while the WebSocket is closing or reconnecting.
+      pendingAskResponseRef.current = { ask_id: askId, answer };
+    }
+  }, []);
 
   /**
    * Cancels the current request and closes the WebSocket connection.
@@ -1173,6 +1224,23 @@ export const useStreamingChat = (
               setError(new Error(errorMsg));
             }
           }
+
+          // Flush queued ask_user response (queued when WS was closing)
+          const pendingAsk = pendingAskResponseRef.current;
+          if (pendingAsk) {
+            pendingAskResponseRef.current = null;
+            const response = {
+              type: "ask_user_response" as const,
+              ask_id: pendingAsk.ask_id,
+              answer: pendingAsk.answer,
+            };
+            try {
+              callbacksRef.current.onRawMessage?.(response, "out");
+              ws.send(JSON.stringify(response));
+            } catch {
+              // Silently ignore — the ask_user will time out on the backend
+            }
+          }
         });
 
         // Handle incoming messages
@@ -1326,6 +1394,7 @@ export const useStreamingChat = (
   return {
     sendMessage,
     sendApprovalResponse,
+    sendAskUserResponse,
     cancel,
     connectionState,
     error,

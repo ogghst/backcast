@@ -32,7 +32,6 @@ import { formatCurrency, formatDate, formatTimestamp, calculateDuration } from "
 import { KPIStrip, BudgetOverviewChart, VarianceChart, PerformanceRadar } from "./charts";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { getCurrencySymbol, formatTemporalRange } from "@/utils/formatters";
-import { SPACING } from "@/config/design-tokens";
 
 const { Text } = Typography;
 
@@ -59,7 +58,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
 
   if (isLoading) {
     return (
-      <div style={{ textAlign: "center", padding: SPACING.XXL }}>
+      <div style={{ textAlign: "center", padding: token.paddingXL }}>
         <Spin size="large" />
       </div>
     );

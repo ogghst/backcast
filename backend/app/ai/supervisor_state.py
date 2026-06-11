@@ -46,6 +46,11 @@ class BackcastSupervisorState(TypedDict):
             (union reducer — tracks progress across graph cycles).
         current_step_index: Zero-based index of the plan step currently
             being executed. ``-1`` means no plan or between steps.
+        current_invocation_id: UUID tracking the current specialist
+            invocation, passed from the handoff tool through the graph
+            state so that the specialist wrapper can publish chat events
+            (SUBAGENT, token_batch, AGENT_COMPLETE) with a single
+            consistent identifier.
     """
 
     messages: Annotated[list[BaseMessage], operator.add]
@@ -59,6 +64,7 @@ class BackcastSupervisorState(TypedDict):
     plan_data: dict[str, Any]
     completed_steps: Annotated[set[int], operator.or_]
     current_step_index: int
+    current_invocation_id: str
 
 
 __all__ = ["BackcastSupervisorState"]

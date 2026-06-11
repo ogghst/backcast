@@ -324,6 +324,7 @@ async def create_assistant_config(
     config = await service.create_assistant_config(config_in)
     if config.agent_type == "specialist":
         _invalidate_specialist_cache()
+    _invalidate_llm_caches()
     return AIAssistantConfigPublic.model_validate(config)
 
 
@@ -343,8 +344,7 @@ async def update_assistant_config(
         config = await service.update_assistant_config(assistant_config_id, config_in)
         if config.agent_type == "specialist":
             _invalidate_specialist_cache()
-        else:
-            _invalidate_llm_caches()
+        _invalidate_llm_caches()
         return AIAssistantConfigPublic.model_validate(config)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -404,10 +404,27 @@ async def list_ai_tools() -> list[AIToolPublic]:
     registry.discover_and_register("app.ai.tools.templates.work_package_template")
     registry.discover_and_register("app.ai.tools.templates.cost_event_type_template")
     registry.discover_and_register("app.ai.tools.document_tools")
+    registry.discover_and_register("app.ai.tools.ask_user")
+    registry.discover_and_register("app.ai.tools.briefing_tools")
+    registry.discover_and_register("app.ai.tools.templates.cost_event_template")
 
     tools = get_all_tools()
 
-    # Sort tools by category, then by name
-    sorted_tools = sorted(tools, key=lambda t: (t.category or "uncategorized", t.name))
+    # Convert domain tools to AIToolPublic
+    result: list[AIToolPublic] = [
+        AIToolPublic.model_validate(t.to_dict()) for t in tools
+    ]
 
-    return [AIToolPublic.model_validate(t.to_dict()) for t in sorted_tools]
+    # Append MCP tools discovered from configured external servers
+    from app.ai.mcp.client_manager import MCPClientManager
+
+    mcp_manager = MCPClientManager()
+    for mcp_tool in mcp_manager.get_all_tools():
+        meta = getattr(mcp_tool, "_tool_metadata", None)
+        if meta is not None:
+            result.append(AIToolPublic.model_validate(meta.to_dict()))
+
+    # Sort tools by category, then by name
+    result.sort(key=lambda t: (t.category or "uncategorized", t.name))
+
+    return result

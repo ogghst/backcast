@@ -28,7 +28,7 @@ export function useAIChatContext(): SessionContext {
     // Work Breakdown Element context
     if (wbsElementId) {
       return {
-        type: "wbs_element",
+        type: "wbe",
         id: wbsElementId,
         project_id: projectId,
       };

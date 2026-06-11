@@ -8,7 +8,6 @@
  */
 
 import React from "react";
-import { useThemeTokens } from "@/hooks/useThemeTokens";
 import {
   DashboardHeader,
   ProjectSpotlight,
@@ -18,9 +17,9 @@ import {
   EmptyState,
   useDashboardData,
 } from "@/features/dashboard";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 const Home: React.FC = () => {
-  const { spacing } = useThemeTokens();
   const { data, isLoading, error, refetch } = useDashboardData();
 
   // Loading state
@@ -31,13 +30,13 @@ const Home: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <div style={{ padding: spacing.xl }}>
+      <PageWrapper>
         <ErrorState
           message="Unable to load dashboard"
           detail="There was a problem loading your dashboard data. Please try again."
           onRetry={() => refetch()}
         />
-      </div>
+      </PageWrapper>
     );
   }
 
@@ -50,7 +49,7 @@ const Home: React.FC = () => {
   );
   if (!data || (!data.spotlight && !hasActivity)) {
     return (
-      <div style={{ padding: spacing.xl }}>
+      <PageWrapper>
         <DashboardHeader />
         <EmptyState
           message="No activity yet"
@@ -58,12 +57,12 @@ const Home: React.FC = () => {
           ctaText="Create Project"
           ctaUrl="/projects"
         />
-      </div>
+      </PageWrapper>
     );
   }
 
   return (
-    <div style={{ padding: spacing.xl }}>
+    <PageWrapper>
       {/* Welcome Header */}
       <DashboardHeader />
 
@@ -72,7 +71,7 @@ const Home: React.FC = () => {
 
       {/* Activity Grid */}
       <ActivityGrid recentActivity={data.recent_activity} />
-    </div>
+    </PageWrapper>
   );
 };
 

@@ -1,22 +1,22 @@
-import { App, Button, Space, Tag } from "antd";
+import { App, Button, Card, Space, Tag } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   HistoryOutlined,
 } from "@ant-design/icons";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import { createResourceHooks } from "@/hooks/useCrud";
-import { CostElementTypesService, OrganizationalUnitsService } from "@/api/generated";
+import { CostElementTypesService } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import type {
   CostElementTypeRead,
   CostElementTypeCreate,
   CostElementTypeUpdate,
-  OrganizationalUnitRead,
 } from "@/api/generated";
 import { CostElementTypeModal } from "@/features/cost-element-types/components/CostElementTypeModal";
+import { useOrgUnitTree } from "@/features/organizational-units/hooks/useOrgUnitTree";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
@@ -98,21 +98,8 @@ export const CostElementTypeManagement = () => {
   >();
   const { data: types, isLoading, refetch } = useList(tableParams);
 
-  // Department map for display
-  const [departmentMap, setDepartmentMap] = useState<Record<string, string>>(
-    {},
-  );
-
-  useEffect(() => {
-    OrganizationalUnitsService.getOrganizationalUnits(1, 1000).then((res: unknown) => {
-      const depts: OrganizationalUnitRead[] = Array.isArray(res)
-        ? res
-        : ((res as { items?: OrganizationalUnitRead[] }).items) || [];
-      const map: Record<string, string> = {};
-      depts.forEach((d) => (map[d.organizational_unit_id] = d.name));
-      setDepartmentMap(map);
-    });
-  }, []);
+  // Org unit path map for display
+  const { pathMap } = useOrgUnitTree();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<CostElementTypeRead | null>(
@@ -177,7 +164,7 @@ export const CostElementTypeManagement = () => {
       title: "Organizational Unit",
       dataIndex: "organizational_unit_id",
       key: "organizational_unit_id",
-      render: (id) => departmentMap[id] || id,
+      render: (id) => pathMap.get(id) || id,
     },
     {
       title: "Description",
@@ -223,42 +210,35 @@ export const CostElementTypeManagement = () => {
   ];
 
   return (
-    <div>
-      <StandardTable<CostElementTypeRead>
-        tableParams={tableParams}
-        onChange={handleTableChange}
-        loading={isLoading}
-        dataSource={(types as CostElementTypeRead[]) || []}
-        columns={columns}
-        rowKey="cost_element_type_id"
-        searchable={true}
-        onSearch={handleSearch}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-              Cost Element Types
-            </div>
-            <Can permission="cost-element-type-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedType(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add Type
-              </Button>
-            </Can>
-          </div>
+    <>
+      <Card
+        title="Cost Element Types"
+        extra={
+          <Can permission="cost-element-type-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedType(null);
+                setModalOpen(true);
+              }}
+            >
+              Add Type
+            </Button>
+          </Can>
         }
-      />
+      >
+        <StandardTable<CostElementTypeRead>
+          tableParams={tableParams}
+          onChange={handleTableChange}
+          loading={isLoading}
+          dataSource={(types as CostElementTypeRead[]) || []}
+          columns={columns}
+          rowKey="cost_element_type_id"
+          searchable={true}
+          onSearch={handleSearch}
+        />
+      </Card>
 
       <CostElementTypeModal
         open={modalOpen}
@@ -297,6 +277,6 @@ export const CostElementTypeManagement = () => {
         entityName={`Type: ${selectedType?.name || ""}`}
         isLoading={historyLoading}
       />
-    </div>
+    </>
   );
 };
