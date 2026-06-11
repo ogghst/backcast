@@ -38,11 +38,13 @@ _TEST_SPECIALIST_NAMES = frozenset(e["name"] for e in _TEST_SPECIALIST_CATALOG)
 
 
 def _make_mock_llm(planner_output: PlannerOutput) -> AsyncMock:
-    """Create a mock LLM that returns structured output."""
-    structured_mock = AsyncMock()
-    structured_mock.ainvoke = AsyncMock(return_value=planner_output)
+    """Create a mock LLM that returns an AIMessage with JSON content."""
+    from langchain_core.messages import AIMessage
+
     llm = AsyncMock()
-    llm.with_structured_output = MagicMock(return_value=structured_mock)
+    llm.ainvoke = AsyncMock(
+        return_value=AIMessage(content=planner_output.model_dump_json())
+    )
     return llm
 
 

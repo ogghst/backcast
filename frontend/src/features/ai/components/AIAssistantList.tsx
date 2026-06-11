@@ -105,7 +105,10 @@ export const AIAssistantList = () => {
       title: "Model",
       dataIndex: "model_id",
       key: "model_id",
-      render: (modelId: string) => {
+      render: (modelId: string | null, record: AIAssistantPublic) => {
+        if (!modelId) {
+          return <Tag>{record.agent_type === "specialist" ? "Supervisor default" : "—"}</Tag>;
+        }
         const model = availableModels.find(m => m.id === modelId);
         return <Tag>{model?.display_name || modelId}</Tag>;
       },

@@ -350,7 +350,7 @@ class ApprovalRequest(BaseModel):
 
 
 # Session Context Types
-SessionContextType = Literal["general", "project", "wbe", "cost_element"]
+SessionContextType = Literal["general", "project", "wbe", "cost_element", "work_package"]
 
 
 class SessionContext(BaseModel):
@@ -391,6 +391,11 @@ class SessionContext(BaseModel):
                 raise ValueError("Cost element context requires 'id' field")
             if not self.project_id:
                 raise ValueError("Cost element context requires 'project_id' field")
+        elif self.type == "work_package":
+            if not self.id:
+                raise ValueError("Work package context requires 'id' field")
+            if not self.project_id:
+                raise ValueError("Work package context requires 'project_id' field")
         return self
 
 

@@ -31,7 +31,8 @@ from app.ai.plan import PlanDocument
 logger = logging.getLogger(__name__)
 
 # Tool name prefixes that are ALWAYS allowed, even under a plan.
-_ALLOWED_PREFIXES = ("get_briefing", "handoff_to_")
+# ask_user is also permitted so the supervisor can ask clarifying questions mid-plan.
+_ALLOWED_PREFIXES = ("get_briefing", "handoff_to_", "ask_user")
 
 _PLAN_DELEGATION_SUFFIX = (
     "\n\n"

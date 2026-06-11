@@ -6,18 +6,40 @@ event and awaits a response via an asyncio.Future keyed by ask_id.
 """
 
 import asyncio
+import json
 import logging
 from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import uuid4
 
 from langchain_core.tools import InjectedToolArg
+from pydantic import BeforeValidator
 
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_options_list(v: Any) -> Any:
+    """Coerce a JSON-encoded string into a list for the ``options`` parameter.
+
+    Some LLMs (e.g. glm-4.7) pass ``options`` as a JSON string like
+    ``'["Assembly Station 1", "Robot Cell A"]'`` instead of a proper list.
+    This validator handles that case transparently.
+    """
+    if v is None or isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return v
+
 
 # Module-level registry for in-flight ask_user requests.
 # Key: ask_id (str), Value: asyncio.Future that resolves to the user's answer.
@@ -72,7 +94,7 @@ async def ask_user(
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
     *,
     why: str | None = None,
-    options: list[str] | None = None,
+    options: Annotated[list[str] | None, BeforeValidator(_coerce_options_list)] = None,
     timeout_seconds: float = _DEFAULT_ASK_TIMEOUT,
 ) -> dict[str, Any]:
     """Ask the user a clarification question and wait for a response.

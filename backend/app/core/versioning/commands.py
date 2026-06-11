@@ -153,10 +153,12 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
         root_id: UUID,
         actor_id: UUID,
         control_date: datetime | None = None,
+        branch: str = "main",
         **fields: Any,
     ) -> None:
         super().__init__(entity_class, root_id, actor_id)
         self.fields = fields
+        self.branch = branch
         self.control_date = control_date or datetime.now(UTC)
 
     async def execute(self, session: AsyncSession) -> TVersionable:
@@ -174,7 +176,7 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
             # Determine restricted scope (branch) if applicable
             branch_filter: str | None = None
             if hasattr(self.entity_class, "branch"):
-                branch_filter = self.fields.get("branch", "main")
+                branch_filter = self.branch
 
             stmt_check = select(self.entity_class).where(
                 getattr(self.entity_class, self._root_field_name()) == self.root_id,

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { App as AntApp, ConfigProvider, theme as antTheme } from "antd";
+import { App as AntApp, ConfigProvider, Grid, theme as antTheme } from "antd";
 import { Toaster } from "sonner";
 import { RouterProvider } from "react-router-dom";
 import { router } from "@/routes";
@@ -9,6 +9,8 @@ import { useTokenRefreshTimer } from "@/utils/tokenRefresh";
 
 export const App = () => {
   const { themeMode } = useUserPreferencesStore();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   // Initialize token refresh timer
   useTokenRefreshTimer();
@@ -20,6 +22,7 @@ export const App = () => {
 
   return (
     <ConfigProvider
+      card={{ variant: isMobile ? "borderless" : undefined }}
       theme={{
         ...theme,
         algorithm:

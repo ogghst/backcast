@@ -1,4 +1,4 @@
-import { Form, Input, Select, Slider, theme } from "antd";
+import { Form, Input, InputNumber, Select, Slider, theme } from "antd";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import { AI_ROLE_OPTIONS } from "../../types";
 
@@ -69,40 +69,67 @@ export const ConfigurationSection = ({ agentType, models }: ConfigurationSection
           </Select>
         </Form.Item>
 
-        {agentType === "main" && (
-          <>
-            <Form.Item
-              name="model_id"
-              label="Model"
-              rules={[{ required: true, message: "Please select a model" }]}
-            >
-              <Select placeholder="Select a model">
-                {models.map((model) => (
-                  <Select.Option key={model.id} value={model.id}>
-                    {model.display_name} {model.provider_name ? `(${model.provider_name})` : ""}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
+        <>
+          <Form.Item
+            name="model_id"
+            label="Model"
+            rules={agentType === "main" ? [{ required: true, message: "Please select a model" }] : undefined}
+          >
+            <Select placeholder="Select a model" allowClear={agentType === "specialist"}>
+              {agentType === "specialist" && (
+                <Select.Option value="">Use supervisor default</Select.Option>
+              )}
+              {models.map((model) => (
+                <Select.Option key={model.id} value={model.id}>
+                  {model.provider_name ? `${model.provider_name} / ${model.display_name}` : model.display_name}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
 
-            <Form.Item
-              name="temperature"
-              label="Temperature"
-              initialValue={0.7}
-              rules={[{ type: "number", min: 0, max: 2, message: "Temperature must be between 0 and 2" }]}
-            >
-              <Slider min={0} max={2} step={0.1} marks={{ 0: "Precise", 1: "Balanced", 2: "Creative" }} />
-            </Form.Item>
+          {agentType === "main" ? (
+            <>
+              <Form.Item
+                name="temperature"
+                label="Temperature"
+                initialValue={0.7}
+                rules={[{ type: "number", min: 0, max: 2, message: "Temperature must be between 0 and 2" }]}
+              >
+                <Slider min={0} max={2} step={0.1} marks={{ 0: "Precise", 1: "Balanced", 2: "Creative" }} />
+              </Form.Item>
 
-            <Form.Item
-              name="max_tokens"
-              label="Max Tokens"
-              initialValue={2048}
-              rules={[{ type: "number", min: 1, max: 200000, message: "Max tokens must be between 1 and 200000" }]}
-            >
-              <Slider min={1} max={200000} step={100} marks={{ 1: "1", 100000: "100K", 200000: "200K" }} />
-            </Form.Item>
+              <Form.Item
+                name="max_tokens"
+                label="Max Tokens"
+                initialValue={2048}
+                rules={[{ type: "number", min: 1, max: 200000, message: "Max tokens must be between 1 and 200000" }]}
+              >
+                <Slider min={1} max={200000} step={100} marks={{ 1: "1", 100000: "100K", 200000: "200K" }} />
+              </Form.Item>
+            </>
+          ) : (
+            <>
+              <Form.Item
+                name="temperature"
+                label="Temperature"
+                tooltip="Override the supervisor's temperature for this specialist. Leave empty to inherit."
+                rules={[{ type: "number", min: 0, max: 2, message: "Temperature must be between 0 and 2" }]}
+              >
+                <InputNumber min={0} max={2} step={0.1} placeholder="Inherit from supervisor" style={{ width: "100%" }} />
+              </Form.Item>
 
+              <Form.Item
+                name="max_tokens"
+                label="Max Tokens"
+                tooltip="Override the supervisor's max tokens for this specialist. Leave empty to inherit."
+                rules={[{ type: "number", min: 1, max: 200000, message: "Max tokens must be between 1 and 200000" }]}
+              >
+                <InputNumber min={1} max={200000} step={100} placeholder="Inherit from supervisor" style={{ width: "100%" }} />
+              </Form.Item>
+            </>
+          )}
+
+          {agentType === "main" && (
             <Form.Item
               name="recursion_limit"
               label="Recursion Limit"
@@ -112,8 +139,8 @@ export const ConfigurationSection = ({ agentType, models }: ConfigurationSection
             >
               <Slider min={1} max={100} step={5} marks={{ 1: "1", 25: "25 (default)", 50: "50", 100: "100" }} />
             </Form.Item>
-          </>
-        )}
+          )}
+        </>
       </div>
     </CollapsibleCard>
   );

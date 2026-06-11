@@ -23,7 +23,7 @@ const mockSessions: AIConversationSessionPublic[] = [
     user_id: "user-1",
     assistant_config_id: "assistant-1",
     title: "WBE Discussion",
-    context: { type: "wbs_element", id: "wbe-1", project_id: "project-1" },
+    context: { type: "wbe", id: "wbe-1", project_id: "project-1" },
     created_at: "2024-01-02T00:00:00Z",
     updated_at: "2024-01-02T01:00:00Z",
     active_execution: null,

@@ -324,6 +324,7 @@ async def create_assistant_config(
     config = await service.create_assistant_config(config_in)
     if config.agent_type == "specialist":
         _invalidate_specialist_cache()
+    _invalidate_llm_caches()
     return AIAssistantConfigPublic.model_validate(config)
 
 
@@ -343,8 +344,7 @@ async def update_assistant_config(
         config = await service.update_assistant_config(assistant_config_id, config_in)
         if config.agent_type == "specialist":
             _invalidate_specialist_cache()
-        else:
-            _invalidate_llm_caches()
+        _invalidate_llm_caches()
         return AIAssistantConfigPublic.model_validate(config)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

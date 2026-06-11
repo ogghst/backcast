@@ -40,7 +40,7 @@ import { BriefingPeekBar } from "./BriefingPeekBar";
 import { type BriefingState } from "./BriefingContent";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
 import type { ChatMessage } from "../../types";
-import type { MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../types";
+import type { MainAgentStream, SubagentStream, StreamingState, TokenUsage, ToolCallRemark } from "../types";
 import type { WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
@@ -128,9 +128,6 @@ export const ChatInterface = ({
     subagents: new Map<string, SubagentStream>(),
   });
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
-  const [activeToolCalls, setActiveToolCalls] = useState<
-    Array<{ name: string; args: Record<string, unknown> }>
-  >([]);
   const [toolJustFinished, setToolJustFinished] = useState(false);
   const [showStreamSeparator, setShowStreamSeparator] = useState(false);
   const [lastTokenUsage, setLastTokenUsage] = useState<TokenUsage | null>(null);
@@ -177,6 +174,14 @@ export const ChatInterface = ({
   const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [approvalRemaining, setApprovalRemaining] = useState<number | null>(null);
+
+  // Ask user state (agent needs user input via ask_user tool)
+  const [askUserRequest, setAskUserRequest] = useState<{
+    question: string;
+    askId: string;
+    context?: string;
+    options?: string[];
+  } | null>(null);
 
   // Attachment state
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
@@ -308,9 +313,8 @@ export const ChatInterface = ({
       streamingState.main.length > 0 ||
       Array.from(streamingState.mainStreams.values()).some(ms => ms.is_active) ||
       Array.from(streamingState.subagents.values()).some(sa => sa.is_active) ||
-      activeToolCalls.length > 0 ||
       isWaitingForResponse,
-    [streamingState.main, streamingState.mainStreams, streamingState.subagents, activeToolCalls.length, isWaitingForResponse]
+    [streamingState.main, streamingState.mainStreams, streamingState.subagents, isWaitingForResponse]
   );
 
   // Safety net: clear waiting spinner if stuck for 15+ seconds.
@@ -618,7 +622,6 @@ export const ChatInterface = ({
       // Update session ID if this was a new session (do this first)
       setCurrentSessionId((prev) => prev || sessionId);
       setIsWaitingForResponse(false);
-      setActiveToolCalls([]);
       // Intentionally keep briefing state — users should review
       // the compiled briefing after the agent finishes
       setShowStreamSeparator(false);
@@ -676,7 +679,6 @@ export const ChatInterface = ({
     setPendingUserMessage(null);
     // Clear stuck streaming state
     setStreamingState(EMPTY_STREAMING_STATE);
-    setActiveToolCalls([]);
   }, []);
 
   // Debug: Capture all raw WebSocket messages
@@ -772,82 +774,55 @@ export const ChatInterface = ({
     [isMobile],
   );
 
-  /**
-   * Handles tool call events by injecting inline tool remarks.
-   *
-   * Context: Called by useStreamingChat when the AI agent invokes a tool.
-   * Routes tool remarks to the correct stream based on invocation_id:
-   * - If invocation_id matches a subagent, inject into subagent stream
-   * - If invocation_id matches a main stream, inject into that main stream
-   * - Otherwise, inject into active main stream (backward compatibility)
-   *
-   * @param tool - Name of the tool being invoked
-   * @param args - Arguments passed to the tool
-   * @param invocationId - Unique ID for the stream segment that called the tool
-   */
   const handleToolCall = useCallback((tool: string, args: Record<string, unknown>, invocationId?: string) => {
-    // Create tool remark with markdown formatting
-    const toolRemark = `\n\n*${tool}*\n\n`;
-
     setStreamingState((prev) => {
-      // If invocation_id is provided, try to route to the correct stream
+      // Route to correct stream by invocation_id
       if (invocationId) {
-        // First check if this invocation_id belongs to a subagent
+        // Check subagent streams
         const subagents = new Map(prev.subagents);
         const subagent = subagents.get(invocationId);
         if (subagent) {
-          // Inject tool remark into subagent stream
           subagents.set(invocationId, {
             ...subagent,
-            content: subagent.content + toolRemark,
+            tool_calls: [
+              ...(subagent.tool_calls || []),
+              { name: tool, args, position: (subagent.content || "").length },
+            ],
           });
           return { ...prev, subagents };
         }
 
-        // Then check if this invocation_id belongs to a main stream
+        // Check main streams
         const mainStreams = new Map(prev.mainStreams);
         const mainStream = mainStreams.get(invocationId);
         if (mainStream) {
-          // Inject tool remark into main stream
           mainStreams.set(invocationId, {
             ...mainStream,
-            content: mainStream.content + toolRemark,
             tool_calls: [
               ...(mainStream.tool_calls || []),
-              { name: tool, args, position: mainStream.content.length }
+              { name: tool, args, position: mainStream.content.length },
             ],
           });
           return { ...prev, mainStreams };
         }
       }
 
-      // Fallback: inject into active main stream (backward compatibility)
+      // Fallback: inject into active main stream
       const mainStreams = new Map(prev.mainStreams);
-      let foundActiveStream = false;
-
       for (const [id, stream] of mainStreams) {
         if (stream.is_active) {
-          foundActiveStream = true;
           mainStreams.set(id, {
             ...stream,
-            content: stream.content + toolRemark,
             tool_calls: [
               ...(stream.tool_calls || []),
-              { name: tool, args, position: stream.content.length }
+              { name: tool, args, position: stream.content.length },
             ],
           });
+          return { ...prev, mainStreams };
         }
       }
 
-      // If no active main stream exists, create a new one or add to legacy field
-      if (!foundActiveStream) {
-        if (prev.main) {
-          return { ...prev, main: prev.main + toolRemark };
-        }
-        return { ...prev, mainStreams };
-      }
-
-      return { ...prev, mainStreams };
+      return prev;
     });
 
     // Track tool execution steps
@@ -855,23 +830,59 @@ export const ChatInterface = ({
     const currentStep = toolStepCounter.current.get(tool)!;
     const totalSteps = totalToolSteps.current.get(tool) || currentStep;
     totalToolSteps.current.set(tool, Math.max(totalSteps, currentStep));
-
-    // Add tool to active calls (for activity panel)
-    setActiveToolCalls((prev) => [...prev, { name: tool, args }]);
   }, []);
 
-  const handleToolResult = useCallback((tool: string) => {
-    // Remove tool from active calls
-    setActiveToolCalls((prev) =>
-      prev.filter((t) => t.name !== tool)
-    );
+  const handleToolResult = useCallback((tool: string, _result?: unknown, invocationId?: string) => {
+    const updateToolCalls = (toolCalls: ToolCallRemark[] | undefined): ToolCallRemark[] => {
+      const calls = toolCalls || [];
+      // Find the last matching tool call that isn't already completed
+      const idx = calls.findLastIndex(tc => tc.name === tool && !tc.completed);
+      if (idx === -1) return calls;
+      const updated = [...calls];
+      updated[idx] = { ...updated[idx], completed: true };
+      return updated;
+    };
 
-    // Clear the step counter for this tool when it completes
+    setStreamingState((prev) => {
+      if (invocationId) {
+        // Try subagent
+        const subagents = new Map(prev.subagents);
+        const subagent = subagents.get(invocationId);
+        if (subagent) {
+          subagents.set(invocationId, { ...subagent, tool_calls: updateToolCalls(subagent.tool_calls) });
+          return { ...prev, subagents };
+        }
+
+        // Try main stream
+        const mainStreams = new Map(prev.mainStreams);
+        const mainStream = mainStreams.get(invocationId);
+        if (mainStream) {
+          mainStreams.set(invocationId, { ...mainStream, tool_calls: updateToolCalls(mainStream.tool_calls) });
+          return { ...prev, mainStreams };
+        }
+      }
+
+      // Fallback: mark in any active main stream
+      const mainStreams = new Map(prev.mainStreams);
+      for (const [id, stream] of mainStreams) {
+        if (stream.is_active && stream.tool_calls?.some(tc => tc.name === tool && !tc.completed)) {
+          mainStreams.set(id, { ...stream, tool_calls: updateToolCalls(stream.tool_calls) });
+          return { ...prev, mainStreams };
+        }
+      }
+
+      return prev;
+    });
+
+    // Clear step counters
     toolStepCounter.current.delete(tool);
     totalToolSteps.current.delete(tool);
-
-    // Set flag to add separator before next text stream
     setToolJustFinished(true);
+  }, []);
+
+  // Ask user handler (receives ask_user events from the agent)
+  const handleAskUser = useCallback((question: string, askId: string, context?: string, options?: string[]) => {
+    setAskUserRequest({ question, askId, context, options });
   }, []);
 
   // Streaming chat hook
@@ -973,6 +984,7 @@ export const ChatInterface = ({
       // Invalidate caches so the UI reflects the cleared active_execution.
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
     }, [queryClient]),
+    onAskUser: handleAskUser,
   });
 
   // Destructure isReplaying from hook after config
@@ -995,7 +1007,6 @@ export const ChatInterface = ({
     setPendingUserMessage(null);
     // Clear all streaming/briefing state from previous session
     setStreamingState(EMPTY_STREAMING_STATE);
-    setActiveToolCalls([]);
     setIsWaitingForResponse(false);
     setLastTokenUsage(null);
     setBriefing(null);
@@ -1019,7 +1030,6 @@ export const ChatInterface = ({
         mainStreams: new Map<string, MainAgentStream>(),
         subagents: new Map<string, SubagentStream>(),
       });
-      setActiveToolCalls([]);
       setIsWaitingForResponse(false);
       setLastTokenUsage(null);
       setSubagentInvocationCounts({});
@@ -1097,7 +1107,6 @@ export const ChatInterface = ({
         mainStreams: new Map<string, MainAgentStream>(),
         subagents: new Map<string, SubagentStream>(),
       });
-      setActiveToolCalls([]);
       setIsWaitingForResponse(true);
       setLastTokenUsage(null);
       setShowStreamSeparator(false);
@@ -1131,7 +1140,6 @@ export const ChatInterface = ({
   const handleCancel = useCallback(() => {
     streamingChat.cancel();
     setStreamingState(EMPTY_STREAMING_STATE);
-    setActiveToolCalls([]);
     setIsWaitingForResponse(false);
     setShowStreamSeparator(false);
     setToolJustFinished(false);
@@ -1170,6 +1178,14 @@ export const ChatInterface = ({
     setApprovalRequest(null);
     setApprovalRemaining(null);
   }, []);
+
+  // Ask user submit handler (depends on streamingChat, so defined after the hook)
+  const handleAskUserSubmit = useCallback((answer: string) => {
+    if (askUserRequest) {
+      streamingChat.sendAskUserResponse(askUserRequest.askId, answer);
+      setAskUserRequest(null);
+    }
+  }, [askUserRequest, streamingChat]);
 
   // Handle clearing debug messages
   const handleClearDebugMessages = useCallback(() => {
@@ -1568,10 +1584,11 @@ export const ChatInterface = ({
                   loading={messagesLoading}
                   streamingState={streamingState}
                   isStreaming={isStreaming}
-                  activeToolCalls={activeToolCalls}
                   showSeparator={showStreamSeparator}
                   isMobile={isMobile}
                   tokenUsage={lastTokenUsage}
+                  askUserRequest={askUserRequest}
+                  onAskUserResponse={handleAskUserSubmit}
                 />
               </div>
 
@@ -1661,6 +1678,7 @@ export const ChatInterface = ({
         onReject={handleReject}
         onCancel={handleApprovalCancel}
       />
+
     </>
   );
 };

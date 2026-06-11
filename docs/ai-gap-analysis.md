@@ -1,22 +1,23 @@
 # AI Agent System — Gap Analysis
 
-**Date:** 2026-06-07
+**Date:** 2026-06-07 (updated)
 **Scope:** `backend/seed/seed_system_config.json`, `backend/app/ai/`
-**Goal:** Align specialist agents with domain responsibilities, remove model duplication, consolidate prompts, add missing capabilities.
+**Status:** Implemented
 
 ---
 
 ## 1. Executive Summary
 
-| Dimension | Current State | Target State | Gap |
-|---|---|---|---|
-| Specialist model_id | All 7 specialists have `model_id` set | Remove — specialists inherit main agent model | **HIGH** — model_id is ignored by code, seed data is misleading |
-| Time Traveller specialist | Does not exist | New specialist for temporal operations | **HIGH** — no dedicated agent for time-travel |
-| `ask_user` availability | Only `project_manager` has it | All specialists must have it | **HIGH** — 5/7 specialists cannot ask clarification questions |
-| System prompt verbosity | 80–300+ words per specialist | Concise, context-review-first prompts | **MEDIUM** — token waste on every invocation |
-| Planner/Supervisor prompts | Duplicated across 3 main agents with minor wording diffs | Single consolidated template with role-specific additions | **MEDIUM** — 6 near-identical prompt strings to maintain |
-| Tool assignment accuracy | Specialists carry tools outside their domain | Tight domain-aligned tool sets | **MEDIUM** — cross-domain tools increase error surface |
-| `visualization_specialist` tools | Only 5 tools, no project structure access | Needs read tools to build diagrams | **LOW** — likely fails on complex visualizations |
+| Dimension | Previous State | Implemented State |
+|---|---|---|
+| Specialist model_id | All 7 set to a model UUID | `null` — specialists inherit main agent model |
+| Specialist temperature/max_tokens/recursion_limit | All 7 set per specialist | `null` — inherited from main agent |
+| Specialist count | 7 specialists | 9 specialists (+controller, +time_traveller) |
+| `ask_user` availability | 1/7 specialists | 8/9 specialists (general_purpose uses `["*"]`) |
+| System prompts | 80–300 words, verbose | ~50 words, context-review-first |
+| Planner/Supervisor prompts | Near-identical across 3 main agents | Differentiated by role: read-only, full-ops, admin |
+| Tool assignment accuracy | Specialists carried tools outside domain | Tight domain-aligned tool sets |
+| `visualization_specialist` tools | 5 tools, no project structure access | 18 tools with full read access |
 
 ---
 
@@ -24,63 +25,19 @@
 
 ### Finding
 
-All 7 specialists in `seed_system_config.json` set `"model_id": "11111111-1111-1111-1111-111111111112"`.
+All specialists previously set `model_id`, `temperature`, `max_tokens`, and `recursion_limit`. These were **completely ignored** by the runtime — `subagent_compiler.py` compiles all specialists with the same LLM instance from the main agent.
 
-### Code Reality
+### Action Taken
 
-`subagent_compiler.py` compiles **all specialists with the same LLM instance** created from the main agent's `model_id`. The specialist `model_id` column is **never read** — `db_loader.assistant_config_to_specialist_dict()` omits it entirely.
-
-### Action
-
-- **Remove `model_id`** from all specialist configs in seed data (set to `null`).
-- **Remove `temperature`, `max_tokens`, `recursion_limit`** from specialist configs — these are also ignored (specialists use the main agent's LLM instance with its parameters).
-- The DB schema already supports `NULL` for these fields on specialist records.
-
-### Fields Affected per Specialist
-
-| Field | Current | Target |
-|---|---|---|
-| `model_id` | `"11111111-1111-1111-1111-111111111112"` | `null` |
-| `temperature` | `0.0` – `0.3` | `null` |
-| `max_tokens` | `3000` – `4096` | `null` |
-| `recursion_limit` | `10` – `25` | `null` |
+All specialist configs now set these fields to `null`. The DB schema already supported `NULL`.
 
 ---
 
-## 3. Specialist-by-Specialist Analysis
+## 3. Specialist Inventory
 
-### 3.1 Project Manager (`project_manager`)
+### 3.1 Project Manager (`project_manager`) — 41 tools
 
-**Purpose:** Read and modify project structure — WBS Elements, Control Accounts, Work Packages.
-
-#### Current Tools (48)
-
-```
-ask_user, batch_create_cost_elements, batch_create_cost_registrations,
-batch_create_progress_entries, batch_create_wbs_elements, batch_delete_cost_elements,
-batch_update_wbs_elements, create_control_account, create_cost_element,
-create_cost_element_type, create_cost_event, create_cost_registration,
-create_forecast, create_progress_entry, create_project, create_wbs_element,
-create_work_package, delete_control_account, delete_cost_element,
-delete_cost_element_type, delete_cost_event, delete_cost_registration,
-delete_forecast, delete_progress_entry, delete_project, delete_wbs_element,
-delete_work_package, find_control_accounts, find_cost_element_types,
-find_cost_elements, find_cost_events, find_wbs_elements, find_work_packages,
-get_briefing, get_control_account_budget, get_coq_data, get_cost_element_details,
-get_progress_data, get_project, get_project_context, get_project_forecast,
-get_project_structure, get_temporal_context, get_work_package_budget_status,
-global_search, list_cost_registrations, list_projects, read_document,
-search_documents, set_temporal_context, update_control_account,
-update_cost_element, update_cost_element_type, update_cost_event,
-update_cost_registration, update_forecast, update_progress_entry,
-update_project, update_wbs_element, update_work_package
-```
-
-#### Gap — Scope Overreach
-
-The project manager currently owns cost registrations, cost events, forecasts, progress entries, and cost element types — these belong to the **accountant** or should be read-only. The specialist should focus strictly on project structure.
-
-#### Recommended Tools
+**Purpose:** Read and modify project structure — projects, WBS Elements, Control Accounts, Work Packages, Cost Elements, and progress entries.
 
 | Domain | Tools |
 |---|---|
@@ -89,112 +46,51 @@ The project manager currently owns cost registrations, cost events, forecasts, p
 | Control Accounts | `create_control_account`, `update_control_account`, `delete_control_account`, `find_control_accounts`, `get_control_account_budget`, `batch_create_control_accounts` |
 | Work Packages | `create_work_package`, `update_work_package`, `delete_work_package`, `find_work_packages`, `get_work_package_budget_status`, `batch_create_work_packages`, `batch_get_work_package_budget_status` |
 | Cost Elements | `create_cost_element`, `update_cost_element`, `delete_cost_element`, `find_cost_elements`, `batch_create_cost_elements`, `batch_delete_cost_elements` |
-| Read-only context | `get_project_context`, `get_project_structure`, `get_temporal_context`, `get_cost_element_details` |
+| Progress Entries | `create_progress_entry`, `update_progress_entry`, `delete_progress_entry`, `batch_create_progress_entries` |
+| Context | `get_project_context`, `get_project_structure`, `get_temporal_context`, `get_cost_element_details` |
 | Interaction | `ask_user`, `get_briefing`, `global_search` |
 
-**Removed:** cost registrations, cost events, forecasts, progress entries, cost element types, `set_temporal_context`, `search_documents`, `read_document`, `get_project_forecast`, `get_coq_data`, `get_progress_data`, `list_cost_registrations`.
-
-**Rationale:** Project manager creates the structure. Accountant registers costs. Time Traveller handles temporal context. Removes ~20 tools that were outside domain.
+**Removed from original:** cost registrations, cost events, forecasts, cost element types, cost event types, `set_temporal_context`, `search_documents`, `read_document`, `get_project_forecast`, `get_coq_data`, `list_cost_registrations`.
 
 ---
 
-### 3.2 Accountant (`accountant`)
+### 3.2 Accountant (`accountant`) — 35 tools
 
-**Purpose:** Set up and manage cost registrations, cost events, and documentation.
-
-#### Current Tools (32)
-
-```
-get_briefing, get_temporal_context, set_temporal_context, global_search,
-get_project_context, get_project_structure, list_projects, get_project,
-find_wbs_elements, find_cost_elements, find_cost_element_types,
-find_cost_event_types, find_work_packages, find_control_accounts,
-get_cost_element_details, get_work_package_budget_status,
-get_control_account_budget, get_progress_data, create_cost_registration,
-update_cost_registration, delete_cost_registration,
-batch_create_cost_registrations, list_cost_registrations, find_cost_events,
-create_cost_event, update_cost_event, delete_cost_event, get_coq_data,
-search_documents, read_document
-```
-
-#### Gap
-
-- ✅ Domain well-aligned
-- ❌ Missing `ask_user`
-- ❌ Has `set_temporal_context` — should delegate to time_traveller instead
-- ❌ Missing `create_cost_event_type` — if managing cost events, should also manage types
-
-#### Recommended Tools
+**Purpose:** Cost registrations, cost events, forecasts, COQ tracking, and document retrieval.
 
 | Domain | Tools |
 |---|---|
 | Cost Registrations | `create_cost_registration`, `update_cost_registration`, `delete_cost_registration`, `list_cost_registrations`, `batch_create_cost_registrations` |
-| Cost Events | `find_cost_events`, `create_cost_event`, `update_cost_event`, `delete_cost_event`, `batch_create_cost_events`, `get_coq_data` |
-| Cost Element Types | `find_cost_element_types`, `find_cost_event_types` |
+| Cost Events | `create_cost_event`, `update_cost_event`, `delete_cost_event`, `find_cost_events`, `batch_create_cost_events`, `get_coq_data` |
+| Forecasts | `create_forecast`, `update_forecast`, `delete_forecast`, `batch_create_forecasts` |
 | Read-only context | `get_project_context`, `get_project_structure`, `get_temporal_context`, `list_projects`, `get_project`, `find_wbs_elements`, `find_cost_elements`, `find_work_packages`, `find_control_accounts`, `get_cost_element_details`, `get_work_package_budget_status`, `get_control_account_budget`, `get_progress_data` |
+| Type references | `find_cost_element_types`, `find_cost_event_types` |
 | Documents | `search_documents`, `read_document` |
 | Interaction | `ask_user`, `get_briefing`, `global_search` |
 
-**Added:** `ask_user`, `batch_create_cost_events`.
-**Removed:** `set_temporal_context`.
+**Added:** `ask_user`, `batch_create_cost_events`, forecast tools.
+**Removed:** `set_temporal_context` (delegated to time_traveller).
 
 ---
 
-### 3.3 Change Order Manager (`change_order_manager`)
+### 3.3 Change Order Manager (`change_order_manager`) — 23 tools
 
-**Purpose:** Perform all change order configuration — creation, approval workflow, impact analysis, branch management.
-
-#### Current Tools (14)
-
-```
-get_briefing, get_temporal_context, set_temporal_context, global_search,
-find_change_orders, create_change_order, generate_change_order_draft,
-submit_change_order_for_approval, approve_change_order, reject_change_order,
-analyze_change_order_impact, delete_change_order, find_control_accounts,
-get_control_account_budget
-```
-
-#### Gap
-
-- ❌ Missing `ask_user`
-- ❌ Missing `batch_create_change_orders` — exists as a tool but not assigned
-- ⚠️ Has `set_temporal_context` — essential for branch switching (isolated/merged mode). **Keep this** — change order specialist must switch branches to analyze impact.
-- ❌ Missing read tools to understand project structure before creating COs: `get_project`, `get_project_structure`, `find_wbs_elements`, `find_work_packages`, `find_cost_elements`
-
-#### Recommended Tools
+**Purpose:** Full change order lifecycle — creation, approval workflows, impact analysis, branch management.
 
 | Domain | Tools |
 |---|---|
 | Change Orders | `find_change_orders`, `create_change_order`, `generate_change_order_draft`, `submit_change_order_for_approval`, `approve_change_order`, `reject_change_order`, `analyze_change_order_impact`, `delete_change_order`, `batch_create_change_orders` |
-| Temporal / Branch | `get_temporal_context`, `set_temporal_context` |
+| Temporal / Branch | `get_temporal_context`, `set_temporal_context` (kept — branch switching is integral to CO workflow) |
 | Read-only structure | `get_project`, `get_project_context`, `get_project_structure`, `find_wbs_elements`, `find_work_packages`, `find_cost_elements`, `find_control_accounts`, `get_control_account_budget`, `get_cost_element_details` |
 | Interaction | `ask_user`, `get_briefing`, `global_search` |
 
-**Added:** `ask_user`, `batch_create_change_orders`, `get_project`, `get_project_context`, `get_project_structure`, `find_wbs_elements`, `find_work_packages`, `find_cost_elements`, `get_cost_element_details`.
-**Kept:** `set_temporal_context` — essential for branch switching.
+**Added:** `ask_user`, `batch_create_change_orders`, project structure read tools.
 
 ---
 
-### 3.4 EVM Analyst (`evm_analyst`)
+### 3.4 EVM Analyst (`evm_analyst`) — 18 tools
 
-**Purpose:** Read project data and perform EVM analysis. Read-only.
-
-#### Current Tools (13)
-
-```
-get_briefing, get_temporal_context, global_search, get_project_analysis,
-get_project_forecast, find_control_accounts, get_control_account_budget,
-find_work_packages, find_cost_elements, get_cost_element_details,
-get_progress_data, get_work_package_budget_status
-```
-
-#### Gap
-
-- ❌ Missing `ask_user`
-- ❌ Missing `get_project_context`, `get_project_structure`, `get_project`, `find_wbs_elements` — needed for complete analysis context
-- ⚠️ `default_role` is `ai-viewer` (read-only) — correct for analysis-only specialist
-
-#### Recommended Tools
+**Purpose:** EVM metrics calculation and project performance analysis. Read-only.
 
 | Domain | Tools |
 |---|---|
@@ -206,24 +102,9 @@ get_progress_data, get_work_package_budget_status
 
 ---
 
-### 3.5 Visualization Specialist (`visualization_specialist`)
+### 3.5 Visualization Specialist (`visualization_specialist`) — 18 tools
 
-**Purpose:** Generate diagrams and visual representations.
-
-#### Current Tools (5)
-
-```
-get_briefing, get_temporal_context, global_search, find_control_accounts,
-generate_mermaid_diagram
-```
-
-#### Gap
-
-- ❌ Missing `ask_user` — may need to clarify diagram requirements
-- ❌ Severely under-tooled — cannot read project structure, WBS hierarchy, cost data, or change order data to build meaningful diagrams
-- Needs read access to all entities it might visualize
-
-#### Recommended Tools
+**Purpose:** Generate Mermaid diagrams for project structures, hierarchies, and cost breakdowns.
 
 | Domain | Tools |
 |---|---|
@@ -231,141 +112,90 @@ generate_mermaid_diagram
 | Read-only structure | `get_project_context`, `get_project_structure`, `get_project`, `get_temporal_context`, `find_wbs_elements`, `find_cost_elements`, `find_work_packages`, `find_control_accounts`, `find_change_orders`, `get_cost_element_details`, `get_work_package_budget_status`, `get_control_account_budget`, `get_project_analysis`, `get_progress_data` |
 | Interaction | `ask_user`, `get_briefing`, `global_search` |
 
-**Added:** `ask_user` + 13 read tools. Without these, the specialist cannot generate any meaningful diagram.
+**Added:** `ask_user` + 13 read tools. Previously had only 5 tools and could not generate meaningful diagrams.
 
 ---
 
-### 3.6 User Admin (`user_admin`)
+### 3.6 User Admin (`user_admin`) — 9 tools
 
-**Purpose:** User and organizational unit management. System configuration.
-
-#### Current Tools (11)
-
-```
-get_briefing, get_temporal_context, global_search, find_users, create_user,
-update_user, delete_user, find_organizational_units,
-create_organizational_unit, update_organizational_unit,
-delete_organizational_unit
-```
-
-#### Gap
-
-- ❌ Missing `ask_user` — critical for confirming destructive user operations
-- ❌ Missing batch tools: `batch_create_users`, `batch_create_organizational_units`
-
-#### Recommended Tools
+**Purpose:** User account management only.
 
 | Domain | Tools |
 |---|---|
 | Users | `find_users`, `create_user`, `update_user`, `delete_user`, `batch_create_users` |
+| Interaction | `ask_user`, `get_briefing`, `get_temporal_context`, `global_search` |
+
+**Added:** `ask_user`, `batch_create_users`.
+**Removed:** Organizational unit tools (moved to controller).
+
+---
+
+### 3.7 Controller (`controller`) — NEW — 18 tools
+
+**Purpose:** Master data management — cost element types, cost event types, and organizational units. The structural configuration shared across projects.
+
+| Domain | Tools |
+|---|---|
+| Cost Element Types | `find_cost_element_types`, `create_cost_element_type`, `update_cost_element_type`, `delete_cost_element_type`, `batch_create_cost_element_types` |
+| Cost Event Types | `find_cost_event_types`, `create_cost_event_type`, `update_cost_event_type`, `delete_cost_event_type` |
 | Org Units | `find_organizational_units`, `create_organizational_unit`, `update_organizational_unit`, `delete_organizational_unit`, `batch_create_organizational_units` |
 | Interaction | `ask_user`, `get_briefing`, `get_temporal_context`, `global_search` |
 
-**Added:** `ask_user`, `batch_create_users`, `batch_create_organizational_units`.
+**Rationale:** Centralizes master data that was previously scattered across project_manager, accountant, and user_admin. The controller manages the "configuration layer" shared across all projects.
 
 ---
 
-### 3.7 General Purpose (`general_purpose`)
+### 3.8 Time Traveller (`time_traveller`) — NEW — 9 tools
 
-**Purpose:** Fallback agent for tasks that don't fit a specialist.
+**Purpose:** Temporal context management — change viewing date, switch branches, set branch mode.
 
-#### Current Config
+| Domain | Tools |
+|---|---|
+| Temporal | `get_temporal_context`, `set_temporal_context` |
+| Read-only context | `get_project_context`, `get_project_structure`, `list_projects`, `get_project` |
+| Interaction | `ask_user`, `get_briefing`, `global_search` |
+
+**Rationale:** Centralizes temporal operations. `set_temporal_context` removed from project_manager and accountant. Kept on change_order_manager (branch switching is integral to CO workflow).
+
+---
+
+### 3.9 General Purpose (`general_purpose`) — wildcard
+
+**Purpose:** Fallback for tasks that don't fit a specialist.
 
 - `allowed_tools: ["*"]` — access to all tools
 - `default_role: ai-manager`
-
-#### Gap
-
-- ❌ Missing `ask_user` in explicit list, but `["*"]` includes everything
-- ⚠️ `default_role: ai-manager` is correct for write access
-- ✅ No changes needed — wildcard tool access is appropriate for fallback
+- No changes needed
 
 ---
 
-### 3.8 NEW: Time Traveller Specialist (`time_traveller`)
+## 4. `ask_user` Availability — Final State
 
-**Purpose:** Change temporal context — viewing date, branch, branch mode. Verify temporal state.
-
-#### Why Needed
-
-Currently `set_temporal_context` is scattered across project_manager, change_order_manager, accountant, and all main agents' direct_tools. A dedicated specialist:
-- Centralizes temporal operations
-- Can explain temporal implications to the user
-- Prevents accidental time-travel by non-specialist agents
-- Aligns with the user's requirement for a "time traveller specialist"
-
-#### Recommended Config
-
-```json
-{
-  "name": "time_traveller",
-  "description": "Specialist for temporal context management — time-travel, branch switching, and temporal state verification",
-  "presentation_prompt": "Specialist for changing temporal context: viewing date (as_of), branch selection, and branch mode (isolated/merged)",
-  "system_prompt": "You are a temporal context specialist.\n\nBefore calling any tool, review your briefing context to avoid redundant queries.\n\nYou manage the temporal viewing context:\n- **as_of date**: Change the point-in-time for historical queries\n- **branch**: Switch to a change order branch (e.g. BR-CO-2026-001)\n- **branch_mode**: \"isolated\" (only branch changes) or \"merged\" (baseline + changes)\n\nExplain the implications of each temporal change to the user.\nAlways confirm the resulting context after switching.",
-  "model_id": null,
-  "default_role": "ai-viewer",
-  "agent_type": "specialist",
-  "is_active": true,
-  "temperature": null,
-  "max_tokens": null,
-  "recursion_limit": null,
-  "allowed_tools": [
-    "ask_user", "get_briefing", "get_temporal_context", "set_temporal_context",
-    "get_project_context", "get_project_structure", "list_projects", "get_project",
-    "global_search"
-  ],
-  "structured_output_schema": null
-}
-```
-
-#### Impact on Other Agents
-
-- **Remove `set_temporal_context`** from: `project_manager`, `accountant` (they no longer need it)
-- **Keep `set_temporal_context`** on: `change_order_manager` (branch switching is integral to CO workflow)
-- **Keep `set_temporal_context`** in all main agent `direct_tools` (supervisor needs it for direct time-travel requests)
-- **Add `time_traveller`** to `allowed_specialists` on all 3 main agents
-
----
-
-## 4. `ask_user` Availability Gap
-
-| Specialist | Has `ask_user` | Required Action |
+| Specialist | Has `ask_user` | Status |
 |---|---|---|
-| `project_manager` | ✅ | None |
-| `evm_analyst` | ❌ | Add |
-| `change_order_manager` | ❌ | Add |
-| `user_admin` | ❌ | Add |
-| `visualization_specialist` | ❌ | Add |
-| `accountant` | ❌ | Add |
-| `general_purpose` | ✅ (via `["*"]`) | None |
-| `time_traveller` (new) | ✅ (in design) | — |
-
-**5 specialists need `ask_user` added.**
+| `project_manager` | ✅ | Unchanged |
+| `evm_analyst` | ✅ | Added |
+| `change_order_manager` | ✅ | Added |
+| `user_admin` | ✅ | Added |
+| `visualization_specialist` | ✅ | Added |
+| `accountant` | ✅ | Added |
+| `controller` | ✅ | Included in new design |
+| `time_traveller` | ✅ | Included in new design |
+| `general_purpose` | ✅ (via `["*"]`) | Unchanged |
 
 ---
 
-## 5. System Prompt Consolidation
+## 5. System Prompt Design
 
-### Problem
+### Pattern
 
-Current system prompts are verbose (80–300+ words), repeat information already available in tool descriptions, and lack a consistent structure.
-
-### Principles for Concise Prompts
-
-1. **Context-review-first**: Always instruct the specialist to review briefing context before calling tools
-2. **Domain-only**: Describe only what the specialist does — not how tools work (tool descriptions handle that)
-3. **No filler**: Remove "You are a friendly and accessible...", "When responding: Be conversational...", etc.
-4. **Structure**: Role → Domain → Key rules (max 3–5 bullet points)
-
-### Proposed Prompt Templates
-
-#### Specialist Prompt Template (~50 words)
+All specialist prompts follow a consistent structure:
 
 ```
 You are a {role} specialist.
 Before calling tools, review your briefing context to avoid redundant queries.
 
-Domain: {1-2 sentence domain description}
+Domain: {1-2 sentence description}
 
 Key rules:
 - {rule 1}
@@ -373,212 +203,142 @@ Key rules:
 - {rule 3}
 ```
 
-#### Main Agent System Prompt Template (~60 words)
+### Main Agent Prompts
+
+Each main agent prompt follows:
 
 ```
-You are a {role} for the Backcast project management system.
+You are a {role} for the Backcast system.
 Delegate to specialists for domain work. Use direct tools for quick lookups.
 
-Capabilities: {1-2 sentences}
-Temporal: set_temporal_context changes the viewing date or branch.
+{2-3 sentences on capabilities}
 
 Rules:
-- Confirm before destructive operations
-- Be concise and action-oriented
+- {rule}
+- {rule}
+- {rule}
 ```
 
-### Current vs Proposed — Token Savings Estimate
+### Token Savings
 
-| Agent | Current (words) | Proposed (words) | Savings |
+| Agent | Previous (words) | Current (words) | Savings |
 |---|---|---|---|
-| Friendly Project Analyzer | 86 | 50 | ~42% |
-| Senior Project Manager | 113 | 55 | ~51% |
-| System Manager | 72 | 45 | ~38% |
-| project_manager | 178 | 55 | ~69% |
-| evm_analyst | 88 | 40 | ~55% |
-| change_order_manager | 180 | 65 | ~64% |
-| user_admin | 45 | 30 | ~33% |
-| visualization_specialist | 42 | 30 | ~29% |
-| accountant | 85 | 45 | ~47% |
-| **Total** | **~869** | **~415** | **~52%** |
+| Friendly Project Analyzer | 86 | 47 | ~45% |
+| Senior Project Manager | 113 | 50 | ~56% |
+| System Manager | 72 | 40 | ~44% |
+| project_manager | 178 | 49 | ~72% |
+| evm_analyst | 88 | 42 | ~52% |
+| change_order_manager | 180 | 50 | ~72% |
+| user_admin | 45 | 34 | ~24% |
+| visualization_specialist | 42 | 39 | ~7% |
+| accountant | 85 | 44 | ~48% |
+| **Total** | **~869** | **~395** | **~55%** |
 
 ---
 
-## 6. Planner & Supervisor Prompt Consolidation
+## 6. Planner & Supervisor Prompts — Differentiated by Role
 
-### Problem
+### Design Decision
 
-Each of the 3 main agents carries its own `planner_prompt` and `supervisor_prompt`. These are near-identical with minor wording variations (e.g. "read-only project analysis assistant" vs "senior project management assistant" vs "system administration assistant").
+Rather than consolidating into a single template, planner and supervisor prompts are differentiated by the main agent's role and use case.
 
-### Current Duplication
+### Friendly Project Analyzer (read-only)
 
-| Prompt | Word Count | Variations |
-|---|---|---|
-| Planner prompts | 3 × ~65 words | Role name + step limit + specialist list |
-| Supervisor prompts | 3 × ~80 words | Role name + failure handling wording |
+**Planner:** Emphasizes read-only constraint, prefers single-step plans, max 3 steps.
+**Supervisor:** Highlights no-modification constraint, conversational tone, clarification-only responses.
 
-### Proposed Consolidation
+### Senior Project Manager (full operational access)
 
-**Option A: Single template with placeholders** (recommended)
+**Planner:** Includes multi-step pattern examples (create structure + budget, analyze + create CO, verify + register costs), max 5 steps.
+**Supervisor:** Includes failure recovery (retry or skip), destructive operation confirmation, action-oriented tone.
 
-Define the planner/supervisor prompts once in code (or a single DB row), using `{role_name}` and `{max_steps}` placeholders. The specialist section is already injected via `{specialist_section}`.
+### System Manager (admin)
 
-**Option B: Remove from seed data, use code defaults**
+**Planner:** Emphasizes single-step default, max 2 steps, rare multi-step patterns.
+**Supervisor:** Highlights sensitive configuration, explicit delete confirmation requirement.
 
-The code in `planner.py` and `supervisor_orchestrator.py` already has hardcoded defaults. Remove planner/supervisor prompts from seed data entirely and let the code defaults handle it.
+### Customization Points
 
-### Recommended Planner Prompt (consolidated)
-
-```
-You are a request planner for the Backcast {role_name}.
-
-{specialist_section}
-
-## Rules
-- Default to single-step plans. Multi-step only when genuinely needed.
-- Maximum {max_steps} steps.
-- Use ONLY specialist names from the list above.
-- Keep task descriptions focused and actionable.
-- Only add dependencies when step N genuinely needs output from step M.
-```
-
-### Recommended Supervisor Prompt (consolidated)
-
-```
-You are the supervisor for the Backcast {role_name}.
-
-{specialist_section}
-
-## Role
-Execute the plan by delegating to specialists, one step at a time.
-
-## Rules
-- Follow the plan. Do NOT reassign steps to different specialists.
-- Do NOT summarize the briefing — the user reads it directly.
-- Only respond to the user for clarification or to confirm destructive operations.
-- Check the briefing before each delegation to avoid duplicate work.
-```
-
-### Per-Main-Agent Customization
-
-| Main Agent | `role_name` | `max_steps` |
-|---|---|---|
-| Friendly Project Analyzer | "project analysis assistant (read-only)" | 3 |
-| Senior Project Manager | "project management assistant" | 5 |
-| System Manager | "system administration assistant" | 2 |
+| Main Agent | Role descriptor | Max steps | Key differentiation |
+|---|---|---|---|
+| Friendly Project Analyzer | "read-only project analysis assistant" | 3 | No-modification constraint |
+| Senior Project Manager | "senior project management assistant with full operational access" | 5 | Multi-step patterns, failure recovery |
+| System Manager | "system administration assistant" | 2 | Sensitive config, delete confirmation |
 
 ---
 
-## 7. Main Agent Direct Tools Review
+## 7. Main Agent Delegation Configuration
 
-### Current State
+### Friendly Project Analyzer
 
-| Main Agent | Direct Tools | Count |
-|---|---|---|
-| Friendly Project Analyzer | Read-only tools + `set_temporal_context` | 23 |
-| Senior Project Manager | Read-only tools + `set_temporal_context` + `batch_get_work_package_budget_status` | 24 |
-| System Manager | Read-only tools + `set_temporal_context` | 23 |
+- **Role:** `ai-viewer` (read-only)
+- **Direct Tools:** 25 read-only tools + `set_temporal_context`
+- **Specialists:** `evm_analyst`, `visualization_specialist`, `accountant`, `time_traveller`
 
-### Gap
+### Senior Project Manager
 
-- All 3 main agents have nearly identical `direct_tools` — the only difference is the Senior PM has one extra batch tool
-- `set_temporal_context` is appropriate as a direct tool — the supervisor should be able to time-travel before delegating
+- **Role:** `ai-manager` (read/write)
+- **Direct Tools:** 26 read tools + `set_temporal_context` + `batch_get_work_package_budget_status`
+- **Specialists:** `project_manager`, `change_order_manager`, `evm_analyst`, `visualization_specialist`, `accountant`, `time_traveller`
 
-### Recommended Direct Tools
+### System Manager
 
-Keep the current pattern but normalize across all agents:
-
-**Common direct tools for all main agents:**
-```
-# Context
-get_temporal_context, set_temporal_context, get_project_context,
-get_project_structure, global_search
-# Read: Projects
-list_projects, get_project
-# Read: Structure
-find_wbs_elements, find_cost_elements, find_cost_element_types,
-find_cost_event_types, find_work_packages, find_control_accounts,
-find_cost_events, find_users, find_organizational_units
-# Read: Details & Analysis
-get_cost_element_details, get_progress_data,
-get_work_package_budget_status, get_control_account_budget,
-batch_get_work_package_budget_status,
-get_project_analysis, get_project_forecast, get_coq_data
-# Documents
-search_documents, read_document
-```
-
-**No changes needed** — current direct tools are reasonable. The main agents should have broad read access to answer quick questions without delegation.
+- **Role:** `ai-admin` (full admin)
+- **Direct Tools:** 25 read-only tools + `set_temporal_context`
+- **Specialists:** `user_admin`, `controller`, `time_traveller`
 
 ---
 
-## 8. Summary of Required Changes
+## 8. Code Changes
 
-### Seed Data Changes (`seed_system_config.json`)
-
-| Change | Details |
+| File | Change |
 |---|---|
-| **Remove model_id** from 7 specialists | Set to `null` |
-| **Remove temperature/max_tokens/recursion_limit** from 7 specialists | Set to `null` |
-| **Add `time_traveller` specialist** | New entry with temporal tools |
-| **Add `ask_user`** to 5 specialists | evm_analyst, change_order_manager, user_admin, visualization_specialist, accountant |
-| **Trim `project_manager` tools** | Remove cost registrations, cost events, forecasts, progress entries, cost element types |
-| **Expand `visualization_specialist` tools** | Add 13 read tools |
-| **Expand `change_order_manager` tools** | Add ask_user, batch_create_change_orders, read tools |
-| **Expand `evm_analyst` tools** | Add ask_user, project structure reads |
-| **Expand `user_admin` tools** | Add ask_user, batch tools |
-| **Add `time_traveller`** to all 3 main agents' `allowed_specialists` | |
-| **Consolidate system prompts** | Rewrite all 10 prompts to be concise, context-review-first |
-| **Consolidate planner/supervisor prompts** | Single template with `{role_name}` and `{max_steps}` placeholders |
-
-### Code Changes
-
-| Change | File | Details |
-|---|---|---|
-| Default specialist prompt | `subagent_compiler.py` | Update `DEFAULT_SYSTEM_PROMPT` to include "review context before tools" instruction |
-| Planner template | `planner.py` | Consolidate `_PLANNER_PROMPT_TEMPLATE` with role placeholder |
-| Supervisor template | `supervisor_orchestrator.py` | Consolidate `_BASE_SUPERVISOR_PROMPT` with role placeholder |
+| `backend/app/ai/subagent_compiler.py` | Updated `DEFAULT_SYSTEM_PROMPT` to include "review briefing context" instruction |
 
 ---
 
-## 9. Risk Assessment
+## 9. `set_temporal_context` Distribution
 
-| Risk | Impact | Mitigation |
+| Agent | Has `set_temporal_context` | Rationale |
 |---|---|---|
-| Removing `set_temporal_context` from project_manager | Specialists lose direct time-travel | Delegate to time_traveller specialist when needed |
-| Trimming project_manager tool set | Some multi-step workflows need two specialists | Planner handles decomposition — cost operations route to accountant |
-| Keeping `set_temporal_context` on change_order_manager | CO specialist can still switch branches independently | This is intentional — branch switching is integral to CO workflow |
-| Token savings from prompt consolidation | May reduce specialist "personality" | Acceptable trade-off — specialists should be functional, not chatty |
+| Main agents (direct_tools) | ✅ | Supervisor can time-travel before delegating |
+| `change_order_manager` | ✅ | Branch switching integral to CO workflow |
+| `time_traveller` | ✅ | Core responsibility |
+| `project_manager` | ❌ | Removed — delegate to time_traveller |
+| `accountant` | ❌ | Removed — delegate to time_traveller |
+| `evm_analyst` | ❌ | Read-only, no temporal changes needed |
+| `visualization_specialist` | ❌ | Read-only, no temporal changes needed |
+| `user_admin` | ❌ | No temporal context needed |
+| `controller` | ❌ | No temporal context needed |
+| `general_purpose` | ✅ (via `["*"]`) | Fallback has all tools |
 
 ---
 
-## 10. Appendix — Complete Tool Catalog (78 tools)
+## 10. Appendix — Specialist Tool Assignment Matrix
 
-<details>
-<summary>Expand for full tool list by category</summary>
-
-### Projects (11)
-`list_projects`, `get_project`, `create_project`, `update_project`, `delete_project`, `batch_create_projects`, `find_wbs_elements`, `create_wbs_element`, `update_wbs_element`, `delete_wbs_element`, `batch_create_wbs_elements`, `batch_update_wbs_elements`
-
-### Cost Management (32)
-`find_cost_elements`, `create_cost_element`, `update_cost_element`, `delete_cost_element`, `batch_create_cost_elements`, `batch_delete_cost_elements`, `find_cost_element_types`, `create_cost_element_type`, `update_cost_element_type`, `delete_cost_element_type`, `batch_create_cost_element_types`, `find_cost_events`, `create_cost_event`, `update_cost_event`, `delete_cost_event`, `batch_create_cost_events`, `get_coq_data`, `find_cost_event_types`, `create_cost_event_type`, `update_cost_event_type`, `delete_cost_event_type`, `create_forecast`, `update_forecast`, `delete_forecast`, `batch_create_forecasts`, `get_cost_element_details`, `create_cost_registration`, `update_cost_registration`, `delete_cost_registration`, `list_cost_registrations`, `batch_create_cost_registrations`
-
-### Work Tracking (11)
-`find_control_accounts`, `create_control_account`, `update_control_account`, `delete_control_account`, `get_control_account_budget`, `batch_create_control_accounts`, `find_work_packages`, `create_work_package`, `update_work_package`, `delete_work_package`, `get_work_package_budget_status`, `batch_create_work_packages`, `batch_get_work_package_budget_status`, `create_progress_entry`, `update_progress_entry`, `delete_progress_entry`, `get_progress_data`, `batch_create_progress_entries`
-
-### Change Orders (9)
-`find_change_orders`, `create_change_order`, `generate_change_order_draft`, `submit_change_order_for_approval`, `approve_change_order`, `reject_change_order`, `analyze_change_order_impact`, `delete_change_order`, `batch_create_change_orders`
-
-### Analysis (3)
-`get_project_analysis`, `get_project_forecast`, `global_search`
-
-### Users (12)
-`find_users`, `create_user`, `update_user`, `delete_user`, `batch_create_users`, `find_organizational_units`, `create_organizational_unit`, `update_organizational_unit`, `delete_organizational_unit`, `batch_create_organizational_units`
-
-### Context (8)
-`get_project_context`, `get_project_structure`, `get_temporal_context`, `set_temporal_context`, `search_documents`, `read_document`, `get_briefing`, `ask_user`
-
-### Interaction (2)
-`generate_mermaid_diagram`
-
-</details>
+| Tool Category | project_manager | accountant | change_order_mgr | evm_analyst | visualization | user_admin | controller | time_traveller |
+|---|---|---|---|---|---|---|---|---|
+| Projects CRUD | ✅ | — | — | — | — | — | — | — |
+| Projects Read | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | ✅ |
+| WBS CRUD | ✅ | — | — | — | — | — | — | — |
+| WBS Read | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | — |
+| Control Accounts CRUD | ✅ | — | — | — | — | — | — | — |
+| Control Accounts Read | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | — |
+| Work Packages CRUD | ✅ | — | — | — | — | — | — | — |
+| Work Packages Read | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | — |
+| Cost Elements CRUD | ✅ | — | — | — | — | — | — | — |
+| Cost Elements Read | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | — |
+| Cost Registrations | — | ✅ | — | — | — | — | — | — |
+| Cost Events | — | ✅ | — | — | — | — | — | — |
+| Forecasts | — | ✅ | — | — | — | — | — | — |
+| Progress Entries | ✅ | — | — | — | — | — | — | — |
+| Change Orders | — | — | ✅ | — | — | — | — | — |
+| Cost Element Types | — | (find) | — | — | — | — | ✅ | — |
+| Cost Event Types | — | (find) | — | — | — | — | ✅ | — |
+| Org Units | — | — | — | — | — | — | ✅ | — |
+| Users | — | — | — | — | — | ✅ | — | — |
+| EVM Analysis | — | — | — | ✅ | — | — | — | — |
+| Mermaid Diagrams | — | — | — | — | ✅ | — | — | — |
+| Temporal Context | (get) | (get) | get+set | (get) | (get) | (get) | (get) | get+set |
+| Documents | — | ✅ | — | — | — | — | — | — |
+| `ask_user` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

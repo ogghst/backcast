@@ -6,8 +6,8 @@
  * Supports progressive rendering for streaming responses.
  */
 
-import { useEffect, useRef, useMemo, useState } from "react";
-import { List, Empty, Typography, Spin, theme } from "antd";
+import { useEffect, useRef, useMemo, useState, useCallback } from "react";
+import { List, Empty, Typography, Spin, theme, Input, Button, Tag } from "antd";
 import type { GlobalToken } from "antd/es/theme/interface";
 import {
   UserOutlined,
@@ -16,9 +16,12 @@ import {
   CheckOutlined,
   DownOutlined,
   UpOutlined,
+  SendOutlined,
+  CloseOutlined,
+  QuestionCircleOutlined,
 } from "@ant-design/icons";
 import type { ChatMessage } from "../../types";
-import type { SubagentStream, StreamingState, TokenUsage } from "../types";
+import type { SubagentStream, StreamingState, TokenUsage, ToolCallRemark } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TokenUsageBar } from "./TokenUsageBar";
@@ -58,17 +61,16 @@ interface MessageListProps {
   streamingState?: StreamingState;
   /** Whether a message is currently being streamed */
   isStreaming?: boolean;
-  /** Active tool calls being executed */
-  activeToolCalls?: Array<{
-    name: string;
-    args: Record<string, unknown>;
-  }>;
   /** Whether to show a separator (when new text stream starts after tool execution) */
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
   isMobile?: boolean;
   /** Token usage metrics from the last completed response */
   tokenUsage?: TokenUsage | null;
+  /** Active ask_user request from the agent (null when none pending) */
+  askUserRequest?: { question: string; askId: string; context?: string; options?: string[] } | null;
+  /** Callback to submit an answer to the agent's ask_user prompt */
+  onAskUserResponse?: (answer: string) => void;
 }
 
 /**
@@ -86,11 +88,8 @@ interface StreamingMessageProps {
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
   isMobile?: boolean;
-  /** Active tool calls being executed (for tool use preview) */
-  activeToolCalls?: Array<{
-    name: string;
-    args: Record<string, unknown>;
-  }>;
+  /** Tool calls tracked in this stream segment */
+  toolCalls?: ToolCallRemark[];
 }
 
 const StreamingMessage = ({
@@ -100,6 +99,7 @@ const StreamingMessage = ({
   token,
   showSeparator,
   isMobile = false,
+  toolCalls = [],
 }: StreamingMessageProps) => {
   const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
@@ -206,6 +206,29 @@ const StreamingMessage = ({
         {/* Streaming content with markdown rendering */}
         {content && (
           <MarkdownRenderer content={content} isStreaming={isStreaming} />
+        )}
+
+        {/* Tool call chips — persist after completion */}
+        {toolCalls.length > 0 && (
+          <div
+            style={{
+              marginTop: spacing.xs,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: spacing.xs,
+            }}
+          >
+            {toolCalls.map((tc, index) => (
+              <Tag
+                key={`${tc.name}-${index}`}
+                color={tc.completed ? "default" : "processing"}
+                icon={tc.completed ? <CheckOutlined style={{ fontSize: typography.sizes.xs }} /> : <LoadingOutlined spin style={{ fontSize: typography.sizes.xs }} />}
+                style={{ margin: 0, fontSize: typography.sizes.xs }}
+              >
+                {tc.name}
+              </Tag>
+            ))}
+          </div>
         )}
 
         {/* Typing indicator dots when streaming with no content yet */}
@@ -554,6 +577,165 @@ const PersistedSubagentMessage = ({
   );
 };
 
+/**
+ * AskUserCard sub-component for displaying inline agent questions
+ * Rendered as a chat bubble with a distinct accent border.
+ */
+interface AskUserCardProps {
+  request: { question: string; askId: string; context?: string; options?: string[] };
+  token: GlobalToken;
+  isMobile?: boolean;
+  onSubmit: (answer: string) => void;
+  onDismiss: () => void;
+}
+
+const AskUserCard = ({
+  request,
+  token,
+  isMobile = false,
+  onSubmit,
+  onDismiss,
+}: AskUserCardProps) => {
+  const { spacing, typography, borderRadius, colors } = useThemeTokens();
+  const [inputValue, setInputValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus the input when the card appears
+  useEffect(() => {
+    // Small delay to ensure the DOM is ready
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (inputValue.trim()) {
+      onSubmit(inputValue.trim());
+      setInputValue("");
+    }
+  }, [inputValue, onSubmit]);
+
+  const handleOptionClick = useCallback((option: string) => {
+    onSubmit(option);
+  }, [onSubmit]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+    if (e.key === "Escape") {
+      onDismiss();
+    }
+  }, [handleSubmit, onDismiss]);
+
+  const hasOptions = request.options && request.options.length > 0;
+
+  return (
+    <List.Item
+      style={{
+        border: "none",
+        display: "flex",
+        justifyContent: "center",
+        padding: `${spacing.sm}px ${isMobile ? spacing.sm : spacing.md}px`,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: spacing.sm,
+          backgroundColor: token.colorFillSecondary,
+          color: token.colorText,
+          marginRight: "auto",
+          maxWidth: isMobile ? "85%" : "70%",
+          borderRadius: isMobile ? borderRadius.md : borderRadius.lg,
+          padding: `${spacing.sm * 0.75}px ${isMobile ? spacing.sm : spacing.md}px`,
+          wordBreak: "break-word",
+          borderLeft: `4px solid ${token.colorPrimary}`,
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
+          <QuestionCircleOutlined style={{ color: token.colorPrimary }} />
+          <Text strong style={{ fontSize: typography.sizes.sm }}>
+            Agent asks
+          </Text>
+          <Button
+            type="text"
+            size="small"
+            icon={<CloseOutlined style={{ fontSize: typography.sizes.xs }} />}
+            onClick={onDismiss}
+            style={{
+              marginLeft: "auto",
+              minWidth: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: colors.textTertiary,
+            }}
+            aria-label="Dismiss"
+          />
+        </div>
+
+        {/* Question text */}
+        <Text style={{ fontSize: typography.sizes.md }}>
+          {request.question}
+        </Text>
+
+        {/* Optional context */}
+        {request.context && (
+          <Text style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>
+            {request.context}
+          </Text>
+        )}
+
+        {/* Option buttons */}
+        {hasOptions && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: spacing.sm }}>
+            {request.options!.map((opt, i) => (
+              <Button
+                key={i}
+                size="small"
+                onClick={() => handleOptionClick(opt)}
+                style={{
+                  borderRadius: borderRadius.md,
+                }}
+              >
+                {opt}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {/* Free-text input (always visible so user can type a custom answer) */}
+        <div style={{ display: "flex", gap: spacing.xs }}>
+          <Input
+            ref={inputRef as React.Ref<typeof Input>}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your answer..."
+            size="small"
+            style={{ flex: 1, borderRadius: borderRadius.md }}
+          />
+          <Button
+            type="primary"
+            size="small"
+            icon={<SendOutlined />}
+            onClick={handleSubmit}
+            disabled={!inputValue.trim()}
+            style={{ borderRadius: borderRadius.md }}
+            aria-label="Send answer"
+          />
+        </div>
+      </div>
+    </List.Item>
+  );
+};
+
 const getMessageIcon = (role: ChatMessage["role"]) => {
   switch (role) {
     case "user":
@@ -598,7 +780,6 @@ const getMessageStyle = (role: ChatMessage["role"], token: GlobalToken, isMobile
  * @param props.loading - Whether messages are being fetched initially
  * @param props.streamingState - Current active streaming state with main and subagent streams
  * @param props.isStreaming - Whether a response is actively being streamed
- * @param props.activeToolCalls - Tools currently executing (for legacy fallback display)
  * @param props.showSeparator - Whether to show a divider before new text after tool execution
  * @param props.isMobile - Whether the viewport is below the md breakpoint
  */
@@ -607,10 +788,11 @@ export const MessageList = ({
   loading,
   streamingState,
   isStreaming = false,
-  activeToolCalls = [],
   showSeparator = false,
   isMobile = false,
   tokenUsage,
+  askUserRequest,
+  onAskUserResponse,
 }: MessageListProps) => {
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius } = useThemeTokens();
@@ -622,7 +804,7 @@ export const MessageList = ({
   // All MainAgentStream segments are merged into a single unified assistant
   // balloon (one balloon per user message). Subagent streams appear inline
   // between segments within that balloon.
-  const { mergedMainContent, isMainActive, isMainComplete, subagentStreams } = useMemo(() => {
+  const { mergedMainContent, isMainActive, isMainComplete, subagentStreams, mergedToolCalls } = useMemo(() => {
     const mainStreams = streamingState?.mainStreams;
     const subagents = streamingState?.subagents;
 
@@ -630,18 +812,18 @@ export const MessageList = ({
     let merged = "";
     let active = false;
     let complete = true;
+    const sorted = mainStreams && mainStreams.size > 0
+      ? Array.from(mainStreams.values()).sort(
+          (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+        )
+      : [];
 
-    if (mainStreams && mainStreams.size > 0) {
-      const sorted = Array.from(mainStreams.values()).sort(
-        (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
-      );
-      for (const stream of sorted) {
-        if (stream.content) {
-          merged += stream.content;
-        }
-        if (stream.is_active) active = true;
-        if (!stream.is_complete) complete = false;
+    for (const stream of sorted) {
+      if (stream.content) {
+        merged += stream.content;
       }
+      if (stream.is_active) active = true;
+      if (!stream.is_complete) complete = false;
     }
 
     // Collect subagent streams sorted by sequence for inline rendering.
@@ -654,11 +836,14 @@ export const MessageList = ({
       );
     }
 
+    const mergedToolCalls = sorted.flatMap(s => s.tool_calls || []);
+
     return {
       mergedMainContent: merged,
       isMainActive: active,
       isMainComplete: complete,
       subagentStreams: sortedSubagents,
+      mergedToolCalls,
     };
   }, [streamingState]);
 
@@ -737,7 +922,7 @@ export const MessageList = ({
         scrollRafRef.current = null;
       }
     };
-  }, [displayMessages, streamingState?.main, streamingState?.subagents, isStreaming]);
+  }, [displayMessages, streamingState?.main, streamingState?.subagents, isStreaming, askUserRequest]);
 
   if (loading && messages.length === 0) {
     return (
@@ -860,7 +1045,7 @@ export const MessageList = ({
           token={token}
           showSeparator={showSeparator}
           isMobile={isMobile}
-          activeToolCalls={activeToolCalls}
+          toolCalls={[]}
         />
       )}
 
@@ -873,7 +1058,7 @@ export const MessageList = ({
           token={token}
           showSeparator={false}
           isMobile={isMobile}
-          activeToolCalls={activeToolCalls}
+          toolCalls={mergedToolCalls}
         />
       )}
 
@@ -888,6 +1073,17 @@ export const MessageList = ({
         />
       ))}
 
+      {/* Inline ask_user card — agent needs user input */}
+      {askUserRequest && onAskUserResponse && (
+        <AskUserCard
+          request={askUserRequest}
+          token={token}
+          isMobile={isMobile}
+          onSubmit={onAskUserResponse}
+          onDismiss={() => onAskUserResponse("")}
+        />
+      )}
+
       {/* Typing indicator when waiting for first token */}
       {isStreaming && !mergedMainContent && !(streamingState?.main) && subagentStreams.length === 0 && (
         <StreamingMessage
@@ -895,7 +1091,7 @@ export const MessageList = ({
           isStreaming={true}
           token={token}
           isMobile={isMobile}
-          activeToolCalls={activeToolCalls}
+          toolCalls={[]}
         />
       )}
 

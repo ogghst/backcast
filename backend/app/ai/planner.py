@@ -16,6 +16,7 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.output_parsers import PydanticOutputParser
 
 from app.ai.plan import PlanDocument, PlannerOutput, PlanStep
 
@@ -263,24 +264,29 @@ async def planner_node(
     catalog = specialist_catalog or _DEFAULT_SPECIALIST_CATALOG
     valid_names = frozenset(entry["name"] for entry in catalog)
 
-    structured_llm = llm.with_structured_output(PlannerOutput)
+    # Use PydanticOutputParser instead of with_structured_output.
+    # with_structured_output uses function_calling internally (tool_choice),
+    # which DeepSeek rejects in thinking mode and z.ai/GLM can't parse
+    # reliably. PydanticOutputParser works purely via prompt instructions.
+    parser = PydanticOutputParser(pydantic_object=PlannerOutput)
+    system_content = (
+        build_planner_system_prompt(
+            specialist_catalog, custom_template=planner_prompt_template
+        )
+        + "\n\n"
+        + parser.get_format_instructions()
+    )
     try:
-        planner_output = await structured_llm.ainvoke(
+        response = await llm.ainvoke(
             [
-                SystemMessage(
-                    content=build_planner_system_prompt(
-                        specialist_catalog, custom_template=planner_prompt_template
-                    )
-                ),
+                SystemMessage(content=system_content),
                 HumanMessage(content=prompt),
             ]
         )
-        if not isinstance(planner_output, PlannerOutput):
-            logger.warning(
-                "[PLANNER] Unexpected output type %s, falling back",
-                type(planner_output).__name__,
-            )
-            return {"plan_data": _fallback_plan(user_request).model_dump()}
+        planner_output = parser.parse(response.content)
+        logger.debug(
+            "[PLANNER] Parsed output: %s", planner_output
+        )
         plan = _convert_planner_output(planner_output, valid_specialists=valid_names)
     except Exception:
         logger.exception("[PLANNER] LLM call failed, falling back to single step")

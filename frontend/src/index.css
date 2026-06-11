@@ -126,6 +126,11 @@ body {
     flex-wrap: nowrap !important;
     overflow-x: hidden !important;
   }
+
+  /* Borderless cards: suppress shadow on mobile */
+  .ant-card:not(.ant-card-bordered) {
+    box-shadow: none !important;
+  }
 }
 
 /* Technical grid pattern for chat backgrounds */

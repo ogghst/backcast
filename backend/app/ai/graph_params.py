@@ -32,13 +32,11 @@ class GraphCreationParams:
     tool_context: ToolContext
     assistant_config: AIAssistantConfig
     session_id: UUID | None = None
-    enable_subagents: bool = True
-    provider_type: str | None = None
-    model_name: str | None = None
     available_tools: list[Any] | None = None
     event_bus: AgentEventBus | None = None
     user_role: str = "guest"
     websocket: WebSocket | None = None
+    specialist_models: dict[str, Any] | None = None
 
 
 @dataclass
@@ -143,6 +141,7 @@ class StreamState:
     # Status
     graph_error: Exception | None = None
     briefing_persisted: bool = False
+    last_persisted_message_id: UUID | None = None
 
     def __post_init__(self) -> None:
         from app.ai.token_estimator import TokenUsageAccumulator

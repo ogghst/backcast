@@ -50,18 +50,13 @@ export const AIAssistantModal = ({
             allowed_specialists: initialValues.delegation_config?.allowed_specialists || [],
           },
         };
-        // Provider-related fields only for main agents
-        if (initialValues.agent_type === "main") {
-          form.setFieldsValue({
-            ...baseValues,
-            model_id: initialValues.model_id,
-            temperature: initialValues.temperature,
-            max_tokens: initialValues.max_tokens,
-            recursion_limit: initialValues.recursion_limit,
-          });
-        } else {
-          form.setFieldsValue(baseValues);
-        }
+        form.setFieldsValue({
+          ...baseValues,
+          model_id: initialValues.model_id ?? "",
+          temperature: initialValues.temperature,
+          max_tokens: initialValues.max_tokens,
+          recursion_limit: initialValues.recursion_limit,
+        });
       } else {
         form.resetFields();
       }
@@ -77,12 +72,10 @@ export const AIAssistantModal = ({
         delete values.structured_output_schema;
       } else {
         delete values.delegation_config;
-        // Specialist agents inherit provider settings from main agent
-        delete values.model_id;
-        delete values.temperature;
-        delete values.max_tokens;
+        // Specialist agents inherit recursion_limit from main agent
         delete values.recursion_limit;
       }
+      if (values.model_id === "") values.model_id = null;
       await onOk(values);
     } catch (error) {
       console.error("Form submission error:", error);

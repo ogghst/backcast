@@ -46,7 +46,7 @@ describe("useAIChatContext", () => {
       wrapper: createWrapper("/projects/:projectId/wbs-elements/:wbsElementId", ["/projects/proj-123/wbs-elements/wbe-456"]),
     });
 
-    expect(result.current.type).toBe("wbs_element");
+    expect(result.current.type).toBe("wbe");
     expect(result.current.id).toBe("wbe-456");
     expect(result.current.project_id).toBe("proj-123");
   });
@@ -65,7 +65,7 @@ describe("useAIChatContext", () => {
       wrapper: createWrapper("/projects/:projectId/wbs-elements/:wbsElementId", ["/projects/proj-123/wbs-elements/wbe-456"]),
     });
 
-    expect(result.current.type).toBe("wbs_element");
+    expect(result.current.type).toBe("wbe");
     expect(result.current.id).toBe("wbe-456");
     expect(result.current.project_id).toBe("proj-123");
   });

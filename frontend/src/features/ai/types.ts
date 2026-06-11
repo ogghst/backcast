@@ -86,12 +86,12 @@ export interface AIAssistantPublic {
   name: string;
   description: string | null;
   presentation_prompt: string | null;
-  model_id: string;
+  model_id: string | null;
   system_prompt: string | null;
   planner_prompt: string | null;
   supervisor_prompt: string | null;
-  temperature: number;
-  max_tokens: number;
+  temperature: number | null;
+  max_tokens: number | null;
   recursion_limit: number | null;
   default_role: string | null;
   is_active: boolean;
@@ -107,12 +107,12 @@ export interface AIAssistantCreate {
   name: string;
   description?: string | null;
   presentation_prompt?: string | null;
-  model_id: string;
+  model_id: string | null;
   system_prompt?: string | null;
   planner_prompt?: string | null;
   supervisor_prompt?: string | null;
-  temperature?: number;
-  max_tokens?: number;
+  temperature?: number | null;
+  max_tokens?: number | null;
   recursion_limit?: number | null;
   default_role?: string | null;
   is_active?: boolean;
@@ -126,12 +126,12 @@ export interface AIAssistantUpdate {
   name?: string;
   description?: string | null;
   presentation_prompt?: string | null;
-  model_id?: string;
+  model_id?: string | null;
   system_prompt?: string | null;
   planner_prompt?: string | null;
   supervisor_prompt?: string | null;
-  temperature?: number;
-  max_tokens?: number;
+  temperature?: number | null;
+  max_tokens?: number | null;
   recursion_limit?: number | null;
   default_role?: string | null;
   is_active?: boolean;
@@ -193,7 +193,7 @@ export interface AIToolPublic {
  * Matches backend SessionContext schema
  */
 export interface SessionContext {
-  type: "general" | "project" | "wbs_element" | "cost_element";
+  type: "general" | "project" | "wbe" | "cost_element" | "work_package";
   id?: string;
   project_id?: string;
   name?: string;

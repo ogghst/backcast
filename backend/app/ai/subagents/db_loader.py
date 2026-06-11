@@ -57,6 +57,9 @@ def assistant_config_to_specialist_dict(
         "system_prompt": config.system_prompt or "",
         "allowed_tools": config.allowed_tools,
         "structured_output_schema": _resolve_schema(config.structured_output_schema),
+        "model_id": str(config.model_id) if config.model_id else None,
+        "temperature": config.temperature,
+        "max_tokens": config.max_tokens,
     }
 
 

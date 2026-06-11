@@ -457,7 +457,8 @@ async def _seed_ai_specialist_configs(
             if existing.scalar_one_or_none() is not None:
                 continue
 
-            specialist_data["model_id"] = str(specialist_data["model_id"])
+            if specialist_data.get("model_id") is not None:
+                specialist_data["model_id"] = str(specialist_data["model_id"])
             specialist = AIAssistantConfig(**specialist_data)
             session.add(specialist)
             await session.flush()
@@ -817,7 +818,7 @@ async def _seed_cost_events_flat(
             root_id=root_id,
             actor_id=created_by,
             branch=branch,
-            **item_copy,
+            **{k: _coerce_value(k, v) for k, v in item_copy.items()},
         )
         await cmd.execute(session)
         count += 1
@@ -848,7 +849,7 @@ async def _seed_cost_registrations_flat(
             root_id=root_id,
             actor_id=created_by,
             branch=branch,
-            **item_copy,
+            **{k: _coerce_value(k, v) for k, v in item_copy.items()},
         )
         await cmd.execute(session)
         count += 1
