@@ -14,19 +14,19 @@ class SpecialistOutput(BaseModel):
     """
 
     summary: str = Field(
-        description="Brief summary of what was accomplished, including any diagrams, code blocks, or detailed findings"
+        description="Brief summary of what was accomplished, including any diagrams, useful to reply to the user request. Output in markdown format",
     )
     key_findings: list[str] = Field(
         default_factory=list,
-        description="Most important discoveries or results",
+        description="Most important discoveries or results. Output in markdown format",
     )
     open_questions: list[str] = Field(
         default_factory=list,
-        description="Questions that need answers or further investigation",
+        description="Questions that need answers or further investigation. Output in markdown format",
     )
     delegation_notes: str = Field(
         default="",
-        description="Context for follow-up work (IDs of created entities, partial results, references)",
+        description="Context for follow-up work (IDs of created entities, partial results, references). Output in markdown format",
     )
 
 

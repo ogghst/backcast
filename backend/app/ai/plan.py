@@ -106,6 +106,23 @@ class PlanDocument(BaseModel):
                 return step
         return None
 
+    def get_first_incomplete_step_index(self) -> int | None:
+        """Return the step_index of the first non-completed/non-skipped step.
+
+        Used to determine where to resume a stopped execution.
+        Returns ``None`` when all steps are completed or skipped.
+        """
+        for step in self.steps:
+            if step.status not in ("completed", "skipped"):
+                return step.step_index
+        return None
+
+    def completed_step_indices(self) -> set[int]:
+        """Return step indices for steps that are completed or skipped."""
+        return {
+            s.step_index for s in self.steps if s.status in ("completed", "skipped")
+        }
+
     # ------------------------------------------------------------------
     # Step mutations
     # ------------------------------------------------------------------

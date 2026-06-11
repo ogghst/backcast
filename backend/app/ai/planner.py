@@ -227,6 +227,11 @@ async def planner_node(
     Makes a single LLM call to analyze the user request and produce a
     PlanDocument. Falls back to a single-step plan on any error.
 
+    When the state already contains a valid ``plan_data`` with incomplete
+    steps (resume scenario), returns the existing plan without calling the
+    LLM. This saves tokens and preserves the original plan's step
+    assignments.
+
     Args:
         state: Current BackcastSupervisorState dict.
         llm: LangChain chat model for the planning call.
@@ -240,6 +245,20 @@ async def planner_node(
         State update dict with ``plan_data`` field containing the
         serialized PlanDocument.
     """
+    # Resume path: if plan_data already exists with incomplete steps,
+    # skip the LLM call and return the existing plan.
+    existing_plan_data = state.get("plan_data")
+    if existing_plan_data:
+        existing_plan = PlanDocument.from_state(existing_plan_data)
+        first_incomplete = existing_plan.get_first_incomplete_step_index()
+        if first_incomplete is not None:
+            logger.info(
+                "[PLANNER] Resuming existing plan: %d steps, first incomplete at %d",
+                len(existing_plan.steps),
+                first_incomplete,
+            )
+            return {"plan_data": existing_plan.model_dump()}
+
     messages = state.get("messages", [])
     user_request = _extract_user_request(messages)
 

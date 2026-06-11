@@ -17,11 +17,12 @@ Usage:
     ctx = get_request_tool_context() or self.context
 """
 
+import asyncio
 import collections.abc
 import contextvars
 import logging
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeVar
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -43,6 +44,9 @@ class BackcastRuntimeContext:
         project_id: Optional project context UUID.
         branch_id: Optional branch / change-order context UUID.
         execution_mode: AI tool execution mode string.
+        stop_event: Optional async event for graceful execution cancellation.
+            Set externally via :meth:`AgentService.request_stop` and checked
+            in the supervisor loop between specialist runs.
     """
 
     user_id: str
@@ -50,6 +54,7 @@ class BackcastRuntimeContext:
     project_id: str | None = None
     branch_id: str | None = None
     execution_mode: str = "standard"
+    stop_event: asyncio.Event | None = field(default=None, repr=False)
 
 
 # ---------------------------------------------------------------------------

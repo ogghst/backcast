@@ -237,6 +237,12 @@ class AIConversationSession(SimpleEntityBase):
         nullable=True,
         comment="Serialized BriefingDocument with accumulated specialist findings",
     )
+    plan_data: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(),
+        nullable=True,
+        default=None,
+        comment="Serialized PlanDocument with execution steps and progress",
+    )
 
     # Relationships
     assistant_config: Mapped["AIAssistantConfig"] = relationship(

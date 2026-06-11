@@ -202,6 +202,7 @@ class ToolContext:
         default_factory=lambda: _LRUCache(max_size=1000)
     )
     _event_bus: Any = field(default=None, repr=False)
+    _stop_event: Any = field(default=None, repr=False)
 
     def __init__(
         self,

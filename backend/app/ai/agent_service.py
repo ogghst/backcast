@@ -104,6 +104,7 @@ from app.ai.event_types import (
     AgentEventType,
     ExecutionStatus,
 )
+from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.agent_metrics import AgentExecutionMetrics
@@ -314,6 +315,7 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
     return role
 
 
+
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
@@ -321,6 +323,57 @@ class AgentService:
     # execution (which may create a separate AgentService) are visible
     # to the approval-handling instance.
     _interrupt_nodes: ClassVar[dict[UUID, "InterruptNode"]] = {}
+
+    # Shared stop-event registry: maps execution_id -> asyncio.Event.
+    # Set externally via request_stop(), checked in the supervisor loop.
+    _stop_events: ClassVar[dict[str, asyncio.Event]] = {}
+    _STOP_EVENTS_MAX: ClassVar[int] = 50
+
+    @classmethod
+    def request_stop(cls, execution_id: str) -> bool:
+        """Signal a running execution to stop gracefully.
+
+        Sets the ``asyncio.Event`` associated with *execution_id*.  The
+        supervisor loop checks this event after each specialist completes
+        and raises :class:`ExecutionStoppedError` when set.
+
+        Args:
+            execution_id: The execution to stop.
+
+        Returns:
+            ``True`` if the execution was found and signalled, ``False`` otherwise.
+        """
+        stop_evt = cls._stop_events.get(execution_id)
+        if stop_evt is None:
+            logger.warning(
+                "[REQUEST_STOP] No stop event found for execution %s",
+                execution_id,
+            )
+            return False
+        stop_evt.set()
+        logger.info("[REQUEST_STOP] Stop signalled for execution %s", execution_id)
+        return True
+
+    @classmethod
+    def _register_stop_event(cls, execution_id: str) -> asyncio.Event:
+        """Create and register a stop event for an execution.
+
+        Evicts the oldest entry when the registry exceeds ``_STOP_EVENTS_MAX``
+        to prevent unbounded memory growth (mirrors the ``_interrupt_nodes``
+        eviction pattern).
+        """
+        if len(cls._stop_events) >= cls._STOP_EVENTS_MAX:
+            oldest_key = next(iter(cls._stop_events))
+            evicted = cls._stop_events.pop(oldest_key, None)
+            if evicted is not None:
+                evicted.set()
+            logger.warning(
+                "Stop event registry reached %d entries — evicted oldest",
+                cls._STOP_EVENTS_MAX,
+            )
+        event = asyncio.Event()
+        cls._stop_events[execution_id] = event
+        return event
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -606,11 +659,11 @@ class AgentService:
         session_id: UUID,
         log_label: str = "BRIEFING_PERSIST",
     ) -> bool:
-        """Load briefing from checkpoint and persist to database.
+        """Load briefing and plan from checkpoint and persist to database.
 
-        Extracts briefing_data from the LangGraph checkpoint, saves it to the
-        session via config_service, and deletes the checkpoint. Returns True
-        if briefing was found and saved.
+        Extracts briefing_data and plan_data from the LangGraph checkpoint,
+        saves them to the session via config_service, and deletes the
+        checkpoint.  Returns True if briefing was found and saved.
 
         We persist from checkpoint (not graph state) because the streaming
         events don't carry the final briefing -- it's only in the checkpoint
@@ -636,7 +689,12 @@ class AgentService:
                 return False
 
             section_count = len(briefing_data.get("sections", []))
-            await self.config_service.save_session_briefing(session_id, briefing_data)
+            plan_data: dict[str, Any] | None = cast(
+                Any, channel_values.get("plan_data")
+            )
+            await self.config_service.save_session_briefing(
+                session_id, briefing_data, plan_data=plan_data
+            )
             # Checkpoint is always deleted to prevent state bloat across sessions.
             shared_checkpointer.delete_thread(str(session_id))
             logger.info(
@@ -724,7 +782,9 @@ class AgentService:
         try:
             specialist_configs = await load_specialists_from_db()
         except Exception as exc:
-            logger.warning("[SPECIALIST_MODELS] Failed to load specialist configs: %s", exc)
+            logger.warning(
+                "[SPECIALIST_MODELS] Failed to load specialist configs: %s", exc
+            )
             specialist_configs = []
 
         for sc in specialist_configs:
@@ -768,6 +828,7 @@ class AgentService:
             execution_mode=execution_mode,
             _event_bus=event_bus,
         )
+        tool_context._stop_event = params.stop_event
         available_tools = create_project_tools(tool_context)
 
         graph, interrupt_node = await self._create_deep_agent_graph(
@@ -822,6 +883,7 @@ class AgentService:
             branch_mode=branch_mode,
             execution_mode=execution_mode,
             assistant_config=assistant_config,
+            stop_event=params.stop_event,
         )
 
         existing_briefing = await self.config_service.get_session_briefing(session_id)
@@ -830,6 +892,33 @@ class AgentService:
                 "[BRIEFING_PERSIST] Restored briefing from DB with %d sections (streaming)",
                 len(existing_briefing.get("sections", [])),
             )
+
+        # Resume injection: when the session has persisted plan_data with
+        # incomplete steps, load it so the planner can skip the LLM call and
+        # the supervisor can skip completed specialist steps.  Detected
+        # automatically from session state — no explicit parameter needed.
+        resume_plan_data: dict[str, Any] | None = None
+        # Load plan_data directly from the session row
+        stmt = select(AIConversationSession).where(
+            AIConversationSession.id == str(session_id)
+        )
+        result = await self.session.execute(stmt)
+        db_session = result.scalar_one_or_none()
+        if db_session and db_session.plan_data:
+            from app.ai.plan import PlanDocument
+
+            plan = PlanDocument.from_state(db_session.plan_data)
+            if plan.get_first_incomplete_step_index() is not None:
+                resume_plan_data = db_session.plan_data
+                logger.info(
+                    "[RESUME] Loaded plan_data for session %s: %d steps, "
+                    "%d incomplete — will inject into graph state",
+                    session_id,
+                    len(plan.steps),
+                    len(plan.steps) - len(plan.completed_step_indices()),
+                )
+
+        ctx.resume_plan_data = resume_plan_data
 
         return ctx, existing_briefing
 
@@ -1144,10 +1233,7 @@ class AgentService:
         # completes INSIDE the tool execution.  handoff_to_* tools return a
         # Command(goto=…) and the specialist runs afterwards as a separate
         # subgraph; its completion is handled by _handle_chain_end.
-        if (
-            tool_name == TOOL_NAME_TASK
-            and state.current_invocation_id is not None
-        ):
+        if tool_name == TOOL_NAME_TASK and state.current_invocation_id is not None:
             # Flush subagent tokens before processing result
             state.flush_tokens(state.current_invocation_id)
 
@@ -1338,6 +1424,8 @@ class AgentService:
             history: Message history including system prompt.
             existing_briefing: Previously persisted briefing or None.
         """
+        from app.ai.plan import PlanDocument
+
         state.publish(AgentEventType.THINKING, {"type": AgentEventType.THINKING})
 
         max_retries = 2
@@ -1359,6 +1447,20 @@ class AgentService:
                         "max_tool_iterations": ctx.recursion_limit,
                         "next": "agent",
                         "briefing_data": existing_briefing,
+                        **(
+                            # Inline resume state injection: when plan_data was
+                            # loaded from the session, pass it with completed step
+                            # indices so the planner skips the LLM call and the
+                            # supervisor skips completed specialist steps.
+                            {
+                                "plan_data": ctx.resume_plan_data,
+                                "completed_steps": PlanDocument.from_state(
+                                    ctx.resume_plan_data
+                                ).completed_step_indices(),
+                            }
+                            if ctx.resume_plan_data is not None
+                            else {}
+                        ),
                     },
                     config={
                         # Supervisor orchestrator uses nested subgraphs — each
@@ -1375,6 +1477,7 @@ class AgentService:
                         project_id=str(ctx.project_id) if ctx.project_id else None,
                         branch_id=str(ctx.branch_id) if ctx.branch_id else None,
                         execution_mode=ctx.execution_mode.value,
+                        stop_event=ctx.stop_event,
                     ),
                 ):
                     events_processed += 1
@@ -1644,6 +1747,32 @@ class AgentService:
             await self._process_stream_events(
                 ctx, state, ctx.history, existing_briefing
             )
+        except ExecutionStoppedError:
+            # Graceful stop — re-raise so start_execution() can persist
+            # partial state with STOPPED status.  Briefing and messages
+            # are saved in the finally block below before propagating.
+            logger.info(
+                "[RUN_AGENT_GRAPH] ExecutionStoppedError caught, "
+                "persisting partial state before re-raise"
+            )
+            # Persist briefing before re-raising (finally also tries, but
+            # the re-raise skips the normal briefing persist path).
+            if not state.briefing_persisted:
+                await self._persist_briefing_from_checkpoint(
+                    ctx.session_id, log_label="BRIEFING_PERSIST_STOPPED"
+                )
+            raise
+        except asyncio.CancelledError:
+            # Task cancelled externally — persist what we have and re-raise.
+            logger.info(
+                "[RUN_AGENT_GRAPH] CancelledError caught, "
+                "persisting partial state before re-raise"
+            )
+            if not state.briefing_persisted:
+                await self._persist_briefing_from_checkpoint(
+                    ctx.session_id, log_label="BRIEFING_PERSIST_CANCELLED"
+                )
+            raise
         except Exception as e:
             state.graph_error = e
             logger.error(f"Error in _run_agent_graph: {e}", exc_info=True)
@@ -1751,11 +1880,43 @@ class AgentService:
             return db_session.context if db_session else None
 
     @staticmethod
+    async def _finalize_stopped_execution(
+        execution_id: str,
+        session_id: UUID,
+        metrics: AgentExecutionMetrics | None,
+        event_bus: AgentEventBus,
+    ) -> None:
+        """Run postflight and publish STOPPED status event.
+
+        Shared by ExecutionStoppedError and CancelledError handlers
+        so the same cleanup logic doesn't need to be duplicated.
+        """
+        await AgentService._postflight_execution(
+            execution_id,
+            session_id,
+            metrics=metrics,
+            status=ExecutionStatus.STOPPED,
+        )
+        event_bus.publish(
+            AgentEvent(
+                event_type=AgentEventType.EXECUTION_STATUS,
+                data={
+                    "type": AgentEventType.EXECUTION_STATUS,
+                    "execution_id": execution_id,
+                    "status": ExecutionStatus.STOPPED,
+                    "session_id": str(session_id),
+                },
+                timestamp=datetime.now(UTC),
+            )
+        )
+
+    @staticmethod
     async def _postflight_execution(
         execution_id: str,
         session_id: UUID,
         metrics: AgentExecutionMetrics | None = None,
         error: Exception | None = None,
+        status: ExecutionStatus | None = None,
     ) -> None:
         """Update execution status and metrics in a short-lived session.
 
@@ -1763,6 +1924,14 @@ class AgentService:
         session, no detachment issues), sets COMPLETED or ERROR status,
         and clears active_execution_id.  Best-effort: logs failures but
         does not re-raise.
+
+        Args:
+            execution_id: The execution row UUID as string.
+            session_id: The conversation session UUID.
+            metrics: Optional aggregated token usage and tool call count.
+            error: If provided, status is set to ERROR with this message.
+            status: Explicit status override (e.g. ``ExecutionStatus.STOPPED``).
+                Takes precedence over the error/completed default.
         """
         from app.db.session import async_session_maker
 
@@ -1780,7 +1949,9 @@ class AgentService:
                     )
                     return
 
-                if error is not None:
+                if status is not None:
+                    row.status = status
+                elif error is not None:
                     row.status = ExecutionStatus.ERROR
                     row.error_message = str(error)[:2000]
                 else:
@@ -1879,10 +2050,15 @@ class AgentService:
             event_bus = runner_manager.create_bus(execution_id)
             should_remove_bus = True
 
+        # Create and register stop event for graceful cancellation
+        stop_event = self._register_stop_event(execution_id)
+
         try:
             # Phase 1: Pre-flight — create execution row, capture context
             session_context = await self._preflight_execution(
-                execution_id, session_id, execution_mode,
+                execution_id,
+                session_id,
+                execution_mode,
             )
 
             # Phase 2: Graph execution — own session for the full graph run
@@ -1903,13 +2079,44 @@ class AgentService:
                         branch_mode=branch_mode,
                         execution_mode=execution_mode,
                         context=session_context,
+                        stop_event=stop_event,
                     )
                 )
 
             # Phase 3: Post-flight — update execution status and metrics
             await self._postflight_execution(
-                execution_id, session_id, metrics=metrics,
+                execution_id,
+                session_id,
+                metrics=metrics,
             )
+
+        except ExecutionStoppedError:
+            logger.info("[EXECUTION_STOPPED] %s — saving partial state", execution_id)
+            # Post-flight with STOPPED status (briefing already persisted
+            # inside _run_agent_graph before re-raise).
+            await self._finalize_stopped_execution(
+                execution_id, session_id, metrics, event_bus,
+            )
+
+        except asyncio.CancelledError:
+            logger.info("[EXECUTION_CANCELLED] %s — saving partial state", execution_id)
+            # Persist briefing if not already done
+            try:
+                async with async_session_maker() as db:
+                    svc = AgentService(db)
+                    await svc._persist_briefing_from_checkpoint(
+                        session_id, log_label="BRIEFING_PERSIST_CANCELLED"
+                    )
+            except Exception:
+                logger.error(
+                    "[EXECUTION_CANCELLED] Failed to persist briefing for %s",
+                    execution_id,
+                    exc_info=True,
+                )
+            await self._finalize_stopped_execution(
+                execution_id, session_id, metrics, event_bus,
+            )
+            raise
 
         except Exception as e:
             logger.error(
@@ -1918,7 +2125,10 @@ class AgentService:
 
             # Best-effort error status update (own session)
             await self._postflight_execution(
-                execution_id, session_id, metrics=metrics, error=e,
+                execution_id,
+                session_id,
+                metrics=metrics,
+                error=e,
             )
 
             # Publish execution status so frontend clears activeExecutionIdRef
@@ -1946,7 +2156,8 @@ class AgentService:
 
             raise
         finally:
-            # Clean up the event bus from runner_manager only if we created it
+            # Clean up stop event and event bus
+            self._stop_events.pop(execution_id, None)
             if should_remove_bus:
                 runner_manager.remove_bus(execution_id)
 

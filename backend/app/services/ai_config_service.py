@@ -614,13 +614,17 @@ class AIConfigService:
         return session.briefing_data
 
     async def save_session_briefing(
-        self, session_id: UUID, briefing_data: dict[str, Any]
+        self,
+        session_id: UUID,
+        briefing_data: dict[str, Any],
+        plan_data: dict[str, Any] | None = None,
     ) -> None:
-        """Save or update briefing data for a session.
+        """Save or update briefing data (and optionally plan data) for a session.
 
         Args:
             session_id: Session ID to save briefing for
             briefing_data: BriefingDocument dict to save
+            plan_data: Optional PlanDocument dict to save alongside briefing
 
         Raises:
             ValueError: If session not found
@@ -629,6 +633,8 @@ class AIConfigService:
         if not session:
             raise ValueError(f"Session {session_id} not found")
         session.briefing_data = briefing_data
+        if plan_data is not None:
+            session.plan_data = plan_data
         await self.session.flush()
 
     async def delete_session_briefing(self, session_id: UUID) -> None:

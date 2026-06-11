@@ -42,8 +42,8 @@ def _coerce_options_list(v: Any) -> Any:
 
 
 # Module-level registry for in-flight ask_user requests.
-# Key: ask_id (str), Value: asyncio.Future that resolves to the user's answer.
-_pending_asks: dict[str, asyncio.Future[str]] = {}
+# Key: ask_id (str), Value: (future, execution_id) tuple.
+_pending_asks: dict[str, tuple[asyncio.Future[str], str]] = {}
 
 # Default timeout for waiting on a user response (seconds).
 _DEFAULT_ASK_TIMEOUT = 300.0
@@ -59,10 +59,11 @@ def resolve_ask_user_response(ask_id: str, answer: str) -> None:
         ask_id: The unique identifier of the ask request.
         answer: The user's response text.
     """
-    future = _pending_asks.get(ask_id)
-    if future is None:
+    entry = _pending_asks.get(ask_id)
+    if entry is None:
         logger.warning("resolve_ask_user_response: no pending ask for id=%s", ask_id)
         return
+    future, _ = entry
     if future.done():
         logger.warning("resolve_ask_user_response: ask_id=%s already resolved", ask_id)
         return
@@ -77,6 +78,27 @@ def cleanup_ask(ask_id: str) -> None:
         ask_id: The unique identifier of the ask request.
     """
     _pending_asks.pop(ask_id, None)
+
+
+def cancel_asks_for_execution(execution_id: str) -> int:
+    """Cancel all pending ask_user futures for a given execution.
+
+    Called when an execution is stopped (user request or WS disconnect).
+
+    Args:
+        execution_id: The execution ID to cancel asks for.
+
+    Returns:
+        Number of futures cancelled.
+    """
+    cancelled = 0
+    for ask_id, (future, eid) in list(_pending_asks.items()):
+        if eid == execution_id:
+            if not future.done():
+                future.cancel()
+                cancelled += 1
+            cleanup_ask(ask_id)
+    return cancelled
 
 
 @ai_tool(
@@ -123,7 +145,7 @@ async def ask_user(
     # Create a Future that will be resolved by resolve_ask_user_response().
     loop = asyncio.get_running_loop()
     future: asyncio.Future[str] = loop.create_future()
-    _pending_asks[ask_id] = future
+    _pending_asks[ask_id] = (future, context._event_bus.execution_id)
 
     # Build the event payload.
     event_data: dict[str, Any] = {

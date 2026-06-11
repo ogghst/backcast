@@ -423,6 +423,14 @@ class AIConversationSessionPublic(BaseModel):
         default_factory=list,
         description="Names of specialists that contributed to the briefing",
     )
+    plan_data: dict[str, Any] | None = Field(
+        None,
+        description="Serialized PlanDocument with execution steps and progress",
+    )
+    can_resume: bool = Field(
+        False,
+        description="True when the latest execution was stopped with incomplete plan steps",
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -703,6 +711,43 @@ class WSAgentTransitionMessage(BaseModel):
     )
 
 
+class BriefingSectionPublic(BaseModel):
+    """Structured briefing section for WebSocket transport.
+
+    Maps from the internal ``BriefingSection`` model, renaming ``findings``
+    to ``summary`` to align with ``SpecialistOutput``.
+    """
+
+    specialist_name: str
+    summary: str = Field(default="", description="Specialist's markdown summary")
+    key_findings: list[str] = Field(
+        default_factory=list, description="Important discoveries or results"
+    )
+    open_questions: list[str] = Field(
+        default_factory=list, description="Questions needing further investigation"
+    )
+    delegation_notes: str = Field(
+        default="", description="Context for follow-up work"
+    )
+    task_description: str | None = None
+    step_index: int | None = None
+
+
+class BriefingDocumentPublic(BaseModel):
+    """Structured briefing document for WebSocket transport.
+
+    Carries the full structured data alongside a pre-rendered markdown
+    fallback for backward compatibility.
+    """
+
+    original_request: str
+    sections: list[BriefingSectionPublic] = Field(default_factory=list)
+    supervisor_analysis: str | None = None
+    markdown: str = Field(
+        default="", description="Pre-rendered markdown fallback"
+    )
+
+
 class WSBriefingMessage(BaseModel):
     """WebSocket briefing update message from server.
 
@@ -713,7 +758,9 @@ class WSBriefingMessage(BaseModel):
     type: Literal["briefing_update"] = Field(
         default="briefing_update", description="Message type discriminator"
     )
-    briefing: str = Field(..., description="Compiled briefing markdown document")
+    briefing: BriefingDocumentPublic = Field(
+        ..., description="Structured briefing document"
+    )
     specialist_name: str = Field(
         ..., description="Name of the specialist that updated the briefing"
     )

@@ -54,6 +54,7 @@ import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
 import type { SessionContext } from "../../types";
 import type { WSTemporalContextChangeMessage } from "../types";
 import type { WSPlanUpdateMessage } from "../types";
+import type { BriefingDocumentData } from "../types";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { stripPlanJson, PlanJsonStreamFilter } from "../utils/planContentFilter";
 
@@ -843,11 +844,12 @@ export const ChatInterface = ({
 
   // Briefing update handler
   const handleBriefingUpdate = useCallback(
-    (briefingMarkdown: string, specialistName: string, completedSpecialists: string[]) => {
+    (briefingDoc: BriefingDocumentData, specialistName: string, completedSpecialists: string[]) => {
       setBriefing((prev) => ({
-        markdown: briefingMarkdown,
+        markdown: briefingDoc.markdown,
         completedSpecialists: completedSpecialists,
         lastSpecialist: specialistName,
+        document: briefingDoc,
         plan: prev?.plan ?? null,
       }));
       // Auto-open briefing rail on first specialist contribution (desktop only)
@@ -873,6 +875,7 @@ export const ChatInterface = ({
           markdown: prev?.markdown ?? msg.plan_markdown,
           completedSpecialists: prev?.completedSpecialists ?? [],
           lastSpecialist: prev?.lastSpecialist ?? "",
+          document: prev?.document ?? null,
           plan: {
             steps,
             totalSteps: msg.total_steps,
@@ -1159,6 +1162,21 @@ export const ChatInterface = ({
       // Restore briefing from session data if available
       const session = sessions?.find((s) => s.id === sessionId);
       if (session?.briefing_markdown) {
+        // Restore plan from persisted plan_data if available
+        let restoredPlan: BriefingState["plan"] = null;
+        if (session.plan_data) {
+          const pd = session.plan_data;
+          const steps = pd.steps;
+          const completedSteps = steps.filter(
+            (s) => s.status === "completed",
+          ).length;
+          restoredPlan = {
+            steps,
+            totalSteps: steps.length,
+            completedSteps,
+            complexity: pd.estimated_complexity,
+          };
+        }
         setBriefing({
           markdown: session.briefing_markdown,
           completedSpecialists: session.briefing_specialists ?? [],
@@ -1166,7 +1184,8 @@ export const ChatInterface = ({
             session.briefing_specialists?.[
               session.briefing_specialists.length - 1
             ] ?? "",
-          plan: null,
+          document: null, // Not available from REST session list
+          plan: restoredPlan,
         });
         userDismissedBriefing.current = false;
         if (window.innerWidth >= 1024) {
@@ -1239,13 +1258,14 @@ export const ChatInterface = ({
       // Generate title for new sessions (when no current session exists)
       const title = currentSessionId ? undefined : generateSessionTitle(messageContent);
 
-      // Send message via streaming hook with execution mode and attachments
-      // sendMessage now handles lazy connection if not connected
+      // Send message via streaming hook with execution mode and attachments.
+      // The backend detects resume mode automatically from session.plan_data.
       streamingChat.sendMessage(
         messageContent,
         title ?? undefined,
         executionMode,
-        pendingAttachments.length > 0 ? pendingAttachments : undefined
+        pendingAttachments.length > 0 ? pendingAttachments : undefined,
+        undefined, // images
       );
 
       // Clear attachments after sending
@@ -1672,6 +1692,25 @@ export const ChatInterface = ({
                       New Chat
                     </Button>
                   }
+                />
+              )}
+
+              {/* Interrupted session indicator — shows when a stopped execution has incomplete plan steps */}
+              {currentSession?.can_resume && !isStreaming && (
+                <Alert
+                  type="info"
+                  message="Execution interrupted"
+                  description={
+                    currentSession.plan_data
+                      ? `This session was stopped with ${currentSession.plan_data.steps.filter(s => s.status === "completed").length}/${currentSession.plan_data.steps.length} steps completed. Send a message to resume from where it left off.`
+                      : "This session was interrupted. Send a message to continue."
+                  }
+                  showIcon
+                  closable
+                  style={{
+                    margin: isMobile ? spacing.sm : spacing.md,
+                    borderRadius: isMobile ? 8 : token.borderRadius,
+                  }}
                 />
               )}
 

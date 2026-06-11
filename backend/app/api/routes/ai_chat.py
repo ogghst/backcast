@@ -125,6 +125,41 @@ def _enrich_session_briefing(
     session_public.briefing_specialists = [sec.specialist_name for sec in doc.sections]
 
 
+async def _enrich_session_resume_metadata(
+    session_public: AIConversationSessionPublic,
+    session: AIConversationSession,
+    db: AsyncSession,
+) -> None:
+    """Set can_resume from latest execution and plan_data.
+
+    A session is resumable when the latest execution is stopped and plan_data
+    has at least one incomplete step. The backend detects resume mode
+    automatically from session state -- no step index is sent to the client.
+    """
+    from app.ai.plan import PlanDocument
+
+    # Find the latest execution for this session
+    stmt = (
+        select(AIAgentExecution)
+        .where(AIAgentExecution.session_id == str(session.id))
+        .order_by(AIAgentExecution.created_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    latest_exec = result.scalar_one_or_none()
+    if latest_exec is None or latest_exec.status != ExecutionStatus.STOPPED:
+        return
+
+    # Check plan_data for incomplete steps
+    plan_data = session.plan_data
+    if not plan_data or not isinstance(plan_data, dict):
+        return
+
+    plan = PlanDocument.from_state(plan_data)
+    if plan.get_first_incomplete_step_index() is not None:
+        session_public.can_resume = True
+
+
 async def _cleanup_stale_execution(db: AsyncSession, execution_id: str) -> bool:
     """Clean up an orphaned execution left behind by a server restart.
 
@@ -238,6 +273,7 @@ async def list_sessions(
                 execution
             )
         _enrich_session_briefing(session_public, s)
+        await _enrich_session_resume_metadata(session_public, s, config_service.session)
         result.append(session_public)
 
     return result
@@ -320,6 +356,7 @@ async def list_sessions_paginated(
                 execution
             )
         _enrich_session_briefing(session_public, s)
+        await _enrich_session_resume_metadata(session_public, s, config_service.session)
         result.append(session_public)
 
     # Get total count
@@ -701,6 +738,10 @@ async def chat_stream(
         execution_tasks: set[asyncio.Task[None]] = set()
         current_chat_task: asyncio.Task[None] | None = None
 
+        # Track execution IDs for this WS connection so pending ask_user
+        # futures can be cancelled on disconnect.
+        active_execution_ids: set[str] = set()
+
         # Flag to stop the ping loop when connection closes
         stop_ping = asyncio.Event()
 
@@ -1043,6 +1084,19 @@ async def chat_stream(
                 current_chat_task = execution_task
                 execution_task.add_done_callback(execution_tasks.discard)
 
+                # Track execution_id for ask_user cancellation on WS disconnect
+                active_execution_ids.add(exec_id)
+
+                def _make_discard_callback(
+                    eid: str,
+                ) -> Any:
+                    def _discard(_: object) -> None:
+                        active_execution_ids.discard(eid)
+
+                    return _discard
+
+                execution_task.add_done_callback(_make_discard_callback(exec_id))
+
                 # --- Send execution_started immediately ---
                 try:
                     await websocket.send_json(
@@ -1134,6 +1188,20 @@ async def chat_stream(
             # Clean up interrupt node for this session
             if current_session_id is not None:
                 agent_service.unregister_interrupt_node(current_session_id)
+
+            # Signal graceful stop and cancel pending asks for this session's executions
+            from app.ai.tools.ask_user import cancel_asks_for_execution
+
+            for eid in list(active_execution_ids):
+                agent_service.request_stop(eid)
+                cancelled = cancel_asks_for_execution(eid)
+                if cancelled:
+                    logger.info(
+                        "Cancelled %d ask_user futures for execution %s on WS disconnect",
+                        cancelled,
+                        eid,
+                    )
+            active_execution_ids.clear()
 
         # Context manager automatically closes the db session
         logger.debug(f"WebSocket connection cleanup completed for user {user_id}")

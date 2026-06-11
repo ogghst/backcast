@@ -316,12 +316,35 @@ export interface WSAgentTransitionMessage {
 }
 
 /**
+ * Structured briefing section from a single specialist
+ */
+export interface BriefingSectionData {
+  specialist_name: string;
+  summary: string;
+  key_findings: string[];
+  open_questions: string[];
+  delegation_notes: string;
+  task_description?: string | null;
+  step_index?: number | null;
+}
+
+/**
+ * Structured briefing document with sections per specialist
+ */
+export interface BriefingDocumentData {
+  original_request: string;
+  sections: BriefingSectionData[];
+  supervisor_analysis?: string | null;
+  markdown: string;
+}
+
+/**
  * Server -> Client: Briefing update event
  * Sent when a specialist agent updates the compiled briefing document
  */
 export interface WSBriefingMessage {
   type: "briefing_update";
-  briefing: string; // Compiled briefing markdown
+  briefing: BriefingDocumentData; // Structured briefing document (was flat string)
   specialist_name: string; // Name of the specialist that updated
   completed_specialists: string[]; // List of completed specialist names
 }

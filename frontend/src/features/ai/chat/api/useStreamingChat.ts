@@ -20,6 +20,7 @@ import type {
   WSSubscribeMessage,
   TokenUsage,
   FileAttachment,
+  BriefingDocumentData,
 } from "../types";
 import type { SessionContext } from "../../types";
 import {
@@ -94,7 +95,7 @@ export interface UseStreamingChatConfig {
   /** Optional callback invoked when an execution status update is received */
   onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
   /** Optional callback invoked when a briefing update is received */
-  onBriefingUpdate?: (briefing: string, specialistName: string, completedSpecialists: string[]) => void;
+  onBriefingUpdate?: (briefing: BriefingDocumentData, specialistName: string, completedSpecialists: string[]) => void;
   /** Optional callback invoked when a plan update is received */
   onPlanUpdate?: (plan: import("../types").WSPlanUpdateMessage) => void;
   /** Optional callback invoked when temporal context changes via AI tool */
@@ -624,8 +625,17 @@ export const useStreamingChat = (
 
       // Handle briefing update messages
       if (isBriefingMessage(serverMessage)) {
+        // Backward compat: old backend sends briefing as string
+        const briefingData: BriefingDocumentData =
+          typeof serverMessage.briefing === "string"
+            ? {
+                original_request: "",
+                sections: [],
+                markdown: serverMessage.briefing as unknown as string,
+              }
+            : serverMessage.briefing;
         callbacks.onBriefingUpdate?.(
-          serverMessage.briefing,
+          briefingData,
           serverMessage.specialist_name,
           serverMessage.completed_specialists,
         );
