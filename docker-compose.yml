@@ -51,6 +51,7 @@ services:
     environment:
       RUSTFS_ROOT_USER: ${RUSTFS_ACCESS_KEY}
       RUSTFS_ROOT_PASSWORD: ${RUSTFS_SECRET_KEY}
+      RUSTFS_ALLOW_INSECURE_DEFAULT_CREDENTIALS: true
     ports:
       - "${RUSTFS_PORT:-9000}:9000"
       - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
@@ -64,7 +65,24 @@ services:
       timeout: 10s
       retries: 3
 
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: backcast_phoenix
+    ports:
+      - "${PHOENIX_PORT:-6006}:6006"
+    environment:
+      PHOENIX_ENABLE_AUTH: "false"
+    volumes:
+      - phoenix_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6006/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
 volumes:
   postgres_data:
   rustfs_data:
   rustfs_logs:
+  phoenix_data:
