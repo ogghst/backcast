@@ -778,8 +778,10 @@ class SupervisorOrchestrator:
                                                     specialist_name=s.specialist_name,
                                                     summary=s.findings,
                                                     key_findings=s.key_findings or [],
-                                                    open_questions=s.open_questions or [],
-                                                    delegation_notes=s.delegation_notes or "",
+                                                    open_questions=s.open_questions
+                                                    or [],
+                                                    delegation_notes=s.delegation_notes
+                                                    or "",
                                                     task_description=s.task_description,
                                                     step_index=s.step_index,
                                                 )

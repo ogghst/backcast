@@ -217,6 +217,9 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
         # Set the root ID field (e.g., wbe_id, user_id) along with other fields
         root_field_name = self._root_field_name()
         fields_with_root = {root_field_name: self.root_id, **self.fields}
+        # Include branch only for entities that support it (BranchableMixin)
+        if hasattr(self.entity_class, "branch"):
+            fields_with_root["branch"] = self.branch
         version = cast(Any, self.entity_class)(
             created_by=self.actor_id, **fields_with_root
         )  # Model should handle TSTZRANGE defaults with now()

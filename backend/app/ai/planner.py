@@ -287,7 +287,9 @@ async def planner_node(
     # with_structured_output uses function_calling internally (tool_choice),
     # which DeepSeek rejects in thinking mode and z.ai/GLM can't parse
     # reliably. PydanticOutputParser works purely via prompt instructions.
-    parser = PydanticOutputParser(pydantic_object=PlannerOutput)
+    parser: PydanticOutputParser[PlannerOutput] = PydanticOutputParser(
+        pydantic_object=PlannerOutput
+    )
     system_content = (
         build_planner_system_prompt(
             specialist_catalog, custom_template=planner_prompt_template
@@ -302,10 +304,11 @@ async def planner_node(
                 HumanMessage(content=prompt),
             ]
         )
-        planner_output = parser.parse(response.content)
-        logger.debug(
-            "[PLANNER] Parsed output: %s", planner_output
-        )
+        content = response.content
+        if not isinstance(content, str):
+            content = str(content)
+        planner_output = parser.parse(content)
+        logger.debug("[PLANNER] Parsed output: %s", planner_output)
         plan = _convert_planner_output(planner_output, valid_specialists=valid_names)
     except Exception:
         logger.exception("[PLANNER] LLM call failed, falling back to single step")

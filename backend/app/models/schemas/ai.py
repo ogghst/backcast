@@ -350,7 +350,9 @@ class ApprovalRequest(BaseModel):
 
 
 # Session Context Types
-SessionContextType = Literal["general", "project", "wbe", "cost_element", "work_package"]
+SessionContextType = Literal[
+    "general", "project", "wbe", "cost_element", "work_package"
+]
 
 
 class SessionContext(BaseModel):
@@ -726,9 +728,7 @@ class BriefingSectionPublic(BaseModel):
     open_questions: list[str] = Field(
         default_factory=list, description="Questions needing further investigation"
     )
-    delegation_notes: str = Field(
-        default="", description="Context for follow-up work"
-    )
+    delegation_notes: str = Field(default="", description="Context for follow-up work")
     task_description: str | None = None
     step_index: int | None = None
 
@@ -743,9 +743,7 @@ class BriefingDocumentPublic(BaseModel):
     original_request: str
     sections: list[BriefingSectionPublic] = Field(default_factory=list)
     supervisor_analysis: str | None = None
-    markdown: str = Field(
-        default="", description="Pre-rendered markdown fallback"
-    )
+    markdown: str = Field(default="", description="Pre-rendered markdown fallback")
 
 
 class WSBriefingMessage(BaseModel):

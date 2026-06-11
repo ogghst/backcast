@@ -315,7 +315,6 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
     return role
 
 
-
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
@@ -1447,11 +1446,11 @@ class AgentService:
                         "max_tool_iterations": ctx.recursion_limit,
                         "next": "agent",
                         "briefing_data": existing_briefing,
+                        # Inline resume state injection: when plan_data was
+                        # loaded from the session, pass it with completed step
+                        # indices so the planner skips the LLM call and the
+                        # supervisor skips completed specialist steps.
                         **(
-                            # Inline resume state injection: when plan_data was
-                            # loaded from the session, pass it with completed step
-                            # indices so the planner skips the LLM call and the
-                            # supervisor skips completed specialist steps.
                             {
                                 "plan_data": ctx.resume_plan_data,
                                 "completed_steps": PlanDocument.from_state(
@@ -2095,7 +2094,10 @@ class AgentService:
             # Post-flight with STOPPED status (briefing already persisted
             # inside _run_agent_graph before re-raise).
             await self._finalize_stopped_execution(
-                execution_id, session_id, metrics, event_bus,
+                execution_id,
+                session_id,
+                metrics,
+                event_bus,
             )
 
         except asyncio.CancelledError:
@@ -2114,7 +2116,10 @@ class AgentService:
                     exc_info=True,
                 )
             await self._finalize_stopped_execution(
-                execution_id, session_id, metrics, event_bus,
+                execution_id,
+                session_id,
+                metrics,
+                event_bus,
             )
             raise
 
