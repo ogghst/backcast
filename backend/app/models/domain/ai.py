@@ -154,6 +154,8 @@ class AIAssistantConfig(SimpleEntityBase):
     max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # LangGraph recursion limit (maximum steps in agent execution loop)
     recursion_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Maximum supervisor delegation cycles per request (main agent only)
+    max_supervisor_iterations: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     default_role: Mapped[str | None] = mapped_column(
         String(50),

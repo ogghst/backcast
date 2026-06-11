@@ -27,7 +27,14 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="list_projects",
-    description="List projects with search, filter, and pagination. Results are paginated; use page/limit to page through results. Response includes total count, page, and page_count.",
+    description=(
+        "List projects with search, filter, and pagination. "
+        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching projects. "
+        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
+        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
+        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
+        "Use 'search' to narrow results before paging."
+    ),
     permissions=["project-read"],
     category="projects",
     risk_level=RiskLevel.LOW,

@@ -49,25 +49,27 @@ export const ConfigurationSection = ({ agentType, models }: ConfigurationSection
           <Input.TextArea rows={4} placeholder="You are a helpful assistant..." />
         </Form.Item>
 
-        <Form.Item
-          name="default_role"
-          label="Role"
-          tooltip="The RBAC role determines which tools this assistant can use"
-          rules={[{ required: true, message: "Please select a role" }]}
-        >
-          <Select placeholder="Select a role" allowClear>
-            {AI_ROLE_OPTIONS.map((role) => (
-              <Select.Option key={role.value} value={role.value}>
-                <div>
-                  <strong>{role.label}</strong>
-                  <div style={{ fontSize: token.fontSizeSM, color: token.colorTextTertiary }}>
-                    {role.description}
+        {agentType === "main" && (
+          <Form.Item
+            name="default_role"
+            label="Role"
+            tooltip="The RBAC role determines which tools this assistant and its specialists can use. Specialists inherit this role."
+            rules={[{ required: true, message: "Please select a role" }]}
+          >
+            <Select placeholder="Select a role" allowClear>
+              {AI_ROLE_OPTIONS.map((role) => (
+                <Select.Option key={role.value} value={role.value}>
+                  <div>
+                    <strong>{role.label}</strong>
+                    <div style={{ fontSize: token.fontSizeSM, color: token.colorTextTertiary }}>
+                      {role.description}
+                    </div>
                   </div>
-                </div>
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        )}
 
         <>
           <Form.Item
@@ -130,15 +132,27 @@ export const ConfigurationSection = ({ agentType, models }: ConfigurationSection
           )}
 
           {agentType === "main" && (
-            <Form.Item
-              name="recursion_limit"
-              label="Recursion Limit"
-              initialValue={25}
-              tooltip="Maximum number of agent iterations (LangGraph default is 25)"
-              rules={[{ type: "number", min: 1, max: 100, message: "Recursion limit must be between 1 and 100" }]}
-            >
-              <Slider min={1} max={100} step={5} marks={{ 1: "1", 25: "25 (default)", 50: "50", 100: "100" }} />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="recursion_limit"
+                label="Recursion Limit"
+                initialValue={25}
+                tooltip="Maximum number of agent iterations (LangGraph default is 25)"
+                rules={[{ type: "number", min: 1, max: 100, message: "Recursion limit must be between 1 and 100" }]}
+              >
+                <Slider min={1} max={100} step={5} marks={{ 1: "1", 25: "25 (default)", 50: "50", 100: "100" }} />
+              </Form.Item>
+
+              <Form.Item
+                name="max_supervisor_iterations"
+                label="Max Supervisor Iterations"
+                initialValue={5}
+                tooltip="Maximum number of specialist delegation cycles per request. Higher values allow more complex multi-step plans."
+                rules={[{ type: "number", min: 2, max: 20, message: "Must be between 2 and 20" }]}
+              >
+                <Slider min={2} max={20} step={1} marks={{ 2: "2", 5: "5 (default)", 10: "10", 20: "20" }} />
+              </Form.Item>
+            </>
           )}
         </>
       </div>

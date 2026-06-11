@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # Tool name prefixes that are ALWAYS allowed, even under a plan.
 # ask_user is also permitted so the supervisor can ask clarifying questions mid-plan.
-_ALLOWED_PREFIXES = ("get_briefing", "handoff_to_", "ask_user")
+_ALLOWED_PREFIXES = ("get_briefing", "handoff_to_", "ask_user", "request_replan")
 
 _PLAN_DELEGATION_SUFFIX = (
     "\n\n"
@@ -40,7 +40,8 @@ _PLAN_DELEGATION_SUFFIX = (
     "An execution plan with multiple steps is active. You are in DELEGATION-ONLY mode.\n\n"
     "Your ONLY job is to:\n"
     "1. Call get_briefing to review specialist findings from completed steps\n"
-    "2. Call handoff_to_{specialist} to delegate the NEXT pending plan step\n\n"
+    "2. Call handoff_to_{specialist} to delegate the NEXT pending plan step\n"
+    "3. Call request_replan if findings make remaining steps redundant or conflicting\n\n"
     "You MUST NOT:\n"
     "- Answer the user's question directly\n"
     "- Use any domain tools (get_project, global_search, find_users, etc.)\n"

@@ -76,7 +76,12 @@ async def get_temporal_context(
 
 @ai_tool(
     name="set_temporal_context",
-    description="Change temporal context (date, branch, mode).",
+    description=(
+        "Change the temporal viewing context — CALL THIS to shift the point-in-time, "
+        "switch branch, or set branch mode. This tool ACTUALLY CHANGES the context; "
+        "it does not just read it. Always call this when the user wants to view data "
+        "at a different date or on a different branch."
+    ),
     permissions=["temporal-write"],
     category="context",
     risk_level=RiskLevel.LOW,

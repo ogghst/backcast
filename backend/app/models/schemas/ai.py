@@ -212,6 +212,12 @@ class AIAssistantConfigBase(BaseModel):
         le=500,
         description="LangGraph recursion limit (maximum steps in agent execution loop)",
     )
+    max_supervisor_iterations: int | None = Field(
+        None,
+        ge=2,
+        le=20,
+        description="Maximum supervisor delegation cycles per request (main agent only). Default: 5.",
+    )
     default_role: str | None = Field(
         None,
         max_length=50,
@@ -270,6 +276,7 @@ class AIAssistantConfigUpdate(BaseModel):
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
     recursion_limit: int | None = Field(None, ge=1, le=500)
+    max_supervisor_iterations: int | None = Field(None, ge=2, le=20)
     default_role: str | None = Field(
         None,
         max_length=50,

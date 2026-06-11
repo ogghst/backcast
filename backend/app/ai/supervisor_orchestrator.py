@@ -36,7 +36,7 @@ from app.ai.config import AI_DELEGATION_ENFORCED, AgentConfig
 from app.ai.event_types import AgentEventType
 from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
-from app.ai.handoff_tools import create_all_handoff_tools
+from app.ai.handoff_tools import create_all_handoff_tools, create_replan_tool
 from app.ai.message_utils import (
     extract_final_ai_response,
     is_transient_stream_error,
@@ -80,8 +80,21 @@ Before delegating, review the execution plan in the state (injected as context).
 ## Rules
 - Do NOT write a response summarizing the briefing — the user reads the briefing directly
 - Only respond if you need to ask the user a clarification question
-- Do NOT hand off to the same specialist more than once for the same task
+- After each step, check the briefing: if the next step is already accomplished or conflicts with findings, revise the remaining plan before continuing
 - Always check the briefing before deciding to hand off
+
+## Replanning
+After each specialist completes, evaluate whether remaining steps are still valid:
+- REDUNDANT: findings already contain what the next step was going to gather → call request_replan
+- ALREADY ACCOMPLISHED: the specialist incidentally completed the next step's task → call request_replan
+- CONTRADICTORY: findings contradict the plan's assumptions → call request_replan
+- Do NOT replan just because a step failed — retry or skip instead
+
+Rules:
+- Provide a clear reason when calling request_replan
+- Completed steps are preserved — only pending steps are revised
+- Maximum 2 replans per execution
+- When in doubt, continue with the current plan
 """
 
 _DELEGATION_ENFORCED_SECTION = """
@@ -129,22 +142,27 @@ _BRIEFING_CONTEXT_PREFIX = "## Current Briefing\n\n"
 def _briefing_update(
     doc: BriefingDocument,
     plan_data: dict[str, Any] | None = None,
+    max_iterations: int = 5,
 ) -> dict[str, Any]:
     """Build the standard state update after briefing initialization.
 
     Args:
         doc: The briefing document to serialize.
         plan_data: Optional serialized PlanDocument to carry forward.
+        max_iterations: Maximum supervisor delegation cycles.
     """
     briefing_md = doc.to_markdown() if doc.sections else "No findings yet."
     update: dict[str, Any] = {
         "briefing_data": doc.model_dump(),
         "supervisor_iterations": 0,
-        "max_supervisor_iterations": 3,
+        "max_supervisor_iterations": max_iterations,
         "completed_specialists": set(),
         "messages": [SystemMessage(content=f"{_BRIEFING_CONTEXT_PREFIX}{briefing_md}")],
         "completed_steps": set(),
         "current_step_index": -1,
+        "replan_count": 0,
+        "max_replan_count": 2,
+        "replan_context": "",
     }
     if plan_data is not None:
         update["plan_data"] = plan_data
@@ -156,11 +174,14 @@ class _BriefingSupervisorState(AgentState[Any]):
 
     Adds ``briefing_data`` and ``plan_data`` so LangGraph shares them from
     the parent ``BackcastSupervisorState`` via automatic key-matching state
-    sharing.
+    sharing.  Also mirrors ``replan_count`` and ``replan_context`` so the
+    supervisor subgraph can read/write replan state.
     """
 
     briefing_data: dict[str, Any]
     plan_data: dict[str, Any]
+    replan_count: int
+    replan_context: str
 
 
 def _create_get_briefing_tool() -> BaseTool:
@@ -295,7 +316,8 @@ class SupervisorOrchestrator:
         # --- 3. Build supervisor tools ---
         get_briefing_tool = _create_get_briefing_tool()
         handoff_tools = create_all_handoff_tools(specialist_graphs)
-        supervisor_tools: list[BaseTool] = [get_briefing_tool] + list(handoff_tools)
+        replan_tool = create_replan_tool()
+        supervisor_tools: list[BaseTool] = [get_briefing_tool, replan_tool] + list(handoff_tools)
 
         direct_tool_names: list[str] = []
         if self.main_assistant_config and self.main_assistant_config.delegation_config:
@@ -377,6 +399,14 @@ class SupervisorOrchestrator:
                     )
                     break
 
+            max_iter = 5
+            if self.main_assistant_config and hasattr(
+                self.main_assistant_config, "max_supervisor_iterations"
+            ):
+                val = self.main_assistant_config.max_supervisor_iterations
+                if val is not None:
+                    max_iter = val
+
             existing_briefing = state.get("briefing_data")
             if existing_briefing:
                 doc = BriefingDocument.from_state(existing_briefing)
@@ -385,10 +415,12 @@ class SupervisorOrchestrator:
                     "[SUPERVISOR] Reusing existing briefing with %d sections",
                     len(doc.sections),
                 )
-                return _briefing_update(doc, plan_data=state.get("plan_data"))
+                return _briefing_update(
+                    doc, plan_data=state.get("plan_data"), max_iterations=max_iter
+                )
 
             doc = initialize_briefing(user_request)
-            return _briefing_update(doc)
+            return _briefing_update(doc, max_iterations=max_iter)
 
         # --- 6b. Build the planner node ---
         specialist_catalog = [
@@ -445,7 +477,7 @@ class SupervisorOrchestrator:
         parent.add_conditional_edges(
             "supervisor",
             self._make_supervisor_router(specialist_names),
-            specialist_names + [END],
+            specialist_names + ["planner", END],
         )
         # NOTE: specialist nodes return Command(goto="supervisor") or
         # Command(goto=END) explicitly — no static edge to supervisor.
@@ -486,7 +518,7 @@ class SupervisorOrchestrator:
 
         def router(state: BackcastSupervisorState) -> str:
             iterations = state.get("supervisor_iterations", 0)
-            max_iterations = state.get("max_supervisor_iterations", 3)
+            max_iterations = state.get("max_supervisor_iterations", 5)
 
             # Parse plan data once for both iteration cap and re-dispatch logic
             plan_data = state.get("plan_data")
@@ -518,6 +550,17 @@ class SupervisorOrchestrator:
 
                 for tc in last_msg.tool_calls:
                     tool_name = tc.get("name", "")
+                    if tool_name == "request_replan":
+                        replan_count = state.get("replan_count", 0)
+                        max_replan = state.get("max_replan_count", 2)
+                        if replan_count >= max_replan:
+                            logger.warning(
+                                "[SUPERVISOR] Max replan (%d) reached, forcing END",
+                                max_replan,
+                            )
+                            return END
+                        logger.info("[SUPERVISOR] Replan requested (count=%d)", replan_count)
+                        return "planner"
                     if tool_name.startswith("handoff_to_"):
                         slug = tool_name.removeprefix("handoff_to_")
                         spec_name = slug_map.get(slug, slug)
@@ -584,6 +627,24 @@ class SupervisorOrchestrator:
             # can assign multiple steps to the same specialist; the guard
             # only blocks when there is no matching pending step.
             completed = state.get("completed_specialists", set())
+            if active_step is None and plan_data:
+                # Debug: why was no matching step found?
+                step_statuses = (
+                    {s.step_index: s.status for s in active_plan.steps}
+                    if active_plan
+                    else {}
+                )
+                completed_step_indices_debug = state.get("completed_steps", set())
+                logger.warning(
+                    "[SPECIALIST_NODE] No matching step found for %s | "
+                    "plan_steps=%s | completed_steps=%s | "
+                    "completed_specialists=%s | plan_data_keys=%s",
+                    specialist_name,
+                    step_statuses,
+                    completed_step_indices_debug,
+                    completed,
+                    list(plan_data.keys()) if plan_data else [],
+                )
             if specialist_name in completed and active_step is None:
                 logger.info(
                     "[SUPERVISOR] Specialist %s already completed, early exit",
@@ -643,10 +704,11 @@ class SupervisorOrchestrator:
                                 f"- Step {dep_idx} result: {dep_step.result_summary}"
                             )
                 lines.append("")
-                lines.append(
-                    "Use the get_briefing tool to review prior specialist findings "
-                    "if needed for context."
-                )
+                if doc and doc.sections:
+                    lines.append("## Briefing Context (from prior specialists)")
+                    lines.append("")
+                    lines.append(doc.to_markdown())
+                    lines.append("")
                 if _original_request:
                     lines.append("")
                     lines.append(f"**User's original request:** {_original_request}")
@@ -658,6 +720,11 @@ class SupervisorOrchestrator:
                 if _original_request:
                     assignment_block += (
                         f"\n\n**User's original request:** {_original_request}"
+                    )
+                if doc and doc.sections:
+                    assignment_block += (
+                        "\n\n## Briefing Context (from prior specialists)"
+                        f"\n\n{doc.to_markdown()}"
                     )
 
             isolated_messages = [
@@ -878,12 +945,16 @@ class SupervisorOrchestrator:
                 pending = [s for s in active_plan.steps if s.status == "pending"]
                 if pending:
                     next_step = pending[0]
+                    result_preview = cleaned_findings[:500] if cleaned_findings else "(no result)"
                     plan_msg = (
                         f"Plan step {active_step.step_index + 1}/{len(active_plan.steps)} "
-                        f"completed by {specialist_name}. "
+                        f"completed by {specialist_name}.\n"
+                        f"Result: {result_preview}\n"
                         f"Next pending step: step {next_step.step_index + 1} "
-                        f"({next_step.specialist}). "
-                        f"{len(pending)} step(s) remaining."
+                        f"({next_step.specialist}): {next_step.task_description}\n"
+                        f"{len(pending)} step(s) remaining.\n\n"
+                        f"If the result above makes the next step unnecessary or contradictory, "
+                        f"call request_replan. Otherwise delegate the next step."
                     )
                 else:
                     plan_msg = (

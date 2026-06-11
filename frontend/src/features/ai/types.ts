@@ -93,6 +93,7 @@ export interface AIAssistantPublic {
   temperature: number | null;
   max_tokens: number | null;
   recursion_limit: number | null;
+  max_supervisor_iterations: number | null;
   default_role: string | null;
   is_active: boolean;
   agent_type: "main" | "specialist";
@@ -114,6 +115,7 @@ export interface AIAssistantCreate {
   temperature?: number | null;
   max_tokens?: number | null;
   recursion_limit?: number | null;
+  max_supervisor_iterations?: number | null;
   default_role?: string | null;
   is_active?: boolean;
   agent_type?: "main" | "specialist";
@@ -133,6 +135,7 @@ export interface AIAssistantUpdate {
   temperature?: number | null;
   max_tokens?: number | null;
   recursion_limit?: number | null;
+  max_supervisor_iterations?: number | null;
   default_role?: string | null;
   is_active?: boolean;
   agent_type?: "main" | "specialist";
@@ -140,6 +143,7 @@ export interface AIAssistantUpdate {
   delegation_config?: DelegationConfig | null;
   structured_output_schema?: string | null;
 }
+
 
 /**
  * Provider Type Options

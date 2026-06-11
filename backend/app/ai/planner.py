@@ -62,6 +62,31 @@ _DEFAULT_SPECIALIST_CATALOG: list[dict[str, str]] = [
     },
 ]
 
+_REPLANNER_PROMPT_TEMPLATE = """\
+You are revising an execution plan based on new findings from completed specialists.
+
+## Replan Reason
+{replan_reason}
+
+## Existing Plan (completed steps are LOCKED)
+{existing_plan_text}
+
+## Specialist Findings So Far
+{briefing_context}
+
+{specialist_section}
+
+## Rules for Replanning
+- COMPLETED steps (marked [x]) MUST be preserved exactly as-is
+- Only revise PENDING steps (marked [ ])
+- New/revised steps get step_index values starting AFTER the last completed step
+- You may REMOVE pending steps that are now redundant
+- You may ADD new steps if findings reveal additional work
+- Maximum 5 total steps (completed + revised)
+- Use ONLY specialist names from the list above
+- Provide the FULL plan including completed steps in your output
+"""
+
 
 def _build_specialist_section(catalog: list[dict[str, str]]) -> str:
     """Build the ## Available Specialists section from a catalog."""
@@ -170,6 +195,51 @@ def _convert_planner_output(
     )
 
 
+def _merge_replanned_steps(
+    existing_plan: PlanDocument,
+    new_steps_output: PlannerOutput,
+    valid_specialists: frozenset[str],
+) -> PlanDocument:
+    """Merge replanned steps: completed steps stay, new steps get fresh indices.
+
+    Args:
+        existing_plan: The current plan with potentially completed steps.
+        new_steps_output: The LLM's revised step output (pending steps only).
+        valid_specialists: Set of valid specialist names for fallback.
+
+    Returns:
+        PlanDocument with completed steps preserved and revised steps
+        re-indexed after the last completed step.
+    """
+    completed = [s for s in existing_plan.steps if s.status == "completed"]
+    max_completed_idx = max((s.step_index for s in completed), default=-1)
+
+    revised_steps: list[PlanStep] = []
+    for i, raw_step in enumerate(new_steps_output.steps):
+        specialist = (
+            raw_step.specialist
+            if raw_step.specialist in valid_specialists
+            else "general_purpose"
+        )
+        revised_steps.append(
+            PlanStep(
+                step_index=max_completed_idx + 1 + i,
+                specialist=specialist,
+                task_description=raw_step.task_description,
+                dependencies=raw_step.dependencies,
+                expected_output=raw_step.expected_output,
+            )
+        )
+
+    return PlanDocument(
+        original_request=existing_plan.original_request,
+        steps=completed + revised_steps,
+        estimated_complexity=new_steps_output.estimated_complexity
+        or existing_plan.estimated_complexity,
+        requires_planning=True,
+    )
+
+
 def _fallback_plan(user_request: str) -> PlanDocument:
     """Create a single-step fallback plan using general_purpose.
 
@@ -227,10 +297,13 @@ async def planner_node(
     Makes a single LLM call to analyze the user request and produce a
     PlanDocument. Falls back to a single-step plan on any error.
 
-    When the state already contains a valid ``plan_data`` with incomplete
-    steps (resume scenario), returns the existing plan without calling the
-    LLM. This saves tokens and preserves the original plan's step
-    assignments.
+    Three execution paths (checked in order):
+
+    1. **Replan**: When ``replan_context`` is present alongside an existing
+       plan, revises pending steps while preserving completed ones.
+    2. **Resume**: When ``plan_data`` already exists with incomplete steps,
+       returns it unchanged without an LLM call.
+    3. **Fresh plan**: Analyzes the user request from scratch.
 
     Args:
         state: Current BackcastSupervisorState dict.
@@ -245,6 +318,67 @@ async def planner_node(
         State update dict with ``plan_data`` field containing the
         serialized PlanDocument.
     """
+    # Replan path: takes priority over resume path
+    replan_context = state.get("replan_context", "")
+    if replan_context and state.get("plan_data"):
+        existing_plan = PlanDocument.from_state(state["plan_data"])
+        briefing_data = state.get("briefing_data")
+        briefing_context: str | None = None
+        if briefing_data:
+            from app.ai.briefing import BriefingDocument
+
+            doc = BriefingDocument.from_state(briefing_data)
+            if doc.sections:
+                briefing_context = doc.to_markdown()
+
+        catalog = specialist_catalog or _DEFAULT_SPECIALIST_CATALOG
+        valid_names = frozenset(entry["name"] for entry in catalog)
+
+        specialist_section = _build_specialist_section(catalog)
+        replan_prompt = _REPLANNER_PROMPT_TEMPLATE.format(
+            replan_reason=replan_context,
+            existing_plan_text=existing_plan.to_prompt_text(),
+            briefing_context=briefing_context or "No findings yet.",
+            specialist_section=specialist_section,
+        )
+
+        messages = state.get("messages", [])
+        user_request = _extract_user_request(messages) or existing_plan.original_request
+        prompt = _build_planner_prompt(user_request, briefing_context)
+
+        parser: PydanticOutputParser[PlannerOutput] = PydanticOutputParser(
+            pydantic_object=PlannerOutput
+        )
+        system_content = replan_prompt + "\n\n" + parser.get_format_instructions()
+
+        try:
+            response = await llm.ainvoke(
+                [
+                    SystemMessage(content=system_content),
+                    HumanMessage(content=prompt),
+                ]
+            )
+            content = response.content
+            if not isinstance(content, str):
+                content = str(content)
+            planner_output = parser.parse(content)
+            plan = _merge_replanned_steps(existing_plan, planner_output, valid_names)
+        except Exception:
+            logger.exception("[PLANNER] Replan LLM call failed, keeping existing plan")
+            plan = existing_plan
+
+        logger.info(
+            "[PLANNER] Replan complete: %d steps (%d completed preserved, %d revised)",
+            len(plan.steps),
+            len([s for s in plan.steps if s.status == "completed"]),
+            len([s for s in plan.steps if s.status == "pending"]),
+        )
+
+        return {
+            "plan_data": plan.model_dump(),
+            "replan_context": "",  # Clear so it's not re-triggered
+        }
+
     # Resume path: if plan_data already exists with incomplete steps,
     # skip the LLM call and return the existing plan.
     existing_plan_data = state.get("plan_data")
@@ -268,7 +402,7 @@ async def planner_node(
         return {"plan_data": plan.model_dump()}
 
     # Extract briefing context for follow-up messages
-    briefing_context: str | None = None
+    briefing_context = None
     briefing_data = state.get("briefing_data")
     if briefing_data:
         from app.ai.briefing import BriefingDocument
@@ -287,9 +421,7 @@ async def planner_node(
     # with_structured_output uses function_calling internally (tool_choice),
     # which DeepSeek rejects in thinking mode and z.ai/GLM can't parse
     # reliably. PydanticOutputParser works purely via prompt instructions.
-    parser: PydanticOutputParser[PlannerOutput] = PydanticOutputParser(
-        pydantic_object=PlannerOutput
-    )
+    parser = PydanticOutputParser(pydantic_object=PlannerOutput)
     system_content = (
         build_planner_system_prompt(
             specialist_catalog, custom_template=planner_prompt_template
@@ -324,4 +456,9 @@ async def planner_node(
     return {"plan_data": plan.model_dump()}
 
 
-__all__ = ["PLANNER_SYSTEM_PROMPT", "build_planner_system_prompt", "planner_node"]
+__all__ = [
+    "PLANNER_SYSTEM_PROMPT",
+    "build_planner_system_prompt",
+    "planner_node",
+    "_merge_replanned_steps",
+]
