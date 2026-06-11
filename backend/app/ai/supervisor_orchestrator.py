@@ -380,13 +380,12 @@ class SupervisorOrchestrator:
             existing_briefing = state.get("briefing_data")
             if existing_briefing:
                 doc = BriefingDocument.from_state(existing_briefing)
-                if doc.original_request != "(recovered)":
-                    doc.original_request = user_request
-                    logger.info(
-                        "[SUPERVISOR] Reusing existing briefing with %d sections",
-                        len(doc.sections),
-                    )
-                    return _briefing_update(doc, plan_data=state.get("plan_data"))
+                doc.original_request = user_request
+                logger.info(
+                    "[SUPERVISOR] Reusing existing briefing with %d sections",
+                    len(doc.sections),
+                )
+                return _briefing_update(doc, plan_data=state.get("plan_data"))
 
             doc = initialize_briefing(user_request)
             return _briefing_update(doc)
