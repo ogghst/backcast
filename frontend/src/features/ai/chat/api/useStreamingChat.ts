@@ -630,6 +630,7 @@ export const useStreamingChat = (
           typeof serverMessage.briefing === "string"
             ? {
                 original_request: "",
+                follow_up_requests: [],
                 sections: [],
                 markdown: serverMessage.briefing as unknown as string,
               }

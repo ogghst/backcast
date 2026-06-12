@@ -410,7 +410,7 @@ class SupervisorOrchestrator:
             existing_briefing = state.get("briefing_data")
             if existing_briefing:
                 doc = BriefingDocument.from_state(existing_briefing)
-                doc.original_request = user_request
+                doc.follow_up_requests.append(user_request)
                 logger.info(
                     "[SUPERVISOR] Reusing existing briefing with %d sections",
                     len(doc.sections),
@@ -686,6 +686,13 @@ class SupervisorOrchestrator:
             elif active_plan and active_plan.original_request:
                 _original_request = active_plan.original_request
 
+            _request_context: list[str] = []
+            if _original_request:
+                _request_context.append(f"Original request: {_original_request}")
+                if doc and doc.follow_up_requests:
+                    for i, fq in enumerate(doc.follow_up_requests, start=1):
+                        _request_context.append(f"Follow-up {i}: {fq}")
+
             if active_step is not None:
                 task_desc = active_step.task_description
             elif doc and doc.task_history:
@@ -720,18 +727,16 @@ class SupervisorOrchestrator:
                     lines.append("")
                     lines.append(doc.to_markdown())
                     lines.append("")
-                if _original_request:
+                for ctx_line in _request_context:
                     lines.append("")
-                    lines.append(f"**User's original request:** {_original_request}")
+                    lines.append(f"**{ctx_line}**")
                 assignment_block = "\n".join(lines)
             else:
                 assignment_block = f"## Your Assignment\n\n{task_desc}"
                 if rationale:
                     assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
-                if _original_request:
-                    assignment_block += (
-                        f"\n\n**User's original request:** {_original_request}"
-                    )
+                for ctx_line in _request_context:
+                    assignment_block += f"\n\n**{ctx_line}**"
                 if doc and doc.sections:
                     assignment_block += (
                         "\n\n## Briefing Context (from prior specialists)"
@@ -851,6 +856,7 @@ class SupervisorOrchestrator:
                                         type=AgentEventType.BRIEFING_UPDATE,
                                         briefing=BriefingDocumentPublic(
                                             original_request=error_doc.original_request,
+                                            follow_up_requests=error_doc.follow_up_requests,
                                             sections=[
                                                 BriefingSectionPublic(
                                                     specialist_name=s.specialist_name,
@@ -1016,6 +1022,7 @@ class SupervisorOrchestrator:
                                 type=AgentEventType.BRIEFING_UPDATE,
                                 briefing=BriefingDocumentPublic(
                                     original_request=success_doc.original_request,
+                                    follow_up_requests=success_doc.follow_up_requests,
                                     sections=[
                                         BriefingSectionPublic(
                                             specialist_name=s.specialist_name,

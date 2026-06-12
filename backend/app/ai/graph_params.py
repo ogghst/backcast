@@ -216,6 +216,7 @@ class StreamState:
                 type=AgentEventType.BRIEFING_UPDATE,
                 briefing=BriefingDocumentPublic(
                     original_request=doc.original_request,
+                    follow_up_requests=doc.follow_up_requests,
                     sections=[
                         BriefingSectionPublic(
                             specialist_name=s.specialist_name,

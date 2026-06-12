@@ -39,6 +39,7 @@ class BriefingDocument(BaseModel):
     """
 
     original_request: str
+    follow_up_requests: list[str] = []
     sections: list[BriefingSection] = []
     supervisor_analysis: str | None = None
     task_history: list[TaskAssignment] = []
@@ -62,6 +63,11 @@ class BriefingDocument(BaseModel):
             "## Request",
             self.original_request,
         ]
+
+        if self.follow_up_requests:
+            parts += ["", "## Follow-up Questions"]
+            for idx, fq in enumerate(self.follow_up_requests, start=1):
+                parts.append(f"{idx}. {fq}")
 
         if self.supervisor_analysis:
             parts += ["", "## Supervisor Analysis", self.supervisor_analysis]

@@ -255,6 +255,27 @@ export interface AIConversationSessionPublic {
   active_execution: AgentExecutionPublic | null;
   briefing_markdown?: string | null;
   briefing_specialists?: string[];
+  briefing_data?: {
+    original_request: string;
+    follow_up_requests: string[];
+    sections: Array<{
+      specialist_name: string;
+      findings: string;
+      task_description?: string | null;
+      supervisor_rationale?: string | null;
+      key_findings?: string[] | null;
+      open_questions?: string[] | null;
+      delegation_notes?: string | null;
+      step_index?: number | null;
+    }>;
+    supervisor_analysis?: string | null;
+    task_history?: Array<{
+      specialist: string;
+      description: string;
+      rationale?: string | null;
+    }>;
+    plan?: unknown[] | null;
+  } | null;
   plan_data?: {
     original_request: string;
     steps: Array<{

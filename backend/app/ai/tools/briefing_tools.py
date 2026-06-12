@@ -114,6 +114,7 @@ async def get_briefing(
 
     return {
         "original_request": doc.original_request,
+        "follow_up_requests": doc.follow_up_requests,
         "sections": result_sections,
         "total_sections": len(result_sections),
     }

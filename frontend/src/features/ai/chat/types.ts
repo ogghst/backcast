@@ -333,6 +333,7 @@ export interface BriefingSectionData {
  */
 export interface BriefingDocumentData {
   original_request: string;
+  follow_up_requests: string[];
   sections: BriefingSectionData[];
   supervisor_analysis?: string | null;
   markdown: string;

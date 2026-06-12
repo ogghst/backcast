@@ -1184,7 +1184,25 @@ export const ChatInterface = ({
             session.briefing_specialists?.[
               session.briefing_specialists.length - 1
             ] ?? "",
-          document: null, // Not available from REST session list
+          document: session.briefing_data
+            ? {
+                original_request: session.briefing_data.original_request,
+                follow_up_requests:
+                  session.briefing_data.follow_up_requests ?? [],
+                sections: (session.briefing_data.sections ?? []).map((s) => ({
+                  specialist_name: s.specialist_name,
+                  summary: s.findings,
+                  key_findings: s.key_findings ?? [],
+                  open_questions: s.open_questions ?? [],
+                  delegation_notes: s.delegation_notes ?? "",
+                  task_description: s.task_description,
+                  step_index: s.step_index,
+                })),
+                supervisor_analysis:
+                  session.briefing_data.supervisor_analysis ?? null,
+                markdown: "",
+              }
+            : null,
           plan: restoredPlan,
         });
         userDismissedBriefing.current = false;

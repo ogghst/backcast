@@ -432,6 +432,10 @@ class AIConversationSessionPublic(BaseModel):
         default_factory=list,
         description="Names of specialists that contributed to the briefing",
     )
+    briefing_data: dict[str, Any] | None = Field(
+        None,
+        description="Full structured briefing document with specialist findings and follow-ups",
+    )
     plan_data: dict[str, Any] | None = Field(
         None,
         description="Serialized PlanDocument with execution steps and progress",
@@ -748,6 +752,7 @@ class BriefingDocumentPublic(BaseModel):
     """
 
     original_request: str
+    follow_up_requests: list[str] = Field(default_factory=list)
     sections: list[BriefingSectionPublic] = Field(default_factory=list)
     supervisor_analysis: str | None = None
     markdown: str = Field(default="", description="Pre-rendered markdown fallback")
