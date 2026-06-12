@@ -202,7 +202,7 @@ class AIAssistantConfigBase(BaseModel):
     supervisor_prompt: str | None = Field(
         None,
         max_length=10000,
-        description="Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list.",
+        description="Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list, {plan_section} for dynamic plan steps.",
     )
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
@@ -271,7 +271,7 @@ class AIAssistantConfigUpdate(BaseModel):
     supervisor_prompt: str | None = Field(
         None,
         max_length=10000,
-        description="Custom supervisor prompt template for main agents.",
+        description="Custom supervisor prompt template. Supports {specialist_section} and {plan_section} placeholders.",
     )
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)

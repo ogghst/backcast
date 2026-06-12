@@ -19,6 +19,7 @@ through unchanged.
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware, ModelRequest
@@ -90,8 +91,11 @@ def _strip_disallowed_tool_calls(
 ) -> AIMessage:
     """Remove tool_calls for tools not in *allowed_names*.
 
-    If all tool_calls are stripped the returned message has ``tool_calls=[]``
-    so the agent loop exits naturally.
+    If ALL tool_calls are stripped (which would leave ``tool_calls=[]`` and
+    cause LangGraph to route to END), a synthetic ``get_briefing`` call is
+    injected instead so the supervisor gets another iteration to call the
+    correct tool.  This prevents premature graph termination when pending
+    plan steps remain.
     """
     if not ai_message.tool_calls:
         return ai_message
@@ -114,9 +118,34 @@ def _strip_disallowed_tool_calls(
         allowed_names,
     )
 
+    # If ALL tool calls were stripped, inject a corrective get_briefing call
+    # to prevent the graph from terminating with pending plan steps.
+    if not filtered_calls and "get_briefing" in allowed_names:
+        logger.info(
+            "[PLAN_AWARE_TOOLS] All tool calls stripped — injecting corrective "
+            "get_briefing call to prevent premature graph termination"
+        )
+        filtered_calls = [
+            {
+                "name": "get_briefing",
+                "args": {},
+                "id": f"corrective-{uuid.uuid4().hex[:12]}",
+                "type": "tool_call",
+            }
+        ]
+
     # Build a new AIMessage keeping content and metadata but with filtered tool_calls
+    was_stripped = len(ai_message.tool_calls) != len(filtered_calls)
+    new_content: str | list[str | dict[str, Any]] = ai_message.content
+    if was_stripped and isinstance(new_content, str):
+        new_content = (
+            new_content
+            + "\n\n[System: All your tool calls were disallowed under the active plan. "
+            "Use get_briefing to review progress, then delegate the next pending "
+            "step via handoff_to_*.]"
+        )
     return AIMessage(
-        content=ai_message.content,
+        content=new_content,
         tool_calls=filtered_calls,
         additional_kwargs=ai_message.additional_kwargs,
     )
@@ -168,14 +197,33 @@ class PlanAwareToolMiddleware(AgentMiddleware):
                 )
                 request = request.override(tools=filtered)
 
-            # Inject strong delegation-only instruction into system prompt
+            # --- Inject plan steps into system prompt ---
             current_prompt = (
                 request.system_message.text if request.system_message else ""
             )
+            plan_data: dict[str, Any] | None = state.get("plan_data")  # type: ignore[assignment]
+            if plan_data:
+                plan = PlanDocument.from_state(plan_data)
+                plan_text = plan.to_prompt_text()
+
+                if "{plan_section}" in current_prompt:
+                    current_prompt = current_prompt.replace(
+                        "{plan_section}", plan_text, 1
+                    )
+                elif plan_text not in current_prompt:
+                    current_prompt = current_prompt + "\n\n" + plan_text
+
+            # --- Inject strong delegation-only instruction into system prompt ---
             if _PLAN_DELEGATION_SUFFIX.strip() not in current_prompt:
-                new_prompt = current_prompt + _PLAN_DELEGATION_SUFFIX
+                current_prompt = current_prompt + _PLAN_DELEGATION_SUFFIX
                 request = request.override(
-                    system_message=SystemMessage(content=new_prompt),
+                    system_message=SystemMessage(content=current_prompt),
+                )
+            elif plan_data:
+                # Plan text was injected but suffix already present — still
+                # need to update the system message with the plan text.
+                request = request.override(
+                    system_message=SystemMessage(content=current_prompt),
                 )
 
             # --- Execute model with pre-filtered tools ---
@@ -191,6 +239,15 @@ class PlanAwareToolMiddleware(AgentMiddleware):
                         response.result[0] = cleaned
 
             return response
+
+        # No active plan — clean up {plan_section} placeholder if present so
+        # the supervisor never sees the literal template tag.
+        current_prompt = request.system_message.text if request.system_message else ""
+        if "{plan_section}" in current_prompt:
+            current_prompt = current_prompt.replace("{plan_section}", "No execution plan — delegate directly.", 1)
+            request = request.override(
+                system_message=SystemMessage(content=current_prompt),
+            )
 
         return await handler(request)
 

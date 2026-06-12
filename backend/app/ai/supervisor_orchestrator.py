@@ -70,12 +70,13 @@ The current briefing is injected into your context as a system message before ev
 3. After a specialist contributes, the briefing is updated automatically
 
 ## Execution Plan
-Before delegating, review the execution plan in the state (injected as context).
-- If a plan exists with multiple steps, delegate ONE step at a time in order
-- Each step already specifies the specialist and focused task description
+{plan_section}
+
+Follow the plan strictly:
+- Delegate ONE step at a time in order
+- Each step specifies the specialist and focused task description
 - After each specialist completes, check if the next step's dependencies are met
 - If a step fails, decide whether to skip it or retry with a different approach
-- For simple single-step plans, delegate normally (current behavior)
 
 ## Rules
 - Do NOT write a response summarizing the briefing — the user reads the briefing directly
@@ -629,21 +630,32 @@ class SupervisorOrchestrator:
             completed = state.get("completed_specialists", set())
             if active_step is None and plan_data:
                 # Debug: why was no matching step found?
-                step_statuses = (
-                    {s.step_index: s.status for s in active_plan.steps}
+                step_debug = (
+                    {
+                        s.step_index: {
+                            "specialist": s.specialist,
+                            "status": s.status,
+                            "deps": s.dependencies,
+                            "deps_met": (
+                                active_plan.are_dependencies_met(s.step_index)
+                                if active_plan
+                                else False
+                            ),
+                        }
+                        for s in active_plan.steps
+                    }
                     if active_plan
                     else {}
                 )
                 completed_step_indices_debug = state.get("completed_steps", set())
                 logger.warning(
-                    "[SPECIALIST_NODE] No matching step found for %s | "
-                    "plan_steps=%s | completed_steps=%s | "
-                    "completed_specialists=%s | plan_data_keys=%s",
+                    "[SPECIALIST_NODE] No matching step found for '%s' | "
+                    "steps=%s | completed_steps=%s | "
+                    "completed_specialists=%s",
                     specialist_name,
-                    step_statuses,
+                    step_debug,
                     completed_step_indices_debug,
                     completed,
-                    list(plan_data.keys()) if plan_data else [],
                 )
             if specialist_name in completed and active_step is None:
                 logger.info(
