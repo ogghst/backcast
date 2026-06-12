@@ -957,7 +957,10 @@ export const ChatInterface = ({
     const updateToolCalls = (toolCalls: ToolCallRemark[] | undefined): ToolCallRemark[] => {
       const calls = toolCalls || [];
       // Find the last matching tool call that isn't already completed
-      const idx = calls.findLastIndex(tc => tc.name === tool && !tc.completed);
+      let idx = -1;
+      for (let i = calls.length - 1; i >= 0; i--) {
+        if (calls[i].name === tool && !calls[i].completed) { idx = i; break; }
+      }
       if (idx === -1) return calls;
       const updated = [...calls];
       updated[idx] = { ...updated[idx], completed: true };
