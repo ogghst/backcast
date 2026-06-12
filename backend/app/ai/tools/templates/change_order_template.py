@@ -55,7 +55,14 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="find_change_orders",
-    description="Find change orders by ID or search/filter. Results are paginated; response includes total count, page, and page_count.",
+    description=(
+        "Find change orders by ID or search/filter. "
+        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
+        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
+        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
+        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
+        "Use 'search' to narrow results before paging."
+    ),
     permissions=["change-order-read"],
     category="change-orders",
     risk_level=RiskLevel.LOW,
