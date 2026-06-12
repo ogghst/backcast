@@ -28,7 +28,7 @@ from app.ai.tools.types import ToolContext
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_SYSTEM_PROMPT = """You are a Backcast project management assistant.
+DEFAULT_SYSTEM_PROMPT = """
 Before calling tools, review your briefing context to avoid redundant queries.
 
 When using tools:

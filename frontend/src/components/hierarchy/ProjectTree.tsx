@@ -128,6 +128,7 @@ const NodeTitle = ({
   showBudget: boolean;
   showDates: boolean;
 }) => {
+  const { token } = theme.useToken();
   const showRight = (showBudget && budget) || (showDates && dates);
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: token.marginXS, flex: 1 }}>

@@ -6,8 +6,12 @@ domain tools directly.  This middleware intercepts the model call, inspects the
 graph state for an active plan, and strips non-delegation tools from the
 request so the LLM never sees them.
 
-Additionally injects a strong delegation-only instruction into the system
-prompt so the LLM understands it MUST delegate every step.
+When the assistant is configured with ``direct_tools``, those tools are
+preserved so the supervisor can still perform lookups while delegating plan
+steps.  A softer suffix is used in that case.
+
+Additionally injects a delegation instruction into the system prompt so the
+LLM understands it MUST delegate every step.
 
 As a safety net, response post-filtering strips any tool calls for disallowed
 tools that the LLM may hallucinate despite the pre-filtered tool list.
@@ -51,6 +55,21 @@ _PLAN_DELEGATION_SUFFIX = (
     "Delegate every step in order. The briefing will be updated after each specialist completes."
 )
 
+_PLAN_WITH_DIRECT_TOOLS_SUFFIX = (
+    "\n\n"
+    "## PLAN-DRIVEN EXECUTION MODE\n"
+    "An execution plan with multiple steps is active.\n\n"
+    "Your job is to:\n"
+    "1. Call get_briefing to review specialist findings from completed steps\n"
+    "2. Call handoff_to_{specialist} to delegate the NEXT pending plan step\n"
+    "3. Call request_replan if findings make remaining steps redundant or conflicting\n\n"
+    "You MAY use your direct tools for lookups and context gathering between steps.\n\n"
+    "You MUST NOT:\n"
+    "- Answer the user's question directly instead of delegating plan steps\n"
+    "- Skip delegation because you think you can answer\n\n"
+    "Delegate every step in order. The briefing will be updated after each specialist completes."
+)
+
 
 def _has_active_plan(state: dict[str, Any]) -> bool:
     """Return True if state carries a multi-step plan with specialist steps."""
@@ -61,26 +80,36 @@ def _has_active_plan(state: dict[str, Any]) -> bool:
     return bool(plan.requires_planning and plan.steps)
 
 
+def _tool_name(tool: BaseTool | dict[str, Any]) -> str:
+    return tool.name if isinstance(tool, BaseTool) else str(tool.get("name", ""))
+
+
 def _allowed_tool_names(
     tools: list[BaseTool | dict[str, Any]],
+    direct_tool_names: set[str],
 ) -> set[str]:
-    """Return the set of tool names that match the allowed prefixes."""
+    """Return the set of tool names that match the allowed prefixes or are direct tools."""
     names: set[str] = set()
     for t in tools:
-        name = t.name if isinstance(t, BaseTool) else str(t.get("name", ""))
+        name = _tool_name(t)
         if any(name.startswith(prefix) for prefix in _ALLOWED_PREFIXES):
+            names.add(name)
+        elif name in direct_tool_names:
             names.add(name)
     return names
 
 
 def _filter_tools_for_plan(
     tools: list[BaseTool | dict[str, Any]],
+    direct_tool_names: set[str],
 ) -> list[BaseTool | dict[str, Any]]:
-    """Keep only get_briefing + handoff_to_* tools."""
+    """Keep delegation tools (briefing, handoff, ask_user, replan) + direct tools."""
     kept: list[BaseTool | dict[str, Any]] = []
     for t in tools:
-        name = t.name if isinstance(t, BaseTool) else str(t.get("name", ""))
+        name = _tool_name(t)
         if any(name.startswith(prefix) for prefix in _ALLOWED_PREFIXES):
+            kept.append(t)
+        elif name in direct_tool_names:
             kept.append(t)
     return kept
 
@@ -157,13 +186,21 @@ class PlanAwareToolMiddleware(AgentMiddleware):
     Inspects ``request.state["plan_data"]`` on every model call.  When a
     multi-step plan exists:
 
-    1. Pre-filters the tool list to only briefing and handoff tools so the LLM
-       cannot bypass specialist delegation.
-    2. Appends a strong delegation-only instruction to the system prompt
-       so the LLM understands it MUST delegate every step.
+    1. Pre-filters the tool list to delegation tools + direct tools so the
+       LLM cannot bypass specialist delegation while retaining lookup access.
+    2. Appends a delegation instruction to the system prompt.  Uses a softer
+       variant when direct tools are present.
     3. Post-filters the LLM response to strip any tool_calls for disallowed
        tools (safety net for hallucinated tool calls).
+
+    Args:
+        direct_tool_names: Tool names the supervisor may use directly even
+            when a plan is active.  Sourced from the assistant's
+            ``delegation_config.direct_tools``.
     """
+
+    def __init__(self, direct_tool_names: list[str] | None = None) -> None:
+        self._direct_tool_names: set[str] = set(direct_tool_names or [])
 
     async def awrap_model_call(
         self,
@@ -173,19 +210,18 @@ class PlanAwareToolMiddleware(AgentMiddleware):
         state = dict(request.state) if request.state else {}
         if AI_DELEGATION_ENFORCED and _has_active_plan(state) and request.tools:
             original_count = len(request.tools)
-            filtered = _filter_tools_for_plan(request.tools)
+            filtered = _filter_tools_for_plan(
+                request.tools, self._direct_tool_names
+            )
             if len(filtered) < original_count:
                 removed_names = [
-                    t.name if isinstance(t, BaseTool) else str(t.get("name", ""))
+                    _tool_name(t)
                     for t in request.tools
                     if not any(
-                        (
-                            t.name
-                            if isinstance(t, BaseTool)
-                            else str(t.get("name", ""))
-                        ).startswith(prefix)
+                        _tool_name(t).startswith(prefix)
                         for prefix in _ALLOWED_PREFIXES
                     )
+                    and _tool_name(t) not in self._direct_tool_names
                 ]
                 logger.info(
                     "[PLAN_AWARE_TOOLS] Multi-step plan active: "
@@ -213,9 +249,18 @@ class PlanAwareToolMiddleware(AgentMiddleware):
                 elif plan_text not in current_prompt:
                     current_prompt = current_prompt + "\n\n" + plan_text
 
-            # --- Inject strong delegation-only instruction into system prompt ---
-            if _PLAN_DELEGATION_SUFFIX.strip() not in current_prompt:
-                current_prompt = current_prompt + _PLAN_DELEGATION_SUFFIX
+            # --- Inject delegation instruction into system prompt ---
+            # Use softer suffix when direct tools are preserved.
+            has_direct_tools = self._direct_tool_names and any(
+                _tool_name(t) in self._direct_tool_names for t in filtered
+            )
+            suffix = (
+                _PLAN_WITH_DIRECT_TOOLS_SUFFIX
+                if has_direct_tools
+                else _PLAN_DELEGATION_SUFFIX
+            )
+            if suffix.strip() not in current_prompt:
+                current_prompt = current_prompt + suffix
                 request = request.override(
                     system_message=SystemMessage(content=current_prompt),
                 )
@@ -230,7 +275,7 @@ class PlanAwareToolMiddleware(AgentMiddleware):
             response = await handler(request)
 
             # --- Post-filter: strip hallucinated disallowed tool calls ---
-            allowed = _allowed_tool_names(filtered)
+            allowed = _allowed_tool_names(filtered, self._direct_tool_names)
             if allowed and isinstance(response.result, list) and response.result:
                 first_msg = response.result[0]
                 if isinstance(first_msg, AIMessage) and first_msg.tool_calls:

@@ -98,7 +98,7 @@ Rules:
 - When in doubt, continue with the current plan
 """
 
-_DELEGATION_ENFORCED_SECTION = """
+_DELEGATION_ENFORCED_SECTION = """\n
 ## CRITICAL: Plan-Driven Delegation
 When a multi-step execution plan is active:
 - You MUST delegate every step to the specialist specified in the plan
@@ -108,7 +108,6 @@ When a multi-step execution plan is active:
 - Use handoff_to_{specialist} with the step_index to assign each step
 - NEVER use domain tools like get_project, global_search, find_users, etc.
 - NEVER try to answer the user's question yourself -- delegate to specialists
-- If you are unsure what to do, call get_briefing first, then delegate the next step
 """
 
 
@@ -357,9 +356,9 @@ class SupervisorOrchestrator:
         if direct_tools:
             tool_names = ", ".join(t.name for t in direct_tools)
             direct_tools_suffix = (
-                f"\n\nYou have DIRECT access to these Backcast tools: [{tool_names}]. "
+                f"## Available direct tools\n\nYou have DIRECT access to these tools: [{tool_names}]. "
                 "Use them directly for their operations. "
-                "ALL other Backcast operations must be delegated to specialists "
+                "ALL other operations must be delegated to specialists "
                 "via handoff tools."
             )
             supervisor_prompt += direct_tools_suffix
@@ -1072,7 +1071,17 @@ class SupervisorOrchestrator:
         structured summary of all specialist work.
         """
         base = build_backcast_middleware(self.context, tools)
-        return [ContextGuardMiddleware(), PlanAwareToolMiddleware(), *base]
+        direct_tool_names: list[str] = []
+        if self.main_assistant_config and self.main_assistant_config.delegation_config:
+            direct_tool_names = (
+                self.main_assistant_config.delegation_config.get("direct_tools", [])
+                or []
+            )
+        return [
+            ContextGuardMiddleware(),
+            PlanAwareToolMiddleware(direct_tool_names=direct_tool_names),
+            *base,
+        ]
 
     def _build_fallback_graph(
         self, all_tools: list[BaseTool], config: AgentConfig

@@ -186,12 +186,12 @@ class PlanDocument(BaseModel):
 
         for step in self.steps:
             status_marker = {
-                "pending": "[ ]",
-                "in_progress": "[~]",
-                "completed": "[x]",
-                "skipped": "[-]",
-                "failed": "[!]",
-            }.get(step.status, "[?]")
+                "pending": "[pending]",
+                "in_progress": "[in progress]",
+                "completed": "[completed]",
+                "skipped": "[skipped]",
+                "failed": "[failed]",
+            }.get(step.status, "[unknown]")
 
             dep_str = f" (depends on {step.dependencies})" if step.dependencies else ""
             lines.append(
