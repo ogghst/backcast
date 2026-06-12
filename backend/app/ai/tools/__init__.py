@@ -267,7 +267,6 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     change_order_tools = [
         change_order_template.find_change_orders,
         change_order_template.create_change_order,
-        change_order_template.generate_change_order_draft,
         change_order_template.submit_change_order_for_approval,
         change_order_template.approve_change_order,
         change_order_template.reject_change_order,
@@ -304,6 +303,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     context_tools_list = [
         temporal_tools.get_temporal_context,
         temporal_tools.set_temporal_context,
+        temporal_tools.list_branches,
         context_tools.get_project_context,
         context_tools.get_project_structure,
         briefing_tools.get_briefing,
