@@ -14,10 +14,9 @@ from langgraph.types import Command
 
 from app.ai.handoff_tools import create_replan_tool
 from app.ai.middleware.plan_aware_tools import PlanAwareToolMiddleware
-from app.ai.plan import PlanDocument, PlanStep, PlannerOutput, PlannerStepOutput
-from app.ai.planner import _merge_replanned_steps
+from app.ai.plan import PlanDocument, PlannerOutput, PlannerStepOutput, PlanStep
+from app.ai.planner import _merge_replanned_steps, planner_node
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
-
 
 # =====================================================================
 # Test 1: create_replan_tool returns correct Command
@@ -243,7 +242,9 @@ def test_merge_replanned_steps_index_continuity() -> None:
         ],
     )
 
-    valid_specialists = frozenset({"project_manager", "evm_analyst", "visualization_specialist"})
+    valid_specialists = frozenset(
+        {"project_manager", "evm_analyst", "visualization_specialist"}
+    )
     merged = _merge_replanned_steps(existing_plan, new_output, valid_specialists)
 
     # 3 completed + 2 revised
@@ -337,3 +338,110 @@ async def test_plan_aware_middleware_allows_replan() -> None:
     assert "get_briefing" in tool_names
     # Domain tool should be filtered out
     assert "get_project" not in tool_names
+
+
+# =====================================================================
+# Test 7: replan with brace-laden dynamic content does not raise
+# =====================================================================
+
+
+@pytest.mark.asyncio
+async def test_planner_replan_path_with_braces_in_dynamic_content() -> None:
+    """Replan returns the LLM's revision when all dynamic values contain braces.
+
+    Characterization test for the replan assembly now that it uses
+    ``render_prompt`` (which never re-scans injected values).  Braces in the
+    injected values -- ``replan_context``, the plan step ``task_description``
+    / ``result_summary`` (via ``to_prompt_text``), and briefing findings (via
+    ``to_markdown``), including ``{__class__}`` -- must not raise and the
+    LLM's revised plan must be returned (not the silently-preserved existing
+    plan).
+
+    Note: ``str.format`` does NOT actually raise on braces in *values* (only
+    on stray braces in the template), and ``_REPLANNER_PROMPT_TEMPLATE`` is a
+    hardcoded module constant, so this scenario did not crash historically.
+    This test guards the path against future regressions -- e.g. if the
+    replanner template ever becomes DB-configurable -- and locks in the
+    single-pass, non-rescanning contract.
+    """
+    existing_plan = PlanDocument(
+        original_request="Analyze {project} structure",  # brace in request
+        steps=[
+            PlanStep(
+                step_index=0,
+                specialist="evm_analyst",
+                task_description="Check {__class__} leak in CPI {calc}",  # braces
+                status="completed",
+                result_summary="CPI=0.94 with {specialist_section} artifact",
+            ),
+            PlanStep(
+                step_index=1,
+                specialist="evm_analyst",
+                task_description="Step 1 {pending}",
+                status="pending",
+            ),
+        ],
+        requires_planning=True,
+    )
+
+    revised_output = PlannerOutput(
+        original_request="Analyze {project} structure",
+        requires_planning=True,
+        estimated_complexity="moderate",
+        steps=[
+            PlannerStepOutput(
+                step_index=0,
+                specialist="evm_analyst",
+                task_description="Revised task containing {bracket} too",
+                dependencies=[],
+                expected_output="Revised {result}",
+            ),
+        ],
+    )
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = MagicMock(content=revised_output.model_dump_json())
+
+    # Briefing findings carry braces too (to_markdown output is injected)
+    briefing_data: dict[str, Any] = {
+        "original_request": "Analyze {project} structure",
+        "sections": [
+            {
+                "specialist_name": "evm_analyst",
+                "findings": "CPI=0.94 {__class__} artifact in {plan_section}",
+                "key_findings": ["{__class__} present"],
+                "open_questions": [],
+                "delegation_notes": "",
+                "task_description": "Check {__class__} leak",
+            }
+        ],
+        "supervisor_analysis": "",
+        "task_history": [],
+    }
+
+    state: dict[str, Any] = {
+        "messages": [HumanMessage(content="Analyze {project} structure")],
+        "plan_data": existing_plan.model_dump(),
+        "replan_context": "Step 1 redundant: {__class__} makes {plan_section} moot",
+        "briefing_data": briefing_data,
+    }
+
+    catalog = [
+        {"name": "evm_analyst", "description": "EVM metric {analysis}"},
+    ]
+
+    # Must not raise; must return the LLM's revised plan (NOT the existing plan).
+    result = await planner_node(state, mock_llm, specialist_catalog=catalog)
+
+    assert result["replan_context"] == ""
+    plan = PlanDocument.from_state(result["plan_data"])
+
+    # Completed step 0 preserved; revised step added at index 1.
+    assert len(plan.steps) == 2
+    assert plan.steps[0].status == "completed"
+    assert plan.steps[1].status == "pending"
+    assert plan.steps[1].specialist == "evm_analyst"
+    assert "Revised task" in plan.steps[1].task_description
+
+    # LLM was actually called (the assembly did not bail to the fallback path).
+    mock_llm.ainvoke.assert_awaited_once()

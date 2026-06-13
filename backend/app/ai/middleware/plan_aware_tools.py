@@ -32,6 +32,7 @@ from langchain_core.tools import BaseTool
 
 from app.ai.config import AI_DELEGATION_ENFORCED
 from app.ai.plan import PlanDocument
+from app.ai.prompt_template import render_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -210,16 +211,13 @@ class PlanAwareToolMiddleware(AgentMiddleware):
         state = dict(request.state) if request.state else {}
         if AI_DELEGATION_ENFORCED and _has_active_plan(state) and request.tools:
             original_count = len(request.tools)
-            filtered = _filter_tools_for_plan(
-                request.tools, self._direct_tool_names
-            )
+            filtered = _filter_tools_for_plan(request.tools, self._direct_tool_names)
             if len(filtered) < original_count:
                 removed_names = [
                     _tool_name(t)
                     for t in request.tools
                     if not any(
-                        _tool_name(t).startswith(prefix)
-                        for prefix in _ALLOWED_PREFIXES
+                        _tool_name(t).startswith(prefix) for prefix in _ALLOWED_PREFIXES
                     )
                     and _tool_name(t) not in self._direct_tool_names
                 ]
@@ -243,8 +241,8 @@ class PlanAwareToolMiddleware(AgentMiddleware):
                 plan_text = plan.to_prompt_text()
 
                 if "{plan_section}" in current_prompt:
-                    current_prompt = current_prompt.replace(
-                        "{plan_section}", plan_text, 1
+                    current_prompt = render_prompt(
+                        current_prompt, plan_section=plan_text
                     )
                 elif plan_text not in current_prompt:
                     current_prompt = current_prompt + "\n\n" + plan_text
@@ -289,7 +287,9 @@ class PlanAwareToolMiddleware(AgentMiddleware):
         # the supervisor never sees the literal template tag.
         current_prompt = request.system_message.text if request.system_message else ""
         if "{plan_section}" in current_prompt:
-            current_prompt = current_prompt.replace("{plan_section}", "No execution plan — delegate directly.", 1)
+            current_prompt = render_prompt(
+                current_prompt, plan_section="No execution plan — delegate directly."
+            )
             request = request.override(
                 system_message=SystemMessage(content=current_prompt),
             )

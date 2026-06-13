@@ -45,6 +45,7 @@ from app.ai.middleware.context_guard import ContextGuardMiddleware
 from app.ai.middleware.plan_aware_tools import PlanAwareToolMiddleware
 from app.ai.plan import PlanDocument
 from app.ai.planner import planner_node
+from app.ai.prompt_template import render_prompt
 from app.ai.subagent_compiler import (
     build_backcast_middleware,
     compile_subagents,
@@ -317,7 +318,9 @@ class SupervisorOrchestrator:
         get_briefing_tool = _create_get_briefing_tool()
         handoff_tools = create_all_handoff_tools(specialist_graphs)
         replan_tool = create_replan_tool()
-        supervisor_tools: list[BaseTool] = [get_briefing_tool, replan_tool] + list(handoff_tools)
+        supervisor_tools: list[BaseTool] = [get_briefing_tool, replan_tool] + list(
+            handoff_tools
+        )
 
         direct_tool_names: list[str] = []
         if self.main_assistant_config and self.main_assistant_config.delegation_config:
@@ -336,12 +339,15 @@ class SupervisorOrchestrator:
         # --- 4. Build supervisor agent ---
         base_prompt = self.system_prompt or _BASE_SUPERVISOR_PROMPT
 
-        # Resolve {specialist_section} placeholder BEFORE appending sections
-        # that may contain literal {braces} which would collide with .format()
+        # Resolve {specialist_section} placeholder (allowlisting only that tag so
+        # the literal {plan_section} placeholder survives verbatim for the
+        # PlanAwareToolMiddleware pass that fills it at runtime). render_prompt
+        # never raises and never re-scans injected values, so specialist
+        # descriptions containing stray braces are safe here.
         specialist_section = _build_supervisor_specialist_section(specialist_graphs)
         if "{specialist_section}" in base_prompt:
-            base_prompt = base_prompt.replace(
-                "{specialist_section}", specialist_section, 1
+            base_prompt = render_prompt(
+                base_prompt, specialist_section=specialist_section
             )
         else:
             base_prompt = base_prompt + specialist_section
@@ -559,7 +565,9 @@ class SupervisorOrchestrator:
                                 max_replan,
                             )
                             return END
-                        logger.info("[SUPERVISOR] Replan requested (count=%d)", replan_count)
+                        logger.info(
+                            "[SUPERVISOR] Replan requested (count=%d)", replan_count
+                        )
                         return "planner"
                     if tool_name.startswith("handoff_to_"):
                         slug = tool_name.removeprefix("handoff_to_")
@@ -962,7 +970,9 @@ class SupervisorOrchestrator:
                 pending = [s for s in active_plan.steps if s.status == "pending"]
                 if pending:
                     next_step = pending[0]
-                    result_preview = cleaned_findings[:500] if cleaned_findings else "(no result)"
+                    result_preview = (
+                        cleaned_findings[:500] if cleaned_findings else "(no result)"
+                    )
                     plan_msg = (
                         f"Plan step {active_step.step_index + 1}/{len(active_plan.steps)} "
                         f"completed by {specialist_name}.\n"

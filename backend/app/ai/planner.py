@@ -19,6 +19,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
 
 from app.ai.plan import PlanDocument, PlannerOutput, PlanStep
+from app.ai.prompt_template import render_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def build_planner_system_prompt(
     specialist_section = _build_specialist_section(catalog)
     template = custom_template or _PLANNER_PROMPT_TEMPLATE
     if "{specialist_section}" in template:
-        return template.replace("{specialist_section}", specialist_section, 1)
+        return render_prompt(template, specialist_section=specialist_section)
     return template + "\n\n" + specialist_section
 
 
@@ -335,7 +336,8 @@ async def planner_node(
         valid_names = frozenset(entry["name"] for entry in catalog)
 
         specialist_section = _build_specialist_section(catalog)
-        replan_prompt = _REPLANNER_PROMPT_TEMPLATE.format(
+        replan_prompt = render_prompt(
+            _REPLANNER_PROMPT_TEMPLATE,
             replan_reason=replan_context,
             existing_plan_text=existing_plan.to_prompt_text(),
             briefing_context=briefing_context or "No findings yet.",
