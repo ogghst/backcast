@@ -479,8 +479,8 @@ class TestToPromptText:
         assert "Request: Analyze EVM and build dashboard" in text
         assert "Complexity: moderate" in text
         assert "Steps: 2" in text
-        assert "[ ] evm_analyst: Calculate EVM metrics" in text
-        assert "[ ] visualization_specialist: Build dashboard" in text
+        assert "[pending] evm_analyst: Calculate EVM metrics" in text
+        assert "[pending] visualization_specialist: Build dashboard" in text
         assert "depends on [0]" in text
         assert "Input: EVM metrics from step 0" in text
 
@@ -497,7 +497,7 @@ class TestToPromptText:
         )
         doc.mark_step_completed(0, "Found 3 projects")
         text = doc.to_prompt_text()
-        assert "[x] project_manager: List projects" in text
+        assert "[completed] project_manager: List projects" in text
         assert "Result: Found 3 projects" in text
 
     def test_to_prompt_text_failed_step(self) -> None:
@@ -513,7 +513,7 @@ class TestToPromptText:
         )
         doc.mark_step_failed(0, "Data unavailable")
         text = doc.to_prompt_text()
-        assert "[!] evm_analyst: Bad analysis" in text
+        assert "[failed] evm_analyst: Bad analysis" in text
         assert "Result: Data unavailable" in text
 
 

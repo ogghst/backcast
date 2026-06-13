@@ -77,8 +77,8 @@ You are revising an execution plan based on new findings from completed speciali
 {specialist_section}
 
 ## Rules for Replanning
-- COMPLETED steps (marked [x]) MUST be preserved exactly as-is
-- Only revise PENDING steps (marked [ ])
+- COMPLETED steps (marked [completed]) MUST be preserved exactly as-is
+- Only revise PENDING steps (marked [pending])
 - New/revised steps get step_index values starting AFTER the last completed step
 - You may REMOVE pending steps that are now redundant
 - You may ADD new steps if findings reveal additional work
