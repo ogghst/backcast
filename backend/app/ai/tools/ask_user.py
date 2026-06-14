@@ -101,6 +101,18 @@ def cancel_asks_for_execution(execution_id: str) -> int:
     return cancelled
 
 
+def is_ask_user_pending() -> bool:
+    """True if any ask_user request is currently awaiting a human response.
+
+    Used by the specialist step-timeout to PAUSE its deadline while a
+    specialist is legitimately blocked on a human response.  Note this is
+    a global predicate (any in-flight ask) -- conservative for this
+    single-conversation-per-process server: it errs toward waiting rather
+    than wrongly killing a specialist mid-clarification.
+    """
+    return any(not fut.done() for fut, _ in _pending_asks.values())
+
+
 @ai_tool(
     name="ask_user",
     description=(

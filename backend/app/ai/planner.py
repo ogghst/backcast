@@ -12,6 +12,7 @@ Inserted between initialize_briefing and supervisor in the graph flow:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -287,6 +288,66 @@ def _extract_user_request(messages: list[Any]) -> str:
     return ""
 
 
+# Matches a fenced block with an optional language tag (```` ```json ```` or
+# bare ``` ``` ```).  DOTALL so the body may span newlines.
+_FENCE_RE = re.compile(r"```(?:[a-zA-Z0-9_+-]*)?\s*\n(.*?)\n```", re.DOTALL)
+
+
+def _extract_json(content: str) -> str:
+    """Return the most-likely JSON substring from raw LLM output.
+
+    DeepSeek-thinking and GLM routinely emit reasoning prose before the JSON.
+    This recovers the JSON so ``PydanticOutputParser.parse`` does not fail on
+    otherwise-valid output.  Strategy, in priority order:
+
+    1. A fenced ```` ```json ... ``` ```` (or bare ``` ``` ```) block.
+    2. The first balanced top-level ``{ ... }`` object, scanning with string
+       awareness so braces inside JSON string literals do not unbalance it.
+    3. The original content unchanged (let ``parser.parse`` raise normally).
+
+    Args:
+        content: Raw LLM response text.
+
+    Returns:
+        The extracted JSON substring, or *content* unchanged when nothing
+        resembling JSON was found.
+    """
+    fenced = _FENCE_RE.search(content)
+    if fenced:
+        return fenced.group(1).strip()
+
+    # Balanced-brace scan, string-aware: braces inside "..." (with escaped
+    # \") must not affect the depth counter.
+    start = content.find("{")
+    if start == -1:
+        return content
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for i in range(start, len(content)):
+        ch = content[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return content[start : i + 1]
+
+    # Unbalanced -- let the parser raise with the original content.
+    return content
+
+
 async def planner_node(
     state: dict[str, Any],
     llm: BaseChatModel,
@@ -360,14 +421,25 @@ async def planner_node(
                     HumanMessage(content=prompt),
                 ]
             )
+        except Exception:
+            logger.exception("[PLANNER] replan llm_call_failed, keeping existing plan")
+            plan = existing_plan
+        else:
             content = response.content
             if not isinstance(content, str):
                 content = str(content)
-            planner_output = parser.parse(content)
-            plan = _merge_replanned_steps(existing_plan, planner_output, valid_names)
-        except Exception:
-            logger.exception("[PLANNER] Replan LLM call failed, keeping existing plan")
-            plan = existing_plan
+            try:
+                planner_output = parser.parse(_extract_json(content))
+            except Exception:
+                logger.warning(
+                    "[PLANNER] replan parse_failed, keeping existing plan: %s",
+                    content[:200],
+                )
+                plan = existing_plan
+            else:
+                plan = _merge_replanned_steps(
+                    existing_plan, planner_output, valid_names
+                )
 
         logger.info(
             "[PLANNER] Replan complete: %d steps (%d completed preserved, %d revised)",
@@ -438,15 +510,26 @@ async def planner_node(
                 HumanMessage(content=prompt),
             ]
         )
+    except Exception:
+        logger.exception("[PLANNER] llm_call_failed, falling back to single step")
+        plan = _fallback_plan(user_request)
+    else:
         content = response.content
         if not isinstance(content, str):
             content = str(content)
-        planner_output = parser.parse(content)
-        logger.debug("[PLANNER] Parsed output: %s", planner_output)
-        plan = _convert_planner_output(planner_output, valid_specialists=valid_names)
-    except Exception:
-        logger.exception("[PLANNER] LLM call failed, falling back to single step")
-        plan = _fallback_plan(user_request)
+        try:
+            planner_output = parser.parse(_extract_json(content))
+        except Exception:
+            logger.warning(
+                "[PLANNER] parse_failed, falling back to single step: %s",
+                content[:200],
+            )
+            plan = _fallback_plan(user_request)
+        else:
+            logger.debug("[PLANNER] Parsed output: %s", planner_output)
+            plan = _convert_planner_output(
+                planner_output, valid_specialists=valid_names
+            )
 
     logger.info(
         "[PLANNER] Plan created: complexity=%s, steps=%d, requires_planning=%s",

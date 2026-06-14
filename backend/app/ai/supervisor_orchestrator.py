@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -58,6 +60,141 @@ from app.ai.tools.types import ToolContext
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Exponential backoff parameters for specialist invocation retries.
+# Tunable later if real-world throttling data warrants different values.
+_SPECIALIST_RETRY_BASE_S = 1.0
+_SPECIALIST_RETRY_CAP_S = 20.0
+_SPECIALIST_RETRY_JITTER_S = 0.5
+
+
+async def _await_with_pausable_deadline(
+    coro: Awaitable[dict[str, Any]],
+    *,
+    timeout: float,
+    tick: float = 0.5,
+) -> dict[str, Any]:
+    """Await *coro*, enforcing a wall-clock *timeout* that PAUSES while an
+    ask_user request is awaiting a human response.
+
+    Provider stalls still trip the timeout; legitimate user-waits
+    (ask_user) do not, because ask_user carries its own response timeout.
+
+    The deadline is sliced into ``tick``-second windows.  A tick-timeout
+    (``TimeoutError`` from ``wait_for(asyncio.shield(task), tick)``) only
+    accrues toward *timeout* when NO ask_user is pending; while one is
+    pending the clock pauses (the user-wait does not count toward the
+    provider-stall budget).  When elapsed active time reaches *timeout*,
+    the underlying task is cancelled and a retryable ``TimeoutError`` is
+    raised.
+
+    Args:
+        coro: The specialist invocation to await.
+        timeout: Active (non-paused) seconds budget for the invocation.
+        tick: Window size for the deadline slicer (default 0.5s).
+
+    Returns:
+        The specialist result dict.
+
+    Raises:
+        TimeoutError: When active elapsed time reaches *timeout* (real stall).
+    """
+    from app.ai.tools.ask_user import is_ask_user_pending
+
+    # Clamp the tick to ``timeout`` so a single slicer window can never be
+    # larger than the entire active budget -- otherwise a real stall whose
+    # inner hang is shorter than ``tick`` would slip through unnoticed.
+    effective_tick = min(tick, timeout)
+
+    task = asyncio.ensure_future(coro)
+    elapsed = 0.0
+    try:
+        while True:
+            try:
+                # shield so a tick-timeout does NOT cancel the underlying task
+                return await asyncio.wait_for(
+                    asyncio.shield(task), timeout=effective_tick
+                )
+            except TimeoutError:
+                # Only accrue time when NOT waiting on a human.
+                if not is_ask_user_pending():
+                    elapsed += effective_tick
+                    if elapsed >= timeout:
+                        # Real stall: cancel the task and surface a retryable timeout.
+                        task.cancel()
+                        raise TimeoutError(
+                            f"specialist invocation exceeded {timeout:.0f}s of active time"
+                        ) from None
+                # else: an ask_user is pending -> pause the deadline (do not accrue).
+    except BaseException:
+        # Ensure the task is cancelled if we bail for any reason while
+        # it's still running.
+        if not task.done():
+            task.cancel()
+        raise
+
+
+async def _invoke_specialist_with_retry(
+    invoke: Callable[[], Awaitable[dict[str, Any]]],
+    *,
+    specialist_name: str,
+    max_retries: int,
+    timeout: float,
+) -> dict[str, Any]:
+    """Invoke a specialist subgraph with a pausable timeout and retry.
+
+    Wraps ``invoke()`` in ``_await_with_pausable_deadline`` so a provider
+    stall (no exception, just a hang) is bounded by ``timeout`` seconds of
+    ACTIVE time, while PAUSING the deadline while the specialist is
+    legitimately blocked on ``ask_user`` awaiting a human response.  On a
+    retryable error (timeout or a transient stream error per
+    ``is_transient_stream_error``), retries with exponential backoff plus
+    jitter (``min(base * 2**attempt, cap) + uniform(0, jitter)``).
+
+    On the final attempt or a non-retryable error the exception is
+    re-raised so the calling wrapper's existing error-handling block can
+    compile the failure into the briefing.
+
+    Args:
+        invoke: Zero-arg async factory returning the specialist's result.
+        specialist_name: Display name used in retry log lines.
+        max_retries: Number of retries after the initial attempt.
+        timeout: Active (non-paused) seconds for a single invocation.
+
+    Returns:
+        The specialist result dict on success.
+
+    Raises:
+        Exception: The last error when retries are exhausted, or the
+            original error if it is not retryable.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return await _await_with_pausable_deadline(invoke(), timeout=timeout)
+        except Exception as exc:
+            retryable = isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or (
+                is_transient_stream_error(exc)
+            )
+            if retryable and attempt < max_retries:
+                logger.warning(
+                    "[SPECIALIST_RETRY] %s retryable error (attempt %d/%d): %s",
+                    specialist_name,
+                    attempt + 1,
+                    max_retries + 1,
+                    exc,
+                )
+                delay = min(
+                    _SPECIALIST_RETRY_BASE_S * 2**attempt,
+                    _SPECIALIST_RETRY_CAP_S,
+                ) + random.uniform(0, _SPECIALIST_RETRY_JITTER_S)
+                await asyncio.sleep(delay)
+                continue
+            raise
+    # Unreachable when max_retries >= 0 (every non-raising path returns).
+    raise RuntimeError(
+        f"_invoke_specialist_with_retry exited loop for {specialist_name}"
+    )
+
 
 _BASE_SUPERVISOR_PROMPT = """You are a supervisor for the Backcast project budget management system.
 
@@ -771,7 +908,6 @@ class SupervisorOrchestrator:
 
             max_iterations = state.get("max_tool_iterations", 25)
             max_retries = settings.AI_SPECIALIST_MAX_RETRIES
-            result = None
             # Read the invocation_id generated by the handoff tool from the
             # graph state.  A single consistent ID ensures the frontend can
             # correlate SUBAGENT, token_batch, and AGENT_COMPLETE events.
@@ -793,9 +929,9 @@ class SupervisorOrchestrator:
                     )
                 )
 
-            for _attempt in range(max_retries + 1):
-                try:
-                    result = await specialist_graph.ainvoke(
+            try:
+                result = await _invoke_specialist_with_retry(
+                    lambda: specialist_graph.ainvoke(
                         {
                             "messages": isolated_messages,
                             "tool_call_count": 0,
@@ -803,105 +939,94 @@ class SupervisorOrchestrator:
                             "next": "agent",
                         },
                         config={"recursion_limit": max_iterations},
+                    ),
+                    specialist_name=specialist_name,
+                    max_retries=max_retries,
+                    timeout=float(settings.AI_SPECIALIST_STEP_TIMEOUT),
+                )
+            except Exception as exc:
+                logger.error(
+                    "[SPECIALIST_ERROR] %s failed: %s",
+                    specialist_name,
+                    exc,
+                    exc_info=True,
+                )
+                error_msg = f"Specialist {specialist_name} encountered an error: {exc}"
+                updated_data = compile_specialist_output(
+                    briefing_data=state.get("briefing_data", {}),
+                    specialist_name=specialist_name,
+                    task_description=f"Failed: {exc}",
+                    specialist_output=error_msg,
+                )
+                error_update: dict[str, Any] = {
+                    "briefing_data": updated_data,
+                    "active_agent": "supervisor",
+                    "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
+                    "tool_call_count": 0,
+                }
+                if active_step is not None and active_plan is not None:
+                    active_plan.mark_step_failed(
+                        active_step.step_index, f"Specialist error: {exc}"
                     )
-                    break
-                except Exception as exc:
-                    if is_transient_stream_error(exc) and _attempt < max_retries:
-                        logger.warning(
-                            "[SPECIALIST_RETRY] %s transient error (attempt %d/%d): %s",
-                            specialist_name,
-                            _attempt + 1,
-                            max_retries + 1,
-                            exc,
-                        )
-                        await asyncio.sleep(2.0)
-                        continue
-                    logger.error(
-                        "[SPECIALIST_ERROR] %s failed: %s",
-                        specialist_name,
-                        exc,
-                        exc_info=True,
-                    )
-                    error_msg = (
-                        f"Specialist {specialist_name} encountered an error: {exc}"
-                    )
-                    updated_data = compile_specialist_output(
-                        briefing_data=state.get("briefing_data", {}),
-                        specialist_name=specialist_name,
-                        task_description=f"Failed: {exc}",
-                        specialist_output=error_msg,
-                    )
-                    error_update: dict[str, Any] = {
-                        "briefing_data": updated_data,
-                        "active_agent": "supervisor",
-                        "supervisor_iterations": state.get("supervisor_iterations", 0)
-                        + 1,
-                        "tool_call_count": 0,
-                    }
-                    if active_step is not None and active_plan is not None:
-                        active_plan.mark_step_failed(
-                            active_step.step_index, f"Specialist error: {exc}"
-                        )
-                        error_update["plan_data"] = active_plan.model_dump()
-                        self._publish_plan_update(active_plan)
+                    error_update["plan_data"] = active_plan.model_dump()
+                    self._publish_plan_update(active_plan)
 
-                    # Publish BRIEFING_UPDATE + AGENT_COMPLETE
-                    # for the error path — same as success path below.
-                    if self._event_bus is not None:
-                        from app.models.schemas.ai import (
-                            BriefingDocumentPublic,
-                            BriefingSectionPublic,
-                            WSBriefingMessage,
-                        )
+                # Publish BRIEFING_UPDATE + AGENT_COMPLETE
+                # for the error path — same as success path below.
+                if self._event_bus is not None:
+                    from app.models.schemas.ai import (
+                        BriefingDocumentPublic,
+                        BriefingSectionPublic,
+                        WSBriefingMessage,
+                    )
 
-                        error_doc = BriefingDocument.from_state(updated_data)
-                        error_briefing_md = error_doc.to_markdown()
-                        if error_briefing_md:
-                            self._event_bus.publish(
-                                AgentEvent(
-                                    event_type=AgentEventType.BRIEFING_UPDATE,
-                                    data=WSBriefingMessage(
-                                        type=AgentEventType.BRIEFING_UPDATE,
-                                        briefing=BriefingDocumentPublic(
-                                            original_request=error_doc.original_request,
-                                            follow_up_requests=error_doc.follow_up_requests,
-                                            sections=[
-                                                BriefingSectionPublic(
-                                                    specialist_name=s.specialist_name,
-                                                    summary=s.findings,
-                                                    key_findings=s.key_findings or [],
-                                                    open_questions=s.open_questions
-                                                    or [],
-                                                    delegation_notes=s.delegation_notes
-                                                    or "",
-                                                    task_description=s.task_description,
-                                                    step_index=s.step_index,
-                                                )
-                                                for s in error_doc.sections
-                                            ],
-                                            supervisor_analysis=error_doc.supervisor_analysis,
-                                            markdown=error_briefing_md,
-                                        ),
-                                        specialist_name=specialist_name,
-                                        completed_specialists=[],
-                                    ).model_dump(mode="json"),
-                                    timestamp=datetime.now(UTC),
-                                )
-                            )
+                    error_doc = BriefingDocument.from_state(updated_data)
+                    error_briefing_md = error_doc.to_markdown()
+                    if error_briefing_md:
                         self._event_bus.publish(
                             AgentEvent(
-                                event_type=AgentEventType.AGENT_COMPLETE,
-                                data={
-                                    "type": AgentEventType.AGENT_COMPLETE,
-                                    "agent_type": "subagent",
-                                    "agent_name": specialist_name,
-                                    "invocation_id": invocation_id,
-                                },
+                                event_type=AgentEventType.BRIEFING_UPDATE,
+                                data=WSBriefingMessage(
+                                    type=AgentEventType.BRIEFING_UPDATE,
+                                    briefing=BriefingDocumentPublic(
+                                        original_request=error_doc.original_request,
+                                        follow_up_requests=error_doc.follow_up_requests,
+                                        sections=[
+                                            BriefingSectionPublic(
+                                                specialist_name=s.specialist_name,
+                                                summary=s.findings,
+                                                key_findings=s.key_findings or [],
+                                                open_questions=s.open_questions or [],
+                                                delegation_notes=s.delegation_notes
+                                                or "",
+                                                task_description=s.task_description,
+                                                step_index=s.step_index,
+                                            )
+                                            for s in error_doc.sections
+                                        ],
+                                        supervisor_analysis=error_doc.supervisor_analysis,
+                                        markdown=error_briefing_md,
+                                    ),
+                                    specialist_name=specialist_name,
+                                    completed_specialists=[],
+                                ).model_dump(mode="json"),
                                 timestamp=datetime.now(UTC),
                             )
                         )
+                    self._event_bus.publish(
+                        AgentEvent(
+                            event_type=AgentEventType.AGENT_COMPLETE,
+                            data={
+                                "type": AgentEventType.AGENT_COMPLETE,
+                                "agent_type": "subagent",
+                                "agent_name": specialist_name,
+                                "invocation_id": invocation_id,
+                            },
+                            timestamp=datetime.now(UTC),
+                        )
+                    )
 
-                    return Command(update=error_update, goto="supervisor")
+                return Command(update=error_update, goto="supervisor")
 
             assert result is not None
 

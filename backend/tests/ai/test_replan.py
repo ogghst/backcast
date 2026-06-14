@@ -273,8 +273,16 @@ def test_merge_replanned_steps_index_continuity() -> None:
 
 
 @pytest.mark.asyncio
-async def test_plan_aware_middleware_allows_replan() -> None:
+async def test_plan_aware_middleware_allows_replan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Verify PlanAwareToolMiddleware does not strip request_replan from the tool list."""
+    # AI_DELEGATION_ENFORCED is env-driven (backend/.env); force it on here so this
+    # test exercises the domain-tool filtering path deterministically, independent
+    # of whatever the environment sets.
+    monkeypatch.setattr(
+        "app.ai.middleware.plan_aware_tools.AI_DELEGATION_ENFORCED", True
+    )
     middleware = PlanAwareToolMiddleware()
 
     # Create mock tools

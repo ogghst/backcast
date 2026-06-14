@@ -1,10 +1,11 @@
 """Configuration dataclasses for AI agent creation."""
 
 import logging
-import os
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -41,49 +42,35 @@ class AgentConfig:
 
 # ---------------------------------------------------------------------------
 # System-level runtime settings (NOT configurable via UI / DB).
-# Controlled via environment variables for deployment tuning.
+# Controlled via environment variables (backend/.env) for deployment tuning.
+# Sourced from the pydantic ``Settings`` singleton so .env is honored; re-exported
+# here under stable names for all existing ``from app.ai.config import ...`` callers.
 # ---------------------------------------------------------------------------
 
 #: Maximum estimated prompt-token count before context summarization kicks in.
-AI_CONTEXT_TOKEN_LIMIT: int = int(os.environ.get("AI_CONTEXT_TOKEN_LIMIT", "120000"))
+AI_CONTEXT_TOKEN_LIMIT: int = settings.AI_CONTEXT_TOKEN_LIMIT
 
 #: Percentage (0-100) of the token limit at which summarization triggers.
-AI_CONTEXT_SUMMARY_THRESHOLD_PCT: int = int(
-    os.environ.get("AI_CONTEXT_SUMMARY_THRESHOLD_PCT", "80")
-)
+AI_CONTEXT_SUMMARY_THRESHOLD_PCT: int = settings.AI_CONTEXT_SUMMARY_THRESHOLD_PCT
 
 #: Number of recent messages to keep unsummarized at the head of context.
-AI_CONTEXT_KEEP_RECENT: int = int(os.environ.get("AI_CONTEXT_KEEP_RECENT", "8"))
+AI_CONTEXT_KEEP_RECENT: int = settings.AI_CONTEXT_KEEP_RECENT
 
 #: When a multi-step plan exists, strip ALL domain tools from the supervisor
 #: and force delegation via handoff tools only.
-AI_DELEGATION_ENFORCED: bool = os.environ.get(
-    "AI_DELEGATION_ENFORCED", "true"
-).lower() in (
-    "true",
-    "1",
-    "yes",
-)
+AI_DELEGATION_ENFORCED: bool = settings.AI_DELEGATION_ENFORCED
 
 #: When true, enforce sequential tool execution (one tool call at a time).
 #: Prevents DB pool exhaustion and race conditions from concurrent tool calls.
 #: Set to false to allow parallel tool execution.
-AI_SEQUENTIAL_TOOL_CALLS: bool = os.environ.get(
-    "AI_SEQUENTIAL_TOOL_CALLS", "true"
-).lower() in (
-    "true",
-    "1",
-    "yes",
-)
+AI_SEQUENTIAL_TOOL_CALLS: bool = settings.AI_SEQUENTIAL_TOOL_CALLS
 
 #: Tool-category prefix used to identify MCP tools from external servers.
-AI_MCP_TOOL_CATEGORY_PREFIX: str = os.environ.get("AI_MCP_TOOL_CATEGORY_PREFIX", "mcp:")
+AI_MCP_TOOL_CATEGORY_PREFIX: str = settings.AI_MCP_TOOL_CATEGORY_PREFIX
 
 
 #: Default page size for AI tool list/find operations (env-configurable).
-AI_TOOLS_DEFAULT_PAGE_SIZE: int = int(
-    os.environ.get("AI_TOOLS_DEFAULT_PAGE_SIZE", "50")
-)
+AI_TOOLS_DEFAULT_PAGE_SIZE: int = settings.AI_TOOLS_DEFAULT_PAGE_SIZE
 
 __all__ = [
     "AgentConfig",
