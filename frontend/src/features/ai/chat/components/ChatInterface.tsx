@@ -42,7 +42,7 @@ import { BriefingPeekBar } from "./BriefingPeekBar";
 import { type BriefingState } from "./BriefingContent";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
 import type { ChatMessage } from "../../types";
-import type { MainAgentStream, SubagentStream, StreamingState, TokenUsage, ToolCallRemark } from "../types";
+import type { ContentPart, MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../types";
 import type { WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
@@ -419,10 +419,11 @@ export const ChatInterface = ({
   // Track invocation counts per subagent name
   const [subagentInvocationCounts, setSubagentInvocationCounts] = useState<Record<string, number>>({});
 
-  // Track sequence order for streams (to ensure proper rendering order)
-  // Split counters for main agents and subagents to maintain ordering
-  const mainSequenceRef = useRef(0);
-  const subagentSequenceRef = useRef(0);
+  // Global sequence order for streams (shared across main + subagent so they
+  // interleave in true chronological order during rendering).
+  const globalSequenceRef = useRef(0);
+  // Unique id generator for tool_call parts within a stream.
+  const toolCallPartIdRef = useRef(0);
   const completionTurnRef = useRef(0);
 
   // Replay buffer — collects tokens during replay batching, flushed on replay_end
@@ -645,37 +646,43 @@ export const ChatInterface = ({
             const uniqueId = `${invocationId}-cr${contentResetCounterRef.current++}`;
             mainStreams.set(uniqueId, {
               invocation_id: uniqueId,
-              content: filteredToken,
+              parts: [{ type: "text", text: filteredToken }],
               is_active: true,
               is_complete: false,
               started_at: Date.now(),
-              sequence: mainSequenceRef.current++,
+              globalSequence: globalSequenceRef.current++,
             });
             contentResetOccurredRef.current = false; // Reset flag after first token
             return { ...prev, mainStreams };
           }
 
           if (existing) {
+            // Coalesce tokens into the last part only when it's text, so a
+            // tool call correctly splits subsequent text into a new part.
+            const lastPart = existing.parts[existing.parts.length - 1];
+            const parts = lastPart && lastPart.type === "text"
+              ? [...existing.parts.slice(0, -1), { type: "text" as const, text: lastPart.text + filteredToken }]
+              : [...existing.parts, { type: "text" as const, text: filteredToken }];
             mainStreams.set(invocationId, {
               ...existing,
-              content: existing.content + filteredToken,
+              parts,
               is_active: true,
             });
           } else {
             mainStreams.set(invocationId, {
               invocation_id: invocationId,
-              content: filteredToken,
+              parts: [{ type: "text", text: filteredToken }],
               is_active: true,
               is_complete: false,
               started_at: Date.now(),
-              sequence: mainSequenceRef.current++,
+              globalSequence: globalSequenceRef.current++,
             });
           }
 
           return { ...prev, mainStreams };
         });
       } else {
-        // Fallback: group in main (backward compatibility)
+        // Fallback: group in main (backward compatibility, no-op render reader)
         setStreamingState((prev) => ({
           ...prev,
           main: prev.main + filteredToken,
@@ -688,21 +695,26 @@ export const ChatInterface = ({
         const existing = subagents.get(invocationId);
 
         if (existing) {
-          // Update existing subagent stream
+          // Coalesce tokens into the last text part only.
+          const lastPart = existing.parts[existing.parts.length - 1];
+          const parts = lastPart && lastPart.type === "text"
+            ? [...existing.parts.slice(0, -1), { type: "text" as const, text: lastPart.text + token }]
+            : [...existing.parts, { type: "text" as const, text: token }];
           subagents.set(invocationId, {
             ...existing,
-            content: existing.content + token,
+            parts,
             is_active: true,
           });
         } else {
-          // Create new subagent stream (shouldn't happen if subagent message was sent first)
+          // Create new subagent stream (fallback when no SUBAGENT event fired first)
           subagents.set(invocationId, {
             invocation_id: invocationId,
             subagent_name: subagentName || "Subagent",
-            content: token,
+            parts: [{ type: "text", text: token }],
             is_active: true,
             is_complete: false,
             started_at: Date.now(),
+            globalSequence: globalSequenceRef.current++,
           });
         }
 
@@ -736,12 +748,12 @@ export const ChatInterface = ({
       subagents.set(invocationId, {
         invocation_id: invocationId,
         subagent_name: subagent,
-        content: "",
+        parts: [],
         is_active: true,
         is_complete: false,
         started_at: Date.now(),
         invocation_number: invocationNumber,
-        sequence: subagentSequenceRef.current++,
+        globalSequence: globalSequenceRef.current++,
       });
       return { ...prev, subagents };
     });
@@ -890,8 +902,7 @@ export const ChatInterface = ({
               // Keep completed subagents visible until user sends a new message
               subagents: prev.subagents,
             }));
-            mainSequenceRef.current = 0;
-            subagentSequenceRef.current = 0;
+            globalSequenceRef.current = 0;
           }
         });
     },
@@ -902,8 +913,24 @@ export const ChatInterface = ({
     setIsWaitingForResponse(false);
     setError(`Chat error: ${errorMsg}`);
     setPendingUserMessage(null);
-    // Clear stuck streaming state
-    setStreamingState(EMPTY_STREAMING_STATE);
+    // Mark all streams as inactive (stop spinners) but KEEP their content
+    // visible — an interrupted/error bubble should not vanish. is_complete is
+    // left as-is; a "Done" checkmark would be misleading on an interrupted turn.
+    setStreamingState((prev) => ({
+      main: "",
+      mainStreams: new Map(
+        Array.from(prev.mainStreams.entries()).map(([id, s]) => [
+          id,
+          { ...s, is_active: false },
+        ]),
+      ),
+      subagents: new Map(
+        Array.from(prev.subagents.entries()).map(([id, s]) => [
+          id,
+          { ...s, is_active: false },
+        ]),
+      ),
+    }));
   }, []);
 
   // Debug: Capture all raw WebSocket messages
@@ -1003,6 +1030,14 @@ export const ChatInterface = ({
 
   const handleToolCall = useCallback((tool: string, args: Record<string, unknown>, invocationId?: string) => {
     setStreamingState((prev) => {
+      // The new tool_call part to append inline.
+      const toolCallPart = {
+        type: "tool_call" as const,
+        id: `tc-${toolCallPartIdRef.current++}`,
+        name: tool,
+        args,
+      };
+
       // Route to correct stream by invocation_id
       if (invocationId) {
         // Check subagent streams
@@ -1011,10 +1046,7 @@ export const ChatInterface = ({
         if (subagent) {
           subagents.set(invocationId, {
             ...subagent,
-            tool_calls: [
-              ...(subagent.tool_calls || []),
-              { name: tool, args, position: (subagent.content || "").length },
-            ],
+            parts: [...subagent.parts, toolCallPart],
           });
           return { ...prev, subagents };
         }
@@ -1025,10 +1057,7 @@ export const ChatInterface = ({
         if (mainStream) {
           mainStreams.set(invocationId, {
             ...mainStream,
-            tool_calls: [
-              ...(mainStream.tool_calls || []),
-              { name: tool, args, position: mainStream.content.length },
-            ],
+            parts: [...mainStream.parts, toolCallPart],
           });
           return { ...prev, mainStreams };
         }
@@ -1040,10 +1069,7 @@ export const ChatInterface = ({
         if (stream.is_active) {
           mainStreams.set(id, {
             ...stream,
-            tool_calls: [
-              ...(stream.tool_calls || []),
-              { name: tool, args, position: stream.content.length },
-            ],
+            parts: [...stream.parts, toolCallPart],
           });
           return { ...prev, mainStreams };
         }
@@ -1060,16 +1086,19 @@ export const ChatInterface = ({
   }, []);
 
   const handleToolResult = useCallback((tool: string, _result?: unknown, invocationId?: string) => {
-    const updateToolCalls = (toolCalls: ToolCallRemark[] | undefined): ToolCallRemark[] => {
-      const calls = toolCalls || [];
-      // Find the last matching tool call that isn't already completed
+    // Mark the last matching uncompleted tool_call part complete by scanning
+    // parts in reverse. Name-based matching because the WS tool_result event
+    // carries only tool name + invocation_id (no correlation id).
+    const updateParts = (parts: ContentPart[]): ContentPart[] => {
       let idx = -1;
-      for (let i = calls.length - 1; i >= 0; i--) {
-        if (calls[i].name === tool && !calls[i].completed) { idx = i; break; }
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i];
+        if (p.type === "tool_call" && p.name === tool && !p.completed) { idx = i; break; }
       }
-      if (idx === -1) return calls;
-      const updated = [...calls];
-      updated[idx] = { ...updated[idx], completed: true };
+      if (idx === -1) return parts;
+      const updated = [...parts];
+      const target = updated[idx] as Extract<ContentPart, { type: "tool_call" }>;
+      updated[idx] = { ...target, completed: true };
       return updated;
     };
 
@@ -1079,7 +1108,7 @@ export const ChatInterface = ({
         const subagents = new Map(prev.subagents);
         const subagent = subagents.get(invocationId);
         if (subagent) {
-          subagents.set(invocationId, { ...subagent, tool_calls: updateToolCalls(subagent.tool_calls) });
+          subagents.set(invocationId, { ...subagent, parts: updateParts(subagent.parts) });
           return { ...prev, subagents };
         }
 
@@ -1087,7 +1116,7 @@ export const ChatInterface = ({
         const mainStreams = new Map(prev.mainStreams);
         const mainStream = mainStreams.get(invocationId);
         if (mainStream) {
-          mainStreams.set(invocationId, { ...mainStream, tool_calls: updateToolCalls(mainStream.tool_calls) });
+          mainStreams.set(invocationId, { ...mainStream, parts: updateParts(mainStream.parts) });
           return { ...prev, mainStreams };
         }
       }
@@ -1095,8 +1124,11 @@ export const ChatInterface = ({
       // Fallback: mark in any active main stream
       const mainStreams = new Map(prev.mainStreams);
       for (const [id, stream] of mainStreams) {
-        if (stream.is_active && stream.tool_calls?.some(tc => tc.name === tool && !tc.completed)) {
-          mainStreams.set(id, { ...stream, tool_calls: updateToolCalls(stream.tool_calls) });
+        const hasMatching = stream.parts.some(
+          (p) => p.type === "tool_call" && p.name === tool && !p.completed,
+        );
+        if (stream.is_active && hasMatching) {
+          mainStreams.set(id, { ...stream, parts: updateParts(stream.parts) });
           return { ...prev, mainStreams };
         }
       }
@@ -1178,37 +1210,46 @@ export const ChatInterface = ({
           if (item.source === "main" && item.invocationId) {
             const existing = mainStreams.get(item.invocationId);
             if (existing) {
+              const lastPart = existing.parts[existing.parts.length - 1];
+              const parts = lastPart && lastPart.type === "text"
+                ? [...existing.parts.slice(0, -1), { type: "text" as const, text: lastPart.text + item.content }]
+                : [...existing.parts, { type: "text" as const, text: item.content }];
               mainStreams.set(item.invocationId, {
                 ...existing,
-                content: existing.content + item.content,
+                parts,
                 is_active: true,
               });
             } else {
               mainStreams.set(item.invocationId, {
                 invocation_id: item.invocationId,
-                content: item.content,
+                parts: [{ type: "text", text: item.content }],
                 is_active: true,
                 is_complete: false,
                 started_at: Date.now(),
-                sequence: mainSequenceRef.current++,
+                globalSequence: globalSequenceRef.current++,
               });
             }
           } else if (item.source === "subagent" && item.invocationId) {
             const existing = subagents.get(item.invocationId);
             if (existing) {
+              const lastPart = existing.parts[existing.parts.length - 1];
+              const parts = lastPart && lastPart.type === "text"
+                ? [...existing.parts.slice(0, -1), { type: "text" as const, text: lastPart.text + item.content }]
+                : [...existing.parts, { type: "text" as const, text: item.content }];
               subagents.set(item.invocationId, {
                 ...existing,
-                content: existing.content + item.content,
+                parts,
                 is_active: true,
               });
             } else {
               subagents.set(item.invocationId, {
                 invocation_id: item.invocationId,
                 subagent_name: item.subagentName || "Subagent",
-                content: item.content,
+                parts: [{ type: "text", text: item.content }],
                 is_active: true,
                 is_complete: false,
                 started_at: Date.now(),
+                globalSequence: globalSequenceRef.current++,
               });
             }
           }
@@ -1252,8 +1293,7 @@ export const ChatInterface = ({
     setBriefing(null);
     userDismissedBriefing.current = false;
     setIsBriefingOpen(false);
-    mainSequenceRef.current = 0;
-    subagentSequenceRef.current = 0;
+    globalSequenceRef.current = 0;
     setSubagentInvocationCounts({});
     planFilterRef.current.reset();
   }, [lastAssistantId]);
@@ -1274,8 +1314,7 @@ export const ChatInterface = ({
       setLastTokenUsage(null);
       setSubagentInvocationCounts({});
       setPendingUserMessage(null);
-      mainSequenceRef.current = 0;
-      subagentSequenceRef.current = 0;
+      globalSequenceRef.current = 0;
       planFilterRef.current.reset();
 
       // Restore briefing from session data if available
@@ -1386,8 +1425,7 @@ export const ChatInterface = ({
       setShowStreamSeparator(false);
       setToolJustFinished(false);
       contentResetOccurredRef.current = false;
-      mainSequenceRef.current = 0; // Reset sequence counter for new message
-      subagentSequenceRef.current = 0; // Reset sequence counter for new message
+      globalSequenceRef.current = 0; // Reset sequence counter for new message
       completionTurnRef.current = 0;
       setSubagentInvocationCounts({});
       planFilterRef.current.reset(); // Reset plan JSON filter for new message
@@ -1419,8 +1457,7 @@ export const ChatInterface = ({
     setShowStreamSeparator(false);
     setToolJustFinished(false);
     contentResetOccurredRef.current = false;
-    mainSequenceRef.current = 0; // Reset sequence counter on cancel
-    subagentSequenceRef.current = 0; // Reset sequence counter on cancel
+    globalSequenceRef.current = 0; // Reset sequence counter on cancel
     setPendingUserMessage(null);
     planFilterRef.current.reset();
   }, [streamingChat]);

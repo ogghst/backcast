@@ -18,7 +18,7 @@ import {
   UpOutlined,
 } from "@ant-design/icons";
 import type { ChatMessage } from "../../types";
-import type { SubagentStream, StreamingState, TokenUsage, ToolCallRemark } from "../types";
+import type { ContentPart, MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TokenUsageBar } from "./TokenUsageBar";
@@ -47,6 +47,33 @@ const TYPING_DOT_CSS = `
 `;
 
 /**
+ * Compact inline tool-call chip. Renders on its own line (caller wraps in a
+ * block div) between text segments, showing a spinner until completed.
+ */
+interface ToolCallTagProps {
+  part: Extract<ContentPart, { type: "tool_call" }>;
+}
+
+const ToolCallTag = ({ part }: ToolCallTagProps) => {
+  const { typography } = useThemeTokens();
+  return (
+    <Tag
+      color={part.completed ? "default" : "processing"}
+      icon={
+        part.completed ? (
+          <CheckOutlined style={{ fontSize: typography.sizes.xs }} />
+        ) : (
+          <LoadingOutlined spin style={{ fontSize: typography.sizes.xs }} />
+        )
+      }
+      style={{ margin: 0, fontSize: typography.sizes.xs }}
+    >
+      {part.name}
+    </Tag>
+  );
+};
+
+/**
  * Props for the MessageList component
  */
 interface MessageListProps {
@@ -70,8 +97,8 @@ interface MessageListProps {
  * StreamingMessage sub-component for displaying in-progress responses
  */
 interface StreamingMessageProps {
-  /** Partial content received so far */
-  content: string;
+  /** Ordered content parts (text + inline tool calls) */
+  parts: ContentPart[];
   /** Whether currently receiving tokens */
   isStreaming: boolean;
   /** Whether the stream is complete (for main agent streams) */
@@ -81,18 +108,15 @@ interface StreamingMessageProps {
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
   isMobile?: boolean;
-  /** Tool calls tracked in this stream segment */
-  toolCalls?: ToolCallRemark[];
 }
 
 const StreamingMessage = ({
-  content,
+  parts,
   isStreaming,
   isComplete = false,
   token,
   showSeparator,
   isMobile = false,
-  toolCalls = [],
 }: StreamingMessageProps) => {
   const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
@@ -142,7 +166,7 @@ const StreamingMessage = ({
             </span>
           )}
           {/* Completion indicator */}
-          {!isStreaming && isComplete && content && (
+          {!isStreaming && isComplete && parts.length > 0 && (
             <span
               style={{
                 display: "flex",
@@ -196,36 +220,20 @@ const StreamingMessage = ({
           </div>
         )}
 
-        {/* Streaming content with markdown rendering */}
-        {content && (
-          <MarkdownRenderer content={content} isStreaming={isStreaming} />
-        )}
-
-        {/* Tool call chips — persist after completion */}
-        {toolCalls.length > 0 && (
-          <div
-            style={{
-              marginTop: spacing.xs,
-              display: "flex",
-              flexWrap: "wrap",
-              gap: spacing.xs,
-            }}
-          >
-            {toolCalls.map((tc, index) => (
-              <Tag
-                key={`${tc.name}-${index}`}
-                color={tc.completed ? "default" : "processing"}
-                icon={tc.completed ? <CheckOutlined style={{ fontSize: typography.sizes.xs }} /> : <LoadingOutlined spin style={{ fontSize: typography.sizes.xs }} />}
-                style={{ margin: 0, fontSize: typography.sizes.xs }}
-              >
-                {tc.name}
-              </Tag>
-            ))}
-          </div>
-        )}
+        {/* Ordered parts: text segments render as markdown, tool calls inline on their own line */}
+        {parts.map((part, index) => {
+          if (part.type === "text") {
+            return <MarkdownRenderer key={index} content={part.text} isStreaming={isStreaming} />;
+          }
+          return (
+            <div key={index} style={{ margin: "6px 0" }}>
+              <ToolCallTag part={part} />
+            </div>
+          );
+        })}
 
         {/* Typing indicator dots when streaming with no content yet */}
-        {isStreaming && !content && (
+        {isStreaming && parts.length === 0 && (
           <div style={{ display: "flex", gap: spacing.xs, padding: `${spacing.sm}px 0` }}>
             <span className="typing-dot" />
             <span className="typing-dot" />
@@ -282,13 +290,17 @@ const SubagentMessage = ({
   invocationNumber,
 }: SubagentMessageProps) => {
   const { spacing, typography, borderRadius } = useThemeTokens();
-  // Start compacted. Auto-expand only when specialist completes with content.
-  const [isExpanded, setIsExpanded] = useState(!subagent.is_active && subagent.is_complete && !!subagent.content);
+  // Start expanded whenever the bubble has content or is actively streaming,
+  // so the supervisor→specialist→supervisor flow reads top-to-bottom.
+  // Stays collapsible so the user can fold long specialist output.
+  const [isExpanded, setIsExpanded] = useState(
+    () => subagent.parts.length > 0 || subagent.is_active,
+  );
 
   const accentColor = getSubagentColor(subagent.subagent_name);
 
   // Determine if bubble should be clickable (has content or is complete)
-  const isClickable = subagent.content || subagent.is_complete;
+  const isClickable = subagent.parts.length > 0 || subagent.is_complete;
 
   const handleToggle = () => {
     if (isClickable) {
@@ -405,13 +417,20 @@ const SubagentMessage = ({
           )}
         </div>
 
-        {/* Subagent content with markdown rendering - only show when expanded */}
-        {isExpanded && subagent.content && (
-          <MarkdownRenderer content={subagent.content} isStreaming={subagent.is_active} />
-        )}
+        {/* Subagent content rendered as ordered parts - only show when expanded */}
+        {isExpanded && subagent.parts.map((part, index) => {
+          if (part.type === "text") {
+            return <MarkdownRenderer key={index} content={part.text} isStreaming={subagent.is_active} />;
+          }
+          return (
+            <div key={index} style={{ margin: "6px 0" }}>
+              <ToolCallTag part={part} />
+            </div>
+          );
+        })}
 
         {/* Typing indicator when active with no content */}
-        {subagent.is_active && !subagent.content && (
+        {subagent.is_active && subagent.parts.length === 0 && (
           <div style={{ display: "flex", gap: spacing.xs, padding: `${spacing.sm}px 0` }}>
             <span className="typing-dot" />
             <span className="typing-dot" />
@@ -606,9 +625,9 @@ const getMessageStyle = (role: ChatMessage["role"], token: GlobalToken, isMobile
  * Displays chat messages with auto-scroll and progressive streaming rendering.
  *
  * Context: Primary message display component for the AI chat feature. Renders
- * persisted messages from the API alongside a single merged assistant balloon
- * that combines all main agent stream segments, with subagent bubbles shown
- * as separate collapsible elements.
+ * persisted messages from the API alongside one bubble per live stream
+ * (main agent segments and subagent handoffs), ordered chronologically by
+ * globalSequence so supervisor and specialist bubbles interleave correctly.
  *
  * @param props.messages - Array of completed (persisted) chat messages
  * @param props.loading - Whether messages are being fetched initially
@@ -632,51 +651,15 @@ export const MessageList = ({
   const scrollRafRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
 
-  // Build a merged view of main agent streams + subagent streams.
-  // All MainAgentStream segments are merged into a single unified assistant
-  // balloon (one balloon per user message). Subagent streams appear inline
-  // between segments within that balloon.
-  const { mergedMainContent, isMainActive, isMainComplete, subagentStreams, mergedToolCalls } = useMemo(() => {
-    const mainStreams = streamingState?.mainStreams;
-    const subagents = streamingState?.subagents;
-
-    // Merge all main agent stream segments into one content string, ordered by sequence.
-    let merged = "";
-    let active = false;
-    let complete = true;
-    const sorted = mainStreams && mainStreams.size > 0
-      ? Array.from(mainStreams.values()).sort(
-          (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
-        )
-      : [];
-
-    for (const stream of sorted) {
-      if (stream.content) {
-        merged += stream.content;
-      }
-      if (stream.is_active) active = true;
-      if (!stream.is_complete) complete = false;
-    }
-
-    // Collect subagent streams sorted by sequence for inline rendering.
-    const sortedSubagents: SubagentStream[] = [];
-    if (subagents && subagents.size > 0) {
-      sortedSubagents.push(
-        ...Array.from(subagents.values()).sort(
-          (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
-        ),
-      );
-    }
-
-    const mergedToolCalls = sorted.flatMap(s => s.tool_calls || []);
-
-    return {
-      mergedMainContent: merged,
-      isMainActive: active,
-      isMainComplete: complete,
-      subagentStreams: sortedSubagents,
-      mergedToolCalls,
-    };
+  // Unified, chronologically-ordered view of all live streams.
+  // Each entry becomes its own bubble so supervisor segments and specialist
+  // handoffs interleave in true chronological order (sorted by globalSequence).
+  const orderedStreams = useMemo(() => {
+    const all: Array<{ kind: "main"; s: MainAgentStream } | { kind: "subagent"; s: SubagentStream }> = [
+      ...Array.from(streamingState?.mainStreams?.values() ?? []).map(s => ({ kind: "main" as const, s })),
+      ...Array.from(streamingState?.subagents?.values() ?? []).map(s => ({ kind: "subagent" as const, s })),
+    ];
+    return all.sort((a, b) => a.s.globalSequence - b.s.globalSequence);
   }, [streamingState]);
 
   // Combine regular messages with streaming message for display
@@ -692,22 +675,8 @@ export const MessageList = ({
       if (m.metadata?.subagent_name && hasStreamingSubagents) return false;
       return true;
     });
-    const result = [...filteredMessages];
-
-    // Only add streaming-temp for the legacy fallback path (main field)
-    // when it has actual content. The new path uses mainStreams/subagents.
-    const mainContent = streamingState?.main ?? "";
-    if (mainContent) {
-      result.push({
-        id: "streaming-temp",
-        role: "assistant" as const,
-        content: mainContent,
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    return result;
-  }, [messages, streamingState?.main, streamingState?.subagents]);
+    return filteredMessages;
+  }, [messages, streamingState?.subagents]);
 
   // Track whether user is near the bottom of the scrollable container
   useEffect(() => {
@@ -754,7 +723,7 @@ export const MessageList = ({
         scrollRafRef.current = null;
       }
     };
-  }, [displayMessages, streamingState?.main, streamingState?.subagents, isStreaming]);
+  }, [displayMessages, streamingState, isStreaming]);
 
   if (loading && messages.length === 0) {
     return (
@@ -764,10 +733,7 @@ export const MessageList = ({
     );
   }
 
-  const mainContent = streamingState?.main ?? "";
-  const hasSubagents = (streamingState?.subagents.size ?? 0) > 0;
-
-  if (messages.length === 0 && !isStreaming && !mainContent && !hasSubagents) {
+  if (messages.length === 0 && !isStreaming && orderedStreams.length === 0) {
     return (
       <Empty
         description="Start a conversation by sending a message"
@@ -776,13 +742,10 @@ export const MessageList = ({
     );
   }
 
-  // Check if the last message is the streaming message
-  const hasStreamingTemp = (streamingState?.main ?? "").length > 0;
-
   return (
     <>
       <List
-        dataSource={hasStreamingTemp ? displayMessages.slice(0, -1) : displayMessages}
+        dataSource={displayMessages}
         renderItem={(message) => {
           // Render persisted subagent message
           if (message.metadata?.subagent_name) {
@@ -869,50 +832,37 @@ export const MessageList = ({
         }}
       />
 
-      {/* Streaming message (legacy fallback, only shown when mainStreams is empty) */}
-      {hasStreamingTemp && (!streamingState?.mainStreams || streamingState.mainStreams.size === 0) && (
-        <StreamingMessage
-          content={mainContent}
-          isStreaming={isStreaming}
-          token={token}
-          showSeparator={showSeparator}
-          isMobile={isMobile}
-          toolCalls={[]}
-        />
+      {/* One bubble per live stream in chronological order. Each supervisor
+          segment AND each specialist handoff is its own bubble. */}
+      {orderedStreams.map((entry) =>
+        entry.kind === "main" ? (
+          <StreamingMessage
+            key={`main-${entry.s.invocation_id}`}
+            parts={entry.s.parts}
+            isStreaming={entry.s.is_active}
+            isComplete={entry.s.is_complete}
+            token={token}
+            showSeparator={entry.s.is_active && showSeparator}
+            isMobile={isMobile}
+          />
+        ) : (
+          <SubagentMessage
+            key={`sub-${entry.s.invocation_id}`}
+            subagent={entry.s}
+            token={token}
+            isMobile={isMobile}
+            invocationNumber={entry.s.invocation_number}
+          />
+        ),
       )}
 
-      {/* Single assistant balloon: merges all main agent segments. */}
-      {mergedMainContent && (
+      {/* Typing indicator when waiting for the first token of any stream */}
+      {isStreaming && orderedStreams.length === 0 && (
         <StreamingMessage
-          content={mergedMainContent}
-          isStreaming={isMainActive}
-          isComplete={isMainComplete}
-          token={token}
-          showSeparator={false}
-          isMobile={isMobile}
-          toolCalls={mergedToolCalls}
-        />
-      )}
-
-      {/* Subagent bubbles rendered as separate collapsible elements after the main balloon */}
-      {subagentStreams.map((sa) => (
-        <SubagentMessage
-          key={sa.invocation_id}
-          subagent={sa}
-          token={token}
-          isMobile={isMobile}
-          invocationNumber={sa.invocation_number}
-        />
-      ))}
-
-      {/* Typing indicator when waiting for first token */}
-      {isStreaming && !mergedMainContent && !(streamingState?.main) && subagentStreams.length === 0 && (
-        <StreamingMessage
-          content=""
+          parts={[]}
           isStreaming={true}
           token={token}
           isMobile={isMobile}
-          toolCalls={[]}
         />
       )}
 
