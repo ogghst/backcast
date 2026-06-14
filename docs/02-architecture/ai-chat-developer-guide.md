@@ -1,6 +1,19 @@
 # AI Chat Developer Guide
 
-Comprehensive reference for understanding, debugging, and extending the Backcast AI chat system.
+**Last Updated:** 2026-06-14
+**Status:** Active (canonical — kept by design)
+
+End-to-end integration reference for the Backcast AI chat system: connection lifecycle, decoupled execution, approval / human-in-the-loop flow, sequence diagrams, and debugging.
+
+> **Topic boundaries.** This doc covers the *integration* and *lifecycle* view.
+> For related topics use the canonical siblings:
+>
+> - **Supervisor orchestration / handoffs** → [`ai/supervisor-orchestrator.md`](ai/supervisor-orchestrator.md)
+> - **Request flow, tool filtering, security model, event bus** → [`ai/agent-common-concepts.md`](ai/agent-common-concepts.md)
+> - **WebSocket protocol, message catalog, & reconnection flow** → [`backend/contexts/ai/message-types.md`](backend/contexts/ai/message-types.md) (the single canonical WS reference; not duplicated here)
+> - **Prompt assembly** → [`ai-prompt-context-guide.md`](ai-prompt-context-guide.md)
+> - **Tools** → [`ai/tool-development-guide.md`](ai/tool-development-guide.md)
+> - **MCP** → [`mcp-developer-guide.md`](mcp-developer-guide.md)
 
 ## Table of Contents
 
@@ -11,15 +24,14 @@ Comprehensive reference for understanding, debugging, and extending the Backcast
 5. [Decoupled Execution](#5-decoupled-execution)
 6. [Reply Flow & Streaming](#6-reply-flow--streaming)
 7. [Approval Flow (Human-in-the-Loop)](#7-approval-flow-human-in-the-loop)
-8. [WebSocket Protocol Reference](#8-websocket-protocol-reference)
-9. [Security Model](#9-security-model)
-10. [Troubleshooting Guide](#10-troubleshooting-guide)
-11. [Key Files Quick Reference](#11-key-files-quick-reference)
+8. [Security Model](#8-security-model)
+9. [Integration & Debugging](#9-integration--debugging)
+10. [Key Files Quick Reference](#10-key-files-quick-reference)
 
 **Subsection index:**
 - Section 2: [Error Recovery & Reconnection](#error-recovery--reconnection)
-- Section 4: [Orchestration Patterns](#orchestration-patterns)
 - Section 6: [Transient Error Handling](#transient-error-handling) | [Error Persistence](#error-persistence)
+- Section 9: [Sequence Diagrams](#sequence-diagrams) | [Database Queries](#database-queries-for-debugging) | [Telemetry](#telemetry-phoenix)
 
 ---
 
@@ -46,14 +58,14 @@ Browser (React)                          Backend (FastAPI)
      |                                        | 6. Set per-request ContextVars
      |  {type:"thinking"}                     |
      |<---------------------------------------|
-     |                                        | 7. LangChain agent plans (TodoListMiddleware)
+     |                                        | 7. Agent emits plan via write_todos tool
      |  {type:"planning", steps:[...]}        |
      |<---------------------------------------|
-     |                                        | 8. Delegates to subagent
+     |                                        | 8. Delegates to specialist (handoff)
      |  {type:"subagent", subagent:"evm_..."} |
      |<---------------------------------------|
      |  {type:"token", content:"Based on..."} |
-     |<---------------------------------------| 9. Subagent streams tokens
+     |<---------------------------------------| 9. Specialist streams tokens
      |  ...more tokens...                     |
      |  {type:"subagent_result", ...}         |
      |<---------------------------------------|
@@ -65,19 +77,19 @@ Browser (React)                          Backend (FastAPI)
      |<---------------------------------------|
 ```
 
-### Two Execution Paths
+### Graph Construction
 
 | Path | When Used | Description |
 |------|-----------|-------------|
-| **Supervisor Orchestrator** (primary) | Default path | Supervisor agent with direct tools + handoff-based delegation to DB-configured specialists |
-| **StateGraph fallback** | No specialists compiled or all filtered out | Direct LangGraph `StateGraph` with agent node, tool node, and conditional edges. Max 5 tool iterations. |
+| **Supervisor Orchestrator** (primary) | Default path | Parent `StateGraph(BackcastSupervisorState)` built by `SupervisorOrchestrator.create_supervisor_graph()`: supervisor node + specialist function nodes + handoff tools. Main agents can use configured `direct_tools` directly. |
+| **StateGraph fallback** | Supervisor unavailable (e.g. import error) or no specialists | Direct LangGraph `StateGraph(AgentState)` with agent node, tool node, and conditional edges. Iteration cap is `max_tool_iterations` in agent state (docstring example default 5). |
 
-The primary path lives in `supervisor_orchestrator.py` (`SupervisorOrchestrator.create_supervisor_graph()`), which builds a parent `StateGraph` with a supervisor node, specialist function nodes, and handoff tools. Main agents can use configured `direct_tools` directly. The fallback path lives in `graph.py` (`create_graph()`).
+The primary path is created in `agent_service._create_deep_agent_graph()` (`agent_service.py:557`), which delegates graph compilation to `SupervisorOrchestrator.create_supervisor_graph()` (`supervisor_orchestrator.py:323`). On `ImportError` or other compile failure it falls back to `graph.create_graph()` (`graph.py:148`). Specialist graphs are compiled by `compile_subagents()` in `app/ai/subagent_compiler.py:98`.
 
 ### Core Components
 
 ```
-ai_chat.py (WebSocket endpoint)
+ai_chat.py (WebSocket endpoint: chat_stream() @ /stream)
     |
     v
 agent_service.py (orchestration)
@@ -88,20 +100,20 @@ agent_service.py (orchestration)
     |         +---> CompiledGraphCache (LRU graph cache, max 20)
     |         +---> set_request_context() / clear_request_context() (ContextVar bridge)
     |
-    +---> SupervisorOrchestrator.create_supervisor_graph()
+    +---> _create_deep_agent_graph() -> SupervisorOrchestrator.create_supervisor_graph()
     |         |
-    |         +---> subagents/db_loader.py  (DB specialist loading with TTL cache)
-    |         +---> tools/__init__.py  (create_project_tools - All tools (74, 10 template packages))
-    |         +---> subagents/__init__.py  (hardcoded fallback configs)
+    |         +---> subagents/db_loader.py  (load_specialists_from_db — TTL-cached DB specialist loading)
+    |         +---> tools/__init__.py       (create_project_tools — dynamic tool count)
+    |         +---> subagent_compiler.py    (compile_subagents — shared specialist graph compilation)
     |         +---> middleware/
     |         |      +---> temporal_context.py   (inject as_of, branch)
     |         |      +---> backcast_security.py  (RBAC + approval)
     |         +---> langchain_create_agent()  (LangChain native)
     |
-    +---> astream_events() loop
+    +---> _process_stream_events()  (astream_events loop with retry)
     |         |
-    |         +---> on_chat_model_stream  --> WSTokenMessage
-    |         +---> on_tool_start          --> WSToolCallMessage / WSSubagentMessage
+    |         +---> on_chat_model_stream  --> WSTokenMessage / WSTokenBatchMessage
+    |         +---> on_tool_start          --> WSToolCallMessage / WSSubagentMessage / WSPlanningMessage
     |         +---> on_tool_end            --> WSToolResultMessage / WSSubagentResultMessage
     |         +---> on_end                 --> WSCompleteMessage
     |
@@ -113,10 +125,16 @@ agent_service.py (orchestration)
     +---> TokenBufferManager (batched token sending)
               |
               +---> WSTokenBatchMessage  --> client (reduces WS overhead)
+```
 
 ---
 
 ## 2. WebSocket Connection Lifecycle
+
+> **WS protocol & message catalog.** The complete client/server message reference
+> (all `type` fields, schemas, and the full message-flow sequence diagram) lives in
+> [`backend/contexts/ai/message-types.md`](backend/contexts/ai/message-types.md).
+> This section covers only the *lifecycle* perspective relevant to integration.
 
 ### Endpoint
 
@@ -154,7 +172,7 @@ The handler runs as `asyncio.create_task(message_handler())`. Three message type
 
 - `"subscribe"` — reconnect to a running execution by execution ID, replay missed events
 - `"approval_response"` — handled immediately, non-blocking (updates `pending_approvals` dict)
-- `"chat"` (default) — processed via `agent_service.chat_stream()` as background task
+- `"chat"` (default) — processed via `agent_service.start_execution()` as background task
 
 Chat messages are processed as concurrent background tasks via `asyncio.create_task()`. Multiple chat streams can run simultaneously on the same WebSocket connection.
 
@@ -192,6 +210,8 @@ When the backend returns a 500 error during streaming, the frontend force-closes
 - **Pending message queue:** If `sendMessage()` is called while the connection is not OPEN, the message is stored in `pendingMessageRef` and sent after reconnection completes. Any stale non-OPEN connection is force-closed first to trigger a clean reconnect cycle.
 
 The `sendMessage()` function handles non-OPEN states by force-closing stale connections (`ws.readyState !== WebSocket.CONNECTING`) and triggering a fresh connection via `connectRef.current()`.
+
+> See [`backend/contexts/ai/message-types.md`](backend/contexts/ai/message-types.md) (Reconnection Flow section) for the full reconnect strategy and close-code semantics.
 
 ---
 
@@ -236,7 +256,7 @@ The `sendMessage()` function handles non-OPEN states by force-closing stale conn
 **New session** (`session_id: null`):
 
 ```python
-# agent_service.py → config_service.create_session()
+# agent_service.py -> config_service.create_session()
 AIConversationSession(
     user_id=user_id,
     assistant_config_id=assistant_config.id,
@@ -331,9 +351,19 @@ Authorization: Bearer <JWT>
 
 ## 4. Agent Setup & Orchestration
 
+> **Orchestration deep-dive.** For the supervisor state schema, handoff-tool construction,
+> briefing-document accumulation, and the full `create_supervisor_graph()` internals, see
+> [`ai/supervisor-orchestrator.md`](ai/supervisor-orchestrator.md). For the shared
+> request-flow, tool-filtering pipeline, and security/event-bus concepts, see
+> [`ai/agent-common-concepts.md`](ai/agent-common-concepts.md).
+
 ### Agent Creation Flow
 
-File: `agent_service.py` (_create_supervisor_graph) and `supervisor_orchestrator.py` (create_supervisor_graph)
+Graph creation lives in:
+
+- `agent_service._create_deep_agent_graph()` (`agent_service.py:557`) — entry point per request; builds the `InterruptNode`, resolves the system prompt, constructs `AgentConfig`, instantiates `SupervisorOrchestrator`, and calls `create_supervisor_graph()`.
+- `SupervisorOrchestrator.create_supervisor_graph()` (`supervisor_orchestrator.py:323`) — compiles the parent `StateGraph(BackcastSupervisorState)` with supervisor node, specialist function nodes, and handoff tools.
+- `compile_subagents()` (`app/ai/subagent_compiler.py:98`) — shared compilation logic for individual specialist graphs.
 
 ### Orchestration Pattern
 
@@ -345,21 +375,21 @@ The system uses a single orchestration pattern:
 
 **SupervisorOrchestrator** (`supervisor_orchestrator.py`): Builds a parent `StateGraph(BackcastSupervisorState)` where the supervisor routes to specialist agents via handoff tools (`handoff_to_{agent_name}`). Each specialist is a function node that runs in isolation with the compiled briefing document. The supervisor can also use configured **direct tools** from the main agent's `delegation_config.direct_tools` (e.g., `get_temporal_context`, `set_temporal_context`, `global_search`).
 
-Specialists are loaded from the database (`ai_assistant_configs` where `agent_type='specialist'`) via `subagents/db_loader.py` with a 5-minute TTL cache. Hardcoded configs in `subagents/__init__.py` serve as fallback.
+Specialists are loaded from the database (`ai_assistant_configs` where `agent_type='specialist'`) via `subagents/db_loader.py:load_specialists_from_db()` with a TTL cache. There is **no hardcoded fallback config**: if the DB returns no specialists (or all are filtered out), the system falls back to the StateGraph path.
 
 ```
-1. create_project_tools(context)     → 74 LangChain BaseTool instances (10 template packages)
-2. Filter by assistant RBAC role     → ai-viewer/ai-manager/ai-admin (via default_role)
-3. Filter by user RBAC role          → User's role permissions
-4. Filter by execution_mode          → Risk-level filtering (safe/standard/expert)
-5. Load specialists from DB (with hardcoded fallback)
+1. create_project_tools(context)     -> dynamic tool list (12 template modules + _pagination)
+2. Filter by assistant RBAC role     -> ai-viewer/ai-manager/ai-admin (via default_role)
+3. Filter by user RBAC role          -> User's role permissions
+4. Filter by execution_mode          -> Risk-level filtering (safe/standard/expert)
+5. Load specialists from DB          -> load_specialists_from_db() (TTL cache)
 6. If delegation_config.allowed_specialists set, filter to only those specialists
-7. Main agent gets: get_briefing + handoff tools + direct_tools from delegation_config
-8. Specialists get: their filtered tool lists from allowed_tools
-9. Build middleware stack:
-   - TemporalContextMiddleware(context)
-   - BackcastSecurityMiddleware(context, tools=all_tools, interrupt_node)
-10. Compile specialist graphs via subagent_compiler
+7. compile_subagents()               -> compile specialist graphs (subagent_compiler.py)
+8. Main agent gets: get_briefing + handoff tools + direct_tools from delegation_config
+9. Specialists get: their filtered tool lists from allowed_tools
+10. Build middleware stack:
+    - TemporalContextMiddleware(context)
+    - BackcastSecurityMiddleware(context, tools=all_tools, interrupt_node)
 11. Build supervisor system prompt (conditional: with/without direct tools)
 12. langchain_create_agent(model, tools, system_prompt, middleware)
 13. Register InterruptNode for approval handling
@@ -397,36 +427,35 @@ ctx = get_request_tool_context() or self.context  # ContextVar takes priority
 
 This means middleware baked into a cached graph at compile time still gets fresh per-request context via the ContextVar bridge.
 
-**Log markers:**
+**Log markers (real):**
 
-| Log | Meaning |
-|-----|---------|
-| `[GRAPH_CACHE_HIT]` | Reusing cached compiled graph |
-| `[GRAPH_CREATION_START]` | Compiling new graph (cache miss) |
-| `[GRAPH_CREATION_COMPLETE]` | Compilation finished (includes `duration_ms`) |
-| `CompiledGraphCache hit` | LRU cache lookup succeeded |
-| `CompiledGraphCache miss` | LRU cache lookup failed, compiling fresh |
-| `LLMClientCache hit` | Reusing cached LLM client |
-| `LLMClientCache miss` | Creating new LLM client |
+| Log | Source | Meaning |
+|-----|--------|---------|
+| `[GRAPH_COMPILE] Compiling new graph for session ...` | `agent_service.py` | Compiling a new graph (cache miss) |
+| `[GRAPH_CREATION_COMPLETE] _create_deep_agent_graph \| duration_ms=...` | `agent_service.py` | Compilation finished (includes `duration_ms`, `graph_type`) |
+| `Compiled <label> '<name>' with <N> tools` | `subagent_compiler.py:225` | Specialist graph compiled with N tools |
+| `[SUPERVISOR] DB specialist loading failed: ...` | `supervisor_orchestrator.py:344` | DB specialist load error |
+| `Building fallback graph with direct tool access` | `supervisor_orchestrator.py:1206` | Supervisor unavailable; falling back |
+
+> **Note:** `CompiledGraphCache hit/miss` and `LLMClientCache hit/miss` are conceptual labels for the LRU lookups inside `graph_cache.py`; check that module for the actual log strings.
 
 ### Specialists (DB-Configurable)
 
-8 specialized agents stored in `ai_assistant_configs` with `agent_type='specialist'`, loaded via `subagents/db_loader.py`:
+Specialists are stored in `ai_assistant_configs` with `agent_type='specialist'` and loaded via `subagents/db_loader.py:load_specialists_from_db()`. The set is fully DB-driven (seeded from `backend/seed/ai_specialist_configs.json`); there is no hardcoded specialist list in code. Typical seeded specialists:
 
 | Specialist | Purpose | Key Tools |
 |----------|---------|-----------|
-| `project_manager` | Projects, WBEs, cost elements & cost registrations | 36 tools for full project CRUD |
+| `project_manager` | Projects, WBEs, cost elements & cost registrations | Full project CRUD |
 | `evm_analyst` | EVM metrics & performance | `calculate_evm_metrics`, `get_evm_performance_summary`, `analyze_cost_variance`, etc. |
 | `change_order_manager` | Change order workflows | `list_change_orders`, `create_change_order`, `analyze_change_order_impact`, etc. |
 | `user_admin` | User & department management | `list_users`, `create_user`, `list_departments`, etc. |
 | `visualization_specialist` | Diagram generation | `generate_mermaid_diagram` |
 | `forecast_manager` | Forecasts, cost tracking & schedule baselines | `get_forecast`, `create_forecast`, `compare_forecast_scenarios`, etc. |
-| `mcp_specialist` | MCP server tools | All tools |
 | `general_purpose` | Fallback for cross-cutting requests | All tools |
 
 ### Main Agents (DB-Configurable)
 
-3 main agents stored in `ai_assistant_configs` with `agent_type='main'`. Only main agents appear in the chat assistant selector:
+Main agents are stored in `ai_assistant_configs` with `agent_type='main'`. Only main agents appear in the chat assistant selector:
 
 | Main Agent | Default Role | Direct Tools |
 |-----------|-------------|-------------|
@@ -461,7 +490,7 @@ EVM_ANALYST_SUBAGENT: dict[str, Any] = {
 
 **Implementation:**
 
-1. **Compilation** (`deep_agent_orchestrator.py:_build_subagent_dicts`):
+1. **Compilation** (`subagent_compiler.py:compile_subagents`):
    - When `structured_output_schema` is defined, applies `.with_structured_output(schema)` wrapper
    - Wrapped subagent returns Pydantic model instances instead of text
 
@@ -481,22 +510,23 @@ EVM_ANALYST_SUBAGENT: dict[str, Any] = {
 ### Tool Filtering Pipeline
 
 ```
-All tools (74, 10 template packages)
-    │
-    ▼ filter_tools_by_role(assistant_role)
-    │
-    ├─ ai-viewer:  45/74 tools (read-only)
-    ├─ ai-manager: 61/74 tools (full project CRUD)
-    └─ ai-admin:   13/74 tools (system admin)
-    │
-    ▼ filter_tools_by_role(user_role)
-    │
-    ▼ filter_tools_by_execution_mode()
-    │
-    ├─ SAFE mode:    Keep only LOW risk tools
-    ├─ STANDARD mode: Keep ALL tools (CRITICAL blocked later by BackcastSecurityMiddleware)
-    └─ EXPERT mode:   Keep ALL tools (LOW + HIGH + CRITICAL)
+create_project_tools(context)  ->  dynamic tool list
+    |                                  (12 functional template modules + _pagination;
+    |                                   MCP tools appended at runtime;
+    |                                   exact count is dynamic — logged on cache fill)
+    |
+    v filter_tools_by_role(assistant_role)
+    |
+    v filter_tools_by_role(user_role)
+    |
+    v filter_tools_by_execution_mode()
+    |
+    +-- SAFE mode:    Keep only LOW risk tools
+    +-- STANDARD mode: Keep ALL tools (CRITICAL blocked later by BackcastSecurityMiddleware)
+    +-- EXPERT mode:   Keep ALL tools (LOW + HIGH + CRITICAL)
 ```
+
+The number of tools produced by `create_project_tools()` is **dynamic** — it is logged at cache-fill time (`Created and cached <N> tools for AI chat`) rather than hardcoded. It grows when MCP servers are registered. The role-count splits in `filter_tools_by_role` are likewise data-driven, so do not treat any specific count as a constant.
 
 Risk levels are set via the `@ai_tool` decorator:
 - `LOW` — read-only operations (e.g., `list_projects`, `calculate_evm_metrics`)
@@ -507,38 +537,47 @@ Risk levels are set via the `@ai_tool` decorator:
 
 Three AI-specific roles control tool access:
 
-| Role | Tool Count | Permissions | Use Case |
-|------|------------|-------------|----------|
-| `ai-viewer` | 45/74 | project:read, forecast:read, evm:read | Read-only assistants for data exploration |
-| `ai-manager` | 61/74 | project:write, change_order:write, forecast:write | Day-to-day project management assistants |
-| `ai-admin` | 13/74 | user:write, department:write, cost_element_type:write | System administration assistants |
+| Role | Permissions | Use Case |
+|------|-------------|----------|
+| `ai-viewer` | project:read, forecast:read, evm:read | Read-only assistants for data exploration |
+| `ai-manager` | project:write, change_order:write, forecast:write | Day-to-day project management assistants |
+| `ai-admin` | user:write, department:write, cost_element_type:write | System administration assistants |
 
 The assistant's `default_role` field determines which role is used for filtering. This role is applied AFTER execution mode filtering and BEFORE subagent compilation, so subagents also inherit the role restriction.
 
 ### StateGraph Fallback
 
-When subagents are disabled or no valid subagents after filtering, the system falls back to `graph.py:create_graph()`:
+When the supervisor path is unavailable (import error, no specialists compiled, or all filtered out), the system falls back to `graph.py:create_graph()`:
 
 ```
 StateGraph(AgentState)
-    entry_point → "agent"
-    "agent" ──[has tool_calls]──→ "tools"
-    "agent" ──[no tool_calls]──→ END
-    "tools" ────────────────────→ "agent"  (loop back)
+    entry_point -> "agent"
+    "agent" --[has tool_calls]--> "tools"
+    "agent" --[no tool_calls]--> END
+    "tools" --------------------> "agent"  (loop back)
 
-Max iterations: 5 (MAX_TOOL_ITERATIONS)
+Iteration cap: max_tool_iterations (agent state field; docstring example default 5)
 
 Returns: (compiled_graph, interrupt_node) tuple
 ```
 
 Tool node selection:
-- With context + websocket + session_id → `InterruptNode` (approval support)
-- With context only → `RBACToolNode` (permission checks)
-- No context → `ToolNode` (basic)
+- With context + websocket + session_id -> `InterruptNode` (approval support)
+- With context only -> `RBACToolNode` (permission checks)
+- No context -> `ToolNode` (basic)
+
+> **Recursion limit.** The per-request `recursion_limit` passed to `astream_events`
+> defaults to **25** (`agent_service.py:860-862`) and is configurable per assistant via
+> `assistant_config.recursion_limit`. This is distinct from the StateGraph-fallback
+> `max_tool_iterations` state field.
 
 ---
 
 ## 5. Decoupled Execution
+
+> **Event bus deep-dive.** `AgentEventBus`, `AgentRunnerManager`, and the decoupled-execution
+> primitives are covered as shared concepts in [`ai/agent-common-concepts.md`](ai/agent-common-concepts.md).
+> This section focuses on how the WebSocket/REST entry points drive an execution lifecycle.
 
 ### Architecture Overview
 
@@ -572,58 +611,39 @@ GET /executions/{id}/status -------->|                              |
      |<------------------------------|  Return AgentExecutionPublic |
 ```
 
-### Core Components
+### AgentService.start_execution()
 
-#### AgentEventBus
+File: `backend/app/ai/agent_service.py` (`start_execution`, line 2001)
 
-File: `backend/app/ai/execution/agent_event_bus.py`
-
-In-memory pub/sub event bus for a single agent execution. Features:
-
-- **Bounded event log**: Fixed-size circular buffer (`collections.deque`, max 1000 events) retains recent events for replay
-- **Subscriber queues**: Each subscriber gets its own `asyncio.Queue` for independent consumption
-- **Replay support**: Late subscribers can replay events since a given sequence number
-- **Completion tracking**: Marks bus as completed when terminal events (`complete`, `error`) are published
+Entry point invoked by both the WebSocket `chat` handler and the REST `POST /invoke` endpoint. Creates an independent agent execution with its own DB session and event bus, then runs the graph as a background task via `asyncio.create_task()`.
 
 ```python
-# Create a bus for an execution
-bus = AgentEventBus(execution_id="exec-123", max_log_size=1000)
-
-# Subscribe to receive events
-queue = bus.subscribe()
-
-# Publish events (sequence numbers auto-assigned)
-event = AgentEvent(event_type="token_batch", data={"tokens": "Hello"})
-bus.publish(event)
-
-# Replay events for reconnection
-missed = bus.replay(since_sequence=50)
+execution_id = await agent_service.start_execution(
+    message="Calculate EVM metrics",
+    assistant_config=config,
+    session_id=session,
+    user_id=user_id,
+    project_id=project_id,
+)
 ```
 
-#### AgentRunnerManager
+Returns execution ID string. Execution status tracked in DB via `AIAgentExecution`.
 
-File: `backend/app/ai/execution/runner_manager.py`
+### AgentService._run_agent_graph()
 
-Process-level singleton registry mapping execution IDs to event buses. Enables WebSocket handlers and REST endpoints to locate running executions.
+File: `backend/app/ai/agent_service.py` (`_run_agent_graph`, line 1722)
+
+Builds the agent graph and streams events to the event bus. Internally calls `_process_stream_events()` (line 1412), which runs the `astream_events()` loop with transient-error retry logic.
 
 ```python
-from app.ai.execution.runner_manager import runner_manager
-
-# Create and register a bus
-bus = runner_manager.create_bus("exec-123")
-
-# Look up a running execution's bus
-bus = runner_manager.get_bus("exec-123")
-if bus:
-    queue = bus.subscribe()
-
-# Remove when execution completes
-runner_manager.remove_bus("exec-123")
+async def _run_agent_graph(self, ctx: GraphContext) -> None:
+    ...
+    graph, interrupt_node = await self._create_deep_agent_graph(params)
+    ...
+    await self._process_stream_events(ctx)  # publishes AgentEvents to ctx.event_bus
 ```
 
-**Important**: This is an in-memory registry for single-server deployments. Executions are lost on server restart.
-
-#### AIAgentExecution Model
+### AIAgentExecution Model
 
 File: `backend/app/models/domain/ai.py`
 
@@ -632,7 +652,7 @@ Database entity tracking agent executions with status lifecycle.
 ```python
 class AIAgentExecution(SimpleEntityBase):
     session_id: UUID                    # FK to ai_conversation_sessions
-    status: str                          # "pending" | "running" | "completed" | "error" | "awaiting_approval"
+    status: str                          # "pending" | "running" | "completed" | "error" | "awaiting_approval" | "stopped"
     started_at: datetime
     completed_at: datetime | None
     error_message: str | None
@@ -643,7 +663,7 @@ class AIAgentExecution(SimpleEntityBase):
 
 Status lifecycle:
 ```
-pending -> running -> [completed | error | awaiting_approval]
+pending -> running -> [completed | error | awaiting_approval | stopped]
 ```
 
 #### AIConversationSession.active_execution_id
@@ -655,51 +675,6 @@ Optional field referencing the currently running agent execution. Used by fronte
 ```python
 active_execution_id: UUID | None  # Currently running or last execution
 ```
-
-### AgentService._run_agent_graph()
-
-File: `backend/app/ai/agent_service.py`
-
-Decoupled variant of `chat_stream()` that publishes events to an `AgentEventBus` instead of sending WebSocket messages directly.
-
-```python
-async def _run_agent_graph(
-    message: str,
-    assistant_config: AIAssistantConfig,
-    session_id: UUID,
-    user_id: UUID,
-    event_bus: AgentEventBus,  # Publish to this bus instead of WS
-    project_id: UUID | None = None,
-    ...
-) -> None:
-    # Build agent graph
-    graph = await self._create_deep_agent_graph(...)
-
-    # Stream events to bus
-    async for event in graph.astream_events(...):
-        await event_bus.publish(AgentEvent(
-            event_type="token_batch",
-            data={"tokens": "..."}
-        ))
-```
-
-### AgentService.start_execution()
-
-File: `backend/app/ai/agent_service.py`
-
-Creates an independent agent execution with its own DB session and event bus. Runs as background task via `asyncio.create_task()`.
-
-```python
-execution_id = await agent_service.start_execution(
-    message="Calculate EVM metrics",
-    assistant_config=config,
-    session_id=session_id,
-    user_id=user_id,
-    project_id=project_id,
-)
-```
-
-Returns execution ID string. Execution status tracked in DB via `AIAgentExecution`.
 
 ### Startup Cleanup Handler
 
@@ -732,30 +707,28 @@ When a WebSocket reconnects:
 
 ### Event Streaming
 
-File: `agent_service.py` (_consume_stream within chat_stream)
+File: `agent_service.py` (`_process_stream_events`, line 1412)
 
 ```python
-async for event in graph.astream_events(
+async for event in ctx.graph.astream_events(
     {"messages": history, "tool_call_count": 0, "next": "agent"},
-    config={"recursion_limit": recursion_limit, "configurable": {"thread_id": str(session_id)}},
+    config={"recursion_limit": ctx.recursion_limit, "configurable": {"thread_id": str(ctx.session_id)}},
     version="v1",
 ):
 ```
 
-### Event Types
+### Event Handling
 
-| LangGraph Event | WebSocket Message | Description |
-|-----------------|-------------------|-------------|
-| `on_chat_model_stream` | `WSTokenMessage` | Streaming token from LLM |
-| `on_tool_start` (write_todos) | `WSPlanningMessage` | LangChain agent creating a plan |
-| `on_tool_start` (task) | `WSSubagentMessage` | Delegating to subagent |
-| `on_tool_start` (other) | `WSToolCallMessage` | Tool execution starting |
-| `on_tool_end` (task) | `WSSubagentResultMessage` + `WSContentResetMessage` | Subagent completed |
-| `on_tool_end` (other) | `WSToolResultMessage` | Tool execution result |
-| `on_end` | `WSCompleteMessage` | Stream complete |
-| `on_chat_model_stream` (batched) | `WSTokenBatchMessage` | Batched tokens via TokenBufferManager |
-| `on_tool_end` (task) | `WSAgentCompleteMessage` | Subagent stream completed visually |
-| `on_tool_end` (task) | `WSContentResetMessage` | Clear streaming buffer for new main agent bubble |
+The stream is processed by dedicated handlers on `AgentService`:
+
+| Handler | LangGraph Event(s) | WS Message(s) |
+|---------|--------------------|---------------|
+| `_handle_chat_model_stream` | `on_chat_model_stream` | `WSTokenMessage` / `WSTokenBatchMessage` (via TokenBufferManager) |
+| `_handle_tool_start` | `on_tool_start` | `WSPlanningMessage` (write_todos), `WSSubagentMessage` (task), `WSToolCallMessage` (other) |
+| `_handle_tool_end` | `on_tool_end` | `WSToolResultMessage`, `WSSubagentResultMessage` + `WSContentResetMessage`, `WSAgentCompleteMessage` (task) |
+| `_handle_graph_end` | `on_end` | `WSCompleteMessage` |
+
+> Planning events are emitted by detecting the `write_todos` tool name (`TOOL_NAME_WRITE_TODOS` in `event_types.py:43`) inside `_handle_tool_start` — there is no dedicated middleware class.
 
 ### Step Tracking
 
@@ -776,9 +749,7 @@ Every `WSToolCallMessage`, `WSSubagentMessage`, and `WSPlanningMessage` includes
 
 ### Subagent Result Handling
 
-Handled inline in `agent_service.py:_consume_stream()` within the `on_tool_end` event handler.
-
-When a subagent completes via the `task` tool:
+Handled inline in `agent_service.py:_handle_tool_end()` when a subagent completes via the `task` tool:
 
 1. **Content extraction**: Subagent content is extracted from the tool output (ToolMessage, Command, or dict)
 2. **Structured output detection** (`subagent_task.py:_return_command_with_state_update`):
@@ -795,7 +766,7 @@ When a subagent completes via the `task` tool:
 8. **State preservation**: `accumulated_content` is NOT reset — main agent thoughts persist across subagent executions
 9. **Next invocation**: A new `main_invocation_id` is generated for the next main agent bubble
 
-Messages are persisted to DB in conversational order: main segment → subagents → next main segment.
+Messages are persisted to DB in conversational order: main segment -> subagents -> next main segment.
 
 **Structured output schemas** and their summaries:
 
@@ -805,7 +776,7 @@ Messages are persisted to DB in conversational order: main segment → subagents
 
 ### Token Buffering
 
-File: `agent_service.py` (TokenBufferManager) and `token_buffer.py`
+File: `agent_service.py` (`TokenBufferManager`) and `token_buffer.py`
 
 The stream uses a `TokenBufferManager` that batches individual LLM tokens before sending via WebSocket. Instead of one WS message per token, tokens are accumulated and flushed as `WSTokenBatchMessage` either:
 - On buffer timeout (configurable interval)
@@ -816,7 +787,7 @@ Configuration comes from `settings.AI_TOKEN_BUFFER_INTERVAL_MS`, `settings.AI_TO
 
 ### Transient Error Handling
 
-Long-running agent executions (5+ minutes) may encounter transient network errors such as `httpcore.ReadError` or `httpx.RemoteProtocolError` during LLM streaming. The `astream_events()` loop is wrapped in a retry mechanism:
+Long-running agent executions (5+ minutes) may encounter transient network errors such as `httpcore.ReadError` or `httpx.RemoteProtocolError` during LLM streaming. The `_process_stream_events()` `astream_events()` loop is wrapped in a retry mechanism:
 
 - **Max retries:** 2 (total of 3 attempts)
 - **Delay between retries:** 2 seconds
@@ -899,8 +870,8 @@ Server                              Client (Browser)
 ### Polling Details
 
 - **Poll interval**: 200ms
-- **Max poll time**: 60 seconds (user has up to 60 seconds to approve)
-- **Approval expiration**: 5 minutes (set in `InterruptNode`, safety net for stale approvals)
+- **Max poll time**: governed by `settings.AI_APPROVAL_TIMEOUT_SECONDS`
+- **Approval expiration**: safety net for stale approvals (set in `InterruptNode`)
 - **Heartbeat interval**: Every 5 seconds during polling
 - **On timeout**: Error message returned to client, tool not executed
 
@@ -915,297 +886,20 @@ Server                              Client (Browser)
 
 ---
 
-## 8. WebSocket Protocol Reference
+## 8. Security Model
 
-### Client → Server Messages
-
-#### Chat Request
-
-```json
-{
-  "type": "chat",
-  "message": "Calculate EVM metrics for project X",
-  "session_id": null,
-  "assistant_config_id": "a1b2c3d4-e89b-12d3-a456-426614174000",
-  "title": "EVM Analysis",
-  "project_id": "e5f6g7h8-e89b-12d3-a456-426614174000",
-  "branch_id": null,
-  "as_of": null,
-  "branch_name": "main",
-  "branch_mode": "merged",
-  "execution_mode": "standard",
-  "attachments": [],
-  "images": []
-}
-```
-
-#### Approval Response
-
-```json
-{
-  "type": "approval_response",
-  "approval_id": "550e8400-e29b-41d4-a716-446655440000",
-  "approved": true,
-  "user_id": "123e4567-e89b-12d3-a456-426614174000",
-  "timestamp": "2026-03-24T12:30:05Z"
-}
-```
-
-#### Subscribe
-
-```json
-{
-  "type": "subscribe",
-  "execution_id": "550e8400-e29b-41d4-a716-446655440000",
-  "last_seen_sequence": 42
-}
-```
-
-Sent after WebSocket reconnection to resume receiving events from a running execution. The server replays all events with sequence number > `last_seen_sequence`, then subscribes to live events until completion.
-
-### Server → Client Messages
-
-#### Thinking
-
-```json
-{"type": "thinking"}
-```
-
-#### Token Stream
-
-```json
-{
-  "type": "token",
-  "content": "Based on the project data,",
-  "session_id": "a1b2c3d4-e89b-12d3-a456-426614174000",
-  "source": "main",
-  "subagent_name": null
-}
-```
-
-Subagent token:
-
-```json
-{
-  "type": "token",
-  "content": "The CPI for this project is",
-  "session_id": "a1b2c3d4-e89b-12d3-a456-426614174000",
-  "source": "subagent",
-  "subagent_name": "evm_analyst"
-}
-```
-
-#### Planning
-
-```json
-{
-  "type": "planning",
-  "plan": "Calculate EVM metrics for project X",
-  "steps": [
-    {"text": "Retrieve project data", "done": true},
-    {"text": "Calculate CPI and SPI", "done": false},
-    {"text": "Analyze variance trends", "done": false}
-  ],
-  "step_number": 1,
-  "total_steps": 3
-}
-```
-
-#### Tool Call
-
-```json
-{
-  "type": "tool_call",
-  "tool": "get_project",
-  "args": {"project_id": "e5f6g7h8-..."},
-  "step_number": 1,
-  "total_steps": 3
-}
-```
-
-#### Tool Result
-
-```json
-{
-  "type": "tool_result",
-  "tool": "get_project",
-  "result": {
-    "name": "Assembly Line A",
-    "status": "ACT",
-    "budget": 500000
-  }
-}
-```
-
-#### Subagent Delegation
-
-```json
-{
-  "type": "subagent",
-  "subagent": "evm_analyst",
-  "message": "Calculating EVM metrics for project X",
-  "step_number": 2,
-  "total_steps": 3
-}
-```
-
-#### Subagent Result
-
-```json
-{
-  "type": "subagent_result",
-  "subagent_name": "evm_analyst",
-  "content": "## EVM Analysis Results\n\n**CPI:** 0.95\n**SPI:** 1.02\n..."
-}
-```
-
-#### Content Reset
-
-```json
-{
-  "type": "content_reset",
-  "reason": "subagent_completed"
-}
-```
-
-#### Agent Complete
-
-```json
-{
-  "type": "agent_complete",
-  "agent_type": "main",
-  "invocation_id": "a1b2c3d4-...",
-  "agent_name": "Assistant",
-  "completed_at": "2026-03-24T12:30:15Z"
-}
-```
-
-#### Token Batch
-
-```json
-{
-  "type": "token_batch",
-  "tokens": "Based on the project data, the CPI",
-  "session_id": "a1b2c3d4-e89b-12d3-a456-426614174000",
-  "source": "main",
-  "subagent_name": null,
-  "invocation_id": "a1b2c3d4-..."
-}
-```
-
-#### Approval Request
-
-```json
-{
-  "type": "approval_request",
-  "approval_id": "550e8400-e29b-41d4-a716-446655440000",
-  "session_id": "a1b2c3d4-e89b-12d3-a456-426614174000",
-  "tool_name": "create_project",
-  "tool_args": {"name": "New Project", "budget": 100000},
-  "risk_level": "high",
-  "expires_at": "2026-03-24T12:35:00Z"
-}
-```
-
-#### Polling Heartbeat
-
-```json
-{
-  "type": "polling_heartbeat",
-  "approval_id": "550e8400-e29b-41d4-a716-446655440000",
-  "elapsed_seconds": 5.0,
-  "remaining_seconds": 295.0
-}
-```
-
-#### Complete
-
-```json
-{
-  "type": "complete",
-  "session_id": "a1b2c3d4-e89b-12d3-a456-426614174000",
-  "message_id": "b2c3d4e5-f90a-12d3-a456-426614174000"
-}
-```
-
-#### Error
-
-```json
-{
-  "type": "error",
-  "message": "Session not found: a1b2c3d4-...",
-  "code": 404
-}
-```
-
-#### Execution Started
-
-```json
-{
-  "type": "execution_started",
-  "execution_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-Sent immediately after an agent execution is created via REST endpoint or WebSocket. Provides the execution ID for tracking and reconnection.
-
-#### Execution Status
-
-```json
-{
-  "type": "execution_status",
-  "execution_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "awaiting_approval",
-  "started_at": "2026-03-29T12:30:00Z",
-  "total_tokens": 450,
-  "tool_calls_count": 3
-}
-```
-
-Sent when an agent execution changes status. Useful for tracking execution lifecycle without polling.
-
-### Message Sequence: Full Conversation with Subagent + Approval
-
-```
-Client                                Server
-  |                                     |
-  |--- WSChatRequest (new session) ---->|
-  |                                     |
-  |<-- WSThinkingMessage ---------------|
-  |<-- WSPlanningMessage ---------------|  (write_todos detected)
-  |                                     |
-  |<-- WSSubagentMessage (evm_analyst) -|  (task tool detected)
-  |<-- WSTokenMessage (subagent) ------|  (subagent streams)
-  |<-- WSTokenMessage (subagent) ------|
-  |<-- WSSubagentResultMessage --------|  (subagent done)
-  |<-- WSContentResetMessage ----------|  (clear buffer)
-  |                                     |
-  |<-- WSSubagentMessage (forecast_mgr)|  (second subagent)
-  |<-- WSApprovalRequestMessage -------|  (HIGH risk tool!)
-  |<-- WSPollingHeartbeatMessage ------|
-  |--- WSApprovalResponse (approved) ->|
-  |<-- WSToolResultMessage ------------|  (tool executed)
-  |<-- WSSubagentResultMessage --------|  (subagent done)
-  |<-- WSContentResetMessage ----------|
-  |                                     |
-  |<-- WSTokenMessage (main agent) ----|  (synthesis)
-  |<-- WSTokenMessage (main agent) ----|
-  |<-- WSCompleteMessage --------------|
-```
-
----
-
-## 9. Security Model
+> **Shared concepts.** Tool filtering, RBAC, and the middleware stack are covered in
+> [`ai/agent-common-concepts.md`](ai/agent-common-concepts.md).
 
 ### Three-Tier Security
 
 ```
 Tier 1: JWT Authentication
-    ↓ (ai_chat.py - before websocket.accept)
+    v (ai_chat.py - before websocket.accept)
 Tier 2: RBAC Permission Checking (per-tool)
-    ↓ (BackcastSecurityMiddleware._check_tool_permission)
+    v (BackcastSecurityMiddleware._check_tool_permission)
 Tier 3: Risk-Based Execution Modes
-    ↓ (filter_tools_by_execution_mode + approval workflow)
+    v (filter_tools_by_execution_mode + approval workflow)
 ```
 
 ### Execution Modes
@@ -1220,7 +914,7 @@ Tier 3: Risk-Based Execution Modes
 
 Temporal parameters are injected at the **middleware level**, not in the prompt. This is a security measure — the LLM cannot override them via prompt injection.
 
-File: `middleware/temporal_context.py:40-93`
+File: `middleware/temporal_context.py`
 
 ```python
 # LLM might request: {"as_of": "2025-01-01", "project_id": "other-id"}
@@ -1247,34 +941,35 @@ async def list_projects(context: InjectedToolArg[ToolContext], ...) -> ...:
 
 ---
 
-## 10. Troubleshooting Guide
+## 9. Integration & Debugging
 
-### Log Markers
+This section consolidates the parts of this doc that are genuinely *integration-specific* (not duplicated in the sibling references): sequence diagrams, troubleshooting, SQL queries, and telemetry.
 
-Search `backend/logs/app.log` for these markers to trace request flow:
+### Log Markers (Real)
+
+Search `backend/logs/app.log` for these markers to trace request flow. Only markers that actually exist in source are listed:
 
 | Log Marker | Location | What It Tells You |
 |------------|----------|-------------------|
 | `WebSocket chat connection established for user` | `ai_chat.py` | Connection accepted (auth passed) |
-| `[AGENT_CREATION_START]` | `deep_agent_orchestrator.py` | Agent creation starting |
-| `[TOOL_FILTERING]` | `deep_agent_orchestrator.py` | How many tools were filtered by execution mode |
-| `Creating agent with subagents -` | `deep_agent_orchestrator.py` | Subagent mode active |
-| `Compiled subagent '...' with N tools` | `deep_agent_orchestrator.py` | Subagent tool counts |
-| `Agent created successfully` | `deep_agent_orchestrator.py` | Agent ready to use |
-| `[CHAT_STREAM_ENTRY]` | `agent_service.py` | Chat stream starting |
-| `[CHAT_STREAM_COMPLETE]` | `agent_service.py` | Chat stream finished |
-| `on_chat_model_stream` | `agent_service.py` | Token streaming |
-| `on_tool_start` | `agent_service.py` | Tool call beginning |
-| `on_tool_end` | `agent_service.py` | Tool call complete |
-| `APPROVAL_REQUEST_SENT:` | `interrupt_node.py` | Approval request sent to client |
-| `[APPROVAL_GRANTED]` | `backcast_security.py` | User approved the tool |
-| `[APPROVAL_TIMEOUT]` | `backcast_security.py` | Approval polling timed out (60s) |
-| `[SUBAGENT_DELEGATION]` | `agent_service.py` | Subagent task started |
-| `[GRAPH_CACHE_HIT]` | `agent_service.py` | Cached graph reused (fast path) |
-| `[GRAPH_CREATION_START]` | `agent_service.py` | Compiling new graph (cache miss) |
-| `[GRAPH_CREATION_COMPLETE]` | `agent_service.py` | Graph compilation finished with duration_ms |
-| `CompiledGraphCache hit/miss` | `graph_cache.py` | LRU cache lookup result |
-| `LLMClientCache hit/miss` | `graph_cache.py` | LLM client cache lookup result |
+| `[GRAPH_COMPILE] Compiling new graph for session ...` | `agent_service.py` | Graph compilation starting (cache miss) |
+| `[GRAPH_CREATION_COMPLETE] _create_deep_agent_graph \| duration_ms=...` | `agent_service.py` | Graph compilation finished |
+| `Compiled <label> '<name>' with <N> tools` | `subagent_compiler.py` | Specialist graph compiled with N tools |
+| `[SUPERVISOR] DB specialist loading failed: ...` | `supervisor_orchestrator.py` | DB specialist load error |
+| `Building fallback graph with direct tool access` | `supervisor_orchestrator.py` | Supervisor unavailable; fallback path |
+| `Filtered <N> tools down to <M> for execution_mode=...` | `tools/__init__.py` | Execution-mode tool filtering |
+| `Filtered <N> tools down to <M> for role=...` | `tools/__init__.py` | RBAC tool filtering |
+| `Created and cached <N> tools for AI chat` | `tools/__init__.py` | Tool list built & cached |
+| `on_chat_model_stream` / `on_tool_start` / `on_tool_end` | `agent_service.py` | LangGraph event handler dispatched |
+| `APPROVAL_REQUEST_SENT: approval_id=..., tool='...'` | `interrupt_node.py` | Approval request sent to client |
+| `[APPROVAL_GRANTED] _poll_for_approval \| ...` | `backcast_security.py` | User approved the tool |
+| `[APPROVAL_TIMEOUT] _poll_for_approval \| ...` | `backcast_security.py` | Approval polling timed out |
+
+> The old markers `[AGENT_CREATION_START]`, `[TOOL_FILTERING]`, `Creating agent with subagents`,
+> `Compiled subagent '...'`, `Agent created successfully`, `[CHAT_STREAM_ENTRY]`,
+> `[CHAT_STREAM_COMPLETE]`, `[GRAPH_CACHE_HIT]`, `[GRAPH_CREATION_START]`, and
+> `[SUBAGENT_DELEGATION]` **no longer exist in source** — they referenced the removed
+> `deep_agent_orchestrator.py` and an older logging scheme.
 
 ### Common Issues
 
@@ -1300,7 +995,7 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 1. `assistant_config.default_role` — assistant's RBAC role must have permission for the tool
 2. User's RBAC role — user must have the required permissions
 3. `execution_mode` — tool risk level must be compatible
-4. Subagent mode — main agent has NO direct tools; it must delegate
+4. Supervisor mode — main agent has NO direct tools (except `delegation_config.direct_tools`); it must delegate
 
 #### Approval request never arrives at client
 
@@ -1312,7 +1007,7 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 
 #### Database session errors after tool execution
 
-**Cause**: Unhandled exception in a tool left the DB session in a bad state. The system performs automatic rollback on tool errors (`agent_service.py:1016-1026`), but if you see cascading errors, check the tool implementation.
+**Cause**: Unhandled exception in a tool left the DB session in a bad state. The system performs automatic rollback on tool errors, but if you see cascading errors, check the tool implementation.
 
 #### `Chat error: Error 500` during long execution
 
@@ -1332,14 +1027,47 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 
 ### Tracing a Request
 
-1. **Find the session ID** from the frontend or from the initial `WSChatRequest`
+1. **Find the session ID** from the frontend or from the initial chat request
 2. **Search logs** for the session ID: `grep "<session_id>" backend/logs/app.log`
 3. **Follow the markers**:
-   - `[CHAT_STREAM_ENTRY]` → `[GRAPH_CACHE_HIT]` or `[GRAPH_CREATION_START]` → `[AGENT_CREATION_START]`
-   - → `[TOOL_FILTERING]` → `Agent created successfully` (only on cache miss)
-   - → `on_tool_start` → `[SUBAGENT_DELEGATION]` or `[APPROVAL_*]`
-   - → `on_tool_end` → `on_chat_model_stream` → `[CHAT_STREAM_COMPLETE]`
+   - `[GRAPH_COMPILE]` -> `[GRAPH_CREATION_COMPLETE]` (only on cache miss)
+   - -> `Filtered ... tools down to ...` -> `Compiled '<name>' with N tools`
+   - -> `on_tool_start` -> `APPROVAL_REQUEST_SENT` (if HIGH-risk approval) / `[APPROVAL_GRANTED]` / `[APPROVAL_TIMEOUT]`
+   - -> `on_tool_end` -> `on_chat_model_stream` -> `complete`
 4. **Check OpenTelemetry** if Phoenix is running (OTLP endpoint at `localhost:6006`)
+
+### Sequence Diagrams
+
+#### Full Conversation: Specialist Delegation + Approval
+
+This combined diagram shows a typical multi-specialist flow that also hits the approval path. It is the unique integration sequence for this doc (the per-message field reference lives in `message-types.md`).
+
+```
+Client                                Server
+  |                                     |
+  |--- WSChatRequest (new session) ---->|
+  |                                     |
+  |<-- WSThinkingMessage ---------------|
+  |<-- WSPlanningMessage ---------------|  (write_todos tool detected)
+  |                                     |
+  |<-- WSSubagentMessage (evm_analyst) -|  (task/handoff tool detected)
+  |<-- WSTokenMessage (subagent) ------|  (specialist streams)
+  |<-- WSTokenMessage (subagent) ------|
+  |<-- WSSubagentResultMessage --------|  (specialist done)
+  |<-- WSContentResetMessage ----------|  (clear buffer)
+  |                                     |
+  |<-- WSSubagentMessage (forecast_mgr)|  (second specialist)
+  |<-- WSApprovalRequestMessage -------|  (HIGH risk tool!)
+  |<-- WSPollingHeartbeatMessage ------|
+  |--- WSApprovalResponse (approved) ->|
+  |<-- WSToolResultMessage ------------|  (tool executed)
+  |<-- WSSubagentResultMessage --------|  (specialist done)
+  |<-- WSContentResetMessage ----------|
+  |                                     |
+  |<-- WSTokenMessage (main agent) ----|  (synthesis)
+  |<-- WSTokenMessage (main agent) ----|
+  |<-- WSCompleteMessage --------------|
+```
 
 ### Database Queries for Debugging
 
@@ -1388,9 +1116,9 @@ WHERE s.user_id = '<user_uuid>'
 ORDER BY s.updated_at DESC;
 ```
 
-### Telemetry Setup
+### Telemetry: Phoenix
 
-For AI observability with Arize Phoenix:
+For AI observability with Arize Phoenix (file: `backend/app/ai/telemetry.py` — `initialize_telemetry()`, `trace_context()`, `trace_subagent_delegation()`):
 
 ```bash
 # Set environment variables
@@ -1406,20 +1134,20 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 
 ---
 
-## 11. Key Files Quick Reference
+## 10. Key Files Quick Reference
 
 ### Core
 
 | File | Purpose |
 |------|---------|
-| `backend/app/api/routes/ai_chat.py` | WebSocket endpoint (`/stream`), REST endpoints (`/invoke`, `/executions/*`), auth, message dispatch, subscribe handling |
-| `backend/app/ai/agent_service.py` | Main orchestration: `chat_stream()`, `chat()`, `_run_agent_graph()`, `start_execution()`, approval registration, history building |
+| `backend/app/api/routes/ai_chat.py` | WebSocket endpoint `chat_stream()` at `/stream`, REST endpoints (`/invoke`, `/executions/*`), auth, message dispatch, subscribe handling |
+| `backend/app/ai/agent_service.py` | Main orchestration: `_create_deep_agent_graph()` (557), `_run_agent_graph()` (1722), `_process_stream_events()` (1412), `start_execution()` (2001), approval registration, history building |
 | `backend/app/ai/supervisor_orchestrator.py` | `SupervisorOrchestrator` — handoff-based delegation via parent StateGraph with direct tool support and DB specialist loading |
 | `backend/app/ai/supervisor_state.py` | `BackcastSupervisorState` — shared state schema for supervisor graph (messages, active_agent, tool_call_count) |
 | `backend/app/ai/handoff_tools.py` | `create_handoff_tool()` / `create_all_handoff_tools()` — handoff tools using `Command(goto=...)` for specialist routing |
 | `backend/app/ai/graph_cache.py` | Caching infrastructure: `LLMClientCache`, `CompiledGraphCache`, `GraphCacheKey`, `BackcastRuntimeContext`, shared checkpointer, ContextVar helpers |
 | `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no specialists) |
-| `backend/app/ai/state.py` | `AgentState` TypedDict (messages, tool_call_count, next) |
+| `backend/app/ai/state.py` | `AgentState` TypedDict (messages, tool_call_count, max_tool_iterations, next) |
 
 ### Execution Architecture
 
@@ -1428,6 +1156,7 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 | `backend/app/ai/execution/agent_event.py` | `AgentEvent` dataclass — immutable event structure for agent execution events |
 | `backend/app/ai/execution/agent_event_bus.py` | `AgentEventBus` — in-memory pub/sub with bounded replay buffer for agent events |
 | `backend/app/ai/execution/runner_manager.py` | `AgentRunnerManager` — process-level singleton registry mapping execution IDs to event buses |
+| `backend/app/ai/event_types.py` | `ExecutionStatus` enum, `AgentEventType` enum, `TOOL_NAME_WRITE_TODOS` / `TOOL_NAME_TASK` constants |
 | `backend/app/alembic/versions/6c93c299c703_add_ai_agent_executions_table.py` | Migration creating `ai_agent_executions` table for execution tracking |
 | `backend/app/main.py` | Startup handler `_cleanup_orphaned_executions()` — marks orphaned executions as errored on server restart |
 
@@ -1435,16 +1164,16 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 
 | File | Purpose |
 |------|---------|
-| `backend/app/ai/subagents/__init__.py` | Hardcoded specialist configs (fallback when DB is empty) |
+| `backend/app/ai/subagents/__init__.py` | Re-export of `load_specialists_from_db` / `invalidate_cache` (DB-driven; no hardcoded configs) |
 | `backend/app/ai/subagents/db_loader.py` | `load_specialists_from_db()`, `assistant_config_to_specialist_dict()`: TTL-cached DB specialist loading |
-| `backend/app/ai/subagent_compiler.py` | `compile_subagents()`: shared compilation logic for specialist graphs |
+| `backend/app/ai/subagent_compiler.py` | `compile_subagents()` (98): shared compilation logic for specialist graphs |
 | `backend/app/ai/tools/subagent_task.py` | `build_task_tool()`, `_return_command_with_state_update()`, `_summarize_structured_output()` — structured output handling |
 
 ### Tools
 
 | File | Purpose |
 |------|---------|
-| `backend/app/ai/tools/__init__.py` | `create_project_tools()` factory, `filter_tools_by_execution_mode()` |
+| `backend/app/ai/tools/__init__.py` | `create_project_tools()` factory (dynamic tool count), `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
 | `backend/app/ai/tools/types.py` | `ToolContext`, `ToolMetadata`, `RiskLevel`, `ExecutionMode` |
 | `backend/app/ai/tools/decorator.py` | `@ai_tool` decorator for tool registration with metadata |
 | `backend/app/ai/tools/interrupt_node.py` | `InterruptNode` — approval request/response via WebSocket |
@@ -1453,10 +1182,7 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 | `backend/app/ai/tools/session_manager.py` | `ToolSessionManager` — task-local DB sessions for concurrent tool execution |
 | `backend/app/ai/tools/approval_audit.py` | Approval audit trail logging |
 | `backend/app/ai/tools/risk_check_node.py` | Standalone risk checking node |
-| `backend/app/ai/tools/project_tools.py` | Project and WBE tools |
-| `backend/app/ai/tools/context_tools.py` | `get_temporal_context`, `get_project_context` |
-| `backend/app/ai/tools/temporal_tools.py` | Temporal/bitemporal query tools |
-| `backend/app/ai/tools/templates/` | Tool template modules (CRUD, EVM, change orders, forecasts, etc.) |
+| `backend/app/ai/tools/templates/` | Tool template modules: 12 functional templates (project, wbe, cost_element, cost_event, cost_event_type, change_order, forecast_cost_progress, control_account, work_package, analysis, advanced_analysis, diagram) + `_pagination` shared helper |
 
 ### Middleware
 
@@ -1475,7 +1201,7 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 
 | File | Purpose |
 |------|---------|
-| `backend/app/models/schemas/ai.py` | All Pydantic schemas: `WSChatRequest`, `WSTokenMessage`, `WSApprovalRequestMessage`, `WSSubscribeMessage`, `WSExecutionStartedMessage`, `WSExecutionStatusMessage`, `AgentExecutionPublic`, `InvokeAgentRequest`, etc. |
+| `backend/app/models/schemas/ai.py` | All Pydantic WS schemas: `WSChatRequest`, `WSTokenMessage`, `WSApprovalRequestMessage`, `WSSubscribeMessage`, `WSExecutionStartedMessage`, `WSExecutionStatusMessage`, `AgentExecutionPublic`, `InvokeAgentRequest`, etc. (canonical protocol reference in [`backend/contexts/ai/message-types.md`](backend/contexts/ai/message-types.md)) |
 | `backend/app/models/schemas/evm.py` | `EVMMetricsRead` — structured output schema for EVM analyst subagent |
 | `backend/app/models/schemas/forecast.py` | `ForecastRead` — structured output schema for forecast manager subagent |
 | `backend/app/models/schemas/impact_analysis.py` | `ImpactAnalysisResponse` — structured output schema for change order manager subagent |

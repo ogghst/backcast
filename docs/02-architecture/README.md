@@ -24,7 +24,7 @@ Quick reference for finding architecture documents. Start here when working on t
 | **Build AI chat features** | [`ai-chat-developer-guide.md`](ai-chat-developer-guide.md) - AI chat architecture |
 | **Build branching features** | [`backend/contexts/branching/architecture.md`](backend/contexts/branching/architecture.md) - Branch context |
 | **Build progression features** | [`backend/contexts/progression/architecture.md`](backend/contexts/progression/architecture.md) - Progression context |
-| **Work with AI tools** | [`backend/api/ai-tools.md`](backend/api/ai-tools.md) - AI tool development |
+| **Work with AI tools** | [`ai/tool-development-guide.md`](ai/tool-development-guide.md) - AI tool development + context patterns |
 
 ## Folder Structure
 
@@ -55,14 +55,16 @@ Quick reference for finding architecture documents. Start here when working on t
 │   │   └── widget-lifecycle-walkthrough.md # Widget lifecycle explanation
 │   │
 │   └── AI Guides
-│       └── ai-chat-developer-guide.md     # AI chat system architecture
+│       ├── ai-chat-developer-guide.md     # AI chat system architecture & integration
+│       ├── ai-prompt-context-guide.md     # AI prompt construction & context building
+│       └── mcp-developer-guide.md         # MCP tool integration
 │
 ├── backend/                      # Backend architecture
 │   ├── coding-standards.md       # Python/FastAPI standards
 │   ├── seed-data-strategy.md     # Seed data approach
-│   ├── api/                      # Backend API docs
-│   │   └── ai-tools.md           # AI tool development patterns
 │   └── contexts/                 # Per-context backend docs
+│       ├── ai/                   # AI integration context
+│       │   └── message-types.md  # WebSocket protocol & message catalog
 │       ├── evcs-core/            # EVCS (Entity Versioning Control System)
 │       │   ├── architecture.md           # EVCS architecture overview
 │       │   ├── entity-classification.md   # Versionable vs non-versionable
@@ -104,15 +106,10 @@ Quick reference for finding architecture documents. Start here when working on t
 │   ├── test-strategy-guide.md         # Testing philosophy & patterns
 │   └── test-execution-runbook.md      # How to run tests
 │
-├── ai/                          # AI/Chat system documentation
-│   ├── agent-common-concepts.md       # Shared agent infrastructure, tools, middleware
-│   ├── deep-agent-orchestrator.md     # Task-based delegation with isolated subagents
-│   ├── supervisor-orchestrator.md     # Handoff-based delegation with shared state
-│   ├── api-reference.md               # AI API reference
-│   ├── project-context-patterns.md    # Project context injection
-│   ├── temporal-context-patterns.md   # Temporal context in AI
-│   ├── tool-development-guide.md      # AI tool development
-│   └── troubleshooting.md             # AI system troubleshooting
+├── ai/                          # AI/Chat system documentation (one doc per macro topic)
+│   ├── agent-common-concepts.md       # Shared agent infrastructure, tools, middleware, data model
+│   ├── supervisor-orchestrator.md     # Supervisor + planner orchestration, briefing-room pattern
+│   └── tool-development-guide.md      # AI tool development + tool context patterns
 │
 ├── decisions/                   # Architecture Decision Records (ADRs)
 │   ├── adr-index.md                  # ADR index & template

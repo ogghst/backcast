@@ -1,14 +1,16 @@
-# Supervisor Orchestrator: Briefing-Based Delegation
+# Supervisor + Planner Orchestrator: Briefing-Based Delegation
 
-A handoff-based orchestration pattern where a supervisor agent routes user requests to specialist agents via handoff tools. Specialists do NOT share message history -- instead, each receives a compiled briefing document as context and contributes findings back to the accumulating document. The briefing acts as the primary knowledge carrier between supervisor turns.
+A two-node orchestration pattern where a **planner** decomposes a request into ordered steps, then a **supervisor** agent delegates those steps to specialist agents via handoff tools. Specialists do NOT share message history -- instead, each receives a compiled briefing document as context and contributes findings back to the accumulating document. The briefing is the primary knowledge carrier between supervisor turns.
 
-The supervisor also has **direct tool access** for lightweight operations (e.g., changing the as-of date) configured via the main agent's `delegation_config.direct_tools`. This eliminates delegation overhead for trivial tasks.
+The supervisor also has **direct tool access** (e.g. `ask_user`, temporal context, search) configured via the main agent's `delegation_config.direct_tools`, so trivial operations skip delegation overhead.
 
 > **Prerequisite:** This document assumes familiarity with [Agent System: Common Concepts](./agent-common-concepts.md).
 >
 > **Related Documentation:**
 > - [Agent System: Common Concepts](./agent-common-concepts.md) -- shared infrastructure, tools, middleware, event bus
-> - ~~[Deep Agent Orchestrator](./deep-agent-orchestrator.md)~~ -- removed; supervisor is the sole orchestrator
+> - [`backend/app/ai/supervisor_orchestrator_DEV_GUIDE.md`](../../../backend/app/ai/supervisor_orchestrator_DEV_GUIDE.md) -- code-adjacent developer reference with line-level detail and improvement notes
+>
+> **Last Updated:** 2026-06-14
 
 ---
 
@@ -17,14 +19,16 @@ The supervisor also has **direct tool access** for lightweight operations (e.g.,
 1. [Architecture Overview](#1-architecture-overview)
 2. [Key Files](#2-key-files)
 3. [State Schema](#3-state-schema)
-4. [Supervisor System Prompt](#4-supervisor-system-prompt)
-5. [Handoff Mechanism](#5-handoff-mechanism)
-6. [Specialist Compilation](#6-specialist-compilation)
-7. [Graph Wiring](#7-graph-wiring)
-8. [Routing Decisions](#8-routing-decisions)
-9. [Iteration Safety](#9-iteration-safety)
-10. [Walkthrough: Project Health Check](#10-walkthrough-project-health-check)
-11. [Key Files Reference](#11-key-files-reference)
+4. [The Planner Node](#4-the-planner-node)
+5. [The Supervisor Node and System Prompt](#5-the-supervisor-node-and-system-prompt)
+6. [Handoff and Replan Tools](#6-handoff-and-replan-tools)
+7. [Specialist Compilation and Wrapper Nodes](#7-specialist-compilation-and-wrapper-nodes)
+8. [Graph Wiring](#8-graph-wiring)
+9. [Routing and Re-dispatch](#9-routing-and-re-dispatch)
+10. [Iteration Safety](#10-iteration-safety)
+11. [Reducer Merge Arithmetic](#11-reducer-merge-arithmetic)
+12. [Walkthrough: Multi-Step Plan Execution](#12-walkthrough-multi-step-plan-execution)
+13. [Key Files Reference](#13-key-files-reference)
 
 ---
 
@@ -39,53 +43,66 @@ class SupervisorOrchestrator:
         model: str | BaseChatModel,
         context: ToolContext,
         system_prompt: str | None = None,
+        main_assistant_config: Any | None = None,
+        specialist_models: dict[str, BaseChatModel] | None = None,
     ) -> None:
 ```
 
-The supervisor orchestrator builds a parent `StateGraph` where the supervisor routes to specialist agents via handoff tools. Each specialist is a **function node** (not a subgraph node) that runs in isolation with the compiled briefing document as its only context. The briefing accumulates specialist findings across iterations, replacing raw message history as the knowledge carrier.
+The orchestrator builds a parent `StateGraph` whose fixed prefix is `START -> initialize_briefing -> planner -> supervisor`. The supervisor then routes to specialist agents via handoff tools. Each specialist is a **function node** (a wrapper, not a subgraph node) that runs in isolation, receives the compiled briefing document (and plan-step context when applicable) as its only input, and contributes findings back into the accumulating `briefing_data`.
+
+The `main_assistant_config` parameter carries the DB-loaded `AIAssistantConfig` row, which includes `delegation_config` (`direct_tools` + `allowed_specialists`), `planner_prompt`, `supervisor_prompt`, and `max_supervisor_iterations`. `specialist_models` optionally overrides the model per specialist.
 
 ### Invocation Path
 
-The supervisor is invoked directly from `agent_service.py`. It is the sole orchestrator (the Deep Agent path has been removed):
+The supervisor is the sole orchestrator. It is constructed from `agent_service.py` in a method still named `_create_deep_agent_graph` (a naming artifact -- the "deep agent" path was removed; the method name was not updated):
 
 ```python
-# In agent_service.py
-supervisor = SupervisorOrchestrator(
-    model=llm_client,
+# In agent_service.py:_create_deep_agent_graph
+supervisor_orchestrator = SupervisorOrchestrator(
+    model=llm,
     context=tool_context,
     system_prompt=system_prompt,
-    main_assistant_config=assistant_config,  # DB-loaded main agent config
+    main_assistant_config=assistant_config,
+    specialist_models=params.specialist_models,
 )
-graph = supervisor.create_supervisor_graph(config)
+graph = await supervisor_orchestrator.create_supervisor_graph(agent_config)
 ```
-
-The `main_assistant_config` parameter carries the DB-loaded `AIAssistantConfig` row, which includes `delegation_config` (direct tools + allowed specialists) and `agent_type`.
 
 ### Architecture Diagram
 
 ```mermaid
 flowchart TD
     START((START)) --> INIT["initialize_briefing\n(function node)"]
-    INIT --> SUP["Supervisor Node\n(compiled agent)"]
+    INIT --> PLAN["planner\n(function node, single LLM call)"]
+    PLAN --> SUP["supervisor\n(compiled agent)"]
     SUP -->|"handoff_to_X tool call"| SPEC["Specialist Wrapper X\n(function node)"]
-    SUP -->|"no tool calls"| END_NODE((END))
-    SPEC -->|"always"| SUP
+    SUP -->|"request_replan tool call"| PLAN
+    SUP -->|"no tool calls / max iterations"| END_NODE((END))
+    SPEC -->|"Command(goto=supervisor)"| SUP
+    SPEC -->|"early exit / completed"| END_NODE
 ```
 
-The key architectural difference from a shared-state supervisor: specialist nodes are **function nodes** that invoke compiled specialist graphs internally via `ainvoke()` with isolated messages. Specialists never see each other's raw messages or the parent graph's message history -- only the compiled briefing.
+The two nodes between START and supervisor are the key difference from a plain handoff supervisor:
+
+- **`initialize_briefing`** seeds the `BriefingDocument` from the user request and resets the iteration/replan counters.
+- **`planner`** makes a single LLM call to produce a `PlanDocument` (simple single-step, or multi-step with dependencies). The plan drives supervisor delegation order.
+
+Specialist nodes are **function nodes** that invoke compiled specialist graphs internally via `ainvoke()` with isolated messages. Specialists never see each other's raw messages or the parent graph's message history -- only the compiled briefing (plus, in plan mode, a focused assignment block).
 
 ---
 
 ## 2. Key Files
 
 | File | Responsibility |
-|------|---------------|
-| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: briefing-based agent delegation with compiled context |
-| `ai/supervisor_state.py` | `BackcastSupervisorState`: state schema with briefing fields and iteration counters |
-| `ai/briefing.py` | `BriefingDocument`, `BriefingSection`: Pydantic models for the briefing artifact |
-| `ai/briefing_compiler.py` | `initialize_briefing()`, `compile_specialist_output()`: zero-cost compilation logic |
-| `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: handoff tools with deterministic briefing update |
-| `ai/subagent_compiler.py` | Shared compilation logic for specialist graphs |
+|------|----------------|
+| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: graph builder, supervisor node, specialist wrappers, router, fallback graph |
+| `ai/supervisor_state.py` | `BackcastSupervisorState`: 14-field state schema with reducer annotations |
+| `ai/planner.py` | `planner_node`: fresh-plan, resume, and replan paths; `_MAX_PLAN_STEPS` cap (5) |
+| `ai/plan.py` | `PlanDocument`, `PlanStep`, `PlannerOutput`: structured plan models |
+| `ai/briefing.py` | `BriefingDocument`, `BriefingSection`, `TaskAssignment`: Pydantic models for the briefing artifact |
+| `ai/briefing_compiler.py` | `initialize_briefing()`, `parse_and_clean()`, `compile_specialist_output()` |
+| `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`, `create_replan_tool()`, `_slugify()` |
+| `ai/subagent_compiler.py` | `compile_subagents()`, `filter_tools_for_context()`, `build_backcast_middleware()` |
 
 ---
 
@@ -93,550 +110,450 @@ The key architectural difference from a shared-state supervisor: specialist node
 
 ### BackcastSupervisorState
 
+Defined in `supervisor_state.py`. The state has **14 fields**. Each field with a reducer receives *deltas* that get merged into the parent state; fields without a reducer use last-writer-wins semantics.
+
+| # | Field | Type / Reducer | Purpose |
+|---|-------|----------------|---------|
+| 1 | `messages` | `list[BaseMessage]` -- `operator.add` | Outer conversation only (user + supervisor). NOT shared with specialists. |
+| 2 | `active_agent` | `str` -- last-writer-wins | Currently active specialist name (for event routing). |
+| 3 | `tool_call_count` | `int` -- `operator.add` | Accumulated tool-call count across all agents. |
+| 4 | `max_tool_iterations` | `int` -- last-writer-wins | Hard cap on tool calls per agent invocation (set by the caller). |
+| 5 | `briefing_data` | `dict[str, Any]` -- last-writer-wins | Serialized `BriefingDocument` -- single source of truth. |
+| 6 | `supervisor_iterations` | `int` -- `operator.add` | Completed supervisor->specialist cycles. |
+| 7 | `max_supervisor_iterations` | `int` -- last-writer-wins | Hard cap on supervisor loops (default **5**; raised dynamically when a plan is active). |
+| 8 | `completed_specialists` | `set[str]` -- `operator.or_` | Union-accumulated set of finished specialist names. |
+| 9 | `plan_data` | `dict[str, Any]` -- last-writer-wins | Serialized `PlanDocument`; `None`/empty when no plan. |
+| 10 | `completed_steps` | `set[int]` -- `operator.or_` | Indices of completed plan steps (union-accumulated). |
+| 11 | `current_step_index` | `int` -- last-writer-wins | Zero-based index of the step being executed; `-1` when between steps / no plan. |
+| 12 | `current_invocation_id` | `str` -- last-writer-wins | UUID for the current specialist invocation, set by the handoff tool so SUBAGENT/token_batch/AGENT_COMPLETE events share one ID. |
+| 13 | `replan_count` | `int` -- last-writer-wins (NOT a reducer) | Replan cycles completed. Set explicitly by the replan tool (`current + 1`). Deliberately NOT a reducer to avoid spurious increments on every graph transition. |
+| 14 | `max_replan_count` | `int` -- last-writer-wins | Hard cap on replans (default **2**). |
+| (15) | `replan_context` | `str` -- last-writer-wins | Supervisor's reason string consumed by the planner on replan; cleared after the planner processes it. |
+
+(Two design notes worth flagging: `completed_steps` uses `operator.or_` exactly like `completed_specialists`, so plan-step progress is set-unioned across cycles; and `replan_count` is intentionally a plain field, not a reducer -- a reducer would increment it on every transition that touches state, so the value is written explicitly by the replan tool.)
+
+**Knowledge carrier:** the `messages` field carries only the outer conversation. The `briefing_data` dict is the single source of truth -- a serialized `BriefingDocument` that accumulates findings from all specialists. Markdown is rendered from `briefing_data` on demand via `BriefingDocument.from_state(data).to_markdown()` wherever needed (the `get_briefing` tool, specialist wrapper, event bus publishing).
+
+---
+
+## 4. The Planner Node
+
+The planner is a function node (`planner_node_fn`) between `initialize_briefing` and `supervisor` that makes a single LLM call to produce a `PlanDocument`. It delegates to `planner_node()` in `planner.py`.
+
+### Three Execution Paths (checked in order)
+
+1. **Replan** -- When `replan_context` is non-empty AND a `plan_data` already exists, the planner revises the pending steps while preserving completed ones (uses `_REPLANNER_PROMPT_TEMPLATE` and `_merge_replanned_steps()`). Clears `replan_context` on return.
+2. **Resume** -- When `plan_data` already exists with incomplete steps, returns it unchanged WITHOUT an LLM call (supports stop/resume).
+3. **Fresh plan** -- Analyzes the user request from scratch.
+
+### Planner Output
+
+The planner uses `PydanticOutputParser(PlannerOutput)` (NOT `with_structured_output` / function calling) because `function_calling`/`tool_choice` conflicts with the DeepSeek thinking-mode monkey-patch and z.ai/GLM parsing. The LLM's raw output is recovered via `_extract_json()` (handles fenced blocks and reasoning prose before the JSON).
+
+`_convert_planner_output()` validates specialist names against the catalog (unknown -> `general_purpose`) and truncates to `_MAX_PLAN_STEPS` (5). On any error (LLM call failure or parse failure), it falls back to a single-step `general_purpose` plan -- the graph never crashes here.
+
+### PlanDocument Structure (`plan.py`)
+
+```
+PlanDocument
+├── original_request: str
+├── steps: list[PlanStep]
+├── estimated_complexity: "simple" | "moderate" | "complex"
+├── requires_planning: bool
+└── specialist_catalog: list[dict] | None
+
+PlanStep
+├── step_index: int
+├── specialist: str
+├── task_description: str
+├── dependencies: list[int]            # step indices that must complete first
+├── input_from_dependencies: str | None
+├── expected_output: str
+├── status: "pending" | "in_progress" | "completed" | "failed" | "skipped"
+└── result_summary: str | None
+```
+
+After producing the plan, the planner node emits a `PLAN_UPDATE` event so the frontend can render the plan rail. It returns `{"plan_data": plan.model_dump()}` (plus `"replan_context": ""` on the replan path).
+
+---
+
+## 5. The Supervisor Node and System Prompt
+
+The supervisor is a **compiled agent** (created via `langchain_create_agent()`), not a plain function node. It has its own internal agent<->tools loop. Its middleware is `[ContextGuardMiddleware, PlanAwareToolMiddleware, ...base_middleware]` (see [Common Concepts](./agent-common-concepts.md)). The briefing markdown is injected as a `SystemMessage` by the `initialize_briefing` node, and `ContextGuardMiddleware` re-injects a compact summary when the message history grows large.
+
+### Supervisor Tools
+
+The supervisor's tool list is assembled in `create_supervisor_graph`:
+
 ```python
-class BackcastSupervisorState(TypedDict):
-    messages: Annotated[list[BaseMessage], operator.add]  # user msg + supervisor response only
-    active_agent: str                                     # currently active specialist
-    tool_call_count: Annotated[int, operator.add]         # accumulated across all agents
-    max_tool_iterations: int                              # global iteration limit
-    briefing_data: dict[str, Any]                         # serialized BriefingDocument (single source of truth)
-    supervisor_iterations: Annotated[int, operator.add]   # completed supervisor cycles
-    max_supervisor_iterations: int                        # hard cap (default 3)
-    completed_specialists: Annotated[set[str], operator.or_]  # specialists that have finished
+get_briefing_tool = _create_get_briefing_tool()
+handoff_tools = create_all_handoff_tools(specialist_graphs)
+replan_tool = create_replan_tool()
+supervisor_tools = [get_briefing_tool, replan_tool] + list(handoff_tools)
+# + optional direct_tools from delegation_config['direct_tools']
 ```
 
-The `messages` field carries only the outer conversation (user message + supervisor final response). The `briefing_data` field is the single source of truth -- a serialized `BriefingDocument` dict that accumulates findings from all specialists. Markdown is rendered from `briefing_data` on demand via `BriefingDocument.model_validate(data).to_markdown()` wherever needed (get_briefing tool, specialist wrapper, agent_service publishing).
+So the supervisor has **three tool categories**:
 
-The `completed_specialists` field uses `operator.or_` (set union) as its reducer, so each specialist wrapper adds its name to the growing set. The router checks this set to prevent re-dispatch.
+1. **`get_briefing`** -- reads the current compiled findings from `briefing_data`.
+2. **`request_replan`** -- routes back to the planner to revise remaining steps (see [Section 6](#6-handoff-and-replan-tools)).
+3. **`handoff_to_{specialist}`** -- one per successfully-compiled specialist, routes to the specialist wrapper via `Command(goto=specialist)`.
+4. **Optional direct tools** -- from `delegation_config.direct_tools` (DB-configurable, no hardcoded defaults). `ask_user` is granted to every main agent via migration `2db3a62769df_grant_ask_user_to_all_assistant_configs.py`.
 
-The `supervisor_iterations` counter uses `operator.add` and increments by 1 each time a specialist completes. Combined with `max_supervisor_iterations`, this enforces a hard cap on supervisor-specialist cycles.
+### System Prompt Assembly
 
-**Key difference from task-based delegation:** In the task-based pattern, each subagent gets an isolated `messages` list containing only the task description. Here, specialists see the compiled briefing (~300-700 tokens) instead of raw messages (~3000-8000 tokens), achieving 5-10x context reduction.
+The base prompt is `_BASE_SUPERVISOR_PROMPT` (or a DB-configured override from `AIAssistantConfig.system_prompt` / `supervisor_prompt`). The assembly is:
+
+1. **Base prompt** -- `self.system_prompt or _BASE_SUPERVISOR_PROMPT`.
+2. **Specialist section** -- `_build_supervisor_specialist_section(specialist_graphs)` is appended (or substituted into a `{specialist_section}` placeholder if the custom prompt contains one). This is **dynamic** -- it reflects the actually-compiled specialists, never a hardcoded list.
+3. **Delegation enforcement** -- `_DELEGATION_ENFORCED_SECTION` is appended when `AI_DELEGATION_ENFORCED` is true (default).
+4. **Tool-access suffix** -- a direct-tools suffix (listing the direct tool names) when direct tools exist, otherwise `_BRIEFING_HANDOFF_SUFFIX`.
+
+The real `_BASE_SUPERVISOR_PROMPT` (summarized -- see the file for the exact text) describes a **plan-driven** supervisor:
+
+- The briefing is injected as a system message before every turn (NOT fetched via `get_briefing` first -- the supervisor reads it from context).
+- "Follow the plan strictly: Delegate ONE step at a time in order."
+- After each specialist completes, check whether the next step's dependencies are met; if findings make remaining steps redundant/contradictory, call `request_replan`.
+- A **Replanning** section describing `request_replan` and the 2-replan cap.
+- "Only respond if you need to ask the user a clarification question" (the user reads the briefing directly).
+
+> Note: the older "BRIEFING_ROOM_SUPERVISOR_PROMPT" with a `call get_briefing first` instruction and a hardcoded 7-specialist list no longer exists. The specialist catalog is always built dynamically, and the briefing is injected rather than fetched at turn start.
 
 ---
 
-## 4. Supervisor System Prompt
-
-### BRIEFING_ROOM_SUPERVISOR_PROMPT
-
-The supervisor's system prompt describes the briefing-based delegation workflow:
-
-```
-You are a supervisor in the Briefing Room for the Backcast project budget management system.
-
-You coordinate specialist agents who analyze data and report back through a compiled briefing document.
-
-## How It Works
-1. Use the `get_briefing` tool to read the current compiled findings from all specialists
-2. Based on the briefing, decide which specialist to hand off to next
-3. After each specialist contributes, review the updated briefing
-4. When you have enough information, synthesize the findings into a response
-
-## Available Specialists
-- project_manager -> Project CRUD, WBEs, cost elements, cost tracking, progress entries
-- evm_analyst -> EVM calculations, performance analysis
-- change_order_manager -> Change orders, impact analysis
-- user_admin -> User and department management
-- visualization_specialist -> Diagrams, visualizations
-- forecast_manager -> Forecasts, schedule baselines
-- general_purpose -> Unclear or cross-cutting requests
-
-## Guidelines
-- Always call get_briefing first to see what's already been analyzed
-- CRITICAL: Before handing off to a specialist, check if the briefing already
-  contains findings that address the user's request. If the task is complete,
-  respond directly instead of handing off again.
-- Do NOT hand off to the same specialist more than once for the same task.
-- Hand off to the most relevant specialist for each aspect of the request
-- After receiving specialist findings, synthesize a clear, concise response
-- Do NOT repeat detailed findings -- highlight key insights and actionable information
-
-## CRITICAL COMPLETION RULES
-1. Maximum 2 specialist cycles for simple requests. Do NOT over-delegate.
-2. Always call get_briefing before deciding to hand off -- check what's already there.
-3. If a specialist has completed the requested work, acknowledge completion and summarize.
-
-## MANDATORY PRE-HANDOFF CHECKLIST
-Before calling ANY handoff_to_X tool, you MUST:
-1. Call get_briefing and check the current findings
-2. Check Specialist Contributions section -- if specialist X already has findings, DO NOT handoff to X again
-3. Verify the user's request hasn't already been addressed
-
-Failure to check will result in redundant work, wasted API costs, and poor user experience.
-```
-
-### _BRIEFING_HANDOFF_SUFFIX
-
-Appended when specialists are available:
-
-```
-IMPORTANT: You do NOT have direct access to Backcast tools.
-ALL Backcast operations must be delegated to specialists via handoff tools.
-
-Always start by calling get_briefing to review the current state of knowledge.
-```
-
-### Direct Tools
-
-When the main agent's `delegation_config.direct_tools` is non-empty, the supervisor receives those tools directly alongside `get_briefing` and handoff tools. The `_BRIEFING_HANDOFF_SUFFIX` is replaced with a conditional message:
-
-```
-You have DIRECT access to these tools: [list of direct tool names].
-Use them for lightweight operations. All other Backcast operations must be
-delegated to specialists via handoff tools.
-
-Always start by calling get_briefing to review the current state of knowledge.
-```
-
-**Default direct tools:** `get_temporal_context`, `set_temporal_context`, `global_search`. Fully configurable per main agent via the admin UI.
-
-### Routing Guidelines
-
-The supervisor has three tool categories: `get_briefing` (read compiled findings), `handoff_to_X` (delegate to specialist), and optional **direct tools** from the main agent's `delegation_config`. There is no `task` tool -- all delegation is via handoff to ensure every specialist contribution passes through briefing compilation.
-
----
-
-## 5. Handoff Mechanism
+## 6. Handoff and Replan Tools
 
 ### create_handoff_tool()
 
-Each handoff tool is created by `create_handoff_tool(agent_name, agent_description)`. Unlike the previous pattern, the handoff tool now performs a **deterministic briefing update** before routing:
+Each handoff tool is created by `create_handoff_tool(agent_name, agent_description)` and performs a **deterministic briefing update** before routing. The tool signature has **five** parameters:
 
 ```python
-@tool(f"handoff_to_{agent_name}", description=agent_description)
 def handoff_tool(
-    task_description: Annotated[str, "A brief description of the task to hand off."],
+    task_description: Annotated[str, "..."],
     state: Annotated[dict, InjectedState()],
     tool_call_id: Annotated[str, InjectedToolCallId],
+    rationale: Annotated[str | None, "Why this specialist..."] = None,
+    analysis: Annotated[str | None, "Overall analysis / delegation strategy"] = None,
+    step_index: Annotated[int | None, "Plan step index if delegating from a plan"] = None,
 ) -> Command:
-    tool_message = ToolMessage(
-        content=f"Transferring to {agent_name}: {task_description}",
-        tool_call_id=tool_call_id,
-    )
-
-    # Propagate reasoning_content from the last AIMessage (DeepSeek thinking
-    # mode requires it on ALL assistant messages when enabled).
-    rc_kwargs: dict[str, Any] = {}
-    for msg in reversed(state.get("messages", [])):
-        if isinstance(msg, AIMessage):
-            rc = msg.additional_kwargs.get("reasoning_content")
-            if rc:
-                rc_kwargs["additional_kwargs"] = {"reasoning_content": rc}
-            break
-
-    ai_message = AIMessage(
-        content="",
-        tool_calls=[{
-            "name": tool_name, "args": {"task_description": task_description},
-            "id": tool_call_id, "type": "tool_call",
-        }],
-        **rc_kwargs,
-    )
-
-    # Deterministic briefing update with task assignment
-    briefing_data = state.get("briefing_data", {})
-    try:
-        doc = BriefingDocument.model_validate(briefing_data)
-    except Exception:
-        doc = BriefingDocument(original_request="(recovered)")
-    doc.metadata["current_task"] = {
-        "specialist": agent_name,
-        "description": task_description,
-    }
-    updated_data = doc.model_dump()
-
-    return Command(
-        goto=agent_name,
-        graph=Command.PARENT,
-        update={
-            "messages": [ai_message, tool_message],
-            "active_agent": agent_name,
-            "briefing_data": updated_data,
-        },
-    )
-
-handoff_tool.metadata = {METADATA_KEY_HANDOFF_DESTINATION: agent_name}
 ```
 
-The `graph=Command.PARENT` flag tells LangGraph to route to the target agent's node in the **parent** graph. The handoff tool:
+Behavior:
 
-- Takes a `task_description` parameter describing what to hand off.
-- Updates `BriefingDocument.metadata["current_task"]` with `{specialist, description}` so the specialist wrapper knows its assigned task.
-- Injects the current state and tool call ID via LangGraph's dependency injection.
-- Updates `active_agent` for event bus tracking.
-- Sets `METADATA_KEY_HANDOFF_DESTINATION` on tool metadata for routing detection.
+1. Builds the AIMessage + ToolMessage pair (with `reasoning_content` propagation for DeepSeek).
+2. Recovers the `BriefingDocument` from `state["briefing_data"]`.
+3. If `analysis` is provided, sets `doc.supervisor_analysis = analysis`.
+4. Appends a `TaskAssignment(specialist, description=task_description, rationale)` to `doc.task_history` via `doc.add_task_assignment(...)`.
+5. Returns `Command(goto=agent_name, graph=Command.PARENT, update={...})`. The update includes `messages`, `active_agent`, `briefing_data`, `current_invocation_id` (a fresh UUID), and `current_step_index` (only when `step_index` is provided).
 
-### create_all_handoff_tools()
+> Note: `BriefingDocument` has **no `metadata` field**. Task assignment is tracked in `task_history` (a `list[TaskAssignment]`), not in a `metadata["current_task"]` dict. The specialist wrapper reads its assignment from `doc.task_history[-1]` (non-plan mode) or from the active plan step (plan mode).
 
-Creates one handoff tool per **successfully compiled** specialist graph. Only specialists that passed tool filtering and RBAC checks get handoff tools.
+### create_replan_tool()
 
----
-
-## 6. Specialist Compilation
-
-### compile_subagents()
-
-Specialist compilation is handled by the shared `compile_subagents()` function in `ai/subagent_compiler.py`. Key specifics:
-
-1. Each specialist is compiled via `langchain_create_agent()` with `name=agent_name` (so the graph node is properly identified).
-2. **Fresh middleware per specialist** -- each gets its own `TemporalContextMiddleware` and `BackcastSecurityMiddleware` instances to prevent mutable state leakage.
-3. Middleware stack: `TemporalContextMiddleware` + `BackcastSecurityMiddleware` (no `TodoListMiddleware` for specialists).
-4. Tool filtering follows the same intersection logic.
-5. Specialists with zero tools after filtering are skipped.
-
-### Specialist Loading (DB-first with Fallback)
-
-Specialists are loaded from the database via `ai/subagents/db_loader.py`:
+The `request_replan` tool lets the supervisor ask the planner to revise remaining steps. It returns `Command(goto="planner", graph=Command.PARENT, update={...})` with:
 
 ```python
-# Primary: Load from ai_assistant_configs where agent_type='specialist'
-subagent_configs = await load_specialists_from_db()
-
-# Fallback: If DB returns empty, use hardcoded configs from subagents/__init__.py
-if not subagent_configs:
-    subagent_configs = get_all_subagents()
-```
-
-- **TTL cache**: 5 minutes. Specialist configs change rarely.
-- **Invalidation**: `invalidate_cache()` called after specialist CRUD via admin API.
-- **Filtering by `allowed_specialists`**: If the main agent's `delegation_config.allowed_specialists` is non-null, only those specialists are loaded.
-- **Converter**: `assistant_config_to_specialist_dict()` maps DB rows to the dict schema expected by `compile_subagents()`.
-
-### Specialist Wrapper Nodes
-
-Each compiled specialist is wrapped in a function node via `_create_specialist_wrapper()`. The wrapper:
-
-1. Checks `completed_specialists` for early exit -- returns `Command(goto=END)` if already completed.
-2. Reads the briefing markdown from state.
-3. Constructs isolated messages: `[SystemMessage(prompt), HumanMessage(briefing + scope boundary)]`.
-4. Invokes the specialist graph via `ainvoke()` with `recursion_limit=max_tool_iterations`.
-5. Extracts the final `AIMessage` (findings) with reasoning_content propagation for DeepSeek models.
-6. Extracts tool call summary across all messages in the result.
-7. Calls `compile_specialist_output()` to append findings to the briefing.
-8. On error, still compiles the error message into the briefing (graceful degradation).
-9. Returns a state update with updated briefing, incremented iteration counter, and the specialist added to `completed_specialists`.
-
-The specialist's system prompt includes a `_SCOPE_BOUNDARY` suffix instructing it to stay within its domain and add a "Delegation Notes" section if the briefing requests work outside its specialty.
-
-### State Update
-
-Each specialist wrapper returns:
-
-```python
-{
-    "messages": [AIMessage(content=findings or "Specialist task completed.", **findings_rc_kwargs)],
-    "briefing_data": updated_data,          # serialized BriefingDocument (single source of truth)
-    "active_agent": "supervisor",           # always routes back to supervisor
-    "tool_call_count": result_count,        # accumulated from specialist execution
-    "supervisor_iterations": 1,             # incremented per specialist cycle
-    "completed_specialists": {specialist_name},  # added to set via union reducer
+update = {
+    "messages": [ai_message, tool_message],
+    "active_agent": "planner",
+    "replan_count": current_count + 1,   # explicit increment, NOT a reducer
+    "replan_context": reason,
 }
 ```
 
+The router's `request_replan -> planner` branch (see [Section 9](#9-routing-and-re-dispatch)) enforces the `max_replan_count` cap (default 2) and forces END when it is reached.
+
+### create_all_handoff_tools()
+
+Creates one handoff tool per **successfully compiled** specialist. Specialists that failed RBAC/tool filtering were already dropped by `compile_subagents`, so they get no handoff tool.
+
 ---
 
-## 7. Graph Wiring
+## 7. Specialist Compilation and Wrapper Nodes
 
-### Parent StateGraph Structure
+### compile_subagents() (`subagent_compiler.py`)
+
+Specialist compilation is shared logic in `ai/subagent_compiler.py` (NOT `ai/subagents/`). For each specialist config dict:
+
+1. Resolves the per-specialist model from `specialist_models` if present, else the shared model.
+2. Filters tools by `allowed_tools` convention:
+   - `allowed_tools = None` -> **no tools** (the specialist gets nothing from the regular pool).
+   - `allowed_tools = ["*"]` -> all available tools (used by `general_purpose`).
+   - `allowed_tools = ["t1", ...]` -> only the listed tools.
+3. **Skips** any specialist whose filtered tool set is empty (`if not subagent_tools: continue`). This means a specialist with `allowed_tools=None` and no other tool injection gets NO tools and is dropped from the graph entirely.
+4. Compiles via `langchain_create_agent()` with `name=agent_name`, the specialist's `system_prompt` (passed as-is), `response_format=schema` (defaults to `SpecialistOutput`), and a fresh `build_backcast_middleware()` stack (TemporalContextMiddleware + BackcastSecurityMiddleware; plus SequentialToolCallsMiddleware when enabled).
+5. When `AI_SEQUENTIAL_TOOL_CALLS` is true, replaces the tools node's `afunc` at the instance level with `SequentialToolNode._afunc` (belt-and-suspenders beyond the class-level monkey-patch).
+
+Specialists do NOT receive `ContextGuardMiddleware` (they get fresh short messages each time) or `PlanAwareToolMiddleware` (they don't delegate).
+
+### Specialist Loading (DB-first with fallback)
+
+Specialists are loaded via `ai/subagents/db_loader.py:load_specialists_from_db()`:
+
+- Queries `ai_assistant_configs WHERE agent_type='specialist' AND is_active=true`.
+- 5-minute TTL module-level cache; `invalidate_cache()` called after specialist CRUD.
+- Falls back to hardcoded configs from `subagents/__init__.py` if the DB returns empty.
+- Filtered by `delegation_config.allowed_specialists` when the main agent sets it.
+- `assistant_config_to_specialist_dict()` maps DB rows to the dict schema.
+
+### Specialist Wrapper Nodes (`_create_specialist_wrapper`)
+
+Each compiled specialist is wrapped in a function node. The wrapper:
+
+1. **Resolves the plan step** -- finds the first pending `PlanStep` matching this specialist whose dependencies are met (`active_plan.are_dependencies_met`).
+2. **Re-dispatch guard** -- if the specialist is already in `completed_specialists` AND there is no matching pending step, returns `Command(goto=END)` (early exit). In plan mode the same specialist can run multiple times for different steps.
+3. **Builds the assignment block** (plan-step aware: `## Your Assignment (Plan Step N/M)` with expected output and dependency result summaries; non-plan mode uses `## Your Assignment` plus the latest `task_history` entry).
+4. **Constructs isolated messages**: `[HumanMessage(assignment_block)]` ONLY. There is **no SystemMessage** -- the system prompt is baked into the compiled agent. There is no `_SCOPE_BOUNDARY` suffix.
+5. Exposes the briefing to the specialist's `get_briefing` tool via `set_briefing()` (a module-level ContextVar side channel). When `doc.sections` exist, the assignment block ALSO includes the full briefing markdown inline (so the specialist sees prior findings directly).
+6. Marks the step `in_progress` and emits a `PLAN_UPDATE` before invoking.
+7. Publishes a `SUBAGENT` event so the frontend creates the specialist bubble.
+8. **Invokes the specialist** via `_invoke_specialist_with_retry`, a pausable-deadline wrapper around `invoke_with_retry`. The deadline is `settings.AI_SPECIALIST_STEP_TIMEOUT` of ACTIVE time -- it PAUSES while the specialist is blocked on `ask_user` (human-in-the-loop wait). Retries transient stream/timeout errors with exponential backoff.
+9. Prefers `result["structured_response"]` (the parsed `SpecialistOutput`) when available; otherwise falls back to `extract_final_ai_response` + `parse_and_clean`.
+10. Calls `compile_specialist_output()` to append a `BriefingSection` to `briefing_data`.
+11. Marks the step `completed`, emits `PLAN_UPDATE`, and injects a plan-completion `SystemMessage` telling the supervisor what to do next.
+12. On error: marks the step `failed`, compiles the error into the briefing, publishes events, and returns `Command(goto="supervisor")`. Failed specialists are NOT added to `completed_specialists`, so the supervisor can retry them.
+
+Each wrapper returns `Command(update={...}, goto="supervisor")` (or `goto=END` on early exit).
+
+---
+
+## 8. Graph Wiring
 
 ```mermaid
 flowchart TD
-    START((START)) -->|"add_edge"| INIT["initialize_briefing\n(function node)"]
-    INIT -->|"add_edge"| SUP["supervisor\n(compiled agent)"]
+    START((START)) -->|"add_edge"| INIT["initialize_briefing"]
+    INIT -->|"add_edge"| PLAN["planner"]
+    PLAN -->|"add_edge"| SUP["supervisor"]
     SUP -->|"add_conditional_edges"| ROUTE{"_make_supervisor_router()"}
-    ROUTE -->|"handoff_to_X found"| SPEC_X["specialist X\n(function node)"]
-    ROUTE -->|"no handoff"| END_NODE((END))
-    ROUTE -->|"max iterations reached"| END_NODE
-    ROUTE -->|"completed specialist"| END_NODE
-    SPEC_X -->|"add_edge"| SUP
+    ROUTE -->|"handoff_to_X"| SPEC_X["specialist X"]
+    ROUTE -->|"request_replan"| PLAN
+    ROUTE -->|"no handoff / cap"| END_NODE((END))
+    ROUTE -->|"max replans"| END_NODE
+    SPEC_X -.->|"Command(goto=supervisor)"| SUP
+    SPEC_X -.->|"Command(goto=END)"| END_NODE
 ```
 
-### Edge Layout
+### Edge Layout (from `create_supervisor_graph`)
 
 ```python
-# Fixed path: START -> initialize_briefing -> supervisor
+# Fixed prefix
 parent.add_edge(START, "initialize_briefing")
-parent.add_edge("initialize_briefing", "supervisor")
+parent.add_edge("initialize_briefing", "planner")
+parent.add_edge("planner", "supervisor")
 
-# Supervisor: conditional -> specialist or END
+# Supervisor: conditional -> specialist, planner (replan), or END
 parent.add_conditional_edges(
     "supervisor",
-    _make_supervisor_router(specialist_names),
-    specialist_names + [END],
+    self._make_supervisor_router(specialist_names),
+    specialist_names + ["planner", END],
 )
-
-# Each specialist: always returns to supervisor
-for name in specialist_names:
-    parent.add_edge(name, "supervisor")
+# NOTE: specialist nodes return Command(goto="supervisor") or
+# Command(goto=END) explicitly -- no static edge back to supervisor.
 ```
 
 ### initialize_briefing_node
 
-A function node that:
-1. Extracts the last `HumanMessage` from state (the user's request).
-2. Calls `initialize_briefing(user_request, {"project_id": context.project_id})`.
-3. Returns `{briefing_data, supervisor_iterations: 0, max_supervisor_iterations: 3, completed_specialists: set()}`.
-
-### _make_supervisor_router()
-
-A routing function for the supervisor node that enforces three guards:
-
-```python
-def router(state: BackcastSupervisorState) -> str:
-    # Check 1: iteration cap
-    iterations = state.get("supervisor_iterations", 0)
-    max_iterations = state.get("max_supervisor_iterations", 3)
-    if iterations >= max_iterations:
-        return END
-
-    # Check 2: handoff tool call
-    messages = state.get("messages", [])
-    last_msg = messages[-1]
-    if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
-        for tc in last_msg.tool_calls:
-            for spec_name in specialist_names:
-                if tc.get("name") == f"handoff_to_{spec_name}":
-                    # Check 3: prevent redispatch to completed specialists
-                    completed = state.get("completed_specialists", set())
-                    if spec_name in completed:
-                        return END
-                    return spec_name
-
-    # No handoff -- supervisor is done
-    return END
-```
+1. Scans `messages` in reverse for the latest `HumanMessage`.
+2. Reads `max_supervisor_iterations` from `main_assistant_config` if present; **defaults to 5**.
+3. If `briefing_data` already exists, reuses it (appends the request to `follow_up_requests`) and preserves `plan_data`; otherwise calls `initialize_briefing(user_request)`.
+4. Returns `_briefing_update(doc, ...)`, which sets `briefing_data`, `supervisor_iterations=0`, `max_supervisor_iterations`, `completed_specialists=set()`, `messages=[SystemMessage(briefing markdown)]`, `completed_steps=set()`, `current_step_index=-1`, `replan_count=0`, `max_replan_count=2`, `replan_context=""`.
 
 ### Fallback
 
-If no specialists compile successfully (e.g., all filtered out by RBAC), `_build_fallback_graph()` creates a simple agent with direct tool access and no specialist routing.
+If no specialists compile successfully (e.g. all filtered out by RBAC), `_build_fallback_graph()` creates a simple agent with direct tool access and no specialist routing (similar to a plain `create_agent` graph).
 
 ---
 
-## 8. Routing Decisions
+## 9. Routing and Re-dispatch
 
-### Supervisor: "Which specialist to hand off to?"
+`_make_supervisor_router()` returns a closure that routes from the supervisor node. The decision tree:
 
-The LLM decides based on the `get_briefing` output and the handoff tool descriptions. The supervisor calls `get_briefing` to review compiled findings, then selects the most relevant specialist via a handoff tool.
+```
+1. Iteration cap:
+   iterations = supervisor_iterations (default 0)
+   max_iterations = max_supervisor_iterations (default 5)
+   If a multi-step plan is active (requires_planning AND steps exist):
+       plan_max = min(len(plan.steps) + 1, _MAX_PLAN_STEPS + 1)
+       if plan_max > max_iterations: max_iterations = plan_max
+   if iterations >= max_iterations -> END
 
-### No Peer Handoffs
-
-Specialists **cannot** hand off to other specialists directly. They always return to the supervisor, which reads the updated briefing and decides the next action. This simplifies the graph topology and ensures every specialist contribution passes through the compilation step.
-
-### Completed-Specialist Check
-
-The router prevents re-dispatch to specialists that already appear in `completed_specialists`. If the supervisor attempts to hand off to an already-completed specialist, the router forces `END`. This prevents redundant cycles when the supervisor re-dispatches after receiving a successful result.
-
-### Specialist: "Return to supervisor"
-
-After a specialist finishes its work, it produces an `AIMessage` with no tool calls. Control returns to the supervisor via the fixed `add_edge(name, "supervisor")`. The supervisor then reads the updated briefing and either dispatches another specialist or synthesizes a final response.
-
----
-
-## 9. Iteration Safety
-
-### Tool Call Limit (Intra-Agent)
-
-Each compiled agent (supervisor and specialists) has an internal `should_continue` check that enforces `max_tool_iterations` (default: 25). This prevents individual agents from entering infinite tool-call loops. The `tool_call_count` accumulates across all tool calls within that agent's execution.
-
-### Supervisor Cycle Limit (Inter-Agent)
-
-The supervisor graph enforces a **hard cap** on supervisor-specialist cycles via `supervisor_iterations` + `max_supervisor_iterations` (default: 3). The `_make_supervisor_router` checks this counter before routing to any specialist:
-
-```python
-iterations = state.get("supervisor_iterations", 0)
-max_iterations = state.get("max_supervisor_iterations", 3)
-if iterations >= max_iterations:
-    return END
+2. Parse last message:
+   - No messages -> END
+   - Last msg is AIMessage with tool_calls:
+     for each tool_call:
+       a) "request_replan":
+            replan_count = state.replan_count
+            if replan_count >= max_replan_count -> END
+            else -> "planner"
+       b) "handoff_to_{slug}":
+            resolve slug -> specialist name via slug_map
+            if spec_name in completed_specialists AND NOT has_plan -> END
+            elif spec_name in specialist_set -> spec_name
+   - Otherwise -> END
 ```
 
-This prevents the path `supervisor -> specialist -> supervisor -> specialist -> ...` from running indefinitely. Combined with the `completed_specialists` set (which prevents re-dispatch to already-run specialists), the iteration budget is naturally bounded.
+### Conditional Re-dispatch (the key behavior)
 
-### Triple Guard Summary
+Re-dispatch to an already-completed specialist is **conditional**, not unconditional:
+
+- **Non-plan mode:** if `spec_name in completed_specialists`, the router forces END.
+- **Plan mode:** the same specialist CAN be re-dispatched for multiple plan steps. The router does not block it; the specialist wrapper handles the "no pending step" early exit instead.
+
+This is why the old "completed specialist -> END" unconditional rule is wrong: in plan-driven mode, a plan can legitimately assign steps 0 and 2 to the same specialist.
+
+### Slug Resolution
+
+Specialist names are slugified (`_slugify`) to produce valid tool names (`handoff_to_{slug}`). The router maintains a `slug_map` to reverse the slug back to the original name. Slug collisions are logged as warnings (the second overwrites the first, making one specialist unreachable).
+
+### Plan-Aware Iteration Cap
+
+When a multi-step plan is active, `max_iterations` is raised to `min(len(plan.steps) + 1, _MAX_PLAN_STEPS + 1)` so the supervisor can delegate all steps. Without this, the default cap of 5 would prematurely terminate a 4-step plan after the third delegation.
+
+---
+
+## 10. Iteration Safety
+
+Three independent guards bound execution:
 
 | Guard | Mechanism | Default | Effect |
 |-------|-----------|---------|--------|
-| Tool call limit | `max_tool_iterations` per agent | 25 | Prevents infinite tool loops within one agent |
-| Supervisor cycle limit | `max_supervisor_iterations` | 3 | Caps supervisor-specialist round trips |
-| Completed specialist check | `completed_specialists` set | empty | Prevents re-dispatch to same specialist |
+| Tool-call limit (intra-agent) | `max_tool_iterations` per agent | 25 | Prevents infinite tool loops within one agent. |
+| Supervisor cycle limit (inter-agent) | `supervisor_iterations` (`operator.add`) vs `max_supervisor_iterations` | 5 (raised to `min(steps+1, _MAX_PLAN_STEPS+1)` when a plan is active) | Caps supervisor<->specialist round trips. |
+| Re-dispatch guard | `completed_specialists` set (`operator.or_`) | empty | Blocks re-dispatch to a completed specialist IN NON-PLAN MODE; plan mode allows re-dispatch. |
+| Replan cap | `replan_count` (explicit increment, not a reducer) vs `max_replan_count` | 2 | Caps planner revisions; forces END when exceeded. |
+
+The router checks the iteration cap BEFORE inspecting tool calls, so a multi-step plan that would exceed the cap is terminated cleanly.
 
 ---
 
-## 10. Walkthrough: Project Health Check
+## 11. Reducer Merge Arithmetic
 
-**User:** "What's the status and EVM performance of project PRJ-001?"
+Because several fields use `operator.add` or `operator.or_` reducers, nodes return **deltas** that get merged into the parent state at each transition. This section traces the merge arithmetic (corrected from the older per-transition trace).
 
-### Phase 1: Briefing Initialization
+| Field | Reducer | Merge at each transition |
+|-------|---------|--------------------------|
+| `messages` | `operator.add` | Appends new messages to the existing list. |
+| `tool_call_count` | `operator.add` | Sums: `existing + returned` (specialists return their own tool-call count). |
+| `supervisor_iterations` | `operator.add` | Sums: `existing + returned`. Each specialist wrapper returns `existing + 1` on completion. |
+| `completed_specialists` | `operator.or_` | Set union: `existing \| returned`. Each specialist wrapper returns `{specialist_name}`. |
+| `completed_steps` | `operator.or_` | Set union: `existing \| returned`. The wrapper returns `{active_step.step_index}` on step completion. |
+| `replan_count` | **none (plain field)** | Last-writer-wins. The replan tool writes `current + 1` explicitly. (A reducer here would increment on every transition that returns a state delta -- deliberately avoided.) |
+| `active_agent`, `briefing_data`, `plan_data`, `current_step_index`, `current_invocation_id`, `replan_context`, `max_*` | last-writer-wins | Direct replacement by the most recent writer. |
+
+Consequence: `completed_specialists` and `completed_steps` only ever grow (union), and `supervisor_iterations` only ever increases (sum). The router reads these to decide termination. `replan_count` is the deliberate exception -- it advances only when the replan tool fires, which is why it is a plain field rather than a reducer.
+
+---
+
+## 12. Walkthrough: Multi-Step Plan Execution
+
+**User:** "Analyze the EVM performance for the project and create a visualization of the results"
+
+This request triggers a 2-step plan: `evm_analyst` (step 0) then `visualization_specialist` (step 1, depends on 0).
+
+### Phase 1: initialize_briefing -> planner
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser
-    participant EB as Event Bus
     participant INIT as initialize_briefing
-    participant SUP as Supervisor
-    participant PM as project_manager
-    participant EA as evm_analyst
+    participant PLAN as planner
+    participant EB as Event Bus
 
-    Note over INIT: Extracts user request from messages
-    INIT->>INIT: initialize_briefing("What's the status...")
-    Note over INIT: Briefing = "# Briefing Document\n## Request\nWhat's the status..."
+    INIT->>INIT: BriefingDocument(original_request="Analyze the EVM...")
+    INIT->>INIT: state += {briefing_data, supervisor_iterations=0, max_supervisor_iterations=5, ...}
+    PLAN->>PLAN: single LLM call (PydanticOutputParser)
+    PLAN->>EB: PLAN_UPDATE (2 steps, moderate)
+    PLAN->>PLAN: state += {plan_data: PlanDocument(steps=[evm(0), viz(1, deps=[0])])}
 ```
 
-### Phase 2: Supervisor Routes to project_manager
+The planner emits a `PLAN_UPDATE` event so the frontend renders "Plan 0/2 moderate" in the plan rail.
+
+### Phase 2: supervisor delegates step 0 -> evm_analyst
+
+The supervisor (compiled agent) runs its internal agent<->tools loop. With a multi-step plan active and `AI_DELEGATION_ENFORCED=true`, `PlanAwareToolMiddleware` strips the supervisor's tool list down to `get_briefing`, `request_replan`, and the `handoff_to_*` tools. The supervisor calls:
+
+```python
+handoff_to_evm_analyst(
+    task_description="Calculate EVM metrics (CPI, SPI, CV, SV, ...) for the project",
+    rationale="First step of the execution plan",
+    analysis="User requested EVM analysis followed by visualization",
+    step_index=0,
+)
+```
+
+The handoff tool appends a `TaskAssignment` to `task_history`, sets `current_invocation_id` and `current_step_index=0`, and returns `Command(goto="evm_analyst")`.
+
+### Phase 3: evm_analyst wrapper runs in isolation
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser
+    participant WRAP as evm_analyst wrapper
+    participant SPEC as specialist subgraph
     participant EB as Event Bus
-    participant SUP as Supervisor
-    participant PM as project_manager
 
-    Note over SUP: LLM call #1: sees system prompt + handoff tools
-    SUP->>EB: tool_call("get_briefing")
-    EB->>B: {type:"tool_call", tool:"get_briefing"}
-    SUP->>EB: tool_call("handoff_to_project_manager")
-    EB->>B: {type:"agent_transition", agent:"project_manager", direction:"enter"}
-
-    Note over PM: Specialist runs in ISOLATION with briefing only
-    Note over PM: messages = [SystemMessage(PM prompt), HumanMessage(briefing)]
-    PM->>PM: tool_call("list_projects")
-    PM->>PM: tool_call("get_project")
-    PM->>PM: AIMessage("Project PRJ-001... budget $2.5M...")
-
-    Note over PM: Briefing compiled: + project_manager section
-    EB->>B: {type:"agent_transition", agent:"project_manager", direction:"exit"}
+    WRAP->>WRAP: resolve plan step 0 (pending, deps met)
+    WRAP->>WRAP: mark step 0 -> in_progress
+    WRAP->>EB: PLAN_UPDATE (step 0 in_progress)
+    WRAP->>EB: SUBAGENT (evm_analyst)
+    WRAP->>SPEC: ainvoke({messages:[HumanMessage(assignment_block)]}, pausable deadline)
+    SPEC->>SPEC: tool: get_project_analysis -> EVM metrics
+    SPEC-->>WRAP: structured_response (SpecialistOutput)
+    WRAP->>WRAP: compile_specialist_output -> briefing section appended
+    WRAP->>WRAP: mark step 0 -> completed (result_summary set)
+    WRAP->>EB: PLAN_UPDATE (step 0 completed)
+    WRAP->>WRAP: Command(goto="supervisor")
 ```
 
-### Phase 3: Supervisor Routes to evm_analyst
+The specialist receives ONLY `[HumanMessage(assignment_block)]`. The assignment block for step 0 includes `## Your Assignment (Plan Step 1/2)`, the task description, expected output, the user's original request, and (when sections exist) the briefing context. The system prompt is baked into the compiled agent -- no SystemMessage is sent.
 
-```mermaid
-sequenceDiagram
-    participant B as Browser
-    participant EB as Event Bus
-    participant SUP as Supervisor
-    participant EA as evm_analyst
+### Phase 4: supervisor delegates step 1 -> visualization_specialist
 
-    Note over SUP: LLM call #2: reads updated briefing (now has PM findings)
-    SUP->>EB: tool_call("get_briefing")
-    SUP->>EB: tool_call("handoff_to_evm_analyst")
-    EB->>B: {type:"agent_transition", agent:"evm_analyst", direction:"enter"}
-
-    Note over EA: Specialist runs in ISOLATION
-    Note over EA: messages = [SystemMessage(EVM prompt), HumanMessage(briefing)]
-    Note over EA: Briefing already contains project details
-    EA->>EA: tool_call("calculate_evm_metrics")
-    EA->>EA: AIMessage("CPI: 0.95, SPI: 1.05...")
-
-    Note over EA: Briefing compiled: + evm_analyst section
-    EB->>B: {type:"agent_transition", agent:"evm_analyst", direction:"exit"}
-```
-
-### Phase 4: Supervisor Synthesizes
-
-```mermaid
-sequenceDiagram
-    participant B as Browser
-    participant EB as Event Bus
-    participant SUP as Supervisor
-
-    Note over SUP: LLM call #3: reads final briefing
-    SUP->>EB: tool_call("get_briefing")
-    EB->>B: {type:"token_batch", tokens:"Project PRJ-001... CPI 0.95..."}
-    EB->>B: {type:"complete"}
-```
-
-### What Each LLM Call Received
-
-**Supervisor -- LLM Call #1** (initial routing):
+Control returns to the supervisor. The wrapper injected a plan-completion `SystemMessage`:
 
 ```
-+-- LLM API Call #1 -- Supervisor -------------------------------------------+
-|                                                                             |
-|  system:   [SystemMessage] BRIEFING_ROOM_SUPERVISOR_PROMPT                 |
-|            + _BRIEFING_HANDOFF_SUFFIX                                       |
-|                                                                             |
-|  messages: [HumanMessage] "What's the status and EVM performance..."       |
-|                                                                             |
-|  tools:    [get_briefing, handoff_to_project_manager,                      |
-|             handoff_to_evm_analyst, ..., get_temporal_context]              |
-|                                                                             |
-|  output:   AIMessage(tool_calls=[{name: "get_briefing", ...}])             |
-|            -> reads initial briefing                                        |
-|            -> then: AIMessage(tool_calls=[{name: "handoff_to_..."}])       |
-+-----------------------------------------------------------------------------+
+Plan step 1/2 completed by evm_analyst.
+Result: <result_preview>
+Next pending step: step 2 (visualization_specialist): ...
+1 step(s) remaining.
+
+If the result above makes the next step unnecessary or contradictory, call request_replan.
+Otherwise delegate the next step.
 ```
 
-**project_manager -- Specialist Wrapper** (isolated execution):
+The supervisor calls `handoff_to_visualization_specialist(task_description=..., step_index=1, ...)`. Since step 0 is now completed, `are_dependencies_met(1)` returns true, so the wrapper resolves step 1 and runs the visualization specialist. Its assignment block includes step 0's `result_summary` as dependency context.
+
+### Phase 5: all steps complete -> supervisor wraps up
+
+After step 1 completes, the wrapper injects:
 
 ```
-+-- Specialist Isolated Context ----------------------------------------------+
-|                                                                             |
-|  system:   [SystemMessage] "You are a project management specialist..."    |
-|                                                                             |
-|  messages: [HumanMessage] "## Briefing\n\n# Briefing Document\n            |
-|             ## Request\nWhat's the status...\n"                             |
-|             (~300 tokens of compiled briefing)                              |
-|                                                                             |
-|  tools:    [list_projects, get_project, list_wbes, ...]  <- 37             |
-|                                                                             |
-|  output:   AIMessage("Project PRJ-001 is 45% complete, budget $2.5M")     |
-+-----------------------------------------------------------------------------+
+All 2 plan steps completed. Respond to the user with the briefing findings.
+Do NOT delegate further.
 ```
 
-**evm_analyst -- Specialist Wrapper** (sees updated briefing):
+The supervisor has no pending handoff. The router sees no handoff tool call -> END. The final `briefing_data` contains sections from both specialists; the frontend renders the complete briefing to the user.
 
-```
-+-- Specialist Isolated Context ----------------------------------------------+
-|                                                                             |
-|  system:   [SystemMessage] "You are an EVM analysis specialist..."         |
-|                                                                             |
-|  messages: [HumanMessage] "## Briefing\n\n# Briefing Document\n            |
-|             ## Request\nWhat's the status...\n                              |
-|             ## Specialist Findings\n                                        |
-|             ### project_manager (Iteration 1)\n                             |
-|             Project PRJ-001 is 45% complete...\n"                           |
-|             (~500 tokens -- previous findings included)                     |
-|                                                                             |
-|  -> evm_analyst already knows project details from briefing               |
-|  -> Does NOT re-fetch project data                                         |
-|  -> Directly calculates EVM metrics                                        |
-+-----------------------------------------------------------------------------+
-```
+### What could go differently
 
-### Briefing State After Execution
-
-```
-+-- BackcastSupervisorState (after walkthrough) ------------------------------+
-|                                                                             |
-|  briefing_data: {original_request: "...", sections: [...],                 |
-|                  iteration: 2, metadata: {project_id: "PRJ-001"}}          |
-|  (Markdown is rendered on demand from briefing_data via                    |
-|   BriefingDocument.model_validate(data).to_markdown())                     |
-|                                                                             |
-|  messages: [HumanMessage("What's the status..."),                           |
-|             AIMessage("Here's the overview for PRJ-001...")]                |
-|             (only user msg + supervisor response)                           |
-|                                                                             |
-|  active_agent: "supervisor"                                                 |
-|  tool_call_count: 5  (list_projects, get_project, calculate_evm, ...)      |
-|  supervisor_iterations: 2                                                   |
-|  max_supervisor_iterations: 3                                               |
-|  completed_specialists: {"project_manager", "evm_analyst"}                 |
-+-----------------------------------------------------------------------------+
-```
+- If the supervisor judged the visualization step redundant after seeing the EVM findings, it could call `request_replan(reason=...)` instead. The router routes to `planner`, which runs the replan path: it preserves completed step 0, revises pending step 1, and clears `replan_context`. `replan_count` increments to 1.
+- If the EVM specialist errored, the wrapper marks step 0 `failed`, compiles the error into the briefing, and returns to the supervisor. The specialist is NOT added to `completed_specialists`, so the supervisor can retry it.
 
 ---
 
-## 11. Key Files Reference
+## 13. Key Files Reference
 
 | File | Responsibility |
-|------|---------------|
-| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: briefing-based agent delegation with compiled context, direct tool support |
-| `ai/supervisor_state.py` | `BackcastSupervisorState`: state schema with briefing fields and iteration counters |
-| `ai/briefing.py` | `BriefingDocument`, `BriefingSection`: Pydantic models for the briefing artifact |
-| `ai/briefing_compiler.py` | `initialize_briefing()`, `compile_specialist_output()`: zero-cost compilation |
-| `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: handoff tools with deterministic briefing update |
-| `ai/subagent_compiler.py` | Shared compilation logic for specialist graphs |
-| `ai/subagents/__init__.py` | Hardcoded specialist configs (fallback when DB is empty) |
-| `ai/subagents/db_loader.py` | `load_specialists_from_db()`: TTL-cached DB specialist loading with `assistant_config_to_specialist_dict()` converter |
-| `ai/config.py` | `AgentConfig` dataclass (supervisor-only mode) |
-| `ai/agent_service.py` | Runtime graph creation — passes `main_assistant_config` to orchestrator |
+|------|----------------|
+| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: graph builder, supervisor node, specialist wrappers, router, fallback graph |
+| `ai/supervisor_state.py` | `BackcastSupervisorState`: 14-field state schema with reducers |
+| `ai/planner.py` | `planner_node`: fresh/resume/replan paths; `_MAX_PLAN_STEPS` cap |
+| `ai/plan.py` | `PlanDocument`, `PlanStep`, `PlannerOutput`, `PlannerStepOutput` |
+| `ai/briefing.py` | `BriefingDocument`, `BriefingSection`, `TaskAssignment` |
+| `ai/briefing_compiler.py` | `initialize_briefing()`, `parse_and_clean()`, `compile_specialist_output()` |
+| `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`, `create_replan_tool()`, `_slugify()` |
+| `ai/subagent_compiler.py` | `compile_subagents()`, `filter_tools_for_context()`, `build_backcast_middleware()` |
+| `ai/subagents/__init__.py` | Hardcoded specialist configs (DB fallback) |
+| `ai/subagents/db_loader.py` | `load_specialists_from_db()`: TTL-cached DB specialist loading |
+| `ai/agent_service.py` | `_create_deep_agent_graph()`: constructs `SupervisorOrchestrator` (naming artifact -- no deep-agent path) |
+| `backend/app/ai/supervisor_orchestrator_DEV_GUIDE.md` | Code-adjacent developer reference with line-level detail and improvement notes |
+
+For line-level detail (exact line numbers, middleware internals, retry/backoff constants, and a catalog of non-standard patterns with improvement suggestions), see the [`supervisor_orchestrator_DEV_GUIDE.md`](../../../backend/app/ai/supervisor_orchestrator_DEV_GUIDE.md).

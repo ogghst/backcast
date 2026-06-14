@@ -1,7 +1,8 @@
 # MCP Tool Integration — Developer Guide
 
-**Last Updated:** 2026-05-04
+**Last Updated:** 2026-06-14
 **Status:** Active
+**Doc Version:** 1.1
 
 This guide covers the architecture, internals, and extension points of the MCP (Model Context Protocol) tool integration in Backcast. It is intended for developers working on the AI agent system.
 
@@ -13,7 +14,7 @@ This guide covers the architecture, internals, and extension points of the MCP (
 2. [Tool Pipeline](#2-tool-pipeline)
 3. [Core Components](#3-core-components)
 4. [RBAC and Security Model](#4-rbac-and-security-model)
-5. [MCP Specialist Subagent](#5-mcp-specialist-subagent)
+5. [MCP Tool Distribution](#5-mcp-tool-distribution)
 6. [Adding a New MCP Transport](#6-adding-a-new-mcp-transport)
 7. [Extending the Tool Metadata](#7-extending-the-tool-metadata)
 8. [Testing Patterns](#8-testing-patterns)
@@ -62,14 +63,13 @@ MCP tools integrate into the existing Backcast tool pipeline alongside native `@
 
 | Component | File | Role |
 |-----------|------|------|
-| Database model | `app/models/domain/mcp_server.py` | `MCPServer(SimpleEntityBase)` — JSONB config storage |
+| Database model | `app/models/domain/mcp_server.py` | `MCPServer(SimpleEntityBase)` — config stored as encrypted TEXT |
 | Pydantic schemas | `app/models/schemas/mcp_server.py` | Create/Update/Public validation |
-| CRUD service | `app/services/mcp_server_service.py` | Fernet encryption for sensitive values |
+| CRUD service | `app/services/mcp_server_service.py` | Fernet encryption of the entire config blob |
 | Client manager | `app/ai/mcp/client_manager.py` | Singleton — async lifecycle, sync cache |
 | Tool wrapper | `app/ai/mcp/tool_metadata.py` | Attaches `ToolMetadata` to MCP tools |
 | API routes | `app/api/routes/mcp_servers.py` | 6 REST endpoints |
-| Pipeline hook | `app/ai/tools/__init__.py` | 3-line integration in `create_project_tools()` |
-| Subagent | `app/ai/subagents/__init__.py` | `mcp_specialist` definition |
+| Pipeline hook | `app/ai/tools/__init__.py` | MCP tools appended to `base_tools` in `create_project_tools()` |
 
 ---
 
@@ -78,13 +78,14 @@ MCP tools integrate into the existing Backcast tool pipeline alongside native `@
 MCP tools pass through the same multi-stage filtering pipeline as native tools:
 
 ```
-1. Execution Mode    SAFE → LOW only, STANDARD → LOW+HIGH, EXPERT → all
+1. Execution Mode    SAFE → LOW only, STANDARD → everything except CRITICAL (i.e. LOW+HIGH), EXPERT → all
 2. Assistant Role    Ceiling from assistant config
 3. User Role         Actual user permissions
-4. Subagent Filter   MCP tools only available to mcp_specialist
-5. Runtime RBAC      RBACToolNode checks mcp-tool-execute permission
-6. Approval          InterruptNode for HIGH/CRITICAL risk operations
+4. Runtime RBAC      RBACToolNode checks mcp-tool-execute permission
+5. Approval          InterruptNode for HIGH/CRITICAL risk operations
 ```
+
+> **`RiskLevel`** is exactly `LOW` / `HIGH` / `CRITICAL` (there is **no** `MEDIUM` level) — see `app/ai/tools/types.py`.
 
 MCP tools have `risk_level=RiskLevel.HIGH`, meaning:
 - **SAFE mode**: blocked
@@ -141,12 +142,13 @@ The `_connect_server()` method builds a `langchain-mcp-adapters` connection Type
 
 **File:** `app/services/mcp_server_service.py`
 
-CRUD service with Fernet encryption. Sensitive values within the `config` JSONB are encrypted at rest:
+CRUD service with Fernet encryption. The **entire** config blob is encrypted at rest as a single Fernet string:
 
-- Keys matching `SENSITIVE_KEYS` (`api_key`, `authorization`, `token`, `secret`, `password`) in `config.env` and `config.headers` sub-dicts are encrypted.
-- The `get_decrypted_config()` method returns plaintext config for `MCPClientManager` to use when connecting.
+- `encrypt_config(config: dict) -> str` serializes the full config dict to JSON and encrypts it into one Fernet blob, which is stored in the `config` TEXT column.
+- `decrypt_config(config: str) -> dict` reverses this, raising `ValueError` if the blob cannot be decrypted (e.g. `SECRET_KEY` changed).
+- There is **no** selective `SENSITIVE_KEYS` filtering and **no** `get_decrypted_config()` method — the whole config is one encrypted string.
 
-Encryption follows the same pattern as `AIConfigService` — key derived from `settings.SECRET_KEY`.
+The Fernet key is derived from `settings.SECRET_KEY` (first 32 bytes, padded), the same pattern as `AIConfigService`.
 
 ### Tool Metadata Wrapper
 
@@ -164,7 +166,7 @@ ToolMetadata(
 )
 ```
 
-The `category` prefix `mcp:` is used by `_is_server_tool()` to identify which server a tool belongs to, and by the subagent compiler to route tools to `mcp_specialist`.
+The `category` prefix `mcp:` is used by `_is_server_tool()` to identify which server a tool belongs to.
 
 ---
 
@@ -178,7 +180,7 @@ The `category` prefix `mcp:` is used by `_is_server_tool()` to identify which se
 | `mcp-server-create` | Add new MCP server | admin, ai-admin |
 | `mcp-server-update` | Edit or test connection | admin, ai-admin |
 | `mcp-server-delete` | Remove MCP server | admin, ai-admin |
-| `mcp-tool-execute` | Use MCP tools via AI agent | admin, ai-admin, ai-manager |
+| `mcp-tool-execute` | Use MCP tools via AI agent | admin, ai-admin, ai-manager, ai-viewer |
 
 ### Security Layers
 
@@ -186,45 +188,46 @@ The `category` prefix `mcp:` is used by `_is_server_tool()` to identify which se
 |-------|-----------|
 | **Admin gate** | Only `mcp-server-*` holders can configure servers |
 | **Tool execution** | `RBACToolNode` checks `mcp-tool-execute` at runtime |
-| **Specialist isolation** | Only `mcp_specialist` receives MCP tools |
 | **Execution mode** | HIGH risk — blocked in SAFE mode |
-| **Encryption** | Sensitive config values encrypted with Fernet |
+| **Encryption** | Entire config blob encrypted with Fernet |
 | **Network** | stdio = local subprocess, HTTP = admin-configured endpoint |
 
 ### Permission Flow
 
 ```
 User sends chat message
-  → Supervisor decides to delegate to mcp_specialist
-    → mcp_specialist has MCP tools in its whitelist
-      → RBACToolNode checks: does user's role include mcp-tool-execute?
-        → YES: tool executes
-        → NO: tool call blocked, error returned to agent
+  → Agent (or any specialist) has MCP tools in the shared tool pool
+    → RBACToolNode checks: does user's role include mcp-tool-execute?
+      → YES: tool executes
+      → NO: tool call blocked, error returned to agent
 ```
 
 ---
 
-## 5. MCP Specialist Subagent
+## 5. MCP Tool Distribution
 
-**File:** `app/ai/subagents/__init__.py`
+There is **no** dedicated MCP subagent — the `mcp_specialist` specialist was removed in migration `7e61a160474b_remove_mcp_specialist` (2026-06-03) and is absent from the seed config. MCP tools are now distributed through the normal tool pool.
 
-The `mcp_specialist` is a dedicated subagent that is the **only** agent with access to MCP tools. This follows the existing domain-specialization pattern.
+**Who receives MCP tools?**
 
-**Definition:**
+All MCP tools are appended to `base_tools` inside `create_project_tools()` (`app/ai/tools/__init__.py`, ~lines 325-331):
 
 ```python
-MCP_SPECIALIST_SUBAGENT = {
-    "name": "mcp_specialist",
-    "description": "Handles tasks requiring external tools via MCP servers...",
-    "system_prompt": "You are an MCP specialist...",
-    "allowed_tools": None,  # Receives all tools; RBAC filters MCP-specific
-    ...
-}
+# Append MCP tools discovered from configured external servers
+from app.ai.mcp.client_manager import MCPClientManager
+
+mcp_manager = MCPClientManager()
+base_tools.extend(mcp_manager.get_all_tools())
 ```
 
-**Why `allowed_tools: None`?** MCP tool names are dynamic — they depend on which servers are configured. Setting `allowed_tools: None` means the specialist receives all available tools, and the RBAC pipeline filters by the `mcp-tool-execute` permission on MCP tool metadata.
+From there they are filtered only by:
 
-**Supervisor delegation:** The supervisor orchestrator lists `mcp_specialist` in its briefing room prompt, so it knows to delegate when external tool access is needed (web search, database queries, etc.).
+- **Execution mode** — `filter_tools_by_execution_mode()` (HIGH-risk MCP tools are blocked in `SAFE` mode, allowed in `STANDARD`/`EXPERT`).
+- **RBAC** — the `mcp-tool-execute` permission on the tool's `ToolMetadata` is checked by `RBACToolNode` at runtime.
+
+There is **no** specialist-level isolation. Any agent or specialist whose tool whitelist resolves to those tool names can use MCP tools.
+
+**Note on `allowed_tools: None` specialists:** A specialist configured with `allowed_tools: None` resolves to an **empty** tool list (`app/ai/subagent_compiler.py` ~lines 143-145) and is then **skipped** by `compile_subagents` (`if not subagent_tools: ... continue`, ~lines 168-172). So a `None`-whitelist specialist receives no tools at all, MCP or otherwise — use `allowed_tools: ["*"]` for a catch-all/fallback specialist.
 
 ---
 
@@ -390,10 +393,11 @@ assert any("search" in t["name"] for t in tools)
 | `app/ai/mcp/tool_metadata.py` | ToolMetadata wrapper for MCP tools |
 | `app/models/domain/mcp_server.py` | Database model |
 | `app/models/schemas/mcp_server.py` | Pydantic schemas |
-| `app/services/mcp_server_service.py` | CRUD + encryption |
+| `app/services/mcp_server_service.py` | CRUD + full-blob Fernet encryption |
 | `app/api/routes/mcp_servers.py` | REST endpoints |
-| `app/ai/tools/__init__.py` | Pipeline integration (3 lines) |
-| `app/ai/subagents/__init__.py` | mcp_specialist definition |
+| `app/ai/tools/__init__.py` | MCP tools appended to `base_tools` in `create_project_tools()` |
+| `app/ai/subagent_compiler.py` | `compile_subagents` (skips tool-less specialists) |
 | `app/main.py` | Lifespan hooks |
 | `seed/rbac_roles.json` | RBAC permissions |
-| `alembic/versions/02a4e8ce7dbb_*` | Migration |
+| `alembic/versions/44d11de23f6f_change_mcp_servers_config_to_text.py` | Migration: config column → TEXT |
+| `alembic/versions/7e61a160474b_remove_mcp_specialist.py` | Migration: remove `mcp_specialist` |
