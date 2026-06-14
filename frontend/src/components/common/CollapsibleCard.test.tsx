@@ -109,4 +109,66 @@ describe("CollapsibleCard", () => {
 
     expect(screen.getByText("Extra Content")).toBeInTheDocument();
   });
+
+  /**
+   * keepMounted mode: collapsed children stay in the DOM (hidden via display:none)
+   * instead of being unmounted. Needed so Antd Form.Item fields inside a
+   * collapsed card remain registered with their Form.
+   *
+   * Note: we assert on the wrapper's inline `style.display` rather than
+   * `toBeVisible()` because jsdom does not reflect React-applied inline styles
+   * through `getComputedStyle`, which is what jest-dom's visibility matcher uses.
+   */
+  describe("keepMounted mode", () => {
+    it("keeps children in the DOM when collapsed (hidden, not unmounted)", () => {
+      render(
+        <CollapsibleCard title="Test Title" id="test" collapsed={true} keepMounted>
+          <div data-testid="child">Test Content</div>
+        </CollapsibleCard>
+      );
+
+      // Still in the DOM ...
+      expect(screen.getByText("Test Content")).toBeInTheDocument();
+      // ... and the keepMounted wrapper hides it via inline display:none
+      const wrapper = screen.getByTestId("child").parentElement;
+      expect(wrapper?.style.display).toBe("none");
+    });
+
+    it("shows children again when toggled from collapsed to expanded", () => {
+      render(
+        <CollapsibleCard title="Test Title" id="test" collapsed={true} keepMounted>
+          <div data-testid="child">Test Content</div>
+        </CollapsibleCard>
+      );
+
+      const header = screen.getByText("Test Title");
+      const wrapper = screen.getByTestId("child").parentElement;
+
+      // Hidden while collapsed
+      expect(wrapper?.style.display).toBe("none");
+
+      // Expand - wrapper no longer hides it
+      fireEvent.click(header);
+      expect(wrapper?.style.display).toBe("");
+    });
+
+    it("still hides children via display:none when toggled to collapsed", () => {
+      render(
+        <CollapsibleCard title="Test Title" id="test" keepMounted>
+          <div data-testid="child">Test Content</div>
+        </CollapsibleCard>
+      );
+
+      const header = screen.getByText("Test Title");
+      const wrapper = screen.getByTestId("child").parentElement;
+
+      // Visible initially - wrapper does not hide it
+      expect(wrapper?.style.display).toBe("");
+
+      // Collapse - hidden but still mounted
+      fireEvent.click(header);
+      expect(screen.getByText("Test Content")).toBeInTheDocument();
+      expect(wrapper?.style.display).toBe("none");
+    });
+  });
 });

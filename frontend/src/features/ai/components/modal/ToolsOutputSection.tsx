@@ -9,6 +9,7 @@ export const ToolsOutputSection = () => {
     <CollapsibleCard
       id="assistant-tools"
       collapsed={true}
+      keepMounted
       title={
         <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
           Tools &amp; Output

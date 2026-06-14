@@ -78,6 +78,7 @@ export const PlanningStrategySection = () => {
     <CollapsibleCard
       id="assistant-planning"
       collapsed={true}
+      keepMounted
       title={
         <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
           Planning Strategy

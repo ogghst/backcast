@@ -12,6 +12,14 @@ interface CollapsibleCardProps {
   extra?: React.ReactNode;
   /** Style for the card */
   style?: React.CSSProperties;
+  /**
+   * When true, children stay mounted while collapsed (hidden via `display: none`)
+   * instead of being unmounted. Use this when children must remain registered
+   * while hidden (e.g. Antd Form.Item fields inside a collapsed card).
+   * Defaults to false to preserve the original unmount-on-collapse behavior
+   * (avoiding zero-size resize bugs for mounted-while-hidden charts).
+   */
+  keepMounted?: boolean;
 }
 
 /**
@@ -27,6 +35,7 @@ export function CollapsibleCard({
   collapsed: defaultCollapsed = false,
   extra,
   style,
+  keepMounted = false,
 }: CollapsibleCardProps): JSX.Element {
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
@@ -69,7 +78,11 @@ export function CollapsibleCard({
       }
       extra={extra && <div style={{ marginLeft: token.marginXS }}>{extra}</div>}
     >
-      {!collapsed && children}
+      {keepMounted ? (
+        <div style={{ display: collapsed ? "none" : undefined }}>{children}</div>
+      ) : (
+        !collapsed && children
+      )}
     </Card>
   );
 }

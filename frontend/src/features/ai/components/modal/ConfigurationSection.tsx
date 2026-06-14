@@ -14,6 +14,7 @@ export const ConfigurationSection = ({ agentType, models }: ConfigurationSection
     <CollapsibleCard
       id="assistant-config"
       collapsed={false}
+      keepMounted
       title={
         <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
           Configuration
