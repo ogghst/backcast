@@ -283,7 +283,7 @@ _ENTITY_CONFIG: list[
     (
         "organizational_unit",
         OrganizationalUnit,
-        "department_id",
+        "organizational_unit_id",
         ["code", "name"],
         ["description"],
         [],
