@@ -456,7 +456,12 @@ export const ChatInterface = ({
     isLoading: loadingMore,
   } = useChatSessionsPaginated({ limit: 10, contextType: context.type, contextId: context.id });
 
-  const sessions = paginatedData?.sessions ?? [];
+  // Memoized so the `[]` fallback has a stable reference — otherwise it's a new
+  // array each render and destabilizes the `useCallback(..., [sessions])` below.
+  const sessions = useMemo(
+    () => paginatedData?.sessions ?? [],
+    [paginatedData?.sessions]
+  );
 
   const { data: messages, isLoading: messagesLoading } = useChatMessages(
     currentSessionId
