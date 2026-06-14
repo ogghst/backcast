@@ -156,6 +156,20 @@ class PlanDocument(BaseModel):
                 return False
         return True
 
+    def blocked_step_indices(self) -> list[int]:
+        """Pending steps permanently blocked because a dependency FAILED.
+
+        A pending step whose dependency is merely ``pending``/``in_progress``
+        is NOT blocked (it may yet become dispatchable). Only a ``failed``
+        dependency permanently blocks it.
+        """
+        failed = {s.step_index for s in self.steps if s.status == "failed"}
+        return [
+            s.step_index
+            for s in self.steps
+            if s.status == "pending" and any(d in failed for d in s.dependencies)
+        ]
+
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------

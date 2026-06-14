@@ -10,9 +10,7 @@ Graph: START -> initialize_briefing -> planner -> supervisor <-> specialist_node
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import random
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -38,10 +36,15 @@ from app.ai.config import AI_DELEGATION_ENFORCED, AgentConfig
 from app.ai.event_types import AgentEventType
 from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
+from app.ai.execution.llm_retry import (
+    RETRY_BASE_S,
+    RETRY_CAP_S,
+    RETRY_JITTER_S,
+    invoke_with_retry,
+)
 from app.ai.handoff_tools import create_all_handoff_tools, create_replan_tool
 from app.ai.message_utils import (
     extract_final_ai_response,
-    is_transient_stream_error,
 )
 from app.ai.middleware.context_guard import ContextGuardMiddleware
 from app.ai.middleware.plan_aware_tools import PlanAwareToolMiddleware
@@ -61,89 +64,13 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Exponential backoff parameters for specialist invocation retries.
-# Tunable later if real-world throttling data warrants different values.
-_SPECIALIST_RETRY_BASE_S = 1.0
-_SPECIALIST_RETRY_CAP_S = 20.0
-_SPECIALIST_RETRY_JITTER_S = 0.5
-
-
-async def _await_with_pausable_deadline(
-    coro: Awaitable[dict[str, Any]],
-    *,
-    timeout: float,
-    execution_id: str | None = None,
-    tick: float = 0.5,
-) -> dict[str, Any]:
-    """Await *coro*, enforcing a wall-clock *timeout* that PAUSES while an
-    ask_user request is awaiting a human response.
-
-    Provider stalls still trip the timeout; legitimate user-waits
-    (ask_user) do not, because ask_user carries its own response timeout.
-
-    The deadline is sliced into ``tick``-second windows.  A tick-timeout
-    (``TimeoutError`` from ``wait_for(asyncio.shield(task), tick)``) only
-    accrues toward *timeout* when the specialist is NOT awaiting a human.
-    The awaiting-user state is consulted via the per-execution predicate
-    :func:`is_awaiting_user` (preferred, scoped to *execution_id*) and
-    falls back to the global :func:`is_ask_user_pending` predicate so any
-    in-flight ask pauses the clock when *execution_id* is unknown.  While a
-    human is being asked the clock pauses; when elapsed active time reaches
-    *timeout*, the underlying task is cancelled and a retryable
-    ``TimeoutError`` is raised.
-
-    Args:
-        coro: The specialist invocation to await.
-        timeout: Active (non-paused) seconds budget for the invocation.
-        execution_id: Optional execution ID for per-execution awaiting-user
-            tracking. Falls back to the global ask predicate when None.
-        tick: Window size for the deadline slicer (default 0.5s).
-
-    Returns:
-        The specialist result dict.
-
-    Raises:
-        TimeoutError: When active elapsed time reaches *timeout* (real stall).
-    """
-    from app.ai.tools.ask_user import is_ask_user_pending, is_awaiting_user
-
-    def _awaiting_human() -> bool:
-        """True if THIS execution is awaiting a human, or (fallback) any ask."""
-        if execution_id is not None and is_awaiting_user(execution_id):
-            return True
-        return is_ask_user_pending()
-
-    # Clamp the tick to ``timeout`` so a single slicer window can never be
-    # larger than the entire active budget -- otherwise a real stall whose
-    # inner hang is shorter than ``tick`` would slip through unnoticed.
-    effective_tick = min(tick, timeout)
-
-    task = asyncio.ensure_future(coro)
-    elapsed = 0.0
-    try:
-        while True:
-            try:
-                # shield so a tick-timeout does NOT cancel the underlying task
-                return await asyncio.wait_for(
-                    asyncio.shield(task), timeout=effective_tick
-                )
-            except TimeoutError:
-                # Only accrue time when NOT waiting on a human.
-                if not _awaiting_human():
-                    elapsed += effective_tick
-                    if elapsed >= timeout:
-                        # Real stall: cancel the task and surface a retryable timeout.
-                        task.cancel()
-                        raise TimeoutError(
-                            f"specialist invocation exceeded {timeout:.0f}s of active time"
-                        ) from None
-                # else: an ask_user is pending -> pause the deadline (do not accrue).
-    except BaseException:
-        # Ensure the task is cancelled if we bail for any reason while
-        # it's still running.
-        if not task.done():
-            task.cancel()
-        raise
+# Backoff parameters were extracted to ``app.ai.execution.llm_retry`` as
+# the shared ``RETRY_*`` constants.  These specialist-scoped aliases keep
+# the historical names importable (``test_specialist_retry.py`` imports
+# them under these names) and document the value-equality.
+_SPECIALIST_RETRY_BASE_S = RETRY_BASE_S
+_SPECIALIST_RETRY_CAP_S = RETRY_CAP_S
+_SPECIALIST_RETRY_JITTER_S = RETRY_JITTER_S
 
 
 async def _invoke_specialist_with_retry(
@@ -156,17 +83,14 @@ async def _invoke_specialist_with_retry(
 ) -> dict[str, Any]:
     """Invoke a specialist subgraph with a pausable timeout and retry.
 
-    Wraps ``invoke()`` in ``_await_with_pausable_deadline`` so a provider
-    stall (no exception, just a hang) is bounded by ``timeout`` seconds of
-    ACTIVE time, while PAUSING the deadline while the specialist is
-    legitimately blocked on ``ask_user`` awaiting a human response.  On a
-    retryable error (timeout or a transient stream error per
-    ``is_transient_stream_error``), retries with exponential backoff plus
-    jitter (``min(base * 2**attempt, cap) + uniform(0, jitter)``).
-
-    On the final attempt or a non-retryable error the exception is
-    re-raised so the calling wrapper's existing error-handling block can
-    compile the failure into the briefing.
+    Thin specialist-scoped wrapper around the shared
+    :func:`app.ai.execution.llm_retry.invoke_with_retry`.  Behaviour is
+    unchanged from the inline implementation: a provider stall is bounded
+    by ``timeout`` seconds of ACTIVE time, the deadline PAUSES while the
+    specialist is blocked on ``ask_user``, and retryable errors
+    (timeout/transient stream) are retried with exponential backoff plus
+    jitter.  Kept as a module-private callable so the existing call site
+    and tests can use the specialist-named log tag.
 
     Args:
         invoke: Zero-arg async factory returning the specialist's result.
@@ -183,33 +107,12 @@ async def _invoke_specialist_with_retry(
         Exception: The last error when retries are exhausted, or the
             original error if it is not retryable.
     """
-    for attempt in range(max_retries + 1):
-        try:
-            return await _await_with_pausable_deadline(
-                invoke(), timeout=timeout, execution_id=execution_id
-            )
-        except Exception as exc:
-            retryable = isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or (
-                is_transient_stream_error(exc)
-            )
-            if retryable and attempt < max_retries:
-                logger.warning(
-                    "[SPECIALIST_RETRY] %s retryable error (attempt %d/%d): %s",
-                    specialist_name,
-                    attempt + 1,
-                    max_retries + 1,
-                    exc,
-                )
-                delay = min(
-                    _SPECIALIST_RETRY_BASE_S * 2**attempt,
-                    _SPECIALIST_RETRY_CAP_S,
-                ) + random.uniform(0, _SPECIALIST_RETRY_JITTER_S)
-                await asyncio.sleep(delay)
-                continue
-            raise
-    # Unreachable when max_retries >= 0 (every non-raising path returns).
-    raise RuntimeError(
-        f"_invoke_specialist_with_retry exited loop for {specialist_name}"
+    return await invoke_with_retry(
+        invoke,
+        label=specialist_name,
+        max_retries=max_retries,
+        timeout=timeout,
+        execution_id=execution_id,
     )
 
 
@@ -821,6 +724,54 @@ class SupervisorOrchestrator:
                     completed_step_indices_debug,
                     completed,
                 )
+            # --- Plan-mode containment: active_step is None in plan mode ---
+            # A failed dependency permanently blocks downstream steps
+            # (``are_dependencies_met`` requires ``"completed"``).  Without
+            # this guard the node would fall through to the non-plan branch
+            # and run the specialist with stale task context until the
+            # iteration cap force-ends the graph.  Instead, hand control back
+            # to the supervisor with explicit guidance.  Runs BEFORE the
+            # completed-specialist guard so that a pending step owned by
+            # another specialist still produces actionable guidance rather
+            # than a silent END.
+            if active_step is None and active_plan is not None:
+                pending = [s for s in active_plan.steps if s.status == "pending"]
+                blocked = active_plan.blocked_step_indices()
+                if not pending:
+                    guidance = (
+                        "All plan steps are resolved (some may have failed). "
+                        "Respond to the user with the findings gathered; "
+                        "do NOT delegate further."
+                    )
+                elif blocked:
+                    guidance = (
+                        f"No dispatchable step for {specialist_name}: "
+                        f"step(s) {blocked} are blocked by a failed "
+                        "dependency. The plan cannot continue as-is. "
+                        "Call request_replan to revise the remaining steps, "
+                        "or if the findings so far answer the user, "
+                        "respond now without delegating further."
+                    )
+                else:
+                    guidance = (
+                        f"No pending plan step is assigned to "
+                        f"{specialist_name}. Delegate the next pending "
+                        "step's specialist instead."
+                    )
+                logger.info(
+                    "[SPECIALIST_NODE] %s no active step in plan mode -> guidance",
+                    specialist_name,
+                )
+                return Command(
+                    update={
+                        "active_agent": "supervisor",
+                        "supervisor_iterations": state.get("supervisor_iterations", 0)
+                        + 1,
+                        "messages": [SystemMessage(content=guidance)],
+                    },
+                    goto="supervisor",
+                )
+
             if specialist_name in completed and active_step is None:
                 logger.info(
                     "[SUPERVISOR] Specialist %s already completed, early exit",
@@ -993,6 +944,34 @@ class SupervisorOrchestrator:
                     )
                     error_update["plan_data"] = active_plan.model_dump()
                     self._publish_plan_update(active_plan)
+                    # Inject guidance so the supervisor knows how to proceed
+                    # after a failed step (mirrors the success path's
+                    # plan_msg injection).  Names blocked dependents, or
+                    # confirms the failure is isolated.
+                    blocked = [
+                        s.step_index
+                        for s in active_plan.steps
+                        if s.status == "pending"
+                        and active_step.step_index in s.dependencies
+                    ]
+                    if blocked:
+                        guidance = (
+                            f"Plan step {active_step.step_index + 1} "
+                            f"({specialist_name}) FAILED. "
+                            f"Step(s) {blocked} depend on it and cannot run. "
+                            "Call request_replan to revise the remaining "
+                            "steps, or if the findings so far answer the "
+                            "user, respond now."
+                        )
+                    else:
+                        guidance = (
+                            f"Plan step {active_step.step_index + 1} "
+                            f"({specialist_name}) FAILED, but no other plan "
+                            "steps depend on it. Continue delegating the "
+                            "next pending step, or respond with the "
+                            "findings so far."
+                        )
+                    error_update["messages"] = [SystemMessage(content=guidance)]
 
                 # Publish BRIEFING_UPDATE + AGENT_COMPLETE
                 # for the error path — same as success path below.

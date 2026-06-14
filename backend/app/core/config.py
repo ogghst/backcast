@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     # Wall-clock timeout (seconds) for a single specialist invocation,
     # bounding provider stalls that never raise.
     AI_SPECIALIST_STEP_TIMEOUT: int = 120
+    # Active (non-paused) seconds budget for a single planner LLM call
+    # (fresh plan AND replan).  Bounds provider stalls that never raise;
+    # pauses while an ask_user human-wait is pending.
+    AI_PLANNER_STEP_TIMEOUT: int = 120
+    # Active (non-paused) seconds budget around the WHOLE graph
+    # astream_events loop (planner, supervisor reasoning, handoff tools,
+    # middleware).  Bounds stalls anywhere outside a specialist body;
+    # pauses while an ask_user human-wait is pending.
+    AI_GRAPH_EXECUTION_TIMEOUT: int = 600
 
     # Default timeout (seconds) the ask_user tool waits for a human answer.
     # Must exceed AI_SPECIALIST_STEP_TIMEOUT so the specialist step clock

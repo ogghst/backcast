@@ -108,6 +108,7 @@ from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.agent_metrics import AgentExecutionMetrics
+from app.ai.execution.llm_retry import iter_with_pausable_deadline
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.graph import create_graph
 from app.ai.graph_cache import (
@@ -313,6 +314,33 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
 
     _user_role_cache[user_id] = (time.time() + _USER_ROLE_TTL, role)
     return role
+
+
+def _extract_resume_state_from_checkpoint(
+    checkpoint_state: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Extract resume state from a LangGraph checkpoint's channel_values.
+
+    Returns a dict with keys ``briefing_data``, ``plan_data``,
+    ``completed_steps`` and ``completed_specialists`` (the latter two
+    coerced to ``set``, defaulting to empty).  Returns ``None`` when
+    ``checkpoint_state`` is falsy or has no ``briefing_data`` in
+    ``channel_values`` -- the signal that no progress was checkpointed.
+    """
+    if not checkpoint_state:
+        return None
+    channel_values = checkpoint_state.get("channel_values", {}) or {}
+    briefing_data = channel_values.get("briefing_data")
+    if not briefing_data:
+        return None
+    completed_steps = channel_values.get("completed_steps") or []
+    completed_specialists = channel_values.get("completed_specialists") or []
+    return {
+        "briefing_data": briefing_data,
+        "plan_data": channel_values.get("plan_data"),
+        "completed_steps": set(completed_steps),
+        "completed_specialists": set(completed_specialists),
+    }
 
 
 class AgentService:
@@ -1431,6 +1459,20 @@ class AgentService:
         retry_delay = 2.0
         events_processed = 0
 
+        # Loop-scoped graph-input variables.  Initialised to the pre-stream
+        # values for attempt 0; refreshed from the live LangGraph checkpoint
+        # on retry so progress made during the failed attempt (briefing
+        # sections, completed plan steps, completed specialists) is NOT
+        # discarded and completed specialists are not re-run.
+        cur_briefing: dict[str, Any] | None = existing_briefing
+        cur_resume_plan: dict[str, Any] | None = ctx.resume_plan_data
+        cur_completed_steps: set[int] = (
+            PlanDocument.from_state(ctx.resume_plan_data).completed_step_indices()
+            if ctx.resume_plan_data is not None
+            else set()
+        )
+        cur_completed_specialists: set[str] = set()
+
         for _retry_attempt in range(max_retries + 1):
             try:
                 from app.db.session import log_pool_status
@@ -1439,45 +1481,52 @@ class AgentService:
                     f"graph.astream_events start | session={ctx.session_id}"
                 )
 
-                async for event in ctx.graph.astream_events(
-                    {
-                        "messages": history,
-                        "tool_call_count": 0,
-                        "max_tool_iterations": ctx.recursion_limit,
-                        "next": "agent",
-                        "briefing_data": existing_briefing,
-                        # Inline resume state injection: when plan_data was
-                        # loaded from the session, pass it with completed step
-                        # indices so the planner skips the LLM call and the
-                        # supervisor skips completed specialist steps.
-                        **(
-                            {
-                                "plan_data": ctx.resume_plan_data,
-                                "completed_steps": PlanDocument.from_state(
-                                    ctx.resume_plan_data
-                                ).completed_step_indices(),
-                            }
-                            if ctx.resume_plan_data is not None
-                            else {}
+                async for event in iter_with_pausable_deadline(
+                    ctx.graph.astream_events(
+                        {
+                            "messages": history,
+                            "tool_call_count": 0,
+                            "max_tool_iterations": ctx.recursion_limit,
+                            "next": "agent",
+                            "briefing_data": cur_briefing,
+                            "completed_specialists": cur_completed_specialists,
+                            # Inline resume state injection: when plan_data was
+                            # loaded from the session, pass it with completed step
+                            # indices so the planner skips the LLM call and the
+                            # supervisor skips completed specialist steps.
+                            **(
+                                {
+                                    "plan_data": cur_resume_plan,
+                                    "completed_steps": cur_completed_steps,
+                                }
+                                if cur_resume_plan is not None
+                                else {}
+                            ),
+                        },
+                        config={
+                            # Supervisor orchestrator uses nested subgraphs — each
+                            # tool call cycle costs ~5 graph steps internally.  The
+                            # recursion_limit must be higher than max_tool_iterations
+                            # to avoid premature GraphRecursionError.
+                            "recursion_limit": ctx.recursion_limit * 5,
+                            "configurable": {"thread_id": str(ctx.session_id)},
+                        },
+                        version="v1",
+                        context=BackcastRuntimeContext(
+                            user_id=str(ctx.user_id),
+                            user_role=ctx.user_role,
+                            project_id=str(ctx.project_id) if ctx.project_id else None,
+                            branch_id=str(ctx.branch_id) if ctx.branch_id else None,
+                            execution_mode=ctx.execution_mode.value,
+                            stop_event=ctx.stop_event,
                         ),
-                    },
-                    config={
-                        # Supervisor orchestrator uses nested subgraphs — each
-                        # tool call cycle costs ~5 graph steps internally.  The
-                        # recursion_limit must be higher than max_tool_iterations
-                        # to avoid premature GraphRecursionError.
-                        "recursion_limit": ctx.recursion_limit * 5,
-                        "configurable": {"thread_id": str(ctx.session_id)},
-                    },
-                    version="v1",
-                    context=BackcastRuntimeContext(
-                        user_id=str(ctx.user_id),
-                        user_role=ctx.user_role,
-                        project_id=str(ctx.project_id) if ctx.project_id else None,
-                        branch_id=str(ctx.branch_id) if ctx.branch_id else None,
-                        execution_mode=ctx.execution_mode.value,
-                        stop_event=ctx.stop_event,
                     ),
+                    # Graph-level pausable deadline: bounds stalls anywhere
+                    # outside a specialist body (planner, supervisor reasoning,
+                    # handoff tools, middleware).  PAUSES while an ask_user
+                    # human-wait is pending (via is_awaiting_user/is_ask_user_pending).
+                    timeout=float(settings.AI_GRAPH_EXECUTION_TIMEOUT),
+                    execution_id=state.event_bus.execution_id,
                 ):
                     events_processed += 1
                     event_type = event.get("event", "")
@@ -1516,10 +1565,15 @@ class AgentService:
                 break  # successful completion, exit retry loop
 
             except Exception as stream_err:
-                if (
-                    not _is_transient_stream_error(stream_err)
-                    or _retry_attempt >= max_retries
-                ):
+                # A graph-level pausable-deadline timeout (from
+                # ``iter_with_pausable_deadline``) surfaces as a retryable
+                # ``TimeoutError``: treat it as transient so a single graph
+                # stall retries ONCE and then surfaces (mirrors the
+                # specialist retry predicate).
+                is_retryable = isinstance(
+                    stream_err, (asyncio.TimeoutError, TimeoutError)
+                ) or _is_transient_stream_error(stream_err)
+                if not is_retryable or _retry_attempt >= max_retries:
                     if _retry_attempt >= max_retries:
                         logger.error(
                             f"Stream failed after {max_retries + 1} "
@@ -1531,6 +1585,43 @@ class AgentService:
                     f"{_retry_attempt + 1}/{max_retries + 1}), "
                     f"retrying in {retry_delay}s: {stream_err}"
                 )
+                # Checkpoint-aware resume (FIX #2): pull the live briefing /
+                # plan / completed-steps / completed-specialists from the
+                # LangGraph checkpoint so the retry re-runs from the progress
+                # made during the failed attempt, then delete the checkpoint
+                # thread so the retry is a clean restart (not layered on an
+                # interrupted checkpoint).
+                checkpoint_state = await shared_checkpointer.aget(
+                    {"configurable": {"thread_id": str(ctx.session_id)}}
+                )
+                # ``aget`` returns a LangGraph ``Checkpoint | None`` (a
+                # TypedDict); the helper only reads ``channel_values`` so we
+                # cast to the dict view it expects (mirrors the cast pattern
+                # in ``_persist_briefing_from_checkpoint``).
+                resume = _extract_resume_state_from_checkpoint(
+                    cast(dict[str, Any] | None, checkpoint_state)
+                )
+                if resume:
+                    section_count = len(resume["briefing_data"].get("sections", []))
+                    cur_briefing = resume["briefing_data"]
+                    cur_resume_plan = resume["plan_data"]
+                    cur_completed_steps = resume["completed_steps"]
+                    cur_completed_specialists = resume["completed_specialists"]
+                    shared_checkpointer.delete_thread(str(ctx.session_id))
+                    logger.info(
+                        "[STREAM_RETRY] resumed from checkpoint: "
+                        f"{section_count} briefing sections, "
+                        f"completed_steps={sorted(cur_completed_steps)}, "
+                        f"completed_specialists={sorted(cur_completed_specialists)}, "
+                        f"deleting thread | session={ctx.session_id}"
+                    )
+                else:
+                    logger.warning(
+                        "[STREAM_RETRY] no checkpoint found for session "
+                        f"{ctx.session_id} -- retry will use the pre-stream "
+                        "state (progress made during the failed attempt may "
+                        "be lost)"
+                    )
                 await asyncio.sleep(retry_delay)
                 events_processed = 0
                 state.token_buffer.clear()

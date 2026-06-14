@@ -498,7 +498,15 @@ def test_replan_tool_incremental_count() -> None:
 
 @pytest.mark.asyncio
 async def test_specialist_node_skips_without_pending_plan_step() -> None:
-    """specialist_node early-exits when specialist is completed and no pending step matches."""
+    """specialist_node routes to supervisor with guidance when specialist is
+    completed and no pending step remains.
+
+    As of the failed-step-containment fix, a completed specialist with no
+    pending plan step no longer silently routes to END; instead the
+    plan-mode containment guard returns a Command(goto="supervisor")
+    carrying a guidance SystemMessage ("respond, do not delegate").  The
+    specialist graph is still NOT invoked.
+    """
     plan = PlanDocument(
         original_request="Analyze EVM",
         steps=[
@@ -558,7 +566,11 @@ async def test_specialist_node_skips_without_pending_plan_step() -> None:
 
     result = await wrapper_fn(state)
 
-    # Should early-exit with Command(goto=END) without invoking specialist
+    # Routes to supervisor (with guidance), NOT to END, and the specialist
+    # graph is NOT invoked.
     assert hasattr(result, "goto")
-    assert result.goto == END
+    assert result.goto == "supervisor"
+    assert result.update["active_agent"] == "supervisor"
+    msgs = result.update.get("messages")
+    assert msgs and "do NOT delegate" in msgs[0].content
     mock_specialist_graph.ainvoke.assert_not_awaited()

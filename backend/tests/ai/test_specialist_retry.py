@@ -187,8 +187,11 @@ async def test_exhausted_retries(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.asyncio
 async def test_exponential_backoff_formula(monkeypatch: pytest.MonkeyPatch) -> None:
     """With jitter pinned to 0, delays are exactly min(base*2**attempt, cap)."""
+    # ``random.uniform`` lives in ``app.ai.execution.llm_retry`` now that
+    # the retry primitive was extracted there (it was previously inlined
+    # in ``app.ai.supervisor_orchestrator``).
     monkeypatch.setattr(
-        "app.ai.supervisor_orchestrator.random.uniform", lambda a, b: 0.0
+        "app.ai.execution.llm_retry.random.uniform", lambda a, b: 0.0
     )
     sleeps = _patch_sleep_recorder(monkeypatch)
 

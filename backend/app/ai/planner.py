@@ -19,8 +19,10 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
 
+from app.ai.execution.llm_retry import invoke_with_retry
 from app.ai.plan import PlanDocument, PlannerOutput, PlanStep
 from app.ai.prompt_template import render_prompt
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -466,11 +468,20 @@ async def planner_node(
         system_content = replan_prompt + "\n\n" + parser.get_format_instructions()
 
         try:
-            response = await llm.ainvoke(
-                [
-                    SystemMessage(content=system_content),
-                    HumanMessage(content=prompt),
-                ]
+            # Retry the TRANSPORT call only.  A transient provider/network
+            # error is retried with backoff so a single hiccup does not
+            # silently collapse the replan.  A parse failure below is NOT
+            # retried (handled in its own branch).
+            response = await invoke_with_retry(
+                lambda: llm.ainvoke(
+                    [
+                        SystemMessage(content=system_content),
+                        HumanMessage(content=prompt),
+                    ]
+                ),
+                label="planner",
+                max_retries=settings.AI_SPECIALIST_MAX_RETRIES,
+                timeout=float(settings.AI_PLANNER_STEP_TIMEOUT),
             )
         except Exception:
             logger.exception("[PLANNER] replan llm_call_failed, keeping existing plan")
@@ -555,11 +566,21 @@ async def planner_node(
         + parser.get_format_instructions()
     )
     try:
-        response = await llm.ainvoke(
-            [
-                SystemMessage(content=system_content),
-                HumanMessage(content=prompt),
-            ]
+        # Retry the TRANSPORT call only.  A transient provider/network
+        # error is retried with backoff so a single hiccup does not
+        # silently collapse a multi-step plan into the single-step
+        # fallback.  A parse failure below is NOT retried (handled in its
+        # own branch).
+        response = await invoke_with_retry(
+            lambda: llm.ainvoke(
+                [
+                    SystemMessage(content=system_content),
+                    HumanMessage(content=prompt),
+                ]
+            ),
+            label="planner",
+            max_retries=settings.AI_SPECIALIST_MAX_RETRIES,
+            timeout=float(settings.AI_PLANNER_STEP_TIMEOUT),
         )
     except Exception:
         logger.exception("[PLANNER] llm_call_failed, falling back to single step")
