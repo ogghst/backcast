@@ -190,9 +190,7 @@ async def test_exponential_backoff_formula(monkeypatch: pytest.MonkeyPatch) -> N
     # ``random.uniform`` lives in ``app.ai.execution.llm_retry`` now that
     # the retry primitive was extracted there (it was previously inlined
     # in ``app.ai.supervisor_orchestrator``).
-    monkeypatch.setattr(
-        "app.ai.execution.llm_retry.random.uniform", lambda a, b: 0.0
-    )
+    monkeypatch.setattr("app.ai.execution.llm_retry.random.uniform", lambda a, b: 0.0)
     sleeps = _patch_sleep_recorder(monkeypatch)
 
     async def _always_transient(_n: int) -> dict[str, Any]:

@@ -161,9 +161,7 @@ async def test_fresh_plan_hanging_ainvoke_deadline_fires_falls_back(
     """
     _patch_sleep_noop(monkeypatch)
     monkeypatch.setattr("app.ai.planner.settings.AI_PLANNER_STEP_TIMEOUT", 2)
-    monkeypatch.setattr(
-        "app.ai.planner.settings.AI_SPECIALIST_MAX_RETRIES", 0
-    )
+    monkeypatch.setattr("app.ai.planner.settings.AI_SPECIALIST_MAX_RETRIES", 0)
 
     class _HangLLM:
         async def ainvoke(self, _messages: Any) -> MagicMock:  # noqa: ANN001

@@ -12,7 +12,7 @@ the ``_invoke_specialist_with_retry`` re-export).
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import pytest
 
@@ -87,9 +87,7 @@ async def test_iter_stall_past_timeout_raises_and_closes_generator() -> None:
     agen = _stalling_gen(after=2.0, tracker=tracker)
     seen: list = []
     with pytest.raises((asyncio.TimeoutError, TimeoutError)):
-        async for item in iter_with_pausable_deadline(
-            agen, timeout=0.3, tick=0.1
-        ):
+        async for item in iter_with_pausable_deadline(agen, timeout=0.3, tick=0.1):
             seen.append(item)
 
     # First item was yielded before the stall.
@@ -102,9 +100,7 @@ async def test_iter_stall_past_timeout_raises_and_closes_generator() -> None:
         if tracker.get("closed"):
             break
         await asyncio.sleep(0.05)
-    assert tracker.get("closed") is True, (
-        "generator was not closed after timeout"
-    )
+    assert tracker.get("closed") is True, "generator was not closed after timeout"
 
 
 # =====================================================================
