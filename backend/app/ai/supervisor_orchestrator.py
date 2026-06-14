@@ -80,6 +80,7 @@ async def _invoke_specialist_with_retry(
     max_retries: int,
     timeout: float,
     execution_id: str | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Invoke a specialist subgraph with a pausable timeout and retry.
 
@@ -92,6 +93,11 @@ async def _invoke_specialist_with_retry(
     jitter.  Kept as a module-private callable so the existing call site
     and tests can use the specialist-named log tag.
 
+    When *should_stop* is provided it is forwarded to the pausable deadline
+    so a user-initiated stop interrupts a looping/stalled specialist
+    mid-flight (within a single tick window) and surfaces as a
+    non-retryable :class:`ExecutionStoppedError`.
+
     Args:
         invoke: Zero-arg async factory returning the specialist's result.
         specialist_name: Display name used in retry log lines.
@@ -99,11 +105,15 @@ async def _invoke_specialist_with_retry(
         timeout: Active (non-paused) seconds for a single invocation.
         execution_id: Optional execution ID used to scope the
             awaiting-user pause check to this execution.
+        should_stop: Optional callable returning True when the surrounding
+            execution has been asked to stop.
 
     Returns:
         The specialist result dict on success.
 
     Raises:
+        ExecutionStoppedError: When *should_stop* returns True mid-await
+            (non-retryable; propagates immediately).
         Exception: The last error when retries are exhausted, or the
             original error if it is not retryable.
     """
@@ -113,6 +123,7 @@ async def _invoke_specialist_with_retry(
         max_retries=max_retries,
         timeout=timeout,
         execution_id=execution_id,
+        should_stop=should_stop,
     )
 
 
@@ -753,11 +764,22 @@ class SupervisorOrchestrator:
                         "respond now without delegating further."
                     )
                 else:
-                    guidance = (
-                        f"No pending plan step is assigned to "
-                        f"{specialist_name}. Delegate the next pending "
-                        "step's specialist instead."
-                    )
+                    nxt = active_plan.get_next_pending_step()
+                    if nxt is not None:
+                        guidance = (
+                            f"No pending plan step is assigned to "
+                            f"{specialist_name}. The NEXT plan step is "
+                            f"step {nxt.step_index + 1}/{len(active_plan.steps)} "
+                            f"assigned to {nxt.specialist}: "
+                            f"{nxt.task_description}. "
+                            f"Call handoff_to_{nxt.specialist} next."
+                        )
+                    else:
+                        guidance = (
+                            "All plan steps are resolved (some may have "
+                            "failed). Respond to the user with the findings "
+                            "gathered; do NOT delegate further."
+                        )
                 logger.info(
                     "[SPECIALIST_NODE] %s no active step in plan mode -> guidance",
                     specialist_name,
@@ -901,6 +923,7 @@ class SupervisorOrchestrator:
                 )
 
             try:
+                stop_evt = self.context._stop_event
                 result = await _invoke_specialist_with_retry(
                     lambda: specialist_graph.ainvoke(
                         {
@@ -917,7 +940,17 @@ class SupervisorOrchestrator:
                     execution_id=(
                         self._event_bus.execution_id if self._event_bus else None
                     ),
+                    should_stop=(
+                        (lambda: bool(stop_evt.is_set()))
+                        if stop_evt is not None
+                        else None
+                    ),
                 )
+            except ExecutionStoppedError:
+                # A user-initiated stop must propagate up so the graph
+                # terminates cleanly — do NOT compile it into a briefing
+                # error (that would mask the stop and keep the graph alive).
+                raise
             except Exception as exc:
                 logger.error(
                     "[SPECIALIST_ERROR] %s failed: %s",

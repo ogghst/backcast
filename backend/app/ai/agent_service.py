@@ -8,7 +8,7 @@ import logging
 import os
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 from uuid import UUID
@@ -314,6 +314,21 @@ async def _get_user_role(session: AsyncSession, user_id: UUID) -> str:
 
     _user_role_cache[user_id] = (time.time() + _USER_ROLE_TTL, role)
     return role
+
+
+def _make_stop_predicate(
+    stop_event: asyncio.Event | None,
+) -> Callable[[], bool] | None:
+    """Build a should_stop predicate bound to *stop_event*, or None.
+
+    Capturing the event in a local lets mypy narrow the type inside the
+    returned closure (a bare ``lambda: ctx.stop_event.is_set()`` would
+    not narrow because the closure captures the ``ctx`` attribute access
+    rather than a value).
+    """
+    if stop_event is None:
+        return None
+    return lambda: bool(stop_event.is_set())
 
 
 def _extract_resume_state_from_checkpoint(
@@ -1525,8 +1540,12 @@ class AgentService:
                     # outside a specialist body (planner, supervisor reasoning,
                     # handoff tools, middleware).  PAUSES while an ask_user
                     # human-wait is pending (via is_awaiting_user/is_ask_user_pending).
+                    # should_stop interrupts the supervisor mid-flight (e.g. mid
+                    # reasoning, mid handoff) within a single tick window when the
+                    # user clicks stop.
                     timeout=float(settings.AI_GRAPH_EXECUTION_TIMEOUT),
                     execution_id=state.event_bus.execution_id,
+                    should_stop=_make_stop_predicate(ctx.stop_event),
                 ):
                     events_processed += 1
                     event_type = event.get("event", "")

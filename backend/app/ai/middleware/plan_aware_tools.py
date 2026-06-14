@@ -72,6 +72,28 @@ _PLAN_WITH_DIRECT_TOOLS_SUFFIX = (
 )
 
 
+def _next_action_line(plan: PlanDocument) -> str:
+    """One-line next-action directive naming the next dispatchable step + handoff tool.
+
+    Appended to the injected plan text on every supervisor turn (both the
+    enforced and non-enforced middleware paths) so the LLM always knows
+    which ``handoff_to_<specialist>`` to call next, regardless of
+    delegation mode.  When no step is dispatchable (all completed/failed
+    or all blocked), directs the supervisor to respond without delegating.
+    """
+    nxt = plan.get_next_pending_step()
+    if nxt is None:
+        return (
+            "\nNEXT ACTION: All plan steps are resolved — respond to the "
+            "user; do not delegate further."
+        )
+    return (
+        f"\nNEXT ACTION: Execute the next plan step — call "
+        f"handoff_to_{nxt.specialist} for step {nxt.step_index + 1}/"
+        f"{len(plan.steps)}: {nxt.task_description}"
+    )
+
+
 def _has_active_plan(state: dict[str, Any]) -> bool:
     """Return True if state carries a multi-step plan with specialist steps."""
     plan_data = state.get("plan_data")
@@ -238,7 +260,7 @@ class PlanAwareToolMiddleware(AgentMiddleware):
             plan_data: dict[str, Any] | None = state.get("plan_data")  # type: ignore[assignment]
             if plan_data:
                 plan = PlanDocument.from_state(plan_data)
-                plan_text = plan.to_prompt_text()
+                plan_text = plan.to_prompt_text() + _next_action_line(plan)
 
                 if "{plan_section}" in current_prompt:
                     current_prompt = render_prompt(
@@ -283,10 +305,27 @@ class PlanAwareToolMiddleware(AgentMiddleware):
 
             return response
 
-        # No active plan — clean up {plan_section} placeholder if present so
-        # the supervisor never sees the literal template tag.
+        # Non-enforced path (AI_DELEGATION_ENFORCED=false).  When a plan IS
+        # present, inject its prompt text + the NEXT ACTION directive so the
+        # supervisor follows plan order regardless of delegation mode.  When
+        # no plan is present, clean up the {plan_section} placeholder so the
+        # supervisor never sees the literal template tag.
         current_prompt = request.system_message.text if request.system_message else ""
-        if "{plan_section}" in current_prompt:
+        ne_plan_data: dict[str, Any] | None = state.get("plan_data")  # type: ignore[assignment]
+        if ne_plan_data:
+            plan = PlanDocument.from_state(ne_plan_data)
+            if plan.requires_planning and plan.steps:
+                plan_text = plan.to_prompt_text() + _next_action_line(plan)
+                if "{plan_section}" in current_prompt:
+                    current_prompt = render_prompt(
+                        current_prompt, plan_section=plan_text
+                    )
+                elif plan_text not in current_prompt:
+                    current_prompt = current_prompt + "\n\n" + plan_text
+                request = request.override(
+                    system_message=SystemMessage(content=current_prompt),
+                )
+        elif "{plan_section}" in current_prompt:
             current_prompt = render_prompt(
                 current_prompt, plan_section="No execution plan — delegate directly."
             )
@@ -297,4 +336,4 @@ class PlanAwareToolMiddleware(AgentMiddleware):
         return await handler(request)
 
 
-__all__ = ["PlanAwareToolMiddleware"]
+__all__ = ["PlanAwareToolMiddleware", "_next_action_line"]

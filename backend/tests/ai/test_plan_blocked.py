@@ -378,7 +378,10 @@ async def test_specialist_node_no_step_for_specialist_but_pending_exists() -> No
     msgs = result.update.get("messages")
     assert msgs and isinstance(msgs[0], SystemMessage)
     text = msgs[0].content.lower()
-    assert "delegate" in text
+    # The bounce names the EXACT next handoff tool (FIX #1: replaces the
+    # old generic "delegate the next pending step's specialist instead"
+    # with the precise handoff_to_<specialist> directive).
+    assert "handoff_to_visualization_specialist" in text
     assert fake_graph.ainvoke.call_count == 0
 
 

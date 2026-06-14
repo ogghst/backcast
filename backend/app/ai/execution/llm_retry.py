@@ -26,6 +26,7 @@ import logging
 import random
 from collections.abc import AsyncIterator, Awaitable, Callable
 
+from app.ai.exceptions import ExecutionStoppedError
 from app.ai.message_utils import is_transient_stream_error
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ async def await_with_pausable_deadline[T](
     timeout: float,
     execution_id: str | None = None,
     tick: float = 0.5,
+    should_stop: Callable[[], bool] | None = None,
 ) -> T:
     """Await *coro*, enforcing a wall-clock *timeout* that PAUSES while an
     ask_user request is awaiting a human response.
@@ -72,6 +74,14 @@ async def await_with_pausable_deadline[T](
     elapsed active time reaches *timeout*, the underlying task is cancelled
     and a retryable ``TimeoutError`` is raised.
 
+    When *should_stop* is provided, it is evaluated FIRST each tick (before
+    timeout-accrual and before the ask_user pause).  A stop takes priority
+    over both a pending human-wait and a pending timeout: the in-flight
+    task is cancelled and :class:`ExecutionStoppedError` is raised.  This
+    lets a user-initiated stop interrupt a looping/stalled specialist
+    mid-flight within a single tick window instead of waiting for the
+    specialist timeout or graph deadline.
+
     Args:
         coro: The coroutine to await.
         timeout: Active (non-paused) seconds budget for the call.
@@ -79,12 +89,15 @@ async def await_with_pausable_deadline[T](
             awaiting-user tracking. Falls back to the global ask predicate
             when None.
         tick: Window size for the deadline slicer (default 0.5s).
+        should_stop: Optional callable returning True when the surrounding
+            execution has been asked to stop. Evaluated once per tick.
 
     Returns:
         The awaited result.
 
     Raises:
         TimeoutError: When active elapsed time reaches *timeout* (real stall).
+        ExecutionStoppedError: When *should_stop* returns True mid-await.
     """
     # Clamp the tick to ``timeout`` so a single slicer window can never be
     # larger than the entire active budget -- otherwise a real stall whose
@@ -95,6 +108,13 @@ async def await_with_pausable_deadline[T](
     elapsed = 0.0
     try:
         while True:
+            # Stop takes priority over both timeout-accrual and the
+            # ask_user pause: a user-initiated stop must interrupt even
+            # mid-ask and within a single tick window.
+            if should_stop is not None and should_stop():
+                if not task.done():
+                    task.cancel()
+                raise ExecutionStoppedError("paused-deadline")
             try:
                 # shield so a tick-timeout does NOT cancel the underlying task
                 return await asyncio.wait_for(
@@ -125,6 +145,7 @@ async def iter_with_pausable_deadline[T](
     timeout: float,
     execution_id: str | None = None,
     tick: float = 0.5,
+    should_stop: Callable[[], bool] | None = None,
 ) -> AsyncIterator[T]:
     """Yield items from *agen* under an active-time deadline that PAUSES
     while an ask_user request is awaiting a human response.
@@ -140,6 +161,13 @@ async def iter_with_pausable_deadline[T](
     is closed (``await agen.aclose()`` in the ``finally``) and a retryable
     ``TimeoutError`` is raised.
 
+    When *should_stop* is provided, it is evaluated FIRST each tick (before
+    timeout-accrual and before the ask_user pause).  A stop takes priority
+    over both a pending human-wait and a pending timeout: the in-flight
+    step task is cancelled and :class:`ExecutionStoppedError` is raised.
+    This lets a user-initiated stop interrupt the supervisor mid-flight
+    (e.g. mid reasoning, mid handoff) within a single tick window.
+
     Args:
         agen: The async iterator (e.g. ``graph.astream_events(...)``).
         timeout: Active (non-paused) seconds budget for the whole
@@ -148,12 +176,15 @@ async def iter_with_pausable_deadline[T](
             awaiting-user tracking. Falls back to the global ask predicate
             when None.
         tick: Window size for the deadline slicer (default 0.5s).
+        should_stop: Optional callable returning True when the surrounding
+            execution has been asked to stop. Evaluated once per tick.
 
     Yields:
         Items from *agen*.
 
     Raises:
         TimeoutError: When active elapsed time reaches *timeout* (real stall).
+        ExecutionStoppedError: When *should_stop* returns True mid-iteration.
     """
     # Clamp the tick to ``timeout`` so a single slicer window can never be
     # larger than the entire active budget.
@@ -167,6 +198,11 @@ async def iter_with_pausable_deadline[T](
 
     try:
         while True:
+            # Stop takes priority over both timeout-accrual and the
+            # ask_user pause: a user-initiated stop must interrupt even
+            # mid-ask and within a single tick window.
+            if should_stop is not None and should_stop():
+                raise ExecutionStoppedError("paused-deadline")
             # Schedule ONE __anext__ task per item, wrapped so the task
             # resolves with the _DONE sentinel instead of raising
             # StopAsyncIteration (which must not propagate through an async
@@ -189,6 +225,13 @@ async def iter_with_pausable_deadline[T](
                     step = None  # completed; nothing to cancel later
                     break  # step completed within budget
                 except TimeoutError:
+                    # Re-check stop inside the inner loop too, so a stop
+                    # raised during a long tick window is honoured promptly
+                    # rather than waiting for the next item.
+                    if should_stop is not None and should_stop():
+                        if not step_task.done():
+                            step_task.cancel()
+                        raise ExecutionStoppedError("paused-deadline") from None
                     if not _awaiting_human(execution_id):
                         elapsed += effective_tick
                         if elapsed >= timeout:
@@ -261,6 +304,7 @@ async def invoke_with_retry[T](
     max_retries: int,
     timeout: float,
     execution_id: str | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> T:
     """Invoke *invoke()* under a pausable timeout and retry on transient
     errors.
@@ -276,6 +320,12 @@ async def invoke_with_retry[T](
     On the final attempt or a non-retryable error the exception is
     re-raised so the caller's existing error-handling block can react.
 
+    When *should_stop* is provided it is forwarded to
+    :func:`await_with_pausable_deadline`.  A user-initiated stop surfaces
+    as :class:`ExecutionStoppedError`, which is NEVER treated as
+    retryable -- it propagates on the first attempt without backoff so
+    the stop takes effect immediately.
+
     Args:
         invoke: Zero-arg async factory returning the call's result.
         label: Display name used in retry log lines (e.g. ``"planner"``,
@@ -284,19 +334,30 @@ async def invoke_with_retry[T](
         timeout: Active (non-paused) seconds for a single invocation.
         execution_id: Optional execution ID used to scope the
             awaiting-user pause check to this execution.
+        should_stop: Optional callable returning True when the surrounding
+            execution has been asked to stop.  Forwarded to the pausable
+            deadline; the resulting ExecutionStoppedError is non-retryable.
 
     Returns:
         The result on success.
 
     Raises:
+        ExecutionStoppedError: When *should_stop* returns True mid-await
+            (non-retryable; propagates immediately).
         Exception: The last error when retries are exhausted, or the
             original error if it is not retryable.
     """
     for attempt in range(max_retries + 1):
         try:
             return await await_with_pausable_deadline(
-                invoke(), timeout=timeout, execution_id=execution_id
+                invoke(),
+                timeout=timeout,
+                execution_id=execution_id,
+                should_stop=should_stop,
             )
+        except ExecutionStoppedError:
+            # A user-initiated stop is never retryable — propagate at once.
+            raise
         except Exception as exc:
             retryable = isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or (
                 is_transient_stream_error(exc)
