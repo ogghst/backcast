@@ -3,10 +3,6 @@
 </p>
 
 <p align="center">
-  <strong>AI assistants that understand your project management world —<br>version-controlled budgets, earned value management, and change governance<br>for industrial automation teams.</strong>
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg">
   <img src="https://github.com/ogghst/backcast/actions/workflows/ci.yml/badge.svg">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg">
@@ -14,21 +10,95 @@
 
 ---
 
-Your team knows how to deliver industrial automation projects. Backcast gives them AI assistants that speak their language — assistants that understand your data, your procedures, and your governance policies. When a project controller needs to know what a CPI of 0.89 means for the change order they are preparing, the AI already knows your approval thresholds, your contractual requirements, and how to present the findings to your Change Control Board.
+Backcast is the result of a personal journey to solve a universal frustration: the heavy tax of manual corporate data entry vs. the vital need for perfect project governance. What started as a weekend experiment with a "time-traveling" ledger revealed a deeper truth—that traditional tools burden teams instead of guiding them. Bridging this gap required capturing human intent without sacrificing structural safety. Backcast achieves this by pairing advanced, multi-agent AI coordination with rigid application guardrails. The result is an autonomous governance platform where specialized AI teams work alongside humans, executing complex project operations, managing costs, and interacting securely with legacy systems to turn project data from an administrative chore into a living, strategic asset.
 
----
+## 1. The Narrative: From Time Travel to Autonomous Governance
 
-**Backcast** is a project budget management and earned value platform built for capital project organizations delivering end-of-line automation. It gives your PMO AI assistants that are tailored to how you work — combined with a single source of truth for scope, cost, and schedule, Git-style versioning that makes every financial decision auditable, every change order reversible, and every EVM metric defensible.
+### The Spark: A Time-Travelling Ledger
 
-Three things set Backcast apart:
+Backcast started as a weekend experiment born out of a simple, nagging question: *What if we could look at project data the way an archaeologist looks at layers of earth?*
 
-1. **AI assistants configured like team members** — the AI knows which information is needed for a change order, what a low CPI means for your project, and how to present it to your CCB. Configured like a job description, not a feature toggle.
+Traditional project management tools only show you the world as it exists today—tracking the current delay, the active budget, and the immediate milestone. But they completely lose the context of *why*. I wanted a system with a "time-traveling" data ledger—a way to slide a drawer back in time and see exactly how a project was born, the exact moment a timeline shifted, and the forgotten context behind a critical decision.
 
-2. **Bitemporal versioning** — every change to budgets, forecasts, work packages, and cost elements is automatically versioned. You can reconstruct the exact state of any project at any past date, compare two points in time, and trace exactly when and why a number changed.
+When I built that temporal data model, the clarity was immediate. Being able to look back at the historical trajectory of a project completely changes how you handle reporting and governance. But it also exposed a massive roadblock.
 
-3. **Branch-isolated change orders** — change orders work like Git branches. Your team experiments in an isolated sandbox, sees the full diff before merging, and nothing touches the live project baseline until an approver explicitly says yes.
+### The Conflict: The Statistical Mirage vs. Deterministic Governance
 
-The AI drafts, calculates, and recommends, but it can never approve, reject, sign off baselines, commit forecasts, or authorize budget transfers. Accountability always rests with a named human role.
+Sophisticated project data models fail because they demand too much from the people using them. The cognitive load of understanding complex work breakdown structures (WBS), combined with the friction of meticulous data entry, turns project management tools into administrative burdens rather than strategic assets.
+
+The obvious answer seemed to be Large Language Models (LLMs). LLMs are incredible at synthesizing concepts, drafting updates, and understanding human intent. However, applying them to complex corporate structures reveals a fundamental architectural mismatch: **the gap between the statistical, probabilistic nature of LLMs and the rigid, deterministic logic required to govern corporate data.**
+
+Project governance demands flawless mathematical and procedural precision. An LLM operates on token probabilities; it does not inherently understand relational integrity, sequential constraints, or strict accounting rules. If you attempt to manage highly structured data—like parsing complex WBS hierarchies or calculating Earned Value Management (EVM) metrics like Schedule Variance (SV) and Cost Variance (CV)—using a purely text-based model, the system inevitably drifts into unpredictable behavior.
+
+Moving from basic prompt engineering to reliable enterprise execution requires shifting away from massive upfront context dumps. Instead, systems must adopt a modular architecture that enforces **progressive disclosure** and strict environmental separation. Tool calling bridges the operational mechanics of reading and writing data, but it lacks semantic reasoning. It doesn't know *how* to build a logically sound hierarchy, map dependencies safely, or evaluate if a specific change order aligns with overarching corporate policies. To govern complexity, the statistical flexibility of the LLM must be tightly harnessed by a rigid, deterministic application layer.
+
+### The Solution: Mirroring the Enterprise
+
+The breakthrough came when I stopped treating AI as an isolated prompt-and-response engine and started looking at it through the lens of organizational design. In the real world, complex tasks are managed by structured teams. A single person rarely owns an entire process; instead, a task moves through individuals with distinct expertise, varying authorization levels, and specific functional roles—all bounded by strict corporate governance, compliance policies, and risk matrices.
+
+Backcast implements this exact organizational hierarchy through a configurable multi-agent harness, applying core agentic design patterns—such as **Orchestrator-Workers** and **Reflection** models—directly to project controls.
+
+```
+                    [ Human / Agent Input ]
+                               │
+            ┌──────────────────┴──────────────────┐
+            ▼                                     ▼
+   [ Core Application API ]              [ External MCP Ecosystem ]
+    (The Deterministic Guard)              (The Cognitive Sensors)
+   ┌────────┴────────┐                    ┌───────┼───────┐
+   ▼                 ▼                    ▼       ▼       ▼
+[Data Validation] [RBAC & Policies]   [Web Search] [Legacy ERP] [Custom Skill]
+   │                 │
+   └────────┬────────┘
+            ▼
+   [(Time-Travel Ledger)]
+
+```
+
+#### Grounded Application Security
+
+Unlike fragile sandboxes that grant AI raw database access, Backcast enforces strict boundary layers. **Agents interact with structured data using the exact same Application APIs as human users.**
+
+Every single operation an agent attempts—whether creating a task, adjusting a baseline, or processing a financial metric—is intercepted and audited by the core application layer. It must pass through identical Role-Based Access Controls (RBAC), database constraints, and deterministic business logic. The LLM suggests the intent, but the application layer guarantees the structure.
+
+#### Capability Expansion via MCP
+
+While the core application layer acts as the deterministic guardrail, agents expand their cognitive reach using the **Model Context Protocol (MCP)**. MCP tools function as specialized skills extending beyond the core model:
+
+* **Legacy & Web Integration:** Agents can use MCP to step outside the project sandbox—querying corporate legacy ERPs to validate material costs or scanning the web for real-time market shifts.
+* **Autonomous Reflection & Collaboration:** Modeled after autonomous developer tools like *Claude Code*, Backcast agents don't just generate text; they hold distinct permission levels, execute specialized system prompts, and coordinate with real human users or other agents. They iteratively critique their own project plans before submittal, ensuring compliance with institutional policies before the API ever receives the data.
+
+## 2. Technical Blueprint: Architecture & Use Cases
+
+Backcast separates cognitive execution from deterministic state tracking. The system is split into a **Core Application Layer** handling the project engine and a **Multi-Agent Orchestration Layer** handling semantics and automation.
+
+### Core Architecture Components
+
+* **The Temporal Ledger:** Built on a historical event-sourcing or version-state database schema. Every change to a task, baseline, or financial assignment is tracked as a historical delta, allowing full project state reconstruction at any specific point in time.
+* **Deterministic API Gateway:** A unified API exposing endpoints for WBS modifications, cost logging, change orders, and baseline revisions. This layer handles validation, preventing structural logical corruption (e.g., circular dependencies or unallocated budget inflation).
+* **Configurable Agent Harness:** A declarative runtime where agent teams are defined using structured manifests. Profiles declare roles, specialized prompts, RBAC tokens, and targeted tool permission mappings.
+
+### Primary Enterprise Use Cases
+
+* **Autonomous Work Breakdown (WBS) Generation:** Real users input high-level statements of work. The agent team interprets the human intent, reviews historical project baselines, interacts via API to check resource parameters, and drafts a complete structured tree of nested tasks and milestones.
+* **Intelligent Change Order Management:** When a project deviation occurs, an agent analyzes the downstream impacts. It checks the temporal ledger for the baseline trajectory, computes impact analysis, builds a compliant change order request through the application API, and alerts human stakeholders for approval.
+* **Semantic EVM Tracking & Status Merging:** Instead of basic numerical dashboards, Backcast agents continuously evaluate Earned Value Management metrics alongside qualitative project updates, translating formulas into natural language strategic readouts.
+
+## 3. Developer Notes & Implementation
+
+Backcast is built for extensibility, making extensive use of modular APIs and open integration standards.
+
+### Technology Stack
+
+* **Backend Core:** Developed with Python using **FastAPI** for high-performance async API routing, paired with **SQLAlchemy** for deterministic database interaction and state management.
+* **Agentic Frameworks:** Modeled around structured tool-calling loops and orchestration architectures (inspired by LangGraph and modern multi-agent coordination environments).
+* **Extensibility Protocol:** Full native support for the **Model Context Protocol (MCP)**, allowing decoupled development of external system connectors.
+
+### Extending Capabilities via MCP
+
+To add custom capabilities to Backcast agents (such as connecting to a proprietary corporate ERP, an internal knowledge base, or a specific issue tracker), you can deploy an independent MCP server. Agents discover these capabilities dynamically based on their manifest configuration.
+
+*Note: For detailed endpoint definitions, schema documentation, and custom agent team manifest syntax, refer to the OpenAPI spec (`/docs`) and the documentation linked below.*
 
 ---
 
@@ -61,106 +131,6 @@ A branch is created. The AI runs a four-dimension impact analysis — budget, sc
 
 Time Machine reconstructs the project as it existed 45 days ago. You see CPI, SPI, EAC, and every other metric at that point in time, with full variance context explained.
 
-You control how autonomous each agent is — from "act and notify me" to "always propose first." Three delegation levels let you match the autonomy to the situation: supervised (read-only) for executive reviews, guided (confirmation-gated) for daily management, and autonomous (full delegation) for experienced users during bulk data entry. You choose your delegation level when you open each chat session — it is your decision, not a system setting.
-
----
-
-## Built for how your team actually works
-
-Backcast adapts to your organization, not the other way around. The AI assistant is configured like a team member's job description — it knows your terminology, your approval thresholds, your reporting standards. A solo project manager on a single automation line and a 200-person OEM delivering across three regions use the same system, with AI assistants tailored to each team's maturity and governance model.
-
-| Dimension | Solo PM or Small Team | 25-Person Program | Enterprise OEM (50+) |
-|---|---|---|---|
-| **Team size** | 1-8 people, 2-3 roles | 10-25 people, custom roles | 50+ with segregation of duties |
-| **Change control** | Lean: elevated thresholds, 2 approvers, optional review state | Balanced: full 6-state workflow, optional CCB | Formal CCB: tightened thresholds, 4 approval levels, per-contract overrides |
-| **EVM maturity** | AI explains every metric, guided delegation, limited planner steps | AI highlights out-of-range values, balanced autonomy | Data-dense responses, benchmarking against contractual thresholds, full planner |
-| **Organization** | Flat, single site | 2-level org units, per-project overrides | 3+ level hierarchy, corporate template with regional adaptation |
-| **AI delegation** | Autonomous for the PM | Guided with escalation option | Per-role delegation, supervised for new teams |
-
-### Your change control, your rules
-
-Whether you run a formal Change Control Board with four-tier approval routing, or a lean process where the PM self-approves below a threshold and discipline leads review the rest — Backcast configures to your governance model. The state machine is fixed (Draft → Submitted → Under Review → Approved/Rejected → Implemented), but thresholds, approver levels, SLA deadlines, and field requirements are all adjustable per project or per contract.
-
-### EVM expertise is not a prerequisite
-
-Your AI assistant meets your team where they are. Your team in the Middle East office is new to earned value. Your European team has been running EVM for a decade. Backcast adapts. For beginners, the AI explains every metric on first use with manufacturing analogies: "For every euro spent, the project earned only 89 cents of value." For veterans, it skips the definitions and benchmarks against your contractual CPI thresholds automatically.
-
----
-
-## Core capabilities
-
-### AI agents that respect your authority
-
-Each AI persona understands its role in your organization. The Analyzer speaks the language of executive review — concise, data-backed, read-only. The Senior PM handles operational conversations — creating work packages, preparing change orders, running impact analysis — the way your best project controller would. The System Manager handles administration carefully, with a verification-first approach.
-
-Every persona inherits the requesting user's permissions. The AI can never exceed the human's authorization boundary. It drafts change orders, performs impact analysis, and generates stakeholder-specific reports. But it never approves, rejects, commits forecasts, or authorizes budget transfers.
-
-Three delegation levels let you dial autonomy to match context: read-only for audits and executive reviews, confirmation-gated for daily project management, and full delegation for experienced users during bulk operations. RACI enforcement means the AI is always Responsible for data processing but never Accountable for decisions.
-
-Agents can use different AI models from multiple providers, including local and self-hosted options — your data stays in your infrastructure.
-
-### Version-controlled project data
-
-Every change to budget, schedule, forecast, work packages, and cost elements is automatically versioned. This is not a changelog. It is a full bitemporal model: the system records both when a change occurred in the real world and when it was recorded in the system.
-
-You can travel to any past date and see exactly how the project looked at that moment — not just the numbers, but the complete hierarchy, EVM metrics, and forecast state. Switch between the main project and any change order branch to evaluate proposed changes against the current baseline.
-
-During audits, client reviews, or variance justification, this is the difference between "I believe the number was X" and "here is exactly what the project looked like on March 15, and here is the change that altered it two days later."
-
-### Change orders with real governance
-
-Change orders operate in isolated branches — sandbox copies of the project where your team can experiment freely. Nothing touches the live project baseline until the change order is approved and merged.
-
-The workflow follows PMI's Perform Integrated Change Control: Draft → Submitted → Under Review → Approved or Rejected → Implemented. Approval routing is automatic, based on a configurable composite impact score across budget (40%), schedule (30%), revenue (20%), and EVM degradation (10%). SLA deadlines tighten as the impact level rises. Segregation of duties is enforced: the person who creates a change order cannot approve it.
-
-Reviewers see both change-only and composite preview views before approving. The complete audit trail captures every state transition with timestamps, actors, and justification.
-
-### ANSI/EIA-748 compliant EVM
-
-Full Earned Value Management calculated at every level of the WBS hierarchy — cost element, work package, control account, and project. The metric suite covers Planned Value, Earned Value, Actual Cost, BAC, EAC, ETC, CPI, SPI, TCPI, CV, SV, and VAC.
-
-Control Accounts sit at the intersection of WBS Element and Organizational Unit, pairing budget authority with technical responsibility as the standard requires. The Performance Measurement Baseline is an approved, time-phased budget plan against which all performance is measured, with immutable milestone baselines captured at each significant lifecycle event.
-
-Forecasting supports three concurrent methodologies per cost element — bottom-up re-estimate, performance-based (BAC/CPI), and management judgment — with stability tracking via EAC standard deviation to measure forecast convergence over time. Cost of Quality is tracked from incoming inspection through site commissioning with root-cause attribution.
-
-### Tailored to your organization's way of working
-
-Role definitions, approval thresholds, impact score weights, SLA durations, org unit hierarchies, WBS templates, and AI behavior are all configured the way you would write a team member's job description — not through code changes, but through system settings that capture how your organization actually operates. Settings can be overridden per project or per contract, because a defense contract and a commercial line installation don't follow the same rules.
-
-Five defined roles (Administrator, Project Manager, Department Manager, Project Controller, Executive Viewer) map to PMI governance structures. Custom roles can be added. Permissions scope at three levels: global, project, and change-order — so a single user can hold different roles in different contexts, supporting matrix organizations.
-
-### Dashboards that tell the story
-
-15+ drag-and-drop widgets build custom views for different audiences: executive one-pagers with traffic-light indicators, detailed PMO variance analyses, department-specific performance breakdowns, and work-package-level team detail — all generated from the same underlying data, ensuring consistency across the organization. Save dashboard layouts and switch between views tailored to each stakeholder group.
-
----
-
-## From order to commissioning
-
-Backcast supports the full lifecycle of an end-of-line automation project:
-
-**Proposal and award.** AI retrieves comparable past-project data to support estimation. Budgets are validated against historical benchmarks. The initial WBS is structured from domain-specific templates.
-
-**Engineering and design.** The Performance Measurement Baseline is established. Work packages are defined with time-phased budget plans. Progression curves (linear, Gaussian, logarithmic) model how budget is consumed across the project timeline.
-
-**Procurement and manufacturing.** Actual costs are recorded against cost elements as invoices arrive. CPI and SPI are calculated in real time. Variance threshold monitoring triggers alerts when trends deteriorate.
-
-**Site installation and commissioning.** Milestone baselines capture project state at BOM Release, Shipment, and Commissioning Complete. Quality events are tracked with root-cause classification and cost attribution.
-
-**Closeout and lessons learned.** The complete audit trail is available for post-project review. Historical data feeds back into estimation benchmarks for future proposals.
-
----
-
-## How organizations configure it
-
-The AI assistant is not one-size-fits-all. It is configured to match how each organization works:
-
-**A formal defense contractor (35 people, risk-averse).** Conservative AI behavioral guidelines — the system cites data sources for every claim. All work routes through specialists. Planner is capped at three sequential steps. Guided delegation is standard, even for experienced PMs. Approval thresholds are tight: CRITICAL at €50K, four distinct approver levels, holiday-aware SLA calculations.
-
-**An agile packaging-line integrator (12 people).** AI is configured for speed: act first, explain if asked. Full five-step planner for multi-domain patterns. All PMs use autonomous delegation. Discipline engineers use supervised delegation for read-only queries. Approval thresholds are elevated: LOW under €25K, only two approver roles.
-
-**A multi-site OEM (200 people across HQ and three regions).** Corporate defines standard specialist definitions, RBAC roles, and terminology. Regions customize behavioral guidelines, specialist access, planner complexity, and delegation levels to match local EVM maturity. A PM transferring between regions finds the same structure but adapted interaction patterns. Per-contract workflow overrides handle differing client requirements.
-
 ---
 
 ## Get started
@@ -171,7 +141,7 @@ The AI assistant is not one-size-fits-all. It is configured to match how each or
 git clone https://github.com/ogghst/backcast.git && cd backcast
 docker network create traefik-public
 cd deploy && cp .env.production.example .env.production
-nano .env.production   # domain, passwords, secret key, LLM API keys
+# edit .env.production: domain, passwords, secret key, LLM API keys
 docker compose --env-file .env.production up -d --build
 docker compose --env-file .env.production run --rm alembic upgrade head
 ```
@@ -180,17 +150,11 @@ Full guide including SSL and Apache integration: [Docker Deployment Guide](docs/
 
 ### Local development
 
-[Onboarding Guide](docs/00-meta/onboarding.md) — environment setup, coding standards, local dev workflow.
+[Onboarding Guide](docs/00-meta/onboarding.md) — environment setup, coding standards, and local dev workflow (`uv` for the backend, Vite for the frontend).
 
 ---
 
-## Stack
-
-Python / FastAPI / PostgreSQL · React / TypeScript / Ant Design · Docker
-
----
-
-## Documentation and community
+## Documentation
 
 - [Full documentation](docs/00-meta/README.md)
 - [EVM calculation guide](docs/02-architecture/evm-calculation-guide.md) — how every metric is computed
@@ -198,7 +162,6 @@ Python / FastAPI / PostgreSQL · React / TypeScript / Ant Design · Docker
 - [AI agent orchestration](docs/02-architecture/ai/supervisor-orchestrator.md) — how agents collaborate
 - [Human-AI collaboration](docs/05-user-guide/human-ai-collaboration-guide.md) — delegation, safety tiers, personas
 - [Configuration guide](docs/05-user-guide/backcast-configuration-guide.md) — adapting Backcast to your organization
-- [EVM API reference](docs/02-architecture/evm-api-guide.md)
 
 PRs welcome — bug fixes, features, or feedback from the project management trenches. See the [Onboarding Guide](docs/00-meta/onboarding.md) to get set up.
 
