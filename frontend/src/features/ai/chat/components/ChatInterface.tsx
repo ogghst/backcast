@@ -100,14 +100,66 @@ interface AskUserModalProps {
     askId: string;
     context?: string;
     options?: string[];
+    expiresAt?: string;
+    timeoutSeconds?: number;
   } | null;
   onSubmit: (answer: string) => void;
   onCancel: () => void;
 }
 
-const AskUserModal = ({ open, request, onSubmit, onCancel }: AskUserModalProps) => {
+/** Returns the progress bar color based on remaining seconds. Mirrors ApprovalDialog thresholds. */
+function getAskUserProgressColor(
+  remaining: number,
+  colors: { success: string; warning: string; error: string },
+): string {
+  if (remaining > 7) return colors.success;
+  if (remaining > 3) return colors.warning;
+  return colors.error;
+}
+
+export const AskUserModal = ({ open, request, onSubmit, onCancel }: AskUserModalProps) => {
   const { token } = theme.useToken();
   const [inputValue, setInputValue] = useState("");
+
+  // Client-side countdown driven by request.expiresAt (single event, no polling).
+  const hasDeadline = !!request?.expiresAt;
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const autoCancelledRef = useRef(false);
+  const deadlineRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    deadlineRef.current = request?.expiresAt ?? null;
+    autoCancelledRef.current = false;
+  }, [request?.expiresAt]);
+
+  useEffect(() => {
+    // Tick every second; the callback (not the effect body) updates state.
+    const tick = () => {
+      const deadlineIso = deadlineRef.current;
+      if (!deadlineIso) {
+        setRemainingSeconds(null);
+        return;
+      }
+      const deadlineMs = new Date(deadlineIso).getTime();
+      setRemainingSeconds(Math.max(0, (deadlineMs - Date.now()) / 1000));
+    };
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [hasDeadline]);
+
+  // Auto-cancel when the deadline elapses (fires once).
+  useEffect(() => {
+    if (
+      remainingSeconds !== null &&
+      remainingSeconds <= 0 &&
+      !autoCancelledRef.current &&
+      open
+    ) {
+      autoCancelledRef.current = true;
+      onCancel();
+    }
+  }, [remainingSeconds, open, onCancel]);
 
   const handleSubmit = useCallback(() => {
     if (inputValue.trim()) {
@@ -137,12 +189,36 @@ const AskUserModal = ({ open, request, onSubmit, onCancel }: AskUserModalProps) 
 
   const hasOptions = request.options && request.options.length > 0;
 
+  // Countdown UI derived values
+  const isCountingDown = remainingSeconds !== null && remainingSeconds > 0;
+  const displaySeconds = remainingSeconds !== null ? Math.ceil(remainingSeconds) : null;
+  const timeoutSeconds = request.timeoutSeconds && request.timeoutSeconds > 0
+    ? request.timeoutSeconds
+    : null;
+  const progressPercent =
+    remainingSeconds !== null && timeoutSeconds !== null
+      ? Math.max(0, Math.min(100, (remainingSeconds / timeoutSeconds) * 100))
+      : 0;
+  const progressColor =
+    remainingSeconds !== null
+      ? getAskUserProgressColor(remainingSeconds, {
+          success: token.colorSuccess,
+          warning: token.colorWarning,
+          error: token.colorError,
+        })
+      : token.colorSuccess;
+
   return (
     <Modal
       title={
-        <span>
-          <QuestionCircleOutlined style={{ color: token.colorPrimary, marginRight: token.marginXS }} />
-          Agent asks
+        <span style={{ display: "inline-flex", alignItems: "center", gap: token.marginXS }}>
+          <QuestionCircleOutlined style={{ color: token.colorPrimary }} />
+          <span>Agent asks</span>
+          {isCountingDown && displaySeconds !== null && (
+            <Text type="secondary" style={{ fontSize: token.fontSizeSM, fontWeight: 400 }}>
+              Auto-expiring in {displaySeconds}s
+            </Text>
+          )}
         </span>
       }
       open={open}
@@ -163,6 +239,29 @@ const AskUserModal = ({ open, request, onSubmit, onCancel }: AskUserModalProps) 
         </div>
       }
     >
+      {/* Countdown progress bar (only when a deadline is present) */}
+      {remainingSeconds !== null && (
+        <div
+          style={{
+            height: 3,
+            background: token.colorFillSecondary,
+            borderRadius: `${token.borderRadiusSM}px ${token.borderRadiusSM}px 0 0`,
+            overflow: "hidden",
+            marginBottom: token.marginMD,
+            marginTop: -token.marginXS,
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              width: `${progressPercent}%`,
+              background: progressColor,
+              transition: "width 0.5s linear, background 0.5s linear",
+            }}
+          />
+        </div>
+      )}
+
       {/* Question text */}
       <Text style={{ fontSize: token.fontSizeLG, display: "block", marginBottom: token.marginSM }}>
         {request.question}
@@ -300,6 +399,8 @@ export const ChatInterface = ({
     askId: string;
     context?: string;
     options?: string[];
+    expiresAt?: string;
+    timeoutSeconds?: number;
   } | null>(null);
 
   // Attachment state
@@ -1005,9 +1106,19 @@ export const ChatInterface = ({
   }, []);
 
   // Ask user handler (receives ask_user events from the agent)
-  const handleAskUser = useCallback((question: string, askId: string, context?: string, options?: string[]) => {
-    setAskUserRequest({ question, askId, context, options });
-  }, []);
+  const handleAskUser = useCallback(
+    (
+      question: string,
+      askId: string,
+      context?: string,
+      options?: string[],
+      expiresAt?: string,
+      timeoutSeconds?: number,
+    ) => {
+      setAskUserRequest({ question, askId, context, options, expiresAt, timeoutSeconds });
+    },
+    [],
+  );
 
   // Streaming chat hook
   const streamingChat = useStreamingChat({

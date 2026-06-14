@@ -46,7 +46,7 @@ from app.ai.message_utils import (
 from app.ai.middleware.context_guard import ContextGuardMiddleware
 from app.ai.middleware.plan_aware_tools import PlanAwareToolMiddleware
 from app.ai.plan import PlanDocument
-from app.ai.planner import planner_node
+from app.ai.planner import _MAX_PLAN_STEPS, planner_node
 from app.ai.prompt_template import render_prompt
 from app.ai.subagent_compiler import (
     build_backcast_middleware,
@@ -72,6 +72,7 @@ async def _await_with_pausable_deadline(
     coro: Awaitable[dict[str, Any]],
     *,
     timeout: float,
+    execution_id: str | None = None,
     tick: float = 0.5,
 ) -> dict[str, Any]:
     """Await *coro*, enforcing a wall-clock *timeout* that PAUSES while an
@@ -82,15 +83,20 @@ async def _await_with_pausable_deadline(
 
     The deadline is sliced into ``tick``-second windows.  A tick-timeout
     (``TimeoutError`` from ``wait_for(asyncio.shield(task), tick)``) only
-    accrues toward *timeout* when NO ask_user is pending; while one is
-    pending the clock pauses (the user-wait does not count toward the
-    provider-stall budget).  When elapsed active time reaches *timeout*,
-    the underlying task is cancelled and a retryable ``TimeoutError`` is
-    raised.
+    accrues toward *timeout* when the specialist is NOT awaiting a human.
+    The awaiting-user state is consulted via the per-execution predicate
+    :func:`is_awaiting_user` (preferred, scoped to *execution_id*) and
+    falls back to the global :func:`is_ask_user_pending` predicate so any
+    in-flight ask pauses the clock when *execution_id* is unknown.  While a
+    human is being asked the clock pauses; when elapsed active time reaches
+    *timeout*, the underlying task is cancelled and a retryable
+    ``TimeoutError`` is raised.
 
     Args:
         coro: The specialist invocation to await.
         timeout: Active (non-paused) seconds budget for the invocation.
+        execution_id: Optional execution ID for per-execution awaiting-user
+            tracking. Falls back to the global ask predicate when None.
         tick: Window size for the deadline slicer (default 0.5s).
 
     Returns:
@@ -99,7 +105,13 @@ async def _await_with_pausable_deadline(
     Raises:
         TimeoutError: When active elapsed time reaches *timeout* (real stall).
     """
-    from app.ai.tools.ask_user import is_ask_user_pending
+    from app.ai.tools.ask_user import is_ask_user_pending, is_awaiting_user
+
+    def _awaiting_human() -> bool:
+        """True if THIS execution is awaiting a human, or (fallback) any ask."""
+        if execution_id is not None and is_awaiting_user(execution_id):
+            return True
+        return is_ask_user_pending()
 
     # Clamp the tick to ``timeout`` so a single slicer window can never be
     # larger than the entire active budget -- otherwise a real stall whose
@@ -117,7 +129,7 @@ async def _await_with_pausable_deadline(
                 )
             except TimeoutError:
                 # Only accrue time when NOT waiting on a human.
-                if not is_ask_user_pending():
+                if not _awaiting_human():
                     elapsed += effective_tick
                     if elapsed >= timeout:
                         # Real stall: cancel the task and surface a retryable timeout.
@@ -140,6 +152,7 @@ async def _invoke_specialist_with_retry(
     specialist_name: str,
     max_retries: int,
     timeout: float,
+    execution_id: str | None = None,
 ) -> dict[str, Any]:
     """Invoke a specialist subgraph with a pausable timeout and retry.
 
@@ -160,6 +173,8 @@ async def _invoke_specialist_with_retry(
         specialist_name: Display name used in retry log lines.
         max_retries: Number of retries after the initial attempt.
         timeout: Active (non-paused) seconds for a single invocation.
+        execution_id: Optional execution ID used to scope the
+            awaiting-user pause check to this execution.
 
     Returns:
         The specialist result dict on success.
@@ -170,7 +185,9 @@ async def _invoke_specialist_with_retry(
     """
     for attempt in range(max_retries + 1):
         try:
-            return await _await_with_pausable_deadline(invoke(), timeout=timeout)
+            return await _await_with_pausable_deadline(
+                invoke(), timeout=timeout, execution_id=execution_id
+            )
         except Exception as exc:
             retryable = isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or (
                 is_transient_stream_error(exc)
@@ -671,7 +688,10 @@ class SupervisorOrchestrator:
                 plan = PlanDocument.from_state(plan_data)
                 if plan.requires_planning and plan.steps:
                     has_plan = True
-                    plan_max = len(plan.steps) + 1
+                    # Plan steps are capped at _MAX_PLAN_STEPS by the planner,
+                    # so plan_max is at most _MAX_PLAN_STEPS + 1; this min() is
+                    # a defensive hard ceiling regardless.
+                    plan_max = min(len(plan.steps) + 1, _MAX_PLAN_STEPS + 1)
                     if plan_max > max_iterations:
                         max_iterations = plan_max
 
@@ -943,6 +963,9 @@ class SupervisorOrchestrator:
                     specialist_name=specialist_name,
                     max_retries=max_retries,
                     timeout=float(settings.AI_SPECIALIST_STEP_TIMEOUT),
+                    execution_id=(
+                        self._event_bus.execution_id if self._event_bus else None
+                    ),
                 )
             except Exception as exc:
                 logger.error(

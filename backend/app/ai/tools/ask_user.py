@@ -8,7 +8,7 @@ event and awaits a response via an asyncio.Future keyed by ask_id.
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -18,6 +18,7 @@ from pydantic import BeforeValidator
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import RiskLevel, ToolContext
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,32 @@ def _coerce_options_list(v: Any) -> Any:
 # Key: ask_id (str), Value: (future, execution_id) tuple.
 _pending_asks: dict[str, tuple[asyncio.Future[str], str]] = {}
 
-# Default timeout for waiting on a user response (seconds).
-_DEFAULT_ASK_TIMEOUT = 300.0
+# execution_ids currently BLOCKED awaiting a human answer. The specialist
+# step-timeout watchdog reads this (via ``is_awaiting_user``) to PAUSE its
+# deadline while a specialist is legitimately waiting on ask_user, so a slow
+# human does not get the specialist killed mid-clarification.
+_awaiting_user: set[str] = set()
+
+
+def mark_awaiting_user(execution_id: str) -> None:
+    """Mark *execution_id* as currently blocked awaiting a human answer.
+
+    Called by :func:`ask_user` immediately before awaiting the response
+    future. The specialist step-timeout watchdog consults
+    :func:`is_awaiting_user` to pause its active-work clock while a human is
+    being asked.
+    """
+    _awaiting_user.add(execution_id)
+
+
+def clear_awaiting_user(execution_id: str) -> None:
+    """Clear the awaiting-user flag for *execution_id* (idempotent)."""
+    _awaiting_user.discard(execution_id)
+
+
+def is_awaiting_user(execution_id: str) -> bool:
+    """True if *execution_id* is currently blocked awaiting a human answer."""
+    return execution_id in _awaiting_user
 
 
 def resolve_ask_user_response(ask_id: str, answer: str) -> None:
@@ -116,8 +141,15 @@ def is_ask_user_pending() -> bool:
 @ai_tool(
     name="ask_user",
     description=(
-        "Ask the user a clarification question and wait for their response. "
-        "Use when you need additional info to proceed."
+        "Ask the user a clarifying question and BLOCK until they answer. This "
+        "is the ONLY sanctioned way to put a question to the user — never ask "
+        "a question as plain text in your reply. Call this whenever you would "
+        "otherwise write 'which?', 'do you want…?', or 'what should I use "
+        "for…?'. When the set of possible answers is small and known, pass "
+        "them as `options` so the user answers with one click instead of "
+        'typing (e.g. options=["Robot Cell A","Assembly Station 1"]). Use '
+        "`why` for one line of context. Prefer this over guessing or stalling "
+        "— one precise question unblocks the whole task."
     ),
     permissions=[],
     category="interaction",
@@ -129,7 +161,7 @@ async def ask_user(
     *,
     why: str | None = None,
     options: Annotated[list[str] | None, BeforeValidator(_coerce_options_list)] = None,
-    timeout_seconds: float = _DEFAULT_ASK_TIMEOUT,
+    timeout_seconds: float = float(settings.AI_ASK_USER_TIMEOUT_SECONDS),
 ) -> dict[str, Any]:
     """Ask the user a clarification question and wait for a response.
 
@@ -153,21 +185,29 @@ async def ask_user(
         return {"error": "Cannot ask user: no event bus available in this context"}
 
     ask_id = str(uuid4())
+    execution_id = context._event_bus.execution_id
 
     # Create a Future that will be resolved by resolve_ask_user_response().
     loop = asyncio.get_running_loop()
     future: asyncio.Future[str] = loop.create_future()
-    _pending_asks[ask_id] = (future, context._event_bus.execution_id)
+    _pending_asks[ask_id] = (future, execution_id)
 
-    # Build the event payload.
-    event_data: dict[str, Any] = {
-        "question": question,
-        "ask_id": ask_id,
-    }
-    if why is not None:
-        event_data["context"] = why
-    if options is not None:
-        event_data["options"] = options
+    expires_at = datetime.now(UTC) + timedelta(seconds=timeout_seconds)
+
+    # Build the event payload via the typed WS schema so the frontend gets a
+    # stable shape: type, question, ask_id, plus optional context/options,
+    # and expires_at + timeout_seconds for a countdown.
+    from app.models.schemas.ai import WSAskUserMessage
+
+    event_data = WSAskUserMessage(
+        type="ask_user",
+        question=question,
+        ask_id=ask_id,
+        context=why,
+        options=options,
+        expires_at=expires_at,
+        timeout_seconds=int(timeout_seconds),
+    ).model_dump(mode="json", exclude_none=True)
 
     # Publish to the event bus so the frontend receives it.
     context._event_bus.publish(
@@ -180,6 +220,9 @@ async def ask_user(
     logger.info("ask_user published: ask_id=%s, question=%.80s", ask_id, question)
 
     try:
+        # Mark this execution as awaiting a human so the specialist
+        # step-timeout PAUSES its active-work clock while we block.
+        mark_awaiting_user(execution_id)
         answer = await asyncio.wait_for(future, timeout=timeout_seconds)
         return {"answer": answer}
     except TimeoutError:
@@ -188,4 +231,5 @@ async def ask_user(
         )
         return {"error": f"User did not respond within {timeout_seconds:.0f} seconds"}
     finally:
+        clear_awaiting_user(execution_id)
         cleanup_ask(ask_id)

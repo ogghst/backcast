@@ -1035,6 +1035,37 @@ class WSAskUserResponse(BaseModel):
     answer: str = Field(..., description="The user's response text")
 
 
+class WSAskUserMessage(BaseModel):
+    """WebSocket ask_user message from server.
+
+    Server -> Client message presenting a clarifying question to the user.
+    The client should render the question and send back
+    :class:`WSAskUserResponse` (or the user lets ``expires_at`` pass).
+
+    ``expires_at`` and ``timeout_seconds`` let the frontend render a
+    countdown; the tool blocks server-side until the answer arrives or the
+    deadline passes.
+    """
+
+    type: Literal["ask_user"] = Field(
+        default="ask_user", description="Message type discriminator"
+    )
+    question: str = Field(..., description="The question to present to the user")
+    ask_id: str = Field(..., description="Unique identifier for this ask request")
+    context: str | None = Field(
+        None, description="Optional one-line explanation of why the question is asked"
+    )
+    options: list[str] | None = Field(
+        None, description="Optional suggested answers for one-click selection"
+    )
+    expires_at: datetime = Field(
+        ..., description="UTC timestamp at which the wait times out"
+    )
+    timeout_seconds: int = Field(
+        ..., description="Total seconds the tool will wait for a response"
+    )
+
+
 # Union type for all server->client WebSocket messages
 WSMessage = (
     WSTokenMessage
@@ -1052,6 +1083,7 @@ WSMessage = (
     | WSAgentCompleteMessage
     | WSContentResetMessage
     | WSExecutionStatusMessage
+    | WSAskUserMessage
 )
 
 

@@ -438,6 +438,10 @@ export interface WSAskUserMessage {
   ask_id: string;
   context?: string;
   options?: string[];
+  /** ISO 8601 deadline for the prompt. When present, the modal shows a countdown. */
+  expires_at?: string;
+  /** Full timeout window in seconds (denominator for the progress bar). */
+  timeout_seconds?: number;
 }
 
 /**

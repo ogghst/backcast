@@ -54,7 +54,7 @@ Multi-step (requires_planning=true, ordered steps with dependencies):
 - Use ONLY specialist names from the list above
 - Keep task descriptions focused and actionable
 - Only add dependencies when step N genuinely needs output from step M
-- Maximum 5 steps
+- Maximum 5 steps  # enforced in code by _MAX_PLAN_STEPS
 """
 
 _DEFAULT_SPECIALIST_CATALOG: list[dict[str, str]] = [
@@ -63,6 +63,11 @@ _DEFAULT_SPECIALIST_CATALOG: list[dict[str, str]] = [
         "description": "Unclear or cross-cutting requests that don't fit one domain",
     },
 ]
+
+#: Hard cap on plan step count. The prompt requests "Maximum 5 steps"; this
+#: enforces it in code so an LLM that ignores the prompt cannot inflate the
+#: supervisor iteration budget and context cost.
+_MAX_PLAN_STEPS: int = 5
 
 _REPLANNER_PROMPT_TEMPLATE = """\
 You are revising an execution plan based on new findings from completed specialists.
@@ -84,7 +89,7 @@ You are revising an execution plan based on new findings from completed speciali
 - New/revised steps get step_index values starting AFTER the last completed step
 - You may REMOVE pending steps that are now redundant
 - You may ADD new steps if findings reveal additional work
-- Maximum 5 total steps (completed + revised)
+- Maximum 5 total steps (completed + revised)  # enforced in code by _MAX_PLAN_STEPS
 - Use ONLY specialist names from the list above
 - Provide the FULL plan including completed steps in your output
 """
@@ -185,6 +190,17 @@ def _convert_planner_output(
             )
         )
 
+    # Enforce the hard step cap. Truncating the built list before the
+    # empty-steps check keeps ``step_index`` contiguous (0..n-1) since the
+    # indices were assigned positionally via ``enumerate`` above.
+    if len(steps) > _MAX_PLAN_STEPS:
+        logger.warning(
+            "[PLANNER] Plan has %d steps, truncating to %d",
+            len(steps),
+            _MAX_PLAN_STEPS,
+        )
+        steps = steps[:_MAX_PLAN_STEPS]
+
     if not steps:
         logger.warning("[PLANNER] Empty steps from structured output, falling back")
         return _fallback_plan(output.original_request)
@@ -216,8 +232,43 @@ def _merge_replanned_steps(
     completed = [s for s in existing_plan.steps if s.status == "completed"]
     max_completed_idx = max((s.step_index for s in completed), default=-1)
 
-    revised_steps: list[PlanStep] = []
-    for i, raw_step in enumerate(new_steps_output.steps):
+    # Enforce the hard step cap. Completed steps are LOCKED, so the cap is
+    # applied to the revised portion: completed + revised <= _MAX_PLAN_STEPS.
+    # Defensive: if completed already meets/exceeds the cap (shouldn't happen
+    # in normal flow), keep only the first _MAX_PLAN_STEPS completed and no
+    # revised steps.
+    if len(completed) >= _MAX_PLAN_STEPS:
+        logger.warning(
+            "[PLANNER] Replan has %d completed steps (>= cap %d), truncating "
+            "completed and dropping revised",
+            len(completed),
+            _MAX_PLAN_STEPS,
+        )
+        completed = completed[:_MAX_PLAN_STEPS]
+        max_completed_idx = max((s.step_index for s in completed), default=-1)
+        revised_steps: list[PlanStep] = []
+        return PlanDocument(
+            original_request=existing_plan.original_request,
+            steps=completed,
+            estimated_complexity=new_steps_output.estimated_complexity
+            or existing_plan.estimated_complexity,
+            requires_planning=True,
+        )
+
+    revised_capacity = max(0, _MAX_PLAN_STEPS - len(completed))
+    raw_revised = new_steps_output.steps
+    if len(raw_revised) > revised_capacity:
+        logger.warning(
+            "[PLANNER] Replan has %d revised steps, truncating to %d to keep "
+            "total <= %d",
+            len(raw_revised),
+            revised_capacity,
+            _MAX_PLAN_STEPS,
+        )
+        raw_revised = raw_revised[:revised_capacity]
+
+    revised_steps = []
+    for i, raw_step in enumerate(raw_revised):
         specialist = (
             raw_step.specialist
             if raw_step.specialist in valid_specialists
@@ -545,5 +596,6 @@ __all__ = [
     "PLANNER_SYSTEM_PROMPT",
     "build_planner_system_prompt",
     "planner_node",
+    "_MAX_PLAN_STEPS",
     "_merge_replanned_steps",
 ]

@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # bounding provider stalls that never raise.
     AI_SPECIALIST_STEP_TIMEOUT: int = 120
 
+    # Default timeout (seconds) the ask_user tool waits for a human answer.
+    # Must exceed AI_SPECIALIST_STEP_TIMEOUT so the specialist step clock
+    # (which PAUSES while ask_user awaits a human) never races the answer.
+    AI_ASK_USER_TIMEOUT_SECONDS: int = 300
+
     # AI context trimming (ContextGuardMiddleware) + runtime toggles.
     # Exposed here (rather than read via os.environ in app.ai.config) so that
     # values in .env actually take effect; app.ai.config re-exports these.
