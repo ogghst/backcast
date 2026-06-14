@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: "autoUpdate",
+        injectRegister: "auto",
         includeAssets: ["assets/images/backcast.svg", "assets/images/backcast.png"],
         manifest: {
           name: "Backcast",
@@ -59,6 +60,30 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+      },
+    },
+    build: {
+      // 3000 kB: vendor bundles (antd ~2.8 MB, echarts ~1.1 MB) are single cached/
+      // immutable libraries that load once and can't be meaningfully split further.
+      chunkSizeWarningLimit: 3000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return;
+            if (id.includes("/mermaid/")) return; // preserve mermaid's own dynamic splitting
+            // antd core + @ant-design/* kept as one chunk: splitting sub-packages
+            // (icons/x/charts) only shaved ~200 kB and introduced circular-chunk warnings.
+            if (id.includes("/antd/") || id.includes("@ant-design/")) return "vendor-antd";
+            // --- other heavy vendors ---
+            if (id.includes("/echarts/") || id.includes("echarts-for-react") || id.includes("/zrender/")) return "vendor-echarts";
+            if (id.includes("/recharts/") || id.includes("/victory-vendor/")) return "vendor-recharts";
+            if (id.includes("/@mui/") || id.includes("/@emotion/")) return "vendor-mui";
+            if (id.includes("react-syntax-highlighter") || id.includes("/refractor/") || id.includes("/lowlight/") || id.includes("/prismjs/")) return "vendor-syntax";
+            if (id.includes("react-markdown") || id.includes("/remark-") || id.includes("/rehype-") || id.includes("/micromark") || id.includes("/mdast-") || id.includes("/unified/") || id.includes("/hast/") || id.includes("/katex/")) return "vendor-markdown";
+            if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/react-router") || id.includes("/scheduler/")) return "vendor-react";
+            if (id.includes("/@tanstack/")) return "vendor-query";
+          },
+        },
       },
     },
     server: {

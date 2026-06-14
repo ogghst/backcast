@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Layout, theme, Space, Button, Tooltip } from "antd";
+import React, { Suspense, useState, useEffect, useCallback } from "react";
+import { Layout, Spin, theme, Space, Button, Tooltip } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { Outlet, useParams } from "react-router-dom";
 
@@ -23,6 +23,20 @@ import {
 import { parseTemporalRangeLower } from "@/utils/formatters";
 
 const { Header, Content, Footer } = Layout;
+
+// Fallback shown while a lazily-loaded route chunk is fetched.
+const PageFallback = () => (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      minHeight: "60vh",
+    }}
+  >
+    <Spin size="large" />
+  </div>
+);
 
 // Mobile breakpoint for hiding logo text
 const MOBILE_BREAKPOINT = 768;
@@ -173,7 +187,9 @@ const AppLayout: React.FC = () => {
             margin: 2,
           }}
         >
-          <Outlet />
+          <Suspense fallback={<PageFallback />}>
+            <Outlet />
+          </Suspense>
         </div>
       </Content>
       <Footer style={{ position: "relative", zIndex: 1, textAlign: "center", background: "transparent" }}>
