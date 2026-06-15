@@ -20,6 +20,11 @@ class PlanStep(BaseModel):
 
     Each step targets one specialist with a focused task description.
     Dependencies reference other step indices that must complete first.
+
+    ``replanned`` is True for steps introduced or revised by a replan
+    (set in ``_merge_replanned_steps``); completed steps carried over from
+    the original plan stay False. The flag flows to the UI via PLAN_UPDATE
+    so replanned steps can be visually distinguished.
     """
 
     step_index: int
@@ -30,6 +35,7 @@ class PlanStep(BaseModel):
     expected_output: str = ""
     status: StepStatus = "pending"
     result_summary: str | None = None
+    replanned: bool = False
 
 
 class PlannerStepOutput(BaseModel):

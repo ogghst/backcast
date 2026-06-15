@@ -87,10 +87,11 @@ You are revising an execution plan based on new findings from completed speciali
 
 ## Rules for Replanning
 - COMPLETED steps (marked [completed]) MUST be preserved exactly as-is
-- Only revise PENDING steps (marked [pending])
-- New/revised steps get step_index values starting AFTER the last completed step
-- You may REMOVE pending steps that are now redundant
+- Only pending steps (marked [pending]) may change
+- REMOVE any pending step whose task is ALREADY FULLY COVERED by the findings gathered so far -- do not revise or re-run it. This is the expected action for a redundant step.
+- REVISE a pending step only if it still needs genuinely different work the findings do not already provide
 - You may ADD new steps if findings reveal additional work
+- New/revised steps get step_index values starting AFTER the last completed step
 - Maximum 5 total steps (completed + revised)  # enforced in code by _MAX_PLAN_STEPS
 - Use ONLY specialist names from the list above
 - Provide the FULL plan including completed steps in your output
@@ -283,6 +284,7 @@ def _merge_replanned_steps(
                 task_description=raw_step.task_description,
                 dependencies=raw_step.dependencies,
                 expected_output=raw_step.expected_output,
+                replanned=True,
             )
         )
 

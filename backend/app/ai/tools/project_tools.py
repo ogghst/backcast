@@ -65,7 +65,8 @@ async def list_projects(
 
     Returns:
         Dictionary containing:
-            - projects: List of project objects with id, code, name, status, budget, dates
+            - projects: List of project objects with id, code, name, status, budget,
+              contract_value, currency, dates
             - total: Total count of projects matching filters
             - page: Current page number
             - limit: Pagination limit value
@@ -159,6 +160,10 @@ async def list_projects(
                     "description": p.description,
                     "status": p.status,
                     "budget": float(p.budget) if p.budget else None,
+                    "contract_value": (
+                        float(p.contract_value) if p.contract_value else None
+                    ),
+                    "currency": p.currency,
                     "start_date": p.start_date.isoformat() if p.start_date else None,
                     "end_date": p.end_date.isoformat() if p.end_date else None,
                 }
@@ -209,6 +214,8 @@ async def get_project(
             - description: Project description
             - status: Project status code
             - budget: Project budget amount
+            - contract_value: Contract value (Decimal as float, may be None)
+            - currency: ISO 4217 currency code (e.g. 'EUR')
             - start_date: Project start date (ISO format)
             - end_date: Project end date (ISO format)
             - branch: Git branch for the project
@@ -255,6 +262,10 @@ async def get_project(
             "description": project.description,
             "status": project.status,
             "budget": float(project.budget) if project.budget else None,
+            "contract_value": (
+                float(project.contract_value) if project.contract_value else None
+            ),
+            "currency": project.currency,
             "start_date": project.start_date.isoformat()
             if project.start_date
             else None,

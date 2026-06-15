@@ -57,6 +57,8 @@ async def get_project_context(
             - project_id: Project UUID or None (global scope)
             - project_name: Project name or None
             - project_code: Project code or None
+            - contract_value: Contract value (Decimal as float, may be None)
+            - currency: ISO 4217 currency code (e.g. 'EUR')
             - user_role: User's role in the project (admin/editor/viewer) or None
             - scope: "project" if project_id is set, "global" otherwise
 
@@ -150,6 +152,10 @@ async def get_project_context(
             "project_id": context.project_id,
             "project_name": project.name,
             "project_code": project.code,
+            "contract_value": (
+                float(project.contract_value) if project.contract_value else None
+            ),
+            "currency": project.currency,
             "user_roles": user_roles,  # Empty list if not a member
             "scope": "project",
         }
@@ -259,6 +265,8 @@ async def get_project_structure(
                 "name": "Automation Line 1",
                 "status": "ACT",
                 "budget": 1000000.0,
+                "contract_value": 1000000.0,
+                "currency": "EUR",
                 "wbs_elements": [{
                     "id": "...", "code": "1", "name": "Engineering",
                     "level": 1, "budget_allocation": 500000.0,
@@ -398,6 +406,10 @@ async def get_project_structure(
                 "name": project.name,
                 "status": project.status,
                 "budget": float(project.budget) if project.budget else None,
+                "contract_value": (
+                    float(project.contract_value) if project.contract_value else None
+                ),
+                "currency": project.currency,
                 "wbs_elements": wbs_tree,
             },
         }

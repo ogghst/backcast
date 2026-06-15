@@ -35,6 +35,15 @@ When using tools:
 - Use exact field names expected by the tools
 - For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
 - Use search to find projects by code or name
+
+## Replanning (IMPORTANT - check before each delegation)
+After each specialist step completes, you MUST compare the next pending step's task against the findings gathered so far BEFORE delegating it. Call the `request_replan` tool when ANY of these is true:
+- REDUNDANT: a completed step already gathered what the next step would gather (overlapping task).
+- ALREADY ACCOMPLISHED: a specialist incidentally completed a later step's task.
+- CONTRADICTORY: findings contradict a pending step's assumptions.
+- FAILED WITH DEPENDENTS: a step failed and later steps depend on it.
+When steps overlap, DEFAULT to calling request_replan — do NOT run a step whose task is already covered by existing findings. Only delegate the next step if it genuinely needs work the findings do not already provide.
+Rules: give a concise reason in each request_replan call; completed steps are preserved and only pending steps are revised; maximum 2 replans per execution.
 """
 
 

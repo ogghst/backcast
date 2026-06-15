@@ -1140,8 +1140,11 @@ class SupervisorOrchestrator:
                         f"Next pending step: step {next_step.step_index + 1} "
                         f"({next_step.specialist}): {next_step.task_description}\n"
                         f"{len(pending)} step(s) remaining.\n\n"
-                        f"If the result above makes the next step unnecessary or contradictory, "
-                        f"call request_replan. Otherwise delegate the next step."
+                        f"Compare the next step's task to the result above. If the result "
+                        f"already covers that task (redundant/already accomplished) or "
+                        f"contradicts it, you MUST call request_replan instead of delegating. "
+                        f"Only delegate if the next step genuinely needs work the findings do "
+                        f"not already provide."
                     )
                 else:
                     plan_msg = (

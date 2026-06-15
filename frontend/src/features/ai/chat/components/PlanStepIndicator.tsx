@@ -211,6 +211,7 @@ export const PlanStepIndicator = memo(
             const statusColor = getStatusColor(step.status, colors, token);
             const isCompleted = step.status === "completed";
             const isInProgress = step.status === "in_progress";
+            const isReplanned = !!step.replanned;
 
             return (
               <div
@@ -266,7 +267,14 @@ export const PlanStepIndicator = memo(
                 <div
                   style={{
                     paddingBottom: isLast ? 0 : spacing.xs,
-                    transition: "opacity 0.3s",
+                    paddingLeft: isReplanned ? spacing.xs : 0,
+                    marginLeft: isReplanned ? -4 : 0,
+                    borderLeft: isReplanned
+                      ? `2px solid ${token.colorWarning}`
+                      : "2px solid transparent",
+                    borderRadius: borderRadius.sm,
+                    background: isReplanned ? token.colorWarningBg : "transparent",
+                    transition: "opacity 0.3s, background 0.3s",
                     opacity: step.status === "skipped" ? 0.5 : 1,
                   }}
                 >
@@ -292,6 +300,18 @@ export const PlanStepIndicator = memo(
                     )}
                     {isInProgress && (
                       <span style={{ marginLeft: 6, opacity: 0.7 }}>&#10227;</span>
+                    )}
+                    {isReplanned && (
+                      <span
+                        style={{
+                          marginLeft: 6,
+                          color: token.colorWarning,
+                          opacity: 0.9,
+                        }}
+                        title="Step added or revised by replan"
+                      >
+                        &#8635; replanned
+                      </span>
                     )}
                   </div>
 

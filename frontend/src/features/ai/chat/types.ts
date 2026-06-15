@@ -362,6 +362,7 @@ export interface PlanStep {
   expected_output: string;
   status: PlanStepStatus;
   result_summary?: string | null;
+  replanned?: boolean;
 }
 
 /**
