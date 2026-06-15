@@ -43,7 +43,8 @@ env/
 Thumbs.db
 
 # Project specific
-uv.lock
+# uv.lock is committed so every developer resolves identical backend
+# dependency versions (run `uv sync` to reproduce). Do NOT re-ignore it.
 old/
 *.log
 coverage.xml
