@@ -71,6 +71,7 @@ skills-lock.json
 .husky/
 
 # Screenshots and temporary artifacts
+state-check
 .tmp/
 snapshot/
 *-snapshot.yml
