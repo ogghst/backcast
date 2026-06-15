@@ -368,11 +368,11 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files from backend directory
-COPY backend/pyproject.toml backend/README.md ./
+# Copy dependency files from backend directory (uv.lock enforces pinned versions)
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 
-# Install dependencies using uv (production only, no lock file)
-RUN uv sync --no-dev
+# Install dependencies using uv (--locked fails the build if uv.lock is out of sync)
+RUN uv sync --locked --no-dev
 
 # Production stage
 FROM python:3.12-slim
@@ -430,7 +430,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
 
 ```dockerfile
 # Multi-stage build for React frontend
-FROM node:20-alpine AS builder
+FROM node:24.14.0-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -438,8 +438,8 @@ WORKDIR /app
 # Copy package files
 COPY frontend/package.json frontend/package-lock.json ./
 
-# Install dependencies (using legacy peer deps to resolve conflicts)
-RUN npm install --legacy-peer-deps
+# Install dependencies from lockfile (npm ci fails the build if package-lock.json is out of sync)
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY frontend/ ./
@@ -499,11 +499,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Set working directory
 WORKDIR /app
 
-# Copy project configuration files from backend directory
-COPY backend/pyproject.toml backend/README.md ./
+# Copy project configuration files from backend directory (uv.lock enforces pinned versions)
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 
-# Install dependencies using uv (no lock file)
-RUN uv sync --no-dev
+# Install dependencies using uv (--locked fails the build if uv.lock is out of sync)
+RUN uv sync --locked --no-dev
 
 # Copy application code and alembic configuration from backend directory
 COPY backend/app ./app

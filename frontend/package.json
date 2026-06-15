@@ -2,6 +2,9 @@
   "name": "project-management-dashboard",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": "24.14.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
