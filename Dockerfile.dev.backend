@@ -14,11 +14,11 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY backend/pyproject.toml backend/README.md* ./
+# Copy dependency files (uv.lock enforces pinned versions)
+COPY backend/pyproject.toml backend/uv.lock backend/README.md* ./
 
-# Install ALL dependencies (including dev)
-RUN uv sync --all-extras
+# Install ALL dependencies (including dev) -- --locked fails the build if uv.lock is out of sync
+RUN uv sync --locked --all-extras
 
 # Expose port
 EXPOSE 8020

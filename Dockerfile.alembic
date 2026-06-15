@@ -13,11 +13,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Set working directory
 WORKDIR /app
 
-# Copy project configuration files from backend directory
-COPY backend/pyproject.toml backend/README.md ./
+# Copy project configuration files from backend directory (uv.lock enforces pinned versions)
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 
-# Install dependencies using uv (no lock file)
-RUN uv sync --no-dev
+# Install dependencies using uv (--locked fails the build if uv.lock is out of sync)
+RUN uv sync --locked --no-dev
 
 # Copy application code and alembic configuration from backend directory
 COPY backend/app ./app

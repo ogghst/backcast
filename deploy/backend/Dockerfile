@@ -4,11 +4,11 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files from backend directory
-COPY backend/pyproject.toml backend/README.md ./
+# Copy dependency files from backend directory (uv.lock enforces pinned versions)
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 
-# Install dependencies using uv (production only, no lock file)
-RUN uv sync --no-dev
+# Install dependencies using uv (--locked fails the build if uv.lock is out of sync)
+RUN uv sync --locked --no-dev
 
 # Production stage
 FROM python:3.12-slim

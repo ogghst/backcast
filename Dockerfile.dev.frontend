@@ -1,14 +1,15 @@
 # Development Dockerfile for React Frontend
 # Includes Vite dev server with hot module replacement
 
-FROM node:20-alpine
+FROM node:24.14.0-alpine
 
 # Set working directory
 WORKDIR /app
 
 # Install dependencies (use legacy peer deps for antd compatibility)
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm install --legacy-peer-deps
+# npm ci enforces the committed package-lock.json (fails the build if out of sync)
+RUN npm ci --legacy-peer-deps
 
 # Expose Vite dev server port
 EXPOSE 5173

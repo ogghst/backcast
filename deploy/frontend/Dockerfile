@@ -1,5 +1,5 @@
 # Multi-stage build for React frontend
-FROM node:20-alpine AS builder
+FROM node:24.14.0-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY frontend/package.json frontend/package-lock.json ./
 
-# Install dependencies (using legacy peer deps to resolve conflicts)
-RUN npm install --legacy-peer-deps
+# Install dependencies from lockfile (npm ci fails the build if package-lock.json is out of sync)
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY frontend/ ./
