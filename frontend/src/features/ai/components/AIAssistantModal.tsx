@@ -40,7 +40,8 @@ export const AIAssistantModal = ({
           system_prompt: initialValues.system_prompt,
           planner_prompt: initialValues.planner_prompt,
           supervisor_prompt: initialValues.supervisor_prompt,
-          default_role: initialValues.default_role,
+          // default_role only for main agents — specialists inherit from their main assistant
+          ...(initialValues.agent_type === "main" && { default_role: initialValues.default_role }),
           is_active: initialValues.is_active,
           agent_type: initialValues.agent_type,
           allowed_tools: initialValues.allowed_tools || [],
@@ -55,7 +56,7 @@ export const AIAssistantModal = ({
           model_id: initialValues.model_id ?? "",
           temperature: initialValues.temperature,
           max_tokens: initialValues.max_tokens,
-          recursion_limit: initialValues.recursion_limit,
+          ...(initialValues.agent_type === "main" && { recursion_limit: initialValues.recursion_limit }),
         });
       } else {
         form.resetFields();
@@ -72,8 +73,9 @@ export const AIAssistantModal = ({
         delete values.structured_output_schema;
       } else {
         delete values.delegation_config;
-        // Specialist agents inherit recursion_limit from main agent
+        // Specialist agents inherit recursion_limit and default_role from main agent
         delete values.recursion_limit;
+        delete values.default_role;
       }
       if (values.model_id === "") values.model_id = null;
       await onOk(values);

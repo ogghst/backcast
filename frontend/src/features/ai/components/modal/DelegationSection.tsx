@@ -14,6 +14,7 @@ export const DelegationSection = ({ specialists }: DelegationSectionProps) => {
     <CollapsibleCard
       id="assistant-delegation"
       collapsed={true}
+      keepMounted
       title={
         <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
           Delegation

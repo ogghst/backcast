@@ -5,6 +5,7 @@ Provides read and write access to temporal context information for the LLM.
 - set_temporal_context: Change the temporal viewing context (as_of, branch, mode)
 """
 
+import logging
 from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
@@ -15,6 +16,8 @@ from app.ai.execution.agent_event import AgentEvent
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.services.branch_service import BranchService
+
+logger = logging.getLogger(__name__)
 
 
 @ai_tool(
@@ -76,7 +79,12 @@ async def get_temporal_context(
 
 @ai_tool(
     name="set_temporal_context",
-    description="Change temporal context (date, branch, mode).",
+    description=(
+        "Change the temporal viewing context — CALL THIS to shift the point-in-time, "
+        "switch branch, or set branch mode. This tool ACTUALLY CHANGES the context; "
+        "it does not just read it. Always call this when the user wants to view data "
+        "at a different date or on a different branch."
+    ),
     permissions=["temporal-write"],
     category="context",
     risk_level=RiskLevel.LOW,
@@ -181,3 +189,54 @@ async def set_temporal_context(
         "message": "Temporal context updated",
         "changes": changes,
     }
+
+
+@ai_tool(
+    name="list_branches",
+    description=(
+        "List all branches for the current project, including the main branch "
+        "and any change order branches. Use this to discover available branches "
+        "before using set_temporal_context to switch to one."
+    ),
+    permissions=[],
+    category="context",
+    risk_level=RiskLevel.LOW,
+)
+async def list_branches(
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """List all branches for the current project.
+
+    Args:
+        context: Injected tool execution context (requires project_id)
+
+    Returns:
+        Dictionary containing:
+            - branches: List of branch objects with name, type, locked status
+            - total: Total number of branches
+    """
+    if not context.project_id:
+        return {
+            "error": "No project context. Navigate to a project chat to use this tool.",
+        }
+
+    try:
+        svc = BranchService(context.session)
+        branches = await svc.list_branches_as_of(
+            UUID(context.project_id), context.as_of
+        )
+
+        return {
+            "branches": [
+                {
+                    "name": b.name,
+                    "type": b.type,
+                    "locked": b.locked,
+                }
+                for b in branches
+            ],
+            "total": len(branches),
+        }
+    except Exception as e:
+        logger.error(f"Error in list_branches: {e}")
+        return {"error": str(e)}

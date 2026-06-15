@@ -1,43 +1,58 @@
 # AI Tool Development Guide
 
-**Version:** 1.1.0
-**Last Updated:** 2026-03-22
+**Version:** 2.0.0
+**Last Updated:** 2026-06-14
 **Audience:** Backend Developers
+
+> This guide supersedes the former `project-context-patterns.md` and
+> `temporal-context-patterns.md`, whose verified content has been folded into the
+> [Tool Context Patterns](#tool-context-patterns) section below. Those two docs
+> have been removed.
 
 ---
 
 ## Overview
 
-This guide explains how to create, test, and deploy AI tools for the Backcast  LangGraph agent. Tools are the primary way the AI agent interacts with the system - they wrap existing service methods and provide a standardized interface for LLM-powered conversations.
+This guide explains how to create, test, and deploy AI tools for the Backcast
+LangGraph agent. Tools are the primary way the AI agent interacts with the system:
+they wrap existing service methods and provide a standardized, RBAC-enforced,
+context-aware interface for LLM-powered conversations.
 
 ### What is an AI Tool?
 
 An AI tool is an async function decorated with `@ai_tool` that:
 
 - Wraps an existing service method (no business logic duplication)
-- Enforces RBAC permissions at the tool level
-- Receives context (database session, user ID) via dependency injection
-- Returns structured data that the LLM can use in responses
-- Is auto-discovered by the tool registry
+- Declares RBAC permissions (enforced by `BackcastSecurityMiddleware`, not the decorator)
+- Receives a `ToolContext` (database session, user, project/temporal scope) via
+  dependency injection (`Annotated[ToolContext, InjectedToolArg]`)
+- Returns structured data (dicts / Pydantic models) that the LLM can consume
+- Is enumerated at runtime in `create_project_tools()` (and auto-discovered for
+  the admin tool catalog via the `ToolRegistry`)
 
 > [!NOTE]
-> The `@ai_tool` decorator converts the function into a LangChain `BaseTool` instance. To execute the tool in Python code (like in tests), you must use `.ainvoke()` instead of calling it directly.
+> The `@ai_tool` decorator converts the function into a LangChain `BaseTool`
+> instance. To execute the tool in Python code (like in tests), you must use
+> `.ainvoke()` instead of calling it directly.
 
 ### Key Principles
 
-1. **Wrap, Don't Duplicate**: Tools should wrap existing service methods, not reimplement business logic
-2. **Security First**: Always enforce permissions via the `@ai_tool` decorator
-3. **Context Injection**: Use `ToolContext` for database access and user identification
-4. **Temporal Awareness**: For versioned entities, use temporal params from `context` to respect Time Machine state
-5. **Structured Returns**: Return dictionaries/Pydantic models that LLMs can understand
-6. **Error Handling**: Let the decorator handle exceptions, focus on business logic
-7. **Observability**: Log temporal context for ALL tools (both branchable and non-branchable entities)
-
-> [!IMPORTANT]
-> **Temporal Context**: When creating tools that query versioned entities (Projects, Change Orders, WBEs, etc.), you MUST use temporal parameters from `ToolContext` to respect the user's Time Machine state. See [Temporal Context Patterns](./temporal-context-patterns.md) for detailed guidance.
-
-> [!NOTE]
-> **Temporal Logging for All Tools**: Log temporal context using `log_temporal_context()` for ALL tools, including those that query non-branchable entities (e.g., Forecasts, Cost Registrations, Progress Entries). This provides consistent observability across the entire tool suite and helps debug temporal state issues.
+1. **Wrap, Don't Duplicate**: Tools wrap existing service methods; they do not
+   reimplement business logic.
+2. **Security First**: Declare permissions on the decorator; the middleware
+   enforces them. Never trust an `user_id` / `project_id` argument the LLM supplies.
+3. **Context Injection**: Use `ToolContext` for database access, user identity,
+   and project/temporal scope.
+4. **Temporal Awareness**: For versioned entities, pass temporal parameters from
+   `context` (`as_of`, `branch_name`, `branch_mode`) into the service layer's
+   `get_as_of()` family of queries.
+5. **Structured Returns**: Return dictionaries/Pydantic models the LLM can
+   understand. Prefer selective fields over full ORM dumps.
+6. **Error Handling**: Let the decorator's wrapper commit/rollback the task-local
+   session and convert exceptions to `{"error": ...}`. Tools return error dicts
+   for business-level misses (e.g. "not found").
+7. **Observability**: Log temporal and project context for ALL tools that query
+   data, and attach `_temporal_context` / `_project_context` metadata to results.
 
 ---
 
@@ -50,50 +65,97 @@ Create a new file in `app/ai/tools/` or add to an existing file:
 ```python
 # app/ai/tools/project_tools.py
 
-from typing import Annotated
+from typing import Annotated, Any
+
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
-from app.services.project import ProjectService
+from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
+from app.ai.tools.types import RiskLevel, ToolContext
 
 @ai_tool(
-    name="get_project_details",
-    description="Get detailed information about a specific project",
+    name="get_project",
+    description="Get project details by ID.",
     permissions=["project-read"],
-    category="projects"
+    category="projects",
+    risk_level=RiskLevel.LOW,
 )
-async def get_project_details(
+async def get_project(
     project_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,
-) -> dict[str, object]:
-    """Get detailed information for a project.
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Get detailed information about a specific project.
 
     Args:
-        project_id: UUID of the project to retrieve
+        project_id: Project ID as UUID string
+        context: Injected tool execution context
 
     Returns:
-        Dictionary with project details including name, code, status, budget
+        Dictionary containing detailed project information, or an error.
     """
-    service = ProjectService(context.db_session)
-    project = await service.get_project(project_id)
+    log_temporal_context("get_project", context)
 
-    if not project:
-        return {"error": "Project not found"}
+    try:
+        from uuid import UUID
 
-    return {
-        "id": str(project.id),
-        "name": project.name,
-        "code": project.code,
-        "status": project.status,
-        "budget": float(project.budget) if project.budget else None,
-        "start_date": project.start_date.isoformat() if project.start_date else None,
-    }
+        from app.core.versioning.enums import BranchMode
+
+        branch = context.branch_name or "main"
+        branch_mode = (
+            BranchMode.MERGED
+            if context.branch_mode == "merged"
+            else BranchMode.ISOLATED
+        )
+
+        # ProjectService is accessed via context (task-local session),
+        # and uses get_as_of() for temporal queries.
+        project = await context.project_service.get_as_of(
+            entity_id=UUID(project_id),
+            as_of=context.as_of,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+
+        if not project:
+            return add_temporal_metadata(
+                {"error": f"Project {project_id} not found"}, context
+            )
+
+        result = {
+            "id": str(project.project_id),
+            "name": project.name,
+            "code": project.code,
+            "status": project.status,
+            "budget": float(project.budget) if project.budget else None,
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError:
+        return add_temporal_metadata(
+            {"error": f"Invalid project ID: {project_id}"}, context
+        )
 ```
 
-### Step 2: Test Your Tool
+### Step 2: Register the Tool for Runtime Use
 
-Create a test file:
+The LangGraph agent executes the tools listed in `create_project_tools()`
+(`backend/app/ai/tools/__init__.py`). Add your tool to the appropriate
+category block there:
+
+```python
+# backend/app/ai/tools/__init__.py
+from app.ai.tools import project_tools
+
+def create_project_tools(context: ToolContext) -> list[BaseTool]:
+    ...
+    tools: list[BaseTool] = [
+        project_tools.list_projects,
+        project_tools.get_project,
+        # your tool here
+    ]
+    ...
+```
+
+### Step 3: Test Your Tool
 
 ```python
 # tests/unit/ai/tools/test_project_tools.py
@@ -101,36 +163,32 @@ Create a test file:
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.ai.tools.project_tools import get_project_details
+from app.ai.tools.project_tools import get_project
 from app.ai.tools.types import ToolContext
 
 @pytest.mark.asyncio
-async def test_get_project_details_success():
-    # Arrange
-    mock_session = MagicMock()
+async def test_get_project_success():
+    # Arrange — note: context.session (property), not context.db_session
     context = MagicMock(spec=ToolContext)
-    context.db_session = mock_session
+    context.session = MagicMock()
     context.user_id = "test-user"
-    context.check_permission = AsyncMock(return_value=True)
+    context.as_of = None
+    context.branch_name = "main"
+    context.branch_mode = "merged"
 
     # Act
-    result = await get_project_details.ainvoke({
+    result = await get_project.ainvoke({
         "project_id": "123e4567-e89b-12d3-a456-426614174000",
-        "context": context
+        "context": context,
     })
 
-    # Assert
-    assert "error" not in result
-    assert context.check_permission.called
+    # Assert — middleware enforces RBAC, not the tool itself
+    assert "error" in result  # or your success assertions
 ```
-
-### Step 3: Run Tests
 
 ```bash
 uv run pytest tests/unit/ai/tools/test_project_tools.py -v
 ```
-
-That's it! Your tool is now ready to be used by the AI agent.
 
 ---
 
@@ -138,126 +196,199 @@ That's it! Your tool is now ready to be used by the AI agent.
 
 ### The @ai_tool Decorator
 
-The `@ai_tool` decorator provides:
+The `@ai_tool` decorator (`backend/app/ai/tools/decorator.py`):
 
-1. **Automatic Schema Generation**: Converts function signature to LangChain tool schema
-2. **RBAC Enforcement**: Checks permissions before execution
-3. **Context Injection**: Provides database session and user ID
-4. **Error Handling**: Catches exceptions and returns error responses
-5. **Metadata Attachment**: Stores tool metadata for registry
+1. **Wraps with context + session lifecycle**: injects the `ToolContext`,
+   commits on success, rolls back on error, and converts raised exceptions to
+   `{"error": str(e)}`.
+2. **Attaches metadata**: stores a `ToolMetadata` on `tool._tool_metadata`
+   (name, description, permissions, category, version, risk_level) and sets
+   `tool._is_ai_tool = True` for registry discovery.
+3. **Builds the LangChain tool**: calls `tool(parse_docstring=False, ...)`
+   (see [Decorator Parameters](#decorator-parameters) below) and returns a
+   `BaseTool`.
+4. Does **NOT** enforce RBAC itself. It only attaches permission metadata,
+   which `BackcastSecurityMiddleware` reads at execution time (see
+   [Security: RBAC enforcement](#1-rbac-enforcement-lives-in-the-middleware)).
 
 ### Decorator Parameters
 
 ```python
+from app.ai.tools.types import RiskLevel
+
 @ai_tool(
-    name="tool_name",              # Required: Tool name (unique)
-    description="Tool description", # Required: What the tool does
-    permissions=["perm1", "perm2"], # Required: Permissions for RBAC
-    category="category_name"        # Optional: Tool category
+    name="tool_name",                       # Optional: defaults to function name
+    description="LLM-facing description",   # Optional: defaults to docstring
+    permissions=["perm1", "perm2"],         # Optional: RBAC perms (default [])
+    category="category_name",               # Optional: for the admin catalog
+    risk_level=RiskLevel.LOW,               # Optional: LOW/HIGH/CRITICAL (default HIGH)
 )
 ```
+
+`risk_level` controls which execution modes may call the tool
+(`safe` = LOW only; `standard` = LOW+HIGH; `expert` = all). Every real tool in
+this codebase specifies `risk_level` explicitly. **There is no `MEDIUM` value**;
+the `RiskLevel` enum is exactly `LOW`, `HIGH`, `CRITICAL`
+(`backend/app/ai/tools/types.py`). The default when omitted is `HIGH`
+(`decorator.py`).
+
+> [!IMPORTANT]
+> **Docstring parsing is OFF.** The decorator calls LangChain's
+> `tool(parse_docstring=False, ...)` (`decorator.py`). The LLM-facing
+> description comes **only** from the `description=` argument (or the function
+> docstring if `description` is omitted). The Google-style `Args:` sections are
+> developer documentation only — they are **not** sent to the LLM. This keeps
+> token usage down.
 
 ### Function Signature
 
 ```python
 async def tool_function(
-    param1: type1,         # Tool parameters (what LLM provides)
+    param1: type1,         # Tool parameters (what the LLM provides)
     param2: type2,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # Always last parameter (injected automatically)
-) -> dict[str, Any]:      # Return structured data
-    """Docstring becomes tool description if not provided to decorator."""
-    # Implementation
-    pass
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:       # Return structured data
+    """Developer-facing docstring. Args sections are NOT sent to the LLM."""
+    ...
 ```
+
+- `context` must be annotated with `Annotated[ToolContext, InjectedToolArg]` so
+  LangChain hides it from the tool schema (the LLM cannot see or set it).
+- Access the DB via `context.session` (a task-local `AsyncSession`), not any
+  `db_session` attribute. See [Tool Context Patterns](#tool-context-patterns).
+
+---
+
+## Tool Discovery and Registration (Two Paths)
+
+Tools reach the system through **two distinct paths**. Do not conflate them:
+
+### (a) Runtime construction — `create_project_tools()`
+
+The list of tools the LangGraph agent actually executes at runtime is
+**manually enumerated** in `create_project_tools()` in
+`backend/app/ai/tools/__init__.py`. This function imports each tool module and
+assembles a `list[BaseTool]` grouped by category (`projects`, `cost-management`,
+`work-tracking`, `change-orders`, `analysis`, `users`, ...). Tools are cached as
+singletons after the first call. The `ToolContext` argument is accepted for
+backward compatibility; tools retrieve their context at runtime via context
+variables.
+
+**To make a tool available to the agent, you must add it here.** Merely
+decorating a function with `@ai_tool` does not expose it to the agent.
+
+### (b) Auto-discovery catalog — `ToolRegistry` / admin UI
+
+The `ToolRegistry` (`backend/app/ai/tools/registry.py`) provides auto-discovery
+of `@ai_tool`-decorated functions via `discover_and_register(module_path)`,
+which imports a module and registers every attribute with `_is_ai_tool == True`.
+
+This path is **not dead code** — it powers the admin tool catalog. The
+`GET /api/v1/ai/config/tools` endpoint
+(`backend/app/api/routes/ai_config.py`, permission `ai-config-read`) calls
+`registry.discover_and_register()` for ~19 modules and then
+`get_all_tools()` to enumerate the catalog shown in the configuration UI.
+
+Key registry functions (`registry.py`):
+
+- `get_registry()` — global singleton `ToolRegistry`.
+- `registry.discover_and_register(module_path)` — import + register a module's tools.
+- `get_all_tools()` — returns `list[ToolMetadata]` (**not** `list[BaseTool]`).
+- `registry.get_by_permission(...)` / `get_by_category(...)` — filtering helpers.
+- `registry.as_langchain_tools(context, permissions=None)` — convert to `BaseTool`.
+
+> [!NOTE]
+> `get_all_tools()` returns **`list[ToolMetadata]`**, not `list[BaseTool]`.
+> The decorator produces `BaseTool` instances directly; the registry stores
+> function + metadata pairs.
 
 ---
 
 ## Common Patterns
 
-### Pattern 1: List/Search (CRUD - Read)
+### Pattern 1: List/Search with Pagination
+
+`list_projects` (`backend/app/ai/tools/project_tools.py`) is the canonical
+paginated read tool. Note the shape:
 
 ```python
 @ai_tool(
     name="list_projects",
-    description="List all projects with optional filtering",
+    description=(
+        "List projects with search, filter, and pagination. "
+        "IMPORTANT: results are paginated — ... check 'total' and 'has_more' ..."
+    ),
     permissions=["project-read"],
-    category="projects"
+    category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def list_projects(
     search: str | None = None,
     status: str | None = None,
-    limit: int = 100,
-    context: Annotated[ToolContext, InjectedToolArg] = None,
-) -> list[dict[str, object]]:
-    """List projects with optional search and status filter.
-
-    Args:
-        search: Search term for project name or code
-        status: Filter by status (e.g., 'ACT', 'PLN')
-        limit: Maximum number of results (default: 100)
-
-    Returns:
-        List of project dictionaries
-    """
-    service = ProjectService(context.db_session)
-    projects = await service.get_projects(search=search, status=status, limit=limit)
-
-    return [
-        {
-            "id": str(p.id),
-            "name": p.name,
-            "code": p.code,
-            "status": p.status,
-        }
-        for p in projects
-    ]
+    page: int = 1,
+    limit: int | None = None,
+    sort_field: str | None = None,
+    sort_order: str = "asc",
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    ...
 ```
 
-### Pattern 2: Get Single Item (CRUD - Read)
+It returns a **dict** (not a `list[dict]`):
 
 ```python
-@ai_tool(
-    name="get_project",
-    description="Get detailed information about a specific project",
-    permissions=["project-read"],
-    category="projects"
-)
-async def get_project(
-    project_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,
-) -> dict[str, object]:
-    """Get detailed project information.
-
-    Args:
-        project_id: UUID of the project
-
-    Returns:
-        Project details or error if not found
-    """
-    service = ProjectService(context.db_session)
-    project = await service.get_project(project_id)
-
-    if not project:
-        return {"error": "Project not found"}
-
-    return {
-        "id": str(project.id),
-        "name": project.name,
-        "code": project.code,
-        "status": project.status,
-        "budget": float(project.budget) if project.budget else 0.0,
-        "description": project.description,
-    }
+{
+    "projects": [ ... ],     # one page of project dicts
+    "total": <int>,          # count after filtering
+    "page": <int>,
+    "limit": <int>,
+    "page_count": <int>,
+    "has_more": <bool>,
+    "_project_context": { "project_id": ... },
+    "_temporal_context": { "as_of": ..., "branch_name": ..., "branch_mode": ... },
+}
 ```
 
-### Pattern 3: Create Item (CRUD - Create)
+It auto-scopes to `context.project_id` after verifying RBAC access
+(`project_tools.py`).
+
+### Pattern 2: Get Single Versioned Entity (temporal)
+
+For a single versioned entity, use the service's `get_as_of()` with temporal
+params from context — there is no `ProjectService.get_project()`:
+
+```python
+from uuid import UUID
+from app.core.versioning.enums import BranchMode
+
+branch = context.branch_name or "main"
+branch_mode = (
+    BranchMode.MERGED if context.branch_mode == "merged" else BranchMode.ISOLATED
+)
+
+project = await context.project_service.get_as_of(
+    entity_id=UUID(project_id),
+    as_of=context.as_of,
+    branch=branch,
+    branch_mode=branch_mode,
+)
+```
+
+`ProjectService.get_as_of(entity_id, as_of, branch, branch_mode)` lives in
+`backend/app/services/project.py` and returns `Project | None`.
+
+### Pattern 3: Create Item (CRUD)
+
+Wrap a create schema + service method. Temporal params (branch, etc.) come from
+context, not from the LLM:
 
 ```python
 @ai_tool(
     name="create_project",
-    description="Create a new project",
+    description="Create a new project.",
     permissions=["project-create"],
-    category="projects"
+    category="projects",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_project(
     name: str,
@@ -265,173 +396,254 @@ async def create_project(
     status: str = "PLN",
     budget: float | None = None,
     description: str | None = None,
-    context: Annotated[ToolContext, InjectedToolArg] = None,
-) -> dict[str, object]:
-    """Create a new project.
-
-    Args:
-        name: Project name
-        code: Three-letter project code
-        status: Project status (default: 'PLN')
-        budget: Optional project budget
-        description: Optional project description
-
-    Returns:
-        Created project details
-    """
-    from app.models.schemas.project import ProjectCreate
-
-    service = ProjectService(context.db_session)
-
-    project_data = ProjectCreate(
-        name=name,
-        code=code,
-        status=status,
-        budget=budget,
-        description=description,
-    )
-
-    project = await service.create_project(project_data)
-
-    return {
-        "id": str(project.id),
-        "name": project.name,
-        "code": project.code,
-        "status": project.status,
-    }
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    ...
 ```
 
-### Pattern 4: Analysis/EVM
+See `backend/app/ai/tools/templates/project_template.py` for the full
+implementation.
+
+### Pattern 4: Analysis / EVM
+
+EVM metrics come from `EVMService.calculate_evm_metrics(...)` in
+`app.services.evm_service` (note: `evm_service`, **not** `app.services.evm`).
+The method is **not** `calculate_metrics(project_id)`; it is per work package
+and time-aware:
 
 ```python
-@ai_tool(
-    name="calculate_evm_metrics",
-    description="Calculate Earned Value Management metrics for a project",
-    permissions=["evm-read"],
-    category="analysis"
+from app.services.evm_service import EVMService
+from app.core.versioning.enums import BranchMode
+
+service = EVMService(context.session)
+metrics = await service.calculate_evm_metrics(
+    work_package_id=UUID(work_package_id),
+    control_date=as_of,            # time-travel anchor
+    branch=branch,
+    branch_mode=BranchMode.MERGED,  # or ISOLATED
 )
-async def calculate_evm_metrics(
-    project_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,
-) -> dict[str, float]:
-    """Calculate EVM metrics for a project.
-
-    Args:
-        project_id: UUID of the project
-
-    Returns:
-        Dictionary with EVM metrics (PV, EV, AC, CV, SV, CPI, SPI)
-    """
-    from app.services.evm import EVMService
-
-    service = EVMService(context.db_session)
-    metrics = await service.calculate_metrics(project_id)
-
-    return {
-        "planned_value": float(metrics.planned_value),
-        "earned_value": float(metrics.earned_value),
-        "actual_cost": float(metrics.actual_cost),
-        "cost_variance": float(metrics.cost_variance),
-        "schedule_variance": float(metrics.schedule_variance),
-        "cost_performance_index": float(metrics.cost_performance_index),
-        "schedule_performance_index": float(metrics.schedule_performance_index),
-    }
+# metrics is an EVMMetricsRead Pydantic model (BAC, PV, AC, EV, CV, SV, CPI, SPI, ...)
 ```
+
+The `analysis_template` / `advanced_analysis_template` modules wrap these calls
+for the agent (see [Templates](#templates)).
 
 ---
 
 ## Best Practices
 
-### 1. Service Wrapping
+### 1. RBAC enforcement lives in the middleware
 
-✅ **DO:** Wrap existing service methods
+The `@ai_tool` decorator **attaches** `permissions` to `tool._tool_metadata`; it
+does **not** check them. `BackcastSecurityMiddleware`
+(`backend/app/ai/middleware/backcast_security.py`) reads
+`tool._tool_metadata.permissions` and enforces every permission before the tool
+runs (per-permission project-aware checks). The middleware also gates tools by
+`risk_level` vs. the session's `execution_mode`.
+
+✅ **DO:** Declare exact permissions on the decorator.
 
 ```python
-service = ProjectService(context.db_session)
-projects = await service.get_projects(search=search)
+@ai_tool(permissions=["project-read", "evm-read"], risk_level=RiskLevel.LOW)
 ```
 
-❌ **DON'T:** Duplicate business logic
+❌ **DON'T:** Re-implement permission checks inside the tool body, or use
+overly-broad permissions like `["admin"]`.
+
+### 2. Service Wrapping
+
+✅ **DO:** Wrap existing service methods via `context.session` / service accessors.
 
 ```python
-# Bad: Direct database access
-from app.models.domain.project import Project
-result = await context.db_session.execute(select(Project).where(...))
-```
-
-### 2. Error Handling
-
-✅ **DO:** Let the decorator handle exceptions
-
-```python
-project = await service.get_project(project_id)
-if not project:
-    return {"error": "Project not found"}
-return project.to_dict()
-```
-
-❌ **DON'T:** Swallow exceptions
-
-```python
-try:
-    project = await service.get_project(project_id)
-except Exception as e:
-    return {"error": str(e)}  # Decorator does this automatically
-```
-
-### 3. Type Hints
-
-✅ **DO:** Use precise type hints
-
-```python
-async def get_project(
-    project_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,
-) -> dict[str, object]:
-```
-
-❌ **DON'T:** Use vague types
-
-```python
-async def get_project(
-    project_id: any,
-    context: any
-) -> any:
-```
-
-### 4. Permission Specification
-
-✅ **DO:** Specify exact permissions needed
-
-```python
-@ai_tool(
-    permissions=["project-read", "evm-read"]  # Specific permissions
+project = await context.project_service.get_as_of(
+    entity_id=UUID(project_id), as_of=context.as_of, ...
 )
 ```
 
-❌ **DON'T:** Use overly broad permissions
+❌ **DON'T:** Duplicate business logic, or hit the DB directly bypassing services.
+
+### 3. Context Access
+
+✅ **DO:** Use `context.session` (task-local), `context.user_id`, and temporal
+fields from context.
+
+❌ **DON'T:** Reference `context.db_session` — it does not exist. Don't accept
+`user_id` / `project_id` as LLM-provided parameters.
+
+### 4. Error Handling
+
+✅ **DO:** Return business-level error dicts (e.g. "not found", "invalid UUID"),
+and let the decorator's wrapper convert raised exceptions to `{"error": ...}`
+and manage the session.
+
+❌ **DON'T:** Wrap tool bodies in `try/except` that swallows exceptions into
+`{"error": str(e)}` — the decorator already does this and also handles rollback.
+
+### 5. Type Hints
+
+✅ **DO:** Use precise type hints; annotate `context` with `InjectedToolArg`.
+
+❌ **DON'T:** Use `Any` / untyped params.
+
+---
+
+## Tool Context Patterns
+
+This section consolidates the verified content from the former
+`project-context-patterns.md` and `temporal-context-patterns.md`.
+
+### ToolContext is a mutable, project-scoped, injection-hidden dataclass
+
+`ToolContext` (`backend/app/ai/tools/types.py`) is a **plain `@dataclass`
+without `frozen=True`** — it is mutable. It carries:
+
+- `session` — a property returning a **task-local** `AsyncSession`
+  (`async_scoped_session` keyed on the current asyncio task). The original
+  WebSocket-level session is stored separately as `_root_session`.
+- `user_id`, `user_role`, `execution_mode`
+- **Project scope** (locked for the session): `project_id`, `branch_id`
+- **Temporal scope** (LLM-mutable): `as_of`, `branch_name`, `branch_mode`
+- `project_service` — a `ProjectService(self.session)` accessor property
+- `_permission_cache` (LRU), `_event_bus`, `_stop_event`
+
+It is injected via `Annotated[ToolContext, InjectedToolArg]`, which excludes it
+from the tool schema so the LLM cannot see or manipulate scope directly.
+
+> [!IMPORTANT]
+> **Critical asymmetry.** **Project scope is locked** for the session (set from
+> the URL; no tool changes `context.project_id`). **Temporal scope is
+> LLM-mutable** via `set_temporal_context`, which mutates `context.as_of`,
+> `context.branch_name`, and `context.branch_mode` in place and publishes a
+> `temporal_context_change` event. The old "ToolContext is immutable / temporal
+> context is read-only" thesis is **false** — `ToolContext` is a plain mutable
+> dataclass, and the LLM *can* shift the temporal view through a tool.
+
+### Project context
+
+- **Frontend → backend**: the frontend derives `project_id` from the URL
+  (`/projects/:projectId/chat`) and sends it in the `WSChatRequest` (see
+  [WebSocket schema](#websocket-schema)).
+- **`list_projects` auto-scopes**: after resolving the user's accessible projects
+  via the unified RBAC service, if `context.project_id` is set, the tool filters
+  to that project only — or to an empty list if the user lacks access
+  (`project_tools.py`).
+- **`get_project_context`** (`backend/app/ai/tools/context_tools.py`) is the
+  read-only tool the LLM uses to inspect project scope (name, code, user roles).
+  It never mutates `project_id`.
+- **Security argument**: because `project_id` rides on the injected
+  `ToolContext` (not in the tool signature), and tools auto-scope after RBAC,
+  prompt-injection cannot move the LLM to another project's data. The LLM may
+  ask; the tool layer enforces.
+
+### Temporal context
+
+- **`get_temporal_context`** (`backend/app/ai/tools/temporal_tools.py`) is
+  read-only: it reports `as_of`, `current_date`, `branch_name`, `branch_mode`.
+- **`set_temporal_context`** (`temporal_tools.py`) is the **mutable** tool: given
+  `as_of` / `branch_name` / `branch_mode`, it validates them (ISO datetime,
+  valid branch against `BranchService.list_branches_as_of`, mode ∈
+  {merged, isolated}), then **mutates the shared `ToolContext` in place** and
+  publishes an `AgentEvent` of type `temporal_context_change` on the event bus.
+  All subsequent tool calls in the session see the new temporal view.
+- **`list_branches`** (`temporal_tools.py`) enumerates branches for the current
+  project (used before switching).
+- **Service-layer `get_as_of()` query patterns**: for versioned entities, always
+  call `Service.get_as_of(entity_id=..., as_of=..., branch=..., branch_mode=...)`
+  (e.g. `ProjectService.get_as_of`). Never use non-temporal `get_list()` /
+  `get_by_id()` for versioned entities. Non-versioned entities (`SimpleEntityBase`
+  — Users, AI Configs) ignore temporal params.
+
+### System prompt DOES inject temporal context (refuted stale thesis)
+
+`AgentService._build_system_prompt(base_prompt, project_id, as_of, branch_name,
+branch_mode, context)` (`backend/app/ai/agent_service.py`) takes a
+`context: dict | None` (a `SessionContext`) that drives `general` / `project` /
+`wbe` / `cost_element` / `work_package` scoping, and **appends a
+`[TEMPORAL CONTEXT]` section** to the prompt when `branch_name != "main"` or
+when `as_of` is set. The old "system prompt excludes temporal context" thesis is
+**false**. The prompt also tells the LLM it can change the temporal view via
+`set_temporal_context`. Enforcement still happens at the tool layer; the prompt
+section is for LLM awareness.
+
+### WebSocket schema
+
+The frontend `WSChatRequest` (`frontend/src/features/ai/chat/types.ts`) is:
+
+```typescript
+export interface WSChatRequest {
+  type: "chat";
+  message: string;
+  session_id: string | null;        // required (null for new session)
+  assistant_config_id: string;      // required
+  title?: string;
+  execution_mode: ExecutionMode;    // required: safe | standard | expert
+  as_of?: string | null;            // ISO timestamp or null
+  branch_name?: string;             // e.g. "main", "BR-001"
+  branch_mode?: "merged" | "isolated";
+  project_id?: string;              // from URL, optional
+  context?: SessionContext;         // { type, id, project_id, name }
+  attachments?: FileAttachment[];
+  images?: string[];
+}
+```
+
+> [!NOTE]
+> There is **no `branch_id` field** on `WSChatRequest`. Branch context is
+> conveyed via `branch_name` (+ `branch_mode`), not a UUID.
+
+### RBAC helpers (unified)
+
+The real RBAC API is the **unified** service in
+`backend/app/core/rbac_unified.py`, not the older `get_rbac_service()`:
 
 ```python
-@ai_tool(
-    permissions=["admin"]  # Too broad
+from app.core.rbac_unified import (
+    get_unified_rbac_service,
+    set_unified_rbac_session,
 )
+
+set_unified_rbac_session(context.session)          # inject the task-local session
+unified_service = get_unified_rbac_service()
+
+accessible = await unified_service.get_accessible_projects(user_id=user_uuid)
+roles       = await unified_service.get_project_roles(
+    user_id=user_uuid, project_id=project_uuid
+)  # returns a LIST (possibly empty)
 ```
 
-### 5. Context Usage
+`get_project_roles(...)` returns a **list** (`user_roles`), not a single string.
+`context_tools.py` and `project_tools.py` both use this API.
 
-✅ **DO:** Use context for database and user
+### Logging and metadata helpers
 
-```python
-service = ProjectService(context.db_session)
-user_id = context.user_id
-```
+`backend/app/ai/tools/temporal_logging.py` provides four helpers used across
+the tool suite:
 
-❌ **DON'T:** Accept user_id as parameter (security risk)
+- `log_temporal_context(tool_name, context)` — logs `[TEMPORAL_CONTEXT] ...`.
+- `add_temporal_metadata(result, context)` — adds a `_temporal_context` key.
+- `log_project_context(tool_name, context)` — logs `[PROJECT_CONTEXT] ...`.
+- `add_project_metadata(result, context)` — adds a `_project_context` key.
 
-```python
-async def bad_tool(user_id: str, context: ToolContext):
-    # User could spoof user_id!
-```
+Rule of thumb: if a tool queries the database, call both `log_*` helpers at
+entry and wrap the result (and any error dict) with the corresponding
+`add_*_metadata` helpers.
+
+### Migration checklist (per tool)
+
+When adding or migrating a tool:
+
+- [ ] Import `RiskLevel` and set `risk_level=` explicitly.
+- [ ] Annotate `context` with `Annotated[ToolContext, InjectedToolArg]`.
+- [ ] Access the DB via `context.session` / `context.project_service` — never
+      `context.db_session`.
+- [ ] Call `log_temporal_context` / `log_project_context` at entry.
+- [ ] Wrap results **and** error dicts with `add_temporal_metadata` /
+      `add_project_metadata`.
+- [ ] For versioned entities, use `Service.get_as_of(...)` with temporal params
+      from context.
+- [ ] Do **not** put `user_id` / `project_id` in the tool signature.
+- [ ] Declare exact `permissions=`; rely on the middleware to enforce.
+- [ ] Add the tool to `create_project_tools()` in `backend/app/ai/tools/__init__.py`.
 
 ---
 
@@ -439,406 +651,38 @@ async def bad_tool(user_id: str, context: ToolContext):
 
 ### Unit Tests
 
-Test tool logic in isolation with mocked services:
+Mock `ToolContext` (spec it) and the service accessors. The middleware enforces
+RBAC, so unit tests generally assert on returned shape, not on permission checks:
 
 ```python
 @pytest.mark.asyncio
-async def test_list_projects_filters_by_status():
-    # Arrange
-    mock_session = MagicMock()
+async def test_list_projects_returns_paginated_dict():
     context = MagicMock(spec=ToolContext)
-    context.db_session = mock_session
-    context.check_permission = AsyncMock(return_value=True)
+    context.session = MagicMock()
+    context.user_id = str(uuid4())
+    context.as_of = None
+    context.branch_name = "main"
+    context.branch_mode = "merged"
+    context.project_id = None
 
-    mock_service = MagicMock()
-    mock_service.get_projects = AsyncMock(return_value=[])
+    result = await list_projects.ainvoke({"context": context})
 
-    # Act
-    result = await list_projects.ainvoke({
-        "status": "ACT",
-        "context": context
-    })
-
-    # Assert
-    assert isinstance(result, list)
-    assert context.check_permission.called
+    assert isinstance(result, dict)
+    for key in ("projects", "total", "page", "limit", "page_count", "has_more"):
+        assert key in result
 ```
 
 ### Integration Tests
 
-Test tool with real database:
-
-```python
-@pytest.mark.asyncio
-async def test_list_projects_integration(test_db, authenticated_user):
-    # Arrange
-    context = ToolContext(
-        db_session=test_db,
-        user_id=str(authenticated_user.id)
-    )
-
-    # Act
-    result = await list_projects.ainvoke({"context": context})
-
-    # Assert
-    assert isinstance(result, list)
-```
-
-### Security Tests
-
-Test permission enforcement:
-
-```python
-@pytest.mark.asyncio
-async def test_tool_denied_without_permission():
-    # Arrange
-    context = MagicMock(spec=ToolContext)
-    context.check_permission = AsyncMock(return_value=False)
-
-    # Act
-    result = await secure_tool.ainvoke({"context": context})
-
-    # Assert
-    assert "error" in result
-    assert "permission" in result["error"].lower()
-```
+Use a real DB session and exercise temporal parameters (create versions, then
+query with different `as_of` / branch values).
 
 ### Async Fixture Pattern (pytest-asyncio)
 
-When writing tests for async tools in pytest-asyncio strict mode, use `@pytest_asyncio.fixture` for fixtures that async tests depend on:
+In pytest-asyncio **strict** mode, async fixtures must use `@pytest_asyncio.fixture`
+(not `@pytest.fixture`):
 
 ```python
-import pytest_asyncio
-
-@pytest_asyncio.fixture
-async def test_forecast(test_db):
-    """Create a test forecast for async tests."""
-    # Setup async fixture data
-    forecast = await ForecastService(test_db).create_forecast(...)
-    return forecast, forecast.cost_element_id
-
-@pytest.mark.asyncio
-async def test_get_forecast_with_fixture(test_forecast):
-    """Test using async fixture."""
-    forecast, cost_element_id = test_forecast
-
-    result = await get_forecast.ainvoke({
-        "cost_element_id": str(cost_element_id),
-        "context": mock_context
-    })
-
-    assert result["id"] == str(forecast.forecast_id)
-```
-
-> [!IMPORTANT]
-> **Common Mistake**: Using `@pytest.fixture` (non-async) for fixtures that async tests depend on causes pytest-asyncio strict mode to fail with "requested an async fixture" errors. Always use `@pytest_asyncio.fixture` for async test fixtures.
-
-### Edge Case Testing
-
-Test error paths and edge cases to improve coverage:
-
-```python
-@pytest.mark.asyncio
-async def test_get_forecast_invalid_uuid_format():
-    """Test with invalid UUID format."""
-    result = await get_forecast.ainvoke({
-        "cost_element_id": "not-a-uuid",
-        "context": mock_context
-    })
-    assert "error" in result
-
-@pytest.mark.asyncio
-async def test_get_forecast_empty_uuid():
-    """Test with empty UUID string."""
-    result = await get_forecast.ainvoke({
-        "cost_element_id": "",
-        "context": mock_context
-    })
-    assert "error" in result
-
-@pytest.mark.asyncio
-async def test_get_forecast_not_found():
-    """Test with non-existent forecast."""
-    result = await get_forecast.ainvoke({
-        "cost_element_id": str(uuid4()),
-        "context": mock_context
-    })
-    assert "error" in result
-```
-
----
-
-## Tool Registry
-
-### Auto-Discovery
-
-Tools are auto-discovered by the `@ai_tool` decorator. No manual registration needed!
-
-```python
-# app/ai/tools/__init__.py
-
-from langchain_core.tools import BaseTool
-
-def get_all_tools() -> list[BaseTool]:
-    """Get all registered tools."""
-    # Auto-discovery happens via decorator
-    # Tools with @_is_ai_tool attribute are collected
-    pass
-```
-
-### Tool Metadata
-
-Each tool has metadata attached:
-
-```python
-tool._tool_metadata.name        # Tool name
-tool._tool_metadata.description # Tool description
-tool._tool_metadata.permissions # Required permissions (list of strings)
-tool._tool_metadata.category    # Tool category
-tool._tool_metadata.version     # Tool version
-```
-
-> [!IMPORTANT]
-> **Permission Access**: When verifying tool permissions in tests, always check `tool._tool_metadata.permissions`, not `tool.permissions`. The decorator stores metadata in the `_tool_metadata` attribute.
-
-Example: Checking tool permissions in tests
-
-```python
-def test_tool_has_correct_permissions():
-    """Verify tool has required permissions."""
-    # Correct: Check _tool_metadata.permissions
-    assert "forecast-read" in get_forecast._tool_metadata.permissions
-
-    # Incorrect: This will fail
-    # assert hasattr(get_forecast, "permissions")  # False
-```
-
----
-
-## Performance Considerations
-
-### 1. Fast Execution
-
-Keep tools fast - the LLM waits for tool results:
-
-```python
-# ✅ Good: Fast query
-projects = await service.get_projects(limit=10)
-
-# ❌ Bad: Slow query processing all projects
-projects = await service.get_projects()  # No limit
-```
-
-### 2. Pagination
-
-Use pagination for large result sets:
-
-```python
-async def list_projects(
-    limit: int = 100,
-    offset: int = 0,
-    context: Annotated[ToolContext, InjectedToolArg] = None,
-) -> dict[str, Any]:
-    projects = await service.get_projects(limit=limit, offset=offset)
-    return {
-        "projects": [p.to_dict() for p in projects],
-        "total": len(projects),
-        "limit": limit,
-        "offset": offset,
-    }
-```
-
-### 3. Selective Fields
-
-Return only necessary fields:
-
-```python
-# ✅ Good: Selective fields
-return {
-    "id": str(project.id),
-    "name": project.name,
-    "status": project.status,
-}
-
-# ❌ Bad: All fields (large payload)
-return project.to_dict()  # Includes all fields
-```
-
----
-
-## Temporal Logging Best Practices
-
-### Log Temporal Context for All Tools
-
-All tools should log temporal context for observability, even when querying non-branchable entities:
-
-```python
-from app.ai.tools.temporal_logging import log_temporal_context, add_temporal_metadata
-
-@ai_tool(
-    name="get_forecast",
-    description="Get the forecast for a specific cost element",
-    permissions=["forecast-read"],
-    category="forecast"
-)
-async def get_forecast(
-    cost_element_id: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,
-) -> dict[str, Any]:
-    """Get forecast for a cost element.
-
-    Args:
-        cost_element_id: UUID of the cost element
-
-    Returns:
-        Forecast details with temporal metadata
-    """
-    # Log temporal context for observability
-    log_temporal_context("get_forecast", context)
-
-    try:
-        service = ForecastService(context.session)
-        forecast = await service.get_for_cost_element(
-            cost_element_id=UUID(cost_element_id),
-            branch=context.branch_name or "main",
-        )
-
-        result = {
-            "id": str(forecast.forecast_id),
-            "eac_amount": float(forecast.eac_amount),
-            "as_of_date": forecast.as_of_date.isoformat(),
-        }
-
-        # Add temporal metadata to result
-        return add_temporal_metadata(result, context)
-    except Exception as e:
-        return add_temporal_metadata({"error": str(e)}, context)
-```
-
-### Benefits of Temporal Logging
-
-1. **Observability**: Track which temporal context (branch, as_of) tools are using
-2. **Debugging**: Quickly identify temporal state issues in logs
-3. **Audit Trail**: Maintain complete record of temporal context for all tool invocations
-4. **Consistency**: Uniform logging pattern across all tools (branchable and non-branchable)
-
-### When to Use Temporal Logging
-
-| Entity Type | Branchable | Log Temporal Context | Use Temporal Metadata |
-| ----------- | ---------- | -------------------- | --------------------- |
-| Projects | Yes | Always | Always |
-| Change Orders | Yes | Always | Always |
-| WBEs | Yes | Always | Always |
-| Forecasts | No | Always | Always |
-| Cost Registrations | No | Always | Always |
-| Progress Entries | No | Always | Always |
-| Analysis/EVM | N/A | Always | Always |
-
-> [!NOTE]
-> **Rule of Thumb**: If a tool queries data from the database, log temporal context and add temporal metadata to results. This includes ALL tools, regardless of whether the underlying entity supports branching.
-
----
-
-## Security Considerations
-
-### 1. Permission Checking
-
-Always specify permissions:
-
-```python
-@ai_tool(
-    permissions=["project-read"],  # Required!
-)
-```
-
-### 2. User Context
-
-Use `context.user_id` for filtering:
-
-```python
-# Good: Filter by current user
-projects = await service.get_projects(user_id=context.user_id)
-
-# Bad: Accept user_id as parameter
-async def list_projects(user_id: str, context: Annotated[ToolContext, InjectedToolArg] = None):
-    # User could impersonate others!
-```
-
-### 3. Input Validation
-
-Validate inputs:
-
-```python
-async def get_project(project_id: str, context: Annotated[ToolContext, InjectedToolArg] = None):
-    # Validate UUID format
-    try:
-        UUID(project_id)
-    except ValueError:
-        return {"error": "Invalid project ID format"}
-
-    # Proceed with lookup
-    project = await service.get_project(project_id)
-    # ...
-```
-
----
-
-## Troubleshooting
-
-### Tool Not Discovered
-
-**Problem:** Tool doesn't appear in registry
-
-**Solution:** Ensure file is imported in `app/ai/tools/__init__.py`:
-
-```python
-from app.ai.tools.project_tools import list_projects, get_project
-```
-
-### Permission Denied
-
-**Problem:** Tool always returns permission denied
-
-**Solution:** Check that `context.check_permission()` is working:
-
-```python
-# Test with mock
-context.check_permission = AsyncMock(return_value=True)
-```
-
-### Context Not Provided
-
-**Problem:** "Tool context not provided" error
-
-**Solution:** Ensure `context` is the last parameter:
-
-```python
-# ✅ Correct
-async def tool(param1: str, context: Annotated[ToolContext, InjectedToolArg] = None):
-
-# ❌ Wrong
-async def tool(context: ToolContext, param1: str):
-
-# ❌ Wrong (missing InjectedToolArg)
-async def tool(param1: str, context: ToolContext):
-```
-
-### Async Fixture Errors (pytest-asyncio)
-
-**Problem:** Tests fail with "requested an async fixture 'X', with no plugin or hook that handled it"
-
-**Root Cause:** Using `@pytest.fixture` (non-async) for fixtures that async tests depend on, violating pytest-asyncio strict mode requirements
-
-**Solution:** Convert fixtures to `@pytest_asyncio.fixture`:
-
-```python
-# ❌ Wrong: Non-async fixture
-@pytest.fixture
-def test_forecast(test_db):
-    forecast = await ForecastService(test_db).create_forecast(...)
-    return forecast
-
-# ✅ Correct: Async fixture
 import pytest_asyncio
 
 @pytest_asyncio.fixture
@@ -847,54 +691,162 @@ async def test_forecast(test_db):
     return forecast
 ```
 
-**Prevention:**
-- Always use `@pytest_asyncio.fixture` for fixtures that async tests depend on
-- Run test suite incrementally during implementation to catch fixture issues early
-- Verify fixture execution during RED phase of TDD, not just test collection
+> [!IMPORTANT]
+> Using `@pytest.fixture` (non-async) for a fixture that async tests depend on
+> fails strict mode with "requested an async fixture". Always use
+> `@pytest_asyncio.fixture` for async fixtures.
 
-### Permission Test Failures
+### Permission metadata in tests
 
-**Problem:** Test fails with `AssertionError: tool should have permissions`
-
-**Root Cause:** Test checks `hasattr(tool, "permissions")` but decorator stores permissions in `tool._tool_metadata.permissions`
-
-**Solution:** Check the correct attribute path:
+Permissions live on `_tool_metadata`, not as a top-level attribute:
 
 ```python
-# ❌ Wrong: Direct attribute access
-assert hasattr(get_forecast, "permissions")  # False
-assert "forecast-read" in get_forecast.permissions  # AttributeError
+# ✅ correct
+assert "forecast-read" in get_forecast._tool_metadata.permissions
 
-# ✅ Correct: Check _tool_metadata
-assert hasattr(get_forecast, "_tool_metadata")  # True
-assert "forecast-read" in get_forecast._tool_metadata.permissions  # True
+# ❌ wrong — attribute does not exist at top level
+# assert "forecast-read" in get_forecast.permissions
 ```
-
-**Prevention:**
-- Review decorator implementation (`decorator.py`) before writing tests
-- Use test discovery phase to verify tool attributes
-- Check for `_tool_metadata` attribute in tests, not just `permissions`
 
 ---
 
 ## Templates
 
-Ready-to-use templates are available:
+Ready-to-use tool template modules live in `backend/app/ai/tools/templates/`.
+Each module groups related CRUD operations. The current templates are:
 
-- **CRUD Template**: `app/ai/tools/templates/crud_template.py`
-- **Change Order Template**: `app/ai/tools/templates/change_order_template.py`
-- **Analysis Template**: `app/ai/tools/templates/analysis_template.py`
+| Template module | Tools |
+| --- | --- |
+| `project_template` | Project + WBS Element CRUD (`create_project`, `update_project`, `delete_project`, `batch_create_projects`, `find_wbs_elements`, `create_wbs_element`, ...) |
+| `work_package_template` | Work Package CRUD + budget status |
+| `cost_element_template` | Cost Element + Cost Element Type CRUD |
+| `cost_event_template` | Cost Event CRUD + COQ |
+| `cost_event_type_template` | Cost Event Type CRUD |
+| `control_account_template` | Control Account CRUD + budget |
+| `forecast_cost_progress_template` | Forecast + Cost Registration + Progress Entry |
+| `change_order_template` | Change order workflow (create, submit, approve, reject, analyze, delete, batch) |
+| `analysis_template` | Project analysis (`get_project_analysis`) |
+| `advanced_analysis_template` | Project forecast (`get_project_forecast`) |
+| `user_management_template` | User + Organizational Unit management |
+| `diagram_template` | Diagram generation |
 
-Copy a template and modify for your use case.
+> [!NOTE]
+> There is **no** `crud_template.py`. Copy the closest existing template module
+> and modify it for your use case.
+
+---
+
+## Performance Considerations
+
+### Pagination
+
+Use `page`/`limit` pagination and return a dict envelope with `total`,
+`page_count`, and `has_more` (see Pattern 1). Tell the LLM in the `description`
+that results are paginated and that it must page forward.
+
+### Selective Fields
+
+Return only the fields the LLM needs:
+
+```python
+# ✅ selective
+return {
+    "id": str(project.project_id),
+    "name": project.name,
+    "status": project.status,
+}
+
+# ❌ bloated
+return project.to_dict()  # all fields
+```
+
+### Task-local sessions
+
+`context.session` returns a per-task `AsyncSession` via
+`async_scoped_session`, so concurrent tool executions do not collide on a shared
+session. Do not bypass it by stashing a session reference in module state.
+
+---
+
+## Security Considerations
+
+### 1. RBAC enforcement lives in the middleware
+
+`BackcastSecurityMiddleware` reads `tool._tool_metadata.permissions` and enforces
+all of them before each tool call (`backend/app/ai/middleware/backcast_security.py`).
+It also gates tools by `risk_level` vs `execution_mode`.
+
+### 2. Project scope is locked, temporal scope is tool-mutable
+
+Project scope (`context.project_id`) is set from the URL and cannot be changed
+by any tool — this is the prompt-injection resistance for project isolation.
+Temporal scope is intentionally LLM-mutable via `set_temporal_context`
+(validated, and it only changes the *viewing* context).
+
+### 3. Never trust LLM-supplied identity
+
+Do not put `user_id` or `project_id` in tool signatures. Always source them from
+`context`. Validate UUIDs before use.
+
+---
+
+## Troubleshooting
+
+### Tool not available to the agent
+
+**Cause:** the tool is decorated but not listed in `create_project_tools()`.
+**Fix:** add it to the appropriate category block in
+`backend/app/ai/tools/__init__.py`.
+
+### Tool not in the admin config catalog
+
+**Cause:** its module is not passed to `registry.discover_and_register()` in the
+`GET /api/v1/ai/config/tools` endpoint
+(`backend/app/api/routes/ai_config.py`).
+**Fix:** add a `registry.discover_and_register("app.ai.tools.your_module")` call
+there.
+
+### "Tool context not provided"
+
+**Cause:** `context` is missing the `Annotated[ToolContext, InjectedToolArg]`
+annotation, or it is not the last parameter.
+**Fix:**
+
+```python
+# ✅ correct
+async def tool(param1: str, context: Annotated[ToolContext, InjectedToolArg] = None): ...
+
+# ❌ wrong
+async def tool(context: ToolContext, param1: str): ...          # wrong position / no InjectedToolArg
+async def tool(param1: str, context: ToolContext): ...
+```
+
+### Async fixture errors (pytest-asyncio)
+
+**Cause:** non-async `@pytest.fixture` used for an async fixture.
+**Fix:** use `@pytest_asyncio.fixture` (see [Testing Strategies](#testing-strategies)).
+
+### Permission assertions fail
+
+**Cause:** test reads `tool.permissions` instead of `tool._tool_metadata.permissions`.
+**Fix:** assert against `tool._tool_metadata.permissions`.
 
 ---
 
 ## References
 
-- [API Reference](/home/nicola/dev/backcast_evs/docs/02-architecture/ai/api-reference.md)
-- [Troubleshooting Guide](/home/nicola/dev/backcast_evs/docs/02-architecture/ai/troubleshooting.md)
+- [Agent Common Concepts](./agent-common-concepts.md)
+- [Supervisor Orchestrator](./supervisor-orchestrator.md)
+- [Tool Development Guide (this document)](./tool-development-guide.md)
+- `backend/app/ai/tools/decorator.py` — `@ai_tool`
+- `backend/app/ai/tools/types.py` — `ToolContext`, `ToolMetadata`, `RiskLevel`
+- `backend/app/ai/tools/registry.py` — `ToolRegistry`, `get_all_tools`
+- `backend/app/ai/tools/__init__.py` — `create_project_tools` (runtime enumeration)
+- `backend/app/api/routes/ai_config.py` — admin tool catalog endpoint
+- `backend/app/ai/middleware/backcast_security.py` — RBAC + risk enforcement
+- `backend/app/services/project.py` — `ProjectService.get_as_of`
+- `backend/app/services/evm_service.py` — `EVMService.calculate_evm_metrics`
 - [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [ADR 009: LangGraph Rewrite](/home/nicola/dev/backcast_evs/docs/02-architecture/decisions/009-langgraph-rewrite.md)
 
 ---
 

@@ -1,14 +1,176 @@
-# WebSocket Message Types Reference
+# WebSocket Protocol & Messages
 
-**Last Updated:** 2026-05-01
+> **Canonical source.** This is the single reference for both the AI chat **WebSocket protocol / connection lifecycle** and the full **message catalog**. It consolidates the former `websocket-protocol.md` and `api/ai-tools.md` (both deleted).
+
+**Last Updated:** 2026-06-14
 **Status:** Active
 
-Complete reference for the AI chat WebSocket protocol. All types are defined in:
+The AI chat uses a persistent WebSocket connection at `/api/v1/ai/chat/stream?token=<jwt>` for bidirectional streaming. This document covers connection lifecycle, reconnection strategy, execution-mode × risk-level gating, and the complete message catalog.
+
+All types are defined in:
 
 - Frontend: [frontend/src/features/ai/chat/types.ts](../../../../../frontend/src/features/ai/chat/types.ts)
-- Backend: [backend/app/models/schemas/ai.py](../../../../../backend/app/models/schemas/ai.py) (lines 507-936)
+- Backend WS schemas: [backend/app/models/schemas/ai.py](../../../../../backend/app/models/schemas/ai.py) (lines 626-1087)
 
 The protocol uses simple JSON messages with a `type` discriminator field.
+
+---
+
+## Table of Contents
+
+1. [Connection Lifecycle](#connection-lifecycle)
+2. [Execution Modes & Risk Gating](#execution-modes--risk-gating)
+3. [Client to Server Messages](#client-to-server-messages)
+4. [Server to Client Messages -- Streaming](#server-to-client-messages----streaming)
+5. [Server to Client Messages -- Tool Execution](#server-to-client-messages----tool-execution)
+6. [Server to Client Messages -- Agent Orchestration](#server-to-client-messages----agent-orchestration)
+7. [Server to Client Messages -- Approval & Ask-User Workflows](#server-to-client-messages----approval--ask-user-workflows)
+8. [Server to Client Messages -- Lifecycle](#server-to-client-messages----lifecycle)
+9. [Message Unions](#message-unions)
+10. [Message Flow Diagrams](#message-flow-diagrams)
+11. [Development Patterns](#development-patterns)
+12. [Common Pitfalls](#common-pitfalls)
+13. [Source Files](#source-files)
+
+---
+
+## Connection Lifecycle
+
+### 1. Connection Establishment
+
+**Lazy Connection Pattern:**
+The frontend does NOT connect on page load. Connection is deferred until:
+
+- User sends a message (`sendMessage` triggers connection + pending message delivery)
+- Component mounts with an active execution ID (resubscription to running execution)
+
+**Authentication Flow:**
+
+1. Client opens WebSocket with JWT token in query parameter
+2. Server validates token BEFORE accepting connection
+3. Server checks RBAC `ai-chat` permission
+4. Server calls `websocket.accept()` only after both checks pass
+5. If validation fails, server closes with specific codes:
+
+| Close Code | Meaning | Client Action |
+|-----------|---------|--------------|
+| 1008 | Invalid token / no permission | Do NOT reconnect -- show login |
+| 4008 | Token expired | Refresh token, then reconnect |
+| 1000 | Normal closure | May reconnect with backoff |
+
+**React Strict Mode Guard:**
+In development, React Strict Mode mounts/unmounts/remounts components. The hook uses `isFirstMountRef` to prevent duplicate connections during this cycle.
+
+### 2. Ping/Pong Keepalive
+
+Server sends `ping` every 20 seconds during long agent execution. Client MUST respond with `pong`:
+
+```json
+// Server -> Client
+{"type": "ping"}
+
+// Client -> Server
+{"type": "pong"}
+```
+
+Purpose: prevent reverse proxy (nginx 60s, cloud LBs 30-120s) from killing idle connections.
+
+### 3. Reconnection Strategy
+
+**Automatic reconnection with exponential backoff** (`useStreamingChat.ts` ~142-147, 1122-1131):
+
+- `MAX_RECONNECT_ATTEMPTS = 5`
+- `BASE_RECONNECT_DELAY = 1000` ms
+- Delay formula: `BASE_RECONNECT_DELAY * Math.pow(2, attempt - 1)` → 1s, 2s, 4s, 8s, 16s
+
+The reconnect counter resets on three triggers:
+
+1. **On open** — when the WebSocket successfully opens (~1180)
+2. **On user message** — a user-initiated send resets the counter (~935)
+3. **On accept** — after the subscribe/handshake is accepted (~924)
+
+**Page Visibility API:**
+When the browser tab becomes visible after being hidden, the `visibilitychange` handler (~1337) decides whether to reconnect:
+
+1. Check if connection is dead (null or not `OPEN`)
+2. Check if there's an active execution or pending message
+3. If both: close stale connection, reset reconnect counter, reconnect immediately
+
+**User-initiated reconnect:**
+After max reconnect attempts, the user can still send a message. This:
+
+1. Resets `reconnectAttemptsRef` to 0
+2. Triggers a new connection
+3. Delivers the pending message on open
+
+### 4. Event Replay and Resubscription
+
+When reconnecting to an active execution:
+
+```json
+// Client -> Server (on reconnect)
+{
+  "type": "subscribe",
+  "execution_id": "abc-123",
+  "last_seen_sequence": 42
+}
+```
+
+**Sequence tracking:**
+
+- Every server event has a monotonically increasing `sequence` field
+- Client tracks the highest seen sequence in `lastSequenceRef`
+- On reconnect, sends `last_seen_sequence` to skip already-seen events
+- Backend replays only events with `sequence > last_seen_sequence`
+
+**sessionStorage persistence** (~268, 280-285, 481-490):
+
+- The last sequence is persisted to `sessionStorage` under key `ws-seq-{executionId}`
+- Persistence is **throttled** (≥2s between writes, ~481-490) to avoid write churn
+- On a tab-hidden flush / unmount, the current sequence is written so a remount resumes from the right point (~1314, 1351)
+- On remount, the stored sequence is restored and the key cleaned up (~280-285)
+- Prevents full replay when the user navigates away and back
+
+### 5. Connection Teardown
+
+**Normal flow:**
+
+- `complete` event → connection stays OPEN for follow-up messages
+- User navigates away → cleanup effect closes the WebSocket, persists the sequence to sessionStorage
+- Component unmount → closes the connection, clears all timeouts
+
+**`recentlyCompletedRef` race-condition guard** (~311, 722-729):
+
+After `complete` or `error`, a 5-second guard (`recentlyCompletedRef = true`, cleared after 5000 ms) prevents the `activeExecutionId` effect (~1389) from immediately closing the connection. This ensures follow-up messages can be sent on the same connection before the effect tears it down.
+
+---
+
+## Execution Modes & Risk Gating
+
+The AI tools system gates tool execution by risk level. `RiskLevel` has exactly three members — **`LOW`, `HIGH`, `CRITICAL`** (there is NO `MEDIUM`; `backend/app/ai/tools/types.py:79-95`). The ordering supports comparison (`LOW < HIGH < CRITICAL`).
+
+### Execution Mode × Risk Level Matrix
+
+| Mode | `LOW` | `HIGH` | `CRITICAL` | Source |
+|------|-------|--------|------------|--------|
+| `safe` | Allowed | Filtered out | Filtered out | `tools/__init__.py` ~60-66 |
+| `standard` (default) | Allowed | **Allowed with approval** | Filtered out (blocked) | `tools/__init__.py` ~67-73; `middleware/backcast_security.py:593` |
+| `expert` | Allowed | Allowed | Allowed | `tools/__init__.py` ~74-76 |
+
+**Two-layer gating:**
+
+1. **Tool-set filtering** (`filter_tools_by_execution_mode`, `tools/__init__.py:30-81`) removes disallowed tools BEFORE the LLM ever sees them. In `standard` mode, `CRITICAL` tools never reach the model.
+2. **Runtime guard** (`BackcastSecurityMiddleware._check_risk_level_with_approval`, `middleware/backcast_security.py:536-595`) re-checks at call time and triggers the **approval flow** for `risk_level >= HIGH` in `STANDARD` mode.
+
+**Default risk level:** tools without an explicit `risk_level` annotation default to `RiskLevel.HIGH` for safety (`tools/types.py:346`, `tools/__init__.py:54-55`, `middleware/backcast_security.py:361,586`).
+
+### Mode Selection
+
+Execution mode is selected by the client via the `execution_mode` field in the `chat` message. Default: `standard`. The frontend persists the selection in `localStorage` under `ai_execution_mode`.
+
+### Tool Discovery
+
+Tools are discoverable via **`GET /api/v1/ai/config/tools`** (router prefix `/ai/config` + `/tools`; `api/routes/ai_config.py:32,375-381`). Each tool's metadata includes its `risk_level`.
 
 ---
 
@@ -22,14 +184,13 @@ Initiates a new conversation or continues an existing one. The server creates an
 |-------|------|----------|-------------|
 | `message` | `string` | Yes | User message content (1-10000 chars) |
 | `session_id` | `UUID \| null` | No | Existing session ID, or null for new session |
-| `assistant_config_id` | `UUID \| null` | No | Assistant config to use (required for new sessions) |
+| `assistant_config_id` | `UUID` | Yes | Assistant config to use |
 | `title` | `string` | No | Optional session title for new sessions |
-| `execution_mode` | `"safe" \| "standard" \| "expert"` | No | Tool risk mode (default: `"standard"`) |
+| `execution_mode` | `"safe" \| "standard" \| "expert"` | Yes | Tool risk mode (default: `"standard"`) |
 | `as_of` | `ISO datetime \| null` | No | Historical date for temporal queries |
 | `branch_name` | `string` | No | Branch name (default: `"main"`) |
 | `branch_mode` | `"merged" \| "isolated"` | No | Branch view mode (default: `"merged"`) |
 | `project_id` | `UUID` | No | Project scope for project-specific chat |
-| `branch_id` | `UUID` | No | Branch context UUID |
 | `context` | `SessionContext` | No | Session context (type, id, project_id, name) |
 | `attachments` | `FileAttachment[]` | No | Document/file attachments |
 | `images` | `string[]` | No | Image URLs |
@@ -70,7 +231,7 @@ Sent on WebSocket reconnection to resume receiving events for an execution alrea
 }
 ```
 
-### `approval_response` -- Approve or reject a critical tool
+### `approval_response` -- Approve or reject a tool
 
 User's decision on a pending `approval_request`. The `approval_id` must match an active request.
 
@@ -87,7 +248,24 @@ User's decision on a pending `approval_request`. The `approval_id` must match an
   "approval_id": "abc12345-6789-def0-1234-567890abcdef",
   "approved": true,
   "user_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-  "timestamp": "2026-05-01T14:30:00Z"
+  "timestamp": "2026-06-14T14:30:00Z"
+}
+```
+
+### `ask_user_response` -- Answer to an ask_user prompt
+
+The user's answer to an `ask_user` question (`schemas/ai.py:1024-1036`).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ask_id` | `string` | Yes | ID matching the `ask_user` prompt |
+| `answer` | `string` | Yes | The user's response text |
+
+```json
+{
+  "type": "ask_user_response",
+  "ask_id": "q1w2e3r4-t5y6-7890-abcd-ef1234567890",
+  "answer": "Yes, use the standard cost overrun threshold of 5%."
 }
 ```
 
@@ -332,7 +510,7 @@ Sent when an agent (main or subagent) finishes streaming. Used by the frontend t
   "agent_type": "subagent",
   "invocation_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
   "agent_name": "EVM Analyst",
-  "completed_at": "2026-05-01T14:32:15.123Z"
+  "completed_at": "2026-06-14T14:32:15.123Z"
 }
 ```
 
@@ -363,20 +541,86 @@ Sent when the agent creates an execution plan using the `write_todos` tool.
 }
 ```
 
-### `briefing_update` -- Specialist briefing update
+### `plan_update` -- Execution plan created or step status changed
 
-Sent when a specialist agent updates the compiled briefing document. The frontend uses this to render a live briefing panel.
+Emitted by the **planner** (supervisor orchestrator) when an execution plan is created or when a step transitions status. This is an **event-bus payload** (`AgentEventType.PLAN_UPDATE`, `event_types.py:25`), not a backend Pydantic WS message class — the WS forwarder adapts it into a frontend-shaped message by stamping `type: "plan_update"` onto the event data (`api/routes/ai_chat.py:80`).
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `briefing` | `string` | Compiled briefing markdown |
+| `plan.original_request` | `string` | Original user request |
+| `plan.steps` | `PlanStep[]` | Steps with `step_index`, `specialist`, `task_description`, `dependencies`, `expected_output`, `status` |
+| `plan.estimated_complexity` | `"simple" \| "moderate" \| "complex"` | Planner complexity estimate |
+| `plan.requires_planning` | `boolean` | Whether planning was required |
+| `plan_markdown` | `string` | Pre-rendered markdown of the plan |
+| `completed_steps` | `int` | Number of completed steps |
+| `total_steps` | `int` | Total steps in plan |
+
+```json
+{
+  "type": "plan_update",
+  "plan": {
+    "original_request": "Analyze the electrical installation WBE for cost overruns",
+    "steps": [
+      {
+        "step_index": 0,
+        "specialist": "evm_analyst",
+        "task_description": "Compute CPI/SPI for the WBE",
+        "dependencies": [],
+        "expected_output": "EVM metrics with variance",
+        "status": "in_progress"
+      }
+    ],
+    "estimated_complexity": "moderate",
+    "requires_planning": true
+  },
+  "plan_markdown": "## Plan\n1. Compute CPI/SPI for the WBE ...",
+  "completed_steps": 0,
+  "total_steps": 1
+}
+```
+
+### `briefing_update` -- Specialist briefing update
+
+Sent when a specialist agent updates the compiled briefing document. The frontend uses this to render a live briefing panel. `briefing` is a **structured document**, not a flat markdown string (`schemas/ai.py:747-780`).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `briefing` | `BriefingDocumentPublic` | Structured briefing document (see below) |
 | `specialist_name` | `string` | Name of the specialist that updated |
 | `completed_specialists` | `string[]` | List of completed specialist names |
+
+`BriefingDocumentPublic` / `BriefingDocumentData` (`schemas/ai.py:747-758`; frontend `types.ts:334-340`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `original_request` | `string` | Original user request |
+| `follow_up_requests` | `string[]` | Follow-up requests |
+| `sections` | `BriefingSectionPublic[]` | One section per specialist |
+| `supervisor_analysis` | `string \| null` | Supervisor synthesis |
+| `markdown` | `string` | Pre-rendered markdown fallback |
+
+Each `BriefingSectionPublic` has `specialist_name`, `summary`, `key_findings[]`, `open_questions[]`, `delegation_notes`, and optional `task_description` / `step_index`.
 
 ```json
 {
   "type": "briefing_update",
-  "briefing": "# Project Briefing\n\n## EVM Analysis\nCPI: 0.95, SPI: 1.02...\n\n## Risk Assessment\n...",
+  "briefing": {
+    "original_request": "Analyze the electrical installation WBE for cost overruns",
+    "follow_up_requests": [],
+    "sections": [
+      {
+        "specialist_name": "evm_analyst",
+        "summary": "CPI of 0.95 indicates a slight cost overrun...",
+        "key_findings": ["Cost variance: -$15,000", "SPI: 1.02 (on schedule)"],
+        "open_questions": ["Is the overrun due to material or labor?"],
+        "delegation_notes": "",
+        "task_description": "Compute EVM metrics",
+        "step_index": 0
+      }
+    ],
+    "supervisor_analysis": null,
+    "markdown": "# Briefing\n\n## EVM Analyst\nCPI: 0.95..."
+  },
   "specialist_name": "evm_analyst",
   "completed_specialists": ["evm_analyst"]
 }
@@ -384,7 +628,7 @@ Sent when a specialist agent updates the compiled briefing document. The fronten
 
 ### `agent_transition` -- Agent enter/exit
 
-Sent when control transfers between agents in the supervisor graph. Used for visual transitions in the UI.
+Sent when control transfers between agents in the supervisor graph. Used for visual transitions in the UI. This is a backend Pydantic WS schema (`WSAgentTransitionMessage`, `schemas/ai.py:706-724`).
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -401,13 +645,32 @@ Sent when control transfers between agents in the supervisor graph. Used for vis
 }
 ```
 
+### `temporal_context_change` -- Temporal view context changed
+
+Emitted by the `set_temporal_context` tool (`tools/temporal_tools.py:178`, `event_type="temporal_context_change"`) when the assistant changes the temporal viewing context. Like `plan_update`, this is an **event-bus payload** adapted by the WS forwarder — not a backend Pydantic WS message class.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `as_of` | `string \| null` | New "as of" timestamp (ISO datetime), or null for "now" |
+| `branch_name` | `string` | New branch name |
+| `branch_mode` | `"merged" \| "isolated"` | New branch view mode |
+
+```json
+{
+  "type": "temporal_context_change",
+  "as_of": "2026-03-01T00:00:00Z",
+  "branch_name": "BR-001",
+  "branch_mode": "isolated"
+}
+```
+
 ---
 
-## Server to Client Messages -- Approval Workflow
+## Server to Client Messages -- Approval & Ask-User Workflows
 
-### `approval_request` -- Critical tool needs approval
+### `approval_request` -- Tool needs approval
 
-Sent when a high-risk tool requires user approval in standard mode. The client displays an approval dialog with a countdown timer.
+Sent when a tool with `risk_level >= HIGH` requires user approval in `standard` mode (`BackcastSecurityMiddleware._check_risk_level_with_approval`, `middleware/backcast_security.py:590-595`). The client displays an approval dialog with a countdown timer.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -415,8 +678,10 @@ Sent when a high-risk tool requires user approval in standard mode. The client d
 | `session_id` | `UUID` | Chat session ID |
 | `tool_name` | `string` | Name of the tool requiring approval |
 | `tool_args` | `object` | Arguments that will be passed to the tool |
-| `risk_level` | `"low" \| "high" \| "critical"` | Risk level of the tool |
-| `expires_at` | `ISO datetime` | Expiration time (5 minutes from request) |
+| `risk_level` | `"low" \| "high" \| "critical"` | Risk level of the tool (`Literal[RISK_LEVEL_LOW, RISK_LEVEL_HIGH, RISK_LEVEL_CRITICAL]`, `schemas/ai.py:870-873`) |
+| `expires_at` | `ISO datetime` | Client-facing expiration (5 minutes from request, set by `InterruptNode`, `tools/interrupt_node.py:187`) |
+
+> **Approval timeout (two layers).** The client-facing `expires_at` is 5 minutes (`InterruptNode`). The actual server-side cancellation timeout is **`settings.AI_APPROVAL_TIMEOUT_SECONDS = 60` seconds** (`config.py:48`); the middleware `_poll_for_approval` gives up at 60s (`middleware/backcast_security.py:423`). Treat the 60s middleware timeout as authoritative for "how long the tool actually blocks."
 
 ```json
 {
@@ -429,7 +694,7 @@ Sent when a high-risk tool requires user approval in standard mode. The client d
     "actual_cost": 150000
   },
   "risk_level": "high",
-  "expires_at": "2026-05-01T14:35:00Z"
+  "expires_at": "2026-06-14T14:35:00Z"
 }
 ```
 
@@ -448,7 +713,32 @@ Sent every 5 seconds during the approval waiting period to keep the WebSocket co
   "type": "polling_heartbeat",
   "approval_id": "abc12345-6789-def0-1234-567890abcdef",
   "elapsed_seconds": 10.0,
-  "remaining_seconds": 20.0
+  "remaining_seconds": 50.0
+}
+```
+
+### `ask_user` -- Agent needs user input
+
+Sent when the agent needs user input via the `ask_user` tool (`WSAskUserMessage`, `schemas/ai.py:1038-1066`). The client renders a prompt and the user either answers (→ `ask_user_response`) or lets `expires_at` pass.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `question` | `string` | The question to present to the user |
+| `ask_id` | `string` | Unique identifier for this ask request |
+| `context` | `string \| null` | Optional one-line explanation of why the question is asked |
+| `options` | `string[] \| null` | Optional suggested answers for one-click selection |
+| `expires_at` | `ISO datetime` | UTC timestamp at which the wait times out |
+| `timeout_seconds` | `int` | Total seconds the tool will wait for a response |
+
+```json
+{
+  "type": "ask_user",
+  "question": "Which cost overrun threshold should I use for flagging WBEs?",
+  "ask_id": "q1w2e3r4-t5y6-7890-abcd-ef1234567890",
+  "context": "I need this to filter the EVM analysis.",
+  "options": ["5% (standard)", "10% (lenient)"],
+  "expires_at": "2026-06-14T14:31:00Z",
+  "timeout_seconds": 120
 }
 ```
 
@@ -523,11 +813,35 @@ No additional fields beyond `type`.
 
 ---
 
-## Type Summary
+## Message Unions
 
-### Server Message Union
+The two sides maintain **separate** discriminated unions. The backend union is a closed set of Pydantic WS message classes; the frontend union additionally includes the event-bus-payload-shaped messages that the WS forwarder adapts (`api/routes/ai_chat.py:80`) but that have no backend Pydantic WS class.
 
-The frontend defines a discriminated union `WSServerMessage` covering all server-to-client types:
+### Backend Union (`WSMessage`, `schemas/ai.py:1069-1087`)
+
+```
+WSMessage =
+    WSTokenMessage
+  | WSTokenBatchMessage
+  | WSToolCallMessage
+  | WSToolResultMessage
+  | WSCompleteMessage
+  | WSErrorMessage
+  | WSApprovalRequestMessage
+  | WSPollingHeartbeatMessage
+  | WSThinkingMessage
+  | WSPlanningMessage
+  | WSSubagentMessage
+  | WSSubagentResultMessage
+  | WSAgentCompleteMessage
+  | WSContentResetMessage
+  | WSExecutionStatusMessage
+  | WSAskUserMessage
+```
+
+> Note: `WSAgentTransitionMessage` and `WSAskUserMessage` are defined as Pydantic models in `schemas/ai.py` (706-724 and 1038-1066). `WSAgentTransitionMessage` is currently emitted via the event bus and forwarded generically rather than via the closed union, but the class exists. `plan_update` and `temporal_context_change` are **not** backend Pydantic WS classes — they are `AgentEvent` payloads adapted by the forwarder.
+
+### Frontend Union (`WSServerMessage`, `types.ts:461-482`)
 
 ```
 WSServerMessage =
@@ -545,52 +859,113 @@ WSServerMessage =
   | WSPollingHeartbeatMessage
   | WSPingMessage
   | WSAgentCompleteMessage
+  | WSAgentTransitionMessage
   | WSExecutionStartedMessage
   | WSExecutionStatusMessage
   | WSBriefingMessage
+  | WSPlanUpdateMessage
+  | WSTemporalContextChangeMessage
+  | WSAskUserMessage
 ```
 
-### Message Flow Sequence
+The frontend union is the authoritative consumer-facing list and includes `WSPlanUpdateMessage`, `WSTemporalContextChangeMessage`, `WSAgentTransitionMessage`, and `WSAskUserMessage` as first-class members.
+
+---
+
+## Message Flow Diagrams
+
+### New Chat Message
 
 ```
-Client                          Server
-  |                               |
-  |-------- chat --------------->|  create execution, send execution_started
-  |<------- thinking ------------|
-  |                               |
-  |<------- planning ------------|  (optional, if agent creates a plan)
-  |                               |
-  |<------- tool_call -----------|  agent invokes a tool
-  |<------- tool_result ---------|  tool completes
-  |                               |
-  |<------- subagent ------------|  (optional, delegate to specialist)
-  |<------- token_batch ---------|  specialist streams response
-  |<------- subagent_result -----|  specialist completes
-  |<------- content_reset -------|
-  |                               |
-  |<------- token_batch ---------|  main agent synthesis
-  |<------- briefing_update -----|  (optional, if specialists updated briefing)
-  |                               |
-  |<------- agent_complete ------|  main agent done
-  |<------- execution_status ----|  status = "completed"
-  |<------- complete ------------|  terminal event with token_usage
-  |                               |
-  |<------- ping ----------------|  (periodic, every 20s during execution)
-  |-------- pong --------------->|
+Client                                    Server
+  |                                          |
+  |--- chat {message, execution_mode} ------>|
+  |                                          |-- validate & create session
+  |<-- execution_started {execution_id} -----|
+  |<-- thinking -----------------------------|
+  |<-- token {content: "Hello"} -------------|
+  |<-- token_batch {tokens: " world"} -------|
+  |<-- tool_call {tool: "list_projects"} ----|
+  |<-- tool_result {tool, result} ----------|
+  |<-- token {content: "Found 3 projects"} --|
+  |<-- complete {session_id, message_id} ----|
 ```
 
-### Reconnection Flow
+### Reconnection Mid-Execution
 
 ```
-Client                          Server
-  |                               |
-  |--- WebSocket disconnected ---|
-  |                               |  execution continues in background
-  |                               |  events buffered in AgentEventBus
-  |                               |
-  |--- WebSocket reconnected --->|
-  |                               |
-  |-------- subscribe ---------->|  execution_id + last_seen_sequence
-  |<------- replay events -------|  all events since last_seen_sequence
-  |<------- live events ---------|  resume real-time forwarding
+Client                                    Server
+  |                                          |
+  |--- subscribe {execution_id, seq: 42} --->|
+  |                                          |-- replay missed events
+  |<-- [replayed events since seq 42] -------|
+  |<-- [live events continue] ---------------|
 ```
+
+### Approval Workflow
+
+```
+Client                                    Server
+  |                                          |
+  |<-- approval_request {tool, args} --------|
+  |                                          |-- 60s middleware poll begins
+  |<-- polling_heartbeat {remaining} --------|
+  |<-- polling_heartbeat {remaining} --------|
+  |--- approval_response {approved: true} -->|
+  |                                          |-- tool executes
+  |<-- tool_result --------------------------|
+```
+
+---
+
+## Development Patterns
+
+### Adding a New Message Type
+
+1. **Backend schema**: Add a Pydantic model in `backend/app/models/schemas/ai.py` and add it to the `WSMessage` union (for closed-set messages), OR publish it as an `AgentEvent` payload (for event-bus-only messages adapted by the forwarder).
+2. **Frontend type**: Add an interface in `frontend/src/features/ai/chat/types.ts` and add it to the `WSServerMessage` union.
+3. **Type guard**: Add an `is*Message()` function.
+4. **Backend publish**: Call `bus.publish(AgentEvent(event_type="...", data=...))` in agent execution.
+5. **Frontend handler**: Add a routing case in `handleMessage` in `useStreamingChat.ts`.
+
+### Testing WebSocket Features
+
+**Frontend unit tests**: `frontend/src/features/ai/chat/api/__tests__/useStreamingChat.test.tsx`
+
+- Mock `WebSocket` class, `useAuthStore`, `useTimeMachineStore`
+- Use `connectViaSendMessage` helper for the lazy connection pattern
+- Mock `sessionStorage` for sequence persistence tests
+- Use `vi.useFakeTimers()` for timeout-related tests
+
+---
+
+## Common Pitfalls
+
+1. **Forgetting `execution_mode`**: `sendMessage` requires `executionMode` as an argument. Without it, the hook errors immediately.
+
+2. **React Strict Mode double-mount**: The hook guards against this with `isFirstMountRef`. When testing, account for the fact that the first mount is "consumed" — a second render won't create a second connection.
+
+3. **Sequence persistence across navigation**: Without sessionStorage persistence, remounting the chat component sends `last_seen_sequence=0`, causing full event replay and duplicate content.
+
+4. **`recentlyCompletedRef` race**: After completion, the `activeExecutionId` effect might try to close the connection before follow-up messages can be sent. The 5-second guard prevents this.
+
+5. **WebSocket close code 1008 vs 4008**: 1008 means permanent auth failure (don't reconnect). 4008 means token expired (refresh and reconnect). The frontend handles these differently.
+
+6. **Two approval timeouts**: `InterruptNode.expires_at` (5 min, client-facing) and `settings.AI_APPROVAL_TIMEOUT_SECONDS` (60s, middleware poll). The 60s value governs actual cancellation.
+
+---
+
+## Source Files
+
+| Component | Backend | Frontend |
+|-----------|---------|----------|
+| WS Endpoint | `app/api/routes/ai_chat.py` | -- |
+| WS Hook | -- | `features/ai/chat/api/useStreamingChat.ts` |
+| Message Types | `app/models/schemas/ai.py` (626-1087) | `features/ai/chat/types.ts` |
+| Event Bus | `app/ai/execution/agent_event_bus.py` | -- |
+| Agent Service | `app/ai/agent_service.py` | -- |
+| Agent Config | `app/services/ai_config_service.py` (`AIConfigService`) | -- |
+| Risk Gating | `app/ai/middleware/backcast_security.py`, `app/ai/tools/__init__.py` | -- |
+| Approval / Interrupt | `app/ai/tools/interrupt_node.py` | -- |
+| Upload | `app/api/routes/ai_upload.py` | `features/ai/chat/api/attachmentUpload.ts` |
+| Frontend Tests | -- | `features/ai/chat/api/__tests__/useStreamingChat.test.tsx` |

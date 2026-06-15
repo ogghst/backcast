@@ -148,12 +148,14 @@ class AIAssistantConfig(SimpleEntityBase):
     supervisor_prompt: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        comment="Custom supervisor prompt template for main agents. Supports {specialist_section} placeholder.",
+        comment="Custom supervisor prompt template for main agents. Supports {specialist_section} and {plan_section} placeholders.",
     )
     temperature: Mapped[float | None] = mapped_column(Float(3), nullable=True)
     max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # LangGraph recursion limit (maximum steps in agent execution loop)
     recursion_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Maximum supervisor delegation cycles per request (main agent only)
+    max_supervisor_iterations: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     default_role: Mapped[str | None] = mapped_column(
         String(50),

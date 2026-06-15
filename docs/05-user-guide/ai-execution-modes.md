@@ -418,7 +418,7 @@ A: No, each high-risk tool requires individual approval. This ensures you review
 
 ## Related Documentation
 
-- [API Documentation: AI Tools](/docs/02-architecture/backend/api/ai-tools.md)
+- [AI Tools: execution modes & risk levels](/docs/02-architecture/backend/contexts/ai/message-types.md)
 - [AI Chat User Guide](/docs/05-user-guide/ai-chat-user-guide.md)
 - [Change Order Workflow Guide](/docs/05-user-guide/change-order-workflow-guide.md)
 

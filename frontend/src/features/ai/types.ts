@@ -93,6 +93,7 @@ export interface AIAssistantPublic {
   temperature: number | null;
   max_tokens: number | null;
   recursion_limit: number | null;
+  max_supervisor_iterations: number | null;
   default_role: string | null;
   is_active: boolean;
   agent_type: "main" | "specialist";
@@ -114,6 +115,7 @@ export interface AIAssistantCreate {
   temperature?: number | null;
   max_tokens?: number | null;
   recursion_limit?: number | null;
+  max_supervisor_iterations?: number | null;
   default_role?: string | null;
   is_active?: boolean;
   agent_type?: "main" | "specialist";
@@ -133,6 +135,7 @@ export interface AIAssistantUpdate {
   temperature?: number | null;
   max_tokens?: number | null;
   recursion_limit?: number | null;
+  max_supervisor_iterations?: number | null;
   default_role?: string | null;
   is_active?: boolean;
   agent_type?: "main" | "specialist";
@@ -140,6 +143,7 @@ export interface AIAssistantUpdate {
   delegation_config?: DelegationConfig | null;
   structured_output_schema?: string | null;
 }
+
 
 /**
  * Provider Type Options
@@ -251,6 +255,27 @@ export interface AIConversationSessionPublic {
   active_execution: AgentExecutionPublic | null;
   briefing_markdown?: string | null;
   briefing_specialists?: string[];
+  briefing_data?: {
+    original_request: string;
+    follow_up_requests: string[];
+    sections: Array<{
+      specialist_name: string;
+      findings: string;
+      task_description?: string | null;
+      supervisor_rationale?: string | null;
+      key_findings?: string[] | null;
+      open_questions?: string[] | null;
+      delegation_notes?: string | null;
+      step_index?: number | null;
+    }>;
+    supervisor_analysis?: string | null;
+    task_history?: Array<{
+      specialist: string;
+      description: string;
+      rationale?: string | null;
+    }>;
+    plan?: unknown[] | null;
+  } | null;
   plan_data?: {
     original_request: string;
     steps: Array<{

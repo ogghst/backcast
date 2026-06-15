@@ -51,6 +51,14 @@ class BackcastSupervisorState(TypedDict):
             state so that the specialist wrapper can publish chat events
             (SUBAGENT, token_batch, AGENT_COMPLETE) with a single
             consistent identifier.
+        replan_count: Number of replan cycles completed. Set explicitly
+            by the replan tool (current + 1). NOT a reducer to avoid
+            spurious increments on every graph transition.
+        max_replan_count: Hard cap on replan cycles. Default 2, set at
+            graph creation time.
+        replan_context: Supervisor's reason string consumed by the
+            planner on replan. Overwritten each time (last writer wins).
+            Cleared after the planner processes it.
     """
 
     messages: Annotated[list[BaseMessage], operator.add]
@@ -65,6 +73,9 @@ class BackcastSupervisorState(TypedDict):
     completed_steps: Annotated[set[int], operator.or_]
     current_step_index: int
     current_invocation_id: str
+    replan_count: int
+    max_replan_count: int
+    replan_context: str
 
 
 __all__ = ["BackcastSupervisorState"]

@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -27,6 +28,10 @@ def setup_logging() -> None:
 
     # Format
     formatter = logging.Formatter(settings.LOG_FORMAT)
+    # Emit timestamps in UTC so app.log lines match ai_agent_executions.started_at
+    # (stored as DateTime(timezone=True) via func.now()). Avoids the local-time
+    # vs UTC offset friction when correlating UI actions -> logs -> DB rows (G6).
+    formatter.converter = time.gmtime
 
     # Stream Handler (Console)
     stream_handler = logging.StreamHandler(sys.stdout)

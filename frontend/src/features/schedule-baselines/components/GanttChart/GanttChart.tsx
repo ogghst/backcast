@@ -121,7 +121,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const handleEvents = useMemo(() => ({
     click: (params: ChartClickParams) => {
       if (!params.data || params.data.length !== 4) return;
-      const row = params.data[3];
+      const row = params.data[3] as GanttRow;
       if (!row.isWbe && row.costElementId) {
         navigate(`/cost-elements/${row.costElementId}`);
       }

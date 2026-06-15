@@ -123,6 +123,7 @@ def _enrich_session_briefing(
     doc = BriefingDocument.from_state(session.briefing_data)
     session_public.briefing_markdown = doc.to_markdown()
     session_public.briefing_specialists = [sec.specialist_name for sec in doc.sections]
+    session_public.briefing_data = session.briefing_data
 
 
 async def _enrich_session_resume_metadata(

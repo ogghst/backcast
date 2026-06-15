@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-05-24
-**Total Open Items:** 14
-**Total Estimated Effort:** ~13.5 days
+**Last Updated:** 2026-06-13
+**Total Open Items:** 8
+**Total Estimated Effort:** ~8.5 days
 
 ---
 
@@ -230,16 +230,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-117] Agent Service Unit Tests Use Stale `_run_agent_graph` Signature
+### [TD-117] ~~Agent Service Unit Tests Use Stale `_run_agent_graph` Signature~~
 
-- **Source:** Test suite run (2026-05-24) — 7 FAILED results in `tests/unit/services/test_agent_service.py`
-- **Description:** Tests call `AgentService._run_agent_graph(message=...)` but the method no longer accepts a `message` keyword argument — it was changed during the recent briefing/streaming refactor. All 7 tests fail with `TypeError: AgentService._run_agent_graph() got an unexpected keyword argument 'message'`.
-- **Impact:** All agent service unit tests are broken, preventing regression testing for event publishing, metrics, and error handling
-- **Estimated Effort:** 1 hour
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P1 (High)
-- **Suggested Approach:** Read current `_run_agent_graph()` signature and update all 7 test calls to match. Likely the param was renamed or absorbed into a params dataclass.
+- **Status:** ✅ Resolved (2026-06-13) — No longer reproducible. `_run_agent_graph` now takes a single `params: GraphExecutionParams` argument (grouped-params refactor, see TD-087), and the stale `tests/unit/services/test_agent_service.py` no longer exists. Verified: full backend suite (776 tests) has 0 agent-service failures.
 
 ---
 
@@ -256,70 +249,46 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-114] Performance Tests Missing Async Event Loop Fixture
+### [TD-114] ~~Performance Tests Missing Async Event Loop Fixture~~
 
-- **Source:** Test suite run (2026-05-24) — 5 FAILED results in `tests/performance/`
-- **Description:** Performance tests (`test_risk_check_overhead.py`, `test_tool_performance.py`) fail with `RuntimeError: no running event loop`. The tests use scoped sessions (`scoped_session`) that require an active asyncio event loop, but the test functions are not marked `async` or lack proper `@pytest.mark.asyncio` setup.
-- **Impact:** All performance benchmark tests are broken, preventing regression detection for tool execution and RBAC overhead
-- **Estimated Effort:** 4 hours
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P3 (Medium)
-- **Suggested Approach:** Add `@pytest.mark.asyncio` to test functions, or refactor to use sync wrappers that create their own event loop. Ensure benchmark fixtures work with async test functions.
+- **Status:** ✅ Closed — Not Applicable (2026-06-13). The referenced `tests/performance/` files (`test_risk_check_overhead.py`, `test_tool_performance.py`) do not exist in `main` — they live only in the unmerged `e05-u07-quality-events` worktree and were never merged. `main` has no `tests/performance/` directory; the entry was written against unmerged code.
 
 ---
 
 ### [TD-115] RBAC Singleton State Leaks Between Test Classes
 
 - **Source:** Test suite run (2026-05-24) — `test_rbac_unified.py::TestSingleton::test_get_unified_rbac_service_creates_singleton`
-- **Description:** The test passes in isolation but fails when run as part of the full suite. `get_unified_rbac_service()` returns a singleton whose state (permission cache, role assignments) persists across test classes. When a prior test modifies the singleton's cache, the singleton test observes stale state.
-- **Impact:** Flaky test failure; reduced confidence in RBAC test results; singleton pattern makes unit testing unreliable
+- **Description:** *(Re-verified 2026-06-13 — latent, not an active failure.)* The `get_unified_rbac_service()` singleton in `app/core/rbac_unified.py` holds mutable caches (`_permissions_cache`, `_assignment_cache`) with no reset method, and no autouse fixture clears them between tests. However, the originally-cited failing test (`test_rbac_unified.py::TestSingleton::...`) does not exist in `main`, and the full backend suite (776 tests) shows **0 RBAC singleton failures**. Reclassified as preventive hardening, not a broken test.
+- **Impact:** Latent test-isolation risk if future tests mutate the singleton cache; no current breakage
 - **Estimated Effort:** 2 hours
-- **Status:** Open
+- **Status:** Open (preventive)
 - **Owner:** Backend Developer
 - **Priority:** P3 (Medium)
 - **Suggested Approach:** Add a `reset()` or `_clear_cache()` method to `UnifiedRBACService` and call it in a `@pytest.fixture(autouse=True)` or `setUp` in affected test classes. Alternatively, patch `_instance = None` in the module between tests.
 
 ---
 
-### [TD-118] WBE Test Assertion Doesn't Handle TSTZRANGE Format
+### [TD-118] ~~WBE Test Assertion Doesn't Handle TSTZRANGE Format~~
 
-- **Source:** Test suite run (2026-05-24) — `tests/api/routes/wbes/test_wbes.py::test_create_wbe_with_control_date`
-- **Description:** Test asserts `data["valid_time"].startswith(control_date[:10])` but the API now returns `valid_time` as a PostgreSQL TSTZRANGE string like `'["2026-03-03T10:00:00+00:00",)'` which starts with `[`, not the date. The assertion fails because the response format changed to include the range wrapper.
-- **Impact:** False test failure masks actual WBE creation correctness
-- **Estimated Effort:** 15 minutes
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P2 (Medium)
-- **Suggested Approach:** Update assertion to extract the date from the TSTZRANGE string, e.g. `assert control_date[:10] in data["valid_time"]`, or parse the JSON range before asserting.
+- **Status:** ✅ Resolved (2026-06-13) — No longer reproducible. The referenced test/assertion does not exist in `main`, and the API now exposes `valid_time_formatted` (a structured dict via `TemporalComputedMixin`) instead of a raw TSTZRANGE string. Verified: full backend suite has 0 WBE `valid_time` failures.
 
 ---
 
-### [TD-119] Performance Tests Fail on Environment-Dependent Thresholds
+### [TD-119] ~~Performance Tests Fail on Environment-Dependent Thresholds~~
 
-- **Source:** Test suite run (2026-05-24) — 12 FAILED results across `tests/performance/`
-- **Description:** Performance benchmark tests (agent latency, streaming throughput, tool execution p50/p99, EVM calculation, merge, risk check overhead) fail against fixed thresholds. Results are sensitive to machine load, CI runner specs, and whether a live LLM endpoint is available. The AI performance tests additionally require a configured LLM and fail without one.
-- **Impact:** Performance regression detection is non-functional; tests are noisy in CI
-- **Estimated Effort:** 2 hours
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P3 (Low)
-- **Suggested Approach:** Widen thresholds with generous margins for CI variance. Mark AI-dependent performance tests as `@pytest.mark.skipif` when no LLM endpoint is configured. Consider converting strict assertions to warnings or using `@pytest.mark.xfail(strict=False)` for inherently flaky benchmarks.
+- **Status:** ✅ Closed — Not Applicable (2026-06-13). Same as TD-114: the `tests/performance/` files with the hardcoded thresholds exist only in the unmerged `e05-u07-quality-events` worktree, not in `main`. No performance-threshold tests run in the `main` suite.
 
 ---
 
-### [TD-120] AI Security & Concurrency Tests Require Live LLM Endpoint
+### [TD-120] ~~AI Security & Concurrency Tests Require Live LLM Endpoint~~
 
-- **Source:** Test suite run (2026-05-24) — 3 FAILED results in `tests/integration/ai/test_temporal_security.py` (2) and `tests/integration/ai/tools/test_concurrent_tool_execution.py` (1)
-- **Description:** Prompt injection resistance tests and concurrent tool execution tests depend on a live LLM endpoint to validate behavior. Without one, these integration tests fail. The temporal security tests verify that the AI cannot bypass `as_of` and `branch_mode` constraints via prompt injection.
-- **Impact:** AI security regression tests are non-functional without LLM; prompt injection vulnerabilities could go undetected
-- **Estimated Effort:** 1 hour
-- **Status:** Open
-- **Owner:** Backend Developer
-- **Priority:** P3 (Medium)
-- **Suggested Approach:** Add `@pytest.mark.skipif` guards that check for a configured LLM endpoint. Ensure these tests run in CI with a test LLM provider, or add mock-based alternatives for core assertion logic.
+- **Status:** ✅ Closed — Not Applicable / Incorrect (2026-06-13). The referenced files (`tests/integration/ai/test_temporal_security.py`, `tests/integration/ai/tools/test_concurrent_tool_execution.py`) do not exist in `main` — only in the unmerged `e05-u07-quality-events` worktree. Additionally, the original description was factually wrong: those worktree tests use `AsyncMock`/DB sessions, not a live LLM endpoint, so they would not require an LLM even if present.
 
 ---
+
+### [TD-121] ~~Plan Step Status Markers — Incomplete Format Migration~~
+
+- **Status:** ✅ Resolved (2026-06-13) — Found during test-suite reconciliation. Commit `ee21ce5f` (2026-06-12) changed `PlanDocument.to_prompt_text()` step markers from checkbox (`[ ]`/`[~]`/`[x]`/`[-]`/`[!]`/`[?]`) to word format (`[pending]`/`[in progress]`/`[completed]`/`[skipped]`/`[failed]`/`[unknown]`), but left two consumers on the old format: the replanner prompt template (`planner.py`) instructing the LLM to match `[x]`/`[ ]`, and 3 unit tests in `test_plan_execute.py`. This silently broke replanning (the LLM couldn't match step states) and failed 3 tests. Fix: completed the migration — updated the replanner prompt wording and the 3 test assertions to the word format (decision: keep the word format, the intended "improvement"). Verified: 68 plan/replan tests green.
 
 ---
 
@@ -327,10 +296,9 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 3 | ~2 days |
-| Medium (P2-P3) | 10 | ~10 days |
-| Low (P4+) | 1 | ~5 hours |
-| **Total** | **14** | **~12 days** |
+| High (P0-P1) | 3 | ~5 days |
+| Medium (P2-P3) | 5 | ~3.5 days |
+| **Total** | **8** | **~8.5 days** |
 
 ---
 

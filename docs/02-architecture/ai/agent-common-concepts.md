@@ -1,9 +1,9 @@
 # Agent System: Common Concepts
 
-How the Backcast AI agent system turns a user message into a response: prompt composition, tool filtering, security middleware, event streaming, and the DB-configurable specialist roster.
+How the Backcast AI agent system turns a user message into a response: prompt composition, the bounded plan-execute planner, tool filtering, security middleware, event streaming, and the DB-configurable specialist roster.
 
 > **Related Documentation:**
-> - [Supervisor Orchestrator](./supervisor-orchestrator.md) — Handoff-based delegation with compiled briefing documents and direct tool access
+> - [Supervisor Orchestrator](./supervisor-orchestrator.md) — Handoff-based delegation with compiled briefing documents, direct tool access, and the bounded planner
 > - ~~[Deep Agent Orchestrator](./deep-agent-orchestrator.md)~~ — Removed. Supervisor is the sole orchestrator.
 
 ---
@@ -17,8 +17,9 @@ How the Backcast AI agent system turns a user message into a response: prompt co
 5. [Subagent Roster](#5-subagent-roster)
 6. [Security Middleware Stack](#6-security-middleware-stack)
 7. [Event Bus & Streaming](#7-event-bus--streaming)
-8. [AgentConfig](#8-agentconfig)
-9. [Key Files Reference](#9-key-files-reference)
+8. [Data Model](#8-data-model)
+9. [AgentConfig](#9-agentconfig)
+10. [Key Files Reference](#10-key-files-reference)
 
 ---
 
@@ -61,7 +62,7 @@ flowchart LR
    - Creates the supervisor agent graph via `SupervisorOrchestrator`, passing the main agent's DB config for specialist loading and direct tool injection.
    - Runs `graph.astream_events()` and publishes events to the `AgentEventBus`.
 
-   > **Orchestrator** is always the `SupervisorOrchestrator`. See [Supervisor Orchestrator](./supervisor-orchestrator.md) for the architecture details.
+   > **Orchestrator** is always the `SupervisorOrchestrator`. It wires a bounded plan-execute pipeline (see [Supervisor Orchestrator > The Planner Node](./supervisor-orchestrator.md#4-the-planner-node)). See [Supervisor Orchestrator](./supervisor-orchestrator.md) for the architecture details.
 
 6. **The WebSocket handler** subscribes to the event bus and forwards events to the browser.
 
@@ -88,6 +89,7 @@ When a session is scoped to a context, a context section is appended. The system
 - **Project**: `"This conversation is about the project: {name}. Context is scoped to this project (ID: {id}). Project scope is locked for this session."`
 - **WBE**: Scoped to a specific Work Breakdown Element.
 - **Cost Element**: Scoped to a specific Cost Element.
+- **Work Package**: Scoped to a specific Work Package (added in the QualityImpact/WorkPackage refactor; handled by `agent_service.py` alongside the other context types).
 - **Branch**: When operating on a non-main branch: `"You are operating in branch '{branch_name}' (mode: {branch_mode}). Changes are isolated from main until merged."`
 - **Historical (as_of)**: `"You are viewing historical data as of {date}. Historical views are read-only."`
 
@@ -95,7 +97,7 @@ When a session is scoped to a context, a context section is appended. The system
 
 ### Layer 3: Orchestrator-Specific
 
-See [Supervisor > System Prompt](./supervisor-orchestrator.md#4-supervisor-system-prompt).
+See [Supervisor Node and System Prompt](./supervisor-orchestrator.md#5-the-supervisor-node-and-system-prompt).
 
 ---
 
@@ -126,7 +128,21 @@ The `Annotated[..., operator.add]` annotations mean `messages` and `tool_call_co
    - `role == "tool"` → **skipped** (tool messages from previous turns are not replayed)
 3. For user messages with image attachments, content is formatted as content blocks (`[{"type": "text", ...}, {"type": "image_url", ...}]`) via `format_multimodal_messages()`.
 
-There is **no token-based truncation or summarization** — the full conversation history is loaded every turn. Long sessions rely on the LLM's native context window.
+### Context Trimming & Summarization (ContextGuardMiddleware)
+
+Conversation history is **not** loaded unbounded into every turn. `ContextGuardMiddleware` (`ai/middleware/context_guard.py`) runs before each supervisor model call and trims/summarizes the message list when it grows too large:
+
+1. **Estimate** prompt tokens from message content lengths (`_estimate_tokens`, ~4 chars/token, system prompt excluded).
+2. **Threshold check**: if the estimate exceeds `AI_CONTEXT_TOKEN_LIMIT * AI_CONTEXT_SUMMARY_THRESHOLD_PCT // 100`, the guard trims (`context_guard.py` ~226-293).
+3. **Trim strategy** (no extra LLM call — deterministic):
+   - Keep `messages[0]` (the system prompt).
+   - Keep the last `AI_CONTEXT_KEEP_RECENT` messages for continuity (`_tool_aware_tail_start` keeps call/response pairs intact).
+   - Replace everything in between with a single `HumanMessage` built from the already-compiled `BriefingDocument` (`_build_summary_message`, ~216-227). The briefing already serves as a structured summary of all specialist work, so no lossy secondary LLM summarization is needed.
+4. **Repair** the message chain (`_repair_chain`) so tool-response / tool-call invariants still hold after trimming.
+
+The three knobs (`AI_CONTEXT_TOKEN_LIMIT`, `AI_CONTEXT_SUMMARY_THRESHOLD_PCT`, `AI_CONTEXT_KEEP_RECENT`) flow from `Settings`/`.env` and are re-exported from `ai/config.py` (~51-57). A `_MIN_MESSAGES_TO_TRIM` floor (~8 messages) prevents false positives on early turns where tool schemas dominate the token estimate.
+
+> Specialists are unaffected: each specialist receives an isolated message list built fresh on every invocation, so it never accumulates long history.
 
 ### Graph Input Assembly
 
@@ -149,7 +165,7 @@ Each time the agent node fires, the LLM API call contains three things:
 
 1. **System prompt** — The composed prompt from Section 2 (base + context + orchestrator-specific).
 2. **Tool definitions** — The filtered tool list as JSON Schema function declarations.
-3. **Message history** — The full `messages` list from state, which grows over the turn as tool calls and results are appended.
+3. **Message history** — The `messages` list from state, which grows over the turn as tool calls and results are appended (and is trimmed by `ContextGuardMiddleware` when it approaches the token limit).
 
 ```
 ┌─ LLM API Call ───────────────────────────────────────────────────────────┐
@@ -193,6 +209,7 @@ _build_conversation_history()
         │
         ▼
 ┌─ Agent Node ────────────────────────────────────────┐
+│  ContextGuardMiddleware trims if tokens > threshold │
 │  LLM receives: system prompt + messages + tools     │
 │  LLM responds: AIMessage (text or tool_calls)       │
 │  State update: messages += [AIMessage]               │
@@ -245,22 +262,33 @@ On the next turn, `_build_conversation_history()` loads user and assistant messa
 
 ### Tool Creation
 
-All tools are created via `create_project_tools(tool_context)` in `tools/__init__.py`. This function:
+All runtime tools are built by `create_project_tools(tool_context)` in `tools/__init__.py` (~136-333). This is the list the agent actually executes. It collects tools from the template packages and standalone tool modules:
 
-1. Collects tools from 10 template packages:
-   - `project_tools` (3): `list_projects`, `get_project`, `global_search`
-   - `context_tools` + `temporal_tools` (3): `get_temporal_context`, `get_project_context`, `get_project_structure`
-   - `crud_template` (6): Project and WBE CRUD operations
-   - `analysis_template` (8): EVM and forecasting tools
-   - `change_order_template` (8): Full change order workflow
-   - `cost_element_template` (13): Cost elements, types, and schedule baselines
-   - `user_management_template` (10): User and department CRUD
-   - `advanced_analysis_template` (4): Health assessment and anomaly detection
-   - `diagram_template` (1): Mermaid diagram generation
-   - `forecast_cost_progress_template` (18): Forecasts, cost registrations, progress entries
-2. Each tool is decorated with `@ai_tool` which attaches metadata: name, description, risk level (`LOW`, `HIGH`, `CRITICAL`).
-3. Results are cached as a singleton — tools are created once.
-4. **Total: 74 tools**.
+- `project_tools` (read/search: `list_projects`, `get_project`, `global_search`)
+- `project_template` (Project + WBS Element CRUD)
+- `cost_element_template` (Cost Element + Cost Element Type CRUD)
+- `cost_event_template` (Cost Event CRUD + COQ)
+- `cost_event_type_template` (Cost Event Type CRUD)
+- `control_account_template` (Control Account CRUD + budget)
+- `work_package_template` (Work Package CRUD + budget status)
+- `forecast_cost_progress_template` (Forecasts, cost registrations, progress entries)
+- `change_order_template` (full change order workflow)
+- `analysis_template` + `advanced_analysis_template` (EVM, health, forecasting)
+- `user_management_template` (Users + Organizational Units CRUD)
+- `diagram_template` (Mermaid diagram generation)
+- `context_tools` + `temporal_tools` (temporal/project context, branches)
+- `briefing_tools` (`get_briefing`)
+- `document_tools` (`search_documents`, `read_document`)
+- `ask_user` (human-in-the-loop question)
+
+Each tool is decorated with `@ai_tool` which attaches metadata: name, description, risk level (`LOW`, `HIGH`, `CRITICAL`). Results are cached as a singleton — tools are created once. At the tail, MCP tools discovered from configured external servers are appended (`MCPClientManager.get_all_tools()`).
+
+### Two distinct tool counts
+
+There are **two** distinct counts worth distinguishing — do not collapse them into one bare number:
+
+1. **Runtime tools** built by `create_project_tools()` (`tools/__init__.py:136-333`): the list the agent executes. With the current template set this is **92 tools** (the backcast-defined tools; MCP-discovered tools are appended on top when MCP servers are configured).
+2. **Registry-discovered tools** (~**92**) surfaced by the `GET /api/v1/ai/config/tools` endpoint (`ai_config.py` ~384-416). The endpoint calls `registry.discover_and_register(...)` across the same template modules (`registry.py` ~111) and returns `get_all_tools()` as `AIToolPublic` for the admin UI. The two counts are derived from the same template set, so they agree today; they are conceptually independent (one is the executable tool list, the other is the metadata catalog).
 
 ### Filtering Chain
 
@@ -268,7 +296,7 @@ Tools go through four filtering stages before reaching the LLM:
 
 ```mermaid
 flowchart TD
-    All["All Tools (74)"]
+    All["All Tools"]
     All --> AT["Allowed tools whitelist\n(if configured)"]
     AT --> EM["filter_tools_by_execution_mode()"]
     EM --> SAFE["SAFE mode:\nonly LOW risk tools"]
@@ -302,24 +330,25 @@ Tools without `_tool_metadata` or with empty permissions always pass through (e.
 
 ---
 
-## 5. Specialist Roster
+## 5. Subagent Roster
 
-Eight DB-configurable specialists (stored in `ai_assistant_configs` with `agent_type='specialist'`), each mapped to a domain. Hardcoded definitions in `ai/subagents/__init__.py` serve as fallback when the database is empty.
+Specialists are **DB-only**: they are stored in `ai_assistant_configs` with `agent_type='specialist'` and seeded from `backend/seed/seed_system_config.json`. Each is mapped to a domain. There is **no hardcoded specialist fallback** — `ai/subagents/__init__.py` only re-exports `load_specialists_from_db` and `invalidate_cache` from `db_loader.py`; if the DB returns no specialist rows, `load_specialists_from_db()` returns an empty list (`db_loader.py` ~74-105) and no specialists are compiled.
 
-| Specialist | Domain | Allowed Tools | Structured Output |
-|----------|--------|--------------|-------------------|
-| `project_manager` | Projects, WBEs, cost elements, cost tracking, progress entries | 36 | None |
-| `evm_analyst` | EVM metrics (CPI, SPI, CV, SV, EAC) and health analysis | 10 | `EVMMetricsRead` |
-| `change_order_manager` | Change order CRUD, approval workflows, impact analysis | 10 | `ImpactAnalysisResponse` |
-| `user_admin` | Users and departments CRUD | 12 | None |
-| `visualization_specialist` | Mermaid diagram generation | 3 | None |
-| `forecast_manager` | Forecasts, schedule baselines, trend analysis | 13 | `ForecastRead` |
-| `mcp_specialist` | MCP server tools | all | None |
-| `general_purpose` | Fallback for tasks that don't fit a specialist | all | None |
+| Specialist | Domain | Structured Output |
+|----------|--------|-------------------|
+| `project_manager` | Projects, WBEs, cost elements, cost tracking, progress entries | None |
+| `evm_analyst` | EVM metrics (CPI, SPI, CV, SV, EAC) and health analysis | `EVMMetricsRead` |
+| `change_order_manager` | Change order CRUD, approval workflows, impact analysis | `ImpactAnalysisResponse` |
+| `user_admin` | Users and departments CRUD | None |
+| `visualization_specialist` | Mermaid diagram generation | None |
+| `forecast_manager` | Forecasts, schedule baselines, trend analysis | `ForecastRead` |
+| `general_purpose` | Fallback for tasks that don't fit a specialist | None |
+
+Specialist `allowed_tools` whitelists are configured per row in the DB.
 
 ### Main Agents
 
-Three DB-configurable main agents (stored in `ai_assistant_configs` with `agent_type='main'`). Only main agents appear in the chat assistant selector.
+Main agents are stored in `ai_assistant_configs` with `agent_type='main'`. Only main agents appear in the chat assistant selector.
 
 | Main Agent | Default Role | Direct Tools |
 |-----------|-------------|-------------|
@@ -340,7 +369,7 @@ Subagents with `structured_output_schema` produce validated Pydantic model outpu
 
 ### Specialist Compilation
 
-Specialist configs are loaded from the database via `ai/subagents/db_loader.py` (`load_specialists_from_db()`) with a 5-minute TTL cache. The DB rows are converted to the dict schema (`name`, `description`, `system_prompt`, `allowed_tools`, `structured_output_schema`) expected by `compile_subagents()`. Hardcoded definitions in `ai/subagents/__init__.py` serve as fallback.
+Specialist configs are loaded from the database via `ai/subagents/db_loader.py` (`load_specialists_from_db()`) with a 5-minute TTL cache. The DB rows are converted to the dict schema (`name`, `description`, `system_prompt`, `allowed_tools`, `structured_output_schema`) expected by `compile_subagents()`.
 
 Compilation applies the same process:
 1. Filter tools by specialist's `allowed_tools` list (or use all available tools when `None`).
@@ -352,7 +381,7 @@ Compilation applies the same process:
 
 ## 6. Security Middleware Stack
 
-Both orchestrator patterns apply the same middleware stack to all agents (main, subagents, specialists):
+The supervisor orchestrator applies the same middleware stack to all agents (main, subagents, specialists):
 
 ```mermaid
 flowchart TD
@@ -379,9 +408,11 @@ flowchart TD
     INC --> MW1 --> MW2 --> EXEC
 ```
 
+> The supervisor node additionally runs `ContextGuardMiddleware` (history trimming, see Section 3) and `PlanAwareToolMiddleware` before the base stack. See [Supervisor > The Supervisor Node](./supervisor-orchestrator.md#5-the-supervisor-node-and-system-prompt).
+
 ### Bypass Rules
 
-- Tools NOT in the Backcast tool list (e.g., `task`, `handoff_to_*`, `write_todos`) bypass the security middleware entirely.
+- Tools NOT in the Backcast tool list (e.g., `task`, `handoff_to_*`, `write_todos`, `request_replan`) bypass the security middleware entirely.
 - The `task` tool is allowed through because it's an orchestration tool — security is applied within the subagent it spawns.
 
 ### Context Variables
@@ -410,21 +441,30 @@ flowchart TD
 
 ### Event Types
 
-| Event | When Published | Frontend Effect |
+Events are typed by the `AgentEventType` enum (`ai/event_types.py` ~11-27). These are the bus event types published via `AgentEventBus.publish()`:
+
+| `AgentEventType` member | When Published | Frontend Effect |
 |-------|---------------|-----------------|
-| `thinking` | Agent starts processing | Shows spinner |
-| `planning` | TodoListMiddleware generates steps | Shows step list |
-| `subagent` | Main agent delegates to subagent | Shows "Delegating to X..." |
-| `agent_transition` | Specialist enters/exits (supervisor pattern) | Shows transition indicator |
-| `tool_call` | A tool starts executing | Shows tool name + args |
-| `tool_result` | A tool finishes | Shows result summary |
-| `subagent_result` | Subagent completes | Shows "X completed" |
-| `token_batch` | Accumulated tokens flushed | Appends to streaming text |
-| `content_reset` | Between subagent and main agent | Clears streaming area |
-| `complete` | Execution finished | Finalizes response |
-| `error` | Execution failed | Shows error |
-| `execution_status` | Status change (running→error) | Updates UI state |
-| `approval_request` | HIGH-risk tool needs approval | Shows approval dialog |
+| `THINKING` | Agent starts processing | Shows spinner |
+| `PLANNING` | Published when the `write_todos` tool runs (deep-agents built-in plan tool) | Shows step list |
+| `PLAN_UPDATE` | Planner produces/updates a `PlanDocument` (fresh, resume, or replan) | Updates the plan rail |
+| `SUBAGENT` | Main agent delegates to subagent | Shows "Delegating to X..." |
+| `AGENT_TRANSITION` | Specialist enters/exits (supervisor pattern) | Shows transition indicator |
+| `TOOL_CALL` | A tool starts executing | Shows tool name + args |
+| `TOOL_RESULT` | A tool finishes | Shows result summary |
+| `SUBAGENT_RESULT` | Subagent completes | Shows "X completed" |
+| `CONTENT_RESET` | Between subagent and main agent | Clears streaming area |
+| `BRIEFING_UPDATE` | Specialist findings added to the briefing | Updates the briefing rail |
+| `ASK_USER` | A specialist asks the user a question (`ask_user` tool) | Renders inline question UI |
+| `AGENT_COMPLETE` | An agent (main or specialist) finishes | Segment finalization |
+| `EXECUTION_STATUS` | Status change (running→error, etc.) | Updates UI state |
+| `COMPLETE` | Execution finished | Finalizes response |
+| `ERROR` | Execution failed | Shows error |
+
+Two things are commonly mistaken for bus event types but are **not** members of `AgentEventType`:
+
+- **`token_batch`** is a **WebSocket message type only** — it is the wire payload for accumulated streaming tokens (`WSTokenBatchMessage`), published to the socket directly, not an `AgentEventType` member.
+- **`approval_request`** is not a bus event type either. Approvals flow through the `InterruptNode` (`tools/interrupt_node.py`), which sends a `WSApprovalRequestMessage` to the browser and publishes an `AgentEvent` carrying the literal string `event_type="approval_request"` for late-subscriber replay — but `"approval_request"` is not in the `AgentEventType` enum.
 
 ### AgentEventBus
 
@@ -467,7 +507,26 @@ Tokens from the LLM are accumulated in a buffer and flushed in batches rather th
 
 ---
 
-## 8. AgentConfig
+## 8. Data Model
+
+AI entities use `SimpleEntityBase` (non-versioned, no EVCS). See `backend/app/models/domain/ai.py`.
+
+| Entity | Table | Description |
+|--------|-------|-------------|
+| `AIProvider` | `ai_providers` | Provider definitions (OpenAI, Azure, Ollama, DeepSeek) |
+| `AIProviderConfig` | `ai_provider_configs` | Key-value config for providers (API keys, base URLs, encrypted) |
+| `AIModel` | `ai_models` | Available models per provider |
+| `AIAssistantConfig` | `ai_assistant_configs` | Agent configuration: `agent_type` (main/specialist), model, system prompt, `delegation_config` (direct_tools, allowed_specialists), `allowed_tools`, `default_role`, `is_system` |
+| `AIConversationSession` | `ai_conversation_sessions` | Session with context (project, branch), `briefing_data` + `plan_data` JSONB, active execution ref |
+| `AIConversationMessage` | `ai_conversation_messages` | Messages with role (user/assistant/tool), token usage, metadata |
+| `AIConversationAttachment` | `ai_conversation_attachments` | File attachments with inline content (base64 for images, text for docs) |
+| `AIAgentExecution` | `ai_agent_executions` | Execution tracking (status, started_at, completed_at, execution_mode) |
+
+The compiled briefing document is persisted in `AIConversationSession.briefing_data` (JSONB, `models/domain/ai.py` ~237) after each execution completes (including error paths). The bounded plan is persisted in the sibling `plan_data` column.
+
+---
+
+## 9. AgentConfig
 
 `AgentConfig` is a frozen dataclass (in `ai/config.py`) that encapsulates agent creation parameters:
 
@@ -475,39 +534,46 @@ Tokens from the LLM are accumulated in a buffer and flushed in batches rather th
 @dataclass(frozen=True)
 class AgentConfig:
     allowed_tools: list[str] | None = None      # Tool name whitelist
-    subagents: list[dict[str, Any]] | None = None # Override default specialists (DB or hardcoded)
+    subagents: list[dict[str, Any]] | None = None # Override default specialists (DB-loaded)
     checkpointer: Any | None = None               # Shared checkpointer
     context_schema: type | None = None             # StateGraph context schema
     assistant_role: str | None = None              # RBAC role for assistant
     user_role: str | None = None                   # Per-user RBAC role
 ```
 
-The system always uses the supervisor orchestrator. The `use_supervisor` field and `OrchestratorMode` enum have been removed.
+The system always uses the supervisor orchestrator. The `OrchestratorMode` enum still exists (`StrEnum`, single member `SUPERVISOR`; `config.py` ~13-16); the deprecated `use_supervisor` *field* was removed, not the enum class.
 
 ---
 
-## 9. Key Files Reference
+## 10. Key Files Reference
 
 | File | Responsibility |
 |------|---------------|
 | `api/routes/ai_chat.py` | WebSocket endpoint, JWT auth, session creation, approval handling |
 | `ai/agent_service.py` | Orchestration: `_run_agent_graph()`, `_build_system_prompt()`, `_build_conversation_history()`, `start_execution()` |
-| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based specialist delegation with compiled briefing documents, direct tool support, DB specialist loading |
+| `ai/supervisor_orchestrator.py` | `SupervisorOrchestrator`: handoff-based specialist delegation with compiled briefing documents, direct tool support, bounded planner wiring, DB specialist loading |
+| `ai/planner.py` | Bounded plan-execute planner node: single LLM call → `PlanDocument` (max 5 steps via `_MAX_PLAN_STEPS`); fresh/resume/replan paths |
+| `ai/plan.py` | `PlanDocument`, `PlanStep`, `PlannerOutput`: plan data models |
 | `ai/briefing.py` | `BriefingDocument`, `BriefingSection`: Pydantic models for the briefing artifact |
 | `ai/briefing_compiler.py` | `initialize_briefing()`, `compile_specialist_output()`: zero-cost compilation |
 | `ai/supervisor_state.py` | `BackcastSupervisorState`: shared state schema for supervisor graph |
-| `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`: `Command(goto=...)` handoff mechanism |
-| `ai/config.py` | `AgentConfig`: frozen dataclass for agent creation parameters |
+| `ai/handoff_tools.py` | `create_handoff_tool()`, `create_all_handoff_tools()`, `create_replan_tool()`: `Command(goto=...)` handoff + replan mechanism |
+| `ai/config.py` | `AgentConfig`, `OrchestratorMode`, context-guard knobs (`AI_CONTEXT_*`) sourced from `Settings` |
+| `ai/event_types.py` | `AgentEventType`, `ExecutionStatus` enums |
 | `ai/state.py` | `AgentState` TypedDict: `messages`, `tool_call_count`, `max_tool_iterations`, `next` |
 | `ai/graph.py` | LangGraph `StateGraph` with `should_continue()` routing, graph creation factory |
 | `ai/graph_cache.py` | `BackcastRuntimeContext`, `LLMClientCache`, `shared_checkpointer`, ContextVar helpers |
-| `ai/subagents/__init__.py` | Hardcoded specialist configurations (fallback when DB is empty) |
-| `ai/subagents/db_loader.py` | `load_specialists_from_db()`, `assistant_config_to_specialist_dict()`: TTL-cached DB specialist loading |
-| `ai/tools/__init__.py` | `create_project_tools()` (74 tools), `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
+| `ai/subagents/__init__.py` | Re-exports `load_specialists_from_db`, `invalidate_cache` (DB-only; no hardcoded fallback) |
+| `ai/subagents/db_loader.py` | `load_specialists_from_db()`, `assistant_config_to_specialist_dict()`: TTL-cached DB specialist loading (returns `[]` when DB is empty) |
+| `ai/tools/__init__.py` | `create_project_tools()` (runtime tool list), `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
+| `ai/tools/registry.py` | Tool registry + `discover_and_register()`, `get_all_tools()` (surfaces `GET /api/v1/ai/config/tools`) |
 | `ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT`, `TASK_TOOL_DESCRIPTION`, `_summarize_structured_output()` |
+| `ai/middleware/context_guard.py` | `ContextGuardMiddleware`: deterministic history trimming via briefing summary |
 | `ai/middleware/temporal_context.py` | `TemporalContextMiddleware`: injects temporal params into tool args |
 | `ai/middleware/backcast_security.py` | `BackcastSecurityMiddleware`: RBAC + risk checks + approval workflow |
 | `ai/execution/agent_event_bus.py` | `AgentEventBus`: pub/sub with bounded log |
 | `ai/execution/runner_manager.py` | `RunnerManager`: execution_id → event_bus registry |
 | `ai/token_estimator.py` | Token usage estimation and accumulation |
 | `ai/telemetry.py` | OpenTelemetry integration for tracing |
+
+**Last Updated:** 2026-06-14

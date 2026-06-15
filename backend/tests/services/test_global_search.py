@@ -584,3 +584,44 @@ async def test_search_result_schema_has_wbs_element_id(
             f"WBSElement wbs_element_id does not match created WBS: "
             f"{wbs_r.wbs_element_id} != {wbs.wbs_element_id}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: Global search returns organizational_unit results
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_search_returns_organizational_unit(
+    db: AsyncSession, actor_id: UUID, service: GlobalSearchService
+) -> None:
+    """Global search finds organizational_unit rows without raising.
+
+    Regression: the organizational_unit entity config used a stale root-id
+    field name ("department_id", left over from the Department -> OrgUnit
+    rename). When an org unit matched the search term, building the result
+    raised ``AttributeError: 'OrganizationalUnit' object has no attribute
+    'department_id'`` and aborted the whole search. The config now uses the
+    model's real root id ``organizational_unit_id``.
+    """
+    unique = f"ORGSRCH_{uuid4().hex[:8]}"
+    org = await create_test_org_unit(
+        db,
+        actor_id,
+        code=f"{unique}_CODE",
+        name=f"{unique}_NAME",
+    )
+    await db.commit()
+
+    # Global search (no project scope) matching the org unit's name.
+    results = await service.search(unique, user_id=actor_id)
+
+    org_results = [r for r in results.results if r.entity_type == "organizational_unit"]
+    assert len(org_results) >= 1, (
+        f"organizational_unit not found by global search: "
+        f"{[r.entity_type for r in results.results]}"
+    )
+    assert org_results[0].root_id == org.organizational_unit_id, (
+        f"org unit root_id mismatch: {org_results[0].root_id} "
+        f"!= {org.organizational_unit_id}"
+    )

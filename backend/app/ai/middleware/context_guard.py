@@ -95,6 +95,13 @@ def _repair_chain(messages: list[AnyMessage]) -> list[AnyMessage]:
         if role == "tool":
             tid = getattr(m, "tool_call_id", None)
             if tid not in valid_tool_ids:
+                # Observability: a residual split (or any future edge case)
+                # dropped a tool response.  Cheap — only when actually dropping.
+                logger.warning(
+                    "Context guard _repair_chain: dropped orphaned tool message "
+                    "tool_call_id=%s",
+                    tid,
+                )
                 continue
 
         # For assistant messages with tool_calls, strip calls without responses
@@ -122,11 +129,73 @@ def _repair_chain(messages: list[AnyMessage]) -> list[AnyMessage]:
                 # All tool_calls were orphaned — keep as plain assistant if it has content
                 content = getattr(m, "content", None)
                 if not content or (isinstance(content, str) and not content.strip()):
+                    # Observability: an assistant was dropped because every one
+                    # of its tool_calls was orphaned and it had no content.
+                    dropped_ids = [
+                        getattr(c, "id", None)
+                        or (c.get("id") if isinstance(c, dict) else None)
+                        for c in calls
+                    ]
+                    logger.warning(
+                        "Context guard _repair_chain: dropped assistant with "
+                        "orphaned tool_calls (ids=%s)",
+                        dropped_ids,
+                    )
                     continue  # skip empty assistant messages
 
         repaired.append(m)
 
     return repaired
+
+
+def _is_tool_message(m: AnyMessage) -> bool:
+    """True if ``m`` is a tool response message."""
+    role = getattr(m, "type", None) or getattr(m, "role", None)
+    return role == "tool"
+
+
+def _find_caller_index(messages: list[AnyMessage], tool_idx: int) -> int:
+    """Return the index of the assistant whose ``tool_calls`` issued the tool
+    message at ``tool_idx``, or ``-1`` if not found in the range ``[1, tool_idx)``.
+
+    ``messages[0]`` (system prompt) is deliberately excluded — it survives the
+    trim intact, so a tool response whose only caller is the system message has
+    no caller worth pulling into the tail.
+    """
+    tid = getattr(messages[tool_idx], "tool_call_id", None)
+    if not tid:
+        return -1
+    for idx in range(tool_idx - 1, 0, -1):  # stop before messages[0]
+        calls = getattr(messages[idx], "tool_calls", None)
+        if not calls:
+            continue
+        for c in calls:
+            cid = getattr(c, "id", None) or (
+                c.get("id") if isinstance(c, dict) else None
+            )
+            if cid == tid:
+                return idx
+    return -1
+
+
+def _tool_aware_tail_start(messages: list[AnyMessage], keep: int) -> int:
+    """Return the start index for the tail so it never begins inside a
+    tool-response group whose issuing assistant would be dropped.
+
+    If the naive start ``len(messages) - keep`` lands on a ``tool`` message,
+    back the split up to its issuing assistant so the call/response pair stays
+    intact (instead of being orphaned and dropped by ``_repair_chain``).
+    Never returns below 1 (``messages[0]`` is the system prompt).
+    """
+    n = len(messages)
+    s = max(1, n - keep)
+    while s < n and _is_tool_message(messages[s]):
+        caller_idx = _find_caller_index(messages, s)
+        if 1 <= caller_idx < s:
+            s = caller_idx
+            continue  # messages[s] is now an assistant -> loop exits next pass
+        break  # caller is messages[0] (survives trim) or not found -> leave to _repair_chain
+    return s
 
 
 def _estimate_tokens(messages: list[AnyMessage]) -> int:
@@ -221,12 +290,14 @@ class ContextGuardMiddleware(AgentMiddleware):
 
         summary_msg = _build_summary_message(briefing_data)
         first_msg = messages[0]
-        tail = messages[-AI_CONTEXT_KEEP_RECENT:]
-        removed = len(messages) - 1 - AI_CONTEXT_KEEP_RECENT
+        split = _tool_aware_tail_start(messages, AI_CONTEXT_KEEP_RECENT)
+        tail = messages[split:]
+        removed = split - 1  # messages dropped between first_msg and tail
 
         # Ensure message-chain integrity: tool responses must follow
-        # assistant messages with tool_calls.  If the trim boundary
-        # splits a tool_calls → tool pair, drop the orphaned tool msgs.
+        # assistant messages with tool_calls.  ``_tool_aware_tail_start`` avoids
+        # splitting a pair at the boundary; ``_repair_chain`` repairs any
+        # residual orphan and WARNs when it has to drop.
         trimmed = [first_msg, summary_msg, *tail]
         trimmed = _repair_chain(trimmed)
 

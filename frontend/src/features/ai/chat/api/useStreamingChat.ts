@@ -106,7 +106,14 @@ export interface UseStreamingChatConfig {
    * The frontend should invalidate session caches so the UI reflects the cleaned-up state. */
   onSessionRecovery?: () => void;
   /** Optional callback invoked when the agent needs user input via the ask_user tool */
-  onAskUser?: (question: string, askId: string, context?: string, options?: string[]) => void;
+  onAskUser?: (
+    question: string,
+    askId: string,
+    context?: string,
+    options?: string[],
+    expiresAt?: string,
+    timeoutSeconds?: number,
+  ) => void;
 }
 
 /**
@@ -630,6 +637,7 @@ export const useStreamingChat = (
           typeof serverMessage.briefing === "string"
             ? {
                 original_request: "",
+                follow_up_requests: [],
                 sections: [],
                 markdown: serverMessage.briefing as unknown as string,
               }
@@ -661,6 +669,8 @@ export const useStreamingChat = (
           serverMessage.ask_id,
           serverMessage.context,
           serverMessage.options,
+          serverMessage.expires_at,
+          serverMessage.timeout_seconds,
         );
         return;
       }

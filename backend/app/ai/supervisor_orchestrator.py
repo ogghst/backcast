@@ -10,9 +10,9 @@ Graph: START -> initialize_briefing -> planner -> supervisor <-> specialist_node
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -36,15 +36,21 @@ from app.ai.config import AI_DELEGATION_ENFORCED, AgentConfig
 from app.ai.event_types import AgentEventType
 from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
-from app.ai.handoff_tools import create_all_handoff_tools
+from app.ai.execution.llm_retry import (
+    RETRY_BASE_S,
+    RETRY_CAP_S,
+    RETRY_JITTER_S,
+    invoke_with_retry,
+)
+from app.ai.handoff_tools import create_all_handoff_tools, create_replan_tool
 from app.ai.message_utils import (
     extract_final_ai_response,
-    is_transient_stream_error,
 )
 from app.ai.middleware.context_guard import ContextGuardMiddleware
 from app.ai.middleware.plan_aware_tools import PlanAwareToolMiddleware
 from app.ai.plan import PlanDocument
-from app.ai.planner import planner_node
+from app.ai.planner import _MAX_PLAN_STEPS, planner_node
+from app.ai.prompt_template import render_prompt
 from app.ai.subagent_compiler import (
     build_backcast_middleware,
     compile_subagents,
@@ -58,6 +64,69 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Backoff parameters were extracted to ``app.ai.execution.llm_retry`` as
+# the shared ``RETRY_*`` constants.  These specialist-scoped aliases keep
+# the historical names importable (``test_specialist_retry.py`` imports
+# them under these names) and document the value-equality.
+_SPECIALIST_RETRY_BASE_S = RETRY_BASE_S
+_SPECIALIST_RETRY_CAP_S = RETRY_CAP_S
+_SPECIALIST_RETRY_JITTER_S = RETRY_JITTER_S
+
+
+async def _invoke_specialist_with_retry(
+    invoke: Callable[[], Awaitable[dict[str, Any]]],
+    *,
+    specialist_name: str,
+    max_retries: int,
+    timeout: float,
+    execution_id: str | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
+    """Invoke a specialist subgraph with a pausable timeout and retry.
+
+    Thin specialist-scoped wrapper around the shared
+    :func:`app.ai.execution.llm_retry.invoke_with_retry`.  Behaviour is
+    unchanged from the inline implementation: a provider stall is bounded
+    by ``timeout`` seconds of ACTIVE time, the deadline PAUSES while the
+    specialist is blocked on ``ask_user``, and retryable errors
+    (timeout/transient stream) are retried with exponential backoff plus
+    jitter.  Kept as a module-private callable so the existing call site
+    and tests can use the specialist-named log tag.
+
+    When *should_stop* is provided it is forwarded to the pausable deadline
+    so a user-initiated stop interrupts a looping/stalled specialist
+    mid-flight (within a single tick window) and surfaces as a
+    non-retryable :class:`ExecutionStoppedError`.
+
+    Args:
+        invoke: Zero-arg async factory returning the specialist's result.
+        specialist_name: Display name used in retry log lines.
+        max_retries: Number of retries after the initial attempt.
+        timeout: Active (non-paused) seconds for a single invocation.
+        execution_id: Optional execution ID used to scope the
+            awaiting-user pause check to this execution.
+        should_stop: Optional callable returning True when the surrounding
+            execution has been asked to stop.
+
+    Returns:
+        The specialist result dict on success.
+
+    Raises:
+        ExecutionStoppedError: When *should_stop* returns True mid-await
+            (non-retryable; propagates immediately).
+        Exception: The last error when retries are exhausted, or the
+            original error if it is not retryable.
+    """
+    return await invoke_with_retry(
+        invoke,
+        label=specialist_name,
+        max_retries=max_retries,
+        timeout=timeout,
+        execution_id=execution_id,
+        should_stop=should_stop,
+    )
+
+
 _BASE_SUPERVISOR_PROMPT = """You are a supervisor for the Backcast project budget management system.
 
 You coordinate specialist agents who report back through a compiled briefing document.
@@ -70,21 +139,35 @@ The current briefing is injected into your context as a system message before ev
 3. After a specialist contributes, the briefing is updated automatically
 
 ## Execution Plan
-Before delegating, review the execution plan in the state (injected as context).
-- If a plan exists with multiple steps, delegate ONE step at a time in order
-- Each step already specifies the specialist and focused task description
+{plan_section}
+
+Follow the plan strictly:
+- Delegate ONE step at a time in order
+- Each step specifies the specialist and focused task description
 - After each specialist completes, check if the next step's dependencies are met
 - If a step fails, decide whether to skip it or retry with a different approach
-- For simple single-step plans, delegate normally (current behavior)
 
 ## Rules
 - Do NOT write a response summarizing the briefing — the user reads the briefing directly
 - Only respond if you need to ask the user a clarification question
-- Do NOT hand off to the same specialist more than once for the same task
+- After each step, check the briefing: if the next step is already accomplished or conflicts with findings, revise the remaining plan before continuing
 - Always check the briefing before deciding to hand off
+
+## Replanning
+After each specialist completes, evaluate whether remaining steps are still valid:
+- REDUNDANT: findings already contain what the next step was going to gather → call request_replan
+- ALREADY ACCOMPLISHED: the specialist incidentally completed the next step's task → call request_replan
+- CONTRADICTORY: findings contradict the plan's assumptions → call request_replan
+- Do NOT replan just because a step failed — retry or skip instead
+
+Rules:
+- Provide a clear reason when calling request_replan
+- Completed steps are preserved — only pending steps are revised
+- Maximum 2 replans per execution
+- When in doubt, continue with the current plan
 """
 
-_DELEGATION_ENFORCED_SECTION = """
+_DELEGATION_ENFORCED_SECTION = """\n
 ## CRITICAL: Plan-Driven Delegation
 When a multi-step execution plan is active:
 - You MUST delegate every step to the specialist specified in the plan
@@ -94,7 +177,6 @@ When a multi-step execution plan is active:
 - Use handoff_to_{specialist} with the step_index to assign each step
 - NEVER use domain tools like get_project, global_search, find_users, etc.
 - NEVER try to answer the user's question yourself -- delegate to specialists
-- If you are unsure what to do, call get_briefing first, then delegate the next step
 """
 
 
@@ -129,22 +211,27 @@ _BRIEFING_CONTEXT_PREFIX = "## Current Briefing\n\n"
 def _briefing_update(
     doc: BriefingDocument,
     plan_data: dict[str, Any] | None = None,
+    max_iterations: int = 5,
 ) -> dict[str, Any]:
     """Build the standard state update after briefing initialization.
 
     Args:
         doc: The briefing document to serialize.
         plan_data: Optional serialized PlanDocument to carry forward.
+        max_iterations: Maximum supervisor delegation cycles.
     """
     briefing_md = doc.to_markdown() if doc.sections else "No findings yet."
     update: dict[str, Any] = {
         "briefing_data": doc.model_dump(),
         "supervisor_iterations": 0,
-        "max_supervisor_iterations": 3,
+        "max_supervisor_iterations": max_iterations,
         "completed_specialists": set(),
         "messages": [SystemMessage(content=f"{_BRIEFING_CONTEXT_PREFIX}{briefing_md}")],
         "completed_steps": set(),
         "current_step_index": -1,
+        "replan_count": 0,
+        "max_replan_count": 2,
+        "replan_context": "",
     }
     if plan_data is not None:
         update["plan_data"] = plan_data
@@ -156,11 +243,14 @@ class _BriefingSupervisorState(AgentState[Any]):
 
     Adds ``briefing_data`` and ``plan_data`` so LangGraph shares them from
     the parent ``BackcastSupervisorState`` via automatic key-matching state
-    sharing.
+    sharing.  Also mirrors ``replan_count`` and ``replan_context`` so the
+    supervisor subgraph can read/write replan state.
     """
 
     briefing_data: dict[str, Any]
     plan_data: dict[str, Any]
+    replan_count: int
+    replan_context: str
 
 
 def _create_get_briefing_tool() -> BaseTool:
@@ -295,7 +385,10 @@ class SupervisorOrchestrator:
         # --- 3. Build supervisor tools ---
         get_briefing_tool = _create_get_briefing_tool()
         handoff_tools = create_all_handoff_tools(specialist_graphs)
-        supervisor_tools: list[BaseTool] = [get_briefing_tool] + list(handoff_tools)
+        replan_tool = create_replan_tool()
+        supervisor_tools: list[BaseTool] = [get_briefing_tool, replan_tool] + list(
+            handoff_tools
+        )
 
         direct_tool_names: list[str] = []
         if self.main_assistant_config and self.main_assistant_config.delegation_config:
@@ -314,12 +407,15 @@ class SupervisorOrchestrator:
         # --- 4. Build supervisor agent ---
         base_prompt = self.system_prompt or _BASE_SUPERVISOR_PROMPT
 
-        # Resolve {specialist_section} placeholder BEFORE appending sections
-        # that may contain literal {braces} which would collide with .format()
+        # Resolve {specialist_section} placeholder (allowlisting only that tag so
+        # the literal {plan_section} placeholder survives verbatim for the
+        # PlanAwareToolMiddleware pass that fills it at runtime). render_prompt
+        # never raises and never re-scans injected values, so specialist
+        # descriptions containing stray braces are safe here.
         specialist_section = _build_supervisor_specialist_section(specialist_graphs)
         if "{specialist_section}" in base_prompt:
-            base_prompt = base_prompt.replace(
-                "{specialist_section}", specialist_section, 1
+            base_prompt = render_prompt(
+                base_prompt, specialist_section=specialist_section
             )
         else:
             base_prompt = base_prompt + specialist_section
@@ -334,9 +430,9 @@ class SupervisorOrchestrator:
         if direct_tools:
             tool_names = ", ".join(t.name for t in direct_tools)
             direct_tools_suffix = (
-                f"\n\nYou have DIRECT access to these Backcast tools: [{tool_names}]. "
+                f"## Available direct tools\n\nYou have DIRECT access to these tools: [{tool_names}]. "
                 "Use them directly for their operations. "
-                "ALL other Backcast operations must be delegated to specialists "
+                "ALL other operations must be delegated to specialists "
                 "via handoff tools."
             )
             supervisor_prompt += direct_tools_suffix
@@ -377,18 +473,28 @@ class SupervisorOrchestrator:
                     )
                     break
 
+            max_iter = 5
+            if self.main_assistant_config and hasattr(
+                self.main_assistant_config, "max_supervisor_iterations"
+            ):
+                val = self.main_assistant_config.max_supervisor_iterations
+                if val is not None:
+                    max_iter = val
+
             existing_briefing = state.get("briefing_data")
             if existing_briefing:
                 doc = BriefingDocument.from_state(existing_briefing)
-                doc.original_request = user_request
+                doc.follow_up_requests.append(user_request)
                 logger.info(
                     "[SUPERVISOR] Reusing existing briefing with %d sections",
                     len(doc.sections),
                 )
-                return _briefing_update(doc, plan_data=state.get("plan_data"))
+                return _briefing_update(
+                    doc, plan_data=state.get("plan_data"), max_iterations=max_iter
+                )
 
             doc = initialize_briefing(user_request)
-            return _briefing_update(doc)
+            return _briefing_update(doc, max_iterations=max_iter)
 
         # --- 6b. Build the planner node ---
         specialist_catalog = [
@@ -445,7 +551,7 @@ class SupervisorOrchestrator:
         parent.add_conditional_edges(
             "supervisor",
             self._make_supervisor_router(specialist_names),
-            specialist_names + [END],
+            specialist_names + ["planner", END],
         )
         # NOTE: specialist nodes return Command(goto="supervisor") or
         # Command(goto=END) explicitly — no static edge to supervisor.
@@ -486,7 +592,7 @@ class SupervisorOrchestrator:
 
         def router(state: BackcastSupervisorState) -> str:
             iterations = state.get("supervisor_iterations", 0)
-            max_iterations = state.get("max_supervisor_iterations", 3)
+            max_iterations = state.get("max_supervisor_iterations", 5)
 
             # Parse plan data once for both iteration cap and re-dispatch logic
             plan_data = state.get("plan_data")
@@ -496,7 +602,10 @@ class SupervisorOrchestrator:
                 plan = PlanDocument.from_state(plan_data)
                 if plan.requires_planning and plan.steps:
                     has_plan = True
-                    plan_max = len(plan.steps) + 1
+                    # Plan steps are capped at _MAX_PLAN_STEPS by the planner,
+                    # so plan_max is at most _MAX_PLAN_STEPS + 1; this min() is
+                    # a defensive hard ceiling regardless.
+                    plan_max = min(len(plan.steps) + 1, _MAX_PLAN_STEPS + 1)
                     if plan_max > max_iterations:
                         max_iterations = plan_max
 
@@ -518,6 +627,19 @@ class SupervisorOrchestrator:
 
                 for tc in last_msg.tool_calls:
                     tool_name = tc.get("name", "")
+                    if tool_name == "request_replan":
+                        replan_count = state.get("replan_count", 0)
+                        max_replan = state.get("max_replan_count", 2)
+                        if replan_count >= max_replan:
+                            logger.warning(
+                                "[SUPERVISOR] Max replan (%d) reached, forcing END",
+                                max_replan,
+                            )
+                            return END
+                        logger.info(
+                            "[SUPERVISOR] Replan requested (count=%d)", replan_count
+                        )
+                        return "planner"
                     if tool_name.startswith("handoff_to_"):
                         slug = tool_name.removeprefix("handoff_to_")
                         spec_name = slug_map.get(slug, slug)
@@ -584,6 +706,94 @@ class SupervisorOrchestrator:
             # can assign multiple steps to the same specialist; the guard
             # only blocks when there is no matching pending step.
             completed = state.get("completed_specialists", set())
+            if active_step is None and plan_data:
+                # Debug: why was no matching step found?
+                step_debug = (
+                    {
+                        s.step_index: {
+                            "specialist": s.specialist,
+                            "status": s.status,
+                            "deps": s.dependencies,
+                            "deps_met": (
+                                active_plan.are_dependencies_met(s.step_index)
+                                if active_plan
+                                else False
+                            ),
+                        }
+                        for s in active_plan.steps
+                    }
+                    if active_plan
+                    else {}
+                )
+                completed_step_indices_debug = state.get("completed_steps", set())
+                logger.warning(
+                    "[SPECIALIST_NODE] No matching step found for '%s' | "
+                    "steps=%s | completed_steps=%s | "
+                    "completed_specialists=%s",
+                    specialist_name,
+                    step_debug,
+                    completed_step_indices_debug,
+                    completed,
+                )
+            # --- Plan-mode containment: active_step is None in plan mode ---
+            # A failed dependency permanently blocks downstream steps
+            # (``are_dependencies_met`` requires ``"completed"``).  Without
+            # this guard the node would fall through to the non-plan branch
+            # and run the specialist with stale task context until the
+            # iteration cap force-ends the graph.  Instead, hand control back
+            # to the supervisor with explicit guidance.  Runs BEFORE the
+            # completed-specialist guard so that a pending step owned by
+            # another specialist still produces actionable guidance rather
+            # than a silent END.
+            if active_step is None and active_plan is not None:
+                pending = [s for s in active_plan.steps if s.status == "pending"]
+                blocked = active_plan.blocked_step_indices()
+                if not pending:
+                    guidance = (
+                        "All plan steps are resolved (some may have failed). "
+                        "Respond to the user with the findings gathered; "
+                        "do NOT delegate further."
+                    )
+                elif blocked:
+                    guidance = (
+                        f"No dispatchable step for {specialist_name}: "
+                        f"step(s) {blocked} are blocked by a failed "
+                        "dependency. The plan cannot continue as-is. "
+                        "Call request_replan to revise the remaining steps, "
+                        "or if the findings so far answer the user, "
+                        "respond now without delegating further."
+                    )
+                else:
+                    nxt = active_plan.get_next_pending_step()
+                    if nxt is not None:
+                        guidance = (
+                            f"No pending plan step is assigned to "
+                            f"{specialist_name}. The NEXT plan step is "
+                            f"step {nxt.step_index + 1}/{len(active_plan.steps)} "
+                            f"assigned to {nxt.specialist}: "
+                            f"{nxt.task_description}. "
+                            f"Call handoff_to_{nxt.specialist} next."
+                        )
+                    else:
+                        guidance = (
+                            "All plan steps are resolved (some may have "
+                            "failed). Respond to the user with the findings "
+                            "gathered; do NOT delegate further."
+                        )
+                logger.info(
+                    "[SPECIALIST_NODE] %s no active step in plan mode -> guidance",
+                    specialist_name,
+                )
+                return Command(
+                    update={
+                        "active_agent": "supervisor",
+                        "supervisor_iterations": state.get("supervisor_iterations", 0)
+                        + 1,
+                        "messages": [SystemMessage(content=guidance)],
+                    },
+                    goto="supervisor",
+                )
+
             if specialist_name in completed and active_step is None:
                 logger.info(
                     "[SUPERVISOR] Specialist %s already completed, early exit",
@@ -614,6 +824,13 @@ class SupervisorOrchestrator:
             elif active_plan and active_plan.original_request:
                 _original_request = active_plan.original_request
 
+            _request_context: list[str] = []
+            if _original_request:
+                _request_context.append(f"Original request: {_original_request}")
+                if doc and doc.follow_up_requests:
+                    for i, fq in enumerate(doc.follow_up_requests, start=1):
+                        _request_context.append(f"Follow-up {i}: {fq}")
+
             if active_step is not None:
                 task_desc = active_step.task_description
             elif doc and doc.task_history:
@@ -643,21 +860,25 @@ class SupervisorOrchestrator:
                                 f"- Step {dep_idx} result: {dep_step.result_summary}"
                             )
                 lines.append("")
-                lines.append(
-                    "Use the get_briefing tool to review prior specialist findings "
-                    "if needed for context."
-                )
-                if _original_request:
+                if doc and doc.sections:
+                    lines.append("## Briefing Context (from prior specialists)")
                     lines.append("")
-                    lines.append(f"**User's original request:** {_original_request}")
+                    lines.append(doc.to_markdown())
+                    lines.append("")
+                for ctx_line in _request_context:
+                    lines.append("")
+                    lines.append(f"**{ctx_line}**")
                 assignment_block = "\n".join(lines)
             else:
                 assignment_block = f"## Your Assignment\n\n{task_desc}"
                 if rationale:
                     assignment_block += f"\n\n**Supervisor's rationale:** {rationale}"
-                if _original_request:
+                for ctx_line in _request_context:
+                    assignment_block += f"\n\n**{ctx_line}**"
+                if doc and doc.sections:
                     assignment_block += (
-                        f"\n\n**User's original request:** {_original_request}"
+                        "\n\n## Briefing Context (from prior specialists)"
+                        f"\n\n{doc.to_markdown()}"
                     )
 
             isolated_messages = [
@@ -680,7 +901,6 @@ class SupervisorOrchestrator:
 
             max_iterations = state.get("max_tool_iterations", 25)
             max_retries = settings.AI_SPECIALIST_MAX_RETRIES
-            result = None
             # Read the invocation_id generated by the handoff tool from the
             # graph state.  A single consistent ID ensures the frontend can
             # correlate SUBAGENT, token_batch, and AGENT_COMPLETE events.
@@ -702,9 +922,10 @@ class SupervisorOrchestrator:
                     )
                 )
 
-            for _attempt in range(max_retries + 1):
-                try:
-                    result = await specialist_graph.ainvoke(
+            try:
+                stop_evt = self.context._stop_event
+                result = await _invoke_specialist_with_retry(
+                    lambda: specialist_graph.ainvoke(
                         {
                             "messages": isolated_messages,
                             "tool_call_count": 0,
@@ -712,102 +933,135 @@ class SupervisorOrchestrator:
                             "next": "agent",
                         },
                         config={"recursion_limit": max_iterations},
+                    ),
+                    specialist_name=specialist_name,
+                    max_retries=max_retries,
+                    timeout=float(settings.AI_SPECIALIST_STEP_TIMEOUT),
+                    execution_id=(
+                        self._event_bus.execution_id if self._event_bus else None
+                    ),
+                    should_stop=(
+                        (lambda: bool(stop_evt.is_set()))
+                        if stop_evt is not None
+                        else None
+                    ),
+                )
+            except ExecutionStoppedError:
+                # A user-initiated stop must propagate up so the graph
+                # terminates cleanly — do NOT compile it into a briefing
+                # error (that would mask the stop and keep the graph alive).
+                raise
+            except Exception as exc:
+                logger.error(
+                    "[SPECIALIST_ERROR] %s failed: %s",
+                    specialist_name,
+                    exc,
+                    exc_info=True,
+                )
+                error_msg = f"Specialist {specialist_name} encountered an error: {exc}"
+                updated_data = compile_specialist_output(
+                    briefing_data=state.get("briefing_data", {}),
+                    specialist_name=specialist_name,
+                    task_description=f"Failed: {exc}",
+                    specialist_output=error_msg,
+                )
+                error_update: dict[str, Any] = {
+                    "briefing_data": updated_data,
+                    "active_agent": "supervisor",
+                    "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
+                    "tool_call_count": 0,
+                }
+                if active_step is not None and active_plan is not None:
+                    active_plan.mark_step_failed(
+                        active_step.step_index, f"Specialist error: {exc}"
                     )
-                    break
-                except Exception as exc:
-                    if is_transient_stream_error(exc) and _attempt < max_retries:
-                        logger.warning(
-                            "[SPECIALIST_RETRY] %s transient error (attempt %d/%d): %s",
-                            specialist_name,
-                            _attempt + 1,
-                            max_retries + 1,
-                            exc,
+                    error_update["plan_data"] = active_plan.model_dump()
+                    self._publish_plan_update(active_plan)
+                    # Inject guidance so the supervisor knows how to proceed
+                    # after a failed step (mirrors the success path's
+                    # plan_msg injection).  Names blocked dependents, or
+                    # confirms the failure is isolated.
+                    blocked = [
+                        s.step_index
+                        for s in active_plan.steps
+                        if s.status == "pending"
+                        and active_step.step_index in s.dependencies
+                    ]
+                    if blocked:
+                        guidance = (
+                            f"Plan step {active_step.step_index + 1} "
+                            f"({specialist_name}) FAILED. "
+                            f"Step(s) {blocked} depend on it and cannot run. "
+                            "Call request_replan to revise the remaining "
+                            "steps, or if the findings so far answer the "
+                            "user, respond now."
                         )
-                        await asyncio.sleep(2.0)
-                        continue
-                    logger.error(
-                        "[SPECIALIST_ERROR] %s failed: %s",
-                        specialist_name,
-                        exc,
-                        exc_info=True,
-                    )
-                    error_msg = (
-                        f"Specialist {specialist_name} encountered an error: {exc}"
-                    )
-                    updated_data = compile_specialist_output(
-                        briefing_data=state.get("briefing_data", {}),
-                        specialist_name=specialist_name,
-                        task_description=f"Failed: {exc}",
-                        specialist_output=error_msg,
-                    )
-                    error_update: dict[str, Any] = {
-                        "briefing_data": updated_data,
-                        "active_agent": "supervisor",
-                        "supervisor_iterations": state.get("supervisor_iterations", 0)
-                        + 1,
-                        "tool_call_count": 0,
-                    }
-                    if active_step is not None and active_plan is not None:
-                        active_plan.mark_step_failed(
-                            active_step.step_index, f"Specialist error: {exc}"
+                    else:
+                        guidance = (
+                            f"Plan step {active_step.step_index + 1} "
+                            f"({specialist_name}) FAILED, but no other plan "
+                            "steps depend on it. Continue delegating the "
+                            "next pending step, or respond with the "
+                            "findings so far."
                         )
-                        error_update["plan_data"] = active_plan.model_dump()
-                        self._publish_plan_update(active_plan)
+                    error_update["messages"] = [SystemMessage(content=guidance)]
 
-                    # Publish BRIEFING_UPDATE + AGENT_COMPLETE
-                    # for the error path — same as success path below.
-                    if self._event_bus is not None:
-                        from app.models.schemas.ai import (
-                            BriefingDocumentPublic,
-                            BriefingSectionPublic,
-                            WSBriefingMessage,
-                        )
+                # Publish BRIEFING_UPDATE + AGENT_COMPLETE
+                # for the error path — same as success path below.
+                if self._event_bus is not None:
+                    from app.models.schemas.ai import (
+                        BriefingDocumentPublic,
+                        BriefingSectionPublic,
+                        WSBriefingMessage,
+                    )
 
-                        error_doc = BriefingDocument.from_state(updated_data)
-                        error_briefing_md = error_doc.to_markdown()
-                        if error_briefing_md:
-                            self._event_bus.publish(
-                                AgentEvent(
-                                    event_type=AgentEventType.BRIEFING_UPDATE,
-                                    data=WSBriefingMessage(
-                                        type=AgentEventType.BRIEFING_UPDATE,
-                                        briefing=BriefingDocumentPublic(
-                                            original_request=error_doc.original_request,
-                                            sections=[
-                                                BriefingSectionPublic(
-                                                    specialist_name=s.specialist_name,
-                                                    summary=s.findings,
-                                                    key_findings=s.key_findings or [],
-                                                    open_questions=s.open_questions or [],
-                                                    delegation_notes=s.delegation_notes or "",
-                                                    task_description=s.task_description,
-                                                    step_index=s.step_index,
-                                                )
-                                                for s in error_doc.sections
-                                            ],
-                                            supervisor_analysis=error_doc.supervisor_analysis,
-                                            markdown=error_briefing_md,
-                                        ),
-                                        specialist_name=specialist_name,
-                                        completed_specialists=[],
-                                    ).model_dump(mode="json"),
-                                    timestamp=datetime.now(UTC),
-                                )
-                            )
+                    error_doc = BriefingDocument.from_state(updated_data)
+                    error_briefing_md = error_doc.to_markdown()
+                    if error_briefing_md:
                         self._event_bus.publish(
                             AgentEvent(
-                                event_type=AgentEventType.AGENT_COMPLETE,
-                                data={
-                                    "type": AgentEventType.AGENT_COMPLETE,
-                                    "agent_type": "subagent",
-                                    "agent_name": specialist_name,
-                                    "invocation_id": invocation_id,
-                                },
+                                event_type=AgentEventType.BRIEFING_UPDATE,
+                                data=WSBriefingMessage(
+                                    type=AgentEventType.BRIEFING_UPDATE,
+                                    briefing=BriefingDocumentPublic(
+                                        original_request=error_doc.original_request,
+                                        follow_up_requests=error_doc.follow_up_requests,
+                                        sections=[
+                                            BriefingSectionPublic(
+                                                specialist_name=s.specialist_name,
+                                                summary=s.findings,
+                                                key_findings=s.key_findings or [],
+                                                open_questions=s.open_questions or [],
+                                                delegation_notes=s.delegation_notes
+                                                or "",
+                                                task_description=s.task_description,
+                                                step_index=s.step_index,
+                                            )
+                                            for s in error_doc.sections
+                                        ],
+                                        supervisor_analysis=error_doc.supervisor_analysis,
+                                        markdown=error_briefing_md,
+                                    ),
+                                    specialist_name=specialist_name,
+                                    completed_specialists=[],
+                                ).model_dump(mode="json"),
                                 timestamp=datetime.now(UTC),
                             )
                         )
+                    self._event_bus.publish(
+                        AgentEvent(
+                            event_type=AgentEventType.AGENT_COMPLETE,
+                            data={
+                                "type": AgentEventType.AGENT_COMPLETE,
+                                "agent_type": "subagent",
+                                "agent_name": specialist_name,
+                                "invocation_id": invocation_id,
+                            },
+                            timestamp=datetime.now(UTC),
+                        )
+                    )
 
-                    return Command(update=error_update, goto="supervisor")
+                return Command(update=error_update, goto="supervisor")
 
             assert result is not None
 
@@ -876,12 +1130,21 @@ class SupervisorOrchestrator:
                 pending = [s for s in active_plan.steps if s.status == "pending"]
                 if pending:
                     next_step = pending[0]
+                    result_preview = (
+                        cleaned_findings[:500] if cleaned_findings else "(no result)"
+                    )
                     plan_msg = (
                         f"Plan step {active_step.step_index + 1}/{len(active_plan.steps)} "
-                        f"completed by {specialist_name}. "
+                        f"completed by {specialist_name}.\n"
+                        f"Result: {result_preview}\n"
                         f"Next pending step: step {next_step.step_index + 1} "
-                        f"({next_step.specialist}). "
-                        f"{len(pending)} step(s) remaining."
+                        f"({next_step.specialist}): {next_step.task_description}\n"
+                        f"{len(pending)} step(s) remaining.\n\n"
+                        f"Compare the next step's task to the result above. If the result "
+                        f"already covers that task (redundant/already accomplished) or "
+                        f"contradicts it, you MUST call request_replan instead of delegating. "
+                        f"Only delegate if the next step genuinely needs work the findings do "
+                        f"not already provide."
                     )
                 else:
                     plan_msg = (
@@ -932,6 +1195,7 @@ class SupervisorOrchestrator:
                                 type=AgentEventType.BRIEFING_UPDATE,
                                 briefing=BriefingDocumentPublic(
                                     original_request=success_doc.original_request,
+                                    follow_up_requests=success_doc.follow_up_requests,
                                     sections=[
                                         BriefingSectionPublic(
                                             specialist_name=s.specialist_name,
@@ -987,7 +1251,17 @@ class SupervisorOrchestrator:
         structured summary of all specialist work.
         """
         base = build_backcast_middleware(self.context, tools)
-        return [ContextGuardMiddleware(), PlanAwareToolMiddleware(), *base]
+        direct_tool_names: list[str] = []
+        if self.main_assistant_config and self.main_assistant_config.delegation_config:
+            direct_tool_names = (
+                self.main_assistant_config.delegation_config.get("direct_tools", [])
+                or []
+            )
+        return [
+            ContextGuardMiddleware(),
+            PlanAwareToolMiddleware(direct_tool_names=direct_tool_names),
+            *base,
+        ]
 
     def _build_fallback_graph(
         self, all_tools: list[BaseTool], config: AgentConfig

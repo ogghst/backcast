@@ -202,7 +202,7 @@ class AIAssistantConfigBase(BaseModel):
     supervisor_prompt: str | None = Field(
         None,
         max_length=10000,
-        description="Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list.",
+        description="Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list, {plan_section} for dynamic plan steps.",
     )
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
@@ -211,6 +211,12 @@ class AIAssistantConfigBase(BaseModel):
         ge=1,
         le=500,
         description="LangGraph recursion limit (maximum steps in agent execution loop)",
+    )
+    max_supervisor_iterations: int | None = Field(
+        None,
+        ge=2,
+        le=20,
+        description="Maximum supervisor delegation cycles per request (main agent only). Default: 5.",
     )
     default_role: str | None = Field(
         None,
@@ -265,11 +271,12 @@ class AIAssistantConfigUpdate(BaseModel):
     supervisor_prompt: str | None = Field(
         None,
         max_length=10000,
-        description="Custom supervisor prompt template for main agents.",
+        description="Custom supervisor prompt template. Supports {specialist_section} and {plan_section} placeholders.",
     )
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=200000)
     recursion_limit: int | None = Field(None, ge=1, le=500)
+    max_supervisor_iterations: int | None = Field(None, ge=2, le=20)
     default_role: str | None = Field(
         None,
         max_length=50,
@@ -350,7 +357,9 @@ class ApprovalRequest(BaseModel):
 
 
 # Session Context Types
-SessionContextType = Literal["general", "project", "wbe", "cost_element", "work_package"]
+SessionContextType = Literal[
+    "general", "project", "wbe", "cost_element", "work_package"
+]
 
 
 class SessionContext(BaseModel):
@@ -422,6 +431,10 @@ class AIConversationSessionPublic(BaseModel):
     briefing_specialists: list[str] = Field(
         default_factory=list,
         description="Names of specialists that contributed to the briefing",
+    )
+    briefing_data: dict[str, Any] | None = Field(
+        None,
+        description="Full structured briefing document with specialist findings and follow-ups",
     )
     plan_data: dict[str, Any] | None = Field(
         None,
@@ -726,9 +739,7 @@ class BriefingSectionPublic(BaseModel):
     open_questions: list[str] = Field(
         default_factory=list, description="Questions needing further investigation"
     )
-    delegation_notes: str = Field(
-        default="", description="Context for follow-up work"
-    )
+    delegation_notes: str = Field(default="", description="Context for follow-up work")
     task_description: str | None = None
     step_index: int | None = None
 
@@ -741,11 +752,10 @@ class BriefingDocumentPublic(BaseModel):
     """
 
     original_request: str
+    follow_up_requests: list[str] = Field(default_factory=list)
     sections: list[BriefingSectionPublic] = Field(default_factory=list)
     supervisor_analysis: str | None = None
-    markdown: str = Field(
-        default="", description="Pre-rendered markdown fallback"
-    )
+    markdown: str = Field(default="", description="Pre-rendered markdown fallback")
 
 
 class WSBriefingMessage(BaseModel):
@@ -1025,6 +1035,37 @@ class WSAskUserResponse(BaseModel):
     answer: str = Field(..., description="The user's response text")
 
 
+class WSAskUserMessage(BaseModel):
+    """WebSocket ask_user message from server.
+
+    Server -> Client message presenting a clarifying question to the user.
+    The client should render the question and send back
+    :class:`WSAskUserResponse` (or the user lets ``expires_at`` pass).
+
+    ``expires_at`` and ``timeout_seconds`` let the frontend render a
+    countdown; the tool blocks server-side until the answer arrives or the
+    deadline passes.
+    """
+
+    type: Literal["ask_user"] = Field(
+        default="ask_user", description="Message type discriminator"
+    )
+    question: str = Field(..., description="The question to present to the user")
+    ask_id: str = Field(..., description="Unique identifier for this ask request")
+    context: str | None = Field(
+        None, description="Optional one-line explanation of why the question is asked"
+    )
+    options: list[str] | None = Field(
+        None, description="Optional suggested answers for one-click selection"
+    )
+    expires_at: datetime = Field(
+        ..., description="UTC timestamp at which the wait times out"
+    )
+    timeout_seconds: int = Field(
+        ..., description="Total seconds the tool will wait for a response"
+    )
+
+
 # Union type for all server->client WebSocket messages
 WSMessage = (
     WSTokenMessage
@@ -1042,6 +1083,7 @@ WSMessage = (
     | WSAgentCompleteMessage
     | WSContentResetMessage
     | WSExecutionStatusMessage
+    | WSAskUserMessage
 )
 
 

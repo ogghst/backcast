@@ -139,6 +139,78 @@ def create_handoff_tool(
     return handoff_tool
 
 
+def create_replan_tool() -> BaseTool:
+    """Create a tool that lets the supervisor request plan revision.
+
+    The tool returns ``Command(goto="planner", graph=Command.PARENT)`` which
+    tells LangGraph to route back to the planner node in the parent graph so
+    it can revise remaining plan steps based on new findings.
+
+    Returns:
+        A BaseTool named ``request_replan``.
+    """
+
+    @tool(
+        "request_replan",
+        description=(
+            "Request revision of remaining plan steps when specialist findings "
+            "make upcoming steps redundant, already accomplished, or contradictory."
+        ),
+    )
+    def request_replan(
+        reason: Annotated[
+            str,
+            "Why the remaining plan needs revision",
+        ],
+        state: Annotated[dict[str, Any], InjectedState()],
+        tool_call_id: Annotated[str, InjectedToolCallId],
+    ) -> Command[Any]:
+        tool_message = ToolMessage(
+            content=f"Replan requested: {reason}",
+            tool_call_id=tool_call_id,
+        )
+
+        # Propagate reasoning_content from the last AIMessage (DeepSeek thinking
+        # mode requires it on ALL assistant messages when enabled).
+        rc_kwargs = find_last_ai_reasoning_kwargs(state.get("messages", []))
+
+        # This AIMessage is needed because Command(graph=Command.PARENT) only
+        # propagates the `update` dict to the parent graph. The original AIMessage
+        # from the LLM stays inside the supervisor subgraph and doesn't reach the
+        # parent state. Without this, the parent message history would have a gap
+        # (tool_message with no preceding AIMessage).
+        ai_message = AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "request_replan",
+                    "args": {"reason": reason},
+                    "id": tool_call_id,
+                    "type": "tool_call",
+                }
+            ],
+            **rc_kwargs,
+        )
+
+        current_count = state.get("replan_count", 0)
+
+        update: dict[str, Any] = {
+            "messages": [ai_message, tool_message],
+            "active_agent": "planner",
+            "replan_count": current_count + 1,
+            "replan_context": reason,
+        }
+
+        return Command(
+            goto="planner",
+            graph=Command.PARENT,
+            update=update,
+        )
+
+    request_replan.metadata = {METADATA_KEY_HANDOFF_DESTINATION: "__replan__"}
+    return request_replan
+
+
 def create_all_handoff_tools(
     subagent_configs: list[dict[str, Any]],
 ) -> list[BaseTool]:
@@ -172,4 +244,5 @@ __all__ = [
     "METADATA_KEY_HANDOFF_DESTINATION",
     "create_all_handoff_tools",
     "create_handoff_tool",
+    "create_replan_tool",
 ]

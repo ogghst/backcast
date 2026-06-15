@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str
     LOG_FILE: str
-    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    LOG_FORMAT: str = "%(asctime)sZ - %(name)s - %(levelname)s - %(message)s"
     LOG_MAX_BYTES: int = 50 * 1024  # 50 KB default
     LOG_BACKUP_COUNT: int = 10  # Keep up to 10 rotated log files
 
@@ -51,6 +51,34 @@ class Settings(BaseSettings):
 
     # Specialist retry (transient API errors)
     AI_SPECIALIST_MAX_RETRIES: int = 3
+    # Wall-clock timeout (seconds) for a single specialist invocation,
+    # bounding provider stalls that never raise.
+    AI_SPECIALIST_STEP_TIMEOUT: int = 120
+    # Active (non-paused) seconds budget for a single planner LLM call
+    # (fresh plan AND replan).  Bounds provider stalls that never raise;
+    # pauses while an ask_user human-wait is pending.
+    AI_PLANNER_STEP_TIMEOUT: int = 120
+    # Active (non-paused) seconds budget around the WHOLE graph
+    # astream_events loop (planner, supervisor reasoning, handoff tools,
+    # middleware).  Bounds stalls anywhere outside a specialist body;
+    # pauses while an ask_user human-wait is pending.
+    AI_GRAPH_EXECUTION_TIMEOUT: int = 600
+
+    # Default timeout (seconds) the ask_user tool waits for a human answer.
+    # Must exceed AI_SPECIALIST_STEP_TIMEOUT so the specialist step clock
+    # (which PAUSES while ask_user awaits a human) never races the answer.
+    AI_ASK_USER_TIMEOUT_SECONDS: int = 300
+
+    # AI context trimming (ContextGuardMiddleware) + runtime toggles.
+    # Exposed here (rather than read via os.environ in app.ai.config) so that
+    # values in .env actually take effect; app.ai.config re-exports these.
+    AI_CONTEXT_TOKEN_LIMIT: int = 120000
+    AI_CONTEXT_SUMMARY_THRESHOLD_PCT: int = 80
+    AI_CONTEXT_KEEP_RECENT: int = 8
+    AI_DELEGATION_ENFORCED: bool = True
+    AI_SEQUENTIAL_TOOL_CALLS: bool = True
+    AI_MCP_TOOL_CATEGORY_PREFIX: str = "mcp:"
+    AI_TOOLS_DEFAULT_PAGE_SIZE: int = 50
 
     # Refresh Token Configuration
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days default

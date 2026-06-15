@@ -19,6 +19,8 @@ from langchain_core.tools import StructuredTool
 from langgraph.types import Command
 from pydantic import BaseModel
 
+from app.ai.prompt_template import render_prompt
+
 logger = logging.getLogger(__name__)
 
 # State keys excluded when passing state to subagents and when returning
@@ -251,11 +253,13 @@ def build_task_tool(
 
     # Resolve description
     if task_description is None:
-        description = TASK_TOOL_DESCRIPTION.format(
-            available_agents=subagent_description_str
+        description = render_prompt(
+            TASK_TOOL_DESCRIPTION, available_agents=subagent_description_str
         )
     elif "{available_agents}" in task_description:
-        description = task_description.format(available_agents=subagent_description_str)
+        description = render_prompt(
+            task_description, available_agents=subagent_description_str
+        )
     else:
         description = task_description
 

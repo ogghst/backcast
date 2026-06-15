@@ -12,6 +12,7 @@ export const GeneralSection = ({ isEdit }: GeneralSectionProps) => {
     <CollapsibleCard
       id="assistant-general"
       collapsed={false}
+      keepMounted
       title={
         <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
           General

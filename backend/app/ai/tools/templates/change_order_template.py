@@ -27,6 +27,7 @@ For temporal tools (those that work with versioned entities):
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -55,7 +56,14 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="find_change_orders",
-    description="Find change orders by ID or search/filter. Results are paginated; response includes total count, page, and page_count.",
+    description=(
+        "Find change orders by ID or search/filter. "
+        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
+        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
+        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
+        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
+        "Use 'search' to narrow results before paging."
+    ),
     permissions=["change-order-read"],
     category="change-orders",
     risk_level=RiskLevel.LOW,
@@ -200,21 +208,24 @@ async def create_change_order(
     title: str,
     description: str,
     reason: str,
-    budget_impact: float | None = None,
-    schedule_impact_days: int | None = None,
+    impact_level: str | None = None,
+    effective_date: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new change order.
 
     Context: Provides database session and change order service for creating change orders.
 
+    Extract all parameters from the user's natural language request before calling.
+    Infer impact_level from what the user describes.
+
     Args:
         project_id: UUID of the project this change order applies to
         title: Short title for the change order
         description: Detailed description of the change
-        reason: Business reason for the change
-        budget_impact: Estimated budget impact (positive = increase)
-        schedule_impact_days: Estimated schedule impact in days
+        reason: Business justification for the change
+        impact_level: Risk/impact level — one of LOW, MEDIUM, HIGH
+        effective_date: When the change takes effect (ISO 8601 date string, optional)
         context: Injected tool execution context
 
     Returns:
@@ -226,11 +237,10 @@ async def create_change_order(
     Example:
         >>> result = await create_change_order(
         ...     project_id="...",
-        ...     title="Add Safety Sensors",
-        ...     description="Install additional safety sensors on assembly line",
-        ...     reason="Updated safety regulations require additional sensors",
-        ...     budget_impact=25000.00,
-        ...     schedule_impact_days=5
+        ...     title="Upgrade Controller System",
+        ...     description="Replace legacy controllers with modern PLC system",
+        ...     reason="Legacy system no longer supported",
+        ...     impact_level="HIGH"
         ... )
         >>> print(f"Created change order: {result['id']}")
     """
@@ -238,15 +248,27 @@ async def create_change_order(
         from app.services.change_order_service import ChangeOrderService
 
         service = ChangeOrderService(context.session)
+        project_uuid = UUID(project_id)
+
+        # Generate code before constructing schema
+        code = await service.get_next_code(project_uuid)
+
+        # Parse effective_date if provided
+        parsed_effective_date = None
+        if effective_date:
+            parsed_effective_date = datetime.fromisoformat(effective_date).replace(
+                tzinfo=UTC
+            )
 
         # Create Pydantic schema
-        co_data = ChangeOrderCreate(  # type: ignore[call-arg]
-            project_id=UUID(project_id),
+        co_data = ChangeOrderCreate(
+            code=code,
+            project_id=project_uuid,
             title=title,
             description=description,
-            reason=reason,
-            budget_impact=budget_impact,
-            schedule_impact_days=schedule_impact_days,
+            justification=reason,
+            impact_level=impact_level,
+            effective_date=parsed_effective_date,
         )
 
         # Call service method
@@ -259,119 +281,19 @@ async def create_change_order(
         # Convert to AI-friendly format
         return {
             "id": str(change_order.change_order_id),
+            "code": change_order.code,
             "project_id": str(change_order.project_id),
             "title": change_order.title,
             "description": change_order.description,
             "status": change_order.status,
-            "budget_impact": float(change_order.budget_impact)
-            if hasattr(change_order, "budget_impact") and change_order.budget_impact
-            else 0.0,
-            "schedule_impact_days": change_order.schedule_impact_days
-            if hasattr(change_order, "schedule_impact_days")
-            else None,
+            "impact_level": change_order.impact_level,
+            "branch_name": change_order.branch_name,
+            "message": f"Change order {change_order.code} created with branch {change_order.branch_name}",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except Exception as e:
         logger.error(f"Error in create_change_order: {e}")
-        return {"error": str(e)}
-
-
-@ai_tool(
-    name="generate_change_order_draft",
-    description="Generate draft CO from impact analysis.",
-    permissions=["change-order-create"],
-    category="change-orders",
-    risk_level=RiskLevel.HIGH,
-)
-async def generate_change_order_draft(
-    project_id: str,
-    title: str,
-    description: str,
-    reason: str,
-    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
-) -> dict[str, Any]:
-    """Generate a draft change order with impact analysis.
-
-    Context: Provides database session and change order service for generating draft change orders.
-
-    This tool analyzes the proposed change and generates a comprehensive
-    change order draft including:
-    - Budget impact analysis
-    - Schedule impact assessment
-    - Risk evaluation
-    - Recommendation
-
-    Args:
-        project_id: UUID of the project
-        title: Change order title
-        description: Description of the change
-        reason: Business reason for the change
-        context: Injected tool execution context
-
-    Returns:
-        Dictionary with generated draft change order
-
-    Raises:
-        ValueError: If invalid input parameters or UUID format
-
-    Example:
-        >>> result = await generate_change_order_draft(
-        ...     project_id="...",
-        ...     title="Upgrade Controller System",
-        ...     description="Replace legacy controllers with modern PLC system",
-        ...     reason="Legacy system no longer supported, need modern features"
-        ... )
-        >>> print(f"Draft generated: {result['title']}")
-        >>> print(f"Estimated impact: ${result['budget_impact']}")
-    """
-    try:
-        from app.services.change_order_service import ChangeOrderService
-
-        service = ChangeOrderService(context.session)
-
-        # Call service method to generate draft
-        # This analyzes impact and creates a comprehensive draft
-        draft = await service.generate_draft(
-            project_id=UUID(project_id),
-            title=title,
-            description=description,
-            reason=reason,
-            actor_id=UUID(context.user_id),
-            branch=context.branch_name or "main",
-        )
-
-        # Extract AI analysis results from impact_analysis_results
-        ai_analysis: dict[str, Any] = {}
-        if hasattr(draft, "impact_analysis_results") and draft.impact_analysis_results:
-            ai_data = draft.impact_analysis_results
-            if isinstance(ai_data, dict) and "ai_analysis" in ai_data:
-                ai_analysis = ai_data["ai_analysis"]
-
-        # Convert to AI-friendly format
-        return {
-            "id": str(draft.change_order_id),
-            "project_id": str(draft.project_id),
-            "code": draft.code,
-            "title": draft.title,
-            "description": draft.description,
-            "status": draft.status,
-            "impact_level": draft.impact_level,
-            "branch": draft.branch,
-            "estimated_budget_impact": ai_analysis.get("estimated_budget_impact", 0.0),
-            "estimated_schedule_impact_days": ai_analysis.get(
-                "estimated_schedule_impact_days", 0
-            ),
-            "risk_assessment": ai_analysis.get("risk_assessment", "Medium"),
-            "recommendation": ai_analysis.get("recommendation", "Review required"),
-            "confidence_score": ai_analysis.get("confidence_score", 0.0),
-            "affected_entities": ai_analysis.get("affected_entities", []),
-            "message": f"Draft change order {draft.code} generated successfully",
-        }
-    except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
-    except Exception as e:
-        logger.error(f"Error in generate_change_order_draft: {e}")
         return {"error": str(e)}
 
 
@@ -828,7 +750,7 @@ CHANGE ORDER TOOL PATTERNS:
    - change-order-approve: Approve/reject change orders (managers only)
 
 3. WORKFLOW INTEGRATION:
-   - Use generate_change_order_draft for automated analysis
+   - Use create_change_order for new change orders (extract impact data from user request)
    - Use submit_change_order_for_approval to start workflow
    - Use approve/reject tools for decision making
 

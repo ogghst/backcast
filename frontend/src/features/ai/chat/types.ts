@@ -22,18 +22,25 @@ export enum WSConnectionState {
 }
 
 /**
+ * Ordered content part within a stream. Text and tool calls interleave in the
+ * order they occurred so a tool call can render between text segments.
+ */
+export type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "tool_call"; id: string; name: string; args: Record<string, unknown>; completed?: boolean };
+
+/**
  * Represents a single subagent's streaming state
  */
 export interface SubagentStream {
   invocation_id: string; // Unique identifier for this invocation
   subagent_name: string; // Display name (e.g., "EVM Analyst")
-  content: string; // Accumulated streaming content
+  parts: ContentPart[]; // Ordered text + tool-call segments
   is_active: boolean; // Whether this subagent is currently streaming
   is_complete: boolean; // Whether this subagent has finished
   started_at: number; // Timestamp when streaming started
   invocation_number?: number; // Invocation count for this subagent name (e.g., 2 for second invocation)
-  sequence?: number; // Order in which this stream was created (for proper rendering)
-  tool_calls?: ToolCallRemark[]; // Tool calls that occurred during this subagent
+  globalSequence: number; // Global creation order shared with main streams (for chronological rendering)
 }
 
 /**
@@ -42,23 +49,11 @@ export interface SubagentStream {
  */
 export interface MainAgentStream {
   invocation_id: string; // Unique identifier for this stream segment
-  content: string; // Accumulated streaming content
+  parts: ContentPart[]; // Ordered text + tool-call segments
   is_active: boolean; // Whether this stream is currently streaming
   is_complete: boolean; // Whether this stream has finished
   started_at: number; // Timestamp when streaming started
-  sequence?: number; // Order in which this stream was created (for proper rendering)
-  tool_calls?: ToolCallRemark[]; // Tool calls that occurred during this stream segment
-}
-
-/**
- * Represents a tool call that occurred during streaming
- * Used to render inline tool remarks in the message flow
- */
-export interface ToolCallRemark {
-  name: string; // Tool name
-  args: Record<string, unknown>; // Tool arguments
-  position: number; // Character position in content where tool was called
-  completed?: boolean; // Whether the tool has finished executing
+  globalSequence: number; // Global creation order shared with subagents (for chronological rendering)
 }
 
 /**
@@ -333,6 +328,7 @@ export interface BriefingSectionData {
  */
 export interface BriefingDocumentData {
   original_request: string;
+  follow_up_requests: string[];
   sections: BriefingSectionData[];
   supervisor_analysis?: string | null;
   markdown: string;
@@ -366,6 +362,7 @@ export interface PlanStep {
   expected_output: string;
   status: PlanStepStatus;
   result_summary?: string | null;
+  replanned?: boolean;
 }
 
 /**
@@ -437,6 +434,10 @@ export interface WSAskUserMessage {
   ask_id: string;
   context?: string;
   options?: string[];
+  /** ISO 8601 deadline for the prompt. When present, the modal shows a countdown. */
+  expires_at?: string;
+  /** Full timeout window in seconds (denominator for the progress bar). */
+  timeout_seconds?: number;
 }
 
 /**

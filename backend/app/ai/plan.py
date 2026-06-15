@@ -20,6 +20,11 @@ class PlanStep(BaseModel):
 
     Each step targets one specialist with a focused task description.
     Dependencies reference other step indices that must complete first.
+
+    ``replanned`` is True for steps introduced or revised by a replan
+    (set in ``_merge_replanned_steps``); completed steps carried over from
+    the original plan stay False. The flag flows to the UI via PLAN_UPDATE
+    so replanned steps can be visually distinguished.
     """
 
     step_index: int
@@ -30,6 +35,7 @@ class PlanStep(BaseModel):
     expected_output: str = ""
     status: StepStatus = "pending"
     result_summary: str | None = None
+    replanned: bool = False
 
 
 class PlannerStepOutput(BaseModel):
@@ -156,6 +162,20 @@ class PlanDocument(BaseModel):
                 return False
         return True
 
+    def blocked_step_indices(self) -> list[int]:
+        """Pending steps permanently blocked because a dependency FAILED.
+
+        A pending step whose dependency is merely ``pending``/``in_progress``
+        is NOT blocked (it may yet become dispatchable). Only a ``failed``
+        dependency permanently blocks it.
+        """
+        failed = {s.step_index for s in self.steps if s.status == "failed"}
+        return [
+            s.step_index
+            for s in self.steps
+            if s.status == "pending" and any(d in failed for d in s.dependencies)
+        ]
+
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------
@@ -186,12 +206,12 @@ class PlanDocument(BaseModel):
 
         for step in self.steps:
             status_marker = {
-                "pending": "[ ]",
-                "in_progress": "[~]",
-                "completed": "[x]",
-                "skipped": "[-]",
-                "failed": "[!]",
-            }.get(step.status, "[?]")
+                "pending": "[pending]",
+                "in_progress": "[in progress]",
+                "completed": "[completed]",
+                "skipped": "[skipped]",
+                "failed": "[failed]",
+            }.get(step.status, "[unknown]")
 
             dep_str = f" (depends on {step.dependencies})" if step.dependencies else ""
             lines.append(

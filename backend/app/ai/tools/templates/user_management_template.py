@@ -78,7 +78,14 @@ async def _resolve_user_role(session: Any, user_id: UUID) -> str:
 
 @ai_tool(
     name="find_users",
-    description="Find users by ID or search. Results are paginated; response includes total count, page, and page_count.",
+    description=(
+        "Find users by ID or search. "
+        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
+        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
+        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
+        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
+        "Use 'search' to narrow results before paging."
+    ),
     permissions=["user-read"],
     category="users",
     risk_level=RiskLevel.LOW,
@@ -444,7 +451,14 @@ async def delete_user(
 
 @ai_tool(
     name="find_organizational_units",
-    description="Find organizational units by ID or search. Results are paginated; response includes total count, page, and page_count.",
+    description=(
+        "Find organizational units by ID or search. "
+        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
+        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
+        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
+        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
+        "Use 'search' to narrow results before paging."
+    ),
     permissions=["organizational-unit-read"],
     category="users",
     risk_level=RiskLevel.LOW,
