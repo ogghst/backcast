@@ -189,6 +189,44 @@ def _restore_reasoning_content(metadata: dict[str, Any] | None) -> dict[str, Any
     return {}
 
 
+def _message_text(message: BaseMessage) -> str:
+    """Render a message to a single text blob for size measurement.
+
+    Joins multimodal content blocks (vision/list content) into a string,
+    and appends any tool-call argument text (``AIMessage.tool_calls``) and
+    tool-call ID / name metadata, since all of that is sent to the LLM and
+    counts toward the request payload size. Purely for diagnostics -- not
+    an exact serialization, but close enough to attribute bloat by role.
+    """
+    content = message.content
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                # Common block shapes: {"type": "text", "text": ...},
+                # image blocks ({"type":"image_url",...}) carry little text.
+                t = block.get("text")
+                if isinstance(t, str):
+                    parts.append(t)
+        text = "".join(parts)
+    else:
+        text = str(content)
+
+    # AIMessage.tool_calls (args) are part of what's sent -- include them.
+    tool_calls = getattr(message, "tool_calls", None)
+    if tool_calls:
+        for tc in tool_calls:
+            args = tc.get("args") if isinstance(tc, dict) else None
+            if args:
+                text += str(args)
+
+    return text
+
+
 async def _extract_client_config(
     provider: AIProvider,
     config: AIConfigService,
@@ -1069,6 +1107,111 @@ class AgentService:
             state.model_name or "unknown",
             fn_name,
         )
+
+        # Per-call request-payload size diagnostic. Correlated to the
+        # [LLM_CALL_START] line above via llm_call_count. Never raises;
+        # degrades to ``bytes=N/A`` on any failure so a diagnostics log
+        # can never break a run.
+        self._log_llm_call_payload(state, data)
+
+    def _log_llm_call_payload(self, state: StreamState, data: dict[str, Any]) -> None:
+        """Log the size of the request message payload for one LLM call.
+
+        Computes ``msg_count`` / ``total_chars`` / ``total_bytes`` and a
+        per-role char breakdown from the input messages so we can see WHAT
+        is bloating each call (e.g. accumulated tool results vs system
+        prompt vs history). Driven by a real incident: a glm-4.7 run sent a
+        ~247k-prompt-token request to the project_manager specialist,
+        causing 120s timeouts.
+
+        Known limitation: this measures the MESSAGE payload only. LangChain
+        sends bound TOOLS separately (via ``.bind_tools()``), so tool JSON
+        schemas are NOT counted here. That is acceptable for bloat
+        diagnosis -- the message history (especially accumulated tool
+        results) is the dominant factor. We intentionally do not hook the
+        httpx/openai client (out of scope, too invasive).
+
+        Robust to event shape: astream_events v2 ``on_chat_model_start``
+        exposes ``data["messages"]`` as ``list[list[BaseMessage]]``; v1
+        nested it under ``data["input"]["messages"]``. Older LLMs used
+        ``data["prompts"]`` (list[str]). All three are handled; if none is
+        present the call degrades to ``bytes=N/A``.
+        """
+        try:
+            messages = self._extract_event_messages(data)
+            if messages is None:
+                payload_part = "msgs=0 | chars=0 | bytes=N/A | by_role="
+            else:
+                msg_count = len(messages)
+                by_role: dict[str, int] = {}
+                total_chars = 0
+                total_bytes = 0
+                for msg in messages:
+                    text = _message_text(msg)
+                    chars = len(text)
+                    total_chars += chars
+                    total_bytes += len(text.encode("utf-8"))
+                    role = type(msg).__name__.removesuffix("Message").lower()
+                    by_role[role] = by_role.get(role, 0) + chars
+                role_str = ",".join(f"{r}:{c}" for r, c in by_role.items())
+                payload_part = (
+                    f"msgs={msg_count} | chars={total_chars} | "
+                    f"bytes={total_bytes} | by_role={role_str}"
+                )
+        except Exception as exc:  # noqa: BLE001 -- diagnostics must never raise
+            payload_part = (
+                f"msgs=N/A | chars=N/A | bytes=N/A | err={type(exc).__name__}"
+            )
+
+        subagent_part = (
+            f" | subagent={state.current_subagent_name}"
+            if state.current_subagent_name
+            else ""
+        )
+        logger.info(
+            "[LLM_CALL_PAYLOAD] #%d | %s%s",
+            state.llm_call_count,
+            payload_part,
+            subagent_part,
+        )
+
+    @staticmethod
+    def _extract_event_messages(
+        data: dict[str, Any],
+    ) -> list[BaseMessage] | None:
+        """Pull the input messages out of an ``on_chat_model_start`` event.
+
+        Accepts the astream_events v2 shape (``data["messages"]``),
+        the v1 shape (``data["input"]["messages"]``), and the legacy
+        ``data["prompts"]`` shape (returned as zero-content messages).
+        Returns a flat ``list[BaseMessage]`` or ``None`` if no usable
+        payload is present.
+        """
+        raw: Any = None
+        if isinstance(data.get("messages"), list):
+            raw = data["messages"]
+        elif isinstance(data.get("input"), dict) and isinstance(
+            data["input"].get("messages"), list
+        ):
+            raw = data["input"]["messages"]
+        elif isinstance(data.get("prompts"), list):
+            raw = data["prompts"]
+
+        if raw is None:
+            return None
+
+        flat: list[BaseMessage] = []
+        for item in raw:
+            if isinstance(item, BaseMessage):
+                flat.append(item)
+            elif isinstance(item, list):
+                # v2 wraps messages per-batch: list[list[BaseMessage]].
+                flat.extend(m for m in item if isinstance(m, BaseMessage))
+            elif isinstance(item, str):
+                # Legacy prompts shape -- synthesize a minimal message so
+                # the size is still counted (content-only, generic role).
+                flat.append(HumanMessage(content=item))
+        return flat
 
     def _filter_think_tokens(self, state: StreamState, content: str) -> str:
         """Stateful inline ``<think>...</think>`` filter for streamed tokens.
