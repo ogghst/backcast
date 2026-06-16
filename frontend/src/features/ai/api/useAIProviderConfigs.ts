@@ -88,7 +88,6 @@ export const useSetAIProviderConfig = (
       toast.error(`Error updating configuration: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -117,6 +116,5 @@ export const useDeleteAIProviderConfig = (
       toast.error(`Error deleting configuration: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
