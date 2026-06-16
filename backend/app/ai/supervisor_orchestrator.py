@@ -305,6 +305,119 @@ def _build_completion_nudge(plan: PlanDocument, cleaned_findings: str) -> str:
     )
 
 
+def _build_failure_nudge(
+    plan: PlanDocument,
+    specialist_name: str,
+    error_message: str,
+) -> str:
+    """Build the nudge sent to the supervisor when a specialist step FAILED.
+
+    The success path uses ``_build_completion_nudge`` to ground the
+    supervisor's final answer; the failure path previously sent a weak
+    directive ("continue delegating the next pending step, or respond with
+    the findings so far") that said nothing about informing the user of the
+    failure or quoting the actual error.  On weaker reasoning models the
+    supervisor then answered with a stale "awaiting results" message and
+    left the failure visible only in the side planning panel.
+
+    This helper forces a grounded failure report.  It distinguishes two
+    sub-cases, mirroring the success path's ``if pending: ... else: ...``
+    shape:
+
+    * **Pending steps remain:** the failure is isolated.  The supervisor must
+      FIRST briefly tell the user that this step failed (so the user is never
+      left in the dark mid-plan), then either delegate the next pending step
+      or call ``request_replan``.
+    * **No pending steps remain:** the plan ended in failure.  The supervisor
+      MUST now inform the user, state the error in plain language, report
+      what (if anything) was accomplished before the failure, and must NOT
+      claim success, say it is "awaiting results", or claim tools are
+      missing/unavailable.
+
+    Args:
+        plan: The active PlanDocument (read-only); its steps carry status and
+            ``result_summary`` values.
+        specialist_name: Display name of the specialist that failed.
+        error_message: The raw error string from the failed specialist
+            (e.g. "invocation exceeded 120s of active time").  May be empty.
+
+    Returns:
+        The SystemMessage content instructing the supervisor how to respond
+        after a failed step.
+    """
+    # Find the just-failed step (there should be exactly one freshly-marked
+    # failed step; if several exist we report the latest for context).
+    failed_steps = [s for s in plan.steps if s.status == "failed"]
+    failed_step = failed_steps[-1] if failed_steps else None
+    step_num = (failed_step.step_index + 1) if failed_step else 0
+    step_label = (
+        f"Plan step {step_num} ({specialist_name})" if step_num else specialist_name
+    )
+
+    # Normalize the error so it is always printable (never None/blank-silent).
+    error_text = (error_message or "").strip()
+    if not error_text:
+        error_text = "(no error detail recorded)"
+
+    pending = [s for s in plan.steps if s.status == "pending"]
+
+    if pending:
+        # The failure is isolated -- other steps can still run.  But the user
+        # must be told NOW that this step failed, before any further work.
+        next_step = pending[0]
+        return (
+            f"{step_label} FAILED.\n"
+            f"Error: {error_text}\n\n"
+            f"{len(pending)} pending step(s) still remain; this failure does "
+            f"NOT block them.  Your response MUST do two things, in order:\n"
+            "1. FIRST, briefly inform the user that step "
+            f"{step_num} ({specialist_name}) failed and state the error in "
+            "plain language.  Do NOT stay silent or say you are awaiting "
+            "results.\n"
+            "2. THEN either delegate the next pending step "
+            f"(step {next_step.step_index + 1} ({next_step.specialist})) or "
+            "call request_replan if the failure changes the plan.\n"
+            "Do NOT claim this step succeeded."
+        )
+
+    # No pending steps remain: the plan ended in failure.  Build a block of
+    # what was accomplished before the failure (reusing the completion nudge's
+    # truncation limit) so the supervisor can report partial progress.
+    accomplished_lines: list[str] = []
+    for step in plan.steps:
+        if step.status != "completed":
+            continue
+        summary = (step.result_summary or "").strip()
+        if not summary:
+            continue
+        truncated = summary[:_COMPLETION_NUDGE_SUMMARY_LIMIT]
+        if len(summary) > _COMPLETION_NUDGE_SUMMARY_LIMIT:
+            truncated += "..."
+        accomplished_lines.append(
+            f"Step {step.step_index + 1} ({step.specialist}): {truncated}"
+        )
+    accomplished_block = (
+        "\n".join(accomplished_lines) if accomplished_lines else "(nothing)"
+    )
+
+    return (
+        f"{step_label} FAILED and there are NO remaining pending plan steps. "
+        "The plan has ended without completing.\n"
+        f"Error: {error_text}\n\n"
+        "## Completed before the failure\n"
+        f"{accomplished_block}\n\n"
+        "You MUST now respond to the user. Your message MUST:\n"
+        f"- State plainly that step {step_num} ({specialist_name}) FAILED and "
+        "report the error above in the user's language.\n"
+        "- Summarize what (if anything) was accomplished before the failure, "
+        "drawing ONLY from the `Completed before the failure` block above.\n\n"
+        "Do NOT delegate further.  Do NOT claim success.  Do NOT say you are "
+        "awaiting results / `Attendo i risultati`.  Do NOT claim the required "
+        "tools are missing, impossible, or unavailable -- this step failed for "
+        "the reason stated above, not because the tools do not exist."
+    )
+
+
 class _BriefingSupervisorState(AgentState[Any]):
     """State extension for the briefing supervisor subgraph.
 
@@ -1046,31 +1159,15 @@ class SupervisorOrchestrator:
                     self._publish_plan_update(active_plan)
                     # Inject guidance so the supervisor knows how to proceed
                     # after a failed step (mirrors the success path's
-                    # plan_msg injection).  Names blocked dependents, or
-                    # confirms the failure is isolated.
-                    blocked = [
-                        s.step_index
-                        for s in active_plan.steps
-                        if s.status == "pending"
-                        and active_step.step_index in s.dependencies
-                    ]
-                    if blocked:
-                        guidance = (
-                            f"Plan step {active_step.step_index + 1} "
-                            f"({specialist_name}) FAILED. "
-                            f"Step(s) {blocked} depend on it and cannot run. "
-                            "Call request_replan to revise the remaining "
-                            "steps, or if the findings so far answer the "
-                            "user, respond now."
-                        )
-                    else:
-                        guidance = (
-                            f"Plan step {active_step.step_index + 1} "
-                            f"({specialist_name}) FAILED, but no other plan "
-                            "steps depend on it. Continue delegating the "
-                            "next pending step, or respond with the "
-                            "findings so far."
-                        )
+                    # plan_msg injection).  ``_build_failure_nudge`` decides
+                    # between the "pending steps remain" and "plan ended in
+                    # failure" branches and always forces the supervisor to
+                    # inform the user of the failure -- unlike the old weak
+                    # directive which permitted a generic "awaiting results"
+                    # answer.
+                    guidance = _build_failure_nudge(
+                        active_plan, specialist_name, str(exc)
+                    )
                     error_update["messages"] = [SystemMessage(content=guidance)]
 
                 # Publish BRIEFING_UPDATE + AGENT_COMPLETE

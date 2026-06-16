@@ -465,8 +465,9 @@ async def test_specialist_failure_with_dependents_names_blocked() -> None:
 
 @pytest.mark.asyncio
 async def test_specialist_failure_no_dependents_continues() -> None:
-    """specialist fails but no other step depends on it -> guidance says
-    continue delegating the next pending step."""
+    """specialist fails but no other step depends on it (a pending step
+    remains) -> guidance tells the user the step failed AND allows
+    delegating the next pending step / replanning."""
     plan = PlanDocument(
         original_request="x",
         steps=[
@@ -525,4 +526,8 @@ async def test_specialist_failure_no_dependents_continues() -> None:
     assert msgs and isinstance(msgs[0], SystemMessage)
     text = msgs[0].content
     assert "FAILED" in text
-    assert "no other plan steps depend" in text.lower() or "continue" in text.lower()
+    # The failure nudge must name the error and, because a pending step
+    # remains, allow delegating it / replanning (see _build_failure_nudge).
+    assert "provider 500" in text
+    assert "briefly inform the user" in text.lower() or "inform the user" in text.lower()
+    assert "delegate the next pending step" in text.lower() or "request_replan" in text.lower()
