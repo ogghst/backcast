@@ -393,12 +393,10 @@ async def delete_cost_registration(
 @ai_tool(
     name="list_cost_registrations",
     description=(
-        "List cost registrations with optional filters. "
-        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
-        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
-        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
-        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
-        "Use 'search' to narrow results before paging."
+        "List cost registrations with optional filters (project_id, wbs_element_id, "
+        "work_package_id, cost_element_id). "
+        "Paginated — check 'total'/'has_more' and page forward with 'page'/'limit', "
+        "narrow with 'search' first."
     ),
     permissions=["cost-registration-read"],
     category="cost-management",
@@ -825,11 +823,10 @@ async def get_cost_element_details(
 @ai_tool(
     name="get_progress_data",
     description=(
-        "Get progress data for a cost element. "
-        "IMPORTANT: when include_history is true, results are paginated — the returned list may be a SUBSET of all matching results. "
-        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
-        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
-        "Do NOT assume the first page contains all results — if you don't find what you need, page forward."
+        "Get progress data for a cost element (set include_history=true for the "
+        "full history of progress entries). "
+        "When include_history is true, results are paginated — check 'total'/'has_more' "
+        "and page forward with 'page'/'limit'."
     ),
     permissions=["progress-entry-read"],
     category="work-tracking",

@@ -65,6 +65,24 @@ AI_DELEGATION_ENFORCED: bool = settings.AI_DELEGATION_ENFORCED
 #: Set to false to allow parallel tool execution.
 AI_SEQUENTIAL_TOOL_CALLS: bool = settings.AI_SEQUENTIAL_TOOL_CALLS
 
+#: Hard cap on tool calls within a single specialist invocation.  Bounded low
+#: because a specialist does a focused 2-4 calls/step; the flat 25 default drove
+#: the 120s timeout cascade.  The supervisor's own budget is separate (it uses
+#: the graph recursion_limit via the initial state set by agent_service).
+AI_SPECIALIST_MAX_TOOL_ITERATIONS: int = settings.AI_SPECIALIST_MAX_TOOL_ITERATIONS
+
+#: Specialist-specific ContextGuard token limit.  Much lower than the supervisor's
+#: ``AI_CONTEXT_TOKEN_LIMIT`` (120k) because specialists hit GLM's ~25-30k-token
+#: latency knee (and the 120s active-time limit) far below the supervisor threshold.
+#: A live e2e showed a specialist running away to 31k prompt_tokens at the 6th
+#: tool call; 24k sits safely under the knee (trim starts at ~80% ~ 19k).
+AI_SPECIALIST_CONTEXT_TOKEN_LIMIT: int = settings.AI_SPECIALIST_CONTEXT_TOKEN_LIMIT
+
+#: Specialist-specific ContextGuard keep-recent (tool CALL/RESULT pairs kept
+#: verbatim; older summarized).  Lower than the supervisor's 8 because a
+#: specialist does a focused 2-4 calls/step.
+AI_SPECIALIST_CONTEXT_KEEP_RECENT: int = settings.AI_SPECIALIST_CONTEXT_KEEP_RECENT
+
 #: Tool-category prefix used to identify MCP tools from external servers.
 AI_MCP_TOOL_CATEGORY_PREFIX: str = settings.AI_MCP_TOOL_CATEGORY_PREFIX
 
@@ -80,6 +98,9 @@ __all__ = [
     "AI_CONTEXT_KEEP_RECENT",
     "AI_DELEGATION_ENFORCED",
     "AI_SEQUENTIAL_TOOL_CALLS",
+    "AI_SPECIALIST_MAX_TOOL_ITERATIONS",
+    "AI_SPECIALIST_CONTEXT_TOKEN_LIMIT",
+    "AI_SPECIALIST_CONTEXT_KEEP_RECENT",
     "AI_MCP_TOOL_CATEGORY_PREFIX",
     "AI_TOOLS_DEFAULT_PAGE_SIZE",
 ]

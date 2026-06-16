@@ -28,12 +28,10 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="list_projects",
     description=(
-        "List projects with search, filter, and pagination. "
-        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching projects. "
-        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
-        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
-        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
-        "Use 'search' to narrow results before paging."
+        "List projects with search, filter, and pagination (filter by status; "
+        "sort via sort_field/sort_order). "
+        "Paginated — check 'total'/'has_more' and page forward with 'page'/'limit', "
+        "narrow with 'search' first."
     ),
     permissions=["project-read"],
     category="projects",
@@ -286,12 +284,9 @@ async def get_project(
 @ai_tool(
     name="global_search",
     description=(
-        "Search across all entity types. "
-        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
-        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
-        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
-        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
-        "Use 'search' to narrow results before paging."
+        "Search across all entity types (scope with project_id / wbs_element_id). "
+        "Paginated — check 'total'/'has_more' and page forward with 'page'/'limit', "
+        "narrow with 'search' first."
     ),
     permissions=["project-read"],
     category="analysis",

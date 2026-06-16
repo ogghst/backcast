@@ -9,11 +9,29 @@ touching any other data:
      system_prompt, allowed_tools) with the seed.
   B. Append each specialist to ``delegation_config.allowed_specialists`` of
      the main assistants whose seed config lists it (idempotent, append-only).
+  C. After committing, invalidate the ``db_loader`` in-process cache so the
+     new roster is visible immediately (the default TTL is 5 minutes) and
+     re-read the roster from the DB to assert the expected specialists are
+     present and active.
+
+The set of specialists to sync is derived from the seed's
+``ai_specialist_configs`` keys — there is no hardcoded allowlist, so adding a
+specialist to the seed is enough; it will not be silently skipped.
 
 This avoids a full reseed (which would wipe all project data). Existing
 ``allowed_specialists`` entries are preserved — a specialist name is only
 appended when missing, so other pre-existing delegation entries (the live DB
 can lag the seed) are left untouched.
+
+Graph-compile cache caveat
+--------------------------
+``invalidate_cache()`` only clears the ``db_loader`` specialist-config cache
+(process-local). Compiled LangGraph subagent graphs are built lazily on the
+next request and may hold a stale snapshot for the lifetime of the running
+process. A **process restart** is the only guaranteed flush of the
+graph-compile layer; mid-process, the next graph build picks up the new DB
+state. Mid-session sync also orphans in-flight executions — coordinate with
+active chat sessions before running.
 
 Run with: cd backend && uv run python scripts/sync_specialists.py
 """
@@ -31,6 +49,7 @@ from sqlalchemy import select
 backend_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(backend_dir))
 
+from app.ai.subagents.db_loader import invalidate_cache  # noqa: E402
 from app.db.session import async_session_maker, engine  # noqa: E402
 from app.models.domain.ai import AIAssistantConfig  # noqa: E402
 
@@ -42,13 +61,6 @@ logger = logging.getLogger(__name__)
 
 SEED_FILE = backend_dir / "seed" / "seed_system_config.json"
 
-# Specialists this script keeps in sync with the seed. Add a name here (and to
-# the seed's ai_specialist_configs) to sync a new specialist non-destructively.
-SPECIALIST_NAMES: tuple[str, ...] = (
-    "document_manager",
-    "web_researcher",
-)
-
 # Fields kept in sync with the seed (the source of truth per specialist).
 # allowed_tools is the one that changes as new tools are added.
 _SYNCED_FIELDS = (
@@ -59,10 +71,25 @@ _SYNCED_FIELDS = (
 )
 
 
+def _load_seed() -> dict[str, Any]:
+    """Read the full seed file."""
+    with open(SEED_FILE) as f:
+        return json.load(f)
+
+
+def _seed_specialist_names() -> list[str]:
+    """Specialist names declared in the seed (the source of truth).
+
+    Replaces the former hardcoded allowlist so adding a specialist to the seed
+    is enough — it can no longer be silently skipped by an out-of-date tuple.
+    """
+    data = _load_seed()
+    return [s["name"] for s in data.get("ai_specialist_configs", []) if s.get("name")]
+
+
 def _load_specialist_seed(name: str) -> dict[str, Any]:
     """Read a single specialist config from the seed file."""
-    with open(SEED_FILE) as f:
-        data = json.load(f)
+    data = _load_seed()
     for spec in data.get("ai_specialist_configs", []):
         if spec.get("name") == name:
             return spec
@@ -71,8 +98,7 @@ def _load_specialist_seed(name: str) -> dict[str, Any]:
 
 def _assistants_listing_specialist(name: str) -> set[str]:
     """Names of main assistants whose seed allowed_specialists lists ``name``."""
-    with open(SEED_FILE) as f:
-        data = json.load(f)
+    data = _load_seed()
     names: set[str] = set()
     for assistant in data.get("ai_assistant_configs", []):
         allowed = (assistant.get("delegation_config") or {}).get("allowed_specialists")
@@ -147,11 +173,38 @@ async def wire_delegation(session: Any, name: str, target_assistants: set[str]) 
     return updated
 
 
+async def assert_roster(session: Any, expected_names: list[str]) -> None:
+    """Post-sync assertion: re-read specialists from DB and verify presence.
+
+    Confirms every seed-declared specialist exists in the live DB and is
+    active. Raises ``RuntimeError`` if any are missing or inactive so a
+    partial/failed sync is never reported as success.
+    """
+    result = await session.execute(
+        select(AIAssistantConfig.name, AIAssistantConfig.is_active).where(
+            AIAssistantConfig.agent_type == "specialist"
+        )
+    )
+    rows = dict(result.all())
+
+    missing = [n for n in expected_names if n not in rows]
+    inactive = [n for n in expected_names if n in rows and not rows[n]]
+    if missing or inactive:
+        raise RuntimeError(
+            f"post-sync assertion failed: missing={missing} inactive={inactive}"
+        )
+    logger.info(
+        "[C] roster assertion passed: %d specialists present & active", len(rows)
+    )
+
+
 async def main() -> None:
-    print("=== specialist DB sync ===\n")
+    specialist_names = _seed_specialist_names()
+    print(f"=== specialist DB sync ({len(specialist_names)} from seed) ===\n")
+    print(f"  seed specialists: {specialist_names}\n")
     async with async_session_maker() as session:
         try:
-            for name in SPECIALIST_NAMES:
+            for name in specialist_names:
                 print(f"-- {name} --")
                 upsert = await upsert_specialist(session, name)
                 if upsert["created"]:
@@ -170,11 +223,24 @@ async def main() -> None:
                 print(f"  [B] assistants updated: {wired}")
             await session.commit()
             print("\n=== committed ===")
+
+            await assert_roster(session, specialist_names)
+            print("=== post-sync roster assertion passed ===\n")
         except Exception:
             await session.rollback()
             raise
         finally:
             await session.close()
+
+    # Clear the db_loader specialist-config cache (process-local, 5-min TTL)
+    # so the new roster is visible immediately to the next graph build.
+    invalidate_cache()
+    print("=== db_loader cache invalidated ===")
+    print(
+        "NOTE: compiled graphs may hold a stale snapshot until process restart "
+        "(see module docstring)."
+    )
+
     await engine.dispose()
 
 

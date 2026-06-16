@@ -141,15 +141,11 @@ def is_ask_user_pending() -> bool:
 @ai_tool(
     name="ask_user",
     description=(
-        "Ask the user a clarifying question and BLOCK until they answer. This "
-        "is the ONLY sanctioned way to put a question to the user — never ask "
-        "a question as plain text in your reply. Call this whenever you would "
-        "otherwise write 'which?', 'do you want…?', or 'what should I use "
-        "for…?'. When the set of possible answers is small and known, pass "
-        "them as `options` so the user answers with one click instead of "
-        'typing (e.g. options=["Robot Cell A","Assembly Station 1"]). Use '
-        "`why` for one line of context. Prefer this over guessing or stalling "
-        "— one precise question unblocks the whole task."
+        "Ask the user a clarifying question and BLOCK until they answer — the ONLY "
+        "sanctioned way to put a question to the user (never ask questions as plain "
+        "text in your reply). When the answer set is small and known, pass it as "
+        '\'options\' (e.g. ["Robot Cell A","Assembly Station 1"]) for one-click '
+        "answers; use 'why' for one line of context. Prefer this over guessing."
     ),
     permissions=[],
     category="interaction",

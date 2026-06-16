@@ -51,6 +51,27 @@ class Settings(BaseSettings):
 
     # Specialist retry (transient API errors)
     AI_SPECIALIST_MAX_RETRIES: int = 3
+    # Hard cap on tool calls WITHIN a single specialist invocation.  Lower than
+    # the supervisor's budget (which inherits the graph recursion limit) because
+    # a specialist does a focused 2-4 tool calls/step; an unbounded ReAct loop
+    # (flat default 25) accumulates tool CALL+RESULT mass that drives GLM latency
+    # super-linearly into the 120s active-time timeout.  Mounted alongside
+    # ContextGuard on the specialist middleware stack.
+    AI_SPECIALIST_MAX_TOOL_ITERATIONS: int = 8
+    # Specialist-specific ContextGuard threshold.  Calibrated SEPARATELY from the
+    # supervisor's ``AI_CONTEXT_TOKEN_LIMIT`` (120k) because specialists hit GLM's
+    # ~25-30k-token latency knee (and the 120s active-time limit) far below the
+    # supervisor's threshold.  A live e2e showed a specialist's prompt_tokens
+    # running away to 31k at the 6th tool call — the supervisor's 120k guard never
+    # triggered.  24000 sits safely under the knee; trimming kicks in at ~80%
+    # (~19k).  Mounted on the specialist ContextGuard in ``compile_subagents``.
+    AI_SPECIALIST_CONTEXT_TOKEN_LIMIT: int = 24000
+    # Number of recent tool CALL/RESULT pairs kept verbatim by the specialist
+    # ContextGuard (older results are summarized).  Lower than the supervisor's
+    # ``AI_CONTEXT_KEEP_RECENT`` (8) because a specialist does a focused 2-4
+    # calls/step — keeping 4 pairs preserves the current step's evidence without
+    # re-inflating context past the latency knee.
+    AI_SPECIALIST_CONTEXT_KEEP_RECENT: int = 4
     # Wall-clock timeout (seconds) for a single specialist invocation,
     # bounding provider stalls that never raise.
     AI_SPECIALIST_STEP_TIMEOUT: int = 120

@@ -32,7 +32,11 @@ from app.ai.briefing_compiler import (
     initialize_briefing,
     parse_and_clean,
 )
-from app.ai.config import AI_DELEGATION_ENFORCED, AgentConfig
+from app.ai.config import (
+    AI_DELEGATION_ENFORCED,
+    AI_SPECIALIST_MAX_TOOL_ITERATIONS,
+    AgentConfig,
+)
 from app.ai.event_types import AgentEventType
 from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
@@ -63,6 +67,18 @@ from app.ai.tools.types import ToolContext
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+#: Hard cap on how many times a single specialist may be dispatched per plan
+#: step in plan mode.  Mirrors the ``_MAX_PLAN_STEPS`` "prompt says it, code
+#: enforces it" pattern: the supervisor prompt states "each plan step may be
+#: delegated to its specialist at most ONCE", and this constant enforces it so
+#: a weak reasoning model cannot drive a Swarm-style infinite re-dispatch loop
+#: (supervisor -> specialist -> supervisor -> same specialist -> ...) until the
+#: iteration cap force-ends the graph.  When the cap is exceeded the dispatch
+#: node routes back to the supervisor with a request_replan nudge instead of
+#: running the specialist again.  Set to 1 because one dispatch per step is the
+#: contract; a specialist needing a redo must go through request_replan.
+_MAX_DISPATCHES_PER_SPECIALIST: int = 1
 
 # Backoff parameters were extracted to ``app.ai.execution.llm_retry`` as
 # the shared ``RETRY_*`` constants.  These specialist-scoped aliases keep
@@ -134,24 +150,40 @@ The user reads the briefing directly — do NOT summarize or repeat findings in 
 
 ## How It Works
 The current briefing is injected into your context as a system message before every turn.
-1. Read the briefing to see what has been analyzed
+1. Call get_briefing / read the briefing to see what has been analyzed
 2. If not addressed, hand off to the most relevant specialist
 3. After a specialist contributes, the briefing is updated automatically
 
 ## Execution Plan
 {plan_section}
 
-Follow the plan strictly:
-- Delegate ONE step at a time in order
-- Each step specifies the specialist and focused task description
-- After each specialist completes, check if the next step's dependencies are met
-- If a step fails, decide whether to skip it or retry with a different approach
+The plan is the contract:
+- Delegate ONE step at a time to EXACTLY the specialist the plan names. Do NOT re-route a step to a different specialist; to re-route, call request_replan.
+- Before each turn, read the briefing and REMOVE steps already accomplished — do NOT re-dispatch a specialist whose step is already done.
+- After each specialist completes, check if the next step's dependencies are met.
+- If a step fails, decide whether to skip it or retry with a different approach.
+
+## Task Briefs (biggest turn-reducer)
+When you hand off, write a COMPLETE task brief in the handoff arguments:
+- objective: what the specialist must produce
+- success criterion: how to know it is done
+- inputs: any values carried from earlier steps (dependencies)
+- stop condition: when the specialist should stop
+- one-line tool hint: the first tool most likely to help (optional)
+A specialist with a complete brief finishes in fewer turns.
+
+## Specialist Result Validation
+Validate each specialist result by FORMAT/completeness only (was a well-formed
+SpecialistOutput returned? are key_findings present?). NEVER re-derive the domain
+answer yourself and NEVER second-guess the specialist's content — that wastes
+2-3 extra turns. If the format is valid, accept it and move on.
 
 ## Rules
 - Do NOT write a response summarizing the briefing — the user reads the briefing directly
 - Only respond if you need to ask the user a clarification question
 - After each step, check the briefing: if the next step is already accomplished or conflicts with findings, revise the remaining plan before continuing
 - Always check the briefing before deciding to hand off
+- Each plan step may be delegated to its specialist at most ONCE. If you need the same specialist to redo its step, call request_replan instead of re-dispatching.
 
 ## Replanning
 After each specialist completes, evaluate whether remaining steps are still valid:
@@ -232,6 +264,7 @@ def _briefing_update(
         "replan_count": 0,
         "max_replan_count": 2,
         "replan_context": "",
+        "specialist_dispatch_counts": {},
     }
     if plan_data is not None:
         update["plan_data"] = plan_data
@@ -677,10 +710,16 @@ class SupervisorOrchestrator:
             return _briefing_update(doc, max_iterations=max_iter)
 
         # --- 6b. Build the planner node ---
+        # The planner routes on the STRUCTURED capability contract, which
+        # lives in the specialist ``description`` (enriched form:
+        # "verbs — entities: ... — use when: ...").  ``presentation_prompt``
+        # stays human-readable for the supervisor's specialist list.  Fall
+        # back to presentation_prompt when description is absent (legacy).
         specialist_catalog = [
             {
                 "name": sg["name"],
-                "description": sg.get("presentation_prompt", sg.get("description", "")),
+                "description": sg.get("description")
+                or sg.get("presentation_prompt", ""),
             }
             for sg in specialist_graphs
         ]
@@ -886,6 +925,52 @@ class SupervisorOrchestrator:
             # can assign multiple steps to the same specialist; the guard
             # only blocks when there is no matching pending step.
             completed = state.get("completed_specialists", set())
+
+            # --- Code-enforced per-specialist re-dispatch cap (plan mode) ---
+            # Tracks dispatches at (specialist, step_index) granularity so the
+            # cap is exactly "once per plan step".  A specialist that has
+            # already been dispatched for THIS step (e.g. it ran, the
+            # supervisor ignored the result, and re-dispatched the same step)
+            # is routed to the supervisor with a request_replan nudge instead
+            # of running again.  This breaks the Swarm-style infinite
+            # re-dispatch loop a weak reasoning model can drive.  A genuine
+            # NEW step for the same specialist is unaffected (different key).
+            dispatch_counts: dict[str, int] = state.get(
+                "specialist_dispatch_counts", {}
+            )
+            if active_step is not None and active_plan is not None:
+                dispatch_key = f"{specialist_name}|{active_step.step_index}"
+                prior = dispatch_counts.get(dispatch_key, 0)
+                if prior >= _MAX_DISPATCHES_PER_SPECIALIST:
+                    logger.warning(
+                        "[SPECIALIST_NODE] Re-dispatch cap hit for %s on "
+                        "step %d (count=%d, cap=%d) -> routing to replan",
+                        specialist_name,
+                        active_step.step_index,
+                        prior,
+                        _MAX_DISPATCHES_PER_SPECIALIST,
+                    )
+                    guidance = (
+                        f"{specialist_name} has already been dispatched for "
+                        f"plan step {active_step.step_index + 1} and must not "
+                        "be re-dispatched for the same step. The plan as "
+                        "written is looping. Call request_replan to revise "
+                        "the remaining steps, or if the findings so far "
+                        "answer the user, respond now without delegating "
+                        "further."
+                    )
+                    return Command(
+                        update={
+                            "active_agent": "supervisor",
+                            "supervisor_iterations": state.get(
+                                "supervisor_iterations", 0
+                            )
+                            + 1,
+                            "messages": [SystemMessage(content=guidance)],
+                        },
+                        goto="supervisor",
+                    )
+
             if active_step is None and plan_data:
                 # Debug: why was no matching step found?
                 step_debug = (
@@ -1079,7 +1164,13 @@ class SupervisorOrchestrator:
                 )
                 self._publish_plan_update(active_plan)
 
-            max_iterations = state.get("max_tool_iterations", 25)
+            # Specialists get their OWN (much lower) tool-iteration budget — NOT
+            # the supervisor's.  A specialist does a focused 2-4 tool calls/step;
+            # inheriting the supervisor's flat-25 default let its ReAct loop
+            # accumulate tool CALL+RESULT mass that drove GLM latency into the
+            # 120s active-time timeout.  See AI_SPECIALIST_MAX_TOOL_ITERATIONS
+            # (app/ai/config.py).  The supervisor's own budget is unaffected.
+            max_iterations = AI_SPECIALIST_MAX_TOOL_ITERATIONS
             max_retries = settings.AI_SPECIALIST_MAX_RETRIES
             # Read the invocation_id generated by the handoff tool from the
             # graph state.  A single consistent ID ensures the frontend can
@@ -1112,7 +1203,14 @@ class SupervisorOrchestrator:
                             "max_tool_iterations": max_iterations,
                             "next": "agent",
                         },
-                        config={"recursion_limit": max_iterations},
+                        # ``recursion_limit`` must exceed ``max_tool_iterations``:
+                        # each tool-call cycle (agent -> tools -> agent) plus the
+                        # middleware wrapper hooks consumes multiple graph steps,
+                        # so a 1:1 ratio would prematurely GraphRecursionError
+                        # before the ``should_continue`` tool-count cap binds.
+                        # Mirrors the supervisor's ``recursion_limit * 5`` rule
+                        # (agent_service.py); ``max_iterations`` is the real cap.
+                        config={"recursion_limit": max_iterations * 5},
                     ),
                     specialist_name=specialist_name,
                     max_retries=max_retries,
@@ -1156,6 +1254,13 @@ class SupervisorOrchestrator:
                         active_step.step_index, f"Specialist error: {exc}"
                     )
                     error_update["plan_data"] = active_plan.model_dump()
+                    # Increment the per-(specialist, step) dispatch counter so a
+                    # failed step that gets re-dispatched is caught by the cap.
+                    _fkey = f"{specialist_name}|{active_step.step_index}"
+                    error_update["specialist_dispatch_counts"] = {
+                        _fkey: state.get("specialist_dispatch_counts", {}).get(_fkey, 0)
+                        + 1
+                    }
                     self._publish_plan_update(active_plan)
                     # Inject guidance so the supervisor knows how to proceed
                     # after a failed step (mirrors the success path's
@@ -1282,6 +1387,12 @@ class SupervisorOrchestrator:
                     active_step.step_index
                 }
                 cmd_update["current_step_index"] = active_step.step_index
+                # Increment the per-(specialist, step) dispatch counter so the
+                # re-dispatch cap can detect a repeat dispatch of the same step.
+                _dkey = f"{specialist_name}|{active_step.step_index}"
+                cmd_update["specialist_dispatch_counts"] = {
+                    _dkey: state.get("specialist_dispatch_counts", {}).get(_dkey, 0) + 1
+                }
                 self._publish_plan_update(active_plan)
                 logger.info(
                     "Plan step %d (%s) -> completed",

@@ -145,14 +145,12 @@ async def read_document(
 @ai_tool(
     name="add_document",
     description=(
-        "Create and save a document in the current project's document repository. "
-        "Use it to register an invoice, save a generated markdown/text report, or store a binary file "
-        "produced by an MCP tool (e.g. a PowerPoint .pptx). Supply file contents EITHER as plain text "
-        "(content) OR as base64-encoded bytes (base64_content) for binary files — exactly one is required. "
-        "Files attached to the chat are already visible to you as text; pass that text via content to register "
-        "them as project documents. The filename MUST end with an allowed extension "
-        "(pdf, docx, xlsx, pptx, txt, csv, md, png, jpg, jpeg, gif, webp, svg, zip, ...). "
-        "folder_id optionally places the file in an existing folder (omit/None for project root)."
+        "Create and save a document in the current project's repository (invoice, "
+        "markdown/text report, or binary file from an MCP tool). Provide contents as "
+        "EITHER 'content' (plain text) OR 'base64_content' (base64 bytes) — exactly one. "
+        "'filename' must end with an allowed extension (pdf, docx, xlsx, pptx, txt, csv, "
+        "md, png, jpg, jpeg, gif, webp, svg, zip, ...); 'folder_id' optionally places it "
+        "in an existing folder (None = project root)."
     ),
     permissions=["project-documents-write"],
     category="documents",

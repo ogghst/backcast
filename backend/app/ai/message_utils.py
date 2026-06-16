@@ -7,13 +7,19 @@ sometimes return empty final AIMessages after tool execution.
 
 from __future__ import annotations
 
+import json
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from langgraph.types import Command
 
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
 __all__ = [
+    "estimate_tools_token_cost",
     "extract_final_ai_response",
     "extract_tool_output_content",
     "find_last_ai_reasoning_kwargs",
@@ -203,3 +209,34 @@ def strip_think_tags(text: str) -> str:
         cleaned = _UNCLOSED_OPEN_THINK_RE.sub("", cleaned)
 
     return cleaned.strip()
+
+
+def estimate_tools_token_cost(tools: list[BaseTool]) -> int:
+    """Estimate the prompt-token cost of a list of bound tool definitions.
+
+    Sums ``len(json.dumps(convert_to_openai_tool(t))) // 4`` over the tools,
+    i.e. the standard ~4-chars-per-token heuristic applied to the OpenAI-style
+    tool JSON schema that LangChain sends on every LLM call (no provider
+    caching for tools). This is the per-call, roughly-constant "tool-def"
+    term that -- together with the growing accumulated tool-result history --
+    dominates specialist prompt size and thus latency.
+
+    Pure and side-effect free; never raises (a tool that fails conversion is
+    skipped and counted as 0). Returns 0 for an empty list.
+
+    Args:
+        tools: LangChain ``BaseTool`` instances (e.g. a specialist's
+            ``allowed_tools`` roster or the supervisor's ``direct_tools``).
+
+    Returns:
+        Estimated token cost of the tool-definition payload.
+    """
+    total = 0
+    for tool in tools:
+        try:
+            schema = convert_to_openai_tool(tool)
+            total += len(json.dumps(schema, default=str)) // 4
+        except Exception:  # noqa: BLE001 -- diagnostics helper, never raise
+            # A misbehaving tool should not poison the estimate; skip it.
+            continue
+    return total

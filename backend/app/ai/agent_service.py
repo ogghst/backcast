@@ -1351,6 +1351,139 @@ class AgentService:
             )
             state.llm_call_start = None
         state.token_accumulator.accumulate_from_event(data)
+        # Phase-0 observability: per-call prompt-token composition log.
+        # Pure diagnostics -- never raises, never changes control flow.
+        self._log_llm_call_usage(state, data)
+
+    def _log_llm_call_usage(self, state: StreamState, data: dict[str, Any]) -> None:
+        """Emit one structured ``[LLM_CALL_USAGE]`` line per LLM call.
+
+        Captures the prompt-token cost of a single model call and a
+        best-effort breakdown of its composition so we can decide whether
+        specialist timeouts are dominated by tool *definitions* (roughly
+        constant ~5k tok/call) or accumulated tool *results* (growing).
+        This is the decision gate for the deferred roster-split work
+        (plan: ``check-last-ai-chat-hashed-seahorse.md``, Phase 0).
+
+        Observability only: every field is None-safe and the whole method is
+        wrapped so a diagnostics log can never break a run. ``bound_tools`` /
+        ``est_tool_def_tokens`` are logged as best-effort (the per-agent
+        bound-tool list is not reachable from this callback without invading
+        the compiled graph); ``accumulated_tool_msgs`` / chars come from
+        ``state.all_tool_results`` (supervisor-visible results; specialist
+        results are not tracked there and will read 0 -- labelled below).
+        """
+        try:
+            prompt_tokens, completion_tokens = self._extract_call_usage(data)
+
+            agent_label = (
+                f"specialist:{state.current_subagent_name}"
+                if state.current_subagent_name
+                else ("planner" if state.planner_active else "supervisor")
+            )
+
+            # Running distinct tool NAMES invoked so far this run. NB:
+            # ``all_tool_calls`` is only populated from the FINAL graph output
+            # AIMessage at on_chain_end, so mid-run this is best-effort --
+            # ``tool_calls_count`` (cumulative) is the live signal.
+            distinct_tools = {
+                str(tc.get("name", ""))
+                for tc in state.all_tool_calls
+                if isinstance(tc, dict) and tc.get("name")
+            }
+
+            # Accumulated tool-result messages visible in the supervisor stream.
+            # Specialist-internal results are intentionally NOT appended to
+            # ``all_tool_results`` (see _handle_tool_end), so for specialist
+            # calls these read 0 -- a known limitation, labelled below.
+            acc_tool_msgs = len(state.all_tool_results)
+            acc_tool_chars = 0
+            for tr in state.all_tool_results:
+                if isinstance(tr, dict):
+                    content = tr.get("result")
+                    if content is not None:
+                        acc_tool_chars += len(str(content))
+
+            logger.info(
+                "[LLM_CALL_USAGE] #%d | agent=%s | prompt_tokens=%s | "
+                "completion_tokens=%s | bound_tools=N/A(best-effort) | "
+                "invoked_tools_running=%d(distinct_seen=%d) | "
+                "accumulated_tool_msgs=%d(chars=%d,est_tokens=%d,supervisor_stream_only)",
+                state.llm_call_count,
+                agent_label,
+                prompt_tokens if prompt_tokens is not None else "N/A",
+                completion_tokens if completion_tokens is not None else "N/A",
+                state.tool_calls_count,
+                len(distinct_tools),
+                acc_tool_msgs,
+                acc_tool_chars,
+                acc_tool_chars // 4,
+            )
+        except Exception as exc:  # noqa: BLE001 -- diagnostics must never raise
+            logger.warning(
+                "[LLM_CALL_USAGE] #%d failed to emit (non-fatal): %s: %s",
+                state.llm_call_count,
+                type(exc).__name__,
+                exc,
+            )
+
+    @staticmethod
+    def _extract_call_usage(
+        data: dict[str, Any],
+    ) -> tuple[int | None, int | None]:
+        """Extract PER-CALL prompt/completion tokens from an on_chat_model_end event.
+
+        Mirrors ``TokenUsageAccumulator.accumulate_from_event`` but returns the
+        single-call values instead of accumulating. Returns ``(None, None)``
+        when usage is absent (some providers/events omit it) -- callers must
+        treat that as "unknown", never as zero.
+        """
+        output = data.get("output")
+        if output is None:
+            return None, None
+
+        def _from_message(msg: Any) -> tuple[int | None, int | None]:
+            usage_metadata = getattr(msg, "usage_metadata", None)
+            if isinstance(usage_metadata, dict):
+                inp = usage_metadata.get("input_tokens")
+                out = usage_metadata.get("output_tokens")
+                if isinstance(inp, int) and isinstance(out, int):
+                    return inp, out
+            response_metadata = getattr(msg, "response_metadata", None)
+            if isinstance(response_metadata, dict):
+                token_usage = response_metadata.get("token_usage")
+                if isinstance(token_usage, dict):
+                    p = token_usage.get("prompt_tokens")
+                    c = token_usage.get("completion_tokens")
+                    if isinstance(p, int) and isinstance(c, int):
+                        return p, c
+            return None, None
+
+        # astream_events v1 nests generations under a dict output.
+        if isinstance(output, dict):
+            generations = output.get("generations", [])
+            if isinstance(generations, list):
+                for gen_list in generations:
+                    if isinstance(gen_list, list):
+                        for gen in gen_list:
+                            if isinstance(gen, dict):
+                                msg = gen.get("message")
+                                if msg is not None:
+                                    p, c = _from_message(msg)
+                                    if p is not None and c is not None:
+                                        return p, c
+            llm_output = output.get("llm_output")
+            if isinstance(llm_output, dict):
+                token_usage = llm_output.get("token_usage")
+                if isinstance(token_usage, dict):
+                    p = token_usage.get("prompt_tokens")
+                    c = token_usage.get("completion_tokens")
+                    if isinstance(p, int) and isinstance(c, int):
+                        return p, c
+            return None, None
+
+        # Direct AIMessage object.
+        return _from_message(output)
 
     @staticmethod
     def _is_delegation_tool(tool_name: str) -> bool:

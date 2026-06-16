@@ -1,13 +1,21 @@
-"""Middleware that trims supervisor message history before context window overflow.
+"""Middleware that trims message history before context window overflow.
 
 Unlike ``SummarizationMiddleware`` (which makes a secondary LLM call to compress
 history), this guard is deterministic: it replaces older messages with the
 already-compiled briefing document that accumulates specialist findings. This
-avoids an extra LLM invocation and keeps the supervisor grounded in structured
+avoids an extra LLM invocation and keeps the agent grounded in structured
 findings rather than a lossy LLM summary.
 
-Only intended for the supervisor node — specialists receive isolated message
-lists built fresh on each invocation, so they never accumulate long histories.
+Mounted on BOTH the supervisor and specialists:
+
+- **Supervisor** (``SupervisorOrchestrator._build_middleware``): long-running,
+  accumulates specialist findings across many turns. ``preserve_head=1`` keeps
+  only the system prompt above the summary.
+- **Specialist** (``compile_subagents``): message-isolated per invocation, but
+  its own ReAct loop appends every tool CALL/RESULT pair up to
+  ``max_tool_iterations``. ``preserve_head=2`` keeps the system prompt AND the
+  initial assignment ``HumanMessage`` (the specialist's task) above the summary
+  — losing the assignment would make the specialist forget what it was asked.
 
 Configuration is sourced from centralized constants in ``app.ai.config``:
 - ``AI_CONTEXT_TOKEN_LIMIT`` — max estimated prompt tokens
@@ -178,23 +186,31 @@ def _find_caller_index(messages: list[AnyMessage], tool_idx: int) -> int:
     return -1
 
 
-def _tool_aware_tail_start(messages: list[AnyMessage], keep: int) -> int:
+def _tool_aware_tail_start(
+    messages: list[AnyMessage],
+    keep: int,
+    floor: int = 1,
+) -> int:
     """Return the start index for the tail so it never begins inside a
     tool-response group whose issuing assistant would be dropped.
 
     If the naive start ``len(messages) - keep`` lands on a ``tool`` message,
     back the split up to its issuing assistant so the call/response pair stays
     intact (instead of being orphaned and dropped by ``_repair_chain``).
-    Never returns below 1 (``messages[0]`` is the system prompt).
+
+    ``floor`` is the minimum index the split may take — messages ``[0, floor)``
+    are preserved verbatim above the summary.  For the supervisor ``floor=1``
+    (only the system prompt); for a specialist ``floor=2`` (system prompt + the
+    assignment ``HumanMessage``).
     """
     n = len(messages)
-    s = max(1, n - keep)
+    s = max(floor, n - keep)
     while s < n and _is_tool_message(messages[s]):
         caller_idx = _find_caller_index(messages, s)
-        if 1 <= caller_idx < s:
+        if floor <= caller_idx < s:
             s = caller_idx
             continue  # messages[s] is now an assistant -> loop exits next pass
-        break  # caller is messages[0] (survives trim) or not found -> leave to _repair_chain
+        break  # caller is below floor (survives trim) or not found -> _repair_chain
     return s
 
 
@@ -228,20 +244,52 @@ def _build_summary_message(briefing_data: dict[str, Any]) -> HumanMessage:
 
 
 class ContextGuardMiddleware(AgentMiddleware):
-    """Trim supervisor message history when estimated tokens approach the limit.
+    """Trim message history when estimated tokens approach the limit.
 
     Before each model call:
     1. Estimate token count from message content lengths.
     2. If tokens exceed ``AI_CONTEXT_SUMMARY_THRESHOLD_PCT``% of
        ``AI_CONTEXT_TOKEN_LIMIT``, trim older messages:
-       - Keep the first message (system prompt).
+       - Keep the first ``preserve_head`` messages verbatim (system prompt,
+         and for specialists also the assignment ``HumanMessage``).
        - Keep the last ``AI_CONTEXT_KEEP_RECENT`` messages for continuity.
        - Replace everything in between with a single briefing-document summary.
     3. Log the trimming decision for observability.
 
     This middleware is intentionally cheap (no LLM calls) because the briefing
-    document already serves as a structured summary of all specialist work.
+    document already serves as a structured summary of all agent work.
+
+    Args:
+        preserve_head: Number of leading messages preserved verbatim above the
+            summary.  ``1`` for the supervisor (system prompt only); ``2`` for
+            specialists (system prompt + assignment task).
+        token_limit: Max estimated prompt tokens before trimming triggers (the
+            threshold is ``AI_CONTEXT_SUMMARY_THRESHOLD_PCT``% of this).  Defaults
+            to the supervisor-calibrated ``AI_CONTEXT_TOKEN_LIMIT`` (120k) so the
+            supervisor's behavior is byte-identical.  Specialists pass their own,
+            much lower ``AI_SPECIALIST_CONTEXT_TOKEN_LIMIT`` because they hit GLM's
+            ~25-30k-token latency knee far below 120k.
+        keep_recent: Number of recent messages kept unsummarized at the tail.
+            Defaults to ``AI_CONTEXT_KEEP_RECENT`` (the supervisor's 8).
+            Specialists pass ``AI_SPECIALIST_CONTEXT_KEEP_RECENT`` (4).
     """
+
+    def __init__(
+        self,
+        *,
+        preserve_head: int = 1,
+        token_limit: int | None = None,
+        keep_recent: int | None = None,
+    ) -> None:
+        self.preserve_head = max(1, preserve_head)
+        # ``None`` -> fall back to the module globals (supervisor defaults) so
+        # the supervisor's bare ``ContextGuardMiddleware()`` mount is unchanged.
+        self.token_limit = (
+            token_limit if token_limit is not None else AI_CONTEXT_TOKEN_LIMIT
+        )
+        self.keep_recent = (
+            keep_recent if keep_recent is not None else AI_CONTEXT_KEEP_RECENT
+        )
 
     async def awrap_model_call(
         self,
@@ -253,7 +301,7 @@ class ContextGuardMiddleware(AgentMiddleware):
             return await handler(request)
 
         est = _estimate_tokens(messages)
-        threshold = AI_CONTEXT_TOKEN_LIMIT * AI_CONTEXT_SUMMARY_THRESHOLD_PCT // 100
+        threshold = self.token_limit * AI_CONTEXT_SUMMARY_THRESHOLD_PCT // 100
 
         if est <= threshold:
             return await handler(request)
@@ -271,7 +319,7 @@ class ContextGuardMiddleware(AgentMiddleware):
             )
             return await handler(request)
 
-        if len(messages) <= AI_CONTEXT_KEEP_RECENT + 1:
+        if len(messages) <= self.keep_recent + self.preserve_head:
             logger.info(
                 "Context guard: est %d tokens > %d threshold, "
                 "too few messages to trim (%d)",
@@ -289,23 +337,27 @@ class ContextGuardMiddleware(AgentMiddleware):
             briefing_data = raw_briefing
 
         summary_msg = _build_summary_message(briefing_data)
-        first_msg = messages[0]
-        split = _tool_aware_tail_start(messages, AI_CONTEXT_KEEP_RECENT)
+        head = list(messages[: self.preserve_head])
+        split = _tool_aware_tail_start(
+            messages, self.keep_recent, floor=self.preserve_head
+        )
         tail = messages[split:]
-        removed = split - 1  # messages dropped between first_msg and tail
+        removed = split - self.preserve_head  # messages dropped between head and tail
 
         # Ensure message-chain integrity: tool responses must follow
         # assistant messages with tool_calls.  ``_tool_aware_tail_start`` avoids
         # splitting a pair at the boundary; ``_repair_chain`` repairs any
         # residual orphan and WARNs when it has to drop.
-        trimmed = [first_msg, summary_msg, *tail]
+        trimmed = [*head, summary_msg, *tail]
         trimmed = _repair_chain(trimmed)
 
         logger.info(
-            "Context guard: est %d tokens > %d threshold, trimmed %d msgs",
+            "Context guard: est %d tokens > %d threshold, trimmed %d msgs "
+            "(preserve_head=%d)",
             est,
             threshold,
             removed,
+            self.preserve_head,
         )
 
         return await handler(request.override(messages=trimmed))

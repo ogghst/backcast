@@ -14,10 +14,25 @@ steps, execute them sequentially, and track overall progress.
 """
 
 import operator
+from collections import Counter
 from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage
 from typing_extensions import TypedDict
+
+
+def _merge_dispatch_counts(
+    left: dict[str, int], right: dict[str, int]
+) -> dict[str, int]:
+    """Sum per-specialist dispatch counts across graph transitions.
+
+    A custom reducer (rather than ``operator.or_`` on sets) so each specialist
+    dispatch increments its own counter, enabling the per-specialist
+    re-dispatch cap enforced in the specialist dispatch node.
+    """
+    merged: Counter[str] = Counter(left)
+    merged.update(right)
+    return dict(merged)
 
 
 class BackcastSupervisorState(TypedDict):
@@ -59,6 +74,12 @@ class BackcastSupervisorState(TypedDict):
         replan_context: Supervisor's reason string consumed by the
             planner on replan. Overwritten each time (last writer wins).
             Cleared after the planner processes it.
+        specialist_dispatch_counts: Per-specialist dispatch counter
+            (sum reducer). Drives the code-enforced re-dispatch cap: a
+            specialist may be dispatched at most ``_MAX_DISPATCHES_PER_SPECIALIST``
+            times in plan mode before the dispatch node routes to the
+            supervisor with a request_replan nudge, preventing the
+            Swarm-style infinite re-dispatch loop.
     """
 
     messages: Annotated[list[BaseMessage], operator.add]
@@ -76,6 +97,7 @@ class BackcastSupervisorState(TypedDict):
     replan_count: int
     max_replan_count: int
     replan_context: str
+    specialist_dispatch_counts: Annotated[dict[str, int], _merge_dispatch_counts]
 
 
 __all__ = ["BackcastSupervisorState"]
