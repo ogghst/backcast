@@ -238,6 +238,73 @@ def _briefing_update(
     return update
 
 
+# Max chars of each step's result_summary inlined into the completion nudge.
+# Mirrors the [:500] preview used in the pending-step nudge but allows a bit
+# more room since the final summary is the supervisor's only grounding source.
+_COMPLETION_NUDGE_SUMMARY_LIMIT = 800
+
+
+def _build_completion_nudge(plan: PlanDocument, cleaned_findings: str) -> str:
+    """Build the plan-completion nudge sent to the supervisor when ALL plan
+    steps are done and it must answer the user.
+
+    Unlike the pending-step nudge, the all-done branch historically gave the
+    supervisor only a directive ("respond with the briefing findings") with
+    NO inlined results.  On weaker reasoning models the supervisor then
+    failed to fetch the briefing and confabulated a failure ("delegation was
+    wrong / no such tools").  We now inline each completed step's
+    ``result_summary`` (falling back to ``cleaned_findings``) so the
+    supervisor's final answer is grounded in what the specialists actually
+    produced.
+
+    Args:
+        plan: The active PlanDocument (read-only; its steps carry the
+            per-specialist ``result_summary`` values).
+        cleaned_findings: The just-completed step's findings string; used as
+            a fallback when no completed step recorded a summary.
+
+    Returns:
+        The SystemMessage content instructing the supervisor to summarize the
+        inlined findings for the user without re-litigating the delegation.
+    """
+    # Build the inlined findings block from completed steps that have a
+    # non-empty result_summary.  Truncate each to bound prompt size.
+    finding_lines: list[str] = []
+    for step in plan.steps:
+        if step.status != "completed":
+            continue
+        summary = (step.result_summary or "").strip()
+        if not summary:
+            continue
+        truncated = summary[:_COMPLETION_NUDGE_SUMMARY_LIMIT]
+        if len(summary) > _COMPLETION_NUDGE_SUMMARY_LIMIT:
+            truncated += "..."
+        finding_lines.append(
+            f"Step {step.step_index + 1} ({step.specialist}): {truncated}"
+        )
+
+    if finding_lines:
+        findings_block = "\n".join(finding_lines)
+    elif cleaned_findings:
+        findings_block = (
+            f"Step (latest): {cleaned_findings[:_COMPLETION_NUDGE_SUMMARY_LIMIT]}"
+        )
+    else:
+        findings_block = "(no findings recorded)"
+
+    return (
+        f"All {len(plan.steps)} plan steps completed. The delegated "
+        "specialists have ALREADY executed the work above -- it is done.\n\n"
+        "## Completed findings\n"
+        f"{findings_block}\n\n"
+        "Summarize the completed findings above for the user. Do NOT delegate "
+        "further. Do NOT claim the work is missing, impossible, or that the "
+        "required tools are unavailable -- the work HAS been performed and the "
+        "results are shown above. Do NOT re-litigate whether the delegation "
+        "was appropriate."
+    )
+
+
 class _BriefingSupervisorState(AgentState[Any]):
     """State extension for the briefing supervisor subgraph.
 
@@ -1147,11 +1214,7 @@ class SupervisorOrchestrator:
                         f"not already provide."
                     )
                 else:
-                    plan_msg = (
-                        f"All {len(active_plan.steps)} plan steps completed. "
-                        "Respond to the user with the briefing findings. "
-                        "Do NOT delegate further."
-                    )
+                    plan_msg = _build_completion_nudge(active_plan, cleaned_findings)
                 cmd_update["messages"] = [SystemMessage(content=plan_msg)]
 
             # Check stop event between specialist runs for graceful cancellation.

@@ -7,6 +7,7 @@ sometimes return empty final AIMessages after tool execution.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
@@ -17,6 +18,7 @@ __all__ = [
     "extract_tool_output_content",
     "find_last_ai_reasoning_kwargs",
     "is_transient_stream_error",
+    "strip_think_tags",
     "trim_tool_result_text",
 ]
 
@@ -126,3 +128,78 @@ def extract_tool_output_content(tool_output: Any) -> str:
     if isinstance(tool_output, str):
         return tool_output
     return str(tool_output) if tool_output is not None else ""
+
+
+# --- Inline <think> reasoning-tag stripping ---
+#
+# Some reasoning models (e.g. GLM-4.7 via api.z.ai) emit their chain-of-thought
+# INLINE in the content stream wrapped in <think>...</think>, rather than in a
+# separate ``reasoning_content`` field like DeepSeek. Worse, the upstream
+# provider sometimes strips the OPENING tag but leaves a DANGLING ``</think>``,
+# so the reasoning body runs straight into the answer with only a closing tag
+# between them. ``strip_think_tags`` removes all of these shapes from a fully
+# assembled message; a stateful streaming filter in the agent service handles
+# the live token-by-token case.
+
+# Balanced block: ``<think>...</think>`` (non-greedy, DOTALL so newlines match).
+_BALANCED_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+# Unclosed open tag to end-of-string: ``<think>...`` with no closing tag.
+_UNCLOSED_OPEN_THINK_RE = re.compile(r"<think>.*", re.DOTALL)
+# Dangling close tag (no opening): matches the literal ``</think>``.
+_DANGLING_CLOSE_THINK_RE = re.compile(r"</think>", re.DOTALL)
+
+
+def strip_think_tags(text: str) -> str:
+    """Remove inline ``<think>...</think>`` reasoning from a complete message.
+
+    Handles every shape that leaks out of reasoning models:
+
+    - **Balanced**: ``<think>reasoning</think>answer`` -> ``answer``
+    - **Unclosed open**: ``prefix<think>reasoning to end`` -> ``prefix``
+      (the model opened a think block and never closed it -- drop the tail)
+    - **Dangling close** (the main bug shape, no opening tag): the provider
+      strips ``<think>`` but leaves ``</think>``, so reasoning runs straight
+      into the answer. ``reasoning body</think>real answer`` -> ``real answer``
+      (everything up to and including the FIRST ``</think>`` is removed).
+    - **Multiple balanced blocks**: all are removed.
+    - **No tags**: the text is returned byte-identical (after a strip()).
+
+    Conservative on ambiguity: when a dangling close has no matching open,
+    reasoning always PRECEDES the answer, so stripping up to the first
+    ``</think>`` is correct. Multiple dangling closes are handled by removing
+    only up to the first one (any text after the first ``</think>`` is the
+    answer; a second ``</think>`` in the answer is treated literally and left
+    alone).
+
+    Cheap no-op when neither tag is present: returns ``text.strip()``.
+
+    Args:
+        text: Fully assembled assistant message content.
+
+    Returns:
+        The message with reasoning blocks removed, leading/trailing
+        whitespace stripped.
+    """
+    # Fast path: nothing to do when neither tag appears. Avoids running three
+    # regexes over normal markdown/tables on the hot persistence path.
+    if "<think>" not in text and "</think>" not in text:
+        return text.strip()
+
+    # 1. Remove all balanced ``<think>...</think>`` blocks first.
+    cleaned = _BALANCED_THINK_RE.sub("", text)
+
+    # 2. Dangling close: a ``</think>`` with no preceding ``<think>`` left
+    #    (the provider stripped the opening tag). Remove everything from the
+    #    START of the string through the FIRST ``</think>`` -- reasoning
+    #    always precedes the answer, so this is the safe cut.
+    if "</think>" in cleaned and "<think>" not in cleaned:
+        first_close = _DANGLING_CLOSE_THINK_RE.search(cleaned)
+        assert first_close is not None  # ``"</think>" in cleaned`` above
+        cleaned = cleaned[first_close.end() :]
+
+    # 3. Unclosed open: a ``<think>`` with no closing tag remains -- the model
+    #    opened reasoning and ran to the end. Drop from the tag to end-of-string.
+    if "<think>" in cleaned and "</think>" not in cleaned:
+        cleaned = _UNCLOSED_OPEN_THINK_RE.sub("", cleaned)
+
+    return cleaned.strip()

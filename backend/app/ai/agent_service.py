@@ -124,7 +124,7 @@ from app.ai.graph_params import (
     GraphExecutionParams,
     StreamState,
 )
-from app.ai.message_utils import extract_tool_output_content
+from app.ai.message_utils import extract_tool_output_content, strip_think_tags
 from app.ai.message_utils import is_transient_stream_error as _is_transient_stream_error
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.subagents.db_loader import load_specialists_from_db
@@ -1070,6 +1070,75 @@ class AgentService:
             fn_name,
         )
 
+    def _filter_think_tokens(self, state: StreamState, content: str) -> str:
+        """Stateful inline ``<think>...</think>`` filter for streamed tokens.
+
+        Suppresses chain-of-thought tokens while inside a ``<think>`` span so
+        they never reach ``main_agent_segments`` / ``token_buffer`` (and thus
+        never reach the live chat). Handles tags split across chunk boundaries
+        by holding back a small tail that could be the start of ``<think>`` or
+        ``</think>`` until the next chunk resolves it.
+
+        NOTE: this filter cannot catch the "dangling close / opening already
+        stripped" shape -- it never sees an opening tag to start suppression.
+        The persistence backstop (``strip_think_tags`` in
+        ``_persist_session_messages``) handles that case. Both are required.
+        """
+        OPEN = "<think>"
+        CLOSE = "</think>"
+        # Longest partial prefix we might need to hold back. A tag can be split
+        # anywhere, so we may need to buffer up to len(CLOSE)-1 = 7 chars.
+        MAX_PREFIX = len(CLOSE) - 1
+
+        # Prepend any tail held back from the previous chunk.
+        buf = state.think_pending_buffer + content
+        state.think_pending_buffer = ""
+
+        out: list[str] = []
+        i = 0
+        n = len(buf)
+        while i < n:
+            if state.in_think_block:
+                # Discard everything until we find the closing tag.
+                close_idx = buf.find(CLOSE, i)
+                if close_idx == -1:
+                    # No close yet. But the tail of what we consumed could be a
+                    # partial CLOSE prefix (e.g. "</thin"). Hold it back.
+                    hold_start = max(i, n - MAX_PREFIX)
+                    state.think_pending_buffer = buf[hold_start:]
+                    i = n
+                    break
+                # Skip to just after the closing tag; resume emitting.
+                i = close_idx + len(CLOSE)
+                state.in_think_block = False
+            else:
+                # Emit until we hit an opening tag.
+                open_idx = buf.find(OPEN, i)
+                if open_idx == -1:
+                    # No full open tag. The tail of [i:] could still be a
+                    # partial OPEN prefix (e.g. "<thi") -- hold it back rather
+                    # than emit it prematurely. Only the last MAX_PREFIX chars
+                    # can possibly be a tag prefix.
+                    partial_start = None
+                    check_from = max(i, n - MAX_PREFIX)
+                    for s in range(check_from, n):
+                        if OPEN.startswith(buf[s:n]) or CLOSE.startswith(buf[s:n]):
+                            partial_start = s
+                            break
+                    if partial_start is not None:
+                        out.append(buf[i:partial_start])
+                        state.think_pending_buffer = buf[partial_start:]
+                    else:
+                        out.append(buf[i:n])
+                    i = n
+                    break
+                # Emit up to the opening tag, then enter the think block.
+                out.append(buf[i:open_idx])
+                i = open_idx + len(OPEN)
+                state.in_think_block = True
+
+        return "".join(out)
+
     def _handle_chat_model_stream(
         self, state: StreamState, event: dict[str, Any]
     ) -> None:
@@ -1077,7 +1146,8 @@ class AgentService:
 
         Tokens from the planner node are suppressed to prevent plan JSON
         from leaking into the chat stream. The planner emits a dedicated
-        PLAN_UPDATE event instead.
+        PLAN_UPDATE event instead. Inline ``<think>...</think>`` reasoning is
+        stripped by ``_filter_think_tokens`` before reaching the segments.
         """
         if state.planner_active:
             return
@@ -1101,23 +1171,30 @@ class AgentService:
                 content = str(chunk.content)
 
             if content:
-                if state.current_subagent_name is None:
-                    if state.main_invocation_id not in state.main_agent_segments:
-                        state.main_agent_segments[state.main_invocation_id] = []
-                    state.main_agent_segments[state.main_invocation_id].append(content)
+                # Filter inline <think> reasoning BEFORE it reaches the
+                # persisted segments and the live token buffer.
+                content = self._filter_think_tokens(state, content)
 
-                state.total_output_chars += len(content)
+                if content:
+                    if state.current_subagent_name is None:
+                        if state.main_invocation_id not in state.main_agent_segments:
+                            state.main_agent_segments[state.main_invocation_id] = []
+                        state.main_agent_segments[state.main_invocation_id].append(
+                            content
+                        )
 
-                # Accumulate tokens per invocation for batched publish
-                invocation_id_to_use = (
-                    state.current_invocation_id
-                    if state.current_subagent_name
-                    else state.main_invocation_id
-                )
-                if invocation_id_to_use is not None:
-                    if invocation_id_to_use not in state.token_buffer:
-                        state.token_buffer[invocation_id_to_use] = []
-                    state.token_buffer[invocation_id_to_use].append(content)
+                    state.total_output_chars += len(content)
+
+                    # Accumulate tokens per invocation for batched publish
+                    invocation_id_to_use = (
+                        state.current_invocation_id
+                        if state.current_subagent_name
+                        else state.main_invocation_id
+                    )
+                    if invocation_id_to_use is not None:
+                        if invocation_id_to_use not in state.token_buffer:
+                            state.token_buffer[invocation_id_to_use] = []
+                        state.token_buffer[invocation_id_to_use].append(content)
 
     def _handle_chat_model_end(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_chat_model_end -- capture actual token usage and timing."""
@@ -1669,6 +1746,12 @@ class AgentService:
 
             for idx, inv_id in enumerate(invocation_ids_in_order):
                 segment_content = "".join(state.main_agent_segments[inv_id])
+                # Backstop: strip any inline <think>...</think> reasoning that
+                # survived the streaming filter (e.g. a dangling </think> from
+                # a provider that stripped the opening tag -- the stream filter
+                # never saw an open tag to suppress). Guarantees the saved and
+                # final-rendered DB message is clean.
+                segment_content = strip_think_tags(segment_content)
                 metadata: dict[str, Any] = {
                     "invocation_id": inv_id,
                     "segment_index": idx,
