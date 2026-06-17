@@ -23,6 +23,7 @@ through unchanged.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from typing import Any
 
@@ -39,6 +40,35 @@ logger = logging.getLogger(__name__)
 # Tool name prefixes that are ALWAYS allowed, even under a plan.
 # ask_user is also permitted so the supervisor can ask clarifying questions mid-plan.
 _ALLOWED_PREFIXES = ("get_briefing", "handoff_to_", "ask_user", "request_replan")
+
+# Sentinel-delimited plan span. Replacing the span each turn (not substring
+# membership) keeps the plan block refreshed to the CURRENT plan and never
+# duplicated, even when the plan text grows/shrinks or results are truncated.
+_PLAN_BLOCK_RE = re.compile(r"<!--PLAN_START-->.*?<!--PLAN_END-->", re.DOTALL)
+
+
+def _wrap_plan_block(plan_text: str) -> str:
+    """Wrap *plan_text* in the PLAN sentinel markers."""
+    return f"<!--PLAN_START-->\n{plan_text}\n<!--PLAN_END-->"
+
+
+def _inject_plan_block(current_prompt: str, plan_text: str) -> str:
+    """Inject the plan block into *current_prompt*, refreshing any prior span.
+
+    Order:
+    1. If the ``{plan_section}`` placeholder is present, fill it (the
+       placeholder is the runtime injection point for first-turn composition).
+    2. Else if a prior PLAN span is present, replace that span (per-turn
+       refresh — robust to plan growth/shrinkage/truncation).
+    3. Else append a fresh span.
+    """
+    wrapped = _wrap_plan_block(plan_text)
+    if "{plan_section}" in current_prompt:
+        return render_prompt(current_prompt, plan_section=wrapped)
+    if "<!--PLAN_START-->" in current_prompt:
+        return _PLAN_BLOCK_RE.sub(wrapped, current_prompt)
+    return current_prompt + "\n\n" + wrapped
+
 
 _PLAN_DELEGATION_SUFFIX = (
     "\n\n"
@@ -261,13 +291,7 @@ class PlanAwareToolMiddleware(AgentMiddleware):
             if plan_data:
                 plan = PlanDocument.from_state(plan_data)
                 plan_text = plan.to_prompt_text() + _next_action_line(plan)
-
-                if "{plan_section}" in current_prompt:
-                    current_prompt = render_prompt(
-                        current_prompt, plan_section=plan_text
-                    )
-                elif plan_text not in current_prompt:
-                    current_prompt = current_prompt + "\n\n" + plan_text
+                current_prompt = _inject_plan_block(current_prompt, plan_text)
 
             # --- Inject delegation instruction into system prompt ---
             # Use softer suffix when direct tools are preserved.
@@ -316,12 +340,7 @@ class PlanAwareToolMiddleware(AgentMiddleware):
             plan = PlanDocument.from_state(ne_plan_data)
             if plan.requires_planning and plan.steps:
                 plan_text = plan.to_prompt_text() + _next_action_line(plan)
-                if "{plan_section}" in current_prompt:
-                    current_prompt = render_prompt(
-                        current_prompt, plan_section=plan_text
-                    )
-                elif plan_text not in current_prompt:
-                    current_prompt = current_prompt + "\n\n" + plan_text
+                current_prompt = _inject_plan_block(current_prompt, plan_text)
                 request = request.override(
                     system_message=SystemMessage(content=current_prompt),
                 )

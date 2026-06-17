@@ -95,13 +95,6 @@ class Settings(BaseSettings):
     # observed in a single runaway session).  Enforced inside the ask_user tool
     # BEFORE it publishes an event or marks the execution awaiting-user.
     AI_MAX_ASK_USER_PER_EXECUTION: int = 8
-    # Global (NOT per-step) cap on F1 premature-completion re-prompts. When the
-    # supervisor emits a text-only "done" answer while a dispatchable plan step
-    # is still PENDING, a guard node re-prompts it (bounded by the existing
-    # supervisor iteration cap as the PRIMARY termination guarantee). After
-    # this many corrections the guard force-ends instead. Global so a model
-    # confabulating across distinct steps cannot waste O(steps) turns.
-    AI_MAX_PREMATURE_COMPLETION_REPROMPTS: int = 2
 
     # AI context trimming (ContextGuardMiddleware) + runtime toggles.
     # Exposed here (rather than read via os.environ in app.ai.config) so that

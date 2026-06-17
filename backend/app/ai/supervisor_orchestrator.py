@@ -34,7 +34,6 @@ from app.ai.briefing_compiler import (
 )
 from app.ai.config import (
     AI_DELEGATION_ENFORCED,
-    AI_MAX_PREMATURE_COMPLETION_REPROMPTS,
     AI_SPECIALIST_MAX_TOOL_ITERATIONS,
     AgentConfig,
 )
@@ -52,6 +51,7 @@ from app.ai.message_utils import (
     collect_recent_ask_user_qa,
     extract_final_ai_response,
 )
+from app.ai.middleware.briefing_context import BriefingContextMiddleware
 from app.ai.middleware.context_guard import ContextGuardMiddleware
 from app.ai.middleware.plan_aware_tools import PlanAwareToolMiddleware
 from app.ai.plan import PlanDocument
@@ -152,7 +152,8 @@ The user reads the briefing directly for detail, but your final answer must stil
 CONCISE GROUNDED summary citing the RESOLVED FACTS the specialists established.
 
 ## How It Works
-The current briefing is injected into your context as a system message before every turn.
+The current briefing is injected into your context before every turn (see the
+`<!--BRIEFING_START-->` block). Call `get_briefing` for the full detail.
 1. Call get_briefing / read the briefing to see what has been analyzed
 2. If not addressed, hand off to the most relevant specialist
 3. After a specialist contributes, the briefing is updated automatically
@@ -254,8 +255,6 @@ _BRIEFING_HANDOFF_SUFFIX = (
     "Delegate all operations to specialists via handoff tools."
 )
 
-_BRIEFING_CONTEXT_PREFIX = "## Current Briefing\n\n"
-
 
 def _briefing_update(
     doc: BriefingDocument,
@@ -264,18 +263,24 @@ def _briefing_update(
 ) -> dict[str, Any]:
     """Build the standard state update after briefing initialization.
 
+    The briefing itself is NOT injected as a one-shot ``SystemMessage`` here.
+    The ``messages`` reducer is ``operator.add`` (``BackcastSupervisorState``),
+    so a persisted message could never be refreshed in place — it would
+    permanently contradict the live briefing results. The current briefing is
+    instead rendered into the supervisor's system prompt on every turn by
+    :class:`BriefingContextMiddleware` (a per-turn, reducer-safe mutation of
+    the request).
+
     Args:
         doc: The briefing document to serialize.
         plan_data: Optional serialized PlanDocument to carry forward.
         max_iterations: Maximum supervisor delegation cycles.
     """
-    briefing_md = doc.to_markdown() if doc.sections else "No findings yet."
     update: dict[str, Any] = {
         "briefing_data": doc.model_dump(),
         "supervisor_iterations": 0,
         "max_supervisor_iterations": max_iterations,
         "completed_specialists": set(),
-        "messages": [SystemMessage(content=f"{_BRIEFING_CONTEXT_PREFIX}{briefing_md}")],
         "completed_steps": set(),
         "current_step_index": -1,
         "replan_count": 0,
@@ -283,7 +288,6 @@ def _briefing_update(
         "replan_context": "",
         "specialist_dispatch_counts": {},
         "specialist_failure_counts": {},
-        "premature_reprompts": 0,
         "termination_notice": None,
     }
     if plan_data is not None:
@@ -618,146 +622,6 @@ def _decide_nonplan_failure_action(
         goto="supervisor",
         message=message,
         failure_counts_update={specialist_name: new_count},
-    )
-
-
-class _PrematureCompletionDecision(NamedTuple):
-    """Outcome of the F1 premature-completion guard decision.
-
-    Attributes:
-        goto: ``"premature_completion_guard"`` to re-prompt the supervisor,
-            or ``END`` when the global reprompt cap is exhausted.
-        message: SystemMessage content. For the guard branch this is the
-            contrastive refutation citing ONE offending step; for the END
-            branch a clean intentional termination message.
-        iterations_delta: Increment to apply to ``supervisor_iterations``
-            (the PRIMARY termination guarantee is the existing force-END
-            iteration cap). Always 1 for the guard branch, 0 for END.
-        reprompts_delta: Increment to apply to ``premature_reprompts``.
-            Always 1 for the guard branch, 0 for END.
-    """
-
-    goto: str
-    message: str
-    iterations_delta: int
-    reprompts_delta: int
-
-
-def _decide_premature_completion(
-    *,
-    plan: PlanDocument | None,
-    last_msg_is_text_only: bool,
-    supervisor_iterations: int,
-    max_iterations: int,
-    premature_reprompts: int,
-    max_reprompts: int,
-) -> _PrematureCompletionDecision:
-    """Decide the F1 premature-completion guard action.
-
-    Fires ONLY when a multi-step plan is active (``requires_planning`` and
-    non-empty ``steps``), the supervisor's last message is TEXT-ONLY (no
-    handoff tool call — meaning it claimed completion without delegating),
-    AND a dispatchable pending step still exists.
-
-    Dispatchability is ``plan.get_next_pending_step()`` directly: it already
-    excludes steps whose dependencies are not ``completed`` (failed-dep
-    blocked steps). Do NOT add a separate blocked filter here.
-
-    The PRIMARY termination guarantee is the supervisor iteration cap (the
-    guard node increments ``supervisor_iterations`` on every fire, so the
-    existing ``iterations >= max_iterations`` force-END at the router fires
-    regardless of model behavior). ``max_reprompts`` is a tighter secondary
-    bound: at exhaustion the guard returns END.
-
-    Args:
-        plan: The active PlanDocument (or ``None`` in non-plan mode).
-        last_msg_is_text_only: True iff the supervisor's last AIMessage had
-            no tool_calls (a free-text "done" answer).
-        supervisor_iterations: Current ``supervisor_iterations`` value.
-        max_iterations: Current ``max_supervisor_iterations`` value.
-        premature_reprompts: Current ``premature_reprompts`` value.
-        max_reprompts: ``AI_MAX_PREMATURE_COMPLETION_REPROMPTS``.
-
-    Returns:
-        The decision describing the goto target, message, and state deltas.
-    """
-    # --- Fire conditions ----------------------------------------------------
-    # When the guard does NOT fire, the router falls through to its normal
-    # END (the "No handoff → END" branch). We signal this with an empty
-    # END decision (no message, no deltas) that the router ignores.
-    if plan is None or not plan.requires_planning or not plan.steps:
-        return _PrematureCompletionDecision(
-            goto="END", message="", iterations_delta=0, reprompts_delta=0
-        )
-    if not last_msg_is_text_only:
-        return _PrematureCompletionDecision(
-            goto="END", message="", iterations_delta=0, reprompts_delta=0
-        )
-
-    next_step = plan.get_next_pending_step()
-    if next_step is None:
-        # All pending steps are either done or blocked by a failed dependency.
-        # Nothing to re-prompt for; fall through to the normal END.
-        return _PrematureCompletionDecision(
-            goto="END", message="", iterations_delta=0, reprompts_delta=0
-        )
-
-    # --- Global cap: force END (clean intentional message) -----------------
-    if premature_reprompts >= max_reprompts:
-        message = (
-            "The supervisor repeatedly reported the plan as complete while a "
-            "plan step was still pending and un-dispatched, despite corrections. "
-            "Terminating to avoid an unbounded loop. Respond to the user now: "
-            "state honestly which steps completed and that the remaining step "
-            f"(step {next_step.step_index + 1}/{len(plan.steps)}, "
-            f"{next_step.specialist}) was NOT executed. Do NOT claim the work "
-            "was done."
-        )
-        logger.warning(
-            "[PREMATURE_COMPLETION] Global reprompt cap (%d/%d) reached -> END",
-            premature_reprompts,
-            max_reprompts,
-        )
-        return _PrematureCompletionDecision(
-            goto="END",
-            message=message,
-            iterations_delta=0,
-            reprompts_delta=0,
-        )
-
-    # --- Guard: contrastive refutation citing ONE offending step -----------
-    # NOTE: PlanAwareToolMiddleware already injects plan.to_prompt_text() +
-    # "NEXT ACTION: call handoff_to_{specialist} for step {k}/{M}" every turn.
-    # This message therefore carries ONLY the contrastive delta the system
-    # prompt cannot express — the refutation of the model's just-emitted FALSE
-    # claim + one line citing the offending step. It deliberately does NOT
-    # re-render the plan (no status markers, no NEXT ACTION) to avoid context
-    # rot from duplicating the per-turn injection.
-    task = (next_step.task_description or "").strip()
-    task_preview = task[:160]
-    total = len(plan.steps)
-    message = (
-        "Your last message reported the plan as complete. That is FALSE: "
-        f"step {next_step.step_index + 1} ({next_step.specialist}) — "
-        f"{task_preview} — is still PENDING and has NOT been executed. "
-        f"Call handoff_to_{next_step.specialist} for step "
-        f"{next_step.step_index + 1}/{total} now, or call request_replan. "
-        "Do NOT report a pending step as done."
-    )
-    logger.info(
-        "[PREMATURE_COMPLETION] Guard firing (reprompts %d/%d) for pending "
-        "step %d/%d (%s)",
-        premature_reprompts,
-        max_reprompts,
-        next_step.step_index + 1,
-        total,
-        next_step.specialist,
-    )
-    return _PrematureCompletionDecision(
-        goto="premature_completion_guard",
-        message=message,
-        iterations_delta=1,
-        reprompts_delta=1,
     )
 
 
@@ -1149,21 +1013,12 @@ class SupervisorOrchestrator:
         parent.add_node("supervisor", supervisor_agent)
         for name, wrapper_fn in specialist_wrappers.items():
             parent.add_node(name, wrapper_fn)
-        # F1 premature-completion guard node: the router routes here when the
-        # supervisor emits a text-only "done" answer while a dispatchable plan
-        # step is still PENDING. The node applies the contrastive-refutation
-        # Command and returns to "supervisor". It is a plain node (NOT a
-        # conditional-edge Command) because Command(update=...) from a
-        # conditional-edge fn is broken in LangGraph 1.1.9.
-        parent.add_node(
-            "premature_completion_guard",
-            self._premature_completion_guard_node,
-        )
         # Bounded-termination node: the router routes here when a silent
         # force-END path fires (max-iterations or max-replan cap). The node
         # builds a grounded notice from plan state and returns Command(goto=END)
         # so the user is ALWAYS told when a run is bounded. Plain node (not a
-        # conditional-edge Command) for the same reason as the F1 guard.
+        # conditional-edge Command) because Command(update=...) from a
+        # conditional-edge fn is broken in LangGraph 1.1.9.
         parent.add_node(
             "bounded_terminate",
             self._bounded_terminate_node,
@@ -1176,8 +1031,7 @@ class SupervisorOrchestrator:
         parent.add_conditional_edges(
             "supervisor",
             self._make_supervisor_router(specialist_names),
-            specialist_names
-            + ["planner", "premature_completion_guard", "bounded_terminate", END],
+            specialist_names + ["planner", "bounded_terminate", END],
         )
         # NOTE: specialist nodes return Command(goto="supervisor") or
         # Command(goto=END) explicitly — no static edge to supervisor.
@@ -1288,89 +1142,19 @@ class SupervisorOrchestrator:
                             return spec_name
 
             # No handoff → END.  Multi-step plans continue via the
-            # specialist → supervisor edge (line 403): each specialist
-            # routes back to the supervisor on completion, which then
-            # delegates the next pending step.  A self-loop here would
-            # cause the supervisor to run in parallel with an active
-            # specialist, producing concurrent writes to briefing_data.
+            # specialist → supervisor edge: each specialist routes back to
+            # the supervisor on completion, which then delegates the next
+            # pending step.  A self-loop here would cause the supervisor to
+            # run in parallel with an active specialist, producing concurrent
+            # writes to briefing_data.
             #
-            # F1 premature-completion guard: BEFORE terminating, check whether
-            # the supervisor just emitted a text-only "done" answer while a
-            # dispatchable plan step is still PENDING (a confabulation). If so,
-            # route to the guard node to re-prompt it instead of baking in the
-            # false final answer. Safe here: this branch emitted NO specialist
-            # tool_call, so no self-loop/parallel-write hazard. The guard NODE
-            # recomputes the decision from state and applies the Command
-            # (the router can only return a goto string; Command(update=...)
-            # from a conditional-edge fn is broken in LangGraph 1.1.9).
-            last_msg_is_text_only = isinstance(last_msg, AIMessage) and not bool(
-                last_msg.tool_calls
-            )
-            decision = _decide_premature_completion(
-                plan=plan,
-                last_msg_is_text_only=last_msg_is_text_only,
-                supervisor_iterations=iterations,
-                max_iterations=max_iterations,
-                premature_reprompts=state.get("premature_reprompts", 0),
-                max_reprompts=AI_MAX_PREMATURE_COMPLETION_REPROMPTS,
-            )
-            if decision.goto == "premature_completion_guard":
-                return "premature_completion_guard"
+            # The F1 premature-completion guard was REMOVED (it fought the
+            # model's correct "done" answer against a stale plan). Termination
+            # stays guaranteed by this END branch plus the iteration/replan
+            # caps and ``_bounded_terminate_node``.
             return END
 
         return router
-
-    @staticmethod
-    def _premature_completion_guard_node(
-        state: BackcastSupervisorState,
-    ) -> Command:  # type: ignore[type-arg]
-        """F1 guard node: re-prompt the supervisor after a premature completion.
-
-        Recomputes the pure ``_decide_premature_completion`` decision from
-        state (the router can only return a goto string) and applies it as a
-        Command: injects the contrastive-refutation SystemMessage and bumps
-        ``supervisor_iterations`` (the PRIMARY termination guarantee — the
-        force-END iteration cap at the router) and ``premature_reprompts``
-        (the tighter secondary bound). Returns to ``"supervisor"`` so the
-        model sees the correction and re-attempts.
-
-        Mirrors the guard-node-applies-Command pattern used by every other
-        guard (nonplan failure, re-dispatch cap, no-active-step containment).
-        """
-        plan_data = state.get("plan_data")
-        plan = PlanDocument.from_state(plan_data) if plan_data else None
-        messages = state.get("messages", [])
-        last_msg = messages[-1] if messages else None
-        last_msg_is_text_only = isinstance(last_msg, AIMessage) and not bool(
-            getattr(last_msg, "tool_calls", None)
-        )
-        decision = _decide_premature_completion(
-            plan=plan,
-            last_msg_is_text_only=last_msg_is_text_only,
-            supervisor_iterations=state.get("supervisor_iterations", 0),
-            max_iterations=state.get("max_supervisor_iterations", 5),
-            premature_reprompts=state.get("premature_reprompts", 0),
-            max_reprompts=AI_MAX_PREMATURE_COMPLETION_REPROMPTS,
-        )
-        # The router only routes here when the decision is the guard branch;
-        # defensively handle END (re-terminate cleanly).
-        if decision.goto != "premature_completion_guard":
-            if decision.message:
-                return Command(
-                    update={
-                        "messages": [SystemMessage(content=decision.message)],
-                    },
-                    goto=END,
-                )
-            return Command(goto=END)
-        return Command(
-            update={
-                "messages": [SystemMessage(content=decision.message)],
-                "supervisor_iterations": decision.iterations_delta,
-                "premature_reprompts": decision.reprompts_delta,
-            },
-            goto="supervisor",
-        )
 
     @staticmethod
     def _bounded_terminate_node(
@@ -1405,8 +1189,7 @@ class SupervisorOrchestrator:
             update={
                 "termination_notice": notice,
                 # ``supervisor_iterations`` is an ``operator.add`` reducer, so
-                # the value here is a DELTA (mirrors the F1 guard node's
-                # ``decision.iterations_delta``). Pass 1, not current+1.
+                # the value here is a DELTA. Pass 1, not current+1.
                 "supervisor_iterations": 1,
             },
             goto=END,
@@ -2106,6 +1889,7 @@ class SupervisorOrchestrator:
         return [
             ContextGuardMiddleware(),
             PlanAwareToolMiddleware(direct_tool_names=direct_tool_names),
+            BriefingContextMiddleware(),
             *base,
         ]
 

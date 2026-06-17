@@ -3,7 +3,7 @@
 Asserts the Phase-2 + migration changes hold:
 
 1. **Seed invariants** (``seed/seed_system_config.json``):
-   - Every main assistant's ``delegation_config.direct_tools`` is small (<= 4).
+   - Every main assistant's ``delegation_config.direct_tools`` is small (<= 5).
    - No main assistant lost ``ask_user`` (load-bearing for clarification loops).
    - ``general_purpose`` ``allowed_tools`` is a concrete list with NO ``"*"``
      wildcard (the 12.1k-token footgun is gone).
@@ -112,10 +112,14 @@ def seed() -> dict[str, Any]:
 
 
 def test_seed_main_assistants_direct_tools_are_small(seed: dict[str, Any]) -> None:
-    """Phase-2: main assistants bind <= 4 direct_tools (was ~26)."""
+    """Phase-2: main assistants bind <= 5 direct_tools (was ~26).
+
+    The bound is 5 (not 4) to accommodate ``set_project_context``, the
+    cross-turn project-scope direct tool added alongside this work.
+    """
     for a in seed["ai_assistant_configs"]:
         dt = a["delegation_config"]["direct_tools"]
-        assert len(dt) <= 4, f"{a['name']} has {len(dt)} direct_tools (expected <=4)"
+        assert len(dt) <= 5, f"{a['name']} has {len(dt)} direct_tools (expected <=5)"
 
 
 def test_seed_main_assistants_keep_ask_user(seed: dict[str, Any]) -> None:

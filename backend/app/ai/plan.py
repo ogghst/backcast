@@ -14,6 +14,22 @@ StepStatus = Literal["pending", "in_progress", "completed", "skipped", "failed"]
 
 VALID_SPECIALISTS: frozenset[str] = frozenset({"general_purpose"})
 
+#: Per-turn cap on each step's inlined result text in ``to_prompt_text``.
+#: Tighter than the one-shot completion nudge's 800-char limit because this
+#: text is re-injected EVERY supervisor turn (via PlanAwareToolMiddleware).
+#: The full result lives in the briefing; this is a tight per-turn status
+#: preview, not a duplicate knowledge channel. Mirrors the truncation idiom
+#: used by the orchestrator's completion nudge (no framework import here).
+PLAN_RESULT_INLINE_LIMIT = 300
+
+
+def _truncate(source: str) -> str:
+    """Truncate *source* to :data:`PLAN_RESULT_INLINE_LIMIT`, appending ``...``."""
+    truncated = source[:PLAN_RESULT_INLINE_LIMIT]
+    if len(source) > PLAN_RESULT_INLINE_LIMIT:
+        truncated += "..."
+    return truncated
+
 
 class PlanStep(BaseModel):
     """A single atomic step within a plan.
@@ -217,7 +233,26 @@ class PlanDocument(BaseModel):
     # ------------------------------------------------------------------
 
     def to_prompt_text(self) -> str:
-        """Compact text representation for injection into supervisor context."""
+        """Compact text representation for injection into supervisor context.
+
+        Renders 1-based step numbering (matching every other display site:
+        ``_next_action_line``, completion nudge, bounded-termination notice)
+        so the plan block no longer disagrees with the NEXT ACTION directive.
+
+        Per-step result text is capped at :data:`PLAN_RESULT_INLINE_LIMIT` and
+        status-labeled from the dedicated fields:
+
+        - completed -> ``Result:`` (source = ``delegation_notes`` or
+          ``result_summary``)
+        - failed -> ``Error:`` (source = ``result_summary``, which carries
+          the error string per :meth:`mark_step_failed`)
+        - skipped -> the result line is omitted entirely
+        - pending / in_progress / unknown with a ``result_summary`` present
+          -> defensive ``Result:`` fallback (normally empty for these)
+
+        The full result lives in the briefing document; this is a tight
+        per-turn status preview, not a duplicate knowledge channel.
+        """
         lines: list[str] = [
             "## Execution Plan",
             f"Request: {self.original_request}",
@@ -236,17 +271,43 @@ class PlanDocument(BaseModel):
 
             dep_str = f" (depends on {step.dependencies})" if step.dependencies else ""
             lines.append(
-                f"  {step.step_index}. {status_marker} "
+                f"  {step.step_index + 1}. {status_marker} "
                 f"{step.specialist}: {step.task_description}{dep_str}"
             )
 
             if step.input_from_dependencies:
                 lines.append(f"     Input: {step.input_from_dependencies}")
 
-            if step.result_summary:
-                lines.append(f"     Result: \n --- start of result ---\n{step.delegation_notes or step.result_summary or ""}\n --- end of result ---\n")
+            inline = self._inline_result_line(step)
+            if inline is not None:
+                lines.append(f"     {inline}")
 
         return "\n".join(lines)
+
+    @staticmethod
+    def _inline_result_line(step: PlanStep) -> str | None:
+        """Return the status-labeled, truncated result line for *step*.
+
+        Returns ``None`` when no line should be inlined (skipped steps, or
+        steps with no result/error text). See :meth:`to_prompt_text` for the
+        status-label policy.
+        """
+        if step.status == "skipped":
+            return None
+        if step.status == "failed":
+            source = (step.result_summary or "").strip()
+            if not source:
+                return None
+            return f"Error: {_truncate(source)}"
+        # completed, or pending/in_progress/unknown with a result present
+        # (defensive fallback — normally empty for non-completed statuses).
+        if step.status == "completed":
+            source = (step.delegation_notes or step.result_summary or "").strip()
+        else:
+            source = (step.result_summary or "").strip()
+        if not source:
+            return None
+        return f"Result: {_truncate(source)}"
 
 
 __all__ = [
@@ -256,4 +317,5 @@ __all__ = [
     "PlannerStepOutput",
     "StepStatus",
     "VALID_SPECIALISTS",
+    "PLAN_RESULT_INLINE_LIMIT",
 ]

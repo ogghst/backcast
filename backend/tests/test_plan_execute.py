@@ -514,7 +514,10 @@ class TestToPromptText:
         doc.mark_step_failed(0, "Data unavailable")
         text = doc.to_prompt_text()
         assert "[failed] evm_analyst: Bad analysis" in text
-        assert "Result: Data unavailable" in text
+        # Failed steps render their error via the ``Error:`` label (the
+        # ``result_summary`` carries the error string per mark_step_failed),
+        # not the plain ``Result:`` label used for completed steps.
+        assert "Error: Data unavailable" in text
 
 
 class TestRequiresPlanningFalse:

@@ -15,8 +15,7 @@ quoted) / Not-started sections) and returns ``Command(goto=END)`` with
 ``termination_notice`` set.  The notice is delivered to the user by
 ``agent_service._persist_session_messages``.
 
-Mirrors the ``test_premature_completion_integration.py`` instantiation
-pattern (component-level node + router tests; no full LangGraph engine).
+Component-level node + router tests; no full LangGraph engine.
 """
 
 from __future__ import annotations
@@ -37,7 +36,7 @@ from app.ai.supervisor_orchestrator import (
 from app.ai.tools.types import ToolContext
 
 # ---------------------------------------------------------------------------
-# Fixtures (mirror test_premature_completion_integration.py)
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
@@ -106,7 +105,6 @@ def _no_plan_state() -> dict[str, Any]:
         "replan_context": "",
         "specialist_dispatch_counts": {},
         "specialist_failure_counts": {},
-        "premature_reprompts": 0,
     }
 
 
@@ -210,7 +208,7 @@ async def test_bounded_terminate_node_builds_notice_and_goes_to_end() -> None:
     notice = result.update.get("termination_notice")
     assert isinstance(notice, str) and notice
     assert "Tavily" in notice  # grounded from plan state
-    # Iteration bump (matches the premature_completion_guard shape).
+    # Iteration bump (operator.add delta; mirrors the guard-node shape).
     assert result.update.get("supervisor_iterations") == 1
 
 

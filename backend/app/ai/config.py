@@ -94,14 +94,6 @@ AI_TOOLS_DEFAULT_PAGE_SIZE: int = settings.AI_TOOLS_DEFAULT_PAGE_SIZE
 #: ask_user tool so a runaway model cannot re-ask indefinitely.
 AI_MAX_ASK_USER_PER_EXECUTION: int = settings.AI_MAX_ASK_USER_PER_EXECUTION
 
-#: Global (NOT per-step) cap on F1 premature-completion re-prompts. The guard
-#: node re-prompts the supervisor when it emits a text-only "done" answer while
-#: a dispatchable plan step is still PENDING; after this many corrections it
-#: force-ends (the supervisor iteration cap is the primary termination guarantee).
-AI_MAX_PREMATURE_COMPLETION_REPROMPTS: int = (
-    settings.AI_MAX_PREMATURE_COMPLETION_REPROMPTS
-)
-
 __all__ = [
     "AgentConfig",
     "OrchestratorMode",
@@ -116,5 +108,4 @@ __all__ = [
     "AI_MCP_TOOL_CATEGORY_PREFIX",
     "AI_TOOLS_DEFAULT_PAGE_SIZE",
     "AI_MAX_ASK_USER_PER_EXECUTION",
-    "AI_MAX_PREMATURE_COMPLETION_REPROMPTS",
 ]

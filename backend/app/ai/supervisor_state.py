@@ -87,14 +87,6 @@ class BackcastSupervisorState(TypedDict):
             a user-facing message so a weak model cannot re-dispatch a failing
             specialist until ``max_supervisor_iterations`` (~5x120s timeouts).
             Not used in plan mode (the per-step dispatch cap handles that).
-        premature_reprompts: GLOBAL counter of F1 premature-completion guard
-            re-prompts (sum reducer). When the supervisor emits a text-only
-            "done" answer while a dispatchable plan step is still PENDING, a
-            guard node re-prompts it; after ``AI_MAX_PREMATURE_COMPLETION_REPROMPTS``
-            corrections the guard force-ends. Global (not per-step) so a model
-            confabulating across distinct steps cannot waste O(steps) turns.
-            The supervisor iteration cap is the primary termination guarantee;
-            this is a tighter secondary bound.
         termination_notice: User-facing termination message emitted by the
             ``bounded_terminate`` node when the supervisor graph hits a silent
             force-END path (max-iterations or max-replan cap). Built from plan
@@ -123,7 +115,6 @@ class BackcastSupervisorState(TypedDict):
     replan_context: str
     specialist_dispatch_counts: Annotated[dict[str, int], _merge_dispatch_counts]
     specialist_failure_counts: Annotated[dict[str, int], _merge_dispatch_counts]
-    premature_reprompts: Annotated[int, operator.add]
     termination_notice: str | None
 
 
