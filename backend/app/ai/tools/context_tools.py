@@ -252,6 +252,27 @@ async def set_project_context(
         context.branch_name = "main"
         context.branch_mode = "merged"
 
+        # Persist so the project scope survives to the next turn (the
+        # ToolContext is rebuilt from the session row each execution).
+        # Best-effort: the in-memory mutation above already makes the current
+        # turn work.
+        if context.session_id:
+            try:
+                from sqlalchemy import update as sa_update
+
+                from app.db.session import async_session_maker
+                from app.models.domain.ai import AIConversationSession
+
+                async with async_session_maker() as db:
+                    await db.execute(
+                        sa_update(AIConversationSession)
+                        .where(AIConversationSession.id == context.session_id)
+                        .values(project_id=str(project_uuid))
+                    )
+                    await db.commit()
+            except Exception as exc:
+                logger.warning("Failed to persist project context to session: %s", exc)
+
         # Publish event for frontend (mirror set_temporal_context)
         if context._event_bus is not None:
             context._event_bus.publish(

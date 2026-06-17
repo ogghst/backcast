@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.ai.agent_service import AgentService
 from app.ai.tools import context_tools
 from app.ai.tools.context_tools import set_project_context
 from app.ai.tools.types import ToolContext
@@ -28,6 +29,7 @@ _set_project_context_raw = set_project_context.coroutine.__wrapped__  # type: ig
 _USER_ID = "00000000-0000-0000-0000-000000000001"
 _PROJECT_ID = "00000000-0000-0000-0000-0000000000aa"
 _OTHER_PROJECT_ID = "00000000-0000-0000-0000-0000000000bb"
+_SESSION_ID = "00000000-0000-0000-0000-0000000000cc"
 
 
 class _StubProject:
@@ -42,6 +44,7 @@ def _make_context(
     project_id: str | None = None,
     branch_name: str | None = None,
     branch_mode: str | None = None,
+    session_id: str | None = None,
 ) -> ToolContext:
     return ToolContext(
         session=MagicMock(),
@@ -49,6 +52,7 @@ def _make_context(
         project_id=project_id,
         branch_name=branch_name,
         branch_mode=branch_mode,  # type: ignore[arg-type]
+        session_id=session_id,
     )
 
 
@@ -214,3 +218,131 @@ async def test_project_scoped_guard_no_longer_trips_after_set(
     post = await _add_document_raw(filename="report.md", content="hi", context=ctx)
     assert "error" not in post, post
     assert post["id"] == str(stub_doc.id)
+
+
+# ---------------------------------------------------------------------------
+# Cross-turn persistence: set_project_context writes the project_id back to the
+# AIConversationSession row (best-effort) so the scope survives the next turn.
+# ---------------------------------------------------------------------------
+
+
+class _AsyncCM:
+    """Minimal async context manager wrapping a mock session.
+
+    ``set_project_context`` does ``async with async_session_maker() as db:``,
+    so we patch the maker to return an object whose ``__aenter__`` yields the
+    mock session and ``__aexit__`` is awaitable.
+    """
+
+    def __init__(self, session: MagicMock) -> None:
+        self._session = session
+
+    async def __aenter__(self) -> MagicMock:
+        return self._session
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
+def _patch_session_maker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[MagicMock, MagicMock]:
+    """Patch ``async_session_maker`` at its source to a mock factory.
+
+    ``set_project_context`` imports the maker locally
+    (``from app.db.session import async_session_maker``), so we patch the
+    symbol on ``app.db.session`` itself.
+
+    Returns ``(maker_mock, db_mock)`` where ``db_mock.execute`` /
+    ``db_mock.commit`` are ``AsyncMock`` instances tests can assert on.
+    """
+    import app.db.session as db_session_mod
+
+    db_mock = MagicMock()
+    db_mock.execute = AsyncMock()
+    db_mock.commit = AsyncMock()
+    db_mock.__aenter__ = AsyncMock(return_value=db_mock)
+    db_mock.__aexit__ = AsyncMock(return_value=None)
+
+    maker_mock = MagicMock(return_value=db_mock)
+    monkeypatch.setattr(db_session_mod, "async_session_maker", maker_mock)
+    return maker_mock, db_mock
+
+
+@pytest.mark.asyncio
+async def test_persists_project_id_to_session_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With session_id set, the project_id is written to AIConversationSession.
+
+    Patches async_session_maker so no DB is touched; asserts execute (UPDATE)
+    was awaited with a statement carrying the project_id, and commit ran.
+    The in-memory context is still mutated regardless.
+    """
+    project_uuid = uuid.UUID(_PROJECT_ID)
+    _patch_rbac(monkeypatch, accessible=[project_uuid])
+    _patch_project_service(monkeypatch, return_value=_StubProject())
+    maker_mock, db_mock = _patch_session_maker(monkeypatch)
+
+    ctx = _make_context(project_id=None, session_id=_SESSION_ID)
+
+    result = await _set_project_context_raw(project_id=_PROJECT_ID, context=ctx)
+
+    assert result.get("success") is True
+    # In-memory mutation happened
+    assert ctx.project_id == _PROJECT_ID
+    # Persistence: maker was called, UPDATE executed, commit awaited
+    maker_mock.assert_called_once()
+    db_mock.execute.assert_awaited_once()
+    db_mock.commit.assert_awaited_once()
+
+    # The UPDATE statement must carry the project_id in its compiled params.
+    executed_stmt = db_mock.execute.await_args.args[0]
+    compiled = executed_stmt.compile()
+    bound = compiled.construct_params()
+    assert bound["project_id"] == _PROJECT_ID
+    # The WHERE clause targets our session id
+    assert bound.get("id_1") == _SESSION_ID
+
+
+@pytest.mark.asyncio
+async def test_no_session_id_skips_db_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without session_id, no DB write occurs but context is still mutated."""
+    project_uuid = uuid.UUID(_PROJECT_ID)
+    _patch_rbac(monkeypatch, accessible=[project_uuid])
+    _patch_project_service(monkeypatch, return_value=_StubProject())
+    maker_mock, db_mock = _patch_session_maker(monkeypatch)
+
+    ctx = _make_context(project_id=None, session_id=None)
+
+    result = await _set_project_context_raw(project_id=_PROJECT_ID, context=ctx)
+
+    assert result.get("success") is True
+    # In-memory mutation happened even without persistence
+    assert ctx.project_id == _PROJECT_ID
+    # No DB interaction at all
+    maker_mock.assert_not_called()
+    db_mock.execute.assert_not_awaited()
+    db_mock.commit.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Preflight return shape: _preflight_execution returns a 2-tuple.
+# A heavyweight fixture (real session row) is not worth the brittleness here;
+# the tuple shape is verified via the function's return annotation instead,
+# which is the load-bearing contract for the start_execution destructuring.
+# ---------------------------------------------------------------------------
+
+
+def test_preflight_execution_returns_two_tuple_annotation() -> None:
+    """_preflight_execution is annotated to return a (context, project_id) tuple."""
+    from typing import get_type_hints
+
+    hints = get_type_hints(AgentService._preflight_execution)
+    # The return annotation must be a 2-tuple type (typing.Tuple or tuple[...]).
+    ret = hints.get("return")
+    assert ret is not None
+    args = getattr(ret, "__args__", None)
+    assert args is not None and len(args) == 2, f"expected 2-tuple return, got {ret!r}"

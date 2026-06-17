@@ -955,6 +955,7 @@ class AgentService:
             branch_name=branch_name,
             branch_mode=branch_mode,
             execution_mode=execution_mode,
+            session_id=str(session_id) if session_id else None,
             _event_bus=event_bus,
         )
         tool_context._stop_event = params.stop_event
@@ -1134,12 +1135,23 @@ class AgentService:
         self, state: StreamState, event: dict[str, Any]
     ) -> None:
         """Handle on_chat_model_start -- track LLM call count and timing."""
-        # The planner uses ainvoke() (non-streaming), so any streaming
-        # LLM event is guaranteed to NOT be from the planner. Clear the
-        # flag to ensure subsequent token streaming is not suppressed.
-        # (Fixes TD-015: planner_active was never cleared because
-        # on_chain_end for the planner node doesn't fire.)
-        state.planner_active = False
+        # Suppress the planner's own LLM tokens so its JSON does not leak
+        # into the chat. The planner runs as a top-level graph node named
+        # "planner" and calls ``llm.ainvoke`` directly; astream_events tags
+        # those events' ``metadata.langgraph_node`` / ``langgraph_checkpoint_ns``
+        # with "planner" -- a reliable per-call signal, unlike on_chain_start/
+        # end (which v1 does not emit reliably for plain async nodes). Set
+        # authoritatively here on every LLM call (start always fires before
+        # stream for the same call) so the flag is correct for the
+        # about-to-stream tokens. Supervisor/specialist calls lack the
+        # signal so their tokens stream normally -- this fixes BOTH the
+        # planner-JSON-into-chat leak AND TD-015's supervisor-text
+        # suppression (the old code cleared the flag unconditionally here,
+        # which let planner JSON stream while it was meant to do the opposite).
+        _meta = event.get("metadata") or {}
+        state.planner_active = ("planner" in (_meta.get("langgraph_node") or "")) or (
+            "planner" in (_meta.get("langgraph_checkpoint_ns") or "")
+        )
 
         data = event.get("data", {})
         state.llm_call_count += 1
@@ -2387,15 +2399,17 @@ class AgentService:
         execution_id: str,
         session_id: UUID,
         execution_mode: ExecutionMode,
-    ) -> dict[str, Any] | None:
+    ) -> tuple[dict[str, Any] | None, str | None]:
         """Create execution row and capture session context in a short-lived session.
 
         Opens its own DB session, creates the AIAgentExecution tracking row,
         sets active_execution_id on the conversation session, and returns the
-        session context dict.  No live ORM objects escape — only serializable data.
+        session context dict plus the session's persisted project_id.  No live
+        ORM objects escape — only serializable data.
 
         Returns:
-            Session context dict, or None if the session has no context.
+            Tuple of (session context dict or None, session project_id string or None).
+            The project_id reflects any cross-turn scope set via set_project_context.
         """
         from app.db.session import async_session_maker
 
@@ -2425,8 +2439,14 @@ class AgentService:
                 db_session.active_execution_id = str(execution.id)
                 await db.commit()
 
-            # Capture serializable context — no ORM objects escape
-            return db_session.context if db_session else None
+            # Capture serializable context + persisted project scope — no ORM
+            # objects escape.
+            return (
+                db_session.context if db_session else None,
+                str(db_session.project_id)
+                if (db_session and db_session.project_id)
+                else None,
+            )
 
     @staticmethod
     async def _finalize_stopped_execution(
@@ -2604,10 +2624,18 @@ class AgentService:
 
         try:
             # Phase 1: Pre-flight — create execution row, capture context
-            session_context = await self._preflight_execution(
+            session_context, session_project_id = await self._preflight_execution(
                 execution_id,
                 session_id,
                 execution_mode,
+            )
+
+            # Persisted project scope (set via set_project_context) applies when
+            # the incoming request carries no project_id (general chat). An
+            # explicit request project_id always wins, so project-scoped chats
+            # are unaffected.
+            effective_project_id = project_id or (
+                UUID(session_project_id) if session_project_id else None
             )
 
             # Phase 2: Graph execution — own session for the full graph run
@@ -2621,7 +2649,7 @@ class AgentService:
                         session_id=session_id,
                         user_id=user_id,
                         event_bus=event_bus,
-                        project_id=project_id,
+                        project_id=effective_project_id,
                         branch_id=branch_id,
                         as_of=as_of,
                         branch_name=branch_name,

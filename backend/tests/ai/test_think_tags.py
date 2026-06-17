@@ -107,12 +107,7 @@ class TestStripThinkTagsNoTags:
         assert strip_think_tags(md) == md
 
     def test_markdown_table_preserved(self) -> None:
-        table = (
-            "| Col A | Col B |\n"
-            "|-------|-------|\n"
-            "| 1 | 2 |\n"
-            "| 3 | 4 |"
-        )
+        table = "| Col A | Col B |\n|-------|-------|\n| 1 | 2 |\n| 3 | 4 |"
         assert strip_think_tags(table) == table
 
     def test_empty_string(self) -> None:

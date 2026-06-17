@@ -33,7 +33,6 @@ from app.ai.plan import PlanDocument, PlanStep
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
 from app.ai.tools.types import ToolContext
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

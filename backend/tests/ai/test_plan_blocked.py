@@ -529,5 +529,10 @@ async def test_specialist_failure_no_dependents_continues() -> None:
     # The failure nudge must name the error and, because a pending step
     # remains, allow delegating it / replanning (see _build_failure_nudge).
     assert "provider 500" in text
-    assert "briefly inform the user" in text.lower() or "inform the user" in text.lower()
-    assert "delegate the next pending step" in text.lower() or "request_replan" in text.lower()
+    assert (
+        "briefly inform the user" in text.lower() or "inform the user" in text.lower()
+    )
+    assert (
+        "delegate the next pending step" in text.lower()
+        or "request_replan" in text.lower()
+    )

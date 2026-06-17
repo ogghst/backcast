@@ -178,6 +178,8 @@ class ToolContext:
         as_of: Optional historical date for temporal queries (None for current state)
         branch_name: Optional branch name for temporal queries (e.g., "main", "BR-001")
         branch_mode: Optional branch mode for temporal queries ("merged" or "isolated")
+        session_id: Optional conversation session ID — used by tools that need to
+            persist cross-turn state back to the AIConversationSession row.
         _permission_cache: LRU cache for permission checks (max 1000 entries)
 
     Note:
@@ -198,6 +200,7 @@ class ToolContext:
     as_of: datetime | None = None
     branch_name: str | None = None
     branch_mode: Literal["merged", "isolated"] | None = None
+    session_id: str | None = None
     _permission_cache: collections.abc.MutableMapping[str, bool] = field(
         default_factory=lambda: _LRUCache(max_size=1000)
     )
@@ -215,6 +218,7 @@ class ToolContext:
         as_of: datetime | None = None,
         branch_name: str | None = None,
         branch_mode: Literal["merged", "isolated"] | None = None,
+        session_id: str | None = None,
         _permission_cache: collections.abc.MutableMapping[str, bool] | None = None,
         _event_bus: Any = None,
     ) -> None:
@@ -230,6 +234,7 @@ class ToolContext:
             as_of: Optional historical date for temporal queries
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries
+            session_id: Optional conversation session ID for cross-turn persistence
             _permission_cache: Optional permission cache (uses LRU with 1000-entry limit if not provided)
             _event_bus: Optional event bus for publishing events during tool execution
         """
@@ -242,6 +247,7 @@ class ToolContext:
         self.as_of = as_of
         self.branch_name = branch_name
         self.branch_mode = branch_mode
+        self.session_id = session_id
         # Use provided cache or create new LRU cache
         if _permission_cache is not None:
             self._permission_cache = _permission_cache

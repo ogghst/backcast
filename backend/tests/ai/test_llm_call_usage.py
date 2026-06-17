@@ -135,7 +135,12 @@ class TestEstimateToolsTokenCost:
 class TestExtractCallUsage:
     def test_usage_metadata_on_aimessage(self, service: Any) -> None:
         msg = AIMessage(
-            content="hi", usage_metadata={"input_tokens": 123, "output_tokens": 45, "total_tokens": (123)+(45)}
+            content="hi",
+            usage_metadata={
+                "input_tokens": 123,
+                "output_tokens": 45,
+                "total_tokens": (123) + (45),
+            },
         )
         prompt, completion = service._extract_call_usage({"output": msg})
         assert prompt == 123
@@ -154,7 +159,12 @@ class TestExtractCallUsage:
 
     def test_v1_generations_shape(self, service: Any) -> None:
         msg = AIMessage(
-            content="hi", usage_metadata={"input_tokens": 9, "output_tokens": 1, "total_tokens": (9)+(1)}
+            content="hi",
+            usage_metadata={
+                "input_tokens": 9,
+                "output_tokens": 1,
+                "total_tokens": (9) + (1),
+            },
         )
         data = {"output": {"generations": [[{"message": msg}]]}}
         prompt, completion = service._extract_call_usage(data)
@@ -185,7 +195,11 @@ class TestHandleChatModelEndUsageLine:
         state = _make_state()
         msg = AIMessage(
             content="hi",
-            usage_metadata={"input_tokens": 4815, "output_tokens": 162, "total_tokens": (4815)+(162)},
+            usage_metadata={
+                "input_tokens": 4815,
+                "output_tokens": 162,
+                "total_tokens": (4815) + (162),
+            },
         )
         event = {"data": {"output": msg}}
 
@@ -207,7 +221,12 @@ class TestHandleChatModelEndUsageLine:
     ) -> None:
         state = _make_state(subagent="project_manager")
         msg = AIMessage(
-            content="hi", usage_metadata={"input_tokens": 10, "output_tokens": 2, "total_tokens": (10)+(2)}
+            content="hi",
+            usage_metadata={
+                "input_tokens": 10,
+                "output_tokens": 2,
+                "total_tokens": (10) + (2),
+            },
         )
         event = {"data": {"output": msg}}
 
@@ -264,7 +283,12 @@ class TestHandleChatModelEndUsageLine:
             {"tool": "global_search", "result": "y" * 80},
         ]
         msg = AIMessage(
-            content="hi", usage_metadata={"input_tokens": 1, "output_tokens": 1, "total_tokens": (1)+(1)}
+            content="hi",
+            usage_metadata={
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "total_tokens": (1) + (1),
+            },
         )
         event = {"data": {"output": msg}}
 
