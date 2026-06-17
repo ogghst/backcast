@@ -2634,6 +2634,13 @@ class AgentService:
             self._stop_events.pop(execution_id, None)
             if should_remove_bus:
                 runner_manager.remove_bus(execution_id)
+            # Drop the per-execution ask_user prompt count on normal
+            # completion (the stop/disconnect path clears it via
+            # cancel_asks_for_execution).  execution_ids are unique, so a
+            # missed pop is only a minor memory leak, not a correctness bug.
+            from app.ai.tools.ask_user import _ask_counts
+
+            _ask_counts.pop(execution_id, None)
 
         return execution_id
 

@@ -80,6 +80,21 @@ class BackcastSupervisorState(TypedDict):
             times in plan mode before the dispatch node routes to the
             supervisor with a request_replan nudge, preventing the
             Swarm-style infinite re-dispatch loop.
+        specialist_failure_counts: Per-specialist CONSECUTIVE-failure counter
+            in PURE non-plan mode (sum reducer). Drives the bounded-failure
+            guard in the specialist node: when the same specialist fails twice
+            in a row with no active plan, the graph force-ends (goto END) with
+            a user-facing message so a weak model cannot re-dispatch a failing
+            specialist until ``max_supervisor_iterations`` (~5x120s timeouts).
+            Not used in plan mode (the per-step dispatch cap handles that).
+        premature_reprompts: GLOBAL counter of F1 premature-completion guard
+            re-prompts (sum reducer). When the supervisor emits a text-only
+            "done" answer while a dispatchable plan step is still PENDING, a
+            guard node re-prompts it; after ``AI_MAX_PREMATURE_COMPLETION_REPROMPTS``
+            corrections the guard force-ends. Global (not per-step) so a model
+            confabulating across distinct steps cannot waste O(steps) turns.
+            The supervisor iteration cap is the primary termination guarantee;
+            this is a tighter secondary bound.
     """
 
     messages: Annotated[list[BaseMessage], operator.add]
@@ -98,6 +113,8 @@ class BackcastSupervisorState(TypedDict):
     max_replan_count: int
     replan_context: str
     specialist_dispatch_counts: Annotated[dict[str, int], _merge_dispatch_counts]
+    specialist_failure_counts: Annotated[dict[str, int], _merge_dispatch_counts]
+    premature_reprompts: Annotated[int, operator.add]
 
 
 __all__ = ["BackcastSupervisorState"]

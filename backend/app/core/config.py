@@ -89,6 +89,19 @@ class Settings(BaseSettings):
     # Must exceed AI_SPECIALIST_STEP_TIMEOUT so the specialist step clock
     # (which PAUSES while ask_user awaits a human) never races the answer.
     AI_ASK_USER_TIMEOUT_SECONDS: int = 300
+    # Hard cap on USER-FACING ask_user prompts per execution.  Generous default
+    # (8) allows a full legitimate requirements round while making runaway
+    # re-asking structurally impossible regardless of model behavior (39
+    # observed in a single runaway session).  Enforced inside the ask_user tool
+    # BEFORE it publishes an event or marks the execution awaiting-user.
+    AI_MAX_ASK_USER_PER_EXECUTION: int = 8
+    # Global (NOT per-step) cap on F1 premature-completion re-prompts. When the
+    # supervisor emits a text-only "done" answer while a dispatchable plan step
+    # is still PENDING, a guard node re-prompts it (bounded by the existing
+    # supervisor iteration cap as the PRIMARY termination guarantee). After
+    # this many corrections the guard force-ends instead. Global so a model
+    # confabulating across distinct steps cannot waste O(steps) turns.
+    AI_MAX_PREMATURE_COMPLETION_REPROMPTS: int = 2
 
     # AI context trimming (ContextGuardMiddleware) + runtime toggles.
     # Exposed here (rather than read via os.environ in app.ai.config) so that

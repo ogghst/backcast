@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
 __all__ = [
+    "collect_recent_ask_user_qa",
     "estimate_tools_token_cost",
     "extract_final_ai_response",
     "extract_tool_output_content",
@@ -100,6 +101,100 @@ def extract_final_ai_response(messages: list[BaseMessage]) -> str:
     if tool_parts:
         return "\n\n".join(reversed(tool_parts))
     return ""
+
+
+# Default cap on how many gathered ask_user Q&A pairs are surfaced to a
+# specialist's assignment.  Keeps the specialist's isolated context compact so
+# it does not re-open the token-bloat regression (memory 20 / commit 58a642c2
+# cut specialist prompt tokens 79%); a specialist does a focused 2-4 calls/step
+# and almost never needs more than a handful of prior answers.
+_DEFAULT_ASK_USER_QA_LIMIT = 6
+
+
+def collect_recent_ask_user_qa(
+    messages: list[BaseMessage], limit: int = _DEFAULT_ASK_USER_QA_LIMIT
+) -> list[tuple[str, str]]:
+    """Collect recent (question, answer) pairs from supervisor ask_user calls.
+
+    Specialists are message-isolated from the supervisor's outer conversation,
+    so without this the specialist never sees the supervisor's prior ask_user
+    Q&A and re-asks questions the user already answered.  This walks the
+    supervisor's message list and pairs each ``ask_user`` AIMessage tool call
+    with its corresponding ``ToolMessage`` reply (matched by ``tool_call_id``).
+
+    Pairs are EXCLUDED when:
+
+    * the ToolMessage content is not parseable JSON,
+    * the parsed dict carries an ``"error"`` key (e.g. ask_user timed out), or
+    * the parsed dict has no ``"answer"`` key.
+
+    Orphan ToolMessages (no matching AIMessage) are skipped.
+
+    Args:
+        messages: The supervisor's outer conversation messages.
+        limit: Maximum number of pairs to return. The MOST RECENT ``limit``
+            pairs are returned (older pairs are dropped). Defaults to 6.
+
+    Returns:
+        A list of ``(question, answer)`` strings, oldest-first, capped to
+        *limit*. Empty when no usable ask_user Q&A is present.
+    """
+    # Index tool replies by tool_call_id for O(1) pairing.
+    tool_by_call_id: dict[str, ToolMessage] = {}
+    for msg in messages:
+        if isinstance(msg, ToolMessage):
+            tool_by_call_id[msg.tool_call_id] = msg
+
+    pairs: list[tuple[str, str]] = []
+    for msg in messages:
+        if not isinstance(msg, AIMessage) or not msg.tool_calls:
+            continue
+        for call in msg.tool_calls:
+            if call.get("name") != "ask_user":
+                continue
+            question = str(call.get("args", {}).get("question", "")).strip()
+            if not question:
+                continue
+            call_id = call.get("id")
+            if not isinstance(call_id, str):
+                continue
+            reply = tool_by_call_id.get(call_id)
+            if reply is None:
+                # Orphan: a ToolMessage whose AIMessage is absent/garbled.
+                continue
+            answer = _parse_ask_user_answer(reply.content)
+            if answer is None:
+                # Unparseable, error-bearing, or answer-less reply: skip.
+                continue
+            pairs.append((question, answer))
+
+    if not pairs:
+        return []
+    # Keep the most recent ``limit`` pairs, returned oldest-first.
+    return pairs[-limit:]
+
+
+def _parse_ask_user_answer(content: Any) -> str | None:
+    """Extract an ``answer`` string from an ask_user ToolMessage content.
+
+    The content is a stringified dict like ``{"answer": "..."}`` on success or
+    ``{"error": "..."}`` on timeout. Returns the answer string, or ``None``
+    when the content is unparseable, error-bearing, or has no ``answer`` key.
+    """
+    if not isinstance(content, str):
+        return None
+    try:
+        parsed = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    if "error" in parsed:
+        return None
+    answer = parsed.get("answer")
+    if not isinstance(answer, str):
+        return None
+    return answer
 
 
 def extract_tool_output_content(tool_output: Any) -> str:

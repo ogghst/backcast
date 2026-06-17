@@ -269,13 +269,37 @@ def test_router_planner_integration() -> None:
     # Plan-driven mode allows re-dispatch, so visualization_specialist is valid
     assert router(state_delegation_2) == "visualization_specialist"
 
-    # Transition 4: Supervisor wraps up with no tool calls -> END
+    # Transition 4: Supervisor wraps up with no tool calls -> END.
+    # In production, completing step 1 re-serializes plan_data with step 1's
+    # status="completed" (via mark_step_completed); reflect that here so the
+    # plan is genuinely complete and the F1 premature-completion guard does
+    # not fire on a stale-pending step.
+    completed_revised_plan = PlanDocument(
+        original_request="Analyze EVM and build a dashboard",
+        steps=[
+            PlanStep(
+                step_index=0,
+                specialist="evm_analyst",
+                task_description="Calculate CPI and SPI",
+                status="completed",
+                result_summary="CPI=0.94, SPI=1.02",
+            ),
+            PlanStep(
+                step_index=1,
+                specialist="visualization_specialist",
+                task_description="Build dashboard from EVM data",
+                status="completed",
+                result_summary="Dashboard built.",
+            ),
+        ],
+        requires_planning=True,
+    )
     state_wrap_up = {
         **base_state,
         "replan_count": 1,
         "completed_specialists": {"evm_analyst", "visualization_specialist"},
         "completed_steps": {0, 1},
-        "plan_data": revised_plan.model_dump(),
+        "plan_data": completed_revised_plan.model_dump(),
         "messages": [AIMessage(content="All steps completed. Here is the briefing.")],
     }
     assert router(state_wrap_up) == END

@@ -23,6 +23,7 @@ def _completed_step(
     step_index: int,
     specialist: str,
     result_summary: str,
+    delegation_notes: str | None = None,
 ) -> PlanStep:
     return PlanStep(
         step_index=step_index,
@@ -30,6 +31,7 @@ def _completed_step(
         task_description=f"task for {specialist}",
         status="completed",
         result_summary=result_summary,
+        delegation_notes=delegation_notes,
     )
 
 
@@ -96,15 +98,19 @@ def test_nudge_forbids_confabulated_failure_narrative() -> None:
     assert "re-litigate" in nudge
 
 
-def test_nudge_appends_completed_findings_section_header() -> None:
-    """The inlined block sits under a `## Completed findings` header."""
+def test_nudge_appends_resolved_facts_section_header() -> None:
+    """The inlined block sits under a `## RESOLVED FACTS` header (renamed from
+    `Completed findings` so it foregrounds identity — the resolved facts are
+    what the supervisor must cite, not re-derive)."""
     plan = PlanDocument(
         original_request="x",
         steps=[_completed_step(0, "general_purpose", "done")],
         requires_planning=True,
     )
     nudge = _build_completion_nudge(plan, cleaned_findings="done")
-    assert "## Completed findings" in nudge
+    assert "## RESOLVED FACTS" in nudge
+    # The old block name must NOT coexist (one block, not two).
+    assert "## Completed findings" not in nudge
 
 
 def test_nudge_reports_total_step_count() -> None:
@@ -166,7 +172,7 @@ def test_nudge_falls_back_to_cleaned_findings_when_no_summaries() -> None:
     nudge = _build_completion_nudge(plan, cleaned_findings="fallback findings")
 
     assert "fallback findings" in nudge
-    assert "## Completed findings" in nudge
+    assert "## RESOLVED FACTS" in nudge
     # The placeholder must NOT win when cleaned_findings is present.
     assert "(no findings recorded)" not in nudge
 
@@ -189,7 +195,7 @@ def test_nudge_falls_back_to_placeholder_when_nothing_recorded() -> None:
     nudge = _build_completion_nudge(plan, cleaned_findings="")
 
     assert "(no findings recorded)" in nudge
-    assert "## Completed findings" in nudge
+    assert "## RESOLVED FACTS" in nudge
 
 
 def test_nudge_skips_non_completed_steps() -> None:
@@ -219,3 +225,82 @@ def test_nudge_skips_non_completed_steps() -> None:
     assert "result-a" in nudge
     assert "Step 2" not in nudge  # pending -> not inlined
     assert "boom" not in nudge  # failed -> not inlined
+
+
+# ===========================================================================
+# F2: delegation_notes plumbing + RESOLVED FACTS foregrounding + anti-re-derivation
+# ===========================================================================
+
+
+def test_nudge_uses_delegation_notes_first() -> None:
+    """When a completed step has delegation_notes, it is the resolved-identity
+    channel and is inlined BEFORE result_summary."""
+    plan = PlanDocument(
+        original_request="sviluppa la WBE di design",
+        steps=[
+            _completed_step(
+                0,
+                "project_manager",
+                result_summary="WBE creata.",
+                delegation_notes=(
+                    "Created WBE 'DESIGN-001' (code DESIGN-001) on project "
+                    "QAE001 (id=42)."
+                ),
+            ),
+        ],
+        requires_planning=True,
+    )
+    nudge = _build_completion_nudge(plan, cleaned_findings="ignored")
+
+    assert "DESIGN-001" in nudge
+    assert "QAE001" in nudge
+
+
+def test_nudge_falls_back_to_result_summary_when_delegation_notes_empty() -> None:
+    plan = PlanDocument(
+        original_request="x",
+        steps=[
+            _completed_step(
+                0,
+                "general_purpose",
+                result_summary="did the thing",
+                delegation_notes=None,
+            ),
+        ],
+        requires_planning=True,
+    )
+    nudge = _build_completion_nudge(plan, cleaned_findings="ignored")
+    assert "did the thing" in nudge
+
+
+def test_nudge_has_single_findings_block_no_duplication() -> None:
+    """Exactly ONE resolved-facts/findings block (two blocks from overlapping
+    data is context rot)."""
+    plan = PlanDocument(
+        original_request="x",
+        steps=[
+            _completed_step(
+                0,
+                "a",
+                "summary-a",
+                delegation_notes="notes-a",
+            ),
+        ],
+        requires_planning=True,
+    )
+    nudge = _build_completion_nudge(plan, cleaned_findings="ignored")
+    assert nudge.count("## RESOLVED FACTS") == 1
+    assert "## Completed findings" not in nudge
+
+
+def test_nudge_anti_rederivation_directive_present() -> None:
+    """The trailing directive forbids re-derivation of resolved identities."""
+    plan = PlanDocument(
+        original_request="x",
+        steps=[_completed_step(0, "general_purpose", "done")],
+        requires_planning=True,
+    )
+    nudge = _build_completion_nudge(plan, cleaned_findings="done")
+    assert "ALREADY RESOLVED" in nudge
+    assert "re-disambiguate" in nudge or "re-search" in nudge
+    assert "exact code/name" in nudge

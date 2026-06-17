@@ -35,6 +35,11 @@ class PlanStep(BaseModel):
     expected_output: str = ""
     status: StepStatus = "pending"
     result_summary: str | None = None
+    # Resolved-identity channel (F2): concrete identifiers created/resolved by
+    # the specialist (created-entity code/name + resolved project). Foregrounded
+    # by ``_build_completion_nudge`` as RESOLVED FACTS so the supervisor's final
+    # answer cites them instead of re-deriving/re-disambiguating identities.
+    delegation_notes: str | None = None
     replanned: bool = False
 
 
@@ -133,12 +138,28 @@ class PlanDocument(BaseModel):
     # Step mutations
     # ------------------------------------------------------------------
 
-    def mark_step_completed(self, step_index: int, result_summary: str) -> None:
-        """Mark a step as completed with a result summary."""
+    def mark_step_completed(
+        self,
+        step_index: int,
+        result_summary: str,
+        delegation_notes: str | None = None,
+    ) -> None:
+        """Mark a step as completed with a result summary.
+
+        Args:
+            step_index: The step to mark completed.
+            result_summary: The specialist's summary of what was accomplished.
+            delegation_notes: Optional resolved-identity notes (created-entity
+                code/name + resolved project) sourced from the specialist's
+                ``SpecialistOutput.delegation_notes``. Foregrounded by the
+                completion nudge as RESOLVED FACTS (F2).
+        """
         step = self.get_step(step_index)
         if step is not None:
             step.status = "completed"
             step.result_summary = result_summary
+            if delegation_notes is not None:
+                step.delegation_notes = delegation_notes
 
     def mark_step_failed(self, step_index: int, error: str) -> None:
         """Mark a step as failed with an error description."""
