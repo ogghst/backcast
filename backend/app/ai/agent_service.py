@@ -794,6 +794,55 @@ class AgentService:
             )
             return False
 
+    async def _extract_termination_notice(
+        self,
+        session_id: UUID,
+        state: StreamState,
+    ) -> None:
+        """Pull ``termination_notice`` from the graph checkpoint into StreamState.
+
+        The ``bounded_terminate`` node sets ``termination_notice`` in the graph
+        state when the supervisor hits a silent force-END cap (max-iterations
+        or max-replan). That state lives only in the LangGraph checkpoint after
+        the run (it is not carried by stream events), so we read it here and
+        surface it on ``state.termination_message`` for
+        ``_persist_session_messages`` to deliver as a final assistant message.
+
+        Best-effort: any error is logged and leaves ``termination_message``
+        unset (the run already completed; the notice is additive, not load-
+        bearing for correctness). Reuses the same ``channel_values`` unpacking
+        as ``_persist_briefing_from_checkpoint`` /
+        ``_extract_resume_state_from_checkpoint``.
+
+        Args:
+            session_id: The session whose checkpoint to read.
+            state: The StreamState to populate (sets ``termination_message``).
+        """
+        try:
+            checkpoint_state = await shared_checkpointer.aget(
+                {"configurable": {"thread_id": str(session_id)}}
+            )
+            if not checkpoint_state:
+                return
+            channel_values = checkpoint_state.get("channel_values", {}) or {}
+            notice = channel_values.get("termination_notice")
+            if isinstance(notice, str) and notice:
+                state.termination_message = notice
+                logger.info(
+                    "[TERMINATION_NOTICE] Bounded-termination notice extracted "
+                    "from checkpoint | session_id=%s | len=%d",
+                    session_id,
+                    len(notice),
+                )
+        except Exception as exc:
+            logger.error(
+                "[TERMINATION_NOTICE] Failed to read from checkpoint: %s "
+                "| session_id=%s",
+                exc,
+                session_id,
+                exc_info=True,
+            )
+
     # ------------------------------------------------------------------
     # Graph execution: preparation, streaming, persistence, finalization
     # ------------------------------------------------------------------
@@ -2094,6 +2143,29 @@ class AgentService:
             except Exception as persist_error:
                 logger.error(f"Failed to persist error message: {persist_error}")
 
+        # Persist the bounded-termination notice as a final assistant message
+        # when the supervisor graph hit a silent force-END cap (max-iterations
+        # or max-replan). The notice is system-generated from plan STATE
+        # (Completed / Failed-with-error / Not-started sections) by the
+        # ``bounded_terminate`` node -- legitimate like the ``graph_error``
+        # message above, NOT model-output rewriting. Setting
+        # ``last_persisted_message_id`` makes the COMPLETE event point at this
+        # message so the frontend surfaces it as the run's final answer.
+        if state.termination_message:
+            try:
+                term_msg = await self.config_service.add_message(
+                    session_id=state.session_id,
+                    role="assistant",
+                    content=state.termination_message,
+                    message_metadata={
+                        "bounded_termination": True,
+                    },
+                )
+                await self.session.commit()
+                state.last_persisted_message_id = term_msg.id
+            except Exception as persist_error:
+                logger.error(f"Failed to persist termination notice: {persist_error}")
+
     # -- Finalization --
 
     def _finalize_execution(
@@ -2279,7 +2351,16 @@ class AgentService:
                     ctx.session_id, log_label="BRIEFING_PERSIST_ERROR_PATH"
                 )
 
-        # Step 5: Persist messages to session history
+        # Step 5: Extract a bounded-termination notice (if any) from the
+        # graph checkpoint, then persist messages to session history. The
+        # checkpoint still exists at this point (briefing persist in the
+        # finally block above does NOT run on the success path -- it runs
+        # only on error/stop/cancel). We read termination_notice from the
+        # channel_values (mirrors the unpacking in
+        # _persist_briefing_from_checkpoint / _extract_resume_state_from_checkpoint).
+        await self._extract_termination_notice(ctx.session_id, state)
+
+        # Step 6: Persist messages to session history
         await self._persist_session_messages(state)
 
         # Step 6: Finalize -- publish completion events and return metrics

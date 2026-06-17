@@ -284,6 +284,7 @@ def _briefing_update(
         "specialist_dispatch_counts": {},
         "specialist_failure_counts": {},
         "premature_reprompts": 0,
+        "termination_notice": None,
     }
     if plan_data is not None:
         update["plan_data"] = plan_data
@@ -760,6 +761,83 @@ def _decide_premature_completion(
     )
 
 
+def _build_bounded_termination_notice(plan: PlanDocument | None) -> str:
+    """Build a grounded, user-facing notice for a bounded termination.
+
+    Called by the ``bounded_terminate`` node when the supervisor graph hits a
+    silent force-END path (max-iterations or max-replan cap). Previously both
+    paths returned ``END`` with NO message, so a run that looped on an
+    undeliverable specialist (e.g. web_researcher failing on a Tavily quota)
+    terminated with ``completed=[]`` and the user received NOTHING about the
+    failure/bound.
+
+    The notice is built from plan STATE (not hardcoded payloads and NOT an
+    extra supervisor LLM turn — the supervisor may be misbehaving). It
+    renders three sections:
+
+    * **Completed:** completed steps with a short ``result_summary``.
+    * **Failed:** failed steps WITH their ``result_summary`` (this carries the
+      real error, e.g. "web_researcher: Tavily API error: ... usage limit").
+    * **Not started:** pending / in-progress / blocked steps with their
+      ``task_description``.
+
+    In non-plan mode (``plan is None``) a simpler "reached the execution
+    limit without completing" notice is emitted.
+
+    Args:
+        plan: The active PlanDocument (read-only), or ``None`` in non-plan mode.
+
+    Returns:
+        The termination notice string. Always non-empty.
+    """
+    if plan is None or not plan.steps:
+        return (
+            "I reached the execution limit without completing your request. "
+            "Please try again — the failure may have been transient — or "
+            "simplify the request so it can be completed in fewer steps."
+        )
+
+    completed_lines: list[str] = []
+    failed_lines: list[str] = []
+    not_started_lines: list[str] = []
+
+    for step in plan.steps:
+        label = f"Step {step.step_index + 1} ({step.specialist})"
+        status = step.status
+        if status == "completed":
+            summary = (step.result_summary or "").strip() or "(no summary)"
+            completed_lines.append(f"- {label}: {summary}")
+        elif status == "failed":
+            # The result_summary is the error carrier — quote it verbatim so
+            # the user sees the real reason (e.g. "Tavily API error: usage limit").
+            summary = (
+                step.result_summary or ""
+            ).strip() or "(no error detail recorded)"
+            failed_lines.append(f"- {label}: {summary}")
+        else:
+            # pending / in_progress / blocked — list the task so the user
+            # knows what did NOT run.
+            task = (step.task_description or "").strip() or "(no task description)"
+            not_started_lines.append(f"- {label}: {task}")
+
+    completed_block = "\n".join(completed_lines) if completed_lines else "(none)"
+    failed_block = "\n".join(failed_lines) if failed_lines else "(none)"
+    not_started_block = "\n".join(not_started_lines) if not_started_lines else "(none)"
+
+    return (
+        "I could not complete your request within the execution limit "
+        "(the delegation/replan cap was reached).\n\n"
+        "## Completed\n"
+        f"{completed_block}\n\n"
+        "## Failed\n"
+        f"{failed_block}\n\n"
+        "## Not started\n"
+        f"{not_started_block}\n\n"
+        "Please retry — the failure may have been transient — or simplify "
+        "the request so it can be completed in fewer steps."
+    )
+
+
 class _BriefingSupervisorState(AgentState[Any]):
     """State extension for the briefing supervisor subgraph.
 
@@ -1081,6 +1159,15 @@ class SupervisorOrchestrator:
             "premature_completion_guard",
             self._premature_completion_guard_node,
         )
+        # Bounded-termination node: the router routes here when a silent
+        # force-END path fires (max-iterations or max-replan cap). The node
+        # builds a grounded notice from plan state and returns Command(goto=END)
+        # so the user is ALWAYS told when a run is bounded. Plain node (not a
+        # conditional-edge Command) for the same reason as the F1 guard.
+        parent.add_node(
+            "bounded_terminate",
+            self._bounded_terminate_node,
+        )
 
         # --- 8. Wire edges ---
         parent.add_edge(START, "initialize_briefing")
@@ -1089,7 +1176,8 @@ class SupervisorOrchestrator:
         parent.add_conditional_edges(
             "supervisor",
             self._make_supervisor_router(specialist_names),
-            specialist_names + ["planner", "premature_completion_guard", END],
+            specialist_names
+            + ["planner", "premature_completion_guard", "bounded_terminate", END],
         )
         # NOTE: specialist nodes return Command(goto="supervisor") or
         # Command(goto=END) explicitly — no static edge to supervisor.
@@ -1149,10 +1237,11 @@ class SupervisorOrchestrator:
 
             if iterations >= max_iterations:
                 logger.warning(
-                    "[SUPERVISOR] Max iterations (%d) reached, forcing END",
+                    "[SUPERVISOR] Max iterations (%d) reached -> "
+                    "bounded_terminate (grounded notice to user)",
                     max_iterations,
                 )
-                return END
+                return "bounded_terminate"
 
             messages = state.get("messages", [])
             if not messages:
@@ -1170,10 +1259,11 @@ class SupervisorOrchestrator:
                         max_replan = state.get("max_replan_count", 2)
                         if replan_count >= max_replan:
                             logger.warning(
-                                "[SUPERVISOR] Max replan (%d) reached, forcing END",
+                                "[SUPERVISOR] Max replan (%d) reached -> "
+                                "bounded_terminate (grounded notice to user)",
                                 max_replan,
                             )
-                            return END
+                            return "bounded_terminate"
                         logger.info(
                             "[SUPERVISOR] Replan requested (count=%d)", replan_count
                         )
@@ -1280,6 +1370,46 @@ class SupervisorOrchestrator:
                 "premature_reprompts": decision.reprompts_delta,
             },
             goto="supervisor",
+        )
+
+    @staticmethod
+    def _bounded_terminate_node(
+        state: BackcastSupervisorState,
+    ) -> Command:  # type: ignore[type-arg]
+        """Bounded-termination node: emit a grounded notice and END.
+
+        Replaces the two silent ``return END`` paths in the router
+        (max-iterations and max-replan caps). Builds a user-facing notice
+        from the plan STATE via :func:`_build_bounded_termination_notice`
+        (NOT an extra supervisor LLM turn — the supervisor may be
+        misbehaving), sets ``termination_notice`` so ``agent_service`` can
+        persist it as a final assistant message, and bumps
+        ``supervisor_iterations`` (mirrors the guard-node shape).
+
+        Returns ``Command(goto=END)``. The notice is the ONLY thing that
+        reaches the user; the node does NOT inject anything into the
+        supervisor's ``messages`` (the graph is terminating).
+        """
+        plan_data = state.get("plan_data")
+        plan = PlanDocument.from_state(plan_data) if plan_data else None
+        notice = _build_bounded_termination_notice(plan)
+        logger.warning(
+            "[BOUNDED_TERMINATE] Graph hit a force-END cap "
+            "(iterations=%s/%s, replan=%s/%s) -> emitting termination notice",
+            state.get("supervisor_iterations", 0),
+            state.get("max_supervisor_iterations", 0),
+            state.get("replan_count", 0),
+            state.get("max_replan_count", 0),
+        )
+        return Command(
+            update={
+                "termination_notice": notice,
+                # ``supervisor_iterations`` is an ``operator.add`` reducer, so
+                # the value here is a DELTA (mirrors the F1 guard node's
+                # ``decision.iterations_delta``). Pass 1, not current+1.
+                "supervisor_iterations": 1,
+            },
+            goto=END,
         )
 
     def _create_specialist_wrapper(

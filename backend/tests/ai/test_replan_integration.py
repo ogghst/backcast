@@ -304,7 +304,10 @@ def test_router_planner_integration() -> None:
     }
     assert router(state_wrap_up) == END
 
-    # Transition 5: Verify replan is blocked at max count
+    # Transition 5: Verify replan is blocked at max count. As of the
+    # bounded-termination fix, the max-replan force-END path routes to the
+    # ``bounded_terminate`` node (which emits a grounded notice and then END)
+    # instead of bare END, so the user is always told when a run is bounded.
     state_max_replan = {
         **base_state,
         "replan_count": 2,  # At max
@@ -322,7 +325,7 @@ def test_router_planner_integration() -> None:
             )
         ],
     }
-    assert router(state_max_replan) == END
+    assert router(state_max_replan) == "bounded_terminate"
 
 
 # ---------------------------------------------------------------------------

@@ -62,7 +62,10 @@ async def search_documents(
             - total: Number of results returned
     """
     if not context.project_id:
-        return {"error": "No project context available. Open a project first."}
+        return {
+            "error": "No project context. Call set_project_context(project_id) "
+            "first, or open a project."
+        }
 
     service = DocumentService(context.session)
 
@@ -181,7 +184,10 @@ async def add_document(
         description, tags, and a confirmation message. On error returns {"error": ...}.
     """
     if not context.project_id:
-        return {"error": "No project context available. Open a project first."}
+        return {
+            "error": "No project context. Call set_project_context(project_id) "
+            "first, or open a project."
+        }
 
     # Exactly one content source (XOR)
     if (content is None) == (base64_content is None):
@@ -264,7 +270,10 @@ async def list_folders(
         Dictionary with 'folders' (list of {id, name, path, parent_id}) and 'total'.
     """
     if not context.project_id:
-        return {"error": "No project context available. Open a project first."}
+        return {
+            "error": "No project context. Call set_project_context(project_id) "
+            "first, or open a project."
+        }
 
     try:
         service = DocumentFolderService(context.session)
@@ -311,7 +320,10 @@ async def create_folder(
         Dictionary with id, name, path, parent_id, and a confirmation message.
     """
     if not context.project_id:
-        return {"error": "No project context available. Open a project first."}
+        return {
+            "error": "No project context. Call set_project_context(project_id) "
+            "first, or open a project."
+        }
 
     try:
         data = DocumentFolderCreate(
@@ -361,7 +373,10 @@ async def delete_folder(
         Dictionary with folder_id and a confirmation message, or an error.
     """
     if not context.project_id:
-        return {"error": "No project context available. Open a project first."}
+        return {
+            "error": "No project context. Call set_project_context(project_id) "
+            "first, or open a project."
+        }
 
     try:
         service = DocumentFolderService(context.session)

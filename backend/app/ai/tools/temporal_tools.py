@@ -217,7 +217,8 @@ async def list_branches(
     """
     if not context.project_id:
         return {
-            "error": "No project context. Navigate to a project chat to use this tool.",
+            "error": "No project context. Call set_project_context(project_id) "
+            "first, or open a project.",
         }
 
     try:

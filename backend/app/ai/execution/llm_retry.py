@@ -25,6 +25,7 @@ import asyncio
 import logging
 import random
 from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
 
 from app.ai.exceptions import ExecutionStoppedError
 from app.ai.message_utils import is_transient_stream_error
@@ -36,6 +37,33 @@ logger = logging.getLogger(__name__)
 RETRY_BASE_S = 1.0
 RETRY_CAP_S = 20.0
 RETRY_JITTER_S = 0.5
+
+
+async def _cancel_and_drain(task: asyncio.Future[Any]) -> None:
+    """Cancel *task* and await it so its terminal exception is retrieved.
+
+    Without awaiting, a task cancelled on the stop/timeout path is orphaned:
+    it completes with an exception (``CancelledError`` or a downstream error
+    raised during teardown) that nobody awaits, which asyncio logs as
+    ``Task exception was never retrieved``.  This bites the user-stop path in
+    particular: when ``should_stop`` trips, the underlying LLM/streaming task
+    is cancelled while still running inside a langgraph/langchain node, whose
+    internal streaming teardown only suppresses ``CancelledError``.  The
+    resulting ``ExecutionStoppedError`` (or any other foreign exception) then
+    leaks out of an internal generator-close task as an unretrieved exception.
+
+    Awaiting the cancelled task here retrieves that terminal exception AND
+    lets langchain/langgraph ``finally`` blocks run in the cancelling context
+    so their internal streaming tasks tear down more cleanly.  Idempotent:
+    safe to call when *task* is already done (it neither re-cancels nor
+    double-awaits in a way that raises).
+    """
+    if not task.done():
+        task.cancel()
+    try:
+        await task
+    except (asyncio.CancelledError, Exception):  # noqa: BLE001 - best-effort drain
+        pass
 
 
 def _awaiting_human(execution_id: str | None) -> bool:
@@ -110,10 +138,12 @@ async def await_with_pausable_deadline[T](
         while True:
             # Stop takes priority over both timeout-accrual and the
             # ask_user pause: a user-initiated stop must interrupt even
-            # mid-ask and within a single tick window.
+            # mid-ask and within a single tick window.  NOTE: we do NOT
+            # ``task.cancel()`` here -- every exit path funnels through
+            # the single ``except BaseException`` drain below so the task's
+            # terminal exception is always retrieved (preventing the
+            # asyncio "Task exception was never retrieved" warning on stop).
             if should_stop is not None and should_stop():
-                if not task.done():
-                    task.cancel()
                 raise ExecutionStoppedError("paused-deadline")
             try:
                 # shield so a tick-timeout does NOT cancel the underlying task
@@ -125,17 +155,19 @@ async def await_with_pausable_deadline[T](
                 if not _awaiting_human(execution_id):
                     elapsed += effective_tick
                     if elapsed >= timeout:
-                        # Real stall: cancel the task and surface a retryable timeout.
-                        task.cancel()
+                        # Real stall: surface a retryable timeout.  The task is
+                        # drained in the ``except BaseException`` block below.
                         raise TimeoutError(
                             f"invocation exceeded {timeout:.0f}s of active time"
                         ) from None
                 # else: an ask_user is pending -> pause the deadline (do not accrue).
     except BaseException:
-        # Ensure the task is cancelled if we bail for any reason while
-        # it's still running.
-        if not task.done():
-            task.cancel()
+        # Every exit path (stop, timeout-stall, external cancellation, or any
+        # exception propagating from *coro*) funnels through here.  We drain
+        # the underlying task exactly once: cancel it (if still running) and
+        # await it so its terminal exception is retrieved rather than
+        # orphaned.  See ``_cancel_and_drain`` for why this matters on stop.
+        await _cancel_and_drain(task)
         raise
 
 
@@ -227,19 +259,19 @@ async def iter_with_pausable_deadline[T](
                 except TimeoutError:
                     # Re-check stop inside the inner loop too, so a stop
                     # raised during a long tick window is honoured promptly
-                    # rather than waiting for the next item.
+                    # rather than waiting for the next item.  NOTE: we do
+                    # NOT cancel ``step_task`` here -- the ``finally`` below
+                    # drains ``step`` (which mirrors ``step_task``) so the
+                    # task's terminal exception is always retrieved, mirroring
+                    # ``await_with_pausable_deadline``'s single drain point.
                     if should_stop is not None and should_stop():
-                        if not step_task.done():
-                            step_task.cancel()
                         raise ExecutionStoppedError("paused-deadline") from None
                     if not _awaiting_human(execution_id):
                         elapsed += effective_tick
                         if elapsed >= timeout:
-                            # Real stall: cancel the in-flight step so the
-                            # generator can be closed cleanly, then surface
-                            # a retryable timeout.
-                            if not step_task.done():
-                                step_task.cancel()
+                            # Real stall: surface a retryable timeout.  The
+                            # in-flight step is drained in the ``finally``
+                            # below so the generator closes cleanly.
                             raise TimeoutError(
                                 f"graph stream exceeded {timeout:.0f}s of active time"
                             ) from None
@@ -251,11 +283,16 @@ async def iter_with_pausable_deadline[T](
             assert result.value is not None
             yield result.value
     finally:
-        # Defensive: cancel any still-running in-flight step (e.g. on
-        # caller cancellation) before closing the generator so the close
-        # is clean.
+        # Defensive: drain any still-running in-flight step (e.g. on caller
+        # cancellation) before closing the generator so the close is clean.
+        # We DRAIN it (cancel + await) rather than bare ``step.cancel()`` so
+        # its terminal exception is retrieved: a stop mid-iteration cancels
+        # a step still running inside a langgraph/langchain node, whose
+        # teardown only suppresses ``CancelledError`` and would otherwise
+        # leak ``ExecutionStoppedError`` as an unretrieved task exception.
+        # See ``_cancel_and_drain``.
         if step is not None and not step.done():
-            step.cancel()
+            await _cancel_and_drain(step)
         # Close the generator if we bail for any reason while it's still
         # open (timeout, caller cancellation, exception).  ``aclose`` is
         # idempotent if the generator already finished.

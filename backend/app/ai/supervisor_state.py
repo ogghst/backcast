@@ -95,6 +95,15 @@ class BackcastSupervisorState(TypedDict):
             confabulating across distinct steps cannot waste O(steps) turns.
             The supervisor iteration cap is the primary termination guarantee;
             this is a tighter secondary bound.
+        termination_notice: User-facing termination message emitted by the
+            ``bounded_terminate`` node when the supervisor graph hits a silent
+            force-END path (max-iterations or max-replan cap). Built from plan
+            STATE (Completed / Failed-with-error / Not-started sections) so the
+            user is ALWAYS told when a run is bounded, even when the supervisor
+            was misbehaving. NOT a reducer (last writer wins, like
+            ``replan_context``); ``None`` means no bounded termination occurred.
+            Read by ``agent_service`` from the checkpoint and persisted as a
+            final assistant message.
     """
 
     messages: Annotated[list[BaseMessage], operator.add]
@@ -115,6 +124,7 @@ class BackcastSupervisorState(TypedDict):
     specialist_dispatch_counts: Annotated[dict[str, int], _merge_dispatch_counts]
     specialist_failure_counts: Annotated[dict[str, int], _merge_dispatch_counts]
     premature_reprompts: Annotated[int, operator.add]
+    termination_notice: str | None
 
 
 __all__ = ["BackcastSupervisorState"]

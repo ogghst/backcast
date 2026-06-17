@@ -155,6 +155,12 @@ class StreamState:
     graph_error: Exception | None = None
     briefing_persisted: bool = False
     last_persisted_message_id: UUID | None = None
+    # Bounded-termination notice extracted from the graph checkpoint after the
+    # run. Set when the supervisor graph hit a silent force-END cap
+    # (max-iterations or max-replan); persisted as a final assistant message
+    # in ``_persist_session_messages`` so the user is ALWAYS told when a run
+    # is bounded. ``None`` means no bounded termination occurred.
+    termination_message: str | None = None
 
     def __post_init__(self) -> None:
         from app.ai.token_estimator import TokenUsageAccumulator

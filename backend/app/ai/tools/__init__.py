@@ -305,6 +305,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         temporal_tools.set_temporal_context,
         temporal_tools.list_branches,
         context_tools.get_project_context,
+        context_tools.set_project_context,
         context_tools.get_project_structure,
         briefing_tools.get_briefing,
         document_tools.search_documents,

@@ -337,7 +337,14 @@ class DocumentService:
             document.tags = data.tags
 
         await self.db.flush()
-        await self.db.refresh(document)
+        # Scope the refresh to column attributes only. A bare refresh() would
+        # expire the lazy='raise' current_version relationship, breaking
+        # callers (add_document AI tool, the HTTP PUT/POST routes) that read
+        # doc.current_version after a metadata update.
+        await self.db.refresh(
+            document,
+            attribute_names=["name", "description", "tags", "updated_at"],
+        )
         logger.info("Document metadata updated: %s", document_id)
         return document
 

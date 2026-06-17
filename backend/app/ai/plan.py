@@ -244,7 +244,7 @@ class PlanDocument(BaseModel):
                 lines.append(f"     Input: {step.input_from_dependencies}")
 
             if step.result_summary:
-                lines.append(f"     Result: {step.result_summary}")
+                lines.append(f"     Result: \n --- start of result ---\n{step.delegation_notes or step.result_summary or ""}\n --- end of result ---\n")
 
         return "\n".join(lines)
 
