@@ -58,16 +58,6 @@ body {
   outline-offset: 2px;
 }
 
-/* Hide scrollbar for horizontal navigation menu (icon-only mode) */
-.ant-menu-horizontal.header-navigation-menu::-webkit-scrollbar {
-  display: none;
-}
-
-.ant-menu-horizontal.header-navigation-menu {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
 /* ========================================
  * Chat Interface - Technical Aesthetic
  * ======================================== */
@@ -105,20 +95,6 @@ body {
   input[type="password"],
   textarea {
     font-size: 16px;
-  }
-
-  /* Compact header navigation for mobile */
-  .header-navigation-menu {
-    min-width: unset !important;
-  }
-
-  .header-navigation-menu .ant-menu-item {
-    padding: 0 8px !important;
-    min-width: unset !important;
-  }
-
-  .header-navigation-menu .ant-menu-title-content {
-    display: none;
   }
 
   /* Ensure header doesn't overflow */

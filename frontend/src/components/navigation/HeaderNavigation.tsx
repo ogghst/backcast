@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Menu, MenuProps } from "antd";
+import { Button, theme } from "antd";
+import type { ButtonProps } from "antd";
 import {
   HomeOutlined,
   AppstoreOutlined,
@@ -17,6 +18,12 @@ interface HeaderNavigationProps {
 // Breakpoint for switching to icon-only mode
 const ICON_ONLY_BREAKPOINT = 1024; // Switch to icons on tablet and smaller
 
+type NavItem = {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+};
+
 export const HeaderNavigation: React.FC<HeaderNavigationProps> = ({
   className,
   style,
@@ -25,6 +32,7 @@ export const HeaderNavigation: React.FC<HeaderNavigationProps> = ({
   const location = useLocation();
   const { can } = usePermission();
   const { isLoadingUser } = useAuth();
+  const { token } = theme.useToken();
   const [iconOnly, setIconOnly] = useState(false);
 
   // Check screen width and update icon-only mode
@@ -47,38 +55,62 @@ export const HeaderNavigation: React.FC<HeaderNavigationProps> = ({
     return null;
   }
 
-  // Build menu items based on permissions and screen size
-  const menuItems: MenuProps["items"] = [
-    {
-      key: "/",
-      label: iconOnly ? undefined : "Dashboard",
-      icon: <HomeOutlined />,
-    },
-    {
-      key: "/projects",
-      label: iconOnly ? undefined : "Projects",
-      icon: <AppstoreOutlined />,
-    },
+  // Build nav items based on permissions
+  const items: NavItem[] = [
+    { key: "/", label: "Dashboard", icon: <HomeOutlined /> },
+    { key: "/projects", label: "Projects", icon: <AppstoreOutlined /> },
     ...(can("ai-chat")
-      ? [
-          {
-            key: "/chat",
-            label: iconOnly ? undefined : "AI Chat",
-            icon: <MessageOutlined />,
-          },
-        ]
+      ? [{ key: "/chat", label: "AI Chat", icon: <MessageOutlined /> }]
       : []),
   ];
 
+  // NOTE: Rendered as a plain flex row of buttons instead of AntD's
+  // `<Menu mode="horizontal">`. The horizontal Menu uses rc-overflow, which
+  // collapses nav items it thinks won't fit into a hidden "rest" indicator.
+  // When the third item (AI Chat) was added, the flex layout could starve the
+  // menu width and rc-overflow would hide it (opacity:0, position:absolute) —
+  // even with `overflowedIndicator={null}`, which only suppresses the "..."
+  // indicator without preventing the collapse.
   return (
-    <Menu
-      mode="horizontal"
-      selectedKeys={[location.pathname]}
-      items={menuItems}
-      onClick={({ key }) => navigate(key)}
-      overflowedIndicator={null} // Disable ellipsis overflow menu
+    <nav
       className={`header-navigation-menu ${className || ""}`}
-      style={style}
-    />
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: token.paddingXXS,
+        height: "100%",
+        ...style,
+      }}
+    >
+      {items.map((item) => {
+        const active = location.pathname === item.key;
+        const buttonStyle: ButtonProps["style"] = {
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          height: "100%",
+          padding: iconOnly ? `0 ${token.padding}px` : `0 ${token.paddingLG}px`,
+          color: active ? token.colorPrimary : token.colorText,
+          fontWeight: active ? 500 : 400,
+          borderBottom: `2px solid ${
+            active ? token.colorPrimary : "transparent"
+          }`,
+          borderRadius: 0,
+          whiteSpace: "nowrap",
+        };
+        return (
+          <Button
+            key={item.key}
+            type="text"
+            style={buttonStyle}
+            title={iconOnly ? item.label : undefined}
+            onClick={() => navigate(item.key)}
+          >
+            {item.icon}
+            {!iconOnly && <span>{item.label}</span>}
+          </Button>
+        );
+      })}
+    </nav>
   );
 };
