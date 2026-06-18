@@ -19,7 +19,6 @@ import logging
 from typing import Any
 
 import pytest
-from langgraph.graph import END
 
 from app.ai.plan import (
     PlanDocument,
@@ -187,7 +186,10 @@ def test_router_bounds_iteration_cap_for_pathological_plan() -> None:
     Without the bound, plan_max = 7 + 1 = 8, so an iteration counter of 6
     would be BELOW the cap and the router would NOT force END. With the
     bound, plan_max = min(8, _MAX_PLAN_STEPS + 1) = 6, so iterations == 6
-    meets the cap and the router returns END.
+    meets the cap. As of the bounded-termination fix, the max-iterations
+    force-END path routes to ``bounded_terminate`` (which emits a grounded
+    notice and then END) instead of bare END, so the user is always told
+    when a run is bounded.
     """
     router = SupervisorOrchestrator._make_supervisor_router(
         specialist_names=["evm_analyst"],
@@ -210,4 +212,4 @@ def test_router_bounds_iteration_cap_for_pathological_plan() -> None:
         "plan_data": pathological_plan.model_dump(),
     }
 
-    assert router(state) == END
+    assert router(state) == "bounded_terminate"

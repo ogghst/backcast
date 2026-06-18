@@ -23,8 +23,9 @@ import {
   SafetyOutlined,
   ThunderboltOutlined,
   PaperClipOutlined,
+  FieldTimeOutlined,
 } from "@ant-design/icons";
-import { Grid } from "antd";
+import { Grid, Switch } from "antd";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { WSConnectionState } from "../types";
 
@@ -58,6 +59,10 @@ interface MessageInputProps {
   executionMode?: ExecutionMode;
   /** Callback when execution mode changes */
   onExecutionModeChange?: (mode: ExecutionMode) => void;
+  /** Whether to run this agent execution in the background */
+  runInBackground?: boolean;
+  /** Callback when the background toggle changes */
+  onRunInBackgroundChange?: (value: boolean) => void;
   /** Callback when attachments are added */
   onAttachmentsChange?: (attachments: PendingAttachment[]) => void;
 }
@@ -147,6 +152,8 @@ export const MessageInput = ({
   connectionState = WSConnectionState.CLOSED,
   executionMode = "standard",
   onExecutionModeChange,
+  runInBackground = false,
+  onRunInBackgroundChange,
   onAttachmentsChange,
 }: MessageInputProps) => {
   const screens = useBreakpoint();
@@ -477,6 +484,56 @@ export const MessageInput = ({
     </Popover>
   ) : null;
 
+  // Background-execution toggle (sticky per-send). Shown when a handler is
+  // provided. A compact Switch + icon cluster that fits the left control row.
+  const backgroundToggle = onRunInBackgroundChange ? (
+    <Tooltip
+      title={
+        runInBackground
+          ? "Background: run detached from this chat. You can keep chatting; the agent reports back when done."
+          : "Run in background: detach this run so it keeps going after you leave."
+      }
+    >
+      <div
+        data-testid="background-toggle"
+        // Visual cluster wrapping the Switch so the whole area is tappable and
+        // sits at the same 42px height as the other left-control buttons.
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: spacing.xs,
+          height: 42,
+          padding: `0 ${spacing.xs}px`,
+          borderRadius: 21,
+          flexShrink: 0,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          backgroundColor: runInBackground
+            ? token.colorPrimaryBg
+            : token.colorFillQuaternary,
+          cursor: "pointer",
+        }}
+        onClick={() => onRunInBackgroundChange(!runInBackground)}
+        role="switch"
+        aria-checked={runInBackground}
+        aria-label="Run in background"
+      >
+        <FieldTimeOutlined
+          style={{
+            fontSize: 16,
+            color: runInBackground ? token.colorPrimary : token.colorTextSecondary,
+          }}
+        />
+        <Switch
+          size="small"
+          checked={runInBackground}
+          onChange={onRunInBackgroundChange}
+          // The wrapper handles clicks; avoid double-toggling
+          onClick={(_, e) => e.stopPropagation()}
+        />
+      </div>
+    </Tooltip>
+  ) : null;
+
   // Attachment previews
   const attachmentPreviews = pendingAttachments.length > 0 && (
     <div
@@ -801,6 +858,9 @@ export const MessageInput = ({
 
           {/* Execution mode button - shown when handler provided */}
           {executionModeButton}
+
+          {/* Background-execution toggle - shown when handler provided */}
+          {backgroundToggle}
 
           {/* Text input area */}
           <TextArea

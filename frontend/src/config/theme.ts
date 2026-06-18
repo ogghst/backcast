@@ -171,7 +171,7 @@ export const theme: ThemeConfig & {
     colorPrimary: "#4a7c91", // Soft teal-blue - sophisticated primary
     borderRadius: 8,
     fontFamily:
-      'Ubuntu, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      'Rubik, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
 
     // === Background Colors (Soft Light) ===
     colorBgContainer: "#faf9f7", // Warm off-white for cards/containers

@@ -14,7 +14,7 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, NamedTuple
 
 from langchain.agents import create_agent as langchain_create_agent
 from langchain.agents.middleware.types import AgentState
@@ -32,7 +32,11 @@ from app.ai.briefing_compiler import (
     initialize_briefing,
     parse_and_clean,
 )
-from app.ai.config import AI_DELEGATION_ENFORCED, AgentConfig
+from app.ai.config import (
+    AI_DELEGATION_ENFORCED,
+    AI_SPECIALIST_MAX_TOOL_ITERATIONS,
+    AgentConfig,
+)
 from app.ai.event_types import AgentEventType
 from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
@@ -44,8 +48,10 @@ from app.ai.execution.llm_retry import (
 )
 from app.ai.handoff_tools import create_all_handoff_tools, create_replan_tool
 from app.ai.message_utils import (
+    collect_recent_ask_user_qa,
     extract_final_ai_response,
 )
+from app.ai.middleware.briefing_context import BriefingContextMiddleware
 from app.ai.middleware.context_guard import ContextGuardMiddleware
 from app.ai.middleware.plan_aware_tools import PlanAwareToolMiddleware
 from app.ai.plan import PlanDocument
@@ -63,6 +69,18 @@ from app.ai.tools.types import ToolContext
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+#: Hard cap on how many times a single specialist may be dispatched per plan
+#: step in plan mode.  Mirrors the ``_MAX_PLAN_STEPS`` "prompt says it, code
+#: enforces it" pattern: the supervisor prompt states "each plan step may be
+#: delegated to its specialist at most ONCE", and this constant enforces it so
+#: a weak reasoning model cannot drive a Swarm-style infinite re-dispatch loop
+#: (supervisor -> specialist -> supervisor -> same specialist -> ...) until the
+#: iteration cap force-ends the graph.  When the cap is exceeded the dispatch
+#: node routes back to the supervisor with a request_replan nudge instead of
+#: running the specialist again.  Set to 1 because one dispatch per step is the
+#: contract; a specialist needing a redo must go through request_replan.
+_MAX_DISPATCHES_PER_SPECIALIST: int = 1
 
 # Backoff parameters were extracted to ``app.ai.execution.llm_retry`` as
 # the shared ``RETRY_*`` constants.  These specialist-scoped aliases keep
@@ -130,28 +148,60 @@ async def _invoke_specialist_with_retry(
 _BASE_SUPERVISOR_PROMPT = """You are a supervisor for the Backcast project budget management system.
 
 You coordinate specialist agents who report back through a compiled briefing document.
-The user reads the briefing directly — do NOT summarize or repeat findings in your response.
+The user reads the briefing directly for detail, but your final answer must still be a
+CONCISE GROUNDED summary citing the RESOLVED FACTS the specialists established.
 
 ## How It Works
-The current briefing is injected into your context as a system message before every turn.
-1. Read the briefing to see what has been analyzed
+The current briefing is injected into your context before every turn (see the
+`<!--BRIEFING_START-->` block). Call `get_briefing` for the full detail.
+1. Call get_briefing / read the briefing to see what has been analyzed
 2. If not addressed, hand off to the most relevant specialist
 3. After a specialist contributes, the briefing is updated automatically
 
 ## Execution Plan
 {plan_section}
 
-Follow the plan strictly:
-- Delegate ONE step at a time in order
-- Each step specifies the specialist and focused task description
-- After each specialist completes, check if the next step's dependencies are met
-- If a step fails, decide whether to skip it or retry with a different approach
+The plan is the contract:
+- Delegate ONE step at a time to EXACTLY the specialist the plan names. Do NOT re-route a step to a different specialist; to re-route, call request_replan.
+- Before each turn, read the briefing and REMOVE steps already accomplished — do NOT re-dispatch a specialist whose step is already done.
+- After each specialist completes, check if the next step's dependencies are met.
+- If a step fails, decide whether to skip it or retry with a different approach.
+
+## Task Briefs (biggest turn-reducer)
+When you hand off, write a COMPLETE task brief in the handoff arguments:
+- objective: what the specialist must produce
+- success criterion: how to know it is done
+- inputs: any values carried from earlier steps (dependencies)
+- stop condition: when the specialist should stop
+- one-line tool hint: the first tool most likely to help (optional)
+A specialist with a complete brief finishes in fewer turns.
+
+## Specialist Result Validation
+Validate each specialist result by FORMAT/completeness only (was a well-formed
+SpecialistOutput returned? are key_findings present?). NEVER re-derive the domain
+answer yourself and NEVER second-guess the specialist's content — that wastes
+2-3 extra turns. If the format is valid, accept it and move on.
+
+## Clarification discipline
+- Before calling ask_user, SCAN the conversation and briefing: NEVER re-ask a question the user has already answered. If an answer exists, USE it.
+- ask_user is ONLY for genuinely-missing critical information you cannot infer. Use it sparingly — a few times at most — then proceed.
+- If a specialist has been (or is being) dispatched, do NOT interleave clarifications: delegate and let the specialist ask what it needs.
+- Prefer acting on gathered information over gathering more.
 
 ## Rules
-- Do NOT write a response summarizing the briefing — the user reads the briefing directly
-- Only respond if you need to ask the user a clarification question
+- When all plan steps are complete, give a CONCISE GROUNDED summary citing the
+  RESOLVED FACTS (the entity codes/names + project the specialists created).
+  Do NOT dump the whole briefing — the user sees the Briefing panel for detail.
+  Do NOT re-derive or re-disambiguate identities the specialists already resolved
+  (this is the same "Format-only validation, never re-derive" rule above applied
+  to your final answer).
+- Reserve ask_user for genuinely-missing critical information only; never re-ask
+  a question whose answer is already in the conversation or briefing.
+- Never report a plan step as done that you have NOT delegated — a step is
+  complete only after its specialist returns.
 - After each step, check the briefing: if the next step is already accomplished or conflicts with findings, revise the remaining plan before continuing
 - Always check the briefing before deciding to hand off
+- Each plan step may be delegated to its specialist at most ONCE. If you need the same specialist to redo its step, call request_replan instead of re-dispatching.
 
 ## Replanning
 After each specialist completes, evaluate whether remaining steps are still valid:
@@ -205,8 +255,6 @@ _BRIEFING_HANDOFF_SUFFIX = (
     "Delegate all operations to specialists via handoff tools."
 )
 
-_BRIEFING_CONTEXT_PREFIX = "## Current Briefing\n\n"
-
 
 def _briefing_update(
     doc: BriefingDocument,
@@ -215,27 +263,443 @@ def _briefing_update(
 ) -> dict[str, Any]:
     """Build the standard state update after briefing initialization.
 
+    The briefing itself is NOT injected as a one-shot ``SystemMessage`` here.
+    The ``messages`` reducer is ``operator.add`` (``BackcastSupervisorState``),
+    so a persisted message could never be refreshed in place — it would
+    permanently contradict the live briefing results. The current briefing is
+    instead rendered into the supervisor's system prompt on every turn by
+    :class:`BriefingContextMiddleware` (a per-turn, reducer-safe mutation of
+    the request).
+
     Args:
         doc: The briefing document to serialize.
         plan_data: Optional serialized PlanDocument to carry forward.
         max_iterations: Maximum supervisor delegation cycles.
     """
-    briefing_md = doc.to_markdown() if doc.sections else "No findings yet."
     update: dict[str, Any] = {
         "briefing_data": doc.model_dump(),
         "supervisor_iterations": 0,
         "max_supervisor_iterations": max_iterations,
         "completed_specialists": set(),
-        "messages": [SystemMessage(content=f"{_BRIEFING_CONTEXT_PREFIX}{briefing_md}")],
         "completed_steps": set(),
         "current_step_index": -1,
         "replan_count": 0,
         "max_replan_count": 2,
         "replan_context": "",
+        "specialist_dispatch_counts": {},
+        "specialist_failure_counts": {},
+        "termination_notice": None,
     }
     if plan_data is not None:
         update["plan_data"] = plan_data
     return update
+
+
+# Max chars of each step's result_summary inlined into the completion nudge.
+# Mirrors the [:500] preview used in the pending-step nudge but allows a bit
+# more room since the final summary is the supervisor's only grounding source.
+_COMPLETION_NUDGE_SUMMARY_LIMIT = 800
+
+
+def _build_completion_nudge(plan: PlanDocument, cleaned_findings: str) -> str:
+    """Build the plan-completion nudge sent to the supervisor when ALL plan
+    steps are done and it must answer the user.
+
+    Foregrounds the resolved-identity channel (F2): each completed step's
+    ``delegation_notes`` (created-entity code/name + resolved project) is
+    inlined FIRST, falling back to ``result_summary``. This is the single
+    RESOLVED FACTS block the supervisor must cite — one block, not two
+    (two blocks from overlapping fields is context rot).
+
+    Args:
+        plan: The active PlanDocument (read-only; its steps carry
+            ``delegation_notes`` and ``result_summary``).
+        cleaned_findings: The just-completed step's findings string; used as
+            a fallback when no completed step recorded a summary.
+
+    Returns:
+        The SystemMessage content instructing the supervisor to summarize the
+        inlined RESOLVED FACTS for the user without re-deriving identities.
+    """
+    # Build the RESOLVED FACTS block from completed steps. Source
+    # delegation_notes first (the resolved-identity channel); fall back to
+    # result_summary. Truncate each to bound prompt size.
+    finding_lines: list[str] = []
+    for step in plan.steps:
+        if step.status != "completed":
+            continue
+        notes = (step.delegation_notes or "").strip()
+        summary = (step.result_summary or "").strip()
+        source = notes or summary
+        if not source:
+            continue
+        truncated = source[:_COMPLETION_NUDGE_SUMMARY_LIMIT]
+        if len(source) > _COMPLETION_NUDGE_SUMMARY_LIMIT:
+            truncated += "..."
+        finding_lines.append(
+            f"Step {step.step_index + 1} ({step.specialist}): {truncated}"
+        )
+
+    if finding_lines:
+        findings_block = "\n".join(finding_lines)
+    elif cleaned_findings:
+        findings_block = (
+            f"Step (latest): {cleaned_findings[:_COMPLETION_NUDGE_SUMMARY_LIMIT]}"
+        )
+    else:
+        findings_block = "(no findings recorded)"
+
+    return (
+        f"All {len(plan.steps)} plan steps completed. The delegated "
+        "specialists have ALREADY executed the work above -- it is done.\n\n"
+        "## RESOLVED FACTS (already established by the specialists — do NOT re-derive)\n"
+        f"{findings_block}\n\n"
+        "Summarize the completed findings above for the user. Do NOT delegate "
+        "further. Do NOT claim the work is missing, impossible, or that the "
+        "required tools are unavailable -- the work HAS been performed and the "
+        "results are shown above. Do NOT re-litigate whether the delegation "
+        "was appropriate. The identities/projects in RESOLVED FACTS are "
+        "ALREADY RESOLVED. Answer grounded ONLY in RESOLVED FACTS. Do NOT "
+        "re-search, re-disambiguate, re-query, or question an identity the "
+        "specialists already resolved. Use the exact code/name shown."
+    )
+
+
+def _build_failure_nudge(
+    plan: PlanDocument,
+    specialist_name: str,
+    error_message: str,
+) -> str:
+    """Build the nudge sent to the supervisor when a specialist step FAILED.
+
+    The success path uses ``_build_completion_nudge`` to ground the
+    supervisor's final answer; the failure path previously sent a weak
+    directive ("continue delegating the next pending step, or respond with
+    the findings so far") that said nothing about informing the user of the
+    failure or quoting the actual error.  On weaker reasoning models the
+    supervisor then answered with a stale "awaiting results" message and
+    left the failure visible only in the side planning panel.
+
+    This helper forces a grounded failure report.  It distinguishes two
+    sub-cases, mirroring the success path's ``if pending: ... else: ...``
+    shape:
+
+    * **Pending steps remain:** the failure is isolated.  The supervisor must
+      FIRST briefly tell the user that this step failed (so the user is never
+      left in the dark mid-plan), then either delegate the next pending step
+      or call ``request_replan``.
+    * **No pending steps remain:** the plan ended in failure.  The supervisor
+      MUST now inform the user, state the error in plain language, report
+      what (if anything) was accomplished before the failure, and must NOT
+      claim success, say it is "awaiting results", or claim tools are
+      missing/unavailable.
+
+    Args:
+        plan: The active PlanDocument (read-only); its steps carry status and
+            ``result_summary`` values.
+        specialist_name: Display name of the specialist that failed.
+        error_message: The raw error string from the failed specialist
+            (e.g. "invocation exceeded 120s of active time").  May be empty.
+
+    Returns:
+        The SystemMessage content instructing the supervisor how to respond
+        after a failed step.
+    """
+    # Find the just-failed step (there should be exactly one freshly-marked
+    # failed step; if several exist we report the latest for context).
+    failed_steps = [s for s in plan.steps if s.status == "failed"]
+    failed_step = failed_steps[-1] if failed_steps else None
+    step_num = (failed_step.step_index + 1) if failed_step else 0
+    step_label = (
+        f"Plan step {step_num} ({specialist_name})" if step_num else specialist_name
+    )
+
+    # Normalize the error so it is always printable (never None/blank-silent).
+    error_text = (error_message or "").strip()
+    if not error_text:
+        error_text = "(no error detail recorded)"
+
+    pending = [s for s in plan.steps if s.status == "pending"]
+
+    if pending:
+        # The failure is isolated -- other steps can still run.  But the user
+        # must be told NOW that this step failed, before any further work.
+        next_step = pending[0]
+        return (
+            f"{step_label} FAILED.\n"
+            f"Error: {error_text}\n\n"
+            f"{len(pending)} pending step(s) still remain; this failure does "
+            f"NOT block them.  Your response MUST do two things, in order:\n"
+            "1. FIRST, briefly inform the user that step "
+            f"{step_num} ({specialist_name}) failed and state the error in "
+            "plain language.  Do NOT stay silent or say you are awaiting "
+            "results.\n"
+            "2. THEN either delegate the next pending step "
+            f"(step {next_step.step_index + 1} ({next_step.specialist})) or "
+            "call request_replan if the failure changes the plan.\n"
+            "Do NOT claim this step succeeded."
+        )
+
+    # No pending steps remain: the plan ended in failure.  Build a block of
+    # what was accomplished before the failure (reusing the completion nudge's
+    # truncation limit) so the supervisor can report partial progress.
+    accomplished_lines: list[str] = []
+    for step in plan.steps:
+        if step.status != "completed":
+            continue
+        summary = (step.result_summary or "").strip()
+        if not summary:
+            continue
+        truncated = summary[:_COMPLETION_NUDGE_SUMMARY_LIMIT]
+        if len(summary) > _COMPLETION_NUDGE_SUMMARY_LIMIT:
+            truncated += "..."
+        accomplished_lines.append(
+            f"Step {step.step_index + 1} ({step.specialist}): {truncated}"
+        )
+    accomplished_block = (
+        "\n".join(accomplished_lines) if accomplished_lines else "(nothing)"
+    )
+
+    return (
+        f"{step_label} FAILED and there are NO remaining pending plan steps. "
+        "The plan has ended without completing.\n"
+        f"Error: {error_text}\n\n"
+        "## Completed before the failure\n"
+        f"{accomplished_block}\n\n"
+        "You MUST now respond to the user. Your message MUST:\n"
+        f"- State plainly that step {step_num} ({specialist_name}) FAILED and "
+        "report the error above in the user's language.\n"
+        "- Summarize what (if anything) was accomplished before the failure, "
+        "drawing ONLY from the `Completed before the failure` block above.\n\n"
+        "Do NOT delegate further.  Do NOT claim success.  Do NOT say you are "
+        "awaiting results / `Attendo i risultati`.  Do NOT claim the required "
+        "tools are missing, impossible, or unavailable -- this step failed for "
+        "the reason stated above, not because the tools do not exist."
+    )
+
+
+_GATHERED_CONTEXT_HEADER = (
+    "## Already-confirmed user inputs "
+    "(use these verbatim as inputs; do NOT call ask_user for any of them)"
+)
+
+_GATHERED_CONTEXT_DIRECTIVE = (
+    "The supervisor already asked the user these questions. Treat each answer "
+    "as a confirmed input value. Do not re-ask."
+)
+
+
+def _build_gathered_context_block(
+    supervisor_messages: list[Any],
+) -> tuple[str | None, list[tuple[str, str]]]:
+    """Render recent ask_user Q&A as an imperative context block.
+
+    Returns ``(block, pairs)``.  ``block`` is ``None`` and ``pairs`` is empty
+    when there is no usable gathered Q&A.
+
+    Specialists are message-isolated from the supervisor's outer conversation,
+    so they never see the supervisor's prior ``ask_user`` Q&A and re-ask
+    questions the user already answered.  This collects the most recent
+    (question, answer) pairs via :func:`collect_recent_ask_user_qa` (capped at
+    6 pairs) and renders them as a markdown block.  The block is rendered with
+    an imperative header and directive so a long-context model (e.g. GLM-4.7)
+    treats the gathered answers as foreground inputs instead of background
+    context appended at the end of the assignment.
+
+    Args:
+        supervisor_messages: The supervisor's outer conversation messages
+            (``state["messages"]``).
+
+    Returns:
+        A ``(block, pairs)`` tuple where ``block`` is the rendered markdown
+        string or ``None`` when no usable Q&A exists, and ``pairs`` is the
+        underlying ``(question, answer)`` list (oldest-first, capped at 6).
+    """
+    pairs = collect_recent_ask_user_qa(supervisor_messages)
+    if not pairs:
+        return None, []
+    lines = [
+        _GATHERED_CONTEXT_HEADER,
+        "",
+        _GATHERED_CONTEXT_DIRECTIVE,
+    ]
+    for question, answer in pairs:
+        lines.append("")
+        lines.append(f"Q: {question}")
+        lines.append(f"A: {answer}")
+    return "\n".join(lines), pairs
+
+
+def _format_gathered_context_block(
+    supervisor_messages: list[Any],
+) -> str | None:
+    """Render recent ask_user Q&A as an assignment context block, or ``None``.
+
+    Thin wrapper over :func:`_build_gathered_context_block` for callers that
+    only need the rendered string.  Returns ``None`` when there is no usable
+    gathered Q&A.
+    """
+    block, _pairs = _build_gathered_context_block(supervisor_messages)
+    return block
+
+
+class _NonplanFailureDecision(NamedTuple):
+    """Outcome of a non-plan specialist failure.
+
+    Attributes:
+        goto: ``"supervisor"`` to continue the loop, or ``"END"`` to
+            terminate the graph unconditionally (2nd consecutive failure).
+        message: SystemMessage content to inject into the supervisor's
+            messages (guidance on the 1st failure, a user-facing final
+            message on the 2nd).
+        failure_counts_update: The partial state update for
+            ``specialist_failure_counts`` (the incremented count for this
+            specialist).
+    """
+
+    goto: str
+    message: str
+    failure_counts_update: dict[str, int]
+
+
+def _decide_nonplan_failure_action(
+    specialist_name: str,
+    failure_counts: dict[str, int],
+    error_message: str,
+) -> _NonplanFailureDecision:
+    """Decide the graph action after a specialist fails in PURE non-plan mode.
+
+    In pure non-plan mode (no active step AND no active plan) a failed/timed-out
+    specialist could otherwise be re-dispatched by a weak supervisor until
+    ``max_supervisor_iterations`` (~5x120s timeouts).  This bounds the loop:
+    the 2nd CONSECUTIVE failure of the SAME specialist force-ends the graph
+    (goto END) with a user-facing message, guaranteeing termination; the 1st
+    failure returns guidance and continues (goto supervisor).
+
+    Counts are keyed by the bare specialist name (independent of plan-step
+    dispatch keys, which are ``"specialist|step"``).
+
+    Args:
+        specialist_name: Display name of the specialist that failed.
+        failure_counts: Current ``specialist_failure_counts`` mapping.
+        error_message: The raw error string from the failed specialist.
+
+    Returns:
+        The decision describing the goto target, message, and count update.
+    """
+    prior_fail = failure_counts.get(specialist_name, 0)
+    new_count = prior_fail + 1
+
+    error_text = (error_message or "").strip()
+    if not error_text:
+        error_text = "(no error detail recorded)"
+
+    if new_count >= 2:
+        # GUARANTEED termination: do not let the supervisor re-dispatch.
+        message = (
+            f"The specialist '{specialist_name}' has failed twice in a row and "
+            "cannot complete this task automatically.\n"
+            f"Last error: {error_text}\n\n"
+            "Respond to the user now: explain that the specialist failed twice, "
+            "describe what was attempted, and ask them to retry or rephrase the "
+            "request. Do NOT delegate further."
+        )
+        return _NonplanFailureDecision(
+            goto="END",
+            message=message,
+            failure_counts_update={specialist_name: new_count},
+        )
+
+    # 1st failure: nudge the supervisor, do NOT immediately re-dispatch.
+    message = (
+        f"Specialist '{specialist_name}' failed.\n"
+        f"Error: {error_text}\n"
+        "Inform the user of the failure. Do NOT immediately re-dispatch the "
+        "same specialist; if the request is salvageable, rephrase or try a "
+        "different approach, otherwise respond with the findings so far."
+    )
+    return _NonplanFailureDecision(
+        goto="supervisor",
+        message=message,
+        failure_counts_update={specialist_name: new_count},
+    )
+
+
+def _build_bounded_termination_notice(plan: PlanDocument | None) -> str:
+    """Build a grounded, user-facing notice for a bounded termination.
+
+    Called by the ``bounded_terminate`` node when the supervisor graph hits a
+    silent force-END path (max-iterations or max-replan cap). Previously both
+    paths returned ``END`` with NO message, so a run that looped on an
+    undeliverable specialist (e.g. web_researcher failing on a Tavily quota)
+    terminated with ``completed=[]`` and the user received NOTHING about the
+    failure/bound.
+
+    The notice is built from plan STATE (not hardcoded payloads and NOT an
+    extra supervisor LLM turn — the supervisor may be misbehaving). It
+    renders three sections:
+
+    * **Completed:** completed steps with a short ``result_summary``.
+    * **Failed:** failed steps WITH their ``result_summary`` (this carries the
+      real error, e.g. "web_researcher: Tavily API error: ... usage limit").
+    * **Not started:** pending / in-progress / blocked steps with their
+      ``task_description``.
+
+    In non-plan mode (``plan is None``) a simpler "reached the execution
+    limit without completing" notice is emitted.
+
+    Args:
+        plan: The active PlanDocument (read-only), or ``None`` in non-plan mode.
+
+    Returns:
+        The termination notice string. Always non-empty.
+    """
+    if plan is None or not plan.steps:
+        return (
+            "I reached the execution limit without completing your request. "
+            "Please try again — the failure may have been transient — or "
+            "simplify the request so it can be completed in fewer steps."
+        )
+
+    completed_lines: list[str] = []
+    failed_lines: list[str] = []
+    not_started_lines: list[str] = []
+
+    for step in plan.steps:
+        label = f"Step {step.step_index + 1} ({step.specialist})"
+        status = step.status
+        if status == "completed":
+            summary = (step.result_summary or "").strip() or "(no summary)"
+            completed_lines.append(f"- {label}: {summary}")
+        elif status == "failed":
+            # The result_summary is the error carrier — quote it verbatim so
+            # the user sees the real reason (e.g. "Tavily API error: usage limit").
+            summary = (
+                step.result_summary or ""
+            ).strip() or "(no error detail recorded)"
+            failed_lines.append(f"- {label}: {summary}")
+        else:
+            # pending / in_progress / blocked — list the task so the user
+            # knows what did NOT run.
+            task = (step.task_description or "").strip() or "(no task description)"
+            not_started_lines.append(f"- {label}: {task}")
+
+    completed_block = "\n".join(completed_lines) if completed_lines else "(none)"
+    failed_block = "\n".join(failed_lines) if failed_lines else "(none)"
+    not_started_block = "\n".join(not_started_lines) if not_started_lines else "(none)"
+
+    return (
+        "I could not complete your request within the execution limit "
+        "(the delegation/replan cap was reached).\n\n"
+        "## Completed\n"
+        f"{completed_block}\n\n"
+        "## Failed\n"
+        f"{failed_block}\n\n"
+        "## Not started\n"
+        f"{not_started_block}\n\n"
+        "Please retry — the failure may have been transient — or simplify "
+        "the request so it can be completed in fewer steps."
+    )
 
 
 class _BriefingSupervisorState(AgentState[Any]):
@@ -497,10 +961,16 @@ class SupervisorOrchestrator:
             return _briefing_update(doc, max_iterations=max_iter)
 
         # --- 6b. Build the planner node ---
+        # The planner routes on the STRUCTURED capability contract, which
+        # lives in the specialist ``description`` (enriched form:
+        # "verbs — entities: ... — use when: ...").  ``presentation_prompt``
+        # stays human-readable for the supervisor's specialist list.  Fall
+        # back to presentation_prompt when description is absent (legacy).
         specialist_catalog = [
             {
                 "name": sg["name"],
-                "description": sg.get("presentation_prompt", sg.get("description", "")),
+                "description": sg.get("description")
+                or sg.get("presentation_prompt", ""),
             }
             for sg in specialist_graphs
         ]
@@ -543,6 +1013,16 @@ class SupervisorOrchestrator:
         parent.add_node("supervisor", supervisor_agent)
         for name, wrapper_fn in specialist_wrappers.items():
             parent.add_node(name, wrapper_fn)
+        # Bounded-termination node: the router routes here when a silent
+        # force-END path fires (max-iterations or max-replan cap). The node
+        # builds a grounded notice from plan state and returns Command(goto=END)
+        # so the user is ALWAYS told when a run is bounded. Plain node (not a
+        # conditional-edge Command) because Command(update=...) from a
+        # conditional-edge fn is broken in LangGraph 1.1.9.
+        parent.add_node(
+            "bounded_terminate",
+            self._bounded_terminate_node,
+        )
 
         # --- 8. Wire edges ---
         parent.add_edge(START, "initialize_briefing")
@@ -551,7 +1031,7 @@ class SupervisorOrchestrator:
         parent.add_conditional_edges(
             "supervisor",
             self._make_supervisor_router(specialist_names),
-            specialist_names + ["planner", END],
+            specialist_names + ["planner", "bounded_terminate", END],
         )
         # NOTE: specialist nodes return Command(goto="supervisor") or
         # Command(goto=END) explicitly — no static edge to supervisor.
@@ -611,10 +1091,11 @@ class SupervisorOrchestrator:
 
             if iterations >= max_iterations:
                 logger.warning(
-                    "[SUPERVISOR] Max iterations (%d) reached, forcing END",
+                    "[SUPERVISOR] Max iterations (%d) reached -> "
+                    "bounded_terminate (grounded notice to user)",
                     max_iterations,
                 )
-                return END
+                return "bounded_terminate"
 
             messages = state.get("messages", [])
             if not messages:
@@ -632,10 +1113,11 @@ class SupervisorOrchestrator:
                         max_replan = state.get("max_replan_count", 2)
                         if replan_count >= max_replan:
                             logger.warning(
-                                "[SUPERVISOR] Max replan (%d) reached, forcing END",
+                                "[SUPERVISOR] Max replan (%d) reached -> "
+                                "bounded_terminate (grounded notice to user)",
                                 max_replan,
                             )
-                            return END
+                            return "bounded_terminate"
                         logger.info(
                             "[SUPERVISOR] Replan requested (count=%d)", replan_count
                         )
@@ -660,14 +1142,58 @@ class SupervisorOrchestrator:
                             return spec_name
 
             # No handoff → END.  Multi-step plans continue via the
-            # specialist → supervisor edge (line 403): each specialist
-            # routes back to the supervisor on completion, which then
-            # delegates the next pending step.  A self-loop here would
-            # cause the supervisor to run in parallel with an active
-            # specialist, producing concurrent writes to briefing_data.
+            # specialist → supervisor edge: each specialist routes back to
+            # the supervisor on completion, which then delegates the next
+            # pending step.  A self-loop here would cause the supervisor to
+            # run in parallel with an active specialist, producing concurrent
+            # writes to briefing_data.
+            #
+            # The F1 premature-completion guard was REMOVED (it fought the
+            # model's correct "done" answer against a stale plan). Termination
+            # stays guaranteed by this END branch plus the iteration/replan
+            # caps and ``_bounded_terminate_node``.
             return END
 
         return router
+
+    @staticmethod
+    def _bounded_terminate_node(
+        state: BackcastSupervisorState,
+    ) -> Command:  # type: ignore[type-arg]
+        """Bounded-termination node: emit a grounded notice and END.
+
+        Replaces the two silent ``return END`` paths in the router
+        (max-iterations and max-replan caps). Builds a user-facing notice
+        from the plan STATE via :func:`_build_bounded_termination_notice`
+        (NOT an extra supervisor LLM turn — the supervisor may be
+        misbehaving), sets ``termination_notice`` so ``agent_service`` can
+        persist it as a final assistant message, and bumps
+        ``supervisor_iterations`` (mirrors the guard-node shape).
+
+        Returns ``Command(goto=END)``. The notice is the ONLY thing that
+        reaches the user; the node does NOT inject anything into the
+        supervisor's ``messages`` (the graph is terminating).
+        """
+        plan_data = state.get("plan_data")
+        plan = PlanDocument.from_state(plan_data) if plan_data else None
+        notice = _build_bounded_termination_notice(plan)
+        logger.warning(
+            "[BOUNDED_TERMINATE] Graph hit a force-END cap "
+            "(iterations=%s/%s, replan=%s/%s) -> emitting termination notice",
+            state.get("supervisor_iterations", 0),
+            state.get("max_supervisor_iterations", 0),
+            state.get("replan_count", 0),
+            state.get("max_replan_count", 0),
+        )
+        return Command(
+            update={
+                "termination_notice": notice,
+                # ``supervisor_iterations`` is an ``operator.add`` reducer, so
+                # the value here is a DELTA. Pass 1, not current+1.
+                "supervisor_iterations": 1,
+            },
+            goto=END,
+        )
 
     def _create_specialist_wrapper(
         self, specialist_name: str, specialist_graph: Any
@@ -706,6 +1232,52 @@ class SupervisorOrchestrator:
             # can assign multiple steps to the same specialist; the guard
             # only blocks when there is no matching pending step.
             completed = state.get("completed_specialists", set())
+
+            # --- Code-enforced per-specialist re-dispatch cap (plan mode) ---
+            # Tracks dispatches at (specialist, step_index) granularity so the
+            # cap is exactly "once per plan step".  A specialist that has
+            # already been dispatched for THIS step (e.g. it ran, the
+            # supervisor ignored the result, and re-dispatched the same step)
+            # is routed to the supervisor with a request_replan nudge instead
+            # of running again.  This breaks the Swarm-style infinite
+            # re-dispatch loop a weak reasoning model can drive.  A genuine
+            # NEW step for the same specialist is unaffected (different key).
+            dispatch_counts: dict[str, int] = state.get(
+                "specialist_dispatch_counts", {}
+            )
+            if active_step is not None and active_plan is not None:
+                dispatch_key = f"{specialist_name}|{active_step.step_index}"
+                prior = dispatch_counts.get(dispatch_key, 0)
+                if prior >= _MAX_DISPATCHES_PER_SPECIALIST:
+                    logger.warning(
+                        "[SPECIALIST_NODE] Re-dispatch cap hit for %s on "
+                        "step %d (count=%d, cap=%d) -> routing to replan",
+                        specialist_name,
+                        active_step.step_index,
+                        prior,
+                        _MAX_DISPATCHES_PER_SPECIALIST,
+                    )
+                    guidance = (
+                        f"{specialist_name} has already been dispatched for "
+                        f"plan step {active_step.step_index + 1} and must not "
+                        "be re-dispatched for the same step. The plan as "
+                        "written is looping. Call request_replan to revise "
+                        "the remaining steps, or if the findings so far "
+                        "answer the user, respond now without delegating "
+                        "further."
+                    )
+                    return Command(
+                        update={
+                            "active_agent": "supervisor",
+                            "supervisor_iterations": state.get(
+                                "supervisor_iterations", 0
+                            )
+                            + 1,
+                            "messages": [SystemMessage(content=guidance)],
+                        },
+                        goto="supervisor",
+                    )
+
             if active_step is None and plan_data:
                 # Debug: why was no matching step found?
                 step_debug = (
@@ -839,6 +1411,28 @@ class SupervisorOrchestrator:
                 rationale = latest.rationale
 
             # --- Build assignment block ---
+            # Share recent ask_user Q&A the supervisor already gathered so the
+            # message-isolated specialist does NOT re-ask answered questions.
+            # Capped (default 6 pairs) to avoid re-opening the specialist
+            # context-token bloat regression (memory 20 / commit 58a642c2).
+            # Injected at the TOP of the assignment (ahead of "## Your
+            # Assignment") with an imperative header: GLM-4.7 was treating the
+            # gathered block as background when it sat at the end of a long
+            # assignment and re-asking answered questions anyway (e2e
+            # regression after FIX A).
+            _gathered_qa, _gathered_pairs = _build_gathered_context_block(
+                state.get("messages", [])
+            )
+            if _gathered_pairs:
+                # Observability: confirm injection happened + how many pairs.
+                logger.info(
+                    "[SPECIALIST_ASSIGNMENT] %s: injected %d gathered "
+                    "ask_user answer(s) (first: %.60s)",
+                    specialist_name,
+                    len(_gathered_pairs),
+                    _gathered_pairs[0][0],
+                )
+
             if active_step is not None and active_plan is not None:
                 total_steps = len(active_plan.steps)
                 lines = [
@@ -881,6 +1475,11 @@ class SupervisorOrchestrator:
                         f"\n\n{doc.to_markdown()}"
                     )
 
+            # Prepend the gathered context so it is the FIRST thing in the
+            # specialist's assignment (most prominent position).
+            if _gathered_qa is not None:
+                assignment_block = f"{_gathered_qa}\n\n{assignment_block}"
+
             isolated_messages = [
                 HumanMessage(content=assignment_block),
             ]
@@ -899,7 +1498,13 @@ class SupervisorOrchestrator:
                 )
                 self._publish_plan_update(active_plan)
 
-            max_iterations = state.get("max_tool_iterations", 25)
+            # Specialists get their OWN (much lower) tool-iteration budget — NOT
+            # the supervisor's.  A specialist does a focused 2-4 tool calls/step;
+            # inheriting the supervisor's flat-25 default let its ReAct loop
+            # accumulate tool CALL+RESULT mass that drove GLM latency into the
+            # 120s active-time timeout.  See AI_SPECIALIST_MAX_TOOL_ITERATIONS
+            # (app/ai/config.py).  The supervisor's own budget is unaffected.
+            max_iterations = AI_SPECIALIST_MAX_TOOL_ITERATIONS
             max_retries = settings.AI_SPECIALIST_MAX_RETRIES
             # Read the invocation_id generated by the handoff tool from the
             # graph state.  A single consistent ID ensures the frontend can
@@ -932,7 +1537,14 @@ class SupervisorOrchestrator:
                             "max_tool_iterations": max_iterations,
                             "next": "agent",
                         },
-                        config={"recursion_limit": max_iterations},
+                        # ``recursion_limit`` must exceed ``max_tool_iterations``:
+                        # each tool-call cycle (agent -> tools -> agent) plus the
+                        # middleware wrapper hooks consumes multiple graph steps,
+                        # so a 1:1 ratio would prematurely GraphRecursionError
+                        # before the ``should_continue`` tool-count cap binds.
+                        # Mirrors the supervisor's ``recursion_limit * 5`` rule
+                        # (agent_service.py); ``max_iterations`` is the real cap.
+                        config={"recursion_limit": max_iterations * 5},
                     ),
                     specialist_name=specialist_name,
                     max_retries=max_retries,
@@ -971,40 +1583,51 @@ class SupervisorOrchestrator:
                     "supervisor_iterations": state.get("supervisor_iterations", 0) + 1,
                     "tool_call_count": 0,
                 }
+                # Default routing: back to the supervisor.  The pure non-plan
+                # branch below may override this to END on the 2nd consecutive
+                # failure of the same specialist to guarantee termination.
+                _failure_goto = "supervisor"
                 if active_step is not None and active_plan is not None:
                     active_plan.mark_step_failed(
                         active_step.step_index, f"Specialist error: {exc}"
                     )
                     error_update["plan_data"] = active_plan.model_dump()
+                    # Increment the per-(specialist, step) dispatch counter so a
+                    # failed step that gets re-dispatched is caught by the cap.
+                    _fkey = f"{specialist_name}|{active_step.step_index}"
+                    error_update["specialist_dispatch_counts"] = {
+                        _fkey: state.get("specialist_dispatch_counts", {}).get(_fkey, 0)
+                        + 1
+                    }
                     self._publish_plan_update(active_plan)
                     # Inject guidance so the supervisor knows how to proceed
                     # after a failed step (mirrors the success path's
-                    # plan_msg injection).  Names blocked dependents, or
-                    # confirms the failure is isolated.
-                    blocked = [
-                        s.step_index
-                        for s in active_plan.steps
-                        if s.status == "pending"
-                        and active_step.step_index in s.dependencies
-                    ]
-                    if blocked:
-                        guidance = (
-                            f"Plan step {active_step.step_index + 1} "
-                            f"({specialist_name}) FAILED. "
-                            f"Step(s) {blocked} depend on it and cannot run. "
-                            "Call request_replan to revise the remaining "
-                            "steps, or if the findings so far answer the "
-                            "user, respond now."
-                        )
-                    else:
-                        guidance = (
-                            f"Plan step {active_step.step_index + 1} "
-                            f"({specialist_name}) FAILED, but no other plan "
-                            "steps depend on it. Continue delegating the "
-                            "next pending step, or respond with the "
-                            "findings so far."
-                        )
+                    # plan_msg injection).  ``_build_failure_nudge`` decides
+                    # between the "pending steps remain" and "plan ended in
+                    # failure" branches and always forces the supervisor to
+                    # inform the user of the failure -- unlike the old weak
+                    # directive which permitted a generic "awaiting results"
+                    # answer.
+                    guidance = _build_failure_nudge(
+                        active_plan, specialist_name, str(exc)
+                    )
                     error_update["messages"] = [SystemMessage(content=guidance)]
+                elif active_step is None and active_plan is None:
+                    # PURE non-plan mode: bound the failure loop.  Track
+                    # consecutive failures per specialist in a dedicated field
+                    # and force-end the graph on the 2nd failure so a weak
+                    # supervisor cannot re-dispatch a failing specialist until
+                    # ``max_supervisor_iterations`` (~5x120s timeouts).
+                    decision = _decide_nonplan_failure_action(
+                        specialist_name=specialist_name,
+                        failure_counts=state.get("specialist_failure_counts", {}),
+                        error_message=str(exc),
+                    )
+                    error_update["specialist_failure_counts"] = (
+                        decision.failure_counts_update
+                    )
+                    error_update["messages"] = [SystemMessage(content=decision.message)]
+                    _failure_goto = decision.goto
 
                 # Publish BRIEFING_UPDATE + AGENT_COMPLETE
                 # for the error path — same as success path below.
@@ -1061,7 +1684,7 @@ class SupervisorOrchestrator:
                         )
                     )
 
-                return Command(update=error_update, goto="supervisor")
+                return Command(update=error_update, goto=_failure_goto)
 
             assert result is not None
 
@@ -1112,12 +1735,22 @@ class SupervisorOrchestrator:
             # Mark plan step as completed if plan-driven
             if active_step is not None and active_plan is not None:
                 summary = cleaned_findings if cleaned_findings else ""
-                active_plan.mark_step_completed(active_step.step_index, summary)
+                active_plan.mark_step_completed(
+                    active_step.step_index,
+                    summary,
+                    delegation_notes=parsed.get("delegation_notes"),
+                )
                 cmd_update["plan_data"] = active_plan.model_dump()
                 cmd_update["completed_steps"] = state.get("completed_steps", set()) | {
                     active_step.step_index
                 }
                 cmd_update["current_step_index"] = active_step.step_index
+                # Increment the per-(specialist, step) dispatch counter so the
+                # re-dispatch cap can detect a repeat dispatch of the same step.
+                _dkey = f"{specialist_name}|{active_step.step_index}"
+                cmd_update["specialist_dispatch_counts"] = {
+                    _dkey: state.get("specialist_dispatch_counts", {}).get(_dkey, 0) + 1
+                }
                 self._publish_plan_update(active_plan)
                 logger.info(
                     "Plan step %d (%s) -> completed",
@@ -1147,11 +1780,7 @@ class SupervisorOrchestrator:
                         f"not already provide."
                     )
                 else:
-                    plan_msg = (
-                        f"All {len(active_plan.steps)} plan steps completed. "
-                        "Respond to the user with the briefing findings. "
-                        "Do NOT delegate further."
-                    )
+                    plan_msg = _build_completion_nudge(active_plan, cleaned_findings)
                 cmd_update["messages"] = [SystemMessage(content=plan_msg)]
 
             # Check stop event between specialist runs for graceful cancellation.
@@ -1260,6 +1889,7 @@ class SupervisorOrchestrator:
         return [
             ContextGuardMiddleware(),
             PlanAwareToolMiddleware(direct_tool_names=direct_tool_names),
+            BriefingContextMiddleware(),
             *base,
         ]
 

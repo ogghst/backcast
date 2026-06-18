@@ -116,7 +116,6 @@ export const useCreateAIModel = (
       toast.error(`Error creating AI model: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -160,7 +159,6 @@ export const useUpdateAIModel = (
       toast.error(`Error updating AI model: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -200,6 +198,5 @@ export const useDeleteAIModel = (
       toast.error(`Error deleting AI model: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };

@@ -155,7 +155,9 @@ class AIAssistantConfig(SimpleEntityBase):
     # LangGraph recursion limit (maximum steps in agent execution loop)
     recursion_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Maximum supervisor delegation cycles per request (main agent only)
-    max_supervisor_iterations: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_supervisor_iterations: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     default_role: Mapped[str | None] = mapped_column(
         String(50),
@@ -376,6 +378,15 @@ class AIAgentExecution(SimpleEntityBase):
     )
     total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tool_calls_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # When True the execution is "run in background": it survives a transport
+    # disconnect (no grace-stop on last-observer detach).  Defaults to False so
+    # existing rows / the default WS flow are unaffected.
+    run_in_background: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # Prompt-derived display name for the Agents History page (the user's
+    # message truncated to 255 chars).  NULLable so pre-existing rows are valid.
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Relationships
     session: Mapped["AIConversationSession"] = relationship(

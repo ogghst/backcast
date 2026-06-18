@@ -306,6 +306,12 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       session: (id: string) => ["ai", "chat", "sessions", id] as const,
       messages: (sessionId: string) =>
         ["ai", "chat", "sessions", sessionId, "messages"] as const,
+      executions: {
+        all: ["ai", "executions"] as const,
+        list: (status?: string) =>
+          ["ai", "executions", "list", status ?? "all"] as const,
+        runningCount: () => ["ai", "executions", "running-count"] as const,
+      },
     },
     tools: {
       all: ["ai", "tools"] as const,

@@ -49,12 +49,10 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="find_cost_elements",
     description=(
-        "Find cost elements (EOCs) by ID or filter. "
-        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
-        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
-        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
-        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
-        "Use 'search' to narrow results before paging."
+        "Find cost elements (EOCs) by ID or filter (project_id required for lists; "
+        "filter by wbs_element_id, work_package_id, cost_element_type_id, status). "
+        "Paginated — check 'total'/'has_more' and page forward with 'page'/'limit', "
+        "narrow with 'search' first."
     ),
     permissions=["cost-element-read"],
     category="cost-management",
@@ -345,12 +343,9 @@ async def delete_cost_element(
 @ai_tool(
     name="find_cost_element_types",
     description=(
-        "Find cost element types by ID or search/filter. "
-        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
-        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
-        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
-        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
-        "Use 'search' to narrow results before paging."
+        "Find cost element types by ID or search/filter (optional organizational_unit_id). "
+        "Paginated — check 'total'/'has_more' and page forward with 'page'/'limit', "
+        "narrow with 'search' first."
     ),
     permissions=["cost-element-type-read"],
     category="cost-management",

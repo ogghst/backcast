@@ -147,6 +147,9 @@ export interface WSChatRequest {
   // File attachments for the message
   attachments?: FileAttachment[]; // Document/file attachments
   images?: string[]; // Image URLs (simplified format for images)
+  // Whether to run this agent execution in the background
+  // (detached from the WS connection so the user can continue chatting).
+  run_in_background?: boolean;
 }
 
 /**

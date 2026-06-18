@@ -5,7 +5,12 @@
  */
 
 import { AIAssistantList } from "@/features/ai/components/AIAssistantList";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 export const AIAssistantManagement = () => {
-  return <AIAssistantList />;
+  return (
+    <PageWrapper>
+      <AIAssistantList />
+    </PageWrapper>
+  );
 };

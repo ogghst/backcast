@@ -121,7 +121,7 @@ export interface UseStreamingChatConfig {
  */
 export interface UseStreamingChatReturn {
   /** Send a message to start/restart streaming */
-  sendMessage: (message: string, title?: string, executionMode?: "safe" | "standard" | "expert", attachments?: File[], images?: File[]) => void;
+  sendMessage: (message: string, title?: string, executionMode?: "safe" | "standard" | "expert", attachments?: File[], images?: File[], runInBackground?: boolean) => void;
   /** Send an approval response for a critical tool execution */
   sendApprovalResponse: (approvalId: string, approved: boolean) => void;
   /** Send an answer to an ask_user prompt */
@@ -389,6 +389,7 @@ export const useStreamingChat = (
     executionMode?: "safe" | "standard" | "expert";
     attachments?: FileAttachment[];
     images?: string[];
+    runInBackground?: boolean;
   } | null>(null);
 
   // Ref to store pending ask_user response to send once connection is established.
@@ -841,7 +842,7 @@ export const useStreamingChat = (
    * @param images - Optional image files to upload and include
    */
   const sendMessage = useCallback(
-    async (message: string, title?: string, executionMode?: "safe" | "standard" | "expert", attachments?: File[], images?: File[]) => {
+    async (message: string, title?: string, executionMode?: "safe" | "standard" | "expert", attachments?: File[], images?: File[], runInBackground?: boolean) => {
       const ws = wsRef.current;
 
       // Validate execution mode is provided (do this first for early error)
@@ -912,6 +913,7 @@ export const useStreamingChat = (
           executionMode,
           attachments: uploadedAttachments,
           images: uploadedImages,
+          runInBackground,
         };
 
         // Force-close any non-open connection for clean reconnect
@@ -971,6 +973,7 @@ export const useStreamingChat = (
         execution_mode: executionMode, // No default fallback - must be provided
         attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
         images: uploadedImages.length > 0 ? uploadedImages : undefined,
+        run_in_background: runInBackground,
       };
 
       console.log("Sending chat request with execution_mode:", executionMode);
@@ -1195,7 +1198,7 @@ export const useStreamingChat = (
 
           // Send pending message if connection was initiated by sendMessage
           if (pendingMessageRef.current) {
-            const { message, title, executionMode, attachments, images } = pendingMessageRef.current;
+            const { message, title, executionMode, attachments, images, runInBackground } = pendingMessageRef.current;
             pendingMessageRef.current = null;
 
             // Reconstruct the message sending logic here
@@ -1220,6 +1223,7 @@ export const useStreamingChat = (
               execution_mode: executionMode!,
               attachments: attachments && attachments.length > 0 ? attachments : undefined,
               images: images && images.length > 0 ? images : undefined,
+              run_in_background: runInBackground,
             };
 
             try {

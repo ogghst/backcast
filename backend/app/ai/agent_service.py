@@ -108,6 +108,7 @@ from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.agent_metrics import AgentExecutionMetrics
+from app.ai.execution.lifecycle import execution_lifecycle
 from app.ai.execution.llm_retry import iter_with_pausable_deadline
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.graph import create_graph
@@ -124,7 +125,7 @@ from app.ai.graph_params import (
     GraphExecutionParams,
     StreamState,
 )
-from app.ai.message_utils import extract_tool_output_content
+from app.ai.message_utils import extract_tool_output_content, strip_think_tags
 from app.ai.message_utils import is_transient_stream_error as _is_transient_stream_error
 from app.ai.subagent_compiler import DEFAULT_SYSTEM_PROMPT
 from app.ai.subagents.db_loader import load_specialists_from_db
@@ -187,6 +188,44 @@ def _restore_reasoning_content(metadata: dict[str, Any] | None) -> dict[str, Any
         if rc:
             return {"additional_kwargs": {"reasoning_content": rc}}
     return {}
+
+
+def _message_text(message: BaseMessage) -> str:
+    """Render a message to a single text blob for size measurement.
+
+    Joins multimodal content blocks (vision/list content) into a string,
+    and appends any tool-call argument text (``AIMessage.tool_calls``) and
+    tool-call ID / name metadata, since all of that is sent to the LLM and
+    counts toward the request payload size. Purely for diagnostics -- not
+    an exact serialization, but close enough to attribute bloat by role.
+    """
+    content = message.content
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                # Common block shapes: {"type": "text", "text": ...},
+                # image blocks ({"type":"image_url",...}) carry little text.
+                t = block.get("text")
+                if isinstance(t, str):
+                    parts.append(t)
+        text = "".join(parts)
+    else:
+        text = str(content)
+
+    # AIMessage.tool_calls (args) are part of what's sent -- include them.
+    tool_calls = getattr(message, "tool_calls", None)
+    if tool_calls:
+        for tc in tool_calls:
+            args = tc.get("args") if isinstance(tc, dict) else None
+            if args:
+                text += str(args)
+
+    return text
 
 
 async def _extract_client_config(
@@ -367,7 +406,13 @@ class AgentService:
     _interrupt_nodes: ClassVar[dict[UUID, "InterruptNode"]] = {}
 
     # Shared stop-event registry: maps execution_id -> asyncio.Event.
-    # Set externally via request_stop(), checked in the supervisor loop.
+    # Kept as a thin alias alongside the transport-agnostic
+    # :class:`ExecutionLifecycle` registry (the source of truth).  The
+    # supervisor loop reads the Event via ``ToolContext._stop_event`` (set in
+    # ``_prepare_graph_execution``), NOT via this dict, so the registry can
+    # move without affecting the stop check.  ``_STOP_EVENTS_MAX`` is retained
+    # for backwards compatibility but no longer caps eviction — the lifecycle
+    # registry's ``settings.AI_EXECUTION_REGISTRY_MAX`` does.
     _stop_events: ClassVar[dict[str, asyncio.Event]] = {}
     _STOP_EVENTS_MAX: ClassVar[int] = 50
 
@@ -375,9 +420,10 @@ class AgentService:
     def request_stop(cls, execution_id: str) -> bool:
         """Signal a running execution to stop gracefully.
 
-        Sets the ``asyncio.Event`` associated with *execution_id*.  The
-        supervisor loop checks this event after each specialist completes
-        and raises :class:`ExecutionStoppedError` when set.
+        Delegates to :meth:`ExecutionLifecycle.request_stop`, which sets the
+        ``asyncio.Event`` associated with *execution_id*.  The supervisor loop
+        checks this event after each specialist completes and raises
+        :class:`ExecutionStoppedError` when set.
 
         Args:
             execution_id: The execution to stop.
@@ -385,35 +431,43 @@ class AgentService:
         Returns:
             ``True`` if the execution was found and signalled, ``False`` otherwise.
         """
-        stop_evt = cls._stop_events.get(execution_id)
-        if stop_evt is None:
-            logger.warning(
-                "[REQUEST_STOP] No stop event found for execution %s",
-                execution_id,
-            )
-            return False
-        stop_evt.set()
-        logger.info("[REQUEST_STOP] Stop signalled for execution %s", execution_id)
-        return True
+        return execution_lifecycle.request_stop(execution_id)
 
     @classmethod
-    def _register_stop_event(cls, execution_id: str) -> asyncio.Event:
+    def _register_stop_event(
+        cls,
+        execution_id: str,
+        bus: AgentEventBus,
+        run_in_background: bool = False,
+    ) -> asyncio.Event:
         """Create and register a stop event for an execution.
 
-        Evicts the oldest entry when the registry exceeds ``_STOP_EVENTS_MAX``
-        to prevent unbounded memory growth (mirrors the ``_interrupt_nodes``
-        eviction pattern).
+        Registers with the transport-agnostic :class:`ExecutionLifecycle`
+        (the source of truth).  Eviction is **non-destructive**: when the
+        lifecycle registry reaches ``settings.AI_EXECUTION_REGISTRY_MAX`` the
+        OLDEST entry is dropped with a warning and is NEVER ``.set()`` — a
+        live execution keeps running, just untracked.  (The previous inline
+        eviction here ``.set()`` the evicted event, which could spuriously
+        stop a live execution — fixed.)
+
+        Also mirrors the entry into the legacy ``_stop_events`` alias so any
+        pre-existing reader and the ``start_execution`` finally teardown
+        still work.
+
+        Args:
+            execution_id: The execution to register a stop event for.
+            bus: The execution's event bus (registered with the lifecycle for
+                terminal cleanup).
+            run_in_background: When True the execution survives a transport
+                disconnect (no grace-stop on last-observer detach).
+
+        Returns:
+            The newly created :class:`asyncio.Event` for *execution_id*.
         """
-        if len(cls._stop_events) >= cls._STOP_EVENTS_MAX:
-            oldest_key = next(iter(cls._stop_events))
-            evicted = cls._stop_events.pop(oldest_key, None)
-            if evicted is not None:
-                evicted.set()
-            logger.warning(
-                "Stop event registry reached %d entries — evicted oldest",
-                cls._STOP_EVENTS_MAX,
-            )
         event = asyncio.Event()
+        execution_lifecycle.register(
+            execution_id, event, bus, run_in_background=run_in_background
+        )
         cls._stop_events[execution_id] = event
         return event
 
@@ -756,6 +810,55 @@ class AgentService:
             )
             return False
 
+    async def _extract_termination_notice(
+        self,
+        session_id: UUID,
+        state: StreamState,
+    ) -> None:
+        """Pull ``termination_notice`` from the graph checkpoint into StreamState.
+
+        The ``bounded_terminate`` node sets ``termination_notice`` in the graph
+        state when the supervisor hits a silent force-END cap (max-iterations
+        or max-replan). That state lives only in the LangGraph checkpoint after
+        the run (it is not carried by stream events), so we read it here and
+        surface it on ``state.termination_message`` for
+        ``_persist_session_messages`` to deliver as a final assistant message.
+
+        Best-effort: any error is logged and leaves ``termination_message``
+        unset (the run already completed; the notice is additive, not load-
+        bearing for correctness). Reuses the same ``channel_values`` unpacking
+        as ``_persist_briefing_from_checkpoint`` /
+        ``_extract_resume_state_from_checkpoint``.
+
+        Args:
+            session_id: The session whose checkpoint to read.
+            state: The StreamState to populate (sets ``termination_message``).
+        """
+        try:
+            checkpoint_state = await shared_checkpointer.aget(
+                {"configurable": {"thread_id": str(session_id)}}
+            )
+            if not checkpoint_state:
+                return
+            channel_values = checkpoint_state.get("channel_values", {}) or {}
+            notice = channel_values.get("termination_notice")
+            if isinstance(notice, str) and notice:
+                state.termination_message = notice
+                logger.info(
+                    "[TERMINATION_NOTICE] Bounded-termination notice extracted "
+                    "from checkpoint | session_id=%s | len=%d",
+                    session_id,
+                    len(notice),
+                )
+        except Exception as exc:
+            logger.error(
+                "[TERMINATION_NOTICE] Failed to read from checkpoint: %s "
+                "| session_id=%s",
+                exc,
+                session_id,
+                exc_info=True,
+            )
+
     # ------------------------------------------------------------------
     # Graph execution: preparation, streaming, persistence, finalization
     # ------------------------------------------------------------------
@@ -868,6 +971,7 @@ class AgentService:
             branch_name=branch_name,
             branch_mode=branch_mode,
             execution_mode=execution_mode,
+            session_id=str(session_id) if session_id else None,
             _event_bus=event_bus,
         )
         tool_context._stop_event = params.stop_event
@@ -1047,12 +1151,23 @@ class AgentService:
         self, state: StreamState, event: dict[str, Any]
     ) -> None:
         """Handle on_chat_model_start -- track LLM call count and timing."""
-        # The planner uses ainvoke() (non-streaming), so any streaming
-        # LLM event is guaranteed to NOT be from the planner. Clear the
-        # flag to ensure subsequent token streaming is not suppressed.
-        # (Fixes TD-015: planner_active was never cleared because
-        # on_chain_end for the planner node doesn't fire.)
-        state.planner_active = False
+        # Suppress the planner's own LLM tokens so its JSON does not leak
+        # into the chat. The planner runs as a top-level graph node named
+        # "planner" and calls ``llm.ainvoke`` directly; astream_events tags
+        # those events' ``metadata.langgraph_node`` / ``langgraph_checkpoint_ns``
+        # with "planner" -- a reliable per-call signal, unlike on_chain_start/
+        # end (which v1 does not emit reliably for plain async nodes). Set
+        # authoritatively here on every LLM call (start always fires before
+        # stream for the same call) so the flag is correct for the
+        # about-to-stream tokens. Supervisor/specialist calls lack the
+        # signal so their tokens stream normally -- this fixes BOTH the
+        # planner-JSON-into-chat leak AND TD-015's supervisor-text
+        # suppression (the old code cleared the flag unconditionally here,
+        # which let planner JSON stream while it was meant to do the opposite).
+        _meta = event.get("metadata") or {}
+        state.planner_active = ("planner" in (_meta.get("langgraph_node") or "")) or (
+            "planner" in (_meta.get("langgraph_checkpoint_ns") or "")
+        )
 
         data = event.get("data", {})
         state.llm_call_count += 1
@@ -1070,6 +1185,180 @@ class AgentService:
             fn_name,
         )
 
+        # Per-call request-payload size diagnostic. Correlated to the
+        # [LLM_CALL_START] line above via llm_call_count. Never raises;
+        # degrades to ``bytes=N/A`` on any failure so a diagnostics log
+        # can never break a run.
+        self._log_llm_call_payload(state, data)
+
+    def _log_llm_call_payload(self, state: StreamState, data: dict[str, Any]) -> None:
+        """Log the size of the request message payload for one LLM call.
+
+        Computes ``msg_count`` / ``total_chars`` / ``total_bytes`` and a
+        per-role char breakdown from the input messages so we can see WHAT
+        is bloating each call (e.g. accumulated tool results vs system
+        prompt vs history). Driven by a real incident: a glm-4.7 run sent a
+        ~247k-prompt-token request to the project_manager specialist,
+        causing 120s timeouts.
+
+        Known limitation: this measures the MESSAGE payload only. LangChain
+        sends bound TOOLS separately (via ``.bind_tools()``), so tool JSON
+        schemas are NOT counted here. That is acceptable for bloat
+        diagnosis -- the message history (especially accumulated tool
+        results) is the dominant factor. We intentionally do not hook the
+        httpx/openai client (out of scope, too invasive).
+
+        Robust to event shape: astream_events v2 ``on_chat_model_start``
+        exposes ``data["messages"]`` as ``list[list[BaseMessage]]``; v1
+        nested it under ``data["input"]["messages"]``. Older LLMs used
+        ``data["prompts"]`` (list[str]). All three are handled; if none is
+        present the call degrades to ``bytes=N/A``.
+        """
+        try:
+            messages = self._extract_event_messages(data)
+            if messages is None:
+                payload_part = "msgs=0 | chars=0 | bytes=N/A | by_role="
+            else:
+                msg_count = len(messages)
+                by_role: dict[str, int] = {}
+                total_chars = 0
+                total_bytes = 0
+                for msg in messages:
+                    text = _message_text(msg)
+                    chars = len(text)
+                    total_chars += chars
+                    total_bytes += len(text.encode("utf-8"))
+                    role = type(msg).__name__.removesuffix("Message").lower()
+                    by_role[role] = by_role.get(role, 0) + chars
+                role_str = ",".join(f"{r}:{c}" for r, c in by_role.items())
+                payload_part = (
+                    f"msgs={msg_count} | chars={total_chars} | "
+                    f"bytes={total_bytes} | by_role={role_str}"
+                )
+        except Exception as exc:  # noqa: BLE001 -- diagnostics must never raise
+            payload_part = (
+                f"msgs=N/A | chars=N/A | bytes=N/A | err={type(exc).__name__}"
+            )
+
+        subagent_part = (
+            f" | subagent={state.current_subagent_name}"
+            if state.current_subagent_name
+            else ""
+        )
+        logger.info(
+            "[LLM_CALL_PAYLOAD] #%d | %s%s",
+            state.llm_call_count,
+            payload_part,
+            subagent_part,
+        )
+
+    @staticmethod
+    def _extract_event_messages(
+        data: dict[str, Any],
+    ) -> list[BaseMessage] | None:
+        """Pull the input messages out of an ``on_chat_model_start`` event.
+
+        Accepts the astream_events v2 shape (``data["messages"]``),
+        the v1 shape (``data["input"]["messages"]``), and the legacy
+        ``data["prompts"]`` shape (returned as zero-content messages).
+        Returns a flat ``list[BaseMessage]`` or ``None`` if no usable
+        payload is present.
+        """
+        raw: Any = None
+        if isinstance(data.get("messages"), list):
+            raw = data["messages"]
+        elif isinstance(data.get("input"), dict) and isinstance(
+            data["input"].get("messages"), list
+        ):
+            raw = data["input"]["messages"]
+        elif isinstance(data.get("prompts"), list):
+            raw = data["prompts"]
+
+        if raw is None:
+            return None
+
+        flat: list[BaseMessage] = []
+        for item in raw:
+            if isinstance(item, BaseMessage):
+                flat.append(item)
+            elif isinstance(item, list):
+                # v2 wraps messages per-batch: list[list[BaseMessage]].
+                flat.extend(m for m in item if isinstance(m, BaseMessage))
+            elif isinstance(item, str):
+                # Legacy prompts shape -- synthesize a minimal message so
+                # the size is still counted (content-only, generic role).
+                flat.append(HumanMessage(content=item))
+        return flat
+
+    def _filter_think_tokens(self, state: StreamState, content: str) -> str:
+        """Stateful inline ``<think>...</think>`` filter for streamed tokens.
+
+        Suppresses chain-of-thought tokens while inside a ``<think>`` span so
+        they never reach ``main_agent_segments`` / ``token_buffer`` (and thus
+        never reach the live chat). Handles tags split across chunk boundaries
+        by holding back a small tail that could be the start of ``<think>`` or
+        ``</think>`` until the next chunk resolves it.
+
+        NOTE: this filter cannot catch the "dangling close / opening already
+        stripped" shape -- it never sees an opening tag to start suppression.
+        The persistence backstop (``strip_think_tags`` in
+        ``_persist_session_messages``) handles that case. Both are required.
+        """
+        OPEN = "<think>"
+        CLOSE = "</think>"
+        # Longest partial prefix we might need to hold back. A tag can be split
+        # anywhere, so we may need to buffer up to len(CLOSE)-1 = 7 chars.
+        MAX_PREFIX = len(CLOSE) - 1
+
+        # Prepend any tail held back from the previous chunk.
+        buf = state.think_pending_buffer + content
+        state.think_pending_buffer = ""
+
+        out: list[str] = []
+        i = 0
+        n = len(buf)
+        while i < n:
+            if state.in_think_block:
+                # Discard everything until we find the closing tag.
+                close_idx = buf.find(CLOSE, i)
+                if close_idx == -1:
+                    # No close yet. But the tail of what we consumed could be a
+                    # partial CLOSE prefix (e.g. "</thin"). Hold it back.
+                    hold_start = max(i, n - MAX_PREFIX)
+                    state.think_pending_buffer = buf[hold_start:]
+                    i = n
+                    break
+                # Skip to just after the closing tag; resume emitting.
+                i = close_idx + len(CLOSE)
+                state.in_think_block = False
+            else:
+                # Emit until we hit an opening tag.
+                open_idx = buf.find(OPEN, i)
+                if open_idx == -1:
+                    # No full open tag. The tail of [i:] could still be a
+                    # partial OPEN prefix (e.g. "<thi") -- hold it back rather
+                    # than emit it prematurely. Only the last MAX_PREFIX chars
+                    # can possibly be a tag prefix.
+                    partial_start = None
+                    check_from = max(i, n - MAX_PREFIX)
+                    for s in range(check_from, n):
+                        if OPEN.startswith(buf[s:n]) or CLOSE.startswith(buf[s:n]):
+                            partial_start = s
+                            break
+                    if partial_start is not None:
+                        out.append(buf[i:partial_start])
+                        state.think_pending_buffer = buf[partial_start:]
+                    else:
+                        out.append(buf[i:n])
+                    i = n
+                    break
+                # Emit up to the opening tag, then enter the think block.
+                out.append(buf[i:open_idx])
+                i = open_idx + len(OPEN)
+                state.in_think_block = True
+
+        return "".join(out)
+
     def _handle_chat_model_stream(
         self, state: StreamState, event: dict[str, Any]
     ) -> None:
@@ -1077,7 +1366,8 @@ class AgentService:
 
         Tokens from the planner node are suppressed to prevent plan JSON
         from leaking into the chat stream. The planner emits a dedicated
-        PLAN_UPDATE event instead.
+        PLAN_UPDATE event instead. Inline ``<think>...</think>`` reasoning is
+        stripped by ``_filter_think_tokens`` before reaching the segments.
         """
         if state.planner_active:
             return
@@ -1101,23 +1391,30 @@ class AgentService:
                 content = str(chunk.content)
 
             if content:
-                if state.current_subagent_name is None:
-                    if state.main_invocation_id not in state.main_agent_segments:
-                        state.main_agent_segments[state.main_invocation_id] = []
-                    state.main_agent_segments[state.main_invocation_id].append(content)
+                # Filter inline <think> reasoning BEFORE it reaches the
+                # persisted segments and the live token buffer.
+                content = self._filter_think_tokens(state, content)
 
-                state.total_output_chars += len(content)
+                if content:
+                    if state.current_subagent_name is None:
+                        if state.main_invocation_id not in state.main_agent_segments:
+                            state.main_agent_segments[state.main_invocation_id] = []
+                        state.main_agent_segments[state.main_invocation_id].append(
+                            content
+                        )
 
-                # Accumulate tokens per invocation for batched publish
-                invocation_id_to_use = (
-                    state.current_invocation_id
-                    if state.current_subagent_name
-                    else state.main_invocation_id
-                )
-                if invocation_id_to_use is not None:
-                    if invocation_id_to_use not in state.token_buffer:
-                        state.token_buffer[invocation_id_to_use] = []
-                    state.token_buffer[invocation_id_to_use].append(content)
+                    state.total_output_chars += len(content)
+
+                    # Accumulate tokens per invocation for batched publish
+                    invocation_id_to_use = (
+                        state.current_invocation_id
+                        if state.current_subagent_name
+                        else state.main_invocation_id
+                    )
+                    if invocation_id_to_use is not None:
+                        if invocation_id_to_use not in state.token_buffer:
+                            state.token_buffer[invocation_id_to_use] = []
+                        state.token_buffer[invocation_id_to_use].append(content)
 
     def _handle_chat_model_end(self, state: StreamState, event: dict[str, Any]) -> None:
         """Handle on_chat_model_end -- capture actual token usage and timing."""
@@ -1131,6 +1428,139 @@ class AgentService:
             )
             state.llm_call_start = None
         state.token_accumulator.accumulate_from_event(data)
+        # Phase-0 observability: per-call prompt-token composition log.
+        # Pure diagnostics -- never raises, never changes control flow.
+        self._log_llm_call_usage(state, data)
+
+    def _log_llm_call_usage(self, state: StreamState, data: dict[str, Any]) -> None:
+        """Emit one structured ``[LLM_CALL_USAGE]`` line per LLM call.
+
+        Captures the prompt-token cost of a single model call and a
+        best-effort breakdown of its composition so we can decide whether
+        specialist timeouts are dominated by tool *definitions* (roughly
+        constant ~5k tok/call) or accumulated tool *results* (growing).
+        This is the decision gate for the deferred roster-split work
+        (plan: ``check-last-ai-chat-hashed-seahorse.md``, Phase 0).
+
+        Observability only: every field is None-safe and the whole method is
+        wrapped so a diagnostics log can never break a run. ``bound_tools`` /
+        ``est_tool_def_tokens`` are logged as best-effort (the per-agent
+        bound-tool list is not reachable from this callback without invading
+        the compiled graph); ``accumulated_tool_msgs`` / chars come from
+        ``state.all_tool_results`` (supervisor-visible results; specialist
+        results are not tracked there and will read 0 -- labelled below).
+        """
+        try:
+            prompt_tokens, completion_tokens = self._extract_call_usage(data)
+
+            agent_label = (
+                f"specialist:{state.current_subagent_name}"
+                if state.current_subagent_name
+                else ("planner" if state.planner_active else "supervisor")
+            )
+
+            # Running distinct tool NAMES invoked so far this run. NB:
+            # ``all_tool_calls`` is only populated from the FINAL graph output
+            # AIMessage at on_chain_end, so mid-run this is best-effort --
+            # ``tool_calls_count`` (cumulative) is the live signal.
+            distinct_tools = {
+                str(tc.get("name", ""))
+                for tc in state.all_tool_calls
+                if isinstance(tc, dict) and tc.get("name")
+            }
+
+            # Accumulated tool-result messages visible in the supervisor stream.
+            # Specialist-internal results are intentionally NOT appended to
+            # ``all_tool_results`` (see _handle_tool_end), so for specialist
+            # calls these read 0 -- a known limitation, labelled below.
+            acc_tool_msgs = len(state.all_tool_results)
+            acc_tool_chars = 0
+            for tr in state.all_tool_results:
+                if isinstance(tr, dict):
+                    content = tr.get("result")
+                    if content is not None:
+                        acc_tool_chars += len(str(content))
+
+            logger.info(
+                "[LLM_CALL_USAGE] #%d | agent=%s | prompt_tokens=%s | "
+                "completion_tokens=%s | bound_tools=N/A(best-effort) | "
+                "invoked_tools_running=%d(distinct_seen=%d) | "
+                "accumulated_tool_msgs=%d(chars=%d,est_tokens=%d,supervisor_stream_only)",
+                state.llm_call_count,
+                agent_label,
+                prompt_tokens if prompt_tokens is not None else "N/A",
+                completion_tokens if completion_tokens is not None else "N/A",
+                state.tool_calls_count,
+                len(distinct_tools),
+                acc_tool_msgs,
+                acc_tool_chars,
+                acc_tool_chars // 4,
+            )
+        except Exception as exc:  # noqa: BLE001 -- diagnostics must never raise
+            logger.warning(
+                "[LLM_CALL_USAGE] #%d failed to emit (non-fatal): %s: %s",
+                state.llm_call_count,
+                type(exc).__name__,
+                exc,
+            )
+
+    @staticmethod
+    def _extract_call_usage(
+        data: dict[str, Any],
+    ) -> tuple[int | None, int | None]:
+        """Extract PER-CALL prompt/completion tokens from an on_chat_model_end event.
+
+        Mirrors ``TokenUsageAccumulator.accumulate_from_event`` but returns the
+        single-call values instead of accumulating. Returns ``(None, None)``
+        when usage is absent (some providers/events omit it) -- callers must
+        treat that as "unknown", never as zero.
+        """
+        output = data.get("output")
+        if output is None:
+            return None, None
+
+        def _from_message(msg: Any) -> tuple[int | None, int | None]:
+            usage_metadata = getattr(msg, "usage_metadata", None)
+            if isinstance(usage_metadata, dict):
+                inp = usage_metadata.get("input_tokens")
+                out = usage_metadata.get("output_tokens")
+                if isinstance(inp, int) and isinstance(out, int):
+                    return inp, out
+            response_metadata = getattr(msg, "response_metadata", None)
+            if isinstance(response_metadata, dict):
+                token_usage = response_metadata.get("token_usage")
+                if isinstance(token_usage, dict):
+                    p = token_usage.get("prompt_tokens")
+                    c = token_usage.get("completion_tokens")
+                    if isinstance(p, int) and isinstance(c, int):
+                        return p, c
+            return None, None
+
+        # astream_events v1 nests generations under a dict output.
+        if isinstance(output, dict):
+            generations = output.get("generations", [])
+            if isinstance(generations, list):
+                for gen_list in generations:
+                    if isinstance(gen_list, list):
+                        for gen in gen_list:
+                            if isinstance(gen, dict):
+                                msg = gen.get("message")
+                                if msg is not None:
+                                    p, c = _from_message(msg)
+                                    if p is not None and c is not None:
+                                        return p, c
+            llm_output = output.get("llm_output")
+            if isinstance(llm_output, dict):
+                token_usage = llm_output.get("token_usage")
+                if isinstance(token_usage, dict):
+                    p = token_usage.get("prompt_tokens")
+                    c = token_usage.get("completion_tokens")
+                    if isinstance(p, int) and isinstance(c, int):
+                        return p, c
+            return None, None
+
+        # Direct AIMessage object.
+        return _from_message(output)
 
     @staticmethod
     def _is_delegation_tool(tool_name: str) -> bool:
@@ -1669,6 +2099,12 @@ class AgentService:
 
             for idx, inv_id in enumerate(invocation_ids_in_order):
                 segment_content = "".join(state.main_agent_segments[inv_id])
+                # Backstop: strip any inline <think>...</think> reasoning that
+                # survived the streaming filter (e.g. a dangling </think> from
+                # a provider that stripped the opening tag -- the stream filter
+                # never saw an open tag to suppress). Guarantees the saved and
+                # final-rendered DB message is clean.
+                segment_content = strip_think_tags(segment_content)
                 metadata: dict[str, Any] = {
                     "invocation_id": inv_id,
                     "segment_index": idx,
@@ -1734,6 +2170,29 @@ class AgentService:
                 await self.session.commit()
             except Exception as persist_error:
                 logger.error(f"Failed to persist error message: {persist_error}")
+
+        # Persist the bounded-termination notice as a final assistant message
+        # when the supervisor graph hit a silent force-END cap (max-iterations
+        # or max-replan). The notice is system-generated from plan STATE
+        # (Completed / Failed-with-error / Not-started sections) by the
+        # ``bounded_terminate`` node -- legitimate like the ``graph_error``
+        # message above, NOT model-output rewriting. Setting
+        # ``last_persisted_message_id`` makes the COMPLETE event point at this
+        # message so the frontend surfaces it as the run's final answer.
+        if state.termination_message:
+            try:
+                term_msg = await self.config_service.add_message(
+                    session_id=state.session_id,
+                    role="assistant",
+                    content=state.termination_message,
+                    message_metadata={
+                        "bounded_termination": True,
+                    },
+                )
+                await self.session.commit()
+                state.last_persisted_message_id = term_msg.id
+            except Exception as persist_error:
+                logger.error(f"Failed to persist termination notice: {persist_error}")
 
     # -- Finalization --
 
@@ -1920,7 +2379,16 @@ class AgentService:
                     ctx.session_id, log_label="BRIEFING_PERSIST_ERROR_PATH"
                 )
 
-        # Step 5: Persist messages to session history
+        # Step 5: Extract a bounded-termination notice (if any) from the
+        # graph checkpoint, then persist messages to session history. The
+        # checkpoint still exists at this point (briefing persist in the
+        # finally block above does NOT run on the success path -- it runs
+        # only on error/stop/cancel). We read termination_notice from the
+        # channel_values (mirrors the unpacking in
+        # _persist_briefing_from_checkpoint / _extract_resume_state_from_checkpoint).
+        await self._extract_termination_notice(ctx.session_id, state)
+
+        # Step 6: Persist messages to session history
         await self._persist_session_messages(state)
 
         # Step 6: Finalize -- publish completion events and return metrics
@@ -1947,15 +2415,29 @@ class AgentService:
         execution_id: str,
         session_id: UUID,
         execution_mode: ExecutionMode,
-    ) -> dict[str, Any] | None:
+        run_in_background: bool = False,
+        name: str | None = None,
+    ) -> tuple[dict[str, Any] | None, str | None]:
         """Create execution row and capture session context in a short-lived session.
 
         Opens its own DB session, creates the AIAgentExecution tracking row,
         sets active_execution_id on the conversation session, and returns the
-        session context dict.  No live ORM objects escape — only serializable data.
+        session context dict plus the session's persisted project_id.  No live
+        ORM objects escape — only serializable data.
+
+        Args:
+            execution_id: Pre-generated execution UUID string.
+            session_id: Conversation session UUID.
+            execution_mode: Execution mode stored on the row.
+            run_in_background: When True persisted on the row so the Agents
+                History page and any restart can tell this execution survives
+                disconnects.
+            name: Prompt-derived display name (truncated by caller) persisted
+                on the row for the Agents History page.
 
         Returns:
-            Session context dict, or None if the session has no context.
+            Tuple of (session context dict or None, session project_id string or None).
+            The project_id reflects any cross-turn scope set via set_project_context.
         """
         from app.db.session import async_session_maker
 
@@ -1976,6 +2458,8 @@ class AgentService:
                 session_id=str(session_id),
                 status=ExecutionStatus.RUNNING,
                 execution_mode=execution_mode.value,
+                run_in_background=run_in_background,
+                name=name,
             )
             db.add(execution)
             await db.commit()
@@ -1985,8 +2469,14 @@ class AgentService:
                 db_session.active_execution_id = str(execution.id)
                 await db.commit()
 
-            # Capture serializable context — no ORM objects escape
-            return db_session.context if db_session else None
+            # Capture serializable context + persisted project scope — no ORM
+            # objects escape.
+            return (
+                db_session.context if db_session else None,
+                str(db_session.project_id)
+                if (db_session and db_session.project_id)
+                else None,
+            )
 
     @staticmethod
     async def _finalize_stopped_execution(
@@ -2105,6 +2595,7 @@ class AgentService:
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
         execution_id: str | None = None,
         event_bus: AgentEventBus | None = None,
+        run_in_background: bool = False,
     ) -> str:
         """Start a background agent execution with its own DB session and event bus.
 
@@ -2141,6 +2632,10 @@ class AgentService:
                 a new UUID is generated.
             event_bus: Optional pre-created event bus. If not provided, a new
                 bus is created and registered with the runner_manager.
+            run_in_background: When True the execution survives a transport
+                disconnect — the lifecycle will NOT grace-stop it on
+                last-observer detach.  Persisted on the execution row and used
+                to derive the Agents History display name from *message*.
 
         Returns:
             execution_id string for tracking the agent execution
@@ -2153,21 +2648,43 @@ class AgentService:
         if execution_id is None:
             execution_id = str(uuid.uuid4())
 
-        # Use provided bus or create a new one
-        should_remove_bus = False
+        # Use provided bus or create a new one.  Terminal cleanup
+        # (ExecutionLifecycle.terminate) removes the bus unconditionally on
+        # every path: the WS flow creates its bus via runner_manager.create_bus
+        # so removal is symmetric; a caller that needs the bus after the run
+        # should read replay() before start_execution returns.
         if event_bus is None:
             event_bus = runner_manager.create_bus(execution_id)
-            should_remove_bus = True
 
-        # Create and register stop event for graceful cancellation
-        stop_event = self._register_stop_event(execution_id)
+        # Create and register stop event for graceful cancellation.
+        # Registering with the transport-agnostic ExecutionLifecycle (source
+        # of truth) also registers the bus so terminal cleanup can remove it.
+        # run_in_background makes the lifecycle skip the grace-stop on
+        # last-observer detach so the execution survives a disconnect.
+        stop_event = self._register_stop_event(
+            execution_id, event_bus, run_in_background=run_in_background
+        )
+
+        # Display name for the Agents History page: the user's prompt truncated
+        # to a sensible length (the column cap is 255; 120 keeps the UI tidy).
+        exec_name = message.strip()[:120] if message else None
 
         try:
             # Phase 1: Pre-flight — create execution row, capture context
-            session_context = await self._preflight_execution(
+            session_context, session_project_id = await self._preflight_execution(
                 execution_id,
                 session_id,
                 execution_mode,
+                run_in_background=run_in_background,
+                name=exec_name,
+            )
+
+            # Persisted project scope (set via set_project_context) applies when
+            # the incoming request carries no project_id (general chat). An
+            # explicit request project_id always wins, so project-scoped chats
+            # are unaffected.
+            effective_project_id = project_id or (
+                UUID(session_project_id) if session_project_id else None
             )
 
             # Phase 2: Graph execution — own session for the full graph run
@@ -2181,7 +2698,7 @@ class AgentService:
                         session_id=session_id,
                         user_id=user_id,
                         event_bus=event_bus,
-                        project_id=project_id,
+                        project_id=effective_project_id,
                         branch_id=branch_id,
                         as_of=as_of,
                         branch_name=branch_name,
@@ -2271,10 +2788,15 @@ class AgentService:
 
             raise
         finally:
-            # Clean up stop event and event bus
+            # Single terminal cleanup: route ask-cancel + bus-remove +
+            # registry-drop through ExecutionLifecycle.terminate so no
+            # registry/bus/ask entry leaks on ANY terminal path (complete,
+            # stop, cancel, error).  Idempotent.  The DB status write,
+            # active_execution_id clear, and terminal event publish already
+            # happened in the try/except blocks above (per-path).
+            execution_lifecycle.terminate(execution_id)
+            # Mirror-drop from the legacy _stop_events alias.
             self._stop_events.pop(execution_id, None)
-            if should_remove_bus:
-                runner_manager.remove_bus(execution_id)
 
         return execution_id
 

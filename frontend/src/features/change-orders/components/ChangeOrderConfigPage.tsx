@@ -32,6 +32,7 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { Can } from "@/components/auth/Can";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import {
   useGlobalConfig,
   useUpdateGlobalConfig,
@@ -990,6 +991,7 @@ export function ChangeOrderConfigPage() {
   }
 
   return (
+    <PageWrapper>
     <Can
       permission="change-order-workflow-config-manage"
       fallback={
@@ -1110,6 +1112,7 @@ export function ChangeOrderConfigPage() {
         />
       </div>
     </Can>
+    </PageWrapper>
   );
 }
 

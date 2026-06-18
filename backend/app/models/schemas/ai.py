@@ -334,6 +334,54 @@ class AgentExecutionPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AgentExecutionHistoryContext(BaseModel):
+    """Context block for an Agents History list item.
+
+    Derived from the conversation session's ``context`` JSONB plus the
+    session's optional project / branch scope.
+    """
+
+    type: str | None = None
+    name: str | None = None
+    project_id: str | None = None
+    branch_id: str | None = None
+
+
+class AgentExecutionHistoryItem(BaseModel):
+    """A single row in the Agents History page.
+
+    Joins :class:`AIAgentExecution` with its conversation session (for
+    ownership + context) and the assistant config (for the display name).
+    """
+
+    id: UUID
+    name: str | None = None
+    status: str
+    execution_mode: str
+    run_in_background: bool
+    started_at: datetime
+    completed_at: datetime | None = None
+    session_id: UUID
+    context: AgentExecutionHistoryContext
+    assistant_name: str | None = None
+    total_tokens: int = 0
+    tool_calls_count: int = 0
+
+
+class AgentExecutionHistoryPaginated(BaseModel):
+    """Paginated response for the Agents History page."""
+
+    items: list[AgentExecutionHistoryItem]
+    total: int
+    has_more: bool
+
+
+class AgentExecutionRunningCount(BaseModel):
+    """Count of a user's currently-active executions (menu badge)."""
+
+    count: int
+
+
 class InvokeAgentRequest(BaseModel):
     """Request body for invoking an agent via REST API."""
 
@@ -614,6 +662,14 @@ class WSChatRequest(BaseModel):
     execution_mode: ExecutionMode = Field(
         ExecutionMode.STANDARD,
         description="AI tool execution mode (default: 'standard')",
+    )
+    run_in_background: bool = Field(
+        False,
+        description=(
+            "When True the execution survives a WebSocket disconnect "
+            "(no grace-stop on last-observer detach); it appears on the "
+            "Agents History page and can be stopped via the Stop endpoint."
+        ),
     )
     attachments: list[FileAttachment] = Field(
         default_factory=list, description="File attachments to the message"

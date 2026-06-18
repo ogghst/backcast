@@ -34,7 +34,6 @@ from app.ai.plan import PlanDocument, PlanStep
 from app.ai.supervisor_orchestrator import SupervisorOrchestrator
 from app.ai.tools.types import ToolContext
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -136,7 +135,9 @@ async def test_await_should_stop_flips_after_delay() -> None:
 
 
 @pytest.mark.asyncio
-async def test_invoke_with_retry_stop_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_invoke_with_retry_stop_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A should_stop that is True immediately -> ExecutionStoppedError
     propagates from invoke_with_retry on the FIRST attempt, even though
     invoke_with_retry catches Exception broadly.  No retries."""

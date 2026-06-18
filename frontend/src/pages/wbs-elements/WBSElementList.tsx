@@ -7,6 +7,7 @@ import { useState, useMemo } from "react";
 import type { FilterValue, SorterResult } from "antd/es/table/interface";
 import type { ColumnType } from "antd/es/table";
 import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useTableParams } from "@/hooks/useTableParams";
 import {
   WbsElementsService,
@@ -114,6 +115,7 @@ export const WBSElementList = ({ projectId }: WBEListProps) => {
   };
 
   return (
+    <PageWrapper>
     <div>
       <EntityGrid<WBSElementRead>
         items={wbes}
@@ -231,5 +233,6 @@ export const WBSElementList = ({ projectId }: WBEListProps) => {
         isLoading={historyLoading}
       />
     </div>
+    </PageWrapper>
   );
 };

@@ -15,6 +15,7 @@ import dayjs from "dayjs";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { Can } from "@/components/auth/Can";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import {
   useRoleAssignments,
   useDeleteRoleAssignment,
@@ -216,7 +217,7 @@ export const RoleAssignments: React.FC = () => {
   ];
 
   return (
-    <>
+    <PageWrapper>
       <Card
         title={<span style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>Role Assignments</span>}
         extra={
@@ -297,6 +298,6 @@ export const RoleAssignments: React.FC = () => {
         onClose={() => setModalOpen(false)}
         assignment={selectedAssignment ?? undefined}
       />
-    </>
+    </PageWrapper>
   );
 };

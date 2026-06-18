@@ -21,6 +21,7 @@ import { CostEventTypeModal } from "@/features/cost-event-types/components/CostE
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Create CRUD hooks
@@ -215,7 +216,7 @@ export const CostEventTypeManagement = () => {
   ];
 
   return (
-    <>
+    <PageWrapper>
       <Card
         title="Cost Event Types"
         extra={
@@ -282,6 +283,6 @@ export const CostEventTypeManagement = () => {
         entityName={`Type: ${selectedType?.name || ""}`}
         isLoading={historyLoading}
       />
-    </>
+    </PageWrapper>
   );
 };

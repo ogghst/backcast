@@ -131,6 +131,15 @@ class StreamState:
     # into the main agent's chat stream.
     planner_active: bool = False
 
+    # Inline <think>...</think> streaming filter state. Some reasoning models
+    # (e.g. GLM-4.7) emit chain-of-thought inline rather than in a separate
+    # reasoning_content field. While ``in_think_block`` is True, incoming
+    # tokens are discarded. ``think_pending_buffer`` holds a small tail that
+    # could be the start of a ``<think>``/``</think>`` tag split across chunk
+    # boundaries; it is resolved when the next chunk arrives.
+    in_think_block: bool = False
+    think_pending_buffer: str = ""
+
     # Timing
     llm_call_start: float | None = None
     llm_call_count: int = 0
@@ -146,6 +155,12 @@ class StreamState:
     graph_error: Exception | None = None
     briefing_persisted: bool = False
     last_persisted_message_id: UUID | None = None
+    # Bounded-termination notice extracted from the graph checkpoint after the
+    # run. Set when the supervisor graph hit a silent force-END cap
+    # (max-iterations or max-replan); persisted as a final assistant message
+    # in ``_persist_session_messages`` so the user is ALWAYS told when a run
+    # is bounded. ``None`` means no bounded termination occurred.
+    termination_message: str | None = None
 
     def __post_init__(self) -> None:
         from app.ai.token_estimator import TokenUsageAccumulator

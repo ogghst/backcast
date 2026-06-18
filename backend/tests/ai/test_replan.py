@@ -9,7 +9,6 @@ import pytest
 from langchain.agents.middleware.types import ModelRequest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
-from langgraph.graph import END
 from langgraph.types import Command
 
 from app.ai.handoff_tools import create_replan_tool
@@ -119,7 +118,9 @@ def test_router_blocks_replan_at_max_count() -> None:
     }
 
     result = router(state)
-    assert result == END
+    # As of the bounded-termination fix, the max-replan force-END path routes
+    # to ``bounded_terminate`` (grounded notice then END) instead of bare END.
+    assert result == "bounded_terminate"
 
 
 # =====================================================================

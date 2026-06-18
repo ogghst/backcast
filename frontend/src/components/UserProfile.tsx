@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import {
   Avatar,
+  Badge,
   Dropdown,
   Space,
   Typography,
@@ -22,11 +23,13 @@ import {
   CloudServerOutlined,
   ControlOutlined,
   DatabaseOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserPreferencesStore } from "@/stores/useUserPreferencesStore";
 import { usePermission } from "@/hooks/usePermission";
+import { useRunningExecutionsCount } from "@/features/ai/chat/api/useAgentExecutions";
 
 const { Text } = Typography;
 
@@ -39,6 +42,10 @@ export const UserProfile: React.FC = () => {
   const { themeMode, toggleTheme, fetchPreferences } =
     useUserPreferencesStore();
   const { can, hasRole } = usePermission();
+  // Poll running agent executions for the menu badge. Only fetched when the
+  // user can use AI chat (avoids needless requests for viewers).
+  const runningCountQuery = useRunningExecutionsCount();
+  const runningCount = can("ai-chat") ? runningCountQuery.data ?? 0 : 0;
 
   useEffect(() => {
     if (user) {
@@ -199,6 +206,21 @@ export const UserProfile: React.FC = () => {
       label: "Profile",
       onClick: () => navigate("/profile"),
     },
+    // Agents History (background runs + execution history) — gated by ai-chat
+    ...(can("ai-chat")
+      ? [
+          {
+            key: "/agents-history",
+            icon: <HistoryOutlined />,
+            label: (
+              <Badge count={runningCount} size="small" offset={[6, 0]}>
+                Agents History
+              </Badge>
+            ),
+            onClick: () => navigate("/agents-history"),
+          },
+        ]
+      : []),
     // Admin submenu section
     ...(hasRole("admin") && (getAdminItems()?.length ?? 0) > 0
       ? [

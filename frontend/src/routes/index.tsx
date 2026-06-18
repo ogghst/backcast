@@ -199,6 +199,9 @@ const Profile = lazy(() =>
 const ChatInterfacePage = lazy(() =>
   import("@/pages/chat/ChatInterface").then((m) => ({ default: m.ChatInterfacePage })),
 );
+const AgentsHistory = lazy(() =>
+  import("@/pages/AgentsHistory").then((m) => ({ default: m.AgentsHistory })),
+);
 
 const DashboardPage = lazy(() =>
   import("@/features/widgets/pages/DashboardPage").then((m) => ({
@@ -366,6 +369,14 @@ export const router = createBrowserRouter([
       {
         path: "/profile",
         element: <Profile />,
+      },
+      {
+        path: "/agents-history",
+        element: (
+          <ProtectedRoute>
+            <AgentsHistory />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/change-orders/:changeOrderId",

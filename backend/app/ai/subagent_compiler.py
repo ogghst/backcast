@@ -12,8 +12,14 @@ from langchain.agents import create_agent as langchain_create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-from app.ai.config import AI_SEQUENTIAL_TOOL_CALLS, AgentConfig
+from app.ai.config import (
+    AI_SEQUENTIAL_TOOL_CALLS,
+    AI_SPECIALIST_CONTEXT_KEEP_RECENT,
+    AI_SPECIALIST_CONTEXT_TOKEN_LIMIT,
+    AgentConfig,
+)
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
+from app.ai.middleware.context_guard import ContextGuardMiddleware
 from app.ai.middleware.sequential_tool_calls import SequentialToolCallsMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.schemas import SpecialistOutput
@@ -180,8 +186,28 @@ def compile_subagents(
             )
             continue
 
-        # Fresh middleware per subagent to avoid mutable state leakage
-        middleware = build_backcast_middleware(context, subagent_tools)
+        # Fresh middleware per subagent to avoid mutable state leakage.
+        # ContextGuard is mounted here (specialists) with ``preserve_head=2`` so
+        # the system prompt AND the assignment HumanMessage survive the trim —
+        # losing the assignment would make the specialist forget its task.  The
+        # supervisor mounts its own ContextGuard (``preserve_head=1``) in
+        # ``SupervisorOrchestrator._build_middleware``; do NOT double-mount.
+        #
+        # Specialists use their OWN, much lower token limit / keep-recent
+        # (``AI_SPECIALIST_CONTEXT_TOKEN_LIMIT`` / ``AI_SPECIALIST_CONTEXT_KEEP_RECENT``)
+        # because they hit GLM's ~25-30k-token latency knee (and the 120s
+        # active-time limit) far below the supervisor's 120k threshold — without
+        # a specialist-specific threshold the guard never trims in time and per-turn
+        # context runs away (a live e2e showed 31k prompt_tokens at the 6th call).
+        base = build_backcast_middleware(context, subagent_tools)
+        middleware: list[Any] = [
+            ContextGuardMiddleware(
+                preserve_head=2,
+                token_limit=AI_SPECIALIST_CONTEXT_TOKEN_LIMIT,
+                keep_recent=AI_SPECIALIST_CONTEXT_KEEP_RECENT,
+            ),
+            *base,
+        ]
 
         runnable = langchain_create_agent(
             model=specialist_model,

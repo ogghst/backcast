@@ -305,10 +305,15 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         temporal_tools.set_temporal_context,
         temporal_tools.list_branches,
         context_tools.get_project_context,
+        context_tools.set_project_context,
         context_tools.get_project_structure,
         briefing_tools.get_briefing,
         document_tools.search_documents,
         document_tools.read_document,
+        document_tools.add_document,  # document write (project-documents-write)
+        document_tools.list_folders,  # document folders (read)
+        document_tools.create_folder,  # document folders (write)
+        document_tools.delete_folder,  # document folders (delete)
     ]
     tools.extend(context_tools_list)
 

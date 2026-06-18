@@ -1,16 +1,20 @@
 """Project context tools for AI agent.
 
-Provides read-only access to project context information for the LLM.
-Tools in this module do NOT modify project state - they only provide
-visibility into the current project context.
+Provides read-only access to project context information for the LLM,
+plus set_project_context which establishes/switches the session's
+project scope (RBAC-gated) so project-scoped tools work in general chat.
+All other tools in this module do NOT modify project state - they only
+provide visibility into the current project context.
 """
 
 import asyncio
 import logging
 from typing import Annotated, Any
+from uuid import UUID
 
 from langchain_core.tools import InjectedToolArg
 
+from app.ai.execution.agent_event import AgentEvent
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import (
     add_project_metadata,
@@ -20,6 +24,7 @@ from app.ai.tools.temporal_logging import (
 )
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
+from app.core.versioning.enums import BranchMode
 from app.db.session import DB_CONCURRENCY_SEMAPHORE
 
 logger = logging.getLogger(__name__)
@@ -182,6 +187,119 @@ async def get_project_context(
         }
 
 
+@ai_tool(
+    name="set_project_context",
+    description=(
+        "Establish or switch the project scope for project-scoped tools (documents, "
+        "structure, branches) when chatting without a project open. Pass the project_id "
+        "(e.g. from list_projects). Subsequent tools operate in that project."
+    ),
+    permissions=[],  # Access is gated by the get_accessible_projects RBAC check
+    category="context",
+    risk_level=RiskLevel.LOW,
+)
+async def set_project_context(
+    project_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Establish or switch the project scope for this session.
+
+    Used in general (no-project) chat to scope project-aware tools to a known
+    project. The target project must be accessible to the user (verified via
+    ``get_accessible_projects``), so this grants no access the user does not
+    already have via ``list_projects``/``get_project``.
+
+    Args:
+        project_id: Project UUID string (e.g. from list_projects).
+        context: Injected tool execution context.
+
+    Returns:
+        Dictionary with success status and the resolved project details, or an
+        error dict on invalid/inaccessible/not-found project.
+    """
+    # Validate UUID format
+    try:
+        project_uuid = UUID(project_id)
+    except (ValueError, TypeError, AttributeError):
+        return {"error": f"Invalid project ID: {project_id}"}
+
+    old_project_id = context.project_id
+
+    try:
+        # RBAC: reject any project the user cannot already access
+        set_unified_rbac_session(context.session)
+        unified_service = get_unified_rbac_service()
+        accessible_project_ids = await unified_service.get_accessible_projects(
+            user_id=UUID(context.user_id),
+        )
+
+        if project_uuid not in accessible_project_ids:
+            return {"error": "Access denied to this project"}
+
+        # Confirm the project exists (read from main branch, merged mode)
+        project = await context.project_service.get_as_of(
+            entity_id=project_uuid,
+            as_of=None,
+            branch="main",
+            branch_mode=BranchMode.MERGED,
+        )
+        if not project:
+            return {"error": f"Project {project_id} not found"}
+
+        # Mutate the shared context in place (branches are project-specific -
+        # reset to main/merged on switch)
+        context.project_id = str(project_uuid)
+        context.branch_name = "main"
+        context.branch_mode = "merged"
+
+        # Persist so the project scope survives to the next turn (the
+        # ToolContext is rebuilt from the session row each execution).
+        # Best-effort: the in-memory mutation above already makes the current
+        # turn work.
+        if context.session_id:
+            try:
+                from sqlalchemy import update as sa_update
+
+                from app.db.session import async_session_maker
+                from app.models.domain.ai import AIConversationSession
+
+                async with async_session_maker() as db:
+                    await db.execute(
+                        sa_update(AIConversationSession)
+                        .where(AIConversationSession.id == context.session_id)
+                        .values(project_id=str(project_uuid))
+                    )
+                    await db.commit()
+            except Exception as exc:
+                logger.warning("Failed to persist project context to session: %s", exc)
+
+        # Publish event for frontend (mirror set_temporal_context)
+        if context._event_bus is not None:
+            context._event_bus.publish(
+                AgentEvent(
+                    event_type="project_context_change",
+                    data={
+                        "project_id": str(project_uuid),
+                        "project_name": project.name,
+                        "project_code": project.code,
+                    },
+                )
+            )
+
+        return {
+            "success": True,
+            "project_id": str(project_uuid),
+            "project_name": project.name,
+            "project_code": project.code,
+            "changes": {
+                "project_id": {"from": old_project_id, "to": str(project_uuid)},
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error in set_project_context: {e}")
+        return {"error": str(e)}
+
+
 def _build_wbs_tree(
     wbs_elements: list[Any],
     work_packages_by_wbs: dict[str, list[dict[str, Any]]],
@@ -289,7 +407,8 @@ async def get_project_structure(
     # Require project context
     if not context.project_id:
         return {
-            "error": "No project context. Navigate to a project chat to use this tool.",
+            "error": "No project context. Call set_project_context(project_id) "
+            "first, or open a project.",
         }
 
     try:

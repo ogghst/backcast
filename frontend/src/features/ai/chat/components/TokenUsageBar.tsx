@@ -46,7 +46,7 @@ export const TokenUsageBar = ({ token_usage }: TokenUsageBarProps) => {
   const hasData = useMemo(() => prompt > 0 || completion > 0 || total > 0, [prompt, completion, total]);
   if (!hasData) return null;
 
-  const valueFont = "'Ubuntu', monospace";
+  const valueFont = "'Rubik', monospace";
 
   const dividerStyle = {
     width: 1,

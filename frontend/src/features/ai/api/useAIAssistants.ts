@@ -104,7 +104,6 @@ export const useCreateAIAssistant = (
       toast.error(`Error creating AI assistant: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -131,7 +130,6 @@ export const useUpdateAIAssistant = (
       toast.error(`Error updating AI assistant: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -154,6 +152,5 @@ export const useDeleteAIAssistant = (
       toast.error(`Error deleting AI assistant: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };

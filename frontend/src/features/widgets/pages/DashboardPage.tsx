@@ -7,6 +7,7 @@ import { registerAllWidgets } from "../definitions/registerAll";
 import { useDashboardPersistence } from "../api/useDashboardPersistence";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
 import { DashboardErrorBoundary } from "./DashboardErrorBoundary";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 // Register all widget types into the global registry.
 registerAllWidgets();
@@ -113,11 +114,7 @@ export function DashboardPage() {
     <DashboardErrorBoundary>
       {contextHolder}
       <DashboardContextBus projectId={projectId}>
-        <div
-          style={{
-            padding: token.paddingMD,
-          }}
-        >
+        <PageWrapper>
           {isLoading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: token.paddingMD }}>
               <Skeleton.Input active block style={{ height: 48 }} />
@@ -129,7 +126,7 @@ export function DashboardPage() {
           ) : (
             <DashboardGrid onSave={save} />
           )}
-        </div>
+        </PageWrapper>
       </DashboardContextBus>
     </DashboardErrorBoundary>
   );

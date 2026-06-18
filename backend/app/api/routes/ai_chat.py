@@ -24,6 +24,7 @@ from app.ai.agent_service import AgentService
 from app.ai.briefing import BriefingDocument
 from app.ai.event_types import AgentEventType, ExecutionStatus
 from app.ai.execution.agent_event_bus import AgentEventBus
+from app.ai.execution.lifecycle import execution_lifecycle
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.tools.types import ExecutionMode
 from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
@@ -38,7 +39,11 @@ from app.models.domain.ai import (
 )
 from app.models.domain.user import User
 from app.models.schemas.ai import (
+    AgentExecutionHistoryContext,
+    AgentExecutionHistoryItem,
+    AgentExecutionHistoryPaginated,
     AgentExecutionPublic,
+    AgentExecutionRunningCount,
     AIConversationMessagePublic,
     AIConversationSessionPaginated,
     AIConversationSessionPublic,
@@ -541,6 +546,129 @@ async def get_execution_status(
     return AgentExecutionPublic.model_validate(execution)
 
 
+@router.get(
+    "/executions",
+    response_model=AgentExecutionHistoryPaginated,
+    operation_id="list_agent_executions",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def list_agent_executions(
+    status: str | None = Query(
+        None, description="Filter by execution status (running, completed, ...)"
+    ),
+    limit: int = Query(20, ge=1, description="Page size (max 50)"),
+    offset: int = Query(0, ge=0, description="Page offset"),
+    current_user: UserIdentity = Depends(get_current_user),
+    config_service: AIConfigService = Depends(get_ai_config_service),
+) -> AgentExecutionHistoryPaginated:
+    """List the current user's agent executions for the Agents History page.
+
+    Returns executions newest-first, optionally filtered by status, joined
+    with the owning conversation session (for ownership + context) and the
+    assistant config (for the display name).
+    """
+    limit = min(limit, 50)  # Cap at 50, mirroring sessions pagination.
+
+    rows, total, has_more = await config_service.list_executions_paginated(
+        user_id=current_user.user_id,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
+
+    items: list[AgentExecutionHistoryItem] = []
+    for row in rows:
+        execution = row[0]
+        session_context = row[1] or {}
+        context = AgentExecutionHistoryContext(
+            type=session_context.get("type"),
+            name=session_context.get("name"),
+            project_id=str(row[2]) if row[2] is not None else None,
+            branch_id=str(row[3]) if row[3] is not None else None,
+        )
+        items.append(
+            AgentExecutionHistoryItem(
+                id=execution.id,
+                name=execution.name,
+                status=execution.status,
+                execution_mode=execution.execution_mode,
+                run_in_background=execution.run_in_background,
+                started_at=execution.started_at,
+                completed_at=execution.completed_at,
+                session_id=execution.session_id,
+                context=context,
+                assistant_name=row[4],
+                total_tokens=execution.total_tokens,
+                tool_calls_count=execution.tool_calls_count,
+            )
+        )
+
+    return AgentExecutionHistoryPaginated(items=items, total=total, has_more=has_more)
+
+
+@router.get(
+    "/executions/running-count",
+    response_model=AgentExecutionRunningCount,
+    operation_id="count_running_agent_executions",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def count_running_agent_executions(
+    current_user: UserIdentity = Depends(get_current_user),
+    config_service: AIConfigService = Depends(get_ai_config_service),
+) -> AgentExecutionRunningCount:
+    """Count the user's currently-active executions (running or awaiting approval).
+
+    Lightweight endpoint for the Agents History menu badge.
+    """
+    count = await config_service.count_running_executions(current_user.user_id)
+    return AgentExecutionRunningCount(count=count)
+
+
+@router.post(
+    "/executions/{execution_id}/stop",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="stop_agent_execution",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def stop_agent_execution(
+    execution_id: UUID,
+    current_user: UserIdentity = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Stop a running agent execution (the Agents History Stop button).
+
+    Verifies ownership by checking the execution's session belongs to the
+    current user.  Returns 404 (not 403) for unknown / other-user executions
+    to avoid leaking existence, mirroring :func:`get_execution_status`.
+    """
+    # Fetch execution by id.
+    stmt = select(AIAgentExecution).where(AIAgentExecution.id == execution_id)
+    result = await db.execute(stmt)
+    execution = result.scalar_one_or_none()
+
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    # Verify ownership via session.
+    session_stmt = select(AIConversationSession).where(
+        AIConversationSession.id == execution.session_id
+    )
+    session_result = await db.execute(session_stmt)
+    session = session_result.scalar_one_or_none()
+
+    if session is None or session.user_id != current_user.user_id:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    ok = AgentService.request_stop(str(execution_id))
+    if not ok:
+        # Unknown to the lifecycle or already terminal.
+        raise HTTPException(
+            status_code=404, detail="Execution not found or already terminal"
+        )
+    # 204 No Content — nothing to return.
+    return None
+
+
 @router.post(
     "/executions/{execution_id}/approve",
     operation_id="approve_execution",
@@ -739,9 +867,14 @@ async def chat_stream(
         execution_tasks: set[asyncio.Task[None]] = set()
         current_chat_task: asyncio.Task[None] | None = None
 
-        # Track execution IDs for this WS connection so pending ask_user
-        # futures can be cancelled on disconnect.
-        active_execution_ids: set[str] = set()
+        # Thin transport: this connection attaches a single opaque presence
+        # token (reused across all executions on this socket) to the
+        # transport-agnostic ExecutionLifecycle.  ``observed`` is the per-
+        # connection set of execution_ids we attached so disconnect can detach
+        # each.  The lifecycle (NOT this endpoint) owns grace-stop, stop
+        # signalling, and terminal cleanup decisions.
+        observer_token: object = object()
+        observed: set[str] = set()
 
         # Flag to stop the ping loop when connection closes
         stop_ping = asyncio.Event()
@@ -773,8 +906,26 @@ async def chat_stream(
             start_execution() as background tasks and forward events from
             the AgentEventBus to the WebSocket, while approval responses
             are handled immediately.
+
+            Both the ``subscribe`` (reconnect) and ``chat`` handlers run
+            their live event forwarding as a background task in ``tasks``
+            (via :func:`create_event_forwarding_task`) rather than
+            ``await``ing :func:`forward_bus_events` inline.  Awaiting
+            inline blocks this message loop, which delays
+            ``WebSocketDisconnect`` detection on the next
+            ``receive_json``; for the reconnect path that meant the
+            observer token stayed attached long after the socket was
+            gone, firing the disconnect grace-stop ~minutes late.
             """
             nonlocal current_chat_task, current_session_id
+
+            def create_event_forwarding_task(
+                bus: AgentEventBus,
+                ws: WebSocket,
+                uid: UUID,
+            ) -> asyncio.Task[None]:
+                """Create a background task that forwards bus events to the WebSocket."""
+                return asyncio.create_task(forward_bus_events(bus, ws, user_id=uid))
 
             while True:
                 data = await websocket.receive_json()
@@ -821,8 +972,30 @@ async def chat_stream(
                         if bus.is_completed:
                             continue
 
-                        # Subscribe to live events
-                        await forward_bus_events(bus, websocket, user_id=user_id)
+                        # Re-attach the presence token to the execution.  This
+                        # cancels any pending grace-stop from a PRIOR
+                        # disconnect: a reconnect within the grace window
+                        # keeps the run alive.  Lifecycle ownership stays in
+                        # ExecutionLifecycle; the endpoint only tracks which
+                        # executions to detach on disconnect.
+                        execution_lifecycle.attach(
+                            str(sub_msg.execution_id), observer_token
+                        )
+                        observed.add(str(sub_msg.execution_id))
+
+                        # Forward live events as a transport-scoped background
+                        # task (added to ``tasks`` so the disconnect
+                        # ``finally`` cancels it).  Do NOT ``await`` it inline
+                        # -- that would block this message loop and delay
+                        # ``WebSocketDisconnect`` detection, leaving the
+                        # observer token attached long after the socket died
+                        # (the disconnect grace-stop fired ~minutes late).
+                        forwarding_task = create_event_forwarding_task(
+                            bus, websocket, user_id
+                        )
+                        tasks.add(forwarding_task)
+                        forwarding_task.add_done_callback(tasks.discard)
+                        continue
                     except Exception as sub_err:
                         logger.error(
                             f"Error in subscribe handler for user {user_id}: {sub_err}",
@@ -1016,6 +1189,7 @@ async def chat_stream(
                 exec_bus = runner_manager.create_bus(exec_id)
 
                 exec_mode = request.execution_mode
+                run_bg = request.run_in_background
 
                 # Use a factory to capture loop variables by value, avoiding
                 # late-binding issues (B023) where the closure would reference
@@ -1032,6 +1206,7 @@ async def chat_stream(
                     e_mode: ExecutionMode,
                     e_id: str,
                     e_bus: AgentEventBus,
+                    run_in_background: bool,
                 ) -> asyncio.Task[None]:
                     """Create a background task for start_execution with captured values."""
 
@@ -1051,6 +1226,7 @@ async def chat_stream(
                                 execution_mode=e_mode,
                                 execution_id=e_id,
                                 event_bus=e_bus,
+                                run_in_background=run_in_background,
                             )
                         except Exception as exec_err:
                             logger.error(
@@ -1059,14 +1235,6 @@ async def chat_stream(
                             )
 
                     return asyncio.create_task(run_execution())
-
-                def create_event_forwarding_task(
-                    bus: AgentEventBus,
-                    ws: WebSocket,
-                    uid: UUID,
-                ) -> asyncio.Task[None]:
-                    """Create a background task that forwards bus events to the WebSocket."""
-                    return asyncio.create_task(forward_bus_events(bus, ws, user_id=uid))
 
                 execution_task = create_execution_task(
                     msg=request.message,
@@ -1080,23 +1248,19 @@ async def chat_stream(
                     e_mode=exec_mode,
                     e_id=exec_id,
                     e_bus=exec_bus,
+                    run_in_background=run_bg,
                 )
                 execution_tasks.add(execution_task)
                 current_chat_task = execution_task
                 execution_task.add_done_callback(execution_tasks.discard)
 
-                # Track execution_id for ask_user cancellation on WS disconnect
-                active_execution_ids.add(exec_id)
-
-                def _make_discard_callback(
-                    eid: str,
-                ) -> Any:
-                    def _discard(_: object) -> None:
-                        active_execution_ids.discard(eid)
-
-                    return _discard
-
-                execution_task.add_done_callback(_make_discard_callback(exec_id))
+                # Attach the presence token to the execution so the lifecycle
+                # knows a transport is observing it.  Safe to call even if
+                # ``start_execution`` has not reached ``register`` yet: the
+                # lifecycle holds the token in ``_pending`` until register
+                # pulls it in (attach-before-register race).
+                execution_lifecycle.attach(exec_id, observer_token)
+                observed.add(exec_id)
 
                 # --- Send execution_started immediately ---
                 try:
@@ -1113,13 +1277,19 @@ async def chat_stream(
                     # Continue anyway -- the execution is running
 
                 # --- Forward events from bus to WebSocket (non-blocking) ---
+                # The forwarding task is transport-scoped: it is cancelled on
+                # disconnect (added to ``tasks``) because it is specific to
+                # THIS socket.  The agent execution task stays in
+                # ``execution_tasks`` and outlives the connection -- the
+                # lifecycle's grace-stop / terminate tear it down when the run
+                # ends or the grace window expires with no observer.
                 forwarding_task = create_event_forwarding_task(
                     exec_bus,
                     websocket,
                     user_id,
                 )
-                execution_tasks.add(forwarding_task)
-                forwarding_task.add_done_callback(execution_tasks.discard)
+                tasks.add(forwarding_task)
+                forwarding_task.add_done_callback(tasks.discard)
 
         try:
             # Start ping loop and message handler as background tasks
@@ -1183,26 +1353,24 @@ async def chat_stream(
             tasks.clear()
 
             # Execution tasks are intentionally NOT cancelled here.
-            # They clean up via add_done_callback(execution_tasks.discard).
-            # The start_execution() finally block handles bus cleanup.
+            # They outlive the connection: the transport-agnostic
+            # ExecutionLifecycle owns grace-stop (after
+            # ``settings.AI_DISCONNECT_GRACE_SECONDS`` with no observer) and
+            # terminal ``terminate`` (run by ``start_execution``'s finally
+            # block, which cancels asks + removes the bus).
 
             # Clean up interrupt node for this session
             if current_session_id is not None:
                 agent_service.unregister_interrupt_node(current_session_id)
 
-            # Signal graceful stop and cancel pending asks for this session's executions
-            from app.ai.tools.ask_user import cancel_asks_for_execution
-
-            for eid in list(active_execution_ids):
-                agent_service.request_stop(eid)
-                cancelled = cancel_asks_for_execution(eid)
-                if cancelled:
-                    logger.info(
-                        "Cancelled %d ask_user futures for execution %s on WS disconnect",
-                        cancelled,
-                        eid,
-                    )
-            active_execution_ids.clear()
+            # Thin transport: detach the presence token from every execution
+            # this socket observed.  The lifecycle decides whether to
+            # grace-stop (last observer gone) or keep running (another
+            # observer still attached / a reconnect lands within grace).  The
+            # endpoint no longer owns stop / ask-cancel / cleanup decisions.
+            for eid in list(observed):
+                execution_lifecycle.detach(eid, observer_token)
+            observed.clear()
 
         # Context manager automatically closes the db session
         logger.debug(f"WebSocket connection cleanup completed for user {user_id}")

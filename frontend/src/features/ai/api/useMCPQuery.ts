@@ -89,7 +89,6 @@ export const useCreateMCPServer = (
       toast.error(`Error creating MCP server: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -117,7 +116,6 @@ export const useUpdateMCPServer = (
       toast.error(`Error updating MCP server: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -141,7 +139,6 @@ export const useDeleteMCPServer = (
       toast.error(`Error deleting MCP server: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.domain.ai import (
+    AIAgentExecution,
     AIAssistantConfig,
     AIConversationAttachment,
     AIConversationMessage,
@@ -35,6 +36,22 @@ from app.models.schemas.ai import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _enforce_main_agent_has_model(
+    agent_type: str | None, model_id: str | UUID | None
+) -> None:
+    """Require ``model_id`` for main agents; specialists may omit it.
+
+    Mirrors ``AIAssistantConfigPublic.validate_main_agent_model`` so the same
+    invariant holds at write time, preventing rows that would 500 the list
+    endpoint on read. ``model_id`` accepts either ``UUID`` (schema values) or
+    ``str`` (the ORM column type); only its presence is checked. Raises
+    ``ValueError`` (mapped to an HTTP error by the routes) when a main agent
+    has no model_id.
+    """
+    if agent_type == "main" and model_id is None:
+        raise ValueError("model_id is required for main agents")
 
 
 class AIConfigService:
@@ -312,6 +329,11 @@ class AIConfigService:
             if not model:
                 raise ValueError(f"Model {config_in.model_id} not found")
 
+        # Enforce the same invariant as the read validator at write time so
+        # invalid main-agent rows can never be created (defense-in-depth: the
+        # Create schema already rejects this at the API boundary with a 422).
+        _enforce_main_agent_has_model(config_in.agent_type, config_in.model_id)
+
         config = AIAssistantConfig(
             name=config_in.name,
             description=config_in.description,
@@ -346,6 +368,11 @@ class AIConfigService:
         update_data = config_in.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(config, key, value)
+
+        # Enforce the same invariant as the read validator on the MERGED result,
+        # so a partial update can't leave a main agent without a model_id (e.g.
+        # flipping agent_type to "main" or clearing model_id).
+        _enforce_main_agent_has_model(config.agent_type, config.model_id)
 
         await self.session.flush()
 
@@ -450,6 +477,104 @@ class AIConfigService:
         """
         stmt = select(func.count(AIConversationSession.id)).where(
             AIConversationSession.user_id == user_id
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def list_executions_paginated(
+        self,
+        user_id: UUID,
+        status: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Any], int, bool]:
+        """List a user's agent executions, newest-first, with pagination.
+
+        Joins ``AIAgentExecution -> AIConversationSession`` filtered by the
+        session's owner, optionally filters by execution status, and
+        left-joins ``ai_assistant_configs`` for the assistant display name.
+        Mirrors the shape of :meth:`list_sessions_paginated`.
+
+        Args:
+            user_id: Owner to filter executions by (via the session).
+            status: Optional ``AIAgentExecution.status`` filter (e.g.
+                ``"running"``, ``"completed"``).
+            limit: Page size (capped by the caller at 50).
+            offset: Page offset.
+
+        Returns:
+            Tuple of ``(rows, total, has_more)`` where each ``row`` is a
+            SQLAlchemy Row with the execution columns plus ``session_id``,
+            the session's ``context`` JSONB, ``project_id``, ``branch_id``,
+            and the assistant ``assistant_name`` (NULL if no assistant).
+        """
+        # Fetch one extra to compute has_more.
+        stmt = (
+            select(
+                AIAgentExecution,
+                AIConversationSession.context.label("session_context"),
+                AIConversationSession.project_id.label("session_project_id"),
+                AIConversationSession.branch_id.label("session_branch_id"),
+                AIAssistantConfig.name.label("assistant_name"),
+            )
+            .join(
+                AIConversationSession,
+                AIConversationSession.id == AIAgentExecution.session_id,
+            )
+            .outerjoin(
+                AIAssistantConfig,
+                AIAssistantConfig.id == AIConversationSession.assistant_config_id,
+            )
+            .where(AIConversationSession.user_id == user_id)
+        )
+        if status is not None:
+            stmt = stmt.where(AIAgentExecution.status == status)
+        stmt = (
+            stmt.order_by(AIAgentExecution.started_at.desc())
+            .offset(offset)
+            .limit(limit + 1)
+        )
+        result = await self.session.execute(stmt)
+        rows = list(result.all())
+
+        has_more = len(rows) > limit
+        if has_more:
+            rows = rows[:limit]
+
+        # Total count (with the same user + optional status filter).
+        count_stmt = (
+            select(func.count(AIAgentExecution.id))
+            .join(
+                AIConversationSession,
+                AIConversationSession.id == AIAgentExecution.session_id,
+            )
+            .where(AIConversationSession.user_id == user_id)
+        )
+        if status is not None:
+            count_stmt = count_stmt.where(AIAgentExecution.status == status)
+        total = (await self.session.execute(count_stmt)).scalar_one()
+
+        return rows, total, has_more
+
+    async def count_running_executions(self, user_id: UUID) -> int:
+        """Count a user's executions in an active state (menu badge).
+
+        Args:
+            user_id: Owner to count executions for (via the session).
+
+        Returns:
+            Number of the user's executions with status in
+            ``("running", "awaiting_approval")``.
+        """
+        active = ("running", "awaiting_approval")
+        stmt = (
+            select(func.count(AIAgentExecution.id))
+            .join(
+                AIConversationSession,
+                AIConversationSession.id == AIAgentExecution.session_id,
+            )
+            .where(AIConversationSession.user_id == user_id)
+            .where(AIAgentExecution.status.in_(active))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one()

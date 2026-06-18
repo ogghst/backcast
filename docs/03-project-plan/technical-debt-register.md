@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-06-13
-**Total Open Items:** 8
-**Total Estimated Effort:** ~8.5 days
+**Last Updated:** 2026-06-18
+**Total Open Items:** 9
+**Total Estimated Effort:** ~9 days
 
 ---
 
@@ -292,13 +292,26 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
+### [TD-122] Background Execution Blocked on `ask_user` Has No "Awaiting Input" Signal
+
+- **Source:** Background-execution e2e + functional review (2026-06-18) — analysis of how `ask_user` behaves in background mode
+- **Description:** A background execution (`run_in_background=true`) that blocks on `ask_user` (an in-process `asyncio.Future`, fully decoupled from the WebSocket) presents as `status=running` everywhere — the Agents History table, the user-menu running-count badge, and `GET /executions/running-count`. There is no distinct "awaiting user input" state, so nothing tells the user "this run is waiting for you." The ask itself is correct: it survives the disconnect and is re-surfaced on reload (the bus replays the `ASK_USER` event → the chat modal opens). But if the user never reopens the chat, the ask silently times out at `AI_ASK_USER_TIMEOUT_SECONDS=300` and the agent proceeds with `{"error": "User did not respond within 300 seconds"}`. The gap is **discoverability/surfacing, not correctness.**
+- **Impact:** A user who starts a background run and navigates away is never notified it's blocked on their input; the run may proceed with an unanswered-question error or waste the 300s window. This degrades the scheduled-agents future, where the Agents History page is the primary live surface for headless runs.
+- **Estimated Effort:** 4 hours
+- **Status:** Open
+- **Owner:** Frontend Developer (backend already exposes enough; optional `is_awaiting_user` flag if client-side inference is undesirable)
+- **Priority:** P3 (Medium)
+- **Suggested Approach:** Two complementary options — (a) surface an "awaiting input" display state: derive it client-side from the running execution's pending ask, render a distinct Tag/badge color + tooltip on the Agents History row and a badge variant in the user menu (the backend `ask_user` module already tracks `_awaiting_user` per execution; optionally expose `is_awaiting_user` on the `AgentExecutionHistoryItem` to avoid inference); and/or (b) add an "Answer" action on the Agents History row that deep-links into the chat scoped to that execution so the replayed ask modal opens immediately. Fits naturally alongside the WS live-updates iteration (`docs/02-architecture/backend/contexts/ai/ws-agent-history-live-updates.md`).
+
+---
+
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 3 | ~5 days |
-| Medium (P2-P3) | 5 | ~3.5 days |
-| **Total** | **8** | **~8.5 days** |
+| Medium (P2-P3) | 6 | ~4 days |
+| **Total** | **9** | **~9 days** |
 
 ---
 

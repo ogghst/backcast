@@ -101,7 +101,6 @@ export const useCreateAIProvider = (
       toast.error(`Error creating AI provider: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -128,7 +127,6 @@ export const useUpdateAIProvider = (
       toast.error(`Error updating AI provider: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };
 
@@ -151,6 +149,5 @@ export const useDeleteAIProvider = (
       toast.error(`Error deleting AI provider: ${error.message}`);
       options?.onError?.(error, ...args);
     },
-    ...options,
   });
 };

@@ -108,6 +108,10 @@ describe("useAIModels", () => {
 
   describe("useCreateAIModel", () => {
     it("should create model and invalidate cache", async () => {
+      // Mount an active observer for the provider's model list so that
+      // invalidation triggers a visible refetch. includeInactive=true is used
+      // because the mutation invalidates models.list(providerId, true).
+      mockAxios.get.mockResolvedValue({ data: mockModels });
       mockAxios.post.mockResolvedValueOnce({
         data: {
           id: "3",
@@ -121,6 +125,13 @@ describe("useAIModels", () => {
       });
 
       const onSuccess = vi.fn();
+      const { result: modelsResult } = renderHook(
+        () => useAIModels("provider-1", true),
+        { wrapper },
+      );
+      await waitFor(() => expect(modelsResult.current.isSuccess).toBe(true));
+      const initialGetCalls = mockAxios.get.mock.calls.length;
+
       const { result } = renderHook(() => useCreateAIModel({ onSuccess }), { wrapper });
 
       let created: unknown;
@@ -136,6 +147,15 @@ describe("useAIModels", () => {
 
       expect((created as Record<string, unknown>)?.model_id).toBe("gpt-4-turbo");
       expect(onSuccess).toHaveBeenCalledOnce();
+      // The built-in onSuccess (invalidateQueries) must run even though the
+      // caller passed its own onSuccess. Under the old code, `...options`
+      // overrode the built-in handler, so no refetch occurred. Here we assert
+      // the active list query was refetched after the mutation.
+      await waitFor(() => {
+        expect(mockAxios.get.mock.calls.length).toBeGreaterThan(initialGetCalls);
+      });
+      const lastGetUrl = mockAxios.get.mock.calls.at(-1)?.[0] as string;
+      expect(lastGetUrl).toContain("/providers/provider-1/models");
     });
   });
 });
@@ -180,6 +200,10 @@ describe("useAIProviderConfigs", () => {
 
   describe("useSetAIProviderConfig", () => {
     it("should set config and invalidate cache", async () => {
+      // Mount an active observer for the provider's config list so that
+      // invalidation triggers a visible refetch. Under the old code, the
+      // caller's onSuccess overrode the built-in handler and no refetch ran.
+      mockAxios.get.mockResolvedValue({ data: mockConfigs });
       mockAxios.post.mockResolvedValueOnce({
         data: {
           id: "3",
@@ -191,6 +215,13 @@ describe("useAIProviderConfigs", () => {
           updated_at: "2026-03-07T00:00:00Z",
         },
       });
+
+      const { result: configsResult } = renderHook(
+        () => useAIProviderConfigs("provider-1"),
+        { wrapper },
+      );
+      await waitFor(() => expect(configsResult.current.isSuccess).toBe(true));
+      const initialGetCalls = mockAxios.get.mock.calls.length;
 
       const onSuccess = vi.fn();
       const { result } = renderHook(() => useSetAIProviderConfig({ onSuccess }), { wrapper });
@@ -205,6 +236,11 @@ describe("useAIProviderConfigs", () => {
 
       expect((created as Record<string, unknown>)?.is_encrypted).toBe(true);
       expect(onSuccess).toHaveBeenCalledOnce();
+      await waitFor(() => {
+        expect(mockAxios.get.mock.calls.length).toBeGreaterThan(initialGetCalls);
+      });
+      const lastGetUrl = mockAxios.get.mock.calls.at(-1)?.[0] as string;
+      expect(lastGetUrl).toContain("/providers/provider-1/configs");
     });
   });
 

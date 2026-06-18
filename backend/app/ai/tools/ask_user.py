@@ -15,6 +15,7 @@ from uuid import uuid4
 from langchain_core.tools import InjectedToolArg
 from pydantic import BeforeValidator
 
+from app.ai.config import AI_MAX_ASK_USER_PER_EXECUTION
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import RiskLevel, ToolContext
@@ -45,6 +46,14 @@ def _coerce_options_list(v: Any) -> Any:
 # Module-level registry for in-flight ask_user requests.
 # Key: ask_id (str), Value: (future, execution_id) tuple.
 _pending_asks: dict[str, tuple[asyncio.Future[str], str]] = {}
+
+# Per-execution count of USER-FACING ask_user prompts published so far.  Drives
+# the hard cap (AI_MAX_ASK_USER_PER_EXECUTION) that makes runaway re-asking
+# structurally impossible.  Keyed by execution_id (unique per run).  Mirrors
+# ``_pending_asks`` lifecycle: cleared on stop/disconnect (see
+# ``cancel_asks_for_execution``) and on normal completion (see agent_service
+# ``start_execution`` teardown).
+_ask_counts: dict[str, int] = {}
 
 # execution_ids currently BLOCKED awaiting a human answer. The specialist
 # step-timeout watchdog reads this (via ``is_awaiting_user``) to PAUSE its
@@ -123,6 +132,9 @@ def cancel_asks_for_execution(execution_id: str) -> int:
                 future.cancel()
                 cancelled += 1
             cleanup_ask(ask_id)
+    # Drop the per-execution ask count too so a future run with a (theoretically
+    # impossible but defensively handled) reused execution_id starts fresh.
+    _ask_counts.pop(execution_id, None)
     return cancelled
 
 
@@ -141,15 +153,13 @@ def is_ask_user_pending() -> bool:
 @ai_tool(
     name="ask_user",
     description=(
-        "Ask the user a clarifying question and BLOCK until they answer. This "
-        "is the ONLY sanctioned way to put a question to the user — never ask "
-        "a question as plain text in your reply. Call this whenever you would "
-        "otherwise write 'which?', 'do you want…?', or 'what should I use "
-        "for…?'. When the set of possible answers is small and known, pass "
-        "them as `options` so the user answers with one click instead of "
-        'typing (e.g. options=["Robot Cell A","Assembly Station 1"]). Use '
-        "`why` for one line of context. Prefer this over guessing or stalling "
-        "— one precise question unblocks the whole task."
+        "For genuinely-missing critical info only; NEVER re-ask something "
+        "already answered. "
+        "Ask the user a clarifying question and BLOCK until they answer — the ONLY "
+        "sanctioned way to put a question to the user (never ask questions as plain "
+        "text in your reply). When the answer set is small and known, pass it as "
+        '\'options\' (e.g. ["Robot Cell A","Assembly Station 1"]) for one-click '
+        "answers; use 'why' for one line of context. Prefer this over guessing."
     ),
     permissions=[],
     category="interaction",
@@ -187,6 +197,25 @@ async def ask_user(
     ask_id = str(uuid4())
     execution_id = context._event_bus.execution_id
 
+    # Hard per-execution cap on USER-FACING ask_user prompts.  Enforced BEFORE
+    # creating the future / publishing / marking awaiting-user so a capped call
+    # never blocks and never trips the pausable-timeout watchdog.  Returns the
+    # tool's OWN synthetic value (like the timeout ``{"error": ...}`` path) so
+    # the model proceeds with gathered information instead of asking again.
+    if _ask_counts.get(execution_id, 0) >= AI_MAX_ASK_USER_PER_EXECUTION:
+        logger.info(
+            "ask_user capped for execution %s (limit=%d); returning synthetic answer",
+            execution_id,
+            AI_MAX_ASK_USER_PER_EXECUTION,
+        )
+        return {
+            "answer": (
+                "Clarification limit reached. Proceed using the information "
+                "already gathered in the conversation; do not ask the user again."
+            ),
+            "capped": True,
+        }
+
     # Create a Future that will be resolved by resolve_ask_user_response().
     loop = asyncio.get_running_loop()
     future: asyncio.Future[str] = loop.create_future()
@@ -217,6 +246,10 @@ async def ask_user(
             timestamp=datetime.now(UTC),
         )
     )
+    # Count this USER-FACING prompt toward the per-execution cap.  Incrementing
+    # at publish time (not on resolve) so a prompt that the user ignores still
+    # counts: the cap bounds prompts SHOWN, not prompts answered.
+    _ask_counts[execution_id] = _ask_counts.get(execution_id, 0) + 1
     logger.info("ask_user published: ask_id=%s, question=%.80s", ask_id, question)
 
     try:
@@ -230,6 +263,26 @@ async def ask_user(
             "ask_user timed out: ask_id=%s after %.0fs", ask_id, timeout_seconds
         )
         return {"error": f"User did not respond within {timeout_seconds:.0f} seconds"}
+    except asyncio.CancelledError:
+        # The future was cancelled out from under us -- this happens when
+        # the execution was stopped (user stop / WS disconnect grace) while
+        # blocked awaiting a human.  ``ExecutionLifecycle.request_stop``
+        # cancels pending asks so a hung ask_user cannot hold the graph
+        # past a stop (it would otherwise block for the full
+        # ``AI_ASK_USER_TIMEOUT_SECONDS`` and the surrounding
+        # ``astream_events`` step would not unwind).  Return a synthetic
+        # value (mirroring the timeout/cap paths) so the supervisor tool
+        # call completes cleanly; the graph-level pausable deadline /
+        # supervisor stop check then finalizes the execution as ``stopped``
+        # rather than letting the cancellation propagate as a tool error.
+        logger.info("ask_user cancelled (execution stop): ask_id=%s", ask_id)
+        return {
+            "answer": (
+                "Clarification cancelled: the execution was stopped. Stop "
+                "and do not ask the user again."
+            ),
+            "cancelled": True,
+        }
     finally:
         clear_awaiting_user(execution_id)
         cleanup_ask(ask_id)

@@ -57,12 +57,10 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="find_change_orders",
     description=(
-        "Find change orders by ID or search/filter. "
-        "IMPORTANT: results are paginated — the returned list may be a SUBSET of all matching results. "
-        "Always check 'total' and 'has_more' in the response: if has_more=true or total exceeds the returned count, "
-        "more pages exist. Use the 'page' and 'limit' parameters to retrieve additional pages. "
-        "Do NOT assume the first page contains all results — if you don't find what you need, page forward. "
-        "Use 'search' to narrow results before paging."
+        "Find change orders by ID or search/filter (optional project_id, status: "
+        "Draft/Pending/Approved/Rejected). "
+        "Paginated — check 'total'/'has_more' and page forward with 'page'/'limit', "
+        "narrow with 'search' first."
     ),
     permissions=["change-order-read"],
     category="change-orders",
