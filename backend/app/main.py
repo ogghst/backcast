@@ -90,30 +90,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         logger.warning("[STARTUP] dashboard_templates FAILED", exc_info=True)
 
-    # Initialize RBAC (critical)
-    _t0 = _time.time()
+    # Seed users and RBAC FIRST (idempotent, safe on every startup).
+    # Must run before the RBAC permissions cache refresh below so the cache
+    # never snapshots a pre-seed role state (which would serve stale
+    # permissions for up to the cache TTL).
     from app.db.session import async_session_maker
 
-    async with async_session_maker() as session:
-        from app.core.config import settings as app_settings
-
-        if app_settings.RBAC_PROVIDER == "database":
-            # NOTE: Old DataSeeder has been removed during ANSI-748 restructuring.
-            # RBAC seeding is now handled via seed JSON files in the seed/ directory.
-            pass
-
-            from app.core.rbac_unified import (
-                get_unified_rbac_service,
-                rbac_session,
-            )
-
-            async with rbac_session(session):
-                unified_svc = get_unified_rbac_service()
-                await unified_svc.refresh_permissions_cache()
-
-    logger.info("[STARTUP] rbac_init OK %.0fms", (_time.time() - _t0) * 1000)
-
-    # Seed users and RBAC (idempotent, safe on every startup)
     try:
         _t0 = _time.time()
         from app.db.seed_users_rbac import seed_users_and_rbac
@@ -124,6 +106,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("[STARTUP] users_rbac_seed OK %.0fms", (_time.time() - _t0) * 1000)
     except Exception:
         logger.warning("[STARTUP] users_rbac_seed FAILED", exc_info=True)
+
+    # Initialize RBAC permissions cache (runs AFTER seeding so it reflects
+    # the fully-seeded role/permission state).
+    _t0 = _time.time()
+    async with async_session_maker() as session:
+        from app.core.config import settings as app_settings
+
+        if app_settings.RBAC_PROVIDER == "database":
+            from app.core.rbac_unified import (
+                get_unified_rbac_service,
+                rbac_session,
+            )
+
+            async with rbac_session(session):
+                unified_svc = get_unified_rbac_service()
+                await unified_svc.refresh_permissions_cache()
+
+    logger.info("[STARTUP] rbac_init OK %.0fms", (_time.time() - _t0) * 1000)
 
     # Notify admins of system startup
     from app.core.notifications import notifier

@@ -2,7 +2,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import type { UserPublic, Permission, Role } from "../types/auth";
-import { refreshAccessToken as apiRefreshAccessToken, logoutUser as apiLogoutUser } from "../api/auth";
+import {
+  getCurrentUser,
+  refreshAccessToken as apiRefreshAccessToken,
+  logoutUser as apiLogoutUser,
+} from "../api/auth";
 
 interface AuthState {
   user: UserPublic | null;
@@ -108,6 +112,23 @@ export const useAuthStore = create<AuthState>()(
               tokenExpiresAt: Date.now() + 60 * 60 * 1000, // 60 minutes from now
               isAuthenticated: true,
             });
+
+            // Refresh user/permissions alongside the token so role or permission
+            // changes are picked up without requiring a re-login. Best-effort: a
+            // failure here must not invalidate the freshly-rotated access token.
+            try {
+              const freshUser = await getCurrentUser();
+              set({
+                user: freshUser,
+                permissions: freshUser.permissions ?? [],
+              });
+            } catch (refreshError) {
+              console.error(
+                "Token refreshed but failed to reload user permissions:",
+                refreshError,
+              );
+            }
+
             return true;
           } catch (error) {
             console.error("Failed to refresh access token:", error);
