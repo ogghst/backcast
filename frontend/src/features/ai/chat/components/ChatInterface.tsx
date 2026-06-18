@@ -47,7 +47,9 @@ import type { WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
 import { useExecutionMode } from "../../hooks/useExecutionMode";
+import { useRunInBackground } from "../../hooks/useRunInBackground";
 import { useLastAssistantId } from "../../hooks/useLastAssistantId";
+import { useStopExecution } from "../api/useAgentExecutions";
 import { ApprovalDialog } from "../../components/ApprovalDialog";
 import { useAIChatContext } from "@/hooks/navigation/useAIChatContext";
 import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
@@ -65,6 +67,8 @@ interface ChatInterfaceProps {
   // URL params can be passed in for direct linking
   sessionId?: string;
   assistantId?: string;
+  // Optional execution ID for deep-linking (e.g. from Agents History)
+  executionId?: string;
   // Optional project ID to scope chat to a specific project
   projectId?: string;
   // Optional context to override route-based detection
@@ -308,6 +312,7 @@ export const AskUserModal = ({ open, request, onSubmit, onCancel }: AskUserModal
 export const ChatInterface = ({
   sessionId: initialSessionId,
   assistantId: initialAssistantId,
+  executionId,
   projectId,
   contextOverride,
 }: ChatInterfaceProps) => {
@@ -510,6 +515,11 @@ export const ChatInterface = ({
     const assistantId = currentSession.assistant_config_id;
     return !activeAssistants.some((a) => a.is_active && a.agent_type === "main" && a.id === assistantId);
   }, [currentSessionId, currentSession, activeAssistants]);
+
+  // Active execution id: prefer the live session, fall back to a deep-link prop
+  // so a subscribe fires even before the session query resolves. Declared early
+  // because useStreamingChat (below) consumes it.
+  const activeExecutionId = currentSession?.active_execution?.id ?? executionId ?? null;
 
   const prevSessionIdRef = useRef<string | undefined>(currentSession?.id);
 
@@ -1150,7 +1160,7 @@ export const ChatInterface = ({
     assistantId: selectedAssistantId ?? "",
     projectId,
     context,
-    activeExecutionId: currentSession?.active_execution?.id ?? null,
+    activeExecutionId,
     onToken: handleToken,
     onComplete: handleComplete,
     onError: handleError,
@@ -1167,11 +1177,29 @@ export const ChatInterface = ({
     onBriefingUpdate: handleBriefingUpdate,
     onPlanUpdate: handlePlanUpdate,
     onExecutionStatus: useCallback((executionId: string, status: string, sessionId: string) => {
-      // Invalidate sessions cache to pick up execution status changes
-      void executionId; // Unused but kept for interface consistency
-      void status; // Unused but kept for interface consistency
-      void sessionId; // Unused but kept for interface consistency
+      // Always invalidate sessions cache to pick up execution status changes
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
+      void executionId; // kept for interface consistency
+
+      // Treat stopped/error as terminal. The backend's stop path publishes
+      // execution_status: stopped WITHOUT a subsequent complete event, so
+      // without this branch the UI would hang in the streaming state forever.
+      // Mirror the UI reset that handleComplete performs.
+      if (status === "stopped" || status === "error") {
+        setIsWaitingForResponse(false);
+        setShowStreamSeparator(false);
+        setToolJustFinished(false);
+        contentResetOccurredRef.current = false;
+        globalSequenceRef.current = 0;
+        setStreamingState(EMPTY_STREAMING_STATE);
+        setPendingUserMessage(null);
+        planFilterRef.current.reset();
+        if (sessionId) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.ai.chat.messages(sessionId),
+          });
+        }
+      }
     }, [queryClient]),
     onTemporalContextChange: useCallback((change: WSTemporalContextChangeMessage) => {
       const store = useTimeMachineStore.getState();
@@ -1265,6 +1293,13 @@ export const ChatInterface = ({
 
   // Execution mode hook for managing AI tool risk level
   const { executionMode, setExecutionMode } = useExecutionMode();
+
+  // Background-execution composer toggle (sticky per-send)
+  const [runInBackground, setRunInBackground] = useRunInBackground();
+
+  // Server-side stop mutation. Falls back to client cancel when there is no
+  // execution id to stop.
+  const stopExecutionMutation = useStopExecution();
 
   // Handle new chat
   const handleNewChat = useCallback(() => {
@@ -1428,16 +1463,26 @@ export const ChatInterface = ({
         executionMode,
         pendingAttachments.length > 0 ? pendingAttachments : undefined,
         undefined, // images
+        runInBackground,
       );
 
       // Clear attachments after sending
       setPendingAttachments([]);
     },
-    [selectedAssistantId, streamingChat, currentSessionId, executionMode, pendingAttachments]
+    [selectedAssistantId, streamingChat, currentSessionId, executionMode, pendingAttachments, runInBackground]
   );
 
-  // Handle canceling the current stream
+  // Handle canceling the current stream.
+  //
+  // If we have an active execution id we POST /executions/{id}/stop and KEEP
+  // the WebSocket open to receive the terminal event (which triggers cleanup
+  // in onExecutionStatus). Only when there is no execution to stop (e.g. the
+  // request never started) do we fall back to the client-only socket close.
   const handleCancel = useCallback(() => {
+    if (activeExecutionId) {
+      stopExecutionMutation.mutate(activeExecutionId);
+      return;
+    }
     streamingChat.cancel();
     setStreamingState(EMPTY_STREAMING_STATE);
     setIsWaitingForResponse(false);
@@ -1447,7 +1492,7 @@ export const ChatInterface = ({
     globalSequenceRef.current = 0; // Reset sequence counter on cancel
     setPendingUserMessage(null);
     planFilterRef.current.reset();
-  }, [streamingChat]);
+  }, [activeExecutionId, stopExecutionMutation, streamingChat]);
 
   // Handle approval decision
   const handleApproval = useCallback((approved: boolean) => {
@@ -1936,6 +1981,8 @@ export const ChatInterface = ({
                 connectionState={streamingChat.connectionState}
                 executionMode={executionMode}
                 onExecutionModeChange={setExecutionMode}
+                runInBackground={runInBackground}
+                onRunInBackgroundChange={setRunInBackground}
                 onAttachmentsChange={handleAttachmentsChange}
                 placeholder={
                   isAssistantInactive

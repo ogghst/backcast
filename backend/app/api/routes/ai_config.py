@@ -321,7 +321,10 @@ async def create_assistant_config(
     service: AIConfigService = Depends(get_ai_config_service),
 ) -> AIAssistantConfigPublic:
     """Create a new assistant configuration."""
-    config = await service.create_assistant_config(config_in)
+    try:
+        config = await service.create_assistant_config(config_in)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     if config.agent_type == "specialist":
         _invalidate_specialist_cache()
     _invalidate_llm_caches()

@@ -435,7 +435,10 @@ class AgentService:
 
     @classmethod
     def _register_stop_event(
-        cls, execution_id: str, bus: AgentEventBus
+        cls,
+        execution_id: str,
+        bus: AgentEventBus,
+        run_in_background: bool = False,
     ) -> asyncio.Event:
         """Create and register a stop event for an execution.
 
@@ -455,12 +458,16 @@ class AgentService:
             execution_id: The execution to register a stop event for.
             bus: The execution's event bus (registered with the lifecycle for
                 terminal cleanup).
+            run_in_background: When True the execution survives a transport
+                disconnect (no grace-stop on last-observer detach).
 
         Returns:
             The newly created :class:`asyncio.Event` for *execution_id*.
         """
         event = asyncio.Event()
-        execution_lifecycle.register(execution_id, event, bus)
+        execution_lifecycle.register(
+            execution_id, event, bus, run_in_background=run_in_background
+        )
         cls._stop_events[execution_id] = event
         return event
 
@@ -2408,6 +2415,8 @@ class AgentService:
         execution_id: str,
         session_id: UUID,
         execution_mode: ExecutionMode,
+        run_in_background: bool = False,
+        name: str | None = None,
     ) -> tuple[dict[str, Any] | None, str | None]:
         """Create execution row and capture session context in a short-lived session.
 
@@ -2415,6 +2424,16 @@ class AgentService:
         sets active_execution_id on the conversation session, and returns the
         session context dict plus the session's persisted project_id.  No live
         ORM objects escape — only serializable data.
+
+        Args:
+            execution_id: Pre-generated execution UUID string.
+            session_id: Conversation session UUID.
+            execution_mode: Execution mode stored on the row.
+            run_in_background: When True persisted on the row so the Agents
+                History page and any restart can tell this execution survives
+                disconnects.
+            name: Prompt-derived display name (truncated by caller) persisted
+                on the row for the Agents History page.
 
         Returns:
             Tuple of (session context dict or None, session project_id string or None).
@@ -2439,6 +2458,8 @@ class AgentService:
                 session_id=str(session_id),
                 status=ExecutionStatus.RUNNING,
                 execution_mode=execution_mode.value,
+                run_in_background=run_in_background,
+                name=name,
             )
             db.add(execution)
             await db.commit()
@@ -2574,6 +2595,7 @@ class AgentService:
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
         execution_id: str | None = None,
         event_bus: AgentEventBus | None = None,
+        run_in_background: bool = False,
     ) -> str:
         """Start a background agent execution with its own DB session and event bus.
 
@@ -2610,6 +2632,10 @@ class AgentService:
                 a new UUID is generated.
             event_bus: Optional pre-created event bus. If not provided, a new
                 bus is created and registered with the runner_manager.
+            run_in_background: When True the execution survives a transport
+                disconnect — the lifecycle will NOT grace-stop it on
+                last-observer detach.  Persisted on the execution row and used
+                to derive the Agents History display name from *message*.
 
         Returns:
             execution_id string for tracking the agent execution
@@ -2633,7 +2659,15 @@ class AgentService:
         # Create and register stop event for graceful cancellation.
         # Registering with the transport-agnostic ExecutionLifecycle (source
         # of truth) also registers the bus so terminal cleanup can remove it.
-        stop_event = self._register_stop_event(execution_id, event_bus)
+        # run_in_background makes the lifecycle skip the grace-stop on
+        # last-observer detach so the execution survives a disconnect.
+        stop_event = self._register_stop_event(
+            execution_id, event_bus, run_in_background=run_in_background
+        )
+
+        # Display name for the Agents History page: the user's prompt truncated
+        # to a sensible length (the column cap is 255; 120 keeps the UI tidy).
+        exec_name = message.strip()[:120] if message else None
 
         try:
             # Phase 1: Pre-flight — create execution row, capture context
@@ -2641,6 +2675,8 @@ class AgentService:
                 execution_id,
                 session_id,
                 execution_mode,
+                run_in_background=run_in_background,
+                name=exec_name,
             )
 
             # Persisted project scope (set via set_project_context) applies when

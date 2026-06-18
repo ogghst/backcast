@@ -39,7 +39,11 @@ from app.models.domain.ai import (
 )
 from app.models.domain.user import User
 from app.models.schemas.ai import (
+    AgentExecutionHistoryContext,
+    AgentExecutionHistoryItem,
+    AgentExecutionHistoryPaginated,
     AgentExecutionPublic,
+    AgentExecutionRunningCount,
     AIConversationMessagePublic,
     AIConversationSessionPaginated,
     AIConversationSessionPublic,
@@ -540,6 +544,129 @@ async def get_execution_status(
         raise HTTPException(status_code=404, detail="Execution not found")
 
     return AgentExecutionPublic.model_validate(execution)
+
+
+@router.get(
+    "/executions",
+    response_model=AgentExecutionHistoryPaginated,
+    operation_id="list_agent_executions",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def list_agent_executions(
+    status: str | None = Query(
+        None, description="Filter by execution status (running, completed, ...)"
+    ),
+    limit: int = Query(20, ge=1, description="Page size (max 50)"),
+    offset: int = Query(0, ge=0, description="Page offset"),
+    current_user: UserIdentity = Depends(get_current_user),
+    config_service: AIConfigService = Depends(get_ai_config_service),
+) -> AgentExecutionHistoryPaginated:
+    """List the current user's agent executions for the Agents History page.
+
+    Returns executions newest-first, optionally filtered by status, joined
+    with the owning conversation session (for ownership + context) and the
+    assistant config (for the display name).
+    """
+    limit = min(limit, 50)  # Cap at 50, mirroring sessions pagination.
+
+    rows, total, has_more = await config_service.list_executions_paginated(
+        user_id=current_user.user_id,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
+
+    items: list[AgentExecutionHistoryItem] = []
+    for row in rows:
+        execution = row[0]
+        session_context = row[1] or {}
+        context = AgentExecutionHistoryContext(
+            type=session_context.get("type"),
+            name=session_context.get("name"),
+            project_id=str(row[2]) if row[2] is not None else None,
+            branch_id=str(row[3]) if row[3] is not None else None,
+        )
+        items.append(
+            AgentExecutionHistoryItem(
+                id=execution.id,
+                name=execution.name,
+                status=execution.status,
+                execution_mode=execution.execution_mode,
+                run_in_background=execution.run_in_background,
+                started_at=execution.started_at,
+                completed_at=execution.completed_at,
+                session_id=execution.session_id,
+                context=context,
+                assistant_name=row[4],
+                total_tokens=execution.total_tokens,
+                tool_calls_count=execution.tool_calls_count,
+            )
+        )
+
+    return AgentExecutionHistoryPaginated(items=items, total=total, has_more=has_more)
+
+
+@router.get(
+    "/executions/running-count",
+    response_model=AgentExecutionRunningCount,
+    operation_id="count_running_agent_executions",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def count_running_agent_executions(
+    current_user: UserIdentity = Depends(get_current_user),
+    config_service: AIConfigService = Depends(get_ai_config_service),
+) -> AgentExecutionRunningCount:
+    """Count the user's currently-active executions (running or awaiting approval).
+
+    Lightweight endpoint for the Agents History menu badge.
+    """
+    count = await config_service.count_running_executions(current_user.user_id)
+    return AgentExecutionRunningCount(count=count)
+
+
+@router.post(
+    "/executions/{execution_id}/stop",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="stop_agent_execution",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def stop_agent_execution(
+    execution_id: UUID,
+    current_user: UserIdentity = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Stop a running agent execution (the Agents History Stop button).
+
+    Verifies ownership by checking the execution's session belongs to the
+    current user.  Returns 404 (not 403) for unknown / other-user executions
+    to avoid leaking existence, mirroring :func:`get_execution_status`.
+    """
+    # Fetch execution by id.
+    stmt = select(AIAgentExecution).where(AIAgentExecution.id == execution_id)
+    result = await db.execute(stmt)
+    execution = result.scalar_one_or_none()
+
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    # Verify ownership via session.
+    session_stmt = select(AIConversationSession).where(
+        AIConversationSession.id == execution.session_id
+    )
+    session_result = await db.execute(session_stmt)
+    session = session_result.scalar_one_or_none()
+
+    if session is None or session.user_id != current_user.user_id:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    ok = AgentService.request_stop(str(execution_id))
+    if not ok:
+        # Unknown to the lifecycle or already terminal.
+        raise HTTPException(
+            status_code=404, detail="Execution not found or already terminal"
+        )
+    # 204 No Content — nothing to return.
+    return None
 
 
 @router.post(
@@ -1062,6 +1189,7 @@ async def chat_stream(
                 exec_bus = runner_manager.create_bus(exec_id)
 
                 exec_mode = request.execution_mode
+                run_bg = request.run_in_background
 
                 # Use a factory to capture loop variables by value, avoiding
                 # late-binding issues (B023) where the closure would reference
@@ -1078,6 +1206,7 @@ async def chat_stream(
                     e_mode: ExecutionMode,
                     e_id: str,
                     e_bus: AgentEventBus,
+                    run_in_background: bool,
                 ) -> asyncio.Task[None]:
                     """Create a background task for start_execution with captured values."""
 
@@ -1097,6 +1226,7 @@ async def chat_stream(
                                 execution_mode=e_mode,
                                 execution_id=e_id,
                                 event_bus=e_bus,
+                                run_in_background=run_in_background,
                             )
                         except Exception as exec_err:
                             logger.error(
@@ -1118,6 +1248,7 @@ async def chat_stream(
                     e_mode=exec_mode,
                     e_id=exec_id,
                     e_bus=exec_bus,
+                    run_in_background=run_bg,
                 )
                 execution_tasks.add(execution_task)
                 current_chat_task = execution_task

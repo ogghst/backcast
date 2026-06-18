@@ -508,3 +508,123 @@ async def test_subscribe_forwarding_does_not_block_message_loop() -> None:
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+
+
+# =====================================================================
+# 10. run_in_background: last-observer detach must NOT grace-stop
+# =====================================================================
+
+
+@pytest.mark.asyncio
+async def test_background_execution_no_grace_stop_on_last_detach(
+    fresh_lifecycle: ExecutionLifecycle, small_grace: float
+) -> None:
+    """A run_in_background execution survives last-observer detach.
+
+    The critical gate for Background Agent Execution: when the only
+    observer detaches, NO grace-stop task is scheduled, so the execution
+    keeps running through a transport disconnect.  Only an explicit
+    request_stop (Stop button) or terminate ends it.
+    """
+    lc = fresh_lifecycle
+    eid = "exec-bg"
+    bus = _make_bus(eid)
+    stop = asyncio.Event()
+    lc.register(eid, stop, bus, run_in_background=True)
+
+    tok = _token()
+    lc.attach(eid, tok)
+    # Last observer detaches — must NOT schedule a grace-stop.
+    lc.detach(eid, tok)
+
+    ctx = lc._contexts[eid]
+    assert ctx.grace_task is None  # no grace-stop scheduled
+    assert not ctx.observers
+
+    # Wait well past the grace window — execution is STILL not stopping.
+    await asyncio.sleep(small_grace + 0.1)
+    assert stop.is_set() is False
+    assert lc.is_stopping(eid) is False
+
+
+@pytest.mark.asyncio
+async def test_background_execution_explicit_stop_still_works(
+    fresh_lifecycle: ExecutionLifecycle, small_grace: float
+) -> None:
+    """A background execution still honors explicit request_stop (Stop button)."""
+    lc = fresh_lifecycle
+    eid = "exec-bg-stop"
+    bus = _make_bus(eid)
+    stop = asyncio.Event()
+    lc.register(eid, stop, bus, run_in_background=True)
+
+    tok = _token()
+    lc.attach(eid, tok)
+    lc.detach(eid, tok)  # no grace-stop (background)
+
+    # The Agents History Stop button calls request_stop explicitly.
+    assert lc.request_stop(eid) is True
+    assert stop.is_set() is True
+    assert lc.is_stopping(eid) is True
+
+
+@pytest.mark.asyncio
+async def test_foreground_still_grace_stops_on_last_detach_regression(
+    fresh_lifecycle: ExecutionLifecycle, small_grace: float
+) -> None:
+    """Regression: a foreground execution (run_in_background=False, the default)
+    STILL gets grace-stopped on last-observer detach.  The background gate must
+    not break the default disconnect-grace-stop behaviour."""
+    lc = fresh_lifecycle
+    eid = "exec-fg"
+    bus = _make_bus(eid)
+    stop = asyncio.Event()
+    lc.register(eid, stop, bus)  # default run_in_background=False
+
+    tok = _token()
+    lc.attach(eid, tok)
+    lc.detach(eid, tok)
+
+    ctx = lc._contexts[eid]
+    assert ctx.grace_task is not None  # grace-stop scheduled
+
+    await asyncio.sleep(small_grace + 0.1)
+    assert stop.is_set() is True
+    assert lc.is_stopping(eid) is True
+
+
+@pytest.mark.asyncio
+async def test_grace_stop_early_returns_for_background_context(
+    fresh_lifecycle: ExecutionLifecycle, small_grace: float
+) -> None:
+    """_grace_stop early-returns (does not request_stop) when the context is
+    run_in_background.
+
+    Belt-and-suspenders for the rare case where a grace task was already
+    scheduled before the flag landed (e.g. a late register flipped the
+    context to background).  Manually scheduling _grace_stop and then
+    flipping the flag must NOT stop the execution.
+    """
+    lc = fresh_lifecycle
+    eid = "exec-bg-early"
+    bus = _make_bus(eid)
+    stop = asyncio.Event()
+    # Register as foreground first so detach WILL schedule a grace task.
+    lc.register(eid, stop, bus, run_in_background=False)
+
+    tok = _token()
+    lc.attach(eid, tok)
+    lc.detach(eid, tok)
+    ctx = lc._contexts[eid]
+    assert ctx.grace_task is not None
+
+    # Flip the context to background AFTER the grace task is scheduled.
+    ctx.run_in_background = True
+
+    # Wait past the grace window: the scheduled _grace_stop must have
+    # early-returned without requesting the stop.
+    await asyncio.sleep(small_grace + 0.1)
+    assert stop.is_set() is False
+    assert lc.is_stopping(eid) is False
+    # The grace task cleared itself and finished.
+    assert ctx.grace_task is None

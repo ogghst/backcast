@@ -62,6 +62,11 @@ class _ExecutionContext:
     observers: set[ObserverToken] = field(default_factory=set)
     grace_task: asyncio.Task[None] | None = None
     terminal: bool = False
+    # When True the execution is "run in background": last-observer detach
+    # must NOT schedule a grace-stop, so the execution survives a transport
+    # disconnect.  Only an explicit ``request_stop`` (e.g. the Stop button)
+    # or ``terminate`` ends it.
+    run_in_background: bool = False
 
 
 class ExecutionLifecycle:
@@ -89,6 +94,7 @@ class ExecutionLifecycle:
         execution_id: str,
         stop_event: asyncio.Event,
         bus: AgentEventBus,
+        run_in_background: bool = False,
     ) -> None:
         """Register (or overwrite) the context for *execution_id*.
 
@@ -108,6 +114,10 @@ class ExecutionLifecycle:
                 deadline consult.  Owned by the caller (created by
                 ``AgentService._register_stop_event``).
             bus: The event bus for this execution.
+            run_in_background: When True the execution survives a transport
+                disconnect — last-observer ``detach`` will NOT schedule a
+                grace-stop.  Only an explicit ``request_stop`` (Stop button)
+                or ``terminate`` ends it.
         """
         max_entries = settings.AI_EXECUTION_REGISTRY_MAX
         if execution_id not in self._contexts and len(self._contexts) >= max_entries:
@@ -124,7 +134,9 @@ class ExecutionLifecycle:
                 max_entries,
                 oldest_key,
             )
-        ctx = _ExecutionContext(stop_event=stop_event, bus=bus)
+        ctx = _ExecutionContext(
+            stop_event=stop_event, bus=bus, run_in_background=run_in_background
+        )
         # Pull in any tokens attached before register ran (attach-before-register race).
         pending = self._pending.pop(execution_id, None)
         if pending:
@@ -178,6 +190,10 @@ class ExecutionLifecycle:
         (immediate).  The task is stored on the context so :meth:`attach` /
         :meth:`terminate` can cancel it.
 
+        A "run in background" execution (``run_in_background=True`` on the
+        context) is exempt: its last-observer detach does NOT schedule a
+        grace-stop, so it survives a transport disconnect.
+
         Safe to call for an unknown execution or a token that was never
         attached (also discards from ``_pending`` -- no-op if absent).
         """
@@ -193,7 +209,15 @@ class ExecutionLifecycle:
         if ctx is None:
             return
         ctx.observers.discard(token)
-        if not ctx.observers and not ctx.terminal and ctx.grace_task is None:
+        # THE CRITICAL GATE: a "run in background" execution must NOT be
+        # grace-stopped when the last observer detaches — it survives
+        # disconnect by design (only request_stop / terminate end it).
+        if (
+            not ctx.observers
+            and not ctx.terminal
+            and ctx.grace_task is None
+            and not ctx.run_in_background
+        ):
             ctx.grace_task = asyncio.create_task(
                 self._grace_stop(execution_id),
                 name=f"execution-grace-stop-{execution_id}",
@@ -208,6 +232,12 @@ class ExecutionLifecycle:
             return
         ctx = self._contexts.get(execution_id)
         if ctx is None or ctx.terminal:
+            return
+        # Belt-and-suspenders: if the context was flipped to
+        # run_in_background AFTER a grace task was already scheduled (e.g. the
+        # flag arrived via a late register), do not stop the run.
+        if ctx.run_in_background:
+            ctx.grace_task = None
             return
         if not ctx.observers:
             logger.info(
