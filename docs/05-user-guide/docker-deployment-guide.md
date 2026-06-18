@@ -204,15 +204,25 @@ Cloud models (tags ending in `-cloud`) proxy inference to `ollama.com`, so they 
 
 ### Step 1: Sign in to your ollama.com account (cloud models)
 
-Cloud models are served from `ollama.com`. The local server authenticates to it with an **account session** (established once via the device sign-in flow), not an API key. The session persists in the `ollama_data` volume, so it survives restarts — redo it only if the volume is wiped.
+Cloud models are served from `ollama.com`. The local server authenticates with an **account session** set up via a one-time device sign-in flow — not an API key. From an SSH session on the deploy host, run it **inside the ollama container** (via `exec`) so the session is stored in the persistent `ollama_data` volume:
 
 ```bash
-# Run on the host that runs the ollama container (interactive — it prints a link)
+ssh <deploy-host>
+cd <deploy-dir>
 docker compose --env-file .env.production exec ollama ollama signin
 ```
 
-Open the printed `https://ollama.com/connect?...` link in a browser, log in to ollama.com, and approve the device. `*-cloud` models now work through the local server.
+It prints a one-time device link:
 
+```
+If your browser did not open, navigate to:
+    https://ollama.com/connect?name=…&key=…
+```
+
+Copy that URL and open it in **any browser** (e.g. your laptop) — **no browser is needed on the server**. Log in to ollama.com and approve the device; the `exec` command detects approval, prints `success`, and returns. Approve promptly, since device links can expire. `*-cloud` models now work through the local server.
+
+> The session persists in the `ollama_data` volume and survives restarts — re-run this only if the volume is wiped. To check the current state, run the same `ollama signin` command again: on an already-authenticated server it prints `You are already signed in as user '<account>'` and exits immediately.
+>
 > Verify with:
 > ```bash
 > curl http://localhost:11435/v1/chat/completions -H "Content-Type: application/json" \
