@@ -135,8 +135,15 @@ export const useUpdateAIModel = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ providerId, modelId, data }) =>
-      modelApi.update(providerId, modelId, data),
+    mutationFn: ({
+      providerId,
+      modelId,
+      data,
+    }: {
+      providerId: string;
+      modelId: string;
+      data: Partial<AIModelCreate>;
+    }) => modelApi.update(providerId, modelId, data),
     onSuccess: (data, variables, ...args) => {
       // Invalidate models for this provider (both active and inactive)
       queryClient.invalidateQueries({

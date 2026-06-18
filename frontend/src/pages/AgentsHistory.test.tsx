@@ -30,10 +30,13 @@ vi.mock("react-router-dom", async () => {
 });
 
 const mockMutate = vi.fn();
-const useStopExecutionMock = vi.fn(() => ({
-  mutate: mockMutate,
-  isPending: false,
-}));
+const useStopExecutionMock = vi.fn((opts?: { onSuccess?: () => void }) => {
+  void opts;
+  return {
+    mutate: mockMutate,
+    isPending: false,
+  };
+});
 
 vi.mock("@/features/ai/chat/api/useAgentExecutions", () => ({
   useAgentExecutions: vi.fn(),
