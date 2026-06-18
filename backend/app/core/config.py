@@ -96,6 +96,17 @@ class Settings(BaseSettings):
     # BEFORE it publishes an event or marks the execution awaiting-user.
     AI_MAX_ASK_USER_PER_EXECUTION: int = 8
 
+    # ExecutionLifecycle registry bounds + disconnect grace.
+    # ``AI_EXECUTION_REGISTRY_MAX`` caps the in-memory execution context map
+    # (single-server deployment); overflow drops the OLDEST entry with a warning
+    # (non-destructive -- it never sets a live execution's stop_event).
+    # ``AI_DISCONNECT_GRACE_SECONDS`` is the window after the last transport
+    # observer detaches during which a still-running execution keeps going
+    # before being requested to stop (lets a brief WS reconnect not abort a
+    # long-running agent run).
+    AI_EXECUTION_REGISTRY_MAX: int = 200
+    AI_DISCONNECT_GRACE_SECONDS: int = 30
+
     # AI context trimming (ContextGuardMiddleware) + runtime toggles.
     # Exposed here (rather than read via os.environ in app.ai.config) so that
     # values in .env actually take effect; app.ai.config re-exports these.

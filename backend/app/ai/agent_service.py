@@ -108,6 +108,7 @@ from app.ai.exceptions import ExecutionStoppedError
 from app.ai.execution.agent_event import AgentEvent
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.execution.agent_metrics import AgentExecutionMetrics
+from app.ai.execution.lifecycle import execution_lifecycle
 from app.ai.execution.llm_retry import iter_with_pausable_deadline
 from app.ai.execution.runner_manager import runner_manager
 from app.ai.graph import create_graph
@@ -405,7 +406,13 @@ class AgentService:
     _interrupt_nodes: ClassVar[dict[UUID, "InterruptNode"]] = {}
 
     # Shared stop-event registry: maps execution_id -> asyncio.Event.
-    # Set externally via request_stop(), checked in the supervisor loop.
+    # Kept as a thin alias alongside the transport-agnostic
+    # :class:`ExecutionLifecycle` registry (the source of truth).  The
+    # supervisor loop reads the Event via ``ToolContext._stop_event`` (set in
+    # ``_prepare_graph_execution``), NOT via this dict, so the registry can
+    # move without affecting the stop check.  ``_STOP_EVENTS_MAX`` is retained
+    # for backwards compatibility but no longer caps eviction — the lifecycle
+    # registry's ``settings.AI_EXECUTION_REGISTRY_MAX`` does.
     _stop_events: ClassVar[dict[str, asyncio.Event]] = {}
     _STOP_EVENTS_MAX: ClassVar[int] = 50
 
@@ -413,9 +420,10 @@ class AgentService:
     def request_stop(cls, execution_id: str) -> bool:
         """Signal a running execution to stop gracefully.
 
-        Sets the ``asyncio.Event`` associated with *execution_id*.  The
-        supervisor loop checks this event after each specialist completes
-        and raises :class:`ExecutionStoppedError` when set.
+        Delegates to :meth:`ExecutionLifecycle.request_stop`, which sets the
+        ``asyncio.Event`` associated with *execution_id*.  The supervisor loop
+        checks this event after each specialist completes and raises
+        :class:`ExecutionStoppedError` when set.
 
         Args:
             execution_id: The execution to stop.
@@ -423,35 +431,36 @@ class AgentService:
         Returns:
             ``True`` if the execution was found and signalled, ``False`` otherwise.
         """
-        stop_evt = cls._stop_events.get(execution_id)
-        if stop_evt is None:
-            logger.warning(
-                "[REQUEST_STOP] No stop event found for execution %s",
-                execution_id,
-            )
-            return False
-        stop_evt.set()
-        logger.info("[REQUEST_STOP] Stop signalled for execution %s", execution_id)
-        return True
+        return execution_lifecycle.request_stop(execution_id)
 
     @classmethod
-    def _register_stop_event(cls, execution_id: str) -> asyncio.Event:
+    def _register_stop_event(
+        cls, execution_id: str, bus: AgentEventBus
+    ) -> asyncio.Event:
         """Create and register a stop event for an execution.
 
-        Evicts the oldest entry when the registry exceeds ``_STOP_EVENTS_MAX``
-        to prevent unbounded memory growth (mirrors the ``_interrupt_nodes``
-        eviction pattern).
+        Registers with the transport-agnostic :class:`ExecutionLifecycle`
+        (the source of truth).  Eviction is **non-destructive**: when the
+        lifecycle registry reaches ``settings.AI_EXECUTION_REGISTRY_MAX`` the
+        OLDEST entry is dropped with a warning and is NEVER ``.set()`` — a
+        live execution keeps running, just untracked.  (The previous inline
+        eviction here ``.set()`` the evicted event, which could spuriously
+        stop a live execution — fixed.)
+
+        Also mirrors the entry into the legacy ``_stop_events`` alias so any
+        pre-existing reader and the ``start_execution`` finally teardown
+        still work.
+
+        Args:
+            execution_id: The execution to register a stop event for.
+            bus: The execution's event bus (registered with the lifecycle for
+                terminal cleanup).
+
+        Returns:
+            The newly created :class:`asyncio.Event` for *execution_id*.
         """
-        if len(cls._stop_events) >= cls._STOP_EVENTS_MAX:
-            oldest_key = next(iter(cls._stop_events))
-            evicted = cls._stop_events.pop(oldest_key, None)
-            if evicted is not None:
-                evicted.set()
-            logger.warning(
-                "Stop event registry reached %d entries — evicted oldest",
-                cls._STOP_EVENTS_MAX,
-            )
         event = asyncio.Event()
+        execution_lifecycle.register(execution_id, event, bus)
         cls._stop_events[execution_id] = event
         return event
 
@@ -2613,14 +2622,18 @@ class AgentService:
         if execution_id is None:
             execution_id = str(uuid.uuid4())
 
-        # Use provided bus or create a new one
-        should_remove_bus = False
+        # Use provided bus or create a new one.  Terminal cleanup
+        # (ExecutionLifecycle.terminate) removes the bus unconditionally on
+        # every path: the WS flow creates its bus via runner_manager.create_bus
+        # so removal is symmetric; a caller that needs the bus after the run
+        # should read replay() before start_execution returns.
         if event_bus is None:
             event_bus = runner_manager.create_bus(execution_id)
-            should_remove_bus = True
 
-        # Create and register stop event for graceful cancellation
-        stop_event = self._register_stop_event(execution_id)
+        # Create and register stop event for graceful cancellation.
+        # Registering with the transport-agnostic ExecutionLifecycle (source
+        # of truth) also registers the bus so terminal cleanup can remove it.
+        stop_event = self._register_stop_event(execution_id, event_bus)
 
         try:
             # Phase 1: Pre-flight — create execution row, capture context
@@ -2739,17 +2752,15 @@ class AgentService:
 
             raise
         finally:
-            # Clean up stop event and event bus
+            # Single terminal cleanup: route ask-cancel + bus-remove +
+            # registry-drop through ExecutionLifecycle.terminate so no
+            # registry/bus/ask entry leaks on ANY terminal path (complete,
+            # stop, cancel, error).  Idempotent.  The DB status write,
+            # active_execution_id clear, and terminal event publish already
+            # happened in the try/except blocks above (per-path).
+            execution_lifecycle.terminate(execution_id)
+            # Mirror-drop from the legacy _stop_events alias.
             self._stop_events.pop(execution_id, None)
-            if should_remove_bus:
-                runner_manager.remove_bus(execution_id)
-            # Drop the per-execution ask_user prompt count on normal
-            # completion (the stop/disconnect path clears it via
-            # cancel_asks_for_execution).  execution_ids are unique, so a
-            # missed pop is only a minor memory leak, not a correctness bug.
-            from app.ai.tools.ask_user import _ask_counts
-
-            _ask_counts.pop(execution_id, None)
 
         return execution_id
 

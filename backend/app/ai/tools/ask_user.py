@@ -263,6 +263,26 @@ async def ask_user(
             "ask_user timed out: ask_id=%s after %.0fs", ask_id, timeout_seconds
         )
         return {"error": f"User did not respond within {timeout_seconds:.0f} seconds"}
+    except asyncio.CancelledError:
+        # The future was cancelled out from under us -- this happens when
+        # the execution was stopped (user stop / WS disconnect grace) while
+        # blocked awaiting a human.  ``ExecutionLifecycle.request_stop``
+        # cancels pending asks so a hung ask_user cannot hold the graph
+        # past a stop (it would otherwise block for the full
+        # ``AI_ASK_USER_TIMEOUT_SECONDS`` and the surrounding
+        # ``astream_events`` step would not unwind).  Return a synthetic
+        # value (mirroring the timeout/cap paths) so the supervisor tool
+        # call completes cleanly; the graph-level pausable deadline /
+        # supervisor stop check then finalizes the execution as ``stopped``
+        # rather than letting the cancellation propagate as a tool error.
+        logger.info("ask_user cancelled (execution stop): ask_id=%s", ask_id)
+        return {
+            "answer": (
+                "Clarification cancelled: the execution was stopped. Stop "
+                "and do not ask the user again."
+            ),
+            "cancelled": True,
+        }
     finally:
         clear_awaiting_user(execution_id)
         cleanup_ask(ask_id)
