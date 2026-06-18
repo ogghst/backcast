@@ -9,10 +9,9 @@ export interface PageWrapperProps {
 }
 
 /**
- * Responsive page-level wrapper with standard vertical padding.
+ * Responsive page-level wrapper with standard padding.
  *
- * Desktop: paddingXL vertical, mobile: paddingMD vertical.
- * Horizontal padding is always 0 (the AppLayout sidebar provides horizontal structure).
+ * Desktop: paddingXL all around. Mobile: paddingMD vertical, 0 horizontal.
  *
  * Usage:
  * ```tsx
@@ -34,7 +33,7 @@ export const PageWrapper: React.FC<PageWrapperProps> = ({ children }) => {
       style={{
         padding: isMobile
           ? `${token.paddingMD}px 0`
-          : `${token.paddingXL}px 0`,
+          : `${token.paddingXL}px ${token.paddingXL}px`,
       }}
     >
       {children}

@@ -57,6 +57,7 @@ const AppLayout: React.FC = () => {
       fontSizeXL,
       paddingMD,
       paddingLG,
+      paddingXL,
     },
   } = theme.useToken();
 
@@ -177,7 +178,17 @@ const AppLayout: React.FC = () => {
         />
       )}
 
-      <Content style={{ position: "relative", zIndex: 1, margin: "2px auto 0", maxWidth: 1600, width: "100%" }}>
+      <Content
+        style={{
+          position: "relative",
+          zIndex: 1,
+          margin: "2px auto 0",
+          maxWidth: 1600,
+          width: "100%",
+          paddingLeft: isMobile ? 0 : paddingXL,
+          paddingRight: isMobile ? 0 : paddingXL,
+        }}
+      >
         <div
           style={{
             padding: 2,

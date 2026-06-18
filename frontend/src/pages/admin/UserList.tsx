@@ -13,6 +13,7 @@ import { CreateUserPayload, UpdateUserPayload, User } from "@/types/user";
 import { UserModal } from "@/features/users/components/UserModal";
 import type { ColumnType } from "antd/es/table";
 import { StandardTable } from "@/components/common/StandardTable";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useTableParams } from "@/hooks/useTableParams";
 import { createResourceHooks } from "@/hooks/useCrud";
 import { UserService } from "@/features/users/api/userService";
@@ -341,7 +342,7 @@ export const UserList = () => {
   }, [users, tableParams.search]);
 
   return (
-    <>
+    <PageWrapper>
       <Card
         title={<span style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>User Management</span>}
         extra={
@@ -413,6 +414,6 @@ export const UserList = () => {
         entityName={`User: ${selectedUser?.full_name || ""}`}
         isLoading={historyLoading}
       />
-    </>
+    </PageWrapper>
   );
 };

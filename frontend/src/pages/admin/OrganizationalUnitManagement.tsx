@@ -20,6 +20,7 @@ import type {
 import { Can } from "@/components/auth/Can";
 import { OrganizationalUnitModal } from "@/features/organizational-units/components/OrganizationalUnitModal";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { useOrgUnitTree } from "@/features/organizational-units/hooks/useOrgUnitTree";
 import { queryKeys as qk } from "@/api/queryKeys";
@@ -219,7 +220,7 @@ export const OrganizationalUnitManagement = () => {
   );
 
   return (
-    <>
+    <PageWrapper>
       <Card
         title={
           <Space>
@@ -305,6 +306,6 @@ export const OrganizationalUnitManagement = () => {
         entityName={`Organizational Unit: ${selectedDepartment?.name || ""}`}
         isLoading={historyLoading}
       />
-    </>
+    </PageWrapper>
   );
 };

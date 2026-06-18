@@ -6,7 +6,12 @@
  */
 
 import { AIProviderList } from "@/features/ai/components/AIProviderList";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 export const AIProviderManagement = () => {
-  return <AIProviderList />;
+  return (
+    <PageWrapper>
+      <AIProviderList />
+    </PageWrapper>
+  );
 };

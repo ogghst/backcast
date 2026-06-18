@@ -32,7 +32,6 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { ControlAccountCard } from "@/features/control-accounts/components/ControlAccountCard";
 import { WorkPackageCard } from "@/features/work-packages/components/WorkPackageCard";
 import { formatCurrency } from "@/utils/formatters";
-import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PageContent } from "@/components/layout/PageContent";
 
 /** Status color map matching WorkPackageCard */
@@ -192,9 +191,8 @@ export const WBSElementOverview = () => {
   }, [location.state]);
 
   return (
-    <PageWrapper>
-      <PageContent>
-        {/* WBS Element Header with cost visualization */}
+    <PageContent>
+      {/* WBS Element Header with cost visualization */}
         {wbe && (
           <WBSElementHeaderCard
             wbsElement={wbe}
@@ -477,7 +475,6 @@ export const WBSElementOverview = () => {
           initialValues={caEditing}
           projectId={projectId!}
         />
-      </PageContent>
-    </PageWrapper>
+    </PageContent>
   );
 };

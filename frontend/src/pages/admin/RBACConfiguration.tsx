@@ -35,6 +35,7 @@ import type { ColumnType } from "antd/es/table";
 import { usePermission } from "@/hooks/usePermission";
 
 import { StandardTable } from "@/components/common/StandardTable";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useExtendedToken } from "@/hooks/useToken";
@@ -600,6 +601,7 @@ export const RBACConfiguration: React.FC = () => {
   ];
 
   return (
+    <PageWrapper>
     <Can
       role="admin"
       fallback={
@@ -667,5 +669,6 @@ export const RBACConfiguration: React.FC = () => {
         />
       </>
     </Can>
+    </PageWrapper>
   );
 };

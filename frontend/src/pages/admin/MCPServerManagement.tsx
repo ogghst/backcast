@@ -5,7 +5,12 @@
  */
 
 import { MCPServerList } from "@/features/ai/components/MCPServerList";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 
 export const MCPServerManagement = () => {
-  return <MCPServerList />;
+  return (
+    <PageWrapper>
+      <MCPServerList />
+    </PageWrapper>
+  );
 };

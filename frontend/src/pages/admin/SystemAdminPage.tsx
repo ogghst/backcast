@@ -25,6 +25,7 @@ import {
 import { useCallback, useRef, useState } from "react";
 import type { UploadFile } from "antd/es/upload/interface";
 import { Can } from "@/components/auth/Can";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useExtendedToken } from "@/hooks/useToken";
 import {
   useDumpDatabase,
@@ -185,6 +186,7 @@ export const SystemAdminPage: React.FC = () => {
     };
 
   return (
+    <PageWrapper>
     <Can
       permission="system-dump-reseed"
       fallback={
@@ -431,5 +433,6 @@ export const SystemAdminPage: React.FC = () => {
         </div>
       </Modal>
     </Can>
+    </PageWrapper>
   );
 };
