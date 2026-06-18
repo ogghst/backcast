@@ -244,8 +244,8 @@ services:
   # (configured in the AI Config UI, NOT via env). Host access for ops/pulling:
   # http://localhost:${OLLAMA_HOST_PORT:-11435}. Non-standard host port (11435)
   # avoids colliding with a default Ollama on :11434.
-  # Cloud models (e.g. gemma4:31b-cloud) need OLLAMA_API_KEY (no GPU); local models
-  # (e.g. gemma4:31b) need a GPU — uncomment the reservations.devices block below.
+  # Cloud models (e.g. gemma4:31b-cloud) need `ollama signin` (account session, no GPU);
+  # local models (e.g. gemma4:31b) need a GPU — uncomment the reservations.devices block below.
   ollama:
     image: ollama/ollama:latest
     container_name: backcast_ollama

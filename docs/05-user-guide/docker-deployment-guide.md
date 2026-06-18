@@ -196,29 +196,30 @@ The stack ships an **[Ollama](https://ollama.com)** service — an OpenAI-compat
 
 | Model tag | Runs where | Requirements |
 |-----------|-----------|--------------|
-| `gemma4:31b-cloud` (default) | Ollama's hosted cloud | `OLLAMA_API_KEY` — **no GPU** |
+| `gemma4:31b-cloud` (default) | Ollama's hosted cloud | `ollama signin` (account) — **no GPU** |
 | `gemma4:31b`, `gemma4:12b`, `gemma4:26b` | Your hardware | **GPU** (NVIDIA Container Toolkit) |
 | `gemma4:e2b`, `gemma4:e4b` | Your hardware (edge) | CPU/GPU |
 
-Cloud models (tags ending in `-cloud`) proxy inference to `ollama.com`, so they need no local GPU — only an API key. Local models download weights and run on the host, so they need a GPU.
+Cloud models (tags ending in `-cloud`) proxy inference to `ollama.com`, so they need no local GPU — but the local server must be **signed in** to an ollama.com account (`ollama signin`), **not** an API key. Local models download weights and run on the host, so they need a GPU.
 
-### Step 1: Set the cloud API key
+### Step 1: Sign in to your ollama.com account (cloud models)
 
-Create an API key at <https://ollama.com> (Sign in → Settings → API keys), then set it in `deploy/.env.production`:
-
-```bash
-OLLAMA_API_KEY=ollama-xxxxxxxx
-```
-
-Recreate the service so it picks up the new environment:
+Cloud models are served from `ollama.com`. The local server authenticates to it with an **account session** (established once via the device sign-in flow), not an API key. The session persists in the `ollama_data` volume, so it survives restarts — redo it only if the volume is wiped.
 
 ```bash
-cd deploy
-docker compose --env-file .env.production up -d ollama
-docker compose --env-file .env.production up -d --force-recreate ollama-init   # re-pull if needed
+# Run on the host that runs the ollama container (interactive — it prints a link)
+docker compose --env-file .env.production exec ollama ollama signin
 ```
 
-> Without `OLLAMA_API_KEY`, the stack still starts, but cloud models fail at inference with an auth error. The `ollama-init` pull is non-fatal by design.
+Open the printed `https://ollama.com/connect?...` link in a browser, log in to ollama.com, and approve the device. `*-cloud` models now work through the local server.
+
+> Verify with:
+> ```bash
+> curl http://localhost:11435/v1/chat/completions -H "Content-Type: application/json" \
+>   -d '{"model":"gemma4:31b-cloud","messages":[{"role":"user","content":"hi"}]}'
+> ```
+>
+> `ollama-init` only registers the cloud model's manifest (no weights) and works without sign-in; sign-in is required only to actually **run** a cloud model.
 
 ### Step 2: Connect Backcast to Ollama
 
@@ -250,6 +251,12 @@ docker compose --env-file .env.production exec ollama ollama list      # verify 
 ```
 
 Models persist in the `ollama_data` volume, so they survive restarts.
+
+### Direct Ollama Cloud access (alternative, API key)
+
+Cloud models can also be reached **directly** at `https://ollama.com`, bypassing the local server (which is then only needed for local models). This is the path that uses an **API key**: create one at <https://ollama.com> (Sign in → Settings → API keys) and, in the AI Config UI, configure an `ollama` provider with `base_url` `https://ollama.com/v1`, `api_key` = that key, and the model (e.g. `gemma4:31b-cloud`). No `ollama signin` is needed for this path.
+
+> This is the only thing `OLLAMA_API_KEY` is for. The **local** Ollama server does not use it — it authenticates cloud models via the `ollama signin` session.
 
 ### Enabling GPU for local models (optional)
 
@@ -284,7 +291,7 @@ curl http://localhost:11435/v1/chat/completions \
 
 ### Troubleshooting
 
-- **Cloud model returns an auth/401 error** → `OLLAMA_API_KEY` is missing or wrong on the `ollama` service. Set it and recreate the container (`docker compose ... up -d ollama`).
+- **Cloud model returns 401 / "Unauthorized"** → the local server isn't signed in to ollama.com. Run `docker compose --env-file .env.production exec ollama ollama signin` and approve the printed device link. An API key in `OLLAMA_API_KEY` does **not** fix this — that key is for direct `ollama.com` access only.
 - **`model not found`** → the pull did not finish or failed (check `ollama-init` logs: `docker compose logs ollama-init`), or you connected to a different Ollama instance — confirm `base_url` points at this service.
 - **Port 11435 already in use** → another process holds it. Set `OLLAMA_HOST_PORT` to a free port in `.env.production` and recreate.
 - **Local model is extremely slow / OOM** → no GPU detected. Enable the GPU block, or switch to the `-cloud` tag (no GPU needed).
@@ -304,7 +311,7 @@ curl http://localhost:11435/v1/chat/completions \
 | `RUN_MIGRATIONS` | Auto-run migrations on startup | `true` | No |
 | `OLLAMA_HOST_PORT` | Ollama API host port (non-standard to avoid `:11434` clash) | `11435` | No |
 | `OLLAMA_MODELS` | Space-separated model tags to pre-pull | `gemma4:31b-cloud` | No |
-| `OLLAMA_API_KEY` | API key for cloud models (`-cloud` tags) | - | Yes (cloud models) |
+| `OLLAMA_API_KEY` | Optional — direct `ollama.com` API access only (the local server uses `ollama signin` for cloud models) | - | No |
 
 ### Resource Limits
 

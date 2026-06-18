@@ -26,8 +26,8 @@ for model in ${models}; do
         echo "[ollama-init] ok: ${model}"
     else
         echo "[ollama-init] WARNING: failed to pull '${model}' (continuing)."
-        echo "[ollama-init]   Cloud models (tags ending in -cloud) require OLLAMA_API_KEY"
-        echo "[ollama-init]   on the 'ollama' service."
+        echo "[ollama-init]   Note: running *-cloud models later needs 'ollama signin';"
+        echo "[ollama-init]   pulling a cloud model only stores its manifest."
     fi
 done
 

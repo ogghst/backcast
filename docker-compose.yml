@@ -89,7 +89,8 @@ services:
     container_name: backcast_ollama
     environment:
       OLLAMA_HOST: "0.0.0.0:11434"
-      # Required for CLOUD models (tags ending in -cloud, e.g. gemma4:31b-cloud).
+      # Optional — only for DIRECT access to https://ollama.com. The local server
+      # proxies *-cloud models via an `ollama signin` session, NOT this key.
       OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
     ports:
       - "${OLLAMA_HOST_PORT:-11435}:11434"

@@ -152,16 +152,15 @@ Full guide including SSL and Apache integration: [Docker Deployment Guide](docs/
 
 Both dev and deploy stacks ship an **[Ollama](https://ollama.com)** service — an OpenAI-compatible LLM endpoint preconfigured with **`gemma4:31b-cloud`** (cloud-hosted Gemma 4 31B). It runs on the non-standard host port **`11435`** (configurable via `OLLAMA_HOST_PORT`) so it never collides with a default Ollama install on `:11434`.
 
-- **Cloud models** (tags ending in `-cloud`, e.g. `gemma4:31b-cloud`) run on Ollama's hosted cloud — **no GPU required**, but they need an API key. Create one at <https://ollama.com> and set it:
+- **Cloud models** (tags ending in `-cloud`, e.g. `gemma4:31b-cloud`) run on Ollama's hosted cloud — **no GPU required**, but the local server must be signed in to an ollama.com account. Run once (the session persists in the Ollama volume):
 
   ```bash
-  # deploy/.env.production  (or export for dev)
-  OLLAMA_API_KEY=ollama-xxxxxxxx
+  docker compose exec ollama ollama signin     # approve the printed ollama.com/connect link in your browser
   ```
 
-  Then recreate the service so it picks up the key: `docker compose --env-file .env.production up -d ollama`.
-
 - **Local models** (e.g. `gemma4:31b`, `gemma4:12b`) run on your own hardware and need a GPU. Add them to the pull list and enable GPU — see the [deploy guide](docs/05-user-guide/docker-deployment-guide.md#ollama) for the NVIDIA block.
+
+> An **API key** (`OLLAMA_API_KEY`) is a separate, *optional* mechanism for **direct** `ollama.com` access (provider `base_url` `https://ollama.com/v1`) — it is **not** used by the local server, which authenticates cloud models via the `ollama signin` session.
 
 ```bash
 # Pull additional models (idempotent)
