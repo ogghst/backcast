@@ -187,6 +187,108 @@ curl -I https://app.yourdomain.com
 - **Adminer**: <https://db.yourdomain.com> (IP restricted)
 - **Traefik Dashboard**: <https://traefik.yourdomain.com>
 
+<a id="ollama"></a>
+## Ollama (Local & Cloud LLM Inference)
+
+The stack ships an **[Ollama](https://ollama.com)** service — an OpenAI-compatible LLM endpoint the backend's `ollama` AI provider talks to. It is preconfigured to pull **`gemma4:31b-cloud`** (Google's cloud-hosted Gemma 4 31B) on startup via the one-shot `ollama-init` service, and it runs on a **non-standard host port** (`11435`) so it never collides with a default Ollama install on `:11434`.
+
+### Cloud models vs. local models
+
+| Model tag | Runs where | Requirements |
+|-----------|-----------|--------------|
+| `gemma4:31b-cloud` (default) | Ollama's hosted cloud | `OLLAMA_API_KEY` — **no GPU** |
+| `gemma4:31b`, `gemma4:12b`, `gemma4:26b` | Your hardware | **GPU** (NVIDIA Container Toolkit) |
+| `gemma4:e2b`, `gemma4:e4b` | Your hardware (edge) | CPU/GPU |
+
+Cloud models (tags ending in `-cloud`) proxy inference to `ollama.com`, so they need no local GPU — only an API key. Local models download weights and run on the host, so they need a GPU.
+
+### Step 1: Set the cloud API key
+
+Create an API key at <https://ollama.com> (Sign in → Settings → API keys), then set it in `deploy/.env.production`:
+
+```bash
+OLLAMA_API_KEY=ollama-xxxxxxxx
+```
+
+Recreate the service so it picks up the new environment:
+
+```bash
+cd deploy
+docker compose --env-file .env.production up -d ollama
+docker compose --env-file .env.production up -d --force-recreate ollama-init   # re-pull if needed
+```
+
+> Without `OLLAMA_API_KEY`, the stack still starts, but cloud models fail at inference with an auth error. The `ollama-init` pull is non-fatal by design.
+
+### Step 2: Connect Backcast to Ollama
+
+The backend already supports an **`ollama`** provider type (OpenAI-compatible). Configure it in the **AI Config UI** — connection details are stored in the database, not in `.env`:
+
+| Field | Value |
+|-------|-------|
+| Provider type | `ollama` |
+| `base_url` | `http://ollama:11434/v1` (container→container on the `internal` network) |
+| `api_key` | any non-empty placeholder, e.g. `ollama` (the local server does not enforce auth) |
+| Model | `gemma4:31b-cloud` |
+
+> If you run the backend **outside** Docker (e.g. `dev-start.sh`), use the host URL instead: `http://localhost:11435/v1`.
+
+### Adding more models
+
+Add tags to the pull list so `ollama-init` downloads them automatically on every `up` (idempotent):
+
+```bash
+# deploy/.env.production
+OLLAMA_MODELS=gemma4:31b-cloud gemma4:12b
+```
+
+Or pull a model directly into the running server:
+
+```bash
+docker compose --env-file .env.production exec ollama ollama pull gemma4:12b
+docker compose --env-file .env.production exec ollama ollama list      # verify installed models
+```
+
+Models persist in the `ollama_data` volume, so they survive restarts.
+
+### Enabling GPU for local models (optional)
+
+Local models (e.g. `gemma4:31b` ~31B params) need a GPU. Install the **[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/)** on the host, then uncomment the GPU block under the `ollama` service in [deploy/docker-compose.yml](../../deploy/docker-compose.yml):
+
+```yaml
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+```
+
+Then `docker compose ... up -d --force-recreate ollama`. Verify the GPU is visible: `docker compose exec ollama ollama ps`.
+
+> Leave the GPU block commented out on CPU-only/cloud-only hosts — Compose will refuse to start the service with active GPU reservations when no GPU is present.
+
+### Verification
+
+```bash
+# Server is up
+curl http://localhost:11435/                      # → "Ollama is running"
+docker compose --env-file .env.production exec ollama ollama list
+
+# Smoke-test the model via the OpenAI-compatible API
+curl http://localhost:11435/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gemma4:31b-cloud","messages":[{"role":"user","content":"Hello!"}]}'
+```
+
+### Troubleshooting
+
+- **Cloud model returns an auth/401 error** → `OLLAMA_API_KEY` is missing or wrong on the `ollama` service. Set it and recreate the container (`docker compose ... up -d ollama`).
+- **`model not found`** → the pull did not finish or failed (check `ollama-init` logs: `docker compose logs ollama-init`), or you connected to a different Ollama instance — confirm `base_url` points at this service.
+- **Port 11435 already in use** → another process holds it. Set `OLLAMA_HOST_PORT` to a free port in `.env.production` and recreate.
+- **Local model is extremely slow / OOM** → no GPU detected. Enable the GPU block, or switch to the `-cloud` tag (no GPU needed).
+
 ## Configuration Reference
 
 ### Environment Variables
@@ -200,6 +302,9 @@ curl -I https://app.yourdomain.com
 | `SECRET_KEY` | JWT signing key | - | Yes |
 | `TRAEFIK_ACME_EMAIL` | Let's Encrypt email | - | Yes |
 | `RUN_MIGRATIONS` | Auto-run migrations on startup | `true` | No |
+| `OLLAMA_HOST_PORT` | Ollama API host port (non-standard to avoid `:11434` clash) | `11435` | No |
+| `OLLAMA_MODELS` | Space-separated model tags to pre-pull | `gemma4:31b-cloud` | No |
+| `OLLAMA_API_KEY` | API key for cloud models (`-cloud` tags) | - | Yes (cloud models) |
 
 ### Resource Limits
 
