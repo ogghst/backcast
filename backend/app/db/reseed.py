@@ -14,7 +14,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import text
@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.seed_context import seed_operation
 from app.db.session import async_session_maker, engine
+from app.models.protocols import VersionableProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -688,7 +689,7 @@ async def _seed_cost_elements_flat(
         item_copy.pop("merge_from_branch", None)
         branch = item_copy.pop("branch", "main")
         cmd = CreateVersionCommand(
-            entity_class=CostElement,
+            entity_class=cast("type[VersionableProtocol]", CostElement),
             root_id=root_id,
             actor_id=created_by,
             branch=branch,
@@ -783,7 +784,7 @@ async def _seed_progress_entries_flat(
             item_copy["progress_percentage"] = Decimal(item_copy["progress_percentage"])
         branch = item_copy.pop("branch", "main")
         cmd = CreateVersionCommand(
-            entity_class=ProgressEntry,
+            entity_class=cast("type[VersionableProtocol]", ProgressEntry),
             root_id=root_id,
             actor_id=created_by,
             branch=branch,
@@ -814,7 +815,7 @@ async def _seed_cost_events_flat(
         item_copy.pop("merge_from_branch", None)
         branch = item_copy.pop("branch", "main")
         cmd = CreateVersionCommand(
-            entity_class=CostEvent,
+            entity_class=cast("type[VersionableProtocol]", CostEvent),
             root_id=root_id,
             actor_id=created_by,
             branch=branch,
@@ -845,7 +846,7 @@ async def _seed_cost_registrations_flat(
         item_copy.pop("merge_from_branch", None)
         branch = item_copy.pop("branch", "main")
         cmd = CreateVersionCommand(
-            entity_class=CostRegistration,
+            entity_class=cast("type[VersionableProtocol]", CostRegistration),
             root_id=root_id,
             actor_id=created_by,
             branch=branch,
