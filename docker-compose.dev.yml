@@ -147,6 +147,51 @@ services:
       timeout: 5s
       retries: 5
 
+  # Ollama — local & cloud LLM inference (OpenAI-compatible endpoint).
+  # Internal (containerized backend): http://ollama:11434
+  # Host (local backend via dev-start.sh): http://localhost:${OLLAMA_HOST_PORT:-11435}
+  # Non-standard host port (11435) avoids colliding with a default Ollama on :11434.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: backcast_dev_ollama
+    environment:
+      # Bind all interfaces on the standard internal port.
+      OLLAMA_HOST: "0.0.0.0:11434"
+      # Optional — only for DIRECT access to https://ollama.com. The local server
+      # proxies *-cloud models via an `ollama signin` session, NOT this key.
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
+    ports:
+      - "${OLLAMA_HOST_PORT:-11435}:11434"
+    volumes:
+      - ollama_dev_data:/root/.ollama
+    networks:
+      - dev_network
+    healthcheck:
+      test: ["CMD-SHELL", "OLLAMA_HOST=127.0.0.1:11434 ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # One-shot: pre-pull configured models (default: gemma4:31b-cloud) into the running
+  # Ollama server. Idempotent — re-runs safely on every `up`.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: backcast_dev_ollama_init
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
+      OLLAMA_MODELS: "${OLLAMA_MODELS:-gemma4:31b-cloud}"
+    volumes:
+      - ./scripts/ollama/pull-models.sh:/pull-models.sh:ro
+    entrypoint: ["/bin/sh", "/pull-models.sh"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - dev_network
+    restart: "no"
+
 networks:
   dev_network:
     driver: bridge
@@ -157,3 +202,4 @@ volumes:
   frontend_node_modules:
   rustfs_dev_data:
   rustfs_dev_logs:
+  ollama_dev_data:

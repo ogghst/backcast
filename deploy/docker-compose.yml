@@ -239,6 +239,67 @@ services:
       timeout: 10s
       retries: 3
 
+  # Ollama — local & cloud LLM inference (OpenAI-compatible endpoint).
+  # The backend's `ollama` AI provider connects to it at http://ollama:11434
+  # (configured in the AI Config UI, NOT via env). Host access for ops/pulling:
+  # http://localhost:${OLLAMA_HOST_PORT:-11435}. Non-standard host port (11435)
+  # avoids colliding with a default Ollama on :11434.
+  # Cloud models (e.g. gemma4:31b-cloud) need `ollama signin` (account session, no GPU);
+  # local models (e.g. gemma4:31b) need a GPU — uncomment the reservations.devices block below.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: backcast_ollama
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      OLLAMA_HOST: "0.0.0.0:11434"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
+    ports:
+      - "${OLLAMA_HOST_PORT:-11435}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+          # --- Enable NVIDIA GPU for local models (e.g. gemma4:31b). Requires the
+          # --- NVIDIA Container Toolkit on the host; remove if running CPU/cloud-only. ---
+          # devices:
+          #   - driver: nvidia
+          #     count: all
+          #     capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "OLLAMA_HOST=127.0.0.1:11434 ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # One-shot: pre-pull configured models (default: gemma4:31b-cloud) into Ollama.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: backcast_ollama_init
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
+      OLLAMA_MODELS: "${OLLAMA_MODELS:-gemma4:31b-cloud}"
+    volumes:
+      - ../scripts/ollama/pull-models.sh:/pull-models.sh:ro
+    entrypoint: ["/bin/sh", "/pull-models.sh"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: "no"
+
 networks:
   traefik-public:
     external: true
@@ -253,3 +314,4 @@ volumes:
   backend-logs:
   rustfs_data:
   rustfs_logs:
+  ollama_data:

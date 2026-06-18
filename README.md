@@ -148,6 +148,30 @@ docker compose --env-file .env.production run --rm alembic upgrade head
 
 Full guide including SSL and Apache integration: [Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md)
 
+### Ollama (local & cloud LLMs)
+
+Both dev and deploy stacks ship an **[Ollama](https://ollama.com)** service — an OpenAI-compatible LLM endpoint preconfigured with **`gemma4:31b-cloud`** (cloud-hosted Gemma 4 31B). It runs on the non-standard host port **`11435`** (configurable via `OLLAMA_HOST_PORT`) so it never collides with a default Ollama install on `:11434`.
+
+- **Cloud models** (tags ending in `-cloud`, e.g. `gemma4:31b-cloud`) run on Ollama's hosted cloud — **no GPU required**, but the local server must be signed in to an ollama.com account. Run once (the session persists in the Ollama volume):
+
+  ```bash
+  docker compose exec ollama ollama signin     # approve the printed ollama.com/connect link in your browser
+  ```
+
+- **Local models** (e.g. `gemma4:31b`, `gemma4:12b`) run on your own hardware and need a GPU. Add them to the pull list and enable GPU — see the [deploy guide](docs/05-user-guide/docker-deployment-guide.md#ollama) for the NVIDIA block.
+
+> An **API key** (`OLLAMA_API_KEY`) is a separate, *optional* mechanism for **direct** `ollama.com` access (provider `base_url` `https://ollama.com/v1`) — it is **not** used by the local server, which authenticates cloud models via the `ollama signin` session.
+
+```bash
+# Pull additional models (idempotent)
+docker compose exec ollama ollama pull gemma4:12b
+docker compose exec ollama ollama list          # verify
+```
+
+**Connect Backcast to Ollama** in the AI Config UI: add an `ollama` provider with `base_url` `http://ollama:11434/v1` (in-container) or `http://localhost:11435/v1` (local backend), any dummy `api_key` (e.g. `ollama`), and model `gemma4:31b-cloud`.
+
+Full setup, GPU, and troubleshooting: [Ollama section of the Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md#ollama).
+
 ### Local development
 
 [Onboarding Guide](docs/00-meta/onboarding.md) — environment setup, coding standards, and local dev workflow (`uv` for the backend, Vite for the frontend).

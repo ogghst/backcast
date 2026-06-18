@@ -656,8 +656,6 @@ async def _seed_work_packages_flat(
         item_copy.pop("merge_from_branch", None)
         item_copy.pop("deleted_at", None)
         item_copy.pop("deleted_by", None)
-        item_copy.pop("schedule_baseline_id", None)
-        item_copy.pop("forecast_id", None)
         branch = item_copy.pop("branch", "main")
         await service.create_root(
             root_id=root_id,

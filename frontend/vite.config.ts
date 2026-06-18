@@ -12,7 +12,11 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: "autoUpdate",
         injectRegister: "auto",
-        includeAssets: ["assets/images/backcast.svg", "assets/images/backcast.png"],
+        includeAssets: [
+          "assets/images/backcast.svg",
+          "assets/images/backcast.png",
+          "assets/images/backcast-192.png",
+        ],
         manifest: {
           name: "Backcast",
           short_name: "Backcast",
@@ -23,12 +27,17 @@ export default defineConfig(({ mode }) => {
           scope: "/",
           start_url: "/",
           icons: [
-            { src: "assets/images/backcast.png", sizes: "512x512", type: "image/png" },
             {
-              src: "assets/images/backcast.png",
+              src: "assets/images/backcast-192.png",
               sizes: "192x192",
               type: "image/png",
-              purpose: "any maskable",
+              purpose: "any",
+            },
+            {
+              src: "assets/images/backcast.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "maskable",
             },
           ],
         },
