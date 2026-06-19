@@ -97,7 +97,7 @@ from sqlalchemy import func as sa_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.config import AI_SEQUENTIAL_TOOL_CALLS, AgentConfig
+from app.ai.config import AgentConfig
 from app.ai.event_types import (
     TOOL_NAME_TASK,
     TOOL_NAME_WRITE_TODOS,
@@ -111,7 +111,6 @@ from app.ai.execution.agent_metrics import AgentExecutionMetrics
 from app.ai.execution.lifecycle import execution_lifecycle
 from app.ai.execution.llm_retry import iter_with_pausable_deadline
 from app.ai.execution.runner_manager import runner_manager
-from app.ai.graph import create_graph
 from app.ai.graph_cache import (
     BackcastRuntimeContext,
     LLMClientCache,
@@ -137,7 +136,6 @@ from app.ai.token_estimator import (
 )
 from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
-from app.ai.tools.sequential_tool_node import patch_tool_node_for_sequential_execution
 from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
 from app.api.websocket_utils import is_websocket_connected
@@ -163,11 +161,6 @@ _tracer_provider = initialize_telemetry(
     service_name="backcast-ai",
     enable_console=os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true",
 )
-
-# Defense-in-depth: ensure all ToolNode instances (including specialist
-# subgraphs created via langchain_create_agent) execute tools sequentially
-if AI_SEQUENTIAL_TOOL_CALLS:
-    patch_tool_node_for_sequential_execution()
 
 # NOTE: DeepSeek reasoning_content handling is now provided natively by
 # langchain-deepseek package (ChatDeepSeek class). No monkey-patches needed.
@@ -666,9 +659,8 @@ class AgentService:
             Tuple of (compiled_graph, interrupt_node) where interrupt_node may be None
 
         Note:
-            This is an alternative to create_graph() that uses the Deep Agents SDK
-            for planning and subagent delegation. Falls back to create_graph() if
-            Deep Agents SDK is not available or encounters errors.
+            Uses the Deep Agents SDK via SupervisorOrchestrator for planning and
+            subagent delegation. A genuine construction error propagates (no fallback).
         """
         # Destructure for local use
         llm = params.llm
@@ -700,55 +692,35 @@ class AgentService:
         assistant_role = assistant_config.default_role
 
         # Compile graph
-        try:
-            logger.info(f"[GRAPH_COMPILE] Compiling new graph for session {session_id}")
-            graph_creation_start = time.time()
+        logger.info(f"[GRAPH_COMPILE] Compiling new graph for session {session_id}")
+        graph_creation_start = time.time()
 
-            agent_config = AgentConfig(
-                allowed_tools=None,
-                checkpointer=shared_checkpointer,
-                context_schema=BackcastRuntimeContext,
-                assistant_role=assistant_role,
-                user_role=user_role,
-            )
+        agent_config = AgentConfig(
+            allowed_tools=None,
+            checkpointer=shared_checkpointer,
+            context_schema=BackcastRuntimeContext,
+            assistant_role=assistant_role,
+            user_role=user_role,
+        )
 
-            supervisor_orchestrator = SupervisorOrchestrator(
-                model=llm,
-                context=tool_context,
-                system_prompt=system_prompt,
-                main_assistant_config=assistant_config,
-                specialist_models=params.specialist_models,
-            )
-            graph = await supervisor_orchestrator.create_supervisor_graph(agent_config)
+        supervisor_orchestrator = SupervisorOrchestrator(
+            model=llm,
+            context=tool_context,
+            system_prompt=system_prompt,
+            main_assistant_config=assistant_config,
+            specialist_models=params.specialist_models,
+        )
+        graph = await supervisor_orchestrator.create_supervisor_graph(agent_config)
 
-            graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
-            logger.info(
-                f"[GRAPH_CREATION_COMPLETE] _create_deep_agent_graph | "
-                f"duration_ms={graph_creation_duration_ms:.2f} | "
-                f"session_id={session_id} | "
-                f"graph_type={type(graph).__name__}"
-            )
+        graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
+        logger.info(
+            f"[GRAPH_CREATION_COMPLETE] _create_deep_agent_graph | "
+            f"duration_ms={graph_creation_duration_ms:.2f} | "
+            f"session_id={session_id} | "
+            f"graph_type={type(graph).__name__}"
+        )
 
-            return graph, interrupt_node
-
-        except ImportError:
-            logger.warning("Deep Agents SDK not available, falling back to LangGraph")
-            return create_graph(
-                llm,
-                create_project_tools(tool_context),
-                tool_context,
-                websocket,
-                session_id,
-            )
-        except Exception as e:
-            logger.error(f"Error creating Deep Agent: {e}, falling back to LangGraph")
-            return create_graph(
-                llm,
-                create_project_tools(tool_context),
-                tool_context,
-                websocket,
-                session_id,
-            )
+        return graph, interrupt_node
 
     async def _persist_briefing_from_checkpoint(
         self,

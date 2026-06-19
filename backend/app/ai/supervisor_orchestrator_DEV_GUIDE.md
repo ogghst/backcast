@@ -465,7 +465,7 @@ Tool filtering convention:
 - `allowed_tools = ["*"]` → all available tools (catch-all / fallback)
 - `allowed_tools = ["t1", "t2"]` → only listed tools
 
-Each specialist is compiled via `langchain_create_agent()` with its own tool set and middleware. Additionally, when `AI_SEQUENTIAL_TOOL_CALLS` is true, the tools node's `afunc` is replaced at the instance level with `SequentialToolNode._afunc` (L186–210) — belt-and-suspenders beyond the class-level monkey-patch.
+Each specialist is compiled via `langchain_create_agent()` with its own tool set and middleware. When `AI_SEQUENTIAL_TOOL_CALLS` is true, `SequentialToolCallsMiddleware` enforces sequential tool behavior via native v1 public API: it injects `parallel_tool_calls=False` into `model_settings` (emission control) and holds a shared `asyncio.Lock` in `awrap_tool_call` so that even if the model emits multiple calls in one AIMessage, they execute one at a time (execution serialization).
 
 ---
 
@@ -508,7 +508,7 @@ The handoff tools (`handoff_tools.py`) don't have try/except. If `BriefingDocume
 
 ## 12. Fallback Graph
 
-When no specialists can be compiled (L284–288), `_build_fallback_graph()` (L817–832) creates a simple agent with direct tool access — no briefing, no handoff tools. This is essentially the same as the legacy `create_graph()` from `graph.py`.
+When no specialists can be compiled (L284–288), `_build_fallback_graph()` (L817–832) creates a simple agent with direct tool access — no briefing, no handoff tools. Security remains middleware-only (`BackcastSecurityMiddleware` + `TemporalContextMiddleware`).
 
 ```python
 langchain_create_agent(
