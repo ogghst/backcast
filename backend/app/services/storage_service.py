@@ -25,6 +25,23 @@ class StorageService:
             config=BotoConfig(signature_version="s3v4"),
         )
         self._bucket = settings.RUSTFS_BUCKET_NAME
+        # Presigning client: signs SigV4 over the PUBLIC host (browser-facing).
+        # S3 signatures cover the Host header, so the URL must be presigned against
+        # the same host the browser will request — you cannot string-replace the
+        # host afterwards (the signature would break → 403). Presigning is pure
+        # local computation (no network I/O), so this client never needs to reach
+        # RustFS directly. Path-style addressing avoids wildcard cert/DNS for
+        # `bucket.host`.
+        self._presign_client = boto3.client(
+            "s3",
+            endpoint_url=settings.RUSTFS_PUBLIC_URL or settings.RUSTFS_ENDPOINT_URL,
+            aws_access_key_id=settings.RUSTFS_ACCESS_KEY,
+            aws_secret_access_key=settings.RUSTFS_SECRET_KEY,
+            config=BotoConfig(
+                signature_version="s3v4",
+                s3={"addressing_style": "path"},
+            ),
+        )
 
     async def ensure_bucket_exists(self) -> None:
         """Create the bucket if it doesn't exist. Call on app startup."""
@@ -77,7 +94,7 @@ class StorageService:
         """Generate a presigned download URL."""
         expiry = expiry_seconds or settings.RUSTFS_PRESIGNED_URL_EXPIRY_SECONDS
         return await asyncio.to_thread(
-            self._client.generate_presigned_url,
+            self._presign_client.generate_presigned_url,
             "get_object",
             Params={"Bucket": self._bucket, "Key": key},
             ExpiresIn=expiry,

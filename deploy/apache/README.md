@@ -27,6 +27,7 @@ Docker Services (Backend/Frontend)
 |------|---------|
 | `app.backcast.duckdns.org.conf` | Frontend VirtualHost configuration |
 | `api.backcast.duckdns.org.conf` | Backend API VirtualHost configuration |
+| `storage.backcast.duckdns.org.conf` | RustFS (S3) VirtualHost — presigned document downloads |
 | `README.md` | This file |
 
 ---
@@ -81,6 +82,7 @@ sudo a2dissite default-ssl
 ```bash
 sudo a2ensite app.backcast.duckdns.org
 sudo a2ensite api.backcast.duckdns.org
+sudo a2ensite storage.backcast.duckdns.org
 ```
 
 **Expected output:**
@@ -161,6 +163,7 @@ sudo apt-get install certbot python3-certbot-apache
 sudo certbot --apache -d backcast.duckdns.org \
   -d app.backcast.duckdns.org \
   -d api.backcast.duckdns.org \
+  -d storage.backcast.duckdns.org \
   -d db.backcast.duckdns.org
 ```
 

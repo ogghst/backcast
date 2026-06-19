@@ -134,6 +134,9 @@ class Settings(BaseSettings):
     RUSTFS_SECRET_KEY: str = "rustfsadmin"
     RUSTFS_BUCKET_NAME: str = "backcast-documents"
     RUSTFS_PRESIGNED_URL_EXPIRY_SECONDS: int = 900  # 15 minutes
+    # Public (browser-facing) base for presigned download URLs. Empty → fall back to
+    # RUSTFS_ENDPOINT_URL (dev: localhost works; prod: the Traefik storage subdomain).
+    RUSTFS_PUBLIC_URL: str = ""
 
     # Document Repository
     DOCUMENT_MAX_FILE_SIZE_MB: int = 50
