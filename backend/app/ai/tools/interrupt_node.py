@@ -15,9 +15,9 @@ from uuid import UUID, uuid4
 from fastapi import WebSocket
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
+from langgraph.prebuilt import ToolNode
 
 from app.ai.execution.agent_event_bus import AgentEventBus
-from app.ai.tools.sequential_tool_node import SequentialToolNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.api.websocket_utils import is_websocket_connected
 from app.models.schemas.ai import WSApprovalRequestMessage, WSPollingHeartbeatMessage
@@ -49,7 +49,7 @@ class _ToolCallRequest:
         return _ToolCallRequest(tool_call=tool_call)
 
 
-class InterruptNode(SequentialToolNode):
+class InterruptNode(ToolNode):
     """ToolNode subclass with interrupt-based approval for critical tools.
 
     Wraps LangGraph's ToolNode to add human-in-the-loop approval for critical
