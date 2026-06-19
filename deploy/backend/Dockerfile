@@ -21,7 +21,8 @@ RUN apt-get update && apt-get install -y \
     && groupadd -r appuser && useradd -r -g appuser appuser
 
 # Copy uv and installed packages from builder
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# uv pinned to 0.10.10 to match the dev host resolver (versions still come from uv.lock via --locked).
+COPY --from=ghcr.io/astral-sh/uv:0.10.10 /uv /usr/local/bin/uv
 COPY --from=builder /app/.venv /app/.venv
 
 # Ensure scripts in .venv are usable
@@ -34,8 +35,8 @@ WORKDIR /app
 COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
-COPY backend/config ./config
 COPY backend/seed ./seed
+RUN mkdir -p ./config
 
 # Create necessary directories
 RUN mkdir -p /app/logs && \

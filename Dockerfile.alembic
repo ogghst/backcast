@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv - ultra-fast Python package installer
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Pinned to match the dev host (uv 0.10.10) so dev/deploy use the same resolver.
+COPY --from=ghcr.io/astral-sh/uv:0.10.10 /uv /usr/local/bin/uv
 
 # Set working directory
 WORKDIR /app
