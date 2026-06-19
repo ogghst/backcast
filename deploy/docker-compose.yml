@@ -234,7 +234,7 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -264,7 +264,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
+          cpus: '1'  # host has 1 CPU; was '4' (invalid on <4-CPU hosts)
           memory: 4G
         reservations:
           cpus: '0.5'

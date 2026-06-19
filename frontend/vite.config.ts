@@ -76,23 +76,15 @@ export default defineConfig(({ mode }) => {
       // immutable libraries that load once and can't be meaningfully split further.
       chunkSizeWarningLimit: 3000,
       rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (!id.includes("node_modules")) return;
-            if (id.includes("/mermaid/")) return; // preserve mermaid's own dynamic splitting
-            // antd core + @ant-design/* kept as one chunk: splitting sub-packages
-            // (icons/x/charts) only shaved ~200 kB and introduced circular-chunk warnings.
-            if (id.includes("/antd/") || id.includes("@ant-design/")) return "vendor-antd";
-            // --- other heavy vendors ---
-            if (id.includes("/echarts/") || id.includes("echarts-for-react") || id.includes("/zrender/")) return "vendor-echarts";
-            if (id.includes("/recharts/") || id.includes("/victory-vendor/")) return "vendor-recharts";
-            if (id.includes("/@mui/") || id.includes("/@emotion/")) return "vendor-mui";
-            if (id.includes("react-syntax-highlighter") || id.includes("/refractor/") || id.includes("/lowlight/") || id.includes("/prismjs/")) return "vendor-syntax";
-            if (id.includes("react-markdown") || id.includes("/remark-") || id.includes("/rehype-") || id.includes("/micromark") || id.includes("/mdast-") || id.includes("/unified/") || id.includes("/hast/") || id.includes("/katex/")) return "vendor-markdown";
-            if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/react-router") || id.includes("/scheduler/")) return "vendor-react";
-            if (id.includes("/@tanstack/")) return "vendor-query";
-          },
-        },
+        // No manualChunks: let Rollup do automatic chunk splitting.
+        // A previous manualChunks function created a MUTUAL (cyclic) dependency
+        // between vendor-react and vendor-antd: vendor-antd imported React's
+        // useLayoutEffect from vendor-react while vendor-react imported from
+        // vendor-antd, so ES module init order could not be topological and
+        // React's export was undefined at evaluation time — causing
+        // "Cannot read properties of undefined (reading 'useLayoutEffect')"
+        // and a blank page in production. Automatic splitting guarantees an
+        // acyclic chunk dependency graph.
       },
     },
     server: {

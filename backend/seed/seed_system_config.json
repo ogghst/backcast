@@ -470,7 +470,7 @@
       "id": "01234567-89ab-cdef-0123-456789abcde1",
       "provider_type": "ollama",
       "name": "Ollama",
-      "base_url": "http://localhost:11434/v1",
+      "base_url": "http://ollama:11434/v1",
       "is_active": false,
       "configs": [],
       "models": [

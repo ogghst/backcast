@@ -29,6 +29,9 @@ Dockerfile*
 
 # Deploy (production configs)
 deploy
+!deploy/frontend/nginx.conf
+!deploy/scripts/entrypoint-frontend.sh
+!deploy/scripts/entrypoint-backend.sh
 
 # Worktrees
 .claude
