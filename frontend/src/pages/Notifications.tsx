@@ -1,22 +1,27 @@
 /**
  * Notifications Page
  *
- * Full-page, filterable, paginated list of notifications. Modeled on
- * AgentsHistory.tsx (filter bar + Ant Design Table). Clicking a row navigates
- * to the linked resource by resource_type/resource_id.
+ * Full-page, filterable, paginated list of notifications. Responsive:
+ * card-on-mobile / table-on-desktop, mirroring the WBS-Element list page.
+ * Clicking a row (or card) navigates to the linked resource by
+ * resource_type/resource_id.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   App,
   Button,
+  Empty,
+  Grid,
+  Pagination,
   Select,
+  Space,
+  Spin,
   Switch,
   Table,
   Tag,
   Tooltip,
   Typography,
-  Space,
   theme,
 } from "antd";
 import type { ColumnType } from "antd/es/table";
@@ -27,6 +32,8 @@ import {
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { PageWrapper } from "@/components/layout/PageWrapper";
+import { ViewModeToggle } from "@/components/common/ViewModeToggle";
+import { useViewMode } from "@/hooks/useViewMode";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import {
   useNotifications,
@@ -36,6 +43,7 @@ import {
   type NotificationSeverity,
   type NotificationCategory,
 } from "@/features/notifications";
+import { NotificationCard } from "@/features/notifications/components/NotificationCard";
 import {
   resolveResourceRoute,
   timeAgo,
@@ -65,6 +73,13 @@ export const Notifications = () => {
   const { spacing } = useThemeTokens();
   const navigate = useNavigate();
   const { message } = App.useApp();
+
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const { viewMode, resolvedMode, cycleViewMode } = useViewMode(
+    "notifications",
+    isMobile,
+  );
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -100,7 +115,9 @@ export const Notifications = () => {
         dataIndex: "severity",
         key: "severity",
         width: 40,
-        render: (sev: NotificationSeverity) => <SeverityIcon severity={sev ?? "info"} />,
+        render: (sev: NotificationSeverity) => (
+          <SeverityIcon severity={sev ?? "info"} />
+        ),
       },
       {
         title: "Title",
@@ -124,6 +141,7 @@ export const Notifications = () => {
         dataIndex: "category",
         key: "category",
         width: 140,
+        responsive: ["lg"],
         render: (cat: NotificationCategory | null) =>
           cat ? (
             <Tag>{cat.replace(/_/g, " ")}</Tag>
@@ -136,6 +154,7 @@ export const Notifications = () => {
         dataIndex: "actor_type",
         key: "actor_type",
         width: 120,
+        responsive: ["xl"],
         render: (actorType: string | null) =>
           actorType ? actorType.replace(/_/g, " ") : "—",
         ellipsis: true,
@@ -145,6 +164,7 @@ export const Notifications = () => {
         dataIndex: "severity",
         key: "severityTag",
         width: 110,
+        responsive: ["md"],
         render: (sev: NotificationSeverity | null) => (
           <Tag color={SEVERITY_TAG_COLOR[sev ?? "info"] as never}>
             {(sev ?? "info").replace(/_/g, " ")}
@@ -197,6 +217,7 @@ export const Notifications = () => {
 
   return (
     <PageWrapper>
+      {/* Header: title + actions (wraps on mobile) */}
       <div
         style={{
           display: "flex",
@@ -211,80 +232,147 @@ export const Notifications = () => {
           Notifications
         </Title>
         <Space size={spacing.sm} wrap>
-          <Select<CategoryFilter>
-            style={{ width: 170 }}
-            value={category}
-            onChange={(v) => {
-              setCategory(v);
-              setPage(1);
-            }}
-            options={[
-              { label: "All categories", value: "all" },
-              { label: "Change Orders", value: "change_order" },
-              { label: "Agents", value: "agent" },
-              { label: "Project", value: "project" },
-              { label: "Document", value: "document" },
-              { label: "Branch", value: "branch" },
-              { label: "System", value: "system" },
-            ]}
-          />
-          <Select<SeverityFilter>
-            style={{ width: 150 }}
-            value={severity}
-            onChange={(v) => {
-              setSeverity(v);
-              setPage(1);
-            }}
-            options={[
-              { label: "All severities", value: "all" },
-              { label: "Info", value: "info" },
-              { label: "Notice", value: "notice" },
-              { label: "Warning", value: "warning" },
-              { label: "Urgent", value: "urgent" },
-            ]}
-          />
-          <Space size={spacing.xs}>
-            <Switch
-              checked={unreadOnly}
-              onChange={(checked) => {
-                setUnreadOnly(checked);
-                setPage(1);
-              }}
-            />
-            <Typography.Text>Unread only</Typography.Text>
-          </Space>
-          <Button onClick={() => markAllRead.mutate()} loading={markAllRead.isPending}>
+          <ViewModeToggle viewMode={viewMode} onCycleViewMode={cycleViewMode} />
+          <Button
+            onClick={() => markAllRead.mutate()}
+            loading={markAllRead.isPending}
+          >
             Mark all read
           </Button>
         </Space>
       </div>
 
-      <Table<NotificationResponse>
-        rowKey="id"
-        columns={columns}
-        dataSource={query.data?.items ?? []}
-        loading={query.isLoading}
-        size="middle"
-        locale={{ emptyText: "No notifications" }}
-        onRow={(record) => ({
-          onClick: () => handleRowClick(record),
-          style: { cursor: "pointer" },
-        })}
-        pagination={{
-          current: page,
-          pageSize,
-          total: query.data?.total ?? 0,
-          showSizeChanger: true,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-        }}
+      {/* Filter bar (wraps on mobile) */}
+      <div
         style={{
-          backgroundColor: token.colorBgContainer,
-          borderRadius: token.borderRadiusLG,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: spacing.sm,
+          marginBottom: spacing.md,
         }}
-      />
+      >
+        <Select<CategoryFilter>
+          style={{ flex: 1, minWidth: 140 }}
+          value={category}
+          onChange={(v) => {
+            setCategory(v);
+            setPage(1);
+          }}
+          options={[
+            { label: "All categories", value: "all" },
+            { label: "Change Orders", value: "change_order" },
+            { label: "Agents", value: "agent" },
+            { label: "Project", value: "project" },
+            { label: "Document", value: "document" },
+            { label: "Branch", value: "branch" },
+            { label: "System", value: "system" },
+          ]}
+        />
+        <Select<SeverityFilter>
+          style={{ flex: 1, minWidth: 140 }}
+          value={severity}
+          onChange={(v) => {
+            setSeverity(v);
+            setPage(1);
+          }}
+          options={[
+            { label: "All severities", value: "all" },
+            { label: "Info", value: "info" },
+            { label: "Notice", value: "notice" },
+            { label: "Warning", value: "warning" },
+            { label: "Urgent", value: "urgent" },
+          ]}
+        />
+        <Space size={spacing.xs}>
+          <Switch
+            checked={unreadOnly}
+            onChange={(checked) => {
+              setUnreadOnly(checked);
+              setPage(1);
+            }}
+          />
+          <Typography.Text>Unread only</Typography.Text>
+        </Space>
+      </div>
+
+      {resolvedMode === "card" ? (
+        <>
+          {query.isLoading ? (
+            <div style={{ textAlign: "center", padding: spacing.lg }}>
+              <Spin />
+            </div>
+          ) : query.data && query.data.items.length > 0 ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: token.marginSM,
+              }}
+            >
+              {query.data.items.map((item) => (
+                <NotificationCard
+                  key={item.id}
+                  notification={item}
+                  onOpen={handleRowClick}
+                  onMarkRead={(id) => markRead.mutate(id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <Empty description="No notifications" />
+          )}
+          {(query.data?.total ?? 0) > pageSize && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                marginTop: spacing.md,
+              }}
+            >
+              <Pagination
+                current={page}
+                pageSize={pageSize}
+                total={query.data?.total ?? 0}
+                size="small"
+                showSizeChanger
+                onChange={(p, ps) => {
+                  setPage(p);
+                  setPageSize(ps);
+                }}
+              />
+            </div>
+          )}
+        </>
+      ) : (
+        <Table<NotificationResponse>
+          rowKey="id"
+          columns={columns}
+          dataSource={query.data?.items ?? []}
+          loading={query.isLoading}
+          size="middle"
+          locale={{ emptyText: "No notifications" }}
+          scroll={{ x: 800 }}
+          onRow={(record) => ({
+            onClick: () => handleRowClick(record),
+            style: { cursor: "pointer" },
+          })}
+          pagination={{
+            current: page,
+            pageSize,
+            total: query.data?.total ?? 0,
+            showSizeChanger: true,
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          style={{
+            backgroundColor: token.colorBgContainer,
+            borderRadius: token.borderRadiusLG,
+          }}
+        />
+      )}
     </PageWrapper>
   );
 };

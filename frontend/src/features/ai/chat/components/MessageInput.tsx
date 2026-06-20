@@ -681,6 +681,20 @@ export const MessageInput = ({
             </div>
           )}
 
+          {/* Background-execution toggle - shown on its own row to keep the
+              input row usable on narrow phones (rendered when handler provided) */}
+          {backgroundToggle && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                paddingBottom: spacing.xs,
+              }}
+            >
+              {backgroundToggle}
+            </div>
+          )}
+
           <div
             style={{
               display: "flex",

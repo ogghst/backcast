@@ -10,6 +10,8 @@ import React, { useState, useCallback, useMemo } from "react";
 import {
   Badge,
   Button,
+  Drawer,
+  Grid,
   List,
   Popover,
   Spin,
@@ -78,6 +80,8 @@ export const NotificationBell: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { spacing, typography, colors, borderRadius } = useThemeTokens();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md; // md breakpoint is 768px
 
   // Badge count — REST provides the initial value; the WS stream writes
   // authoritative updates straight into this cache entry.
@@ -146,8 +150,9 @@ export const NotificationBell: React.FC = () => {
   const content = (
     <div
       style={{
-        width: 380,
-        maxHeight: 520,
+        width: isMobile ? "100%" : 380,
+        maxHeight: isMobile ? undefined : 520,
+        height: isMobile ? "100%" : undefined,
         display: "flex",
         flexDirection: "column",
       }}
@@ -163,9 +168,11 @@ export const NotificationBell: React.FC = () => {
           marginBottom: spacing.xs,
         }}
       >
-        <Text strong style={{ fontSize: typography.sizes.md }}>
-          Notifications
-        </Text>
+        {!isMobile && (
+          <Text strong style={{ fontSize: typography.sizes.md }}>
+            Notifications
+          </Text>
+        )}
         {unreadCount > 0 && (
           <Button
             type="link"
@@ -208,7 +215,12 @@ export const NotificationBell: React.FC = () => {
         />
       ) : (
         <List
-          style={{ overflowY: "auto", maxHeight: 360 }}
+          style={{
+            overflowY: "auto",
+            maxHeight: isMobile ? undefined : 360,
+            flex: isMobile ? 1 : undefined,
+            minHeight: isMobile ? 0 : undefined,
+          }}
           dataSource={notifications}
           renderItem={(item: NotificationResponse) => {
             const isUnread = !item.read_at;
@@ -316,6 +328,48 @@ export const NotificationBell: React.FC = () => {
     </div>
   );
 
+  const bell = (
+    <Tooltip title="Notifications">
+      <Badge count={unreadCount} size="small" offset={[-2, 2]}>
+        <Button
+          type="text"
+          icon={<BellOutlined style={{ fontSize: typography.sizes.lg }} />}
+          aria-label="Notifications"
+          onClick={isMobile ? () => setOpen(true) : undefined}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        />
+      </Badge>
+    </Tooltip>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {bell}
+        <Drawer
+          title="Notifications"
+          placement="right"
+          width="100%"
+          open={open}
+          onClose={() => setOpen(false)}
+          styles={{
+            body: {
+              padding: `${spacing.sm} ${spacing.md}`,
+              display: "flex",
+              flexDirection: "column",
+            },
+          }}
+        >
+          {content}
+        </Drawer>
+      </>
+    );
+  }
+
   return (
     <Popover
       content={content}
@@ -327,20 +381,7 @@ export const NotificationBell: React.FC = () => {
         content: { padding: `${spacing.sm} ${spacing.md}` },
       }}
     >
-      <Tooltip title="Notifications">
-        <Badge count={unreadCount} size="small" offset={[-2, 2]}>
-          <Button
-            type="text"
-            icon={<BellOutlined style={{ fontSize: typography.sizes.lg }} />}
-            aria-label="Notifications"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          />
-        </Badge>
-      </Tooltip>
+      {bell}
     </Popover>
   );
 };

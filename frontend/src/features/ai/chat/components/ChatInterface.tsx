@@ -1619,8 +1619,8 @@ export const ChatInterface = ({
 
       <Layout
         style={{
-          height: isMobile ? "100dvh" : "calc(100vh - 300px)",
-          minHeight: isMobile ? "100dvh" : 400,
+          height: "100%",
+          minHeight: 300,
           background: token.colorBgLayout,
         }}
       >
@@ -1942,7 +1942,6 @@ export const ChatInterface = ({
                   flex: 1,
                   overflow: "auto",
                   backgroundColor: token.colorBgLayout,
-                  paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : 0,
                 }}
               >
                 {isReplaying && (

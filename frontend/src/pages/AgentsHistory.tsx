@@ -8,13 +8,14 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { App, Button, Popconfirm, Segmented, Space, Table, Tag, Tooltip, Typography, theme } from "antd";
+import { App, Button, Empty, Grid, Popconfirm, Segmented, Space, Spin, Table, Tag, Tooltip, Typography, theme } from "antd";
 import type { ColumnType } from "antd/es/table";
 import {
   StopOutlined,
   MessageOutlined,
 } from "@ant-design/icons";
 import { PageWrapper } from "@/components/layout/PageWrapper";
+import { EntityCard } from "@/components/common/EntityCard";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import {
   useAgentExecutions,
@@ -74,11 +75,21 @@ function deriveName(item: AgentExecutionHistoryItem): string {
   );
 }
 
+// Compact label/value row for the mobile card meta zone.
+const DetailRow = ({ label, value }: { label: string; value: string }) => (
+  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+    <span>{label}</span>
+    <span style={{ color: "inherit", textAlign: "right" }}>{value}</span>
+  </div>
+);
+
 export const AgentsHistory = () => {
   const { token } = theme.useToken();
   const { spacing } = useThemeTokens();
   const navigate = useNavigate();
   const { message } = App.useApp();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md; // md breakpoint = 768px
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -99,6 +110,45 @@ export const AgentsHistory = () => {
 
   const handleStop = (item: AgentExecutionHistoryItem) => {
     stopExecution.mutate(item.id);
+  };
+
+  // Shared action buttons (Open chat + Stop), identical on desktop and mobile.
+  const renderActions = (record: AgentExecutionHistoryItem) => {
+    const isActive =
+      record.status === "running" ||
+      record.status === "awaiting_approval";
+    return (
+      <Space size={spacing.xs}>
+        <Tooltip title="Open chat">
+          <Button
+            type="text"
+            size="small"
+            icon={<MessageOutlined />}
+            onClick={() => handleOpenChat(record)}
+            aria-label="Open chat"
+          />
+        </Tooltip>
+        <Popconfirm
+          title="Stop this agent run?"
+          description="The agent will be terminated."
+          okText="Stop"
+          okButtonProps={{ danger: true }}
+          cancelText="Cancel"
+          onConfirm={() => handleStop(record)}
+          disabled={!isActive}
+        >
+          <Button
+            type="text"
+            size="small"
+            danger
+            icon={<StopOutlined />}
+            disabled={!isActive}
+            loading={stopExecution.isPending}
+            aria-label="Stop agent"
+          />
+        </Popconfirm>
+      </Space>
+    );
   };
 
   const columns = useMemo<ColumnType<AgentExecutionHistoryItem>[]>(
@@ -153,47 +203,48 @@ export const AgentsHistory = () => {
         title: "Actions",
         key: "actions",
         width: 160,
-        render: (_, record) => {
-          const isActive =
-            record.status === "running" ||
-            record.status === "awaiting_approval";
-          return (
-            <Space size={spacing.xs}>
-              <Tooltip title="Open chat">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<MessageOutlined />}
-                  onClick={() => handleOpenChat(record)}
-                  aria-label="Open chat"
-                />
-              </Tooltip>
-              <Popconfirm
-                title="Stop this agent run?"
-                description="The agent will be terminated."
-                okText="Stop"
-                okButtonProps={{ danger: true }}
-                cancelText="Cancel"
-                onConfirm={() => handleStop(record)}
-                disabled={!isActive}
-              >
-                <Button
-                  type="text"
-                  size="small"
-                  danger
-                  icon={<StopOutlined />}
-                  disabled={!isActive}
-                  loading={stopExecution.isPending}
-                  aria-label="Stop agent"
-                />
-              </Popconfirm>
-            </Space>
-          );
-        },
+        render: (_, record) => renderActions(record),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [spacing.xs, stopExecution.isPending],
+  );
+
+  const renderMobileCard = (record: AgentExecutionHistoryItem) => (
+    <EntityCard
+      title={deriveName(record)}
+      badge={
+        <Tag color={STATUS_COLOR[record.status] ?? "default"}>
+          {record.status.replace(/_/g, " ")}
+        </Tag>
+      }
+      meta={
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: spacing.xs,
+            fontSize: token.fontSizeSM,
+            color: token.colorTextSecondary,
+          }}
+        >
+          <DetailRow label="Context" value={deriveContextLabel(record)} />
+          <DetailRow
+            label="Started"
+            value={formatRelative(record.started_at)}
+          />
+          <DetailRow
+            label="Duration"
+            value={formatDuration(record.started_at, record.completed_at)}
+          />
+          <DetailRow
+            label="Assistant"
+            value={record.assistant_name ?? "—"}
+          />
+        </div>
+      }
+      actions={renderActions(record)}
+    />
   );
 
   return (
@@ -214,6 +265,9 @@ export const AgentsHistory = () => {
         <Segmented<StatusFilter>
           value={statusFilter}
           onChange={(val) => setStatusFilter(val)}
+          // On narrow phones the 5 options would clip; let it take the full row
+          // below the title. Desktop layout is unchanged.
+          style={isMobile ? { width: "100%" } : undefined}
           options={[
             { label: "All", value: "all" },
             { label: "Running", value: "running" },
@@ -224,19 +278,41 @@ export const AgentsHistory = () => {
         />
       </div>
 
-      <Table<AgentExecutionHistoryItem>
-        rowKey="id"
-        columns={columns}
-        dataSource={executionsQuery.data?.items ?? []}
-        loading={executionsQuery.isLoading}
-        pagination={false}
-        size="middle"
-        locale={{ emptyText: "No agent executions" }}
-        style={{
-          backgroundColor: token.colorBgContainer,
-          borderRadius: token.borderRadiusLG,
-        }}
-      />
+      {isMobile ? (
+        executionsQuery.isLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: spacing.xl }}>
+            <Spin />
+          </div>
+        ) : (executionsQuery.data?.items ?? []).length === 0 ? (
+          <Empty description="No agent executions" />
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: spacing.sm,
+            }}
+          >
+            {(executionsQuery.data?.items ?? []).map((item) => (
+              <div key={item.id}>{renderMobileCard(item)}</div>
+            ))}
+          </div>
+        )
+      ) : (
+        <Table<AgentExecutionHistoryItem>
+          rowKey="id"
+          columns={columns}
+          dataSource={executionsQuery.data?.items ?? []}
+          loading={executionsQuery.isLoading}
+          pagination={false}
+          size="middle"
+          locale={{ emptyText: "No agent executions" }}
+          style={{
+            backgroundColor: token.colorBgContainer,
+            borderRadius: token.borderRadiusLG,
+          }}
+        />
+      )}
     </PageWrapper>
   );
 };

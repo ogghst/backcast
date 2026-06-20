@@ -1,7 +1,7 @@
 import React, { Suspense, useState, useEffect, useCallback } from "react";
 import { Layout, Spin, theme, Space, Button, Tooltip } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useParams, useLocation } from "react-router-dom";
 
 import { UserProfile } from "@/components/UserProfile";
 import { HeaderNavigation } from "@/components/navigation/HeaderNavigation";
@@ -23,6 +23,11 @@ import {
 import { parseTemporalRangeLower } from "@/utils/formatters";
 
 const { Header, Content, Footer } = Layout;
+
+// Routes that render as a full-viewport app shell (no page scroll, no footer,
+// no inner card padding) — e.g. chat. Uses pure flexbox sizing so it is robust
+// to the dynamic app header height.
+const FULL_HEIGHT_PATHS = new Set<string>(["/chat"]);
 
 // Fallback shown while a lazily-loaded route chunk is fetched.
 const PageFallback = () => (
@@ -49,6 +54,10 @@ const AppLayout: React.FC = () => {
 
   // Single notification stream connection for the whole app (badge + list).
   useNotificationStream();
+
+  // Full-height app-shell treatment for routes like /chat.
+  const { pathname } = useLocation();
+  const isFullHeight = FULL_HEIGHT_PATHS.has(pathname);
 
   const {
     token: {
@@ -91,7 +100,13 @@ const AppLayout: React.FC = () => {
   const isTimeMachineExpanded = useTimeMachineStore((s) => s.isExpanded);
 
   return (
-    <Layout style={{ minHeight: "100vh", background: colorBgLayout, position: "relative" }}>
+    <Layout
+      style={
+        isFullHeight
+          ? { height: "100dvh", overflow: "hidden", background: colorBgLayout, position: "relative" }
+          : { minHeight: "100vh", background: colorBgLayout, position: "relative" }
+      }
+    >
       <WaveBackground />
       <Header
         style={{
@@ -182,31 +197,53 @@ const AppLayout: React.FC = () => {
       )}
 
       <Content
-        style={{
-          position: "relative",
-          zIndex: 1,
-          margin: "2px auto 0",
-          maxWidth: 1600,
-          width: "100%",
-          paddingLeft: isMobile ? 0 : paddingXL,
-          paddingRight: isMobile ? 0 : paddingXL,
-        }}
+        style={
+          isFullHeight
+            ? {
+                position: "relative",
+                zIndex: 1,
+                flex: 1,
+                minHeight: 0,
+                overflow: "hidden",
+                margin: 0,
+                maxWidth: 1600,
+                width: "100%",
+                paddingLeft: isMobile ? 0 : paddingXL,
+                paddingRight: isMobile ? 0 : paddingXL,
+              }
+            : {
+                position: "relative",
+                zIndex: 1,
+                margin: "2px auto 0",
+                maxWidth: 1600,
+                width: "100%",
+                paddingLeft: isMobile ? 0 : paddingXL,
+                paddingRight: isMobile ? 0 : paddingXL,
+              }
+        }
       >
-        <div
-          style={{
-            padding: 2,
-            minHeight: 360,
-            background: colorBgContainer,
-            borderRadius: borderRadiusLG,
-            margin: 2,
-          }}
-        >
+        {isFullHeight ? (
           <Suspense fallback={<PageFallback />}>
             <Outlet />
           </Suspense>
-        </div>
+        ) : (
+          <div
+            style={{
+              padding: 2,
+              minHeight: 360,
+              background: colorBgContainer,
+              borderRadius: borderRadiusLG,
+              margin: 2,
+            }}
+          >
+            <Suspense fallback={<PageFallback />}>
+              <Outlet />
+            </Suspense>
+          </div>
+        )}
       </Content>
-      <Footer style={{ position: "relative", zIndex: 1, textAlign: "center", background: "transparent" }}>
+      {!isFullHeight && (
+        <Footer style={{ position: "relative", zIndex: 1, textAlign: "center", background: "transparent" }}>
         <Space size="small">
           <span>Backcast ©{new Date().getFullYear()}</span>
           {BUILD_SHA && BUILD_SHA !== "dev" && BUILD_DATE && BUILD_DATE !== "dev" && (
@@ -216,6 +253,7 @@ const AppLayout: React.FC = () => {
           )}
         </Space>
       </Footer>
+      )}
 
       <SearchDialog open={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </Layout>
