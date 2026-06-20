@@ -140,6 +140,7 @@ from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
 from app.api.websocket_utils import is_websocket_connected
 from app.core.config import settings
+from app.core.notifications import NotificationType, Severity, agent_emitter
 from app.models.domain.ai import (
     AIAgentExecution,
     AIAssistantConfig,
@@ -361,6 +362,61 @@ def _make_stop_predicate(
     if stop_event is None:
         return None
     return lambda: bool(stop_event.is_set())
+
+
+async def _notify_agent_owner(
+    execution_id: str,
+    user_id: UUID,
+    code: NotificationType,
+    *,
+    title: str,
+    message: str,
+    idempotency_key: str,
+    severity: Severity | None = None,
+    project_id: UUID | None = None,
+) -> None:
+    """Emit a terminal/human-input agent event to the owning user.
+
+    ADDITIVE to the ``AgentEventBus`` streaming path: this surfaces terminal
+    events (completed/failed/stopped) and human-input events (ask_user /
+    approval) in the unified notification bell + Telegram even when the chat
+    UI is closed. Opens its own short-lived session so the emit cannot roll
+    back any caller transaction; never raises (the emitter swallows, and we
+    belt-and-suspenders log here too).
+
+    Args:
+        execution_id: The agent execution id (bus key + notification resource).
+        user_id: Owning user to target.
+        code: Registry notification code (e.g. ``AGENT_COMPLETED``).
+        title: Short headline.
+        message: Full body text.
+        idempotency_key: Dedup key (per-run for terminal events, per-step for
+            ask_user/approval so replays do not spam).
+        severity: Optional severity override (defaults to registry).
+        project_id: Optional project scope.
+    """
+    from app.db.session import async_session_maker
+
+    try:
+        async with async_session_maker() as session:
+            await agent_emitter(execution_id, session).emit(
+                code,
+                title=title,
+                message=message,
+                target_user_ids=[user_id],
+                resource_type="agent_execution",
+                resource_id=UUID(execution_id),
+                project_id=project_id,
+                severity=severity,
+                idempotency_key=idempotency_key,
+            )
+            await session.commit()
+    except Exception:
+        logger.exception(
+            "Agent notification emit failed for execution %s (%s)",
+            execution_id,
+            code.value,
+        )
 
 
 def _extract_resume_state_from_checkpoint(
@@ -2482,6 +2538,18 @@ class AgentService:
         )
 
     @staticmethod
+    def _summarize_run(message: str) -> str | None:
+        """Truncate the run's request prompt into a short completion summary.
+
+        Returns ``None`` for an empty prompt so the caller falls back to a
+        generic completion message.
+        """
+        if not message:
+            return None
+        text = message.strip()
+        return text[:140] + ("…" if len(text) > 140 else "")
+
+    @staticmethod
     async def _postflight_execution(
         execution_id: str,
         session_id: UUID,
@@ -2688,6 +2756,19 @@ class AgentService:
                 metrics=metrics,
             )
 
+            # Bridge to the unified notification bell/Telegram: surface agent
+            # completion to the owner even when the chat UI is closed. The
+            # AgentEventBus streaming path above is unchanged; this is additive.
+            await _notify_agent_owner(
+                execution_id,
+                user_id,
+                NotificationType.AGENT_COMPLETED,
+                title="Agent completed",
+                message=self._summarize_run(message) or "Agent run completed.",
+                idempotency_key=f"agent:{execution_id}:completed",
+                project_id=effective_project_id,
+            )
+
         except ExecutionStoppedError:
             logger.info("[EXECUTION_STOPPED] %s — saving partial state", execution_id)
             # Post-flight with STOPPED status (briefing already persisted
@@ -2697,6 +2778,16 @@ class AgentService:
                 session_id,
                 metrics,
                 event_bus,
+            )
+            # Bridge: notify the owner the run was stopped.
+            await _notify_agent_owner(
+                execution_id,
+                user_id,
+                NotificationType.AGENT_STOPPED,
+                title="Agent stopped",
+                message="The agent run was stopped.",
+                idempotency_key=f"agent:{execution_id}:stopped",
+                project_id=effective_project_id,
             )
 
         except asyncio.CancelledError:
@@ -2756,6 +2847,18 @@ class AgentService:
                     data={"message": str(e), "code": 500},
                     timestamp=datetime.now(UTC),
                 )
+            )
+
+            # Bridge: notify the owner the run failed (severity URGENT per the
+            # registry default for agent.failed).
+            await _notify_agent_owner(
+                execution_id,
+                user_id,
+                NotificationType.AGENT_FAILED,
+                title="Agent failed",
+                message=f"The agent run failed: {str(e)[:200]}",
+                idempotency_key=f"agent:{execution_id}:failed",
+                project_id=effective_project_id,
             )
 
             raise

@@ -160,8 +160,12 @@ describe("AgentsHistory page", () => {
     const openChatButton = await screen.findByRole("button", { name: "Open chat" });
     await userEvent.click(openChatButton);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/chat", {
-      state: { sessionId: "sess-1", executionId: "exec-running-aaaa" },
+    expect(mockNavigate).toHaveBeenCalledWith("/chat?ctx=general", {
+      state: {
+        sessionId: "sess-1",
+        executionId: "exec-running-aaaa",
+        returnTo: "/agents-history",
+      },
     });
   });
 

@@ -1,9 +1,10 @@
 import React from "react";
-import { useParams, useNavigate, Outlet } from "react-router-dom";
+import { useParams, useNavigate, Outlet, useLocation } from "react-router-dom";
 import { Button, Modal } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
+  RobotOutlined,
 } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -13,7 +14,6 @@ import {
   useUpdateWorkPackage,
   useDeleteWorkPackage,
 } from "@/features/work-packages/api/useWorkPackages";
-import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useControlAccount } from "@/features/control-accounts/api/useControlAccounts";
 import { WorkPackageUpdate } from "@/api/generated";
 import { WorkPackageModal } from "@/features/work-packages/components/WorkPackageModal";
@@ -21,7 +21,7 @@ import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { PageNavigation } from "@/components/navigation";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
 
 export const WorkPackageLayout: React.FC = () => {
@@ -60,12 +60,18 @@ export const WorkPackageLayout: React.FC = () => {
       label: "Documents",
       path: `${basePath}/documents`,
     },
-    {
-      key: "chat",
-      label: "AI Chat",
-      path: `${basePath}/chat`,
-    },
   ];
+
+  const location = useLocation();
+  const activeSection = navItems.find((i) => location.pathname === i.path)?.label ?? navItems[0].label;
+
+  const handleOpenChat = () => {
+    const ctxParam = `work_package:${id}`;
+    const projectRider = projectId ? `&p=${projectId}` : "";
+    navigate(`/chat?ctx=${ctxParam}${projectRider}`, {
+      state: { returnTo: basePath },
+    });
+  };
 
   // Modal/drawer state
   const {
@@ -127,9 +133,8 @@ export const WorkPackageLayout: React.FC = () => {
     <PageWrapper>
       <PageNavigation items={navItems} />
 
-      <EntityBreadcrumb
-        loading={breadcrumbLoading}
-        items={
+      <PageShell
+        breadcrumb={
           breadcrumb
             ? [
                 // Project item — dedup if WBE code matches project code
@@ -147,16 +152,25 @@ export const WorkPackageLayout: React.FC = () => {
                 },
                 {
                   label: `${breadcrumb.work_package.code} ${breadcrumb.work_package.name}`,
+                  to: basePath,
                 },
+                // Active section — bold (last crumb)
+                { label: activeSection },
               ]
             : []
         }
-      />
-
-      <PageHeader
-        title="Work Package"
+        breadcrumbLoading={breadcrumbLoading}
+        title={activeSection}
         actions={
           <>
+            <Can permission="ai-chat">
+              <Button
+                icon={<RobotOutlined />}
+                onClick={handleOpenChat}
+              >
+                AI Chat
+              </Button>
+            </Can>
             <Can permission="work-package-update">
               <Button
                 type="primary"

@@ -4,6 +4,7 @@ import { Button, Modal } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
+  RobotOutlined,
 } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -13,14 +14,13 @@ import {
   useUpdateCostElement,
   useDeleteCostElement,
 } from "@/features/cost-elements/api/useCostElements";
-import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { CostElementUpdate } from "@/api/generated";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { PageNavigation } from "@/components/navigation";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
 
 /**
@@ -56,12 +56,17 @@ export const CostElementLayout: React.FC = () => {
       label: "Documents",
       path: `/cost-elements/${id}/documents`,
     },
-    {
-      key: "chat",
-      label: "AI Chat",
-      path: `/cost-elements/${id}/chat`,
-    },
   ];
+
+  // Project root id from the breadcrumb (may be undefined while loading).
+  const projectId = breadcrumb?.project?.project_id;
+
+  const handleOpenChat = () => {
+    const projectRider = projectId ? `&p=${projectId}` : "";
+    navigate(`/chat?ctx=cost_element:${id}${projectRider}`, {
+      state: { returnTo: `/cost-elements/${id}` },
+    });
+  };
 
   // Modal/drawer state
   const {
@@ -123,9 +128,8 @@ export const CostElementLayout: React.FC = () => {
     <PageWrapper>
       <PageNavigation items={navItems} />
 
-      <EntityBreadcrumb
-        loading={breadcrumbLoading}
-        items={
+      <PageShell
+        breadcrumb={
           breadcrumb
             ? [
                 // Project item — dedup if WBE code matches project code
@@ -150,11 +154,18 @@ export const CostElementLayout: React.FC = () => {
               ]
             : []
         }
-      />
-      <PageHeader
+        breadcrumbLoading={breadcrumbLoading}
         title={displayTitle}
         actions={
           <>
+            <Can permission="ai-chat">
+              <Button
+                icon={<RobotOutlined />}
+                onClick={handleOpenChat}
+              >
+                AI Chat
+              </Button>
+            </Can>
             <Can permission="cost-element-update">
               <Button
                 type="primary"

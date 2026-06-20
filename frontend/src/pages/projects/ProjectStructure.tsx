@@ -2,7 +2,8 @@ import { useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "antd";
 import { ProjectTree, type TreeNodeData } from "@/components/hierarchy/ProjectTree";
-import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageContent } from "@/components/layout/PageContent";
+import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 export const ProjectStructure = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -28,10 +29,12 @@ export const ProjectStructure = () => {
   if (!projectId) return null;
 
   return (
-    <PageWrapper>
-      <Card title="Project Structure">
-        <ProjectTree projectId={projectId} onSelect={handleSelect} />
-      </Card>
-    </PageWrapper>
+    <ProjectPage title="Project Structure">
+      <PageContent>
+        <Card>
+          <ProjectTree projectId={projectId} onSelect={handleSelect} />
+        </Card>
+      </PageContent>
+    </ProjectPage>
   );
 };

@@ -1,9 +1,13 @@
 import React from "react";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useParams, useNavigate } from "react-router-dom";
+import { Button } from "antd";
+import { RobotOutlined } from "@ant-design/icons";
 import { PageNavigation } from "@/components/navigation";
+import { Can } from "@/components/auth/Can";
 
 export const ProjectLayout: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
 
   const items = [
     { key: "dashboard", label: "Dashboard", path: `/projects/${projectId}/dashboard` },
@@ -18,13 +22,28 @@ export const ProjectLayout: React.FC = () => {
     { key: "coq-analysis", label: "COQ Analysis", path: `/projects/${projectId}/coq-analysis` },
     { key: "cost-events", label: "Cost Events", path: `/projects/${projectId}/cost-events` },
     { key: "documents", label: "Documents", path: `/projects/${projectId}/documents` },
-    { key: "chat", label: "AI Chat", path: `/projects/${projectId}/chat` },
     { key: "admin", label: "Admin", path: `/projects/${projectId}/admin` },
   ];
 
+  const handleOpenChat = () => {
+    navigate(`/chat?ctx=project:${projectId}`, {
+      state: { returnTo: `/projects/${projectId}` },
+    });
+  };
+
   return (
     <>
-      <PageNavigation items={items} />
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <PageNavigation items={items} />
+        <Can permission="ai-chat">
+          <Button
+            icon={<RobotOutlined />}
+            onClick={handleOpenChat}
+          >
+            AI Chat
+          </Button>
+        </Can>
+      </div>
       <Outlet />
     </>
   );

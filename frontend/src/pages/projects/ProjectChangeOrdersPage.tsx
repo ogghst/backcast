@@ -1,12 +1,9 @@
 import { useParams } from "react-router-dom";
-import { useProject } from "@/features/projects/api/useProjects";
 import { ChangeOrderList } from "@/features/change-orders";
 import { ChangeOrderAnalytics } from "@/features/change-orders/components/ChangeOrderAnalytics";
 import { Tabs } from "antd";
 import { useState } from "react";
-import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
-import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 /**
  * ProjectChangeOrdersPage component
@@ -22,18 +19,8 @@ export const ProjectChangeOrdersPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const [activeTab, setActiveTab] = useState("list");
 
-  const { data: project } = useProject(projectId!);
-
   return (
-    <PageWrapper>
-      <EntityBreadcrumb
-        items={[
-          { label: project?.code || "Project", to: `/projects/${projectId}` },
-          { label: "Change Orders" },
-        ]}
-      />
-      <PageHeader title="Change Orders" />
-
+    <ProjectPage title="Change Orders">
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
@@ -55,6 +42,6 @@ export const ProjectChangeOrdersPage = () => {
           },
         ]}
       />
-    </PageWrapper>
+    </ProjectPage>
   );
 };

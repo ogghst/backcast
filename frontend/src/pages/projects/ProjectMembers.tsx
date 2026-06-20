@@ -7,7 +7,7 @@
 import { useParams } from "react-router-dom";
 import { useProject } from "@/features/projects/api/useProjects";
 import { ProjectMemberManager } from "@/features/projects/components/ProjectMemberManager";
-import { PageWrapper } from "@/components/layout/PageWrapper";
+import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 export const ProjectMembers = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -19,23 +19,23 @@ export const ProjectMembers = () => {
 
   if (isProjectLoading) {
     return (
-      <PageWrapper>
+      <ProjectPage title="Members">
         <div>Loading project information...</div>
-      </PageWrapper>
+      </ProjectPage>
     );
   }
 
   if (!project) {
     return (
-      <PageWrapper>
+      <ProjectPage title="Members">
         <div>Project not found</div>
-      </PageWrapper>
+      </ProjectPage>
     );
   }
 
   return (
-    <PageWrapper>
+    <ProjectPage title="Members">
       <ProjectMemberManager projectId={projectId} projectName={project.name} />
-    </PageWrapper>
+    </ProjectPage>
   );
 };

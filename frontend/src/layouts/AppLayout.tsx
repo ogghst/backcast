@@ -7,7 +7,7 @@ import { UserProfile } from "@/components/UserProfile";
 import { HeaderNavigation } from "@/components/navigation/HeaderNavigation";
 import { WaveBackground } from "@/components/common/WaveBackground";
 import { SearchDialog, useSearchShortcut } from "@/features/search";
-import { NotificationBell } from "@/features/notifications";
+import { NotificationBell, useNotificationStream } from "@/features/notifications";
 
 const BUILD_SHA = import.meta.env.VITE_GIT_SHA || "dev";
 const BUILD_DATE = import.meta.env.VITE_BUILD_DATE || "dev";
@@ -46,6 +46,9 @@ const AppLayout: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const openSearch = useCallback(() => setIsSearchOpen(true), []);
   useSearchShortcut(openSearch);
+
+  // Single notification stream connection for the whole app (badge + list).
+  useNotificationStream();
 
   const {
     token: {
@@ -88,7 +91,13 @@ const AppLayout: React.FC = () => {
   const isTimeMachineExpanded = useTimeMachineStore((s) => s.isExpanded);
 
   return (
-    <Layout style={{ minHeight: "100vh", background: colorBgLayout, position: "relative" }}>
+    <Layout
+      style={{
+        minHeight: "100vh",
+        background: colorBgLayout,
+        position: "relative",
+      }}
+    >
       <WaveBackground />
       <Header
         style={{

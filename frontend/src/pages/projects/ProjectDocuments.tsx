@@ -1,14 +1,14 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import { DocumentBrowser } from "@/features/documents/components/DocumentBrowser";
-import { PageWrapper } from "@/components/layout/PageWrapper";
+import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 export const ProjectDocuments: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   if (!projectId) return null;
   return (
-    <PageWrapper>
+    <ProjectPage title="Documents">
       <DocumentBrowser projectId={projectId} showFolderTree />
-    </PageWrapper>
+    </ProjectPage>
   );
 };

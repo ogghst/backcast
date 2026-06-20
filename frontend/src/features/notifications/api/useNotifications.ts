@@ -19,6 +19,18 @@ import { queryKeys } from "@/api/queryKeys";
 // Types matching backend Notification API schemas
 // ---------------------------------------------------------------------------
 
+export type NotificationSeverity = "info" | "notice" | "warning" | "urgent";
+
+export type NotificationCategory =
+  | "change_order"
+  | "agent"
+  | "project"
+  | "document"
+  | "branch"
+  | "system";
+
+export type NotificationChannel = "in_app" | "telegram";
+
 export interface NotificationResponse {
   id: string;
   user_id: string;
@@ -29,6 +41,11 @@ export interface NotificationResponse {
   resource_id: string | null;
   read_at: string | null;
   created_at: string;
+  severity: NotificationSeverity;
+  actor_type: string | null;
+  actor_id: string | null;
+  project_id: string | null;
+  category: NotificationCategory;
 }
 
 export interface NotificationListResponse {
@@ -50,6 +67,8 @@ export interface NotificationListParams {
   page?: number;
   pageSize?: number;
   unreadOnly?: boolean;
+  category?: NotificationCategory;
+  severity?: NotificationSeverity;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +92,8 @@ export function useNotifications(
       if (params?.page) searchParams.set("page", String(params.page));
       if (params?.pageSize) searchParams.set("page_size", String(params.pageSize));
       if (params?.unreadOnly) searchParams.set("unread_only", "true");
+      if (params?.category) searchParams.set("category", params.category);
+      if (params?.severity) searchParams.set("severity", params.severity);
       const qs = searchParams.toString();
       const url = `/api/v1/notifications${qs ? `?${qs}` : ""}`;
       return __request(OpenAPI, { method: "GET", url }) as Promise<NotificationListResponse>;
@@ -92,7 +113,7 @@ export function useUnreadNotificationCount(
   >,
 ) {
   return useQuery<UnreadCountResponse, Error>({
-    queryKey: queryKeys.notifications.unreadCount,
+    queryKey: queryKeys.notifications.unreadCount(),
     queryFn: async () => {
       return __request(OpenAPI, {
         method: "GET",

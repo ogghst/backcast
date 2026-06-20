@@ -2,7 +2,6 @@ import React from "react";
 import { useParams, useNavigate, Outlet } from "react-router-dom";
 import { Button, Grid, Modal, Space, theme, Typography, Tag } from "antd";
 import { EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
-import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import {
@@ -20,7 +19,7 @@ import { ControlAccountModal } from "@/features/control-accounts/components/Cont
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
@@ -61,7 +60,9 @@ export const ControlAccountLayout: React.FC = () => {
     { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/control-accounts/${controlAccountId}/evm-analysis` },
     { key: "cost-history", label: "Cost History", path: `/projects/${projectId}/control-accounts/${controlAccountId}/cost-history` },
     { key: "documents", label: "Documents", path: `/projects/${projectId}/control-accounts/${controlAccountId}/documents` },
-    { key: "chat", label: "AI Chat", path: `/projects/${projectId}/control-accounts/${controlAccountId}/chat` },
+    // "AI Chat" tab removed: the entity-scoped chat route was never implemented
+    // (blank Outlet), and `control_account` is not a supported SessionContext
+    // type, so there is no unified /chat?ctx= equivalent to link to.
   ];
 
   // Modal/drawer state
@@ -144,9 +145,9 @@ export const ControlAccountLayout: React.FC = () => {
     <PageWrapper>
       <PageNavigation items={navItems} />
 
-      <EntityBreadcrumb loading={caLoading || !wbsElement} items={breadcrumbEntries} />
-
-      <PageHeader
+      <PageShell
+        breadcrumb={breadcrumbEntries}
+        breadcrumbLoading={caLoading || !wbsElement}
         title={
           <Space align="center" size={token.marginSM}>
             <Typography.Title

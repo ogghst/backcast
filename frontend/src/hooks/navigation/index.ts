@@ -1,7 +1,7 @@
 /**
  * Navigation Hooks
  *
- * Exports all navigation-related hooks for easy importing.
+ * Barrel for navigation-related hooks. Currently each hook is imported directly
+ * from its module (e.g. `useChatContextFromUrl`); this barrel is kept for
+ * future aggregation.
  */
-
-export { useAIChatContext } from "./useAIChatContext";

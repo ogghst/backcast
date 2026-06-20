@@ -20,6 +20,7 @@ from langgraph.prebuilt import ToolNode
 from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.api.websocket_utils import is_websocket_connected
+from app.core.notifications import NotificationType, agent_emitter
 from app.models.schemas.ai import WSApprovalRequestMessage, WSPollingHeartbeatMessage
 
 
@@ -213,6 +214,17 @@ class InterruptNode(ToolNode):
             )
             logger.info(
                 f"APPROVAL_REQUEST_PUBLISHED_TO_BUS: approval_id={approval_id}, tool='{tool_name}'"
+            )
+            # Bridge to the unified notification bell/Telegram: surface the
+            # approval request to the owner even when the chat UI is closed.
+            # ADDITIVE to the bus publish above. Idempotency is keyed per
+            # (execution, approval) so a replay does not re-spam the bell.
+            await _notify_owner_approval(
+                execution_id=self.event_bus.execution_id,
+                user_id=self.context.user_id,
+                session=self.context.session,
+                tool_name=tool_name,
+                approval_id=approval_id,
             )
 
         if self.websocket and self._is_websocket_connected(self.websocket):
@@ -507,3 +519,43 @@ class InterruptNode(ToolNode):
         # Create overridden request and execute
         new_request = request.override(tool_call=new_tool_call)
         return await execute(new_request)
+
+
+async def _notify_owner_approval(
+    *,
+    execution_id: str,
+    user_id: str,
+    session: Any,
+    tool_name: str,
+    approval_id: str,
+) -> None:
+    """Emit an ``agent.approval_req`` notification to the owning user.
+
+    ADDITIVE to the ``AgentEventBus`` approval_request publish (which drives
+    the open chat approval modal). This surfaces the approval request in the
+    bell/Telegram when the chat UI is closed. Uses the tool's task-local
+    session; never raises. Severity defaults to URGENT per the registry.
+
+    Args:
+        execution_id: The agent execution id (bus key).
+        user_id: Owning user id (string from ToolContext).
+        session: The tool's task-local AsyncSession.
+        tool_name: Name of the tool requiring approval (for the message body).
+        approval_id: Unique per-approval id, used for idempotency.
+    """
+    try:
+        await agent_emitter(execution_id, session).emit(
+            NotificationType.AGENT_APPROVAL_REQ,
+            title="Agent approval required",
+            message=f"The agent needs approval to run '{tool_name}'.",
+            target_user_ids=[UUID(user_id)],
+            resource_type="agent_execution",
+            resource_id=UUID(execution_id),
+            idempotency_key=f"agent:{execution_id}:approval:{approval_id}",
+        )
+    except Exception:
+        from app.ai.agent_service import logger
+
+        logger.exception(
+            "approval notification emit failed for execution %s", execution_id
+        )

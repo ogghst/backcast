@@ -39,16 +39,26 @@ class NotificationService:
         message: str,
         resource_type: str | None = None,
         resource_id: UUID | None = None,
+        actor_type: str | None = None,
+        actor_id: UUID | None = None,
+        severity: str = "info",
+        project_id: UUID | None = None,
+        idempotency_key: str | None = None,
     ) -> Notification:
         """Create a new notification for a user.
 
         Args:
             user_id: UUID of the recipient user.
-            event_type: Event category (e.g. 'co_submitted', 'co_approved').
+            event_type: Dotted event code (e.g. 'co.submitted').
             title: Short headline for notification lists.
             message: Full notification body text.
             resource_type: Type of related entity (e.g. 'change_order').
             resource_id: UUID of the related entity.
+            actor_type: Originator type ('user' | 'agent' | 'system').
+            actor_id: UUID of the originating actor.
+            severity: Severity string ('info' | 'notice' | 'warning' | 'urgent').
+            project_id: Optional project scope.
+            idempotency_key: Optional dedup key (unique per user when set).
 
         Returns:
             The created Notification instance.
@@ -60,10 +70,41 @@ class NotificationService:
             message=message,
             resource_type=resource_type,
             resource_id=resource_id,
+            actor_type=actor_type,
+            actor_id=actor_id,
+            severity=severity,
+            project_id=project_id,
+            idempotency_key=idempotency_key,
         )
         self._db.add(notification)
         await self._db.flush()
         return notification
+
+    async def get_user_idempotency_exists(
+        self, user_id: UUID, idempotency_key: str
+    ) -> bool:
+        """Return True if a notification already exists for this key+user.
+
+        Used by the dispatcher to skip duplicate persists when an emitter
+        supplies an ``idempotency_key``.
+
+        Args:
+            user_id: UUID of the recipient user.
+            idempotency_key: Dedup key to check.
+
+        Returns:
+            ``True`` if a matching notification row exists.
+        """
+        stmt = (
+            select(func.count())
+            .select_from(Notification)
+            .where(
+                Notification.user_id == user_id,
+                Notification.idempotency_key == idempotency_key,
+            )
+        )
+        result = await self._db.execute(stmt)
+        return result.scalar_one() > 0
 
     async def get_user_notifications(
         self,
@@ -71,6 +112,8 @@ class NotificationService:
         page: int = 1,
         page_size: int = 20,
         unread_only: bool = False,
+        category: str | None = None,
+        severity: str | None = None,
     ) -> tuple[list[Notification], int]:
         """Get paginated notifications for a user.
 
@@ -79,6 +122,9 @@ class NotificationService:
             page: 1-based page number.
             page_size: Number of items per page.
             unread_only: If True, return only unread notifications.
+            category: Optional category filter (matched against the
+                ``event_type`` prefix, e.g. ``"co"`` -> ``co.*``).
+            severity: Optional exact severity filter (``info``/``notice``/...).
 
         Returns:
             A tuple of (notifications list, total count).
@@ -91,6 +137,10 @@ class NotificationService:
         )
         if unread_only:
             count_stmt = count_stmt.where(Notification.read_at.is_(None))
+        if category:
+            count_stmt = count_stmt.where(Notification.event_type.like(f"{category}.%"))
+        if severity:
+            count_stmt = count_stmt.where(Notification.severity == severity)
 
         count_result = await self._db.execute(count_stmt)
         total_count = count_result.scalar_one()
@@ -106,6 +156,10 @@ class NotificationService:
         )
         if unread_only:
             data_stmt = data_stmt.where(Notification.read_at.is_(None))
+        if category:
+            data_stmt = data_stmt.where(Notification.event_type.like(f"{category}.%"))
+        if severity:
+            data_stmt = data_stmt.where(Notification.severity == severity)
 
         data_result = await self._db.execute(data_stmt)
         notifications = list(data_result.scalars().all())

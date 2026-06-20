@@ -416,9 +416,17 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   // Notifications
   notifications: {
     all: ["notifications"] as const,
-    list: (params?: { page?: number; pageSize?: number; unreadOnly?: boolean }) =>
-      ["notifications", "list", params] as const,
-    unreadCount: ["notifications", "unread-count"] as const,
+    lists: () => ["notifications", "list"] as const,
+    list: (params?: {
+      page?: number;
+      pageSize?: number;
+      unreadOnly?: boolean;
+      category?: string;
+      severity?: string;
+    }) => ["notifications", "list", params] as const,
+    unreadCount: () => ["notifications", "unread-count"] as const,
+    preferences: ["notifications", "preferences"] as const,
+    telegramStatus: () => ["notifications", "telegram-status"] as const,
   },
 
   // Documents

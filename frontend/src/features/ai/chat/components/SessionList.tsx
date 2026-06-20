@@ -122,7 +122,6 @@ export const SessionList = ({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        borderRight: `1px solid ${token.colorBorderSecondary}`,
         backgroundColor: token.colorBgContainer,
       }}
     >
@@ -139,7 +138,6 @@ export const SessionList = ({
         <div
           style={{
             padding: spacing.md,
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
           <Button

@@ -108,7 +108,6 @@ export const BriefingRail = memo(
             width,
             minWidth: MIN_WIDTH,
             maxWidth: maxViewportWidth(),
-            borderLeft: `1px solid ${token.colorBorderSecondary}`,
             background: token.colorBgContainer,
             flexShrink: 0,
           }}

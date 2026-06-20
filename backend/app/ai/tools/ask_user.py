@@ -10,7 +10,7 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from langchain_core.tools import InjectedToolArg
 from pydantic import BeforeValidator
@@ -20,6 +20,7 @@ from app.ai.execution.agent_event import AgentEvent
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.core.config import settings
+from app.core.notifications import NotificationType, agent_emitter
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,43 @@ def is_ask_user_pending() -> bool:
     return any(not fut.done() for fut, _ in _pending_asks.values())
 
 
+async def _notify_owner_ask(
+    *,
+    execution_id: str,
+    user_id: str,
+    session: Any,
+    question: str,
+    ask_id: str,
+) -> None:
+    """Emit an ``agent.ask_user`` notification to the owning user.
+
+    ADDITIVE to the ``AgentEventBus`` ask_user publish (which drives the open
+    chat modal). This surfaces the question in the bell/Telegram when the chat
+    UI is closed. Uses the tool's task-local session; never raises.
+
+    Args:
+        execution_id: The agent execution id (bus key).
+        user_id: Owning user id (string from ToolContext).
+        session: The tool's task-local AsyncSession.
+        question: The clarification question text.
+        ask_id: Unique per-ask id, used for idempotency.
+    """
+    try:
+        await agent_emitter(execution_id, session).emit(
+            NotificationType.AGENT_ASK_USER,
+            title="Agent needs your input",
+            message=question[:500],
+            target_user_ids=[UUID(user_id)],
+            resource_type="agent_execution",
+            resource_id=UUID(execution_id),
+            idempotency_key=f"agent:{execution_id}:ask:{ask_id}",
+        )
+    except Exception:
+        logger.exception(
+            "ask_user notification emit failed for execution %s", execution_id
+        )
+
+
 @ai_tool(
     name="ask_user",
     description=(
@@ -245,6 +283,17 @@ async def ask_user(
             data=event_data,
             timestamp=datetime.now(UTC),
         )
+    )
+    # Bridge to the unified notification bell/Telegram: surface the question to
+    # the owner even when the chat UI is closed. ADDITIVE to the bus publish
+    # above (which drives the open chat's ask_user modal). Idempotency is keyed
+    # per (execution, ask) so a replayed checkpoint does not re-spam the bell.
+    await _notify_owner_ask(
+        execution_id=execution_id,
+        user_id=context.user_id,
+        session=context.session,
+        question=question,
+        ask_id=ask_id,
     )
     # Count this USER-FACING prompt toward the per-execution cap.  Incrementing
     # at publish time (not on resolve) so a prompt that the user ignores still

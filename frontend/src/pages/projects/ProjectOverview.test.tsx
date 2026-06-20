@@ -109,7 +109,9 @@ describe("ProjectOverview", () => {
     render(<ProjectOverview />, { wrapper: Wrapper });
 
     // Assert
-    expect(screen.getByText("Project Details")).toBeInTheDocument();
+    // "Project Details" appears twice under the unified page chrome:
+    // as the bold last breadcrumb crumb and as the PageHeader title.
+    expect(screen.getAllByText("Project Details").length).toBeGreaterThan(0);
     expect(screen.getByText("Root WBS Elements")).toBeInTheDocument();
     // Change Orders card should NOT be present
     expect(screen.queryByText("Change Orders")).not.toBeInTheDocument();

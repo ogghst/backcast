@@ -33,6 +33,7 @@ Ensure the following A records point to your server IP:
 | `@` or `*` | Wildcard (covers all subdomains) |
 | `api` | Backend API |
 | `app` | Frontend application |
+| `storage` | RustFS object storage (document/attachment downloads) |
 | `db` | Adminer database GUI (optional) |
 | `traefik` | Traefik dashboard (optional) |
 
@@ -53,12 +54,12 @@ Ensure the following A records point to your server IP:
    │ (nginx) │    │FastAPI  │    │  GUI     │
    └─────────┘    └────┬────┘    └──────────┘
                        │
-                ┌──────┴──────┐
-                ↓             ↓
-           ┌─────────┐   ┌─────────┐
-           │ Alembic │   │PostgreSQL│
-           │(migrate)│   │  :5432   │
-           └─────────┘   └──────────┘
+                ┌──────┼──────┐
+                ↓      ↓      ↓
+           ┌─────────┐ ┌─────────┐ ┌─────────┐
+           │ Alembic │ │PostgreSQL│ │ RustFS  │
+           │(migrate)│ │  :5432   │ │  :9000  │
+           └─────────┘ └──────────┘ └─────────┘
 ```
 
 ### Service Endpoints
@@ -67,6 +68,7 @@ Ensure the following A records point to your server IP:
 |---------|-----|---------------|-------------|
 | Frontend | `https://app.yourdomain.com` | 8080 | React SPA |
 | Backend API | `https://api.yourdomain.com` | 8080 | FastAPI |
+| RustFS (S3) | `https://storage.yourdomain.com` | 9000 | Object storage — presigned document/attachment downloads |
 | Adminer | `https://db.yourdomain.com` | 8080 | Database GUI |
 | Traefik Dashboard | `https://traefik.yourdomain.com` | - | Monitoring |
 

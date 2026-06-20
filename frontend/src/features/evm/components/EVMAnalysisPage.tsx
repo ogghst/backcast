@@ -9,7 +9,6 @@ import { EVMSummaryView } from "@/features/evm/components/EVMSummaryView";
 import { EVMTimeSeriesChart } from "@/features/evm/components/EVMTimeSeriesChart";
 import { EVMAnalyzerModal } from "@/features/evm/components/EVMAnalyzerModal";
 import { EVMTimeSeriesGranularity, EntityType } from "@/features/evm/types";
-import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PageContent } from "@/components/layout/PageContent";
 
 interface EVMAnalysisPageProps {
@@ -44,66 +43,58 @@ export const EVMAnalysisPage: React.FC<EVMAnalysisPageProps> = ({
 
   if (isLoading && !evmMetrics) {
     return (
-      <PageWrapper>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            padding: 48,
-          }}
-        >
-          <Spin size="large" />
-        </div>
-      </PageWrapper>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          padding: 48,
+        }}
+      >
+        <Spin size="large" />
+      </div>
     );
   }
 
   if (metricsError || timeSeriesError) {
-    return (
-      <PageWrapper>
-        <p>Error loading EVM data. Please try again.</p>
-      </PageWrapper>
-    );
+    return <p>Error loading EVM data. Please try again.</p>;
   }
 
   return (
-    <PageWrapper>
-      <PageContent>
-        {evmMetrics && (
-          <EVMSummaryView
-            metrics={evmMetrics}
-            timeSeries={timeSeries}
-            onAdvanced={() => setIsEVMModalOpen(true)}
-          />
-        )}
+    <PageContent>
+      {evmMetrics && (
+        <EVMSummaryView
+          metrics={evmMetrics}
+          timeSeries={timeSeries}
+          onAdvanced={() => setIsEVMModalOpen(true)}
+        />
+      )}
 
-        <Card
-          title={
-            <Space>
-              <LineChartOutlined />
-              <span>Historical Trends</span>
-            </Space>
-          }
-        >
-          <EVMTimeSeriesChart
-            timeSeries={timeSeries}
-            loading={timeSeriesLoading}
-            onGranularityChange={setGranularity}
-            currentGranularity={granularity}
-            headless={true}
-            height={400}
-          />
-        </Card>
-
-        <EVMAnalyzerModal
-          open={isEVMModalOpen}
-          onClose={() => setIsEVMModalOpen(false)}
-          evmMetrics={evmMetrics}
+      <Card
+        title={
+          <Space>
+            <LineChartOutlined />
+            <span>Historical Trends</span>
+          </Space>
+        }
+      >
+        <EVMTimeSeriesChart
           timeSeries={timeSeries}
           loading={timeSeriesLoading}
           onGranularityChange={setGranularity}
+          currentGranularity={granularity}
+          headless={true}
+          height={400}
         />
-      </PageContent>
-    </PageWrapper>
+      </Card>
+
+      <EVMAnalyzerModal
+        open={isEVMModalOpen}
+        onClose={() => setIsEVMModalOpen(false)}
+        evmMetrics={evmMetrics}
+        timeSeries={timeSeries}
+        loading={timeSeriesLoading}
+        onGranularityChange={setGranularity}
+      />
+    </PageContent>
   );
 };

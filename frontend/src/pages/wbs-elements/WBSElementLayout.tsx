@@ -1,13 +1,12 @@
 import React from "react";
-import { useParams, useNavigate, Outlet } from "react-router-dom";
+import { useParams, useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { Button } from "antd";
-import { EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined, HistoryOutlined, RobotOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useWBSElement, useWBSElementBreadcrumb, useUpdateWBSElement, useDeleteWBSElement } from "@/features/wbs-elements/api/useWBSElements";
 import type { WBSElementRead, WBSElementUpdate } from "@/api/generated";
-import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { DeleteWBSElementModal } from "@/components/hierarchy/DeleteWBSElementModal";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
@@ -17,7 +16,7 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbsElementsService } from "@/api/generated";
 import { PageNavigation } from "@/components/navigation";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
 
 interface BreadcrumbItem {
@@ -54,8 +53,16 @@ export const WBSElementLayout: React.FC = () => {
     { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/evm-analysis` },
     { key: "cost-history", label: "Cost History", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/cost-history` },
     { key: "documents", label: "Documents", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/documents` },
-    { key: "chat", label: "AI Chat", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/chat` },
   ];
+
+  const location = useLocation();
+  const activeSection = navItems.find((i) => location.pathname === i.path)?.label ?? navItems[0].label;
+
+  const handleOpenChat = () => {
+    navigate(`/chat?ctx=wbe:${wbsElementId}&p=${projectId}`, {
+      state: { returnTo: `/projects/${projectId}/wbs-elements/${wbsElementId}` },
+    });
+  };
 
   // Modal/drawer state
   const {
@@ -129,9 +136,8 @@ export const WBSElementLayout: React.FC = () => {
       <PageNavigation items={navItems} />
 
       {/* Shared header rendered on all sub-pages */}
-      <EntityBreadcrumb
-        loading={breadcrumbLoading}
-        items={
+      <PageShell
+        breadcrumb={
           breadcrumb
             ? [
                 // Project item — dedup if first WBE code matches project code
@@ -144,26 +150,31 @@ export const WBSElementLayout: React.FC = () => {
                       },
                     ]
                   : []),
-                // WBE path items — all linked except last
+                // WBE path items — all linked
                 ...breadcrumb.wbe_path.map((wbe: BreadcrumbItem, idx: number) => ({
                   label:
                     idx === breadcrumb.wbe_path.length - 1
                       ? `${wbe.code} ${wbe.name}`
                       : wbe.code,
-                  to:
-                    idx === breadcrumb.wbe_path.length - 1
-                      ? undefined
-                      : `/projects/${breadcrumb.project.project_id}/wbs-elements/${wbe.wbs_element_id}`,
+                  to: `/projects/${breadcrumb.project.project_id}/wbs-elements/${wbe.wbs_element_id}`,
                 })),
+                // Active section — bold (last crumb)
+                { label: activeSection },
               ]
             : []
         }
-      />
-
-      <PageHeader
-        title="WBS Element Details"
+        breadcrumbLoading={breadcrumbLoading}
+        title={activeSection}
         actions={
           <>
+            <Can permission="ai-chat">
+              <Button
+                icon={<RobotOutlined />}
+                onClick={handleOpenChat}
+              >
+                AI Chat
+              </Button>
+            </Can>
             <Can permission="wbs-element-update">
               <Button
                 type="primary"

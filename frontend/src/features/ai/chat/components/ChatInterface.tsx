@@ -13,12 +13,12 @@
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown, message, Spin, Modal, Input, Typography } from "antd";
 import {
   MenuOutlined,
-  RobotOutlined,
   PlusOutlined,
   MoreOutlined,
   CloseOutlined,
@@ -33,6 +33,7 @@ import { useChatMessages } from "../api/useChatSessions";
 import { useChatSessionsPaginated } from "../api/useChatSessionsPaginated";
 import { useStreamingChat } from "../api/useStreamingChat";
 import { AssistantSelector } from "./AssistantSelector";
+import { useChatHeaderSlot } from "./ChatHeaderSlot";
 import { SessionList } from "./SessionList";
 import { MessageList } from "./MessageList";
 import { MessageInput, type PendingAttachment } from "./MessageInput";
@@ -51,7 +52,6 @@ import { useRunInBackground } from "../../hooks/useRunInBackground";
 import { useLastAssistantId } from "../../hooks/useLastAssistantId";
 import { useStopExecution } from "../api/useAgentExecutions";
 import { ApprovalDialog } from "../../components/ApprovalDialog";
-import { useAIChatContext } from "@/hooks/navigation/useAIChatContext";
 import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
 import type { SessionContext } from "../../types";
 import type { WSTemporalContextChangeMessage } from "../types";
@@ -60,19 +60,18 @@ import type { BriefingDocumentData } from "../types";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { stripPlanJson, PlanJsonStreamFilter } from "../utils/planContentFilter";
 
-const { Sider, Content, Header } = Layout;
+const { Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
 
 interface ChatInterfaceProps {
   // URL params can be passed in for direct linking
   sessionId?: string;
-  assistantId?: string;
   // Optional execution ID for deep-linking (e.g. from Agents History)
   executionId?: string;
-  // Optional project ID to scope chat to a specific project
-  projectId?: string;
-  // Optional context to override route-based detection
-  contextOverride?: SessionContext;
+  // Required chat context (general/project/wbe/cost_element/work_package).
+  // Sole source of session context — supplied by the caller via the
+  // `useChatContextFromUrl` parser on the unified `/chat?ctx=…` route.
+  context: SessionContext;
 }
 
 /**
@@ -84,8 +83,7 @@ interface ChatInterfaceProps {
  * as the primary route component for the AI chat feature.
  *
  * @param props.sessionId - Optional URL-param session ID for direct linking
- * @param props.assistantId - Optional URL-param assistant ID pre-selection
- * @param props.projectId - Optional project ID to scope chat context
+ * @param props.context - Required chat context (filters sessions, scopes WS)
  */
 
 const EMPTY_STREAMING_STATE: StreamingState = {
@@ -311,22 +309,13 @@ export const AskUserModal = ({ open, request, onSubmit, onCancel }: AskUserModal
 
 export const ChatInterface = ({
   sessionId: initialSessionId,
-  assistantId: initialAssistantId,
   executionId,
-  projectId,
-  contextOverride,
+  context,
 }: ChatInterfaceProps) => {
   // Responsive breakpoints
   const screens = useBreakpoint();
   const isMobile = !screens.md; // md breakpoint is 768px
   const isSmallMobile = screens.xs; // xs is 480px
-
-  // Auto-detect context from route (can be overridden by props)
-  const routeContext = useAIChatContext();
-  const context: SessionContext = useMemo(
-    () => contextOverride ?? routeContext,
-    [contextOverride, routeContext]
-  );
 
   // State
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(
@@ -336,12 +325,14 @@ export const ChatInterface = ({
   // Persistent last assistant selection
   const { lastAssistantId, setLastAssistantId } = useLastAssistantId();
 
-  // Initialize assistant ID from URL param, then fall back to persisted selection
+  // Initialize assistant ID from the persisted last selection
   const [selectedAssistantId, setSelectedAssistantId] = useState<
     string | undefined
-  >(() => initialAssistantId ?? lastAssistantId);
+  >(() => lastAssistantId);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // History sidebar collapses by default (Grok-style: open on demand via the
+  // floating "Open conversations" button or the expanded-header sidebar toggle).
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Streaming state
@@ -1158,7 +1149,6 @@ export const ChatInterface = ({
   const streamingChat = useStreamingChat({
     sessionId: currentSessionId,
     assistantId: selectedAssistantId ?? "",
-    projectId,
     context,
     activeExecutionId,
     onToken: handleToken,
@@ -1575,7 +1565,7 @@ export const ChatInterface = ({
   }, [messages, pendingUserMessage]);
 
   const { token } = theme.useToken();
-  const { spacing, typography } = useThemeTokens();
+  const { spacing } = useThemeTokens();
 
   // Mobile menu items for the overflow menu
   const mobileMenuItems = useMemo(() => {
@@ -1606,22 +1596,148 @@ export const ChatInterface = ({
     }
   }, [handleNewChat]);
 
+  // Render the chat-specific controls (formerly the inline <Header>) into the
+  // slim header owned by ChatLayout, via a React portal. The controls remain
+  // part of this component's render tree (so they update with local state) but
+  // are visually re-homed into the header's actions region. The portal target
+  // is a stable DOM node owned by ChatLayout, so this never causes ChatLayout to
+  // re-render (no setState-in-effect). When no shell is present (e.g. unit
+  // tests rendering ChatInterface standalone), `headerSlot` is null and the
+  // portal is skipped.
+  const headerSlot = useChatHeaderSlot();
+
+  // Header controls. These are part of ChatInterface's OWN render tree (so they
+  // update normally with its state) but are portaled into ChatLayout's slim
+  // header so they display in the expanded actions region. Unlike the previous
+  // push-node-up-via-setState approach, this never re-renders ChatLayout as a
+  // side effect of ChatInterface rendering — the portal target (owned by
+  // ChatLayout) is a stable DOM node set once on mount.
+  const headerControls = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: isMobile ? spacing.sm : spacing.md,
+        flex: 1,
+        minWidth: 0,
+      }}
+    >
+      {/* Mobile: open conversations drawer */}
+      {isMobile && (
+        <Button
+          type="text"
+          icon={<MenuOutlined style={{ fontSize: 20 }} />}
+          onClick={() => setSidebarOpen(true)}
+          style={{ minWidth: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}
+          aria-label="Open conversations"
+        />
+      )}
+
+      {/* Desktop: collapse / expand the conversations sider */}
+      {!isMobile && (
+        <Tooltip title={isCollapsed ? "Open conversations" : "Close conversations"}>
+          <Button
+            type="text"
+            icon={isCollapsed ? <MenuOutlined style={{ fontSize: 18 }} /> : <CloseOutlined style={{ fontSize: 16 }} />}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            style={{
+              minWidth: 40,
+              height: 40,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              ...(isCollapsed && { background: token.colorFillAlter }),
+            }}
+            aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
+          />
+        </Tooltip>
+      )}
+
+      {/* Assistant selector (desktop always; mobile only when no session) */}
+      {!isMobile && (
+        <div style={{ minWidth: 200, maxWidth: 400 }}>
+          <AssistantSelector
+            value={selectedAssistantId}
+            onChange={setSelectedAssistantId}
+            disabled={!!currentSessionId}
+            locked={!!currentSessionId}
+            variant="borderless"
+          />
+        </div>
+      )}
+      {isMobile && !currentSessionId && (
+        <div style={{ flex: 1, maxWidth: 180 }}>
+          <AssistantSelector
+            value={selectedAssistantId}
+            onChange={setSelectedAssistantId}
+            disabled={false}
+            locked={false}
+            variant="borderless"
+          />
+        </div>
+      )}
+
+      <div style={{ flex: 1 }} />
+
+      {/* New chat (only meaningful once a session exists) */}
+      {currentSessionId && (
+        <Tooltip title="Start a new conversation">
+          <Button
+            type="text"
+            icon={<PlusOutlined style={{ fontSize: isMobile ? 18 : 16 }} />}
+            onClick={handleNewChat}
+            style={{ minWidth: isMobile ? 44 : 40, height: isMobile ? 44 : 40, display: "flex", alignItems: "center", justifyContent: "center" }}
+            aria-label="New chat"
+          />
+        </Tooltip>
+      )}
+
+      {/* Debug panel toggle */}
+      <Tooltip title="WebSocket Debug Panel">
+        <Button
+          type="text"
+          icon={<BugOutlined style={{ fontSize: isMobile ? 18 : 16 }} />}
+          onClick={() => setShowDebugPanel(!showDebugPanel)}
+          style={{
+            minWidth: isMobile ? 44 : 40,
+            height: isMobile ? 44 : 40,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: showDebugPanel ? token.colorPrimary : undefined,
+          }}
+          aria-label="Toggle debug panel"
+        />
+      </Tooltip>
+
+      {/* Mobile: overflow menu */}
+      {isMobile && (
+        <Dropdown
+          menu={{ items: mobileMenuItems, onClick: handleMobileMenuClick }}
+          trigger={["click"]}
+          placement="bottomRight"
+        >
+          <Button
+            type="text"
+            icon={<MoreOutlined style={{ fontSize: 18 }} />}
+            style={{ minWidth: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}
+            aria-label="More options"
+          />
+        </Dropdown>
+      )}
+    </div>
+  );
+
   return (
     <>
-      <style>
-        {`
-          .chat-mobile-header {
-            backdrop-filter: blur(8px);
-            background: ${isMobile ? token.colorBgContainer : "transparent"};
-          }
-        `}
-      </style>
+      {/* Portal chat controls into the slim header's actions region. */}
+      {headerSlot?.target && createPortal(headerControls, headerSlot.target)}
 
       <Layout
         style={{
-          height: isMobile ? "100dvh" : "calc(100vh - 300px)",
-          minHeight: isMobile ? "100dvh" : 400,
+          height: "100%",
           background: token.colorBgLayout,
+          position: "relative",
         }}
       >
         {/* Desktop Sidebar */}
@@ -1630,13 +1746,11 @@ export const ChatInterface = ({
           collapsible
           collapsed={isCollapsed}
           onCollapse={setIsCollapsed}
-          breakpoint="lg"
           collapsedWidth="0"
           trigger={null}
           style={{
             display: isMobile ? "none" : "block",
             backgroundColor: token.colorBgContainer,
-            borderRight: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
           {!isCollapsed && (
@@ -1680,188 +1794,9 @@ export const ChatInterface = ({
 
         {/* Main Chat Area */}
         <Layout>
-          {/* Header - Mobile Optimized */}
-          <Header
-            className="chat-mobile-header"
-            style={{
-              padding: isMobile ? `${spacing.sm}px ${spacing.md}px` : `0 ${spacing.md}px`,
-              backgroundColor: token.colorBgContainer,
-              borderBottom: `1px solid ${token.colorBorderSecondary}`,
-              display: "flex",
-              alignItems: "center",
-              gap: isMobile ? spacing.sm : spacing.md,
-              height: isMobile ? 56 : "auto",
-              lineHeight: isMobile ? "56px" : "auto",
-              position: "relative",
-              zIndex: 10,
-            }}
-          >
-            {/* Mobile menu button - larger touch target */}
-            {isMobile && (
-              <Button
-                type="text"
-                icon={<MenuOutlined style={{ fontSize: 20 }} />}
-                onClick={() => setSidebarOpen(true)}
-                style={{
-                  minWidth: 44,
-                  height: 44,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                aria-label="Open conversations"
-              />
-            )}
-
-            {/* Desktop sidebar toggle button - visible when collapsed or to collapse */}
-            {!isMobile && (
-              <Button
-                type="text"
-                icon={
-                  isCollapsed ? (
-                    <MenuOutlined style={{ fontSize: 18 }} />
-                  ) : (
-                    <CloseOutlined style={{ fontSize: 16 }} />
-                  )
-                }
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                style={{
-                  minWidth: 40,
-                  height: 40,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  ...(isCollapsed && {
-                    background: token.colorFillAlter,
-                  }),
-                }}
-                aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
-                title={isCollapsed ? "Open conversations" : "Close conversations"}
-              />
-            )}
-
-            {/* Brand - compact on mobile */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: isMobile ? spacing.xs : spacing.sm,
-              }}
-            >
-              <RobotOutlined
-                style={{
-                  fontSize: isMobile ? typography.sizes.md : typography.sizes.lg,
-                  color: token.colorPrimary,
-                }}
-              />
-              {!isSmallMobile && (
-                <span
-                  style={{
-                    fontWeight: typography.weights.semiBold,
-                    fontSize: isMobile ? typography.sizes.md : typography.sizes.md,
-                  }}
-                >
-                  
-                </span>
-              )}
-            </div>
-
-            <div style={{ flex: 1 }} />
-
-            {/* Right-aligned section: New Chat button and Assistant selector */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: spacing.md,
-              }}
-            >
-              {/* Assistant Selector - shown on desktop */}
-              {!isMobile && (
-                <div style={{ minWidth: 200, maxWidth: 400 }}>
-                  <AssistantSelector
-                    value={selectedAssistantId}
-                    onChange={setSelectedAssistantId}
-                    disabled={!!currentSessionId}
-                    locked={!!currentSessionId}
-                    variant="borderless"
-                  />
-                </div>
-              )}
-
-                {/* New Chat button - shown when in active session */}
-              {currentSessionId && (
-                <Tooltip title="Start a new conversation">
-                  <Button
-                    type="text"
-                    icon={<PlusOutlined style={{ fontSize: isMobile ? 18 : 16 }} />}
-                    onClick={handleNewChat}
-                    style={{
-                      minWidth: isMobile ? 44 : 40,
-                      height: isMobile ? 44 : 40,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    aria-label="New chat"
-                  />
-                </Tooltip>
-              )}
-
-              {/* Debug Panel toggle button */}
-              <Tooltip title="WebSocket Debug Panel">
-                <Button
-                  type="text"
-                  icon={<BugOutlined style={{ fontSize: isMobile ? 18 : 16 }} />}
-                  onClick={() => setShowDebugPanel(!showDebugPanel)}
-                  style={{
-                    minWidth: isMobile ? 44 : 40,
-                    height: isMobile ? 44 : 40,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: showDebugPanel ? token.colorPrimary : undefined,
-                  }}
-                  aria-label="Toggle debug panel"
-                />
-              </Tooltip>
-            </div>
-
-            {/* Mobile: Assistant selector when no session */}
-            {isMobile && !currentSessionId && (
-              <div style={{ flex: 1, maxWidth: 180 }}>
-                <AssistantSelector
-                  value={selectedAssistantId}
-                  onChange={setSelectedAssistantId}
-                  disabled={false}
-                  locked={false}
-                  variant="borderless"
-                />
-              </div>
-            )}
-
-            {/* Mobile: Overflow menu */}
-            {isMobile && (
-              <Dropdown
-                menu={{ items: mobileMenuItems, onClick: handleMobileMenuClick }}
-                trigger={["click"]}
-                placement="bottomRight"
-              >
-                <Button
-                  type="text"
-                  icon={<MoreOutlined style={{ fontSize: 18 }} />}
-                  style={{
-                    minWidth: 44,
-                    height: 44,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  aria-label="More options"
-                />
-              </Dropdown>
-            )}
-          </Header>
+          {/* Header chrome lives in the slim header (ChatLayout → ChatSlimHeader).
+              Chat-specific controls are portaled into the header's actions region
+              at the top of this fragment. */}
 
           {/* Content Area */}
           <Content
@@ -1870,16 +1805,23 @@ export const ChatInterface = ({
               flexDirection: isMobile ? "column" : "row",
               flex: 1,
               overflow: "hidden",
-              backgroundColor: token.colorBgContainer,
+              backgroundColor: token.colorBgLayout,
             }}
           >
-            {/* Chat column */}
+            {/* Chat column — constrained to a Grok-like narrow column on desktop.
+                This div is the parent of the scroll div (MessageList's parentElement).
+                We constrain THIS div (not a wrapper around MessageList) so the
+                auto-scroll contract in MessageList.tsx stays intact. */}
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 flex: 1,
                 minWidth: 0,
+                minHeight: 0,
+                maxWidth: isMobile ? "100%" : 768,
+                margin: "0 auto",
+                padding: isMobile ? 0 : `0 ${spacing.sm}px`,
                 overflow: "hidden",
               }}
             >
@@ -1940,9 +1882,9 @@ export const ChatInterface = ({
               <div
                 style={{
                   flex: 1,
+                  minHeight: 0,
                   overflow: "auto",
                   backgroundColor: token.colorBgLayout,
-                  paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : 0,
                 }}
               >
                 {isReplaying && (

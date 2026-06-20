@@ -23,6 +23,12 @@ def setup_logging() -> None:
     logger = logging.getLogger()
     logger.setLevel(settings.LOG_LEVEL)
 
+    # Silence chatty HTTP-client libraries. httpx/httpcore emit an INFO line
+    # per request (e.g. every Telegram sendMessage / getUpdates), which floods
+    # app.log with Telegram API call noise. Warnings/errors still surface.
+    for _noisy in ("httpx", "httpcore"):
+        logging.getLogger(_noisy).setLevel(logging.WARNING)
+
     # Remove existing handlers to avoid duplicates
     logger.handlers = []
 
