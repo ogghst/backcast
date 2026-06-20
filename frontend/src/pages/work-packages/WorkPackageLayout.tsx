@@ -4,6 +4,7 @@ import { Button, Modal } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
+  RobotOutlined,
 } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -60,12 +61,15 @@ export const WorkPackageLayout: React.FC = () => {
       label: "Documents",
       path: `${basePath}/documents`,
     },
-    {
-      key: "chat",
-      label: "AI Chat",
-      path: `${basePath}/chat`,
-    },
   ];
+
+  const handleOpenChat = () => {
+    const ctxParam = `work_package:${id}`;
+    const projectRider = projectId ? `&p=${projectId}` : "";
+    navigate(`/chat?ctx=${ctxParam}${projectRider}`, {
+      state: { returnTo: basePath },
+    });
+  };
 
   // Modal/drawer state
   const {
@@ -157,6 +161,14 @@ export const WorkPackageLayout: React.FC = () => {
         title="Work Package"
         actions={
           <>
+            <Can permission="ai-chat">
+              <Button
+                icon={<RobotOutlined />}
+                onClick={handleOpenChat}
+              >
+                AI Chat
+              </Button>
+            </Can>
             <Can permission="work-package-update">
               <Button
                 type="primary"

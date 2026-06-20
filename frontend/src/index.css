@@ -8,9 +8,27 @@
 /* Import JetBrains Mono for technical elements */
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-/* Body background - soft cream */
+/*
+ * Base background for html / body / #root — mirrors the theme's colorBgLayout
+ * (#f5f3f0 light / #141414 dark, see config/theme.ts). Covering these base
+ * layers means the area behind every layout container — including overscroll /
+ * rubber-band when scrolling past the content — never flashes a mismatched
+ * white background. The dark override is driven by the `data-theme` attribute
+ * set on <html> in App.tsx.
+ */
+html,
+body,
+#root {
+  background-color: #f5f3f0; /* light colorBgLayout */
+}
+
+[data-theme="dark"],
+[data-theme="dark"] body,
+[data-theme="dark"] #root {
+  background-color: #141414; /* dark colorBgLayout (theme.darkModeTokens) */
+}
+
 body {
-  background-color: #f5f3f0;
   color: #1a1a1a;
   margin: 0;
   padding: 0;

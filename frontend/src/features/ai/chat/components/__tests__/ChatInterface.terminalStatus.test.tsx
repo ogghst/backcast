@@ -66,10 +66,6 @@ vi.mock("@/features/ai/api/useAIAssistants", () => ({
   }),
 }));
 
-vi.mock("@/hooks/navigation/useAIChatContext", () => ({
-  useAIChatContext: () => ({ type: "general", id: null, project_id: null, name: null }),
-}));
-
 vi.mock("@/hooks/useLastAssistantId", () => ({
   useLastAssistantId: () => ({ lastAssistantId: "a1", setLastAssistantId: vi.fn() }),
 }));
@@ -92,7 +88,7 @@ function renderChat() {
     <QueryClientProvider client={queryClient}>
       <App>
         <BrowserRouter>
-          <ChatInterface assistantId="a1" />
+          <ChatInterface context={{ type: "general" }} />
         </BrowserRouter>
       </App>
     </QueryClientProvider>,

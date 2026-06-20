@@ -646,41 +646,10 @@ export const MessageInput = ({
           onDrop={handleDrop}
           style={{
             padding: spacing.sm,
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
-            backgroundColor: token.colorBgContainer,
+            background: "transparent",
             paddingBottom: `calc(${spacing.sm}px + env(safe-area-inset-bottom))`,
           }}
         >
-          {/* Drop zone overlay */}
-          {isDragging && (
-            <div
-              data-testid="drop-zone-overlay"
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: `${token.colorPrimary}10`,
-                border: `2px dashed ${token.colorPrimary}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 10,
-                opacity: isDragging ? 1 : 0,
-                transition: "opacity 0.2s",
-                pointerEvents: "none",
-              }}
-            >
-              <div style={{ textAlign: "center" }}>
-                <PaperClipOutlined style={{ fontSize: 48, color: token.colorPrimary }} />
-                <div style={{ marginTop: spacing.sm, color: token.colorPrimary }}>
-                  Drop files to attach
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Background-execution toggle - shown on its own row to keep the
               input row usable on narrow phones (rendered when handler provided) */}
           {backgroundToggle && (
@@ -695,13 +664,55 @@ export const MessageInput = ({
             </div>
           )}
 
+          {/* Floating composer pill — position:relative so the drop-overlay
+              anchors to the pill (previously had no positioned ancestor). */}
           <div
             style={{
-              display: "flex",
-              gap: spacing.xs,
-              alignItems: "flex-start",
+              position: "relative",
+              background: token.colorBgElevated,
+              borderRadius: 24,
+              boxShadow: token.boxShadowSecondary,
+              padding: `${spacing.xs}px ${spacing.sm}px`,
             }}
           >
+            {/* Drop zone overlay — anchored to the pill */}
+            {isDragging && (
+              <div
+                data-testid="drop-zone-overlay"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderRadius: 24,
+                  backgroundColor: `${token.colorPrimary}10`,
+                  border: `2px dashed ${token.colorPrimary}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 10,
+                  opacity: isDragging ? 1 : 0,
+                  transition: "opacity 0.2s",
+                  pointerEvents: "none",
+                }}
+              >
+                <div style={{ textAlign: "center" }}>
+                  <PaperClipOutlined style={{ fontSize: 48, color: token.colorPrimary }} />
+                  <div style={{ marginTop: spacing.sm, color: token.colorPrimary }}>
+                    Drop files to attach
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                gap: spacing.xs,
+                alignItems: "flex-start",
+              }}
+            >
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -777,6 +788,7 @@ export const MessageInput = ({
             }}
           />
         </div>
+        </div>
 
         {/* Attachment previews */}
         {attachmentPreviews}
@@ -801,48 +813,59 @@ export const MessageInput = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         style={{
-          padding: spacing.md,
-          borderTop: `1px solid ${token.colorBorderSecondary}`,
-          backgroundColor: token.colorBgContainer,
+          padding: `0 ${spacing.md}px ${spacing.lg}px`,
+          background: "transparent",
         }}
       >
-        {/* Drop zone overlay */}
-        {isDragging && (
-          <div
-            data-testid="drop-zone-overlay"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: `${token.colorPrimary}10`,
-              border: `2px dashed ${token.colorPrimary}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 10,
-              opacity: isDragging ? 1 : 0,
-              transition: "opacity 0.2s",
-              pointerEvents: "none",
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <PaperClipOutlined style={{ fontSize: 48, color: token.colorPrimary }} />
-              <div style={{ marginTop: spacing.sm, color: token.colorPrimary }}>
-                Drop files to attach
-              </div>
-            </div>
-          </div>
-        )}
-
+        {/* Floating composer pill — position:relative so the drop-overlay
+            anchors to the pill (previously had no positioned ancestor). */}
         <div
           style={{
-            display: "flex",
-            gap: spacing.sm,
-            alignItems: "flex-start",
+            position: "relative",
+            background: token.colorBgElevated,
+            borderRadius: 24,
+            boxShadow: token.boxShadowSecondary,
+            padding: `${spacing.xs}px ${spacing.sm}px`,
           }}
         >
+          {/* Drop zone overlay — anchored to the pill */}
+          {isDragging && (
+            <div
+              data-testid="drop-zone-overlay"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                borderRadius: 24,
+                backgroundColor: `${token.colorPrimary}10`,
+                border: `2px dashed ${token.colorPrimary}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 10,
+                opacity: isDragging ? 1 : 0,
+                transition: "opacity 0.2s",
+                pointerEvents: "none",
+              }}
+            >
+              <div style={{ textAlign: "center" }}>
+                <PaperClipOutlined style={{ fontSize: 48, color: token.colorPrimary }} />
+                <div style={{ marginTop: spacing.sm, color: token.colorPrimary }}>
+                  Drop files to attach
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              gap: spacing.sm,
+              alignItems: "flex-start",
+            }}
+          >
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -920,6 +943,7 @@ export const MessageInput = ({
               } : connectionStyle),
             }}
           />
+        </div>
         </div>
 
         {/* Attachment previews */}

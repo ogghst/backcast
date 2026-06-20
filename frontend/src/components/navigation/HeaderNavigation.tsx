@@ -104,7 +104,18 @@ export const HeaderNavigation: React.FC<HeaderNavigationProps> = ({
             type="text"
             style={buttonStyle}
             title={iconOnly ? item.label : undefined}
-            onClick={() => navigate(item.key)}
+            onClick={() => {
+              // AI Chat is a separate app-like experience: navigate to the
+              // unified /chat route and pass the current path as `returnTo`
+              // so the Back button returns here. Other items navigate as-is.
+              if (item.key === "/chat") {
+                navigate("/chat", {
+                  state: { returnTo: location.pathname + location.search },
+                });
+              } else {
+                navigate(item.key);
+              }
+            }}
           >
             {item.icon}
             {!iconOnly && <span>{item.label}</span>}

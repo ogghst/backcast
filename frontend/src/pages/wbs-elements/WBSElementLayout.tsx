@@ -2,7 +2,7 @@ import React from "react";
 import { useParams, useNavigate, Outlet } from "react-router-dom";
 import { useState } from "react";
 import { Button } from "antd";
-import { EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined, HistoryOutlined, RobotOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useWBSElement, useWBSElementBreadcrumb, useUpdateWBSElement, useDeleteWBSElement } from "@/features/wbs-elements/api/useWBSElements";
@@ -54,8 +54,13 @@ export const WBSElementLayout: React.FC = () => {
     { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/evm-analysis` },
     { key: "cost-history", label: "Cost History", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/cost-history` },
     { key: "documents", label: "Documents", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/documents` },
-    { key: "chat", label: "AI Chat", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/chat` },
   ];
+
+  const handleOpenChat = () => {
+    navigate(`/chat?ctx=wbe:${wbsElementId}&p=${projectId}`, {
+      state: { returnTo: `/projects/${projectId}/wbs-elements/${wbsElementId}` },
+    });
+  };
 
   // Modal/drawer state
   const {
@@ -164,6 +169,14 @@ export const WBSElementLayout: React.FC = () => {
         title="WBS Element Details"
         actions={
           <>
+            <Can permission="ai-chat">
+              <Button
+                icon={<RobotOutlined />}
+                onClick={handleOpenChat}
+              >
+                AI Chat
+              </Button>
+            </Can>
             <Can permission="wbs-element-update">
               <Button
                 type="primary"

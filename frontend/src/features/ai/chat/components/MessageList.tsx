@@ -713,7 +713,13 @@ export const MessageList = ({
     }
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = null;
-      messagesEndRef.current?.scrollIntoView({
+      // Scroll ONLY the messages container (its parentElement) — never ancestors.
+      // scrollIntoView() scrolls every scrollable ancestor including documentElement
+      // (it ignores overflow:hidden), which on mobile hides the header and pushes
+      // the composer up ~the header height during streaming. scrollTo() is scoped.
+      const container = messagesEndRef.current?.parentElement;
+      container?.scrollTo({
+        top: container.scrollHeight,
         behavior: isStreaming ? "instant" : "smooth",
       });
     });

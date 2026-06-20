@@ -103,8 +103,12 @@ export const AgentsHistory = () => {
   });
 
   const handleOpenChat = (item: AgentExecutionHistoryItem) => {
-    navigate("/chat", {
-      state: { sessionId: item.session_id, executionId: item.id },
+    navigate("/chat?ctx=general", {
+      state: {
+        sessionId: item.session_id,
+        executionId: item.id,
+        returnTo: "/agents-history",
+      },
     });
   };
 

@@ -61,7 +61,9 @@ export const ControlAccountLayout: React.FC = () => {
     { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/control-accounts/${controlAccountId}/evm-analysis` },
     { key: "cost-history", label: "Cost History", path: `/projects/${projectId}/control-accounts/${controlAccountId}/cost-history` },
     { key: "documents", label: "Documents", path: `/projects/${projectId}/control-accounts/${controlAccountId}/documents` },
-    { key: "chat", label: "AI Chat", path: `/projects/${projectId}/control-accounts/${controlAccountId}/chat` },
+    // "AI Chat" tab removed: the entity-scoped chat route was never implemented
+    // (blank Outlet), and `control_account` is not a supported SessionContext
+    // type, so there is no unified /chat?ctx= equivalent to link to.
   ];
 
   // Modal/drawer state

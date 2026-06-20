@@ -3,9 +3,11 @@
 // export, so the react-refresh rule doesn't apply here.
 /* eslint-disable react-refresh/only-export-components */
 import { lazy } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import AppLayout from "@/layouts/AppLayout";
+import ChatLayout from "@/layouts/ChatLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { Can } from "@/components/auth/Can";
 import Login from "@/pages/Login";
 
 // Eager (kept for first paint / auth gating): AppLayout, ProtectedRoute, Login.
@@ -123,11 +125,6 @@ const WBSElementCostHistory = lazy(() =>
     default: m.WBSElementCostHistory,
   })),
 );
-const WBSElementChat = lazy(() =>
-  import("@/pages/wbs-elements/WBSElementChat").then((m) => ({
-    default: m.WBSElementChat,
-  })),
-);
 
 const ChangeOrderUnifiedPage = lazy(() =>
   import("@/pages/projects/change-orders/ChangeOrderUnifiedPage").then((m) => ({
@@ -160,11 +157,6 @@ const CostElementCostHistory = lazy(() =>
     default: m.CostElementCostHistory,
   })),
 );
-const CostElementChat = lazy(() =>
-  import("@/pages/cost-elements/CostElementChat").then((m) => ({
-    default: m.CostElementChat,
-  })),
-);
 const CostElementDocuments = lazy(() =>
   import("@/pages/cost-elements/CostElementDocuments").then((m) => ({
     default: m.CostElementDocuments,
@@ -181,9 +173,6 @@ const ProjectDocuments = lazy(() =>
     default: m.ProjectDocuments,
   })),
 );
-const ProjectChat = lazy(() =>
-  import("@/pages/projects/ProjectChat").then((m) => ({ default: m.ProjectChat })),
-);
 const ProjectMembers = lazy(() =>
   import("@/pages/projects/ProjectMembers").then((m) => ({
     default: m.ProjectMembers,
@@ -198,6 +187,22 @@ const Profile = lazy(() =>
 );
 const ChatInterfacePage = lazy(() =>
   import("@/pages/chat/ChatInterface").then((m) => ({ default: m.ChatInterfacePage })),
+);
+// Old entity-scoped chat URL redirects (bookmark back-compat → /chat?ctx=…)
+const ProjectChatRedirect = lazy(() =>
+  import("@/pages/chat/ChatRedirects").then((m) => ({ default: m.ProjectChatRedirect })),
+);
+const WBSElementChatRedirect = lazy(() =>
+  import("@/pages/chat/ChatRedirects").then((m) => ({ default: m.WBSElementChatRedirect })),
+);
+const WorkPackageChatRedirect = lazy(() =>
+  import("@/pages/chat/ChatRedirects").then((m) => ({ default: m.WorkPackageChatRedirect })),
+);
+const StandaloneWorkPackageChatRedirect = lazy(() =>
+  import("@/pages/chat/ChatRedirects").then((m) => ({ default: m.StandaloneWorkPackageChatRedirect })),
+);
+const CostElementChatRedirect = lazy(() =>
+  import("@/pages/chat/ChatRedirects").then((m) => ({ default: m.CostElementChatRedirect })),
 );
 const AgentsHistory = lazy(() =>
   import("@/pages/AgentsHistory").then((m) => ({ default: m.AgentsHistory })),
@@ -258,11 +263,6 @@ const WorkPackageDocuments = lazy(() =>
     default: m.WorkPackageDocuments,
   })),
 );
-const WorkPackageChat = lazy(() =>
-  import("@/pages/work-packages/WorkPackageChat").then((m) => ({
-    default: m.WorkPackageChat,
-  })),
-);
 
 const ControlAccountLayout = lazy(() =>
   import("@/pages/control-accounts/ControlAccountLayout").then((m) => ({
@@ -281,13 +281,48 @@ const workPackageChildren = [
   { path: "cost-history", element: <WorkPackageCostHistory /> },
   { path: "evm-analysis", element: <WorkPackageEVMAnalysis /> },
   { path: "documents", element: <WorkPackageDocuments /> },
-  { path: "chat", element: <WorkPackageChat /> },
 ];
 
 export const router = createBrowserRouter([
   {
     path: "/login",
     element: <Login />,
+  },
+  {
+    // Dedicated chat shell — sibling of AppLayout (not nested inside it).
+    // Slim collapsible header + full-viewport outlet. Re-mounts the
+    // notification stream (see ChatLayout).
+    path: "/chat",
+    element: (
+      <ProtectedRoute>
+        <Can permission="ai-chat" fallback={<Navigate to="/" replace />}>
+          <ChatLayout />
+        </Can>
+      </ProtectedRoute>
+    ),
+    children: [{ index: true, element: <ChatInterfacePage /> }],
+  },
+  // Old entity-scoped chat URL redirects (bookmark back-compat → /chat?ctx=…).
+  // Registered as top-level routes so existing bookmarks resolve.
+  {
+    path: "/projects/:projectId/chat",
+    element: <ProjectChatRedirect />,
+  },
+  {
+    path: "/projects/:projectId/wbs-elements/:wbsElementId/chat",
+    element: <WBSElementChatRedirect />,
+  },
+  {
+    path: "/projects/:projectId/work-packages/:id/chat",
+    element: <WorkPackageChatRedirect />,
+  },
+  {
+    path: "/work-packages/:id/chat",
+    element: <StandaloneWorkPackageChatRedirect />,
+  },
+  {
+    path: "/cost-elements/:id/chat",
+    element: <CostElementChatRedirect />,
   },
   {
     path: "/",
@@ -360,14 +395,6 @@ export const router = createBrowserRouter([
       {
         path: "/admin/change-order-config",
         element: <ChangeOrderConfigPage />,
-      },
-      {
-        path: "/chat",
-        element: (
-          <ProtectedRoute>
-            <ChatInterfacePage />
-          </ProtectedRoute>
-        ),
       },
       {
         path: "/profile",
@@ -445,10 +472,6 @@ export const router = createBrowserRouter([
             element: <ProjectDocuments />,
           },
           {
-            path: "chat",
-            element: <ProjectChat />,
-          },
-          {
             path: "dashboard",
             element: <DashboardPage />,
           },
@@ -478,7 +501,6 @@ export const router = createBrowserRouter([
           { path: "evm-analysis", element: <WBSElementEVMAnalysis /> },
           { path: "cost-history", element: <WBSElementCostHistory /> },
           { path: "documents", element: <WBSElementDocuments /> },
-          { path: "chat", element: <WBSElementChat /> },
         ],
       },
       {
@@ -496,7 +518,6 @@ export const router = createBrowserRouter([
           { path: "cost-registrations", element: <CostElementCostRegistrations /> },
           { path: "cost-history", element: <CostElementCostHistory /> },
           { path: "documents", element: <CostElementDocuments /> },
-          { path: "chat", element: <CostElementChat /> },
         ],
       },
       {
