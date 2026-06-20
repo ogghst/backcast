@@ -12,7 +12,8 @@ import { useParams } from "react-router-dom";
 import { useState } from "react";
 import { Space, Collapse, Spin, theme } from "antd";
 import { LineChartOutlined } from "@ant-design/icons";
-import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PageContent } from "@/components/layout/PageContent";
+import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 import {
   useEVMMetrics,
@@ -69,81 +70,77 @@ export const ProjectEVMAnalysis: React.FC = () => {
   // Loading state render
   if (isLoading && !evmMetrics) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          padding: token.paddingXL * 1.5,
-        }}
-      >
-        <Spin size="large" />
-      </div>
+      <ProjectPage title="EVM Analysis">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            padding: token.paddingXL * 1.5,
+          }}
+        >
+          <Spin size="large" />
+        </div>
+      </ProjectPage>
     );
   }
 
   // Error state
   if (metricsError || timeSeriesError) {
     return (
-      <PageWrapper>
+      <ProjectPage title="EVM Analysis">
         <p>Error loading EVM data. Please try again.</p>
-      </PageWrapper>
+      </ProjectPage>
     );
   }
 
   return (
-    <PageWrapper>
-    <Space
-      direction="vertical"
-      size="large"
-      style={{ width: "100%" }}
-    >
-      {/* Page Title */}
-      <h1 style={{ margin: 0 }}>EVM Analysis</h1>
+    <ProjectPage title="EVM Analysis">
+      <PageContent>
+        {/* EVM Summary View */}
+        {evmMetrics && (
+          <EVMSummaryView
+            metrics={evmMetrics}
+            timeSeries={timeSeries}
+            onAdvanced={() => setIsEVMModalOpen(true)}
+          />
+        )}
 
-      {/* EVM Summary View */}
-      {evmMetrics && (
-        <EVMSummaryView
-          metrics={evmMetrics}
-          timeSeries={timeSeries}
-          onAdvanced={() => setIsEVMModalOpen(true)}
+        {/* Historical Trends Chart */}
+        <Collapse
+          defaultActiveKey={["historical-trends"]}
+          bordered
+          style={{ backgroundColor: "transparent" }}
+          items={[
+            {
+              key: "historical-trends",
+              label: (
+                <Space>
+                  <LineChartOutlined />
+                  <span>Historical Trends</span>
+                </Space>
+              ),
+              children: (
+                <div
+                  style={{
+                    backgroundColor: token.colorBgContainer,
+                    padding: token.paddingMD,
+                    borderRadius: token.borderRadiusLG,
+                  }}
+                >
+                  <EVMTimeSeriesChart
+                    timeSeries={timeSeries}
+                    loading={timeSeriesLoading}
+                    onGranularityChange={setGranularity}
+                    currentGranularity={granularity}
+                    headless={true}
+                    height={400}
+                  />
+                </div>
+              ),
+            },
+          ]}
         />
-      )}
-
-      {/* Historical Trends Chart */}
-      <Collapse
-        defaultActiveKey={["historical-trends"]}
-        bordered
-        style={{ backgroundColor: "transparent" }}
-        items={[
-          {
-            key: "historical-trends",
-            label: (
-              <Space>
-                <LineChartOutlined />
-                <span>Historical Trends</span>
-              </Space>
-            ),
-            children: (
-              <div
-                style={{
-                  backgroundColor: token.colorBgContainer,
-                  padding: token.paddingMD,
-                  borderRadius: token.borderRadiusLG,
-                }}
-              >
-                <EVMTimeSeriesChart
-                  timeSeries={timeSeries}
-                  loading={timeSeriesLoading}
-                  onGranularityChange={setGranularity}
-                  currentGranularity={granularity}
-                  headless={true}
-                  height={400}
-                />
-              </div>
-            ),
-          },
-        ]}
-      />
+      </PageContent>
 
       {/* EVM Analyzer Modal */}
       <EVMAnalyzerModal
@@ -154,7 +151,6 @@ export const ProjectEVMAnalysis: React.FC = () => {
         loading={timeSeriesLoading}
         onGranularityChange={setGranularity}
       />
-    </Space>
-    </PageWrapper>
+    </ProjectPage>
   );
 };

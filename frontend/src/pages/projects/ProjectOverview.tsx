@@ -12,7 +12,6 @@ import { useProjectBudgetStatus } from "@/features/cost-registration/api/useCost
 import type { Version } from "@/components/common/VersionHistory";
 import { Button, Skeleton, Card, theme, Space, Grid } from "antd";
 import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined } from "@ant-design/icons";
-import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useState } from "react";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { DeleteProjectModal } from "@/components/projects/DeleteProjectModal";
@@ -26,9 +25,8 @@ import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 import { ProjectHeaderCard } from "@/components/projects/ProjectHeaderCard";
 import { ProjectInfoCard } from "@/components/projects/ProjectInfoCard";
-import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { PageContent } from "@/components/layout/PageContent";
+import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 /**
  * ProjectOverview component
@@ -128,43 +126,39 @@ export const ProjectOverview = () => {
   };
 
   return (
-    <PageWrapper>
-      <EntityBreadcrumb
-        items={[{ label: project?.code || "Project" }]}
-      />
-      <PageHeader
-        title="Project Details"
-        actions={
-          <>
-            <Can permission="project-update">
-              <Button
-                type="primary"
-                icon={<EditOutlined />}
-                onClick={() => setEditModalOpen(true)}
-              >
-                {isMobile ? undefined : "Edit"}
-              </Button>
-            </Can>
-            <Can permission="project-read">
-              <Button
-                icon={<HistoryOutlined />}
-                onClick={() => setHistoryOpen(true)}
-              >
-                {isMobile ? undefined : "History"}
-              </Button>
-            </Can>
-            <Can permission="project-delete">
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => setDeleteProjectModalOpen(true)}
-              >
-                {isMobile ? undefined : "Delete"}
-              </Button>
-            </Can>
-          </>
-        }
-      />
+    <ProjectPage
+      title="Project Details"
+      actions={
+        <>
+          <Can permission="project-update">
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={() => setEditModalOpen(true)}
+            >
+              {isMobile ? undefined : "Edit"}
+            </Button>
+          </Can>
+          <Can permission="project-read">
+            <Button
+              icon={<HistoryOutlined />}
+              onClick={() => setHistoryOpen(true)}
+            >
+              {isMobile ? undefined : "History"}
+            </Button>
+          </Can>
+          <Can permission="project-delete">
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => setDeleteProjectModalOpen(true)}
+            >
+              {isMobile ? undefined : "Delete"}
+            </Button>
+          </Can>
+        </>
+      }
+    >
       {/* Loading State */}
       {projectLoading && !project && (
         <Skeleton active paragraph={{ rows: 4 }} />
@@ -284,6 +278,6 @@ export const ProjectOverview = () => {
         parentWbsElementId={null}
         parentName="Project Root"
       />
-    </PageWrapper>
+    </ProjectPage>
   );
 };

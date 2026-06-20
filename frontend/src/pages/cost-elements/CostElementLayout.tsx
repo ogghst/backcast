@@ -14,14 +14,13 @@ import {
   useUpdateCostElement,
   useDeleteCostElement,
 } from "@/features/cost-elements/api/useCostElements";
-import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { CostElementUpdate } from "@/api/generated";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { PageNavigation } from "@/components/navigation";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
 
 /**
@@ -129,9 +128,8 @@ export const CostElementLayout: React.FC = () => {
     <PageWrapper>
       <PageNavigation items={navItems} />
 
-      <EntityBreadcrumb
-        loading={breadcrumbLoading}
-        items={
+      <PageShell
+        breadcrumb={
           breadcrumb
             ? [
                 // Project item — dedup if WBE code matches project code
@@ -156,8 +154,7 @@ export const CostElementLayout: React.FC = () => {
               ]
             : []
         }
-      />
-      <PageHeader
+        breadcrumbLoading={breadcrumbLoading}
         title={displayTitle}
         actions={
           <>

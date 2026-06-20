@@ -2,7 +2,6 @@ import React from "react";
 import { useParams, useNavigate, Outlet } from "react-router-dom";
 import { Button, Grid, Modal, Space, theme, Typography, Tag } from "antd";
 import { EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
-import { EntityBreadcrumb } from "@/components/common/EntityBreadcrumb";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import {
@@ -20,7 +19,7 @@ import { ControlAccountModal } from "@/features/control-accounts/components/Cont
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
@@ -146,9 +145,9 @@ export const ControlAccountLayout: React.FC = () => {
     <PageWrapper>
       <PageNavigation items={navItems} />
 
-      <EntityBreadcrumb loading={caLoading || !wbsElement} items={breadcrumbEntries} />
-
-      <PageHeader
+      <PageShell
+        breadcrumb={breadcrumbEntries}
+        breadcrumbLoading={caLoading || !wbsElement}
         title={
           <Space align="center" size={token.marginSM}>
             <Typography.Title

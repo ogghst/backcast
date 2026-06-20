@@ -13,9 +13,8 @@ import { theme, Card } from "antd";
 import { GanttChart } from "@/features/schedule-baselines/components/GanttChart/GanttChart";
 import { ScheduleDependencyPanel } from "@/features/schedule-baselines/components/ScheduleDependencyPanel";
 import { useGanttData } from "@/features/schedule-baselines/api/useGanttData";
-import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { PageContent } from "@/components/layout/PageContent";
+import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 export const ProjectSchedulePage: React.FC = () => {
   const { token } = theme.useToken();
@@ -46,14 +45,13 @@ export const ProjectSchedulePage: React.FC = () => {
   }
 
   return (
-    <PageWrapper>
-      <PageHeader title="Project Schedule" />
+    <ProjectPage title="Project Schedule">
       <PageContent>
         <Card styles={{ body: { padding: token.paddingMD } }}>
           <GanttChart projectId={projectId} />
         </Card>
         <ScheduleDependencyPanel projectId={projectId} schedules={schedules} />
       </PageContent>
-    </PageWrapper>
+    </ProjectPage>
   );
 };

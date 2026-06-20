@@ -113,7 +113,8 @@ describe("Project Navigation Integration", () => {
 
     // Wait for initial render
     await waitFor(() => {
-      expect(screen.getByText("Project Details")).toBeInTheDocument();
+      // "Project Details" appears as both breadcrumb crumb and PageHeader title
+      expect(screen.getAllByText("Project Details").length).toBeGreaterThan(0);
     });
 
     // Click on Change Orders tab

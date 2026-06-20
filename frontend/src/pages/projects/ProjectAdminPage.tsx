@@ -3,8 +3,7 @@ import { Card, Row, Col, theme } from "antd";
 import { BudgetSettingsWidget } from "@/features/projects/widgets/BudgetSettingsWidget";
 import { ProjectConfigPanel } from "@/features/change-orders/components/ProjectConfigPanel";
 import { Can } from "@/components/auth/Can";
-import { PageWrapper } from "@/components/layout/PageWrapper";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 /**
  * ProjectAdminPage Component
@@ -21,20 +20,17 @@ export const ProjectAdminPage = () => {
 
   if (!projectId) {
     return (
-      <PageWrapper>
-        <PageHeader title="Project Administration" />
+      <ProjectPage title="Project Administration">
         <Card>
           No project selected. Please navigate to this page from a valid
           project.
         </Card>
-      </PageWrapper>
+      </ProjectPage>
     );
   }
 
   return (
-    <PageWrapper>
-      <PageHeader title="Project Administration" />
-
+    <ProjectPage title="Project Administration">
       <Row gutter={[token.paddingLG, token.paddingLG]}>
         <Col xs={24} lg={12} xl={8}>
           <Can permission="project-budget-settings-read">
@@ -56,7 +52,7 @@ export const ProjectAdminPage = () => {
           <ProjectConfigPanel projectId={projectId} />
         </Col>
       </Row>
-    </PageWrapper>
+    </ProjectPage>
   );
 };
 
