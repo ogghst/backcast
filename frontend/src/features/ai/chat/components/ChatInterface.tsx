@@ -1769,31 +1769,6 @@ export const ChatInterface = ({
           )}
         </Sider>
 
-        {/* Floating reopen button — visible on desktop whenever the Sider is
-            collapsed, so the conversations list can be re-expanded even when the
-            slim header is in its collapsed (default) state. */}
-        {!isMobile && isCollapsed && (
-          <Button
-            type="text"
-            icon={<MenuOutlined style={{ fontSize: 18 }} />}
-            onClick={() => setIsCollapsed(false)}
-            style={{
-              position: "absolute",
-              top: spacing.sm,
-              left: spacing.sm,
-              zIndex: 15,
-              minWidth: 40,
-              height: 40,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: token.colorFillAlter,
-            }}
-            aria-label="Open conversations"
-            title="Open conversations"
-          />
-        )}
-
         {/* Mobile Sidebar Drawer */}
         <Drawer
           title="Conversations"
