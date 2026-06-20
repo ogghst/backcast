@@ -202,6 +202,9 @@ const ChatInterfacePage = lazy(() =>
 const AgentsHistory = lazy(() =>
   import("@/pages/AgentsHistory").then((m) => ({ default: m.AgentsHistory })),
 );
+const Notifications = lazy(() =>
+  import("@/pages/Notifications").then((m) => ({ default: m.Notifications })),
+);
 
 const DashboardPage = lazy(() =>
   import("@/features/widgets/pages/DashboardPage").then((m) => ({
@@ -375,6 +378,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <AgentsHistory />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/notifications",
+        element: (
+          <ProtectedRoute>
+            <Notifications />
           </ProtectedRoute>
         ),
       },

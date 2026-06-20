@@ -1,13 +1,32 @@
 /**
  * NotificationBell component
  *
- * Displays a bell icon with an unread count badge. Clicking opens a popover
- * with the latest notifications. Supports marking individual or all
+ * Displays a bell icon with an unread count badge (WS-fed via the query cache,
+ * with REST as initial/fallback). Clicking opens a popover with the latest
+ * notifications filtered by category tab. Supports marking individual or all
  * notifications as read and navigating to linked resources.
  */
-import React, { useState, useCallback } from "react";
-import { Badge, Button, List, Popover, Spin, Typography, theme, Empty } from "antd";
-import { BellOutlined } from "@ant-design/icons";
+import React, { useState, useCallback, useMemo } from "react";
+import {
+  Badge,
+  Button,
+  List,
+  Popover,
+  Spin,
+  Typography,
+  theme,
+  Empty,
+  Segmented,
+  Tag,
+  Tooltip,
+} from "antd";
+import {
+  BellOutlined,
+  CheckCircleOutlined,
+  InfoCircleOutlined,
+  WarningOutlined,
+  ExclamationCircleOutlined,
+} from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -17,42 +36,62 @@ import {
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
   type NotificationResponse,
+  type NotificationSeverity,
 } from "../api/useNotifications";
+import {
+  timeAgo,
+  resolveResourceRoute,
+  SEVERITY_TAG_COLOR,
+} from "../utils";
 
 const { Text, Paragraph } = Typography;
 
-/** Format an ISO date string as a human-readable relative time. */
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffSeconds = Math.max(0, Math.floor((now - then) / 1000));
+/** Maximum rendered notification items per popover load. */
+const PAGE_SIZE = 20;
 
-  if (diffSeconds < 60) return "just now";
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 30) return `${diffDays}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+type CategoryTab = "all" | "change_order" | "agent" | "system";
+
+const CATEGORY_TAB_OPTIONS: { label: string; value: CategoryTab }[] = [
+  { label: "All", value: "all" },
+  { label: "Change Orders", value: "change_order" },
+  { label: "Agents", value: "agent" },
+  { label: "System", value: "system" },
+];
+
+/** Severity icon component. */
+function SeverityIcon({ severity }: { severity: NotificationSeverity }) {
+  switch (severity) {
+    case "urgent":
+      return <ExclamationCircleOutlined style={{ color: "#ff4d4f" }} />;
+    case "warning":
+      return <WarningOutlined style={{ color: "#faad14" }} />;
+    case "notice":
+      return <InfoCircleOutlined style={{ color: "#1677ff" }} />;
+    default:
+      return <CheckCircleOutlined style={{ color: "#8c8c8c" }} />;
+  }
 }
-
-/** Maximum rendered notification items. */
-const PAGE_SIZE = 10;
 
 export const NotificationBell: React.FC = () => {
   const [open, setOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<CategoryTab>("all");
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { spacing, typography, colors, borderRadius } = useThemeTokens();
 
-  // Fetch unread count (always active for badge)
+  // Badge count — REST provides the initial value; the WS stream writes
+  // authoritative updates straight into this cache entry.
   const { data: unreadData } = useUnreadNotificationCount();
   const unreadCount = unreadData?.count ?? 0;
 
-  // Fetch notification list only while popover is open
+  // Fetch a larger page only while the popover is open, server-filtered by
+  // category when a tab is selected.
   const { data: listData, isLoading } = useNotifications(
-    { page: 1, pageSize: PAGE_SIZE },
+    {
+      page: 1,
+      pageSize: PAGE_SIZE,
+      category: activeCategory === "all" ? undefined : activeCategory,
+    },
     { enabled: open },
   );
   const notifications = listData?.items ?? [];
@@ -62,20 +101,16 @@ export const NotificationBell: React.FC = () => {
 
   const handleNotificationClick = useCallback(
     (notification: NotificationResponse) => {
-      // Mark as read if unread
       if (!notification.read_at) {
         markRead.mutate(notification.id);
       }
-
-      // Navigate for linked resources
-      if (
-        notification.resource_type === "change_order" &&
-        notification.resource_id
-      ) {
-        // The change order routes are project-scoped. We close the popover and
-        // navigate -- the destination page will resolve the correct project.
+      const route = resolveResourceRoute(
+        notification.resource_type,
+        notification.resource_id,
+      );
+      if (route) {
         setOpen(false);
-        navigate(`/change-orders/${notification.resource_id}`);
+        navigate(route);
       }
     },
     [markRead, navigate],
@@ -85,11 +120,34 @@ export const NotificationBell: React.FC = () => {
     markAllRead.mutate();
   }, [markAllRead]);
 
+  const handleViewAll = useCallback(() => {
+    setOpen(false);
+    navigate("/notifications");
+  }, [navigate]);
+
+  const footer = useMemo(
+    () => (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          paddingTop: spacing.xs,
+          borderTop: `1px solid ${colors.border}`,
+        }}
+      >
+        <Button type="link" size="small" onClick={handleViewAll}>
+          View all
+        </Button>
+      </div>
+    ),
+    [handleViewAll, spacing.xs, colors.border],
+  );
+
   const content = (
     <div
       style={{
-        width: 360,
-        maxHeight: 480,
+        width: 380,
+        maxHeight: 520,
         display: "flex",
         flexDirection: "column",
       }}
@@ -100,7 +158,7 @@ export const NotificationBell: React.FC = () => {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          paddingBottom: spacing.sm,
+          paddingBottom: spacing.xs,
           borderBottom: `1px solid ${colors.border}`,
           marginBottom: spacing.xs,
         }}
@@ -121,6 +179,17 @@ export const NotificationBell: React.FC = () => {
         )}
       </div>
 
+      {/* Category tabs */}
+      <div style={{ paddingBottom: spacing.xs }}>
+        <Segmented<CategoryTab>
+          size="small"
+          block
+          value={activeCategory}
+          onChange={(val) => setActiveCategory(val)}
+          options={CATEGORY_TAB_OPTIONS}
+        />
+      </div>
+
       {/* List */}
       {isLoading ? (
         <div
@@ -139,20 +208,20 @@ export const NotificationBell: React.FC = () => {
         />
       ) : (
         <List
-          style={{ overflowY: "auto", maxHeight: 400 }}
+          style={{ overflowY: "auto", maxHeight: 360 }}
           dataSource={notifications}
           renderItem={(item: NotificationResponse) => {
             const isUnread = !item.read_at;
+            const route = resolveResourceRoute(
+              item.resource_type,
+              item.resource_id,
+            );
             return (
               <List.Item
                 key={item.id}
                 onClick={() => handleNotificationClick(item)}
                 style={{
-                  cursor:
-                    item.resource_type === "change_order" &&
-                    item.resource_id
-                      ? "pointer"
-                      : "default",
+                  cursor: route ? "pointer" : "default",
                   padding: `${spacing.sm} ${spacing.md}`,
                   borderRadius: borderRadius.sm,
                   background: isUnread
@@ -173,10 +242,11 @@ export const NotificationBell: React.FC = () => {
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
                       alignItems: "center",
+                      gap: spacing.xs,
                     }}
                   >
+                    <SeverityIcon severity={item.severity ?? "info"} />
                     <Text
                       strong={isUnread}
                       style={{
@@ -196,7 +266,7 @@ export const NotificationBell: React.FC = () => {
                           height: 8,
                           borderRadius: "50%",
                           background: colors.primary,
-                          marginLeft: spacing.sm,
+                          marginLeft: spacing.xs,
                           flexShrink: 0,
                         }}
                       />
@@ -213,18 +283,36 @@ export const NotificationBell: React.FC = () => {
                   >
                     {item.message}
                   </Paragraph>
-                  <Text
-                    type="secondary"
-                    style={{ fontSize: typography.sizes.xs }}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: spacing.xs,
+                    }}
                   >
-                    {timeAgo(item.created_at)}
-                  </Text>
+                    <Tag
+                      color={
+                        SEVERITY_TAG_COLOR[item.severity ?? "info"] as never
+                      }
+                      style={{ margin: 0, fontSize: typography.sizes.xs }}
+                    >
+                      {item.category?.replace(/_/g, " ") ?? "system"}
+                    </Tag>
+                    <Text
+                      type="secondary"
+                      style={{ fontSize: typography.sizes.xs }}
+                    >
+                      {timeAgo(item.created_at)}
+                    </Text>
+                  </div>
                 </div>
               </List.Item>
             );
           }}
         />
       )}
+      {footer}
     </div>
   );
 
@@ -239,13 +327,20 @@ export const NotificationBell: React.FC = () => {
         content: { padding: `${spacing.sm} ${spacing.md}` },
       }}
     >
-      <Badge count={unreadCount} size="small" offset={[-2, 2]}>
-        <Button
-          type="text"
-          icon={<BellOutlined style={{ fontSize: typography.sizes.lg }} />}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-        />
-      </Badge>
+      <Tooltip title="Notifications">
+        <Badge count={unreadCount} size="small" offset={[-2, 2]}>
+          <Button
+            type="text"
+            icon={<BellOutlined style={{ fontSize: typography.sizes.lg }} />}
+            aria-label="Notifications"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          />
+        </Badge>
+      </Tooltip>
     </Popover>
   );
 };

@@ -22,6 +22,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import ChangeOrderStatus
+from app.core.notifications import NotificationType
 from app.core.rbac_unified import (
     get_unified_rbac_service,
     set_unified_rbac_session,
@@ -33,6 +34,16 @@ from app.services.financial_impact_service import FinancialImpactService
 from app.services.sla_service import SLAService
 
 logger = logging.getLogger(__name__)
+
+
+# Maps the legacy change-order event strings to unified registry codes. Kept in
+# sync with ``change_order_service._CO_EVENT_TYPE_MAP``.
+_CO_EVENT_TYPE_MAP: dict[str, str] = {
+    "co_submitted": NotificationType.CO_SUBMITTED.value,
+    "co_approved": NotificationType.CO_APPROVED.value,
+    "co_rejected": NotificationType.CO_REJECTED.value,
+    "co_escalated": NotificationType.CO_ESCALATED.value,
+}
 
 if TYPE_CHECKING:
     from app.services.change_order_config_service import ChangeOrderConfigService
@@ -204,27 +215,50 @@ class ChangeOrderWorkflowService:
         self,
         db_session: AsyncSession,
         user_id: UUID,
+        actor_id: UUID,
         event_type: str,
         title: str,
         message: str,
         resource_type: str = "change_order",
         resource_id: UUID | None = None,
     ) -> None:
-        """Send notification, silently logging failures."""
-        try:
-            from app.services.notification_service import NotificationService
+        """Send a change-order notification via the unified dispatcher.
 
-            notif_service = NotificationService(db_session)
-            await notif_service.create_notification(
-                user_id=user_id,
-                event_type=event_type,
+        Routes legacy ``co_*`` event strings through :func:`user_emitter` so the
+        notification persists with the new ``actor_type``/``severity`` columns
+        and delivers real-time. Never raises: failures are logged.
+
+        Args:
+            db_session: Async database session (caller's transaction).
+            user_id: UUID of the recipient user.
+            actor_id: UUID of the user triggering the workflow action.
+            event_type: Legacy event string (``co_submitted`` | ``co_approved``
+                | ``co_rejected`` | ``co_escalated``).
+            title: Short headline.
+            message: Full body text.
+            resource_type: Related entity type (default: 'change_order').
+            resource_id: UUID of the related entity.
+        """
+        from app.core.notifications import user_emitter
+
+        code = _CO_EVENT_TYPE_MAP.get(event_type)
+        if code is None:
+            logger.warning(
+                "Unknown change-order notification event_type %r; skipping", event_type
+            )
+            return
+        try:
+            await user_emitter(actor_id, db_session).emit(
+                code,
                 title=title,
                 message=message,
+                target_user_ids=[user_id],
                 resource_type=resource_type,
                 resource_id=resource_id,
+                idempotency_key=f"co:{resource_id}:{code}" if resource_id else None,
             )
         except Exception:
-            logger.exception("Failed to send notification")
+            logger.exception("Failed to send change-order notification")
 
     async def submit_for_approval(
         self,
@@ -344,6 +378,7 @@ class ChangeOrderWorkflowService:
         await self._send_notification(
             db_session,
             approver_id,
+            actor_id,
             "co_submitted",
             "Change Order Submitted for Approval",
             f"Change order requires your approval. Impact level: {impact_level}",
@@ -497,6 +532,7 @@ class ChangeOrderWorkflowService:
         await self._send_notification(
             db_session,
             current_co.created_by,
+            actor_id,
             "co_approved",
             "Change Order Approved",
             f"Your change order has been approved by {actor.full_name}",
@@ -648,6 +684,7 @@ class ChangeOrderWorkflowService:
         await self._send_notification(
             db_session,
             current_co.created_by,
+            actor_id,
             "co_rejected",
             "Change Order Rejected",
             f"Your change order has been rejected by {actor.full_name}",

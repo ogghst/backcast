@@ -1,6 +1,10 @@
-import { Card, Typography, Descriptions, Tag } from "antd";
+import { Card, Descriptions, Tag, Space, Typography } from "antd";
 import { useAuth } from "@/hooks/useAuth";
 import { PageWrapper } from "@/components/layout/PageWrapper";
+import {
+  NotificationPreferencesPanel,
+  TelegramConnectPanel,
+} from "@/features/notifications/components/NotificationPreferencesPanel";
 
 const { Title } = Typography;
 
@@ -28,6 +32,11 @@ export const Profile = () => {
           )}
         </Descriptions>
       </Card>
+
+      <Space direction="vertical" size="large" style={{ width: "100%", marginTop: 24 }}>
+        <NotificationPreferencesPanel />
+        <TelegramConnectPanel />
+      </Space>
     </PageWrapper>
   );
 };

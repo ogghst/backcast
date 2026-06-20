@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
+from app.core.notifications import NotificationType
 from app.core.temporal_queries import is_current_version_on_branch
 from app.core.versioning.commands import (
     CreateChangeOrderAuditLogCommand,
@@ -40,6 +41,17 @@ if TYPE_CHECKING:
     from app.models.schemas.impact_analysis import ImpactAnalysisResponse
 
 logger = logging.getLogger(__name__)
+
+
+# Maps the legacy change-order event strings used at the 6 ``_send_notification``
+# call sites to their unified registry codes. All legacy strings map to existing
+# codes; add a new entry (and a registry code) if a new event string is introduced.
+_CO_EVENT_TYPE_MAP: dict[str, str] = {
+    "co_submitted": NotificationType.CO_SUBMITTED.value,
+    "co_approved": NotificationType.CO_APPROVED.value,
+    "co_rejected": NotificationType.CO_REJECTED.value,
+    "co_escalated": NotificationType.CO_ESCALATED.value,
+}
 
 
 class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-var]
@@ -483,6 +495,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             ):
                 await self._send_notification(
                     user_id=updated_co.assigned_approver_id,
+                    actor_id=actor_id,
                     event_type="co_submitted",
                     title="Change Order Submitted for Approval",
                     message=f"Change order {updated_co.code} requires your approval. Impact level: {updated_co.impact_level}",
@@ -493,6 +506,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             elif new_status == COStatus.APPROVED.value:
                 await self._send_notification(
                     user_id=updated_co.created_by,
+                    actor_id=actor_id,
                     event_type="co_approved",
                     title="Change Order Approved",
                     message=f"Your change order {updated_co.code} has been approved",
@@ -503,6 +517,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             elif new_status == COStatus.REJECTED.value:
                 await self._send_notification(
                     user_id=updated_co.created_by,
+                    actor_id=actor_id,
                     event_type="co_rejected",
                     title="Change Order Rejected",
                     message=f"Your change order {updated_co.code} has been rejected",
@@ -1266,6 +1281,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         if updated_co.assigned_approver_id:
             await self._send_notification(
                 user_id=updated_co.assigned_approver_id,
+                actor_id=actor_id,
                 event_type="co_submitted",
                 title="Change Order Submitted for Approval",
                 message=f"Change order {updated_co.code} requires your approval. Impact level: {impact_level}",
@@ -1432,6 +1448,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         await self._send_notification(
             user_id=updated_co.created_by,
+            actor_id=actor_id,
             event_type="co_approved",
             title="Change Order Approved",
             message=f"Your change order {updated_co.code} has been approved by {approver_name}",
@@ -1603,6 +1620,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         await self._send_notification(
             user_id=updated_co.created_by,
+            actor_id=actor_id,
             event_type="co_rejected",
             title="Change Order Rejected",
             message=f"Your change order {updated_co.code} has been rejected by {rejecter_name}",
@@ -1850,36 +1868,52 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
     async def _send_notification(
         self,
         user_id: UUID,
+        actor_id: UUID,
         event_type: str,
         title: str,
         message: str,
         resource_type: str = "change_order",
         resource_id: UUID | None = None,
     ) -> None:
-        """Send notification to a user, silently logging failures.
+        """Send a change-order notification to a user via the dispatcher.
+
+        Routes the legacy ``co_submitted``/``co_approved``/``co_rejected``
+        event strings through the unified :class:`EventEmitter` so the
+        notification persists with the new ``actor_type``/``severity`` columns
+        and delivers real-time to the bell (+ Telegram when enabled). Never
+        raises: failures are logged (belt-and-suspenders; the emitter already
+        swallows).
 
         Args:
-            user_id: UUID of the user to notify
-            event_type: Event category (e.g., 'co_submitted', 'co_approved')
-            title: Short headline for notification lists
-            message: Full notification body text
-            resource_type: Type of related entity (default: 'change_order')
-            resource_id: UUID of the related entity
+            user_id: UUID of the user to notify.
+            actor_id: UUID of the user triggering the change order action.
+            event_type: Legacy event string (``co_submitted`` | ``co_approved``
+                | ``co_rejected`` | ``co_escalated``).
+            title: Short headline for notification lists.
+            message: Full notification body text.
+            resource_type: Type of related entity (default: 'change_order').
+            resource_id: UUID of the related entity.
         """
-        try:
-            from app.services.notification_service import NotificationService
+        from app.core.notifications import user_emitter
 
-            notif_service = NotificationService(self.session)
-            await notif_service.create_notification(
-                user_id=user_id,
-                event_type=event_type,
+        code = _CO_EVENT_TYPE_MAP.get(event_type)
+        if code is None:
+            logger.warning(
+                "Unknown change-order notification event_type %r; skipping", event_type
+            )
+            return
+        try:
+            await user_emitter(actor_id, self.session).emit(
+                code,
                 title=title,
                 message=message,
+                target_user_ids=[user_id],
                 resource_type=resource_type,
                 resource_id=resource_id,
+                idempotency_key=f"co:{resource_id}:{code}" if resource_id else None,
             )
         except Exception:
-            logger.exception("Failed to send notification")
+            logger.exception("Failed to send change-order notification")
 
     async def _validate_custom_field_values(
         self, project_id: UUID, values: dict[str, Any]

@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,6 +68,7 @@ async def register(
 
 @router.post("/login", response_model=TokenResponse, operation_id="login")
 async def login(
+    request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> Any:
@@ -90,32 +91,21 @@ async def login(
     # Create both access and refresh tokens
     token_response = await auth_service.authenticate(user)
 
-    # Notify admins of login
-    from app.core.notifications import notifier
-    from app.core.notifications._types import NotificationEvent, NotificationPayload
-    from app.core.rbac_unified import (
-        get_unified_rbac_service,
-        set_unified_rbac_session,
+    # Notify admins of login (non-blocking).
+    from app.core.notifications import system_emitter
+
+    client_ip = (
+        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        or (request.client.host if request.client else "")
+        or "unknown"
     )
+    user_agent = request.headers.get("user-agent", "") or "unknown"
 
-    # Resolve role from unified RBAC for the notification
-    user_role = "viewer"
-    try:
-        set_unified_rbac_session(session)
-        roles = await get_unified_rbac_service().get_user_roles(
-            user.user_id, "global", None
-        )
-        if roles:
-            user_role = roles[0]
-    finally:
-        set_unified_rbac_session(None)
-
-    notifier.send_fire_and_forget(
-        NotificationPayload(
-            event=NotificationEvent.USER_LOGIN,
-            message=f"User logged in: {user.email}",
-            details={"name": user.full_name, "role": user_role},
-        )
+    system_emitter.emit_fire_and_forget(
+        "system.user_login",
+        title="User login",
+        message=user.email,
+        payload={"ip": client_ip, "user_agent": user_agent},
     )
 
     return token_response

@@ -125,15 +125,59 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("[STARTUP] rbac_init OK %.0fms", (_time.time() - _t0) * 1000)
 
-    # Notify admins of system startup
-    from app.core.notifications import notifier
-    from app.core.notifications._types import NotificationEvent, NotificationPayload
+    # Configure the unified notification dispatcher + channels.
+    from app.core.notifications import (
+        notification_dispatcher,
+        system_emitter,
+    )
+    from app.core.notifications.channels.telegram import (
+        TelegramChannel,
+        TelegramUpdatePoller,
+        parse_start_command,
+    )
+    from app.core.notifications.registry import ChannelKind
 
-    await notifier.send(
-        NotificationPayload(
-            event=NotificationEvent.SYSTEM_STARTUP,
-            message="Backcast server started successfully.",
+    _telegram_poller: TelegramUpdatePoller | None = None
+    if settings.TELEGRAM_ENABLED and settings.TELEGRAM_BOT_TOKEN:
+        notification_dispatcher.configure(
+            {
+                ChannelKind.TELEGRAM: TelegramChannel(
+                    settings.TELEGRAM_BOT_TOKEN,
+                    settings.TELEGRAM_CHAT_ID,
+                    settings.TELEGRAM_BOT_USERNAME,
+                )
+            }
         )
+        logger.info("[STARTUP] notifications_telegram_channel OK")
+
+        # Dev fallback: long-poll getUpdates instead of the webhook.
+        if settings.TELEGRAM_USE_POLLING:
+            from typing import Any
+
+            from app.services.telegram_link_service import TelegramLinkService
+
+            async def _on_telegram_update(update: dict[str, Any]) -> None:
+                parsed = parse_start_command(update)
+                if parsed is None:
+                    return
+                token, chat_id, tg_user_id = parsed
+                async with async_session_maker() as session:
+                    await TelegramLinkService(session).verify_by_token(
+                        token, chat_id, tg_user_id
+                    )
+                    await session.commit()
+
+            _telegram_poller = TelegramUpdatePoller(
+                settings.TELEGRAM_BOT_TOKEN, _on_telegram_update
+            )
+            await _telegram_poller.start()
+            logger.info("[STARTUP] notifications_telegram_poller OK")
+
+    # Notify admins of system startup via the unified emitter.
+    await system_emitter.emit(
+        "system.startup",
+        title="Backcast started",
+        message="Backcast server started successfully.",
     )
 
     # Initialize RustFS/S3 bucket (non-critical, graceful degradation)
@@ -164,7 +208,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # Shutdown: clean up resources
-    await notifier.shutdown()
+    if _telegram_poller is not None:
+        try:
+            await _telegram_poller.stop()
+            logger.info("[SHUTDOWN] notifications_telegram_poller OK")
+        except Exception:
+            logger.warning(
+                "[SHUTDOWN] notifications_telegram_poller FAILED", exc_info=True
+            )
+
+    try:
+        await notification_dispatcher.shutdown()
+    except Exception:
+        logger.warning("[SHUTDOWN] notifications_dispatcher FAILED", exc_info=True)
 
     # Shutdown MCP client manager
     try:
@@ -338,18 +394,16 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
             },
         )
 
-    from app.core.notifications import notifier
-    from app.core.notifications._types import NotificationEvent, NotificationPayload
+    from app.core.notifications import system_emitter
 
-    notifier.send_fire_and_forget(
-        NotificationPayload(
-            event=NotificationEvent.UNHANDLED_EXCEPTION,
-            message=f"Unhandled {type(exc).__name__}: {str(exc)[:200]}",
-            details={
-                "path": str(request.url.path),
-                "method": request.method,
-            },
-        )
+    system_emitter.emit_fire_and_forget(
+        "system.unhandled_exception",
+        title="Unhandled exception",
+        message=f"Unhandled {type(exc).__name__}: {str(exc)[:200]}",
+        payload={
+            "path": str(request.url.path),
+            "method": request.method,
+        },
     )
 
     return JSONResponse(

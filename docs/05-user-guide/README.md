@@ -76,6 +76,25 @@ End-user guide for interacting with the Backcast  AI Chat assistant using natura
 - Change managers managing change orders
 - Any end user interacting with the AI assistant
 
+### [Notification System User Guide](./notification-system-guide.md)
+
+End-user and administrator guide for Backcast's unified, real-time notification system (in-app bell + Notification Center + Telegram).
+
+**Topics Covered:**
+- Notification categories, severities, and actors
+- The bell, Notification Center, and real-time delivery
+- Use cases: change-order approvals, background agents, Telegram while away, catching up after being offline
+- Managing per-category/per-channel preferences
+- Connecting Telegram (deep-link flow)
+- Administrator setup (env vars, webhook vs polling, admin chat)
+- Troubleshooting
+
+**Target Audience:**
+- All Backcast users receiving or acting on notifications
+- Approvers and change managers
+- Anyone running background AI agents
+- Administrators enabling Telegram delivery
+
 ### [Configuring Backcast for Your Organization](./backcast-configuration-guide.md)
 
 Adaptation guide for administrators covering roles, workflows, AI assistance, and team structure configuration.

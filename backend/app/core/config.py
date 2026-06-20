@@ -167,6 +167,12 @@ class Settings(BaseSettings):
     TELEGRAM_ENABLED: bool = False
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
+    TELEGRAM_BOT_USERNAME: str = ""
+    TELEGRAM_USE_POLLING: bool = False
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+
+    # Unified Notifications
+    NOTIFICATION_DELIVERY_RETENTION_DAYS: int = 30
 
 
 settings = Settings()
