@@ -174,12 +174,10 @@ class Settings(BaseSettings):
     # Unified Notifications
     NOTIFICATION_DELIVERY_RETENTION_DAYS: int = 30
 
-    # Agent Scheduling (separate scheduler process polls DB and calls trigger API)
+    # Agent Scheduling (in-process scheduler loop in the API server lifespan)
     SCHEDULER_POLL_INTERVAL_SECONDS: int = 60
     SCHEDULER_MAX_CONCURRENCY: int = 5
     SCHEDULER_MISFIRE_GRACE_SECONDS: int = 120
-    SCHEDULER_API_BASE_URL: str = "http://backend:8020"
-    SCHEDULER_DB_POOL_SIZE: int = 5
 
 
 settings = Settings()

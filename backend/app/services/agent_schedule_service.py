@@ -2,20 +2,35 @@
 
 Thin data-access layer mirroring the no-repository pattern. All DB access is
 direct via AsyncSession. Schedules are owner-scoped configuration rows.
+
+Also owns the overlap-guarded launcher (:func:`trigger_schedule_run`) shared by
+the HTTP ``/trigger`` handler and the in-process scheduler tick.
 """
 
+import asyncio
+import logging
+import uuid
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.agent_service import AgentService
+from app.ai.event_types import ExecutionStatus
+from app.ai.tools.types import ExecutionMode
+from app.db.session import async_session_maker
+from app.models.domain.ai import AIAgentExecution
 from app.models.domain.ai_agent_schedule import AIAgentSchedule
 from app.models.schemas.ai_agent_schedule import (
     AgentScheduleCreate,
+    AgentScheduleTriggerResponse,
     AgentScheduleUpdate,
     compute_next_run,
 )
+from app.services.ai_config_service import AIConfigService
+
+logger = logging.getLogger(__name__)
 
 
 class AgentScheduleService:
@@ -170,3 +185,205 @@ class AgentScheduleService:
         schedule.last_run_at = datetime.now(UTC)
         schedule.last_execution_id = UUID(execution_id)
         await self.session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Overlap-guarded launcher (shared by the HTTP "Run now" handler + scheduler)
+# ---------------------------------------------------------------------------
+
+
+class ScheduleOverlapError(Exception):
+    """An execution for this schedule is already active."""
+
+
+class ScheduleNotFoundError(Exception):
+    """The schedule does not exist."""
+
+
+# Strong refs to fire-and-forget execution tasks. asyncio only keeps a weak
+# reference to tasks, so a task created in a handler/tick and never awaited can
+# be garbage-collected mid-run once the caller returns. We hold each task here
+# and drop it when it completes. (The minutes-long agent run outlives the
+# caller by design.)
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+async def trigger_schedule_run(schedule_id: UUID) -> AgentScheduleTriggerResponse:
+    """Overlap-guarded launcher for a schedule run.
+
+    Shared by the HTTP ``/trigger`` handler (the "Run now" button) and the
+    in-process scheduler tick. Creates a fresh conversation session + a RUNNING
+    ``AIAgentExecution`` row inside a transaction-scoped advisory lock (so a
+    concurrent caller's overlap check sees the RUNNING row before the lock
+    releases), then launches the agent run fire-and-forget via
+    ``asyncio.create_task`` in THIS process — the in-memory
+    ExecutionLifecycle/event-bus singletons live here.
+
+    Raises:
+        ScheduleNotFoundError: the schedule row is gone.
+        ScheduleOverlapError: an execution for this schedule is already active.
+    """
+    execution_id = str(uuid.uuid4())
+
+    async with async_session_maker() as db:
+        # 1. transaction-scoped advisory lock keyed by schedule.
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+            {"k": f"aas:{schedule_id}"},
+        )
+
+        # 2. overlap check: any ACTIVE execution for THIS schedule?
+        active = await db.execute(
+            select(AIAgentExecution.id).where(
+                AIAgentExecution.schedule_id == schedule_id,
+                AIAgentExecution.status.in_(
+                    [
+                        ExecutionStatus.PENDING,
+                        ExecutionStatus.RUNNING,
+                        ExecutionStatus.AWAITING_APPROVAL,
+                    ]
+                ),
+            )
+        )
+        if active.first() is not None:
+            await db.rollback()  # releases the advisory lock
+            raise ScheduleOverlapError(str(schedule_id))
+
+        # 3. load the schedule (template fields) inside the locked txn.
+        sched_row = (
+            await db.execute(
+                select(AIAgentSchedule).where(AIAgentSchedule.id == schedule_id)
+            )
+        ).scalar_one_or_none()
+        if sched_row is None:
+            await db.rollback()
+            raise ScheduleNotFoundError(str(schedule_id))
+
+        # 4. fresh session from the schedule template.
+        sched_config = AIConfigService(db)
+        session = await sched_config.create_session(
+            user_id=sched_row.owner_user_id,
+            assistant_config_id=sched_row.assistant_config_id,
+            project_id=sched_row.project_id,
+            branch_id=sched_row.branch_id,
+            context=sched_row.context,
+        )
+
+        # 5. Create the RUNNING execution row INSIDE the locked txn so the
+        #    overlap check is airtight: when the lock releases the RUNNING row
+        #    is already visible to a concurrent caller. _preflight_execution
+        #    (called by the background run) detects the pre-created row and
+        #    skips re-insert.
+        db.add(
+            AIAgentExecution(
+                id=UUID(execution_id),
+                session_id=session.id,
+                status=ExecutionStatus.RUNNING,
+                execution_mode=sched_row.execution_mode,
+                run_in_background=True,
+                name=(sched_row.prompt or "").strip()[:120] or None,
+                schedule_id=sched_row.id,
+            )
+        )
+        await db.commit()  # releases advisory lock; session + RUNNING row persist
+        session_id = str(session.id)
+
+        # capture template fields BEFORE the session closes (ORM objects detach)
+        owner_id = sched_row.owner_user_id
+        sched_prompt = sched_row.prompt
+        sched_exec_mode = sched_row.execution_mode
+        sched_project_id = sched_row.project_id
+        sched_branch_id = sched_row.branch_id
+        sched_assistant_config_id = sched_row.assistant_config_id
+        sched_id_uuid = sched_row.id
+
+    # 6. fire-and-forget launch. Held in _background_tasks so asyncio doesn't
+    #    GC the minutes-long task after this function returns.
+    task = asyncio.create_task(
+        _run_schedule_execution(
+            execution_id=execution_id,
+            session_id=session_id,
+            schedule_id=sched_id_uuid,
+            owner_user_id=owner_id,
+            prompt=sched_prompt,
+            execution_mode=sched_exec_mode,
+            project_id=sched_project_id,
+            branch_id=sched_branch_id,
+            assistant_config_id=sched_assistant_config_id,
+        )
+    )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return AgentScheduleTriggerResponse(
+        execution_id=execution_id, session_id=session_id
+    )
+
+
+async def _run_schedule_execution(
+    *,
+    execution_id: str,
+    session_id: str,
+    schedule_id: UUID,
+    owner_user_id: UUID,
+    prompt: str,
+    execution_mode: str,
+    project_id: UUID | None,
+    branch_id: UUID | None,
+    assistant_config_id: UUID,
+) -> None:
+    """Fire-and-forget launcher for a scheduled agent run.
+
+    Loads the assistant config, builds an AgentService, and calls
+    start_execution with ``run_in_background=True`` and the originating
+    ``schedule_id``. Best-effort updates last_run_at/last_execution_id on the
+    schedule in a finally block.
+    """
+    try:
+        # Load the assistant config (the schedule FK is RESTRICT, so it exists
+        # unless it was deleted after the txn above committed).
+        async with async_session_maker() as db:
+            cfg_service = AIConfigService(db)
+            cfg = await cfg_service.get_assistant_config(assistant_config_id)
+        if cfg is None:
+            logger.error(
+                "[SCHEDULE_TRIGGER] Assistant config %s not found for schedule %s; "
+                "aborting execution %s",
+                assistant_config_id,
+                schedule_id,
+                execution_id,
+            )
+            return
+
+        async with async_session_maker() as db:
+            agent_service = AgentService(db)
+            await agent_service.start_execution(
+                message=prompt,
+                assistant_config=cfg,
+                session_id=UUID(session_id),
+                user_id=owner_user_id,
+                project_id=project_id,
+                branch_id=branch_id,
+                execution_mode=ExecutionMode(execution_mode),
+                execution_id=execution_id,
+                schedule_id=schedule_id,
+                run_in_background=True,
+            )
+    except Exception:
+        logger.error(
+            "[SCHEDULE_TRIGGER] Failed execution %s for schedule %s",
+            execution_id,
+            schedule_id,
+            exc_info=True,
+        )
+    finally:
+        # best-effort last_run update
+        try:
+            async with async_session_maker() as db:
+                svc = AgentScheduleService(db)
+                await svc.set_last_run(schedule_id, execution_id)
+        except Exception:
+            logger.error(
+                "[SCHEDULE_TRIGGER] Failed to update last_run for schedule %s",
+                schedule_id,
+                exc_info=True,
+            )

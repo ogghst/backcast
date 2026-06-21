@@ -1,21 +1,23 @@
-"""One scheduler poll cycle.
+"""One scheduler poll cycle (runs in-process in the API server).
 
-Claims due schedules from the shared DB, applies the skip-missed policy, then
-**dispatches before advancing** so a transient backend failure is retried on
-the next tick rather than silently dropping the fire.
+Claims due schedules from the DB, applies the skip-missed policy, then
+**dispatches before advancing** so a transient failure is retried on the next
+tick rather than silently dropping the fire. Dispatch calls
+:func:`trigger_schedule_run` directly (same process — the run launches
+fire-and-forget where the in-memory ExecutionLifecycle/event-bus live).
 
 Flow (dispatch-then-advance):
-1. Claim all active due rows atomically (``FOR UPDATE SKIP LOCKED``).
+1. Claim active due rows (``FOR UPDATE SKIP LOCKED``).
 2. Deactivate rows whose cron became invalid (they can never fire).
-3. STALE rows (``next_run_at`` older than the grace window — the scheduler was
-   down) are advanced to the next future cron fire WITHOUT dispatching.
-4. FRESH rows are captured but NOT advanced yet.
+3. STALE rows (older than the grace window — the scheduler was down) → advance
+   to the next future cron fire WITHOUT dispatching (skip missed).
+4. FRESH rows → captured but NOT advanced yet.
 5. Commit (releases row locks).
-6. Dispatch the fresh rows concurrently (bounded) to the backend trigger API.
-7. Advance ``next_run_at`` ONLY for rows whose dispatch was handled. A failed
-   dispatch (backend unreachable / 5xx) leaves ``next_run_at`` in the past so
-   the next tick retries it — until it ages past the grace window and is then
-   treated as stale (advanced without firing).
+6. Dispatch the fresh rows concurrently (bounded) via ``trigger_schedule_run``.
+7. Advance ``next_run_at`` ONLY for rows whose dispatch was HANDLED. A failed
+   dispatch (any unexpected error) leaves ``next_run_at`` in the past so the
+   next tick retries it — until it ages past the grace window and is then
+   treated as stale.
 
 Skip-missed: a schedule fires only if its ``next_run_at`` is within the grace
 window (``SCHEDULER_MISFIRE_GRACE_SECONDS``) of ``now``.
@@ -26,39 +28,35 @@ import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.models.domain.ai_agent_schedule import AIAgentSchedule
 from app.models.schemas.ai_agent_schedule import compute_next_run
-from app.scheduler.api_client import trigger_schedule
+from app.services.agent_schedule_service import (
+    ScheduleNotFoundError,
+    ScheduleOverlapError,
+    trigger_schedule_run,
+)
 
 logger = logging.getLogger(__name__)
 
 # Bounded dispatch across one tick. Module-level so it persists across ticks
-# (caps concurrent in-flight trigger POSTs process-wide).
+# (caps concurrent trigger_schedule_run calls process-wide).
 _dispatch_semaphore = asyncio.Semaphore(settings.SCHEDULER_MAX_CONCURRENCY)
 
-# Schedule IDs with a trigger POST currently in flight (this process). Cleared
-# as each task completes.
-_in_flight: set[str] = set()
 
-
-async def tick(
-    sessionmaker: async_sessionmaker[AsyncSession], client: httpx.AsyncClient
-) -> None:
+async def tick(sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     """Run one scheduler poll cycle (see module docstring)."""
     now = datetime.now(UTC)
     grace = timedelta(seconds=settings.SCHEDULER_MISFIRE_GRACE_SECONDS)
     stale_cutoff = now - grace
 
-    fresh_payloads: list[tuple[str, str]] = []  # (schedule_id, owner_user_id)
+    fresh_ids: list[UUID] = []
 
     async with sessionmaker() as session:
-        # Claim all active due rows atomically with FOR UPDATE SKIP LOCKED so a
-        # second scheduler instance (if ever run) can't double-claim.
+        # Claim all active due rows atomically with FOR UPDATE SKIP LOCKED.
         stmt = (
             select(AIAgentSchedule)
             .where(
@@ -93,26 +91,23 @@ async def tick(
             else:
                 # fresh: do NOT advance here — advance only after a successful
                 # dispatch (below) so a transient failure is retried next tick.
-                fresh_payloads.append((str(row.id), str(row.owner_user_id)))
+                fresh_ids.append(row.id)
 
         await session.commit()
 
-    if not fresh_payloads:
+    if not fresh_ids:
         return
 
-    # Dispatch fresh-due schedules concurrently (bounded). The trigger endpoint
-    # is fire-and-forget, so POSTs return fast; gather holds the task refs.
-    tasks = [
-        asyncio.create_task(_dispatch(client, sid, oid)) for sid, oid in fresh_payloads
-    ]
+    # Dispatch fresh-due schedules concurrently (bounded). trigger_schedule_run
+    # launches the run fire-and-forget and returns quickly; gather holds the
+    # task refs.
+    tasks = [asyncio.create_task(_dispatch(sid)) for sid in fresh_ids]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Advance only rows whose dispatch was HANDLED (truthy). A failed dispatch
+    # Advance only rows whose dispatch was HANDLED (True). A failed dispatch
     # leaves next_run_at in the past → the next tick retries it.
     handled_ids = [
-        sid
-        for (sid, _oid), result in zip(fresh_payloads, results, strict=True)
-        if not isinstance(result, Exception) and result
+        sid for sid, result in zip(fresh_ids, results, strict=True) if result is True
     ]
     if not handled_ids:
         return
@@ -142,33 +137,28 @@ async def tick(
         await session.commit()
 
 
-async def _dispatch(
-    client: httpx.AsyncClient, schedule_id: str, owner_user_id: str
-) -> bool:
-    """Dispatch one trigger POST, bounded by the semaphore + in-flight set.
+async def _dispatch(schedule_id: UUID) -> bool:
+    """Dispatch one schedule run, bounded by the semaphore.
 
     Returns ``True`` if the fire window is HANDLED (the caller should advance
-    ``next_run_at``), or ``False`` to retry on the next tick.
+    ``next_run_at``): a launch, or overlap/schedule-gone (window is covered).
+    Returns ``False`` to RETRY on any other error.
     """
-    if schedule_id in _in_flight:
-        logger.info(
-            "[scheduler] schedule %s already in flight; skipping dispatch",
-            schedule_id,
-        )
-        return True
-    _in_flight.add(schedule_id)
     try:
         async with _dispatch_semaphore:
-            return await trigger_schedule(
-                client, UUID(schedule_id), UUID(owner_user_id)
-            )
+            await trigger_schedule_run(schedule_id)
+        logger.info("[scheduler] triggered schedule %s", schedule_id)
+        return True
+    except (ScheduleOverlapError, ScheduleNotFoundError):
+        # overlap (a run is already active) or schedule deleted — the window is
+        # covered; advance so we don't retry forever.
+        logger.info("[scheduler] schedule %s overlap/gone — handled", schedule_id)
+        return True
     except Exception:
         logger.exception(
             "[scheduler] unexpected error dispatching schedule %s", schedule_id
         )
         return False
-    finally:
-        _in_flight.discard(schedule_id)
 
 
 def _aware_utc(dt: datetime | None) -> datetime:
@@ -178,8 +168,3 @@ def _aware_utc(dt: datetime | None) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
     return dt.astimezone(UTC)
-
-
-def _clear_in_flight_for_tests() -> None:
-    """Reset the module-level in-flight set between tests."""
-    _in_flight.clear()

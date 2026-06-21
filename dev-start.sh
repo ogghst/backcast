@@ -42,14 +42,7 @@ echo "✅ Backend started (PID: $BACKEND_PID) - http://localhost:8020"
 # Wait a moment for backend to initialize
 sleep 2
 
-# 5. Start agent scheduler (separate process; shares backend/.env + DB; posts
-#    due-schedule triggers to the local backend as the schedule owner).
-echo "⏰ Starting agent scheduler..."
-SCHEDULER_API_BASE_URL=http://localhost:8020 uv run python -m app.scheduler &
-SCHEDULER_PID=$!
-echo "✅ Agent scheduler started (PID: $SCHEDULER_PID)"
-
-# 6. Start frontend
+# 5. Start frontend (the agent scheduler runs in-process inside the backend)
 echo "🎨 Starting frontend server..."
 cd ../frontend
 npm run dev &
@@ -65,7 +58,6 @@ echo "✨ Development environment is ready!"
 echo ""
 echo "📍 Services:"
 echo "  - Backend:  http://localhost:8020"
-echo "  - Scheduler: polls DB, fires due schedules → backend"
 echo "  - Frontend: http://localhost:5173"
 echo "  - API Docs: http://localhost:8020/docs"
 echo ""

@@ -18,10 +18,10 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from app.api.routes import agent_schedules as agent_schedules_module
 from app.db.session import async_session_maker
 from app.models.domain.ai import AIAgentExecution
 from app.models.schemas.ai_agent_schedule import compute_next_run
+from app.services import agent_schedule_service as agent_schedule_service_module
 
 
 def test_compute_next_run_valid() -> None:
@@ -197,7 +197,9 @@ async def test_trigger_success_creates_running_execution(client: AsyncClient) ->
     assert pre == []
 
     # Mock the fire-and-forget launcher so no real agent run / LLM call happens.
-    with patch.object(agent_schedules_module, "_run_schedule_execution", AsyncMock()):
+    with patch.object(
+        agent_schedule_service_module, "_run_schedule_execution", AsyncMock()
+    ):
         trig_resp = await client.post(f"/ai/agent-schedules/{schedule_id}/trigger")
 
     assert trig_resp.status_code == 200, trig_resp.text

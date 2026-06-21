@@ -1,10 +1,21 @@
 # Agent Scheduling System
 
-**Status:** IMPLEMENTED. Users define cron-scheduled agent runs; a separate always-on
-scheduler process fires them by calling the backend API.
+**Status:** IMPLEMENTED. Users define cron-scheduled agent runs; an **in-process
+scheduler task** (a lifespan background task in the API server) fires them.
 
-**Owner subsystem:** AI execution (`backend/app/ai/`), scheduling (`backend/app/scheduler/`),
-API (`backend/app/api/routes/agent_schedules.py`), frontend admin
+> **History:** this shipped as a *separate* scheduler process (a docker service
+> that fired runs by HTTP-POSTing a trigger endpoint as the owner). A single-node
+> architecture review concluded that was over-engineered — separation isolated
+> only the ~180-line scheduling tick (not execution, which always ran in the
+> backend anyway), while paying concrete footguns (a `SCHEDULER_API_BASE_URL`
+> silent-no-fire, an ORM model-registration crash, a second DB pool, JWT-as-owner
+> impersonation, duplicated env). It was **relocated in-process**: same tick logic,
+> but it calls the shared launcher directly. See `memory/33-agent-scheduling-system.md`.
+
+**Owner subsystem:** AI execution (`backend/app/ai/`), scheduling
+(`backend/app/scheduler/`), the shared launcher
+(`backend/app/services/agent_schedule_service.py::trigger_schedule_run`), API
+(`backend/app/api/routes/agent_schedules.py`), frontend admin
 (`frontend/src/pages/admin/AgentScheduleManagement.tsx`).
 
 ---
@@ -20,33 +31,31 @@ schedule that is already in flight**.
 
 ---
 
-## The load-bearing constraint (why the scheduler is an API client, not an executor)
+## The load-bearing constraint (why runs execute in the backend process)
 
 `ExecutionLifecycle`, `AgentRunnerManager`, and every `AgentEventBus`
 (`backend/app/ai/execution/`) are **module-level, in-memory, single-process singletons**.
-A separate OS process that called `AgentService.start_execution(...)` directly would create
-the event bus in *its own* process — invisible to the API server — so:
+An agent run **must execute in the API server process** to have a live event bus. If it ran
+elsewhere:
 
 - WebSocket clients couldn't watch the run stream live,
 - the **Stop button** couldn't reach it (it sets an in-memory `asyncio.Event`),
 - the Agents History "running" badge would desync, and
-- completion notifications (`_notify_agent_owner`) would fire in the scheduler process,
-  where the in-app WS connection registry (`user_connection_manager`) is empty, so the
-  notification bell wouldn't push live.
+- completion notifications (`_notify_agent_owner`) would fire where the in-app WS
+  connection registry (`user_connection_manager`) is empty, so the bell wouldn't push live.
 
-**Resolution — "scheduler as API client":**
+**Resolution — the scheduler runs *in* the API server process.** It is an asyncio
+background task started in the FastAPI lifespan (alongside the Telegram poller and the
+orphan-execution reaper). It polls the shared DB every `SCHEDULER_POLL_INTERVAL_SECONDS`,
+and when a schedule is due it calls `trigger_schedule_run(schedule_id)` **directly** (a
+typed, in-process call — no HTTP, no JWT). `trigger_schedule_run` creates a fresh session
++ a RUNNING execution row and launches `start_execution(...)` as a fire-and-forget
+`asyncio.create_task` *in this same process*, so the WS bus, Stop button, Agents History
+badge, and live notification delivery all work.
 
-- The **scheduler process** owns *scheduling only*: a 60 s loop that reads due schedules from
-  the shared DB, advances `next_run_at`, and **launches each run by calling the backend
-  trigger endpoint over HTTP**, authenticated **as the schedule's owner** (it mints a
-  short-lived JWT with the shared `SECRET_KEY`).
-- The **backend (API server)** owns *execution*: the trigger endpoint creates a fresh
-  conversation session and runs `start_execution(...)` as a fire-and-forget
-  `asyncio.create_task` in its own process. Because the run lives in the backend, the WS
-  bus, Stop button, Agents History badge, **and** live notification delivery all keep working.
-
-This is exactly the requested model — the UI and the background service communicate via the
-API and share the database — without breaking the in-memory execution model.
+This is the simplest configuration that satisfies the constraint: one process owns both
+scheduling and execution, so there is no cross-process URL, no second connection pool, and
+no impersonation token to misconfigure.
 
 ---
 
@@ -69,48 +78,54 @@ Migration: `e00199978962_add_ai_agent_schedules` (`down_revision d7154545c5e3`).
 
 ## Components
 
-### Trigger endpoint — `POST /api/v1/ai/agent-schedules/{id}/trigger`
-Authorized for the schedule **owner or an admin** (no `RoleChecker` — triggering an existing
-schedule is authorized by its existence, created under `agent-schedule-manage`; this also
-means a later permission revocation does not silently halt already-scheduled runs). Used by
-**both** the scheduler and the UI "Run now" button — the single launch path. Flow:
+### Shared launcher — `trigger_schedule_run` (`agent_schedule_service.py`)
+The single overlap-guarded launch path, called by **both** the in-process scheduler tick and
+the HTTP `/trigger` handler (the "Run now" button). Raises `ScheduleOverlapError` /
+`ScheduleNotFoundError` (the HTTP handler maps them to 409/404; the tick treats them as
+"handled"). Flow:
 
 1. Transaction-scoped advisory lock: `SELECT pg_advisory_xact_lock(hashtext('aas:'||id))`.
 2. **Overlap check**: any `AIAgentExecution` with this `schedule_id` in
-   `pending`/`running`/`awaiting_approval`? → rollback + **409**.
-3. Create a **fresh** `AIConversationSession` from the schedule template.
-4. **Create the `RUNNING` `AIAgentExecution` row** (pre-generated id, `schedule_id`,
+   `pending`/`running`/`awaiting_approval`? → rollback + raise `ScheduleOverlapError`.
+3. Load the schedule (template fields) inside the locked txn; raise
+   `ScheduleNotFoundError` if gone.
+4. Create a **fresh** `AIConversationSession` from the schedule template.
+5. **Create the `RUNNING` `AIAgentExecution` row** (pre-generated id, `schedule_id`,
    `run_in_background=True`) **inside the locked transaction**, then commit. Because the row
-   is committed before the lock releases, a concurrent trigger's overlap check sees it → 409
-   (the guard is airtight; there is no gap).
-5. Fire-and-forget `asyncio.create_task(_run_schedule_execution(...))` calling
+   is committed before the lock releases, a concurrent caller's overlap check sees it →
+   `ScheduleOverlapError` (the guard is airtight; there is no gap).
+6. Fire-and-forget `asyncio.create_task(_run_schedule_execution(...))` calling
    `start_execution(..., execution_id=<pre-gen>, schedule_id=<id>, run_in_background=True)`.
    `_preflight_execution` detects the pre-created row and skips re-insertion. The task is
    held in a module-level set (`_background_tasks`) so asyncio doesn't GC it mid-run after
-   the handler returns.
+   the launcher returns.
 
 The run inherits `_notify_agent_owner` → the owner gets completion/failure in the bell +
 Telegram (delivered from the backend process, so the WS push works).
 
-### Scheduler process — `backend/app/scheduler/` (`python -m app.scheduler`)
-Hand-rolled asyncio loop (no APScheduler/Celery/Redis — single-server, code/DB-sharing):
-- **Single-instance guard**: on startup it acquires a session-level
-  `pg_try_advisory_lock(hashtext('backcast-scheduler'))` held for the process lifetime; if
-  another scheduler already holds it, it logs and exits (prevents accidental multi-instance
-  dispatch).
-- Owns its **own small async engine** (`pool_size = SCHEDULER_DB_POOL_SIZE = 5`) — does not
-  reuse the API server's pool, avoiding double 50-connection pools.
-- One long-lived `httpx.AsyncClient`; SIGTERM/SIGINT → graceful stop → `engine.dispose()`.
-- **`tick()` (dispatch-then-advance)**: claim active due rows
+### HTTP handler — `POST /api/v1/ai/agent-schedules/{id}/trigger`
+Authorized for the schedule **owner or an admin** (no `RoleChecker` — triggering an existing
+schedule is authorized by its existence, created under `agent-schedule-manage`; this also
+means a later permission revocation does not silently halt already-scheduled runs). It does
+the owner-or-admin check, then delegates to `trigger_schedule_run` and maps
+`ScheduleOverlapError`→409 / `ScheduleNotFoundError`→404.
+
+### Scheduler — in-process lifespan task (`backend/app/scheduler/`)
+Hand-rolled asyncio loop (no APScheduler/Celery/Redis — single-server, code/DB-sharing),
+started/stopped by the FastAPI lifespan in `backend/app/main.py` (`_scheduler_task` +
+`_scheduler_stop`, mirroring the Telegram poller). It uses the API server's **shared** DB
+engine (no separate pool) and no HTTP client.
+- **`run_scheduler_loop(stop)`** (`main.py`): `while not stop: await tick(...); await
+  wait_for(stop.wait(), timeout=POLL)`. Each tick is wrapped in `try/except` so a failure
+  (e.g. a transient DB outage) never aborts the loop — it logs `[scheduler] tick failed` and
+  retries next interval.
+- **`tick()` (dispatch-then-advance)** (`tick.py`): claim active due rows
   `FOR UPDATE SKIP LOCKED`; deactivate any whose cron is now invalid; **advance STALE rows**
   (older than the grace window) without firing; commit; **dispatch FRESH rows** concurrently
-  (bounded by `Semaphore(SCHEDULER_MAX_CONCURRENCY)`, refs held by `asyncio.gather`); then
-  **advance `next_run_at` only for rows whose dispatch was handled**. A failed dispatch
-  (backend unreachable / 5xx) leaves `next_run_at` in the past → the next tick retries it
-  (until it ages past grace and is then skipped).
-- **`api_client.trigger_schedule` → bool**: mints `create_access_token(owner_user_id, 5 min)`
-  and POSTs the trigger endpoint. Returns `True` (handled → advance: 2xx, or 409/403/404) or
-  `False` (retry: connect error / 5xx). Never raises.
+  (bounded by `Semaphore(SCHEDULER_MAX_CONCURRENCY)`, refs held by `asyncio.gather`) by
+  calling `trigger_schedule_run`; then **advance `next_run_at` only for rows whose dispatch
+  was handled**. A failed dispatch (any unexpected error) leaves `next_run_at` in the past →
+  the next tick retries it (until it ages past grace and is then skipped).
 
 ### Frontend
 Admin page `AgentScheduleManagement` (templated on `MCPServerManagement`) with a cron editor
@@ -123,27 +138,33 @@ a `scheduled` tag for executions with a non-null `schedule_id`.
 
 ## Overlap prevention ("no two runs of the same schedule at once")
 
-Airtight, no Redis:
-1. **Single scheduler process** (startup advisory lock enforces it).
-2. **`FOR UPDATE SKIP LOCKED`** claim + **in-process in-flight set**.
-3. **Trigger endpoint advisory lock + active-status check → 409** — the authoritative guard,
-   shared by scheduler and Run-now. Crucially, the `RUNNING` `AIAgentExecution` row is created
-   **inside the locked transaction** (before commit), so when the lock releases the row is
-   already visible and a concurrent trigger's overlap check sees it → 409.
-   `_preflight_execution` detects the pre-created row and skips re-insertion (so the WS/REST
-   invoke paths, which pass a fresh id, are unaffected).
+Airtight, no Redis, single process:
+1. **Single backend process** — the scheduler is an in-process task, so there is exactly one
+   scheduler by construction (no multi-instance risk; no single-instance lock needed).
+2. **`FOR UPDATE SKIP LOCKED`** claim in the tick.
+3. **`trigger_schedule_run` advisory lock + active-status check → `ScheduleOverlapError`** —
+   the authoritative guard, shared by the scheduler and Run-now. Crucially, the `RUNNING`
+   `AIAgentExecution` row is created **inside the locked transaction** (before commit), so
+   when the lock releases the row is already visible and a concurrent caller's overlap check
+   sees it. `_preflight_execution` detects the pre-created row and skips re-insertion (so the
+   WS/REST invoke paths, which pass a fresh id, are unaffected).
+
+> Caveat: there is a sub-second window between the locked transaction committing and
+> `_preflight_execution` inserting the row if a caller bypasses `trigger_schedule_run`. Both
+> real callers go through it, so this is not reachable in practice.
 
 ---
 
 ## Misfire policy — skip missed, with transient-failure retry
 
 A fire is honored only if `next_run_at` is within `SCHEDULER_MISFIRE_GRACE_SECONDS` (default
-120 s ≈ 2× poll) of `now`. STALE-due rows (scheduler was down longer than the grace window)
+120 s ≈ 2× poll) of `now`. STALE-due rows (the server was down longer than the grace window)
 are advanced to the next future cron fire **without firing** — the missed window is dropped.
-A FRESH dispatch that **fails transiently** (backend unreachable / 5xx) is **retried**: its
-`next_run_at` is left in the past so the next tick re-fires it, until it ages past the grace
-window (then treated as stale). A dispatch that returns 409/403/404 is considered handled and
-advances normally.
+A FRESH dispatch that **fails** (any unexpected error from `trigger_schedule_run`) is
+**retried**: its `next_run_at` is left in the past so the next tick re-fires it, until it ages
+past the grace window (then treated as stale). A dispatch that raises `ScheduleOverlapError`
+(a run is already active) or `ScheduleNotFoundError` (schedule deleted) is considered handled
+and advances normally.
 
 ---
 
@@ -152,30 +173,34 @@ advances normally.
 | setting | default | purpose |
 |---|---|---|
 | `SCHEDULER_POLL_INTERVAL_SECONDS` | `60` | tick loop cadence |
-| `SCHEDULER_MAX_CONCURRENCY` | `5` | concurrent trigger POSTs per tick |
+| `SCHEDULER_MAX_CONCURRENCY` | `5` | concurrent `trigger_schedule_run` calls per tick |
 | `SCHEDULER_MISFIRE_GRACE_SECONDS` | `120` | skip-missed grace window |
-| `SCHEDULER_API_BASE_URL` | `http://backend:8020` (dev) / `http://backend:8080` (prod) | backend trigger endpoint |
-| `SCHEDULER_DB_POOL_SIZE` | `5` | scheduler's own engine pool |
 
-RBAC: permission `agent-schedule-manage` is granted to `admin`, `ai-manager`, `manager`
+The scheduler shares the backend's `Settings` / DB engine / `SECRET_KEY`, so there is no
+separate env block and no scheduler-specific URL or pool. RBAC: permission
+`agent-schedule-manage` is granted to `admin`, `ai-manager`, `manager`
 (`backend/app/db/seed_users_rbac.py`; the seeder is idempotent/additive).
 
 ---
 
 ## Runbook
 
-- **Dev:** `docker compose -f docker-compose.dev.yml --env-file .env.dev up scheduler` —
-  logs `[scheduler] tick`, fires due schedules, advances `next_run_at`, stops cleanly on
-  SIGTERM.
-- **Prod:** the `scheduler` service is part of `deploy/docker-compose.yml` (reuses
-  `backcast_evs_backend:latest`, `RUN_MIGRATIONS=false`, depends on a healthy backend, no
-  Traefik labels). `deploy/scripts/redeploy.sh` builds it.
+- **Dev:** the scheduler starts automatically with the backend — `dev-start.sh` (or
+  `uv run uvicorn app.main:app --reload`) launches it in the lifespan. Look for
+  `[STARTUP] agent_scheduler OK` + `[scheduler] started` in `backend/logs/app.log`. It stops
+  with the backend (Ctrl+C); under `--reload`, a file save restarts it.
+- **Prod:** there is **no separate scheduler service** — it runs inside the `backend`
+  container's lifespan. Nothing extra to deploy/monitor beyond the backend.
 - **A schedule that won't fire?** Check: `is_active`? `next_run_at` populated and ≤ now?
-  owner still has `agent-schedule-manage` (else trigger 403)? backend reachable at
-  `SCHEDULER_API_BASE_URL`?
-- **A schedule stuck "running"?** A previous run is active → triggers return 409 until it
-  finishes (or is stopped from Agents History). The startup reaper in `main.py` flips
-  orphaned active rows to `ERROR` on a backend restart.
+  owner still has `agent-schedule-manage`? Is the backend up (the scheduler lives in it) and
+  is Postgres reachable? Grep `app.log` for `[scheduler] tick failed`.
+- **A schedule stuck "running"?** A previous run is active → `trigger_schedule_run` raises
+  `ScheduleOverlapError` until it finishes (or is stopped from Agents History). The startup
+  reaper in `main.py` flips orphaned active rows to `ERROR` on a backend restart.
+- **DB outage:** the scheduler tick fails gracefully (`[scheduler] tick failed`, caught +
+  retried each interval) and resumes automatically once Postgres is back — no manual action.
+  DB-dependent *request* endpoints will 500 during the outage (and trip the exception →
+  notification alert).
 - **HITL (`ask_user`) on scheduled runs** will hang up to `AI_ASK_USER_TIMEOUT_SECONDS` with
   no human to answer — prefer `safe`/`standard` assistants and prompts that don't require
   human input for scheduled runs.
