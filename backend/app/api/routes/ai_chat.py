@@ -459,16 +459,13 @@ async def invoke_agent(
         raise HTTPException(status_code=400, detail="Assistant config is not active")
 
     agent_service = AgentService(db)
-    # Session model stores UUIDs as str (PG_UUID mapping); cast for typed service layer
-    project_uuid: UUID | None = UUID(session.project_id) if session.project_id else None
-    branch_uuid: UUID | None = UUID(session.branch_id) if session.branch_id else None
     execution_id = await agent_service.start_execution(
         message=body.message,
         assistant_config=assistant_config,
         session_id=session_id,
         user_id=current_user.user_id,
-        project_id=project_uuid,
-        branch_id=branch_uuid,
+        project_id=session.project_id,
+        branch_id=session.branch_id,
         execution_mode=body.execution_mode,
     )
 
@@ -556,6 +553,15 @@ async def list_agent_executions(
     status: str | None = Query(
         None, description="Filter by execution status (running, completed, ...)"
     ),
+    schedule_id: UUID | None = Query(
+        None, description="Filter to one schedule's runs (the 'See runs' view)"
+    ),
+    started_from: datetime | None = Query(
+        None, description="ISO datetime: runs started at or after this time"
+    ),
+    started_to: datetime | None = Query(
+        None, description="ISO datetime: runs started at or before this time"
+    ),
     limit: int = Query(20, ge=1, description="Page size (max 50)"),
     offset: int = Query(0, ge=0, description="Page offset"),
     current_user: UserIdentity = Depends(get_current_user),
@@ -565,13 +571,17 @@ async def list_agent_executions(
 
     Returns executions newest-first, optionally filtered by status, joined
     with the owning conversation session (for ownership + context) and the
-    assistant config (for the display name).
+    assistant config (for the display name). ``schedule_id`` +
+    ``started_from``/``started_to`` scope the "See runs" view of a schedule.
     """
     limit = min(limit, 50)  # Cap at 50, mirroring sessions pagination.
 
     rows, total, has_more = await config_service.list_executions_paginated(
         user_id=current_user.user_id,
         status=status,
+        schedule_id=schedule_id,
+        started_from=started_from,
+        started_to=started_to,
         limit=limit,
         offset=offset,
     )
@@ -600,6 +610,7 @@ async def list_agent_executions(
                 assistant_name=row[4],
                 total_tokens=execution.total_tokens,
                 tool_calls_count=execution.tool_calls_count,
+                schedule_id=execution.schedule_id,
             )
         )
 

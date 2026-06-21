@@ -23,7 +23,7 @@ export type AIAssistantConfigPublic = {
      */
     planner_prompt?: (string | null);
     /**
-     * Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list.
+     * Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list, {plan_section} for dynamic plan steps.
      */
     supervisor_prompt?: (string | null);
     temperature?: (number | null);
@@ -32,6 +32,10 @@ export type AIAssistantConfigPublic = {
      * LangGraph recursion limit (maximum steps in agent execution loop)
      */
     recursion_limit?: (number | null);
+    /**
+     * Maximum supervisor delegation cycles per request (main agent only). Default: 5.
+     */
+    max_supervisor_iterations?: (number | null);
     /**
      * RBAC role for tool filtering (e.g., ai-viewer, ai-manager, ai-admin)
      */

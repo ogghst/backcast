@@ -2445,6 +2445,7 @@ class AgentService:
         execution_mode: ExecutionMode,
         run_in_background: bool = False,
         name: str | None = None,
+        schedule_id: UUID | None = None,
     ) -> tuple[dict[str, Any] | None, str | None]:
         """Create execution row and capture session context in a short-lived session.
 
@@ -2462,6 +2463,10 @@ class AgentService:
                 disconnects.
             name: Prompt-derived display name (truncated by caller) persisted
                 on the row for the Agents History page.
+            schedule_id: Originating ai_agent_schedules.id when this run was
+                triggered by a schedule (NULL for interactive runs). Persisted
+                on the row so the overlap guard can detect an active scheduled
+                run for the same schedule.
 
         Returns:
             Tuple of (session context dict or None, session project_id string or None).
@@ -2472,7 +2477,7 @@ class AgentService:
         async with async_session_maker() as db:
             # Fetch conversation session row
             session_stmt = select(AIConversationSession).where(
-                AIConversationSession.id == str(session_id)
+                AIConversationSession.id == session_id
             )
             session_result = await db.execute(session_stmt)
             db_session = session_result.scalar_one_or_none()
@@ -2481,20 +2486,35 @@ class AgentService:
             # so the DB row ID matches the event bus key (required for
             # WebSocket re-subscribe: the client sends the DB execution.id
             # and the subscribe handler looks up the bus by the same key).
-            execution = AIAgentExecution(
-                id=UUID(execution_id),
-                session_id=str(session_id),
-                status=ExecutionStatus.RUNNING,
-                execution_mode=execution_mode.value,
-                run_in_background=run_in_background,
-                name=name,
-            )
-            db.add(execution)
-            await db.commit()
+            #
+            # The scheduled-run trigger pre-creates this row inside its advisory
+            # lock so its overlap guard is airtight; detect that and skip the
+            # insert. The WS/REST invoke paths always pass a fresh id → create.
+            existing_execution = (
+                await db.execute(
+                    select(AIAgentExecution).where(
+                        AIAgentExecution.id == UUID(execution_id)
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing_execution is None:
+                execution = AIAgentExecution(
+                    id=UUID(execution_id),
+                    session_id=session_id,
+                    status=ExecutionStatus.RUNNING,
+                    execution_mode=execution_mode.value,
+                    run_in_background=run_in_background,
+                    name=name,
+                    schedule_id=schedule_id,
+                )
+                db.add(execution)
+                await db.commit()
+            else:
+                execution = existing_execution
 
             # Set active_execution_id on session
             if db_session is not None:
-                db_session.active_execution_id = str(execution.id)
+                db_session.active_execution_id = execution.id
                 await db.commit()
 
             # Capture serializable context + persisted project scope — no ORM
@@ -2636,6 +2656,7 @@ class AgentService:
         execution_id: str | None = None,
         event_bus: AgentEventBus | None = None,
         run_in_background: bool = False,
+        schedule_id: UUID | None = None,
     ) -> str:
         """Start a background agent execution with its own DB session and event bus.
 
@@ -2676,6 +2697,10 @@ class AgentService:
                 disconnect — the lifecycle will NOT grace-stop it on
                 last-observer detach.  Persisted on the execution row and used
                 to derive the Agents History display name from *message*.
+            schedule_id: Originating ai_agent_schedules.id when this run was
+                launched by a schedule trigger (NULL for interactive runs).
+                Persisted on the execution row so the overlap guard can detect
+                an already-running scheduled run.
 
         Returns:
             execution_id string for tracking the agent execution
@@ -2717,6 +2742,7 @@ class AgentService:
                 execution_mode,
                 run_in_background=run_in_background,
                 name=exec_name,
+                schedule_id=schedule_id,
             )
 
             # Persisted project scope (set via set_project_context) applies when

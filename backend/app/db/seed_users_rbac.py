@@ -138,6 +138,8 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "change-order-escalate",
             "temporal-write",
             "system-dump-reseed",
+            "agent-schedule-manage",
+            "notifications-send",
         ],
     },
     "manager": {
@@ -206,6 +208,8 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "ai-chat",
             "project-budget-settings-read",
             "project-budget-settings-write",
+            "agent-schedule-manage",
+            "notifications-send",
         ],
     },
     "viewer": {
@@ -319,6 +323,8 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "user-read",
             "organizational-unit-read",
             "project-delete",
+            "agent-schedule-manage",
+            "notifications-send",
         ],
     },
     "ai-admin": {
@@ -411,6 +417,7 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "change-order-workflow-config-manage",
             "change-order-workflow-config-override",
             "temporal-write",
+            "notifications-send",
         ],
     },
 }

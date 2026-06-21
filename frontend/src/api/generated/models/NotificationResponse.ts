@@ -15,7 +15,7 @@ export type NotificationResponse = {
      */
     user_id: string;
     /**
-     * Event category (e.g. 'co_submitted')
+     * Dotted event code (e.g. 'co.submitted', up to 64 chars)
      */
     event_type: string;
     /**
@@ -34,6 +34,26 @@ export type NotificationResponse = {
      * Related entity UUID
      */
     resource_id?: (string | null);
+    /**
+     * Severity ('info'|'notice'|'warning'|'urgent')
+     */
+    severity?: string;
+    /**
+     * Originator type ('user'|'agent'|'system')
+     */
+    actor_type?: (string | null);
+    /**
+     * Originating actor UUID
+     */
+    actor_id?: (string | null);
+    /**
+     * Optional project scope UUID
+     */
+    project_id?: (string | null);
+    /**
+     * Bell-tab category derived from event_type
+     */
+    category?: (string | null);
     /**
      * When the user marked it as read
      */

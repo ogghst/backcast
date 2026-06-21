@@ -15,15 +15,19 @@ by varying the session's ``user_id`` column.
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.event_types import ExecutionStatus
 from app.api.dependencies.auth import UserIdentity, get_current_user
+from app.db.session import async_session_maker
 from app.main import app
 from app.models.domain.ai import (
     AIAgentExecution,
@@ -33,6 +37,32 @@ from app.models.domain.ai import (
 from tests.conftest import TEST_USER_ID
 
 PREFIX = "/ai/chat"
+
+# Track AIAssistantConfig rows created by _make_assistant. The shared ``db``
+# fixture COMMITS (so the ASGI client's separate sessions can see test data),
+# so without explicit cleanup the "Test Assistant"/"Planner" rows — and their
+# cascaded sessions/executions — accumulate in the dev DB across runs. The
+# autouse fixture below deletes them after each test.
+_created_assistant_ids: list[UUID] = []
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _cleanup_test_assistants() -> AsyncGenerator[None, None]:
+    """Delete assistants created during the test.
+
+    The ``assistant_config_id`` FK is ``ondelete=CASCADE``, so this also
+    removes the test's sessions, messages, and executions.
+    """
+    yield
+    if _created_assistant_ids:
+        async with async_session_maker() as db:
+            await db.execute(
+                delete(AIAssistantConfig).where(
+                    AIAssistantConfig.id.in_(_created_assistant_ids)
+                )
+            )
+            await db.commit()
+        _created_assistant_ids.clear()
 
 
 @pytest.fixture
@@ -58,11 +88,16 @@ def isolated_user() -> UUID:
 
 
 async def _make_assistant(db: AsyncSession, name: str = "Test Assistant") -> UUID:
-    """Create a minimal AIAssistantConfig row and return its id."""
+    """Create a minimal AIAssistantConfig row and return its id.
+
+    The id is recorded for autouse teardown (``_cleanup_test_assistants``).
+    """
     asst = AIAssistantConfig(name=name, is_active=True, agent_type="main")
     db.add(asst)
     await db.flush()
-    return UUID(str(asst.id))
+    aid = UUID(str(asst.id))
+    _created_assistant_ids.append(aid)
+    return aid
 
 
 async def _make_session(

@@ -242,18 +242,23 @@ class AIAssistantConfigBase(BaseModel):
         description="Fully qualified Pydantic model class name for structured output (specialist-only)",
     )
 
+
+class AIAssistantConfigCreate(AIAssistantConfigBase):
+    """Schema for creating an assistant config.
+
+    The ``model_id``-required-for-main-agents invariant is enforced HERE (write
+    time), mirroring ``AIConfigService._enforce_main_agent_has_model``. It is
+    intentionally NOT on the read schema ``AIAssistantConfigPublic``: a legacy
+    misconfigured row must not 500 the list endpoint (the invariant guards
+    new writes; existing bad rows are surfaced, not fatal, on read).
+    """
+
     @model_validator(mode="after")
     def validate_main_agent_model(self) -> Self:
         """Require model_id for main agents; specialists may omit it."""
         if self.agent_type == "main" and self.model_id is None:
             raise ValueError("model_id is required for main agents")
         return self
-
-
-class AIAssistantConfigCreate(AIAssistantConfigBase):
-    """Schema for creating an assistant config."""
-
-    pass
 
 
 class AIAssistantConfigUpdate(BaseModel):
@@ -366,6 +371,7 @@ class AgentExecutionHistoryItem(BaseModel):
     assistant_name: str | None = None
     total_tokens: int = 0
     tool_calls_count: int = 0
+    schedule_id: UUID | None = None
 
 
 class AgentExecutionHistoryPaginated(BaseModel):

@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 # Include routers
 from app.api.routes import (
+    agent_schedules,
     ai_chat,
     ai_config,
     ai_upload,
@@ -523,6 +524,11 @@ app.include_router(
     ai_chat.router,
     prefix=settings.API_V1_STR,
     tags=["AI Chat"],
+)
+app.include_router(
+    agent_schedules.router,
+    prefix=settings.API_V1_STR,
+    tags=["Agent Schedules"],
 )
 app.include_router(
     ai_upload.router,

@@ -47,6 +47,11 @@ const MCPServerManagement = lazy(() =>
     default: m.MCPServerManagement,
   })),
 );
+const AgentScheduleManagement = lazy(() =>
+  import("@/pages/admin/AgentScheduleManagement").then((m) => ({
+    default: m.AgentScheduleManagement,
+  })),
+);
 const RBACConfiguration = lazy(() =>
   import("@/pages/admin/RBACConfiguration").then((m) => ({
     default: m.RBACConfiguration,
@@ -379,6 +384,10 @@ export const router = createBrowserRouter([
       {
         path: "/admin/mcp-servers",
         element: <MCPServerManagement />,
+      },
+      {
+        path: "/admin/agent-schedules",
+        element: <AgentScheduleManagement />,
       },
       {
         path: "/admin/rbac",

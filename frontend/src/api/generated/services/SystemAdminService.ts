@@ -43,7 +43,7 @@ export class SystemAdminService {
     }
     /**
      * Download Seed File
-     * Download the current seed_data.json file.
+     * Download the current seed_data.json file (backward compatibility).
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -51,6 +51,30 @@ export class SystemAdminService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/admin/system/seed-file',
+        });
+    }
+    /**
+     * Download Seed File System Config
+     * Download the seed_system_config.json file.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static downloadSeedFileSystemConfig(): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/admin/system/seed-file/system-config',
+        });
+    }
+    /**
+     * Download Seed File Projects
+     * Download the seed_projects.json file.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static downloadSeedFileProjects(): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/admin/system/seed-file/projects',
         });
     }
 }

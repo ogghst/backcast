@@ -38,6 +38,7 @@ export interface AgentExecutionHistoryItem {
   assistant_name: string | null;
   total_tokens: number;
   tool_calls_count: number;
+  schedule_id?: string | null; // non-null ⇒ this run was launched by a schedule
 }
 
 export interface AgentExecutionListResponse {
@@ -54,10 +55,22 @@ const listExecutions = async (
   status?: string,
   limit = 25,
   offset = 0,
+  scheduleId?: string,
+  startedFrom?: string,
+  startedTo?: string,
 ): Promise<AgentExecutionListResponse> => {
   const params: Record<string, number | string> = { limit, offset };
   if (status && status !== "all") {
     params.status = status;
+  }
+  if (scheduleId) {
+    params.schedule_id = scheduleId;
+  }
+  if (startedFrom) {
+    params.started_from = startedFrom;
+  }
+  if (startedTo) {
+    params.started_to = startedTo;
   }
   const response = await axios.get<AgentExecutionListResponse>(
     `${API_BASE}/executions`,
@@ -81,20 +94,33 @@ interface UseAgentExecutionsOptions {
   status?: string;
   limit?: number;
   offset?: number;
+  scheduleId?: string;
+  startedFrom?: string;
+  startedTo?: string;
 }
 
 /**
  * Paginated list of agent executions. Polls every 5s while mounted so newly
- * started/finished rows appear without a manual refetch.
+ * started/finished rows appear without a manual refetch. Pass `scheduleId` /
+ * `startedFrom` / `startedTo` to scope the "See runs" view of a schedule.
  */
 export function useAgentExecutions({
   status,
   limit = 25,
   offset = 0,
+  scheduleId,
+  startedFrom,
+  startedTo,
 }: UseAgentExecutionsOptions = {}) {
   return useQuery<AgentExecutionListResponse>({
-    queryKey: queryKeys.ai.chat.executions.list(status),
-    queryFn: () => listExecutions(status, limit, offset),
+    queryKey: queryKeys.ai.chat.executions.list({
+      status,
+      scheduleId,
+      startedFrom,
+      startedTo,
+    }),
+    queryFn: () =>
+      listExecutions(status, limit, offset, scheduleId, startedFrom, startedTo),
     // Poll unconditionally while mounted so newly started/finished executions
     // appear without a manual refetch. Aligns freshness with the menu badge
     // (useRunningExecutionsCount). TanStack stops polling once inactive.

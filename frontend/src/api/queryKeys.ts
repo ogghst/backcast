@@ -308,8 +308,23 @@ export const queryKeys = createQueryKeys("backcast-evs", {
         ["ai", "chat", "sessions", sessionId, "messages"] as const,
       executions: {
         all: ["ai", "executions"] as const,
-        list: (status?: string) =>
-          ["ai", "executions", "list", status ?? "all"] as const,
+        list: (params?: {
+          status?: string;
+          scheduleId?: string;
+          startedFrom?: string;
+          startedTo?: string;
+        }) =>
+          [
+            "ai",
+            "executions",
+            "list",
+            {
+              status: params?.status ?? "all",
+              scheduleId: params?.scheduleId,
+              startedFrom: params?.startedFrom,
+              startedTo: params?.startedTo,
+            },
+          ] as const,
         runningCount: () => ["ai", "executions", "running-count"] as const,
       },
     },
@@ -325,6 +340,14 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       detail: (id: string) => ["ai", "mcp-servers", "detail", id] as const,
       tools: (serverId: string) =>
         ["ai", "mcp-servers", serverId, "tools"] as const,
+    },
+    agentSchedules: {
+      all: ["ai", "agent-schedules"] as const,
+      lists: () => ["ai", "agent-schedules", "list"] as const,
+      list: (params?: { isActive?: boolean; assistantConfigId?: string; ownerUserId?: string }) =>
+        ["ai", "agent-schedules", "list", params] as const,
+      details: () => ["ai", "agent-schedules", "detail"] as const,
+      detail: (id: string) => ["ai", "agent-schedules", "detail", id] as const,
     },
   },
 

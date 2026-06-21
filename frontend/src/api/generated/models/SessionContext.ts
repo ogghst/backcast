@@ -12,7 +12,7 @@ export type SessionContext = {
     /**
      * Context type discriminator
      */
-    type: 'general' | 'project' | 'wbe' | 'cost_element';
+    type: 'general' | 'project' | 'wbe' | 'cost_element' | 'work_package';
     /**
      * Entity ID (required for non-general contexts)
      */

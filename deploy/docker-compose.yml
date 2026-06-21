@@ -156,6 +156,57 @@ services:
       retries: 3
       start_period: 40s
 
+  # Agent scheduler — separate always-on process that polls the shared DB for
+  # due schedules and fires them via the backend trigger API. Owns scheduling
+  # only (no agent executions run here). Reuses the backend image with a
+  # different command. Internal-only (no Traefik labels).
+  scheduler:
+    image: backcast_evs_backend:latest
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    command: ["python", "-m", "app.scheduler"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "false"
+      PORT: 8080
+      PROJECT_NAME: ${PROJECT_NAME}
+      ALGORITHM: ${ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      API_V1_STR: ${API_V1_STR}
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FILE: ${LOG_FILE}
+      RBAC_PROVIDER: ${RBAC_PROVIDER:-database}
+      RUN_MIGRATIONS: "false"
+      SCHEDULER_API_BASE_URL: http://backend:8080
+      SCHEDULER_POLL_INTERVAL_SECONDS: ${SCHEDULER_POLL_INTERVAL_SECONDS:-60}
+      SCHEDULER_MAX_CONCURRENCY: ${SCHEDULER_MAX_CONCURRENCY:-5}
+      SCHEDULER_MISFIRE_GRACE_SECONDS: ${SCHEDULER_MISFIRE_GRACE_SECONDS:-120}
+      SCHEDULER_DB_POOL_SIZE: ${SCHEDULER_DB_POOL_SIZE:-5}
+    env_file:
+      - .env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
   # Frontend (React SPA)
   frontend:
     build:

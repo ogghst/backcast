@@ -280,7 +280,7 @@ rebuild_containers() {
     if docker compose --env-file .env.production build \
       --build-arg VITE_GIT_SHA="$git_sha" \
       --build-arg VITE_BUILD_DATE="$build_date" \
-      backend frontend alembic; then
+      backend frontend alembic scheduler; then
         log_success "Container build completed"
     else
         log_error "Container build failed"
