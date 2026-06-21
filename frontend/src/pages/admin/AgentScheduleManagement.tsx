@@ -24,6 +24,7 @@ import { useTableParams } from "@/hooks/useTableParams";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
+import { useProjects } from "@/features/projects/api/useProjects";
 import { AgentScheduleModal } from "@/features/ai/schedules/components/AgentScheduleModal";
 import {
   useAgentSchedules,
@@ -70,12 +71,19 @@ export const AgentScheduleManagement = () => {
 
   const { data: schedules, isLoading, refetch } = useAgentSchedules();
   const { data: assistants } = useAIAssistants(true);
+  const { data: projectsData } = useProjects({ pagination: { pageSize: 1000 } });
 
   const assistantNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const a of assistants ?? []) map.set(a.id, a.name);
     return map;
   }, [assistants]);
+
+  const projectNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of projectsData?.items ?? []) map.set(p.project_id, p.name);
+    return map;
+  }, [projectsData]);
 
   const { mutateAsync: createSchedule, isPending: isCreating } = useCreateAgentSchedule({
     onSuccess: () => {
@@ -139,16 +147,58 @@ export const AgentScheduleManagement = () => {
       ),
     },
     {
+      title: "Scope",
+      key: "scope",
+      width: 180,
+      render: (_, record) => {
+        const projectName = record.project_id
+          ? (projectNameById.get(record.project_id) ?? null)
+          : null;
+        const ctx = record.context ?? {};
+        const ctxType = (ctx.type as string) ?? "general";
+        const entityName = (ctx.name as string | undefined) ?? null;
+        if (ctxType === "project") {
+          return (
+            <Space direction="vertical" size={0}>
+              <Tag color="blue">Project</Tag>
+              <Text style={{ fontSize: typography.sizes.sm }}>
+                {projectName ?? entityName ?? "Unknown project"}
+              </Text>
+            </Space>
+          );
+        }
+        if (ctxType === "wbe") {
+          return (
+            <Space direction="vertical" size={0}>
+              <Tag color="purple">WBS</Tag>
+              <Text style={{ fontSize: typography.sizes.sm }}>
+                {entityName ?? "Unknown WBS"}
+              </Text>
+              <Text type="secondary" style={{ fontSize: typography.sizes.sm }}>
+                {projectName ?? "Unknown project"}
+              </Text>
+            </Space>
+          );
+        }
+        return <Tag>Global</Tag>;
+      },
+    },
+    {
       title: "Cron",
       dataIndex: "cron_expr",
       key: "cron_expr",
       render: (expr: string) => (
         <Space direction="vertical" size={0}>
-          <Text code>{expr}</Text>
+          <Text code style={{ whiteSpace: "nowrap" }}>
+            {expr}
+          </Text>
           {(() => {
             const preview = cronPreview(expr);
             return preview ? (
-              <Text type="secondary" style={{ fontSize: typography.sizes.sm }}>
+              <Text
+                type="secondary"
+                style={{ fontSize: typography.sizes.sm, whiteSpace: "nowrap" }}
+              >
                 {preview}
               </Text>
             ) : null;

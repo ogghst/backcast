@@ -6,6 +6,10 @@ Covers:
 - create + read round-trip (next_run_at set + in the future)
 - trigger overlap → 409 (overlap check short-circuits before create_task)
 - toggle flips is_active + clears next_run_at
+- context-scope configuration (global / project / WBE): project_id is derived
+  from the validated SessionContext, and authorization is enforced
+  (project access + WBE existence). Service-level _authorize_scope is unit
+  tested directly with a mocked RBAC service.
 
 RBAC is bypassed globally in conftest (TEST_USER_ID is the seeded admin).
 """
@@ -17,11 +21,16 @@ from uuid import UUID
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import async_session_maker
 from app.models.domain.ai import AIAgentExecution
 from app.models.schemas.ai_agent_schedule import compute_next_run
 from app.services import agent_schedule_service as agent_schedule_service_module
+
+# Seeded project + WBE used for context-scope tests (verified present in dev DB).
+SEEDED_PROJECT_ID = "10000000-0000-4000-8000-000000000001"
+SEEDED_WBE_ID = "20000000-0000-4000-8000-000000000001"
 
 
 def test_compute_next_run_valid() -> None:
@@ -269,3 +278,239 @@ async def test_toggle_schedule(client: AsyncClient) -> None:
     # cleanup
     del_resp = await client.delete(f"/ai/agent-schedules/{schedule_id}")
     assert del_resp.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# Context-scope configuration (global / project / WBE)
+# ---------------------------------------------------------------------------
+
+
+async def _create_schedule(client: AsyncClient, payload: dict) -> dict:
+    """Create a schedule and return the parsed JSON body, asserting 201."""
+    resp = await client.post("/ai/agent-schedules", json=payload)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _cleanup_schedule(client: AsyncClient, schedule_id: str) -> None:
+    """Delete a schedule created during a test (best-effort)."""
+    await client.delete(f"/ai/agent-schedules/{schedule_id}")
+
+
+def _base_context_payload(context: dict | None) -> dict:
+    """Minimal valid create payload, optionally overriding context."""
+    payload: dict = {
+        "name": "ctx scope test",
+        "prompt": "hi",
+        "cron_expr": "*/15 * * * *",
+        "timezone": "UTC",
+    }
+    if context is not None:
+        payload["context"] = context
+    return payload
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_global_context(client: AsyncClient) -> None:
+    """An explicit {type:general} context yields project_id=None."""
+    config_id = await _get_assistant_config_id()
+    created = await _create_schedule(
+        client,
+        _base_context_payload({"type": "general"})
+        | {"assistant_config_id": str(config_id)},
+    )
+    schedule_id = created["id"]
+    try:
+        assert created["project_id"] is None
+        assert created["context"] == {"type": "general"}
+
+        # read back
+        fetched = (await client.get(f"/ai/agent-schedules/{schedule_id}")).json()
+        assert fetched["project_id"] is None
+        assert fetched["context"]["type"] == "general"
+    finally:
+        await _cleanup_schedule(client, schedule_id)
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_project_context(client: AsyncClient) -> None:
+    """A {type:project, id:<pid>} context derives project_id=<pid>."""
+    config_id = await _get_assistant_config_id()
+    created = await _create_schedule(
+        client,
+        _base_context_payload(
+            {"type": "project", "id": SEEDED_PROJECT_ID, "name": "Line Alpha"}
+        )
+        | {"assistant_config_id": str(config_id)},
+    )
+    schedule_id = created["id"]
+    try:
+        assert created["project_id"] == SEEDED_PROJECT_ID
+        assert created["context"]["type"] == "project"
+        assert created["context"]["id"] == SEEDED_PROJECT_ID
+
+        fetched = (await client.get(f"/ai/agent-schedules/{schedule_id}")).json()
+        assert fetched["project_id"] == SEEDED_PROJECT_ID
+        assert fetched["context"]["type"] == "project"
+    finally:
+        await _cleanup_schedule(client, schedule_id)
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_wbe_context(client: AsyncClient) -> None:
+    """A {type:wbe, id:<wbe>, project_id:<pid>} context derives project_id=<pid>."""
+    config_id = await _get_assistant_config_id()
+    created = await _create_schedule(
+        client,
+        _base_context_payload(
+            {
+                "type": "wbe",
+                "id": SEEDED_WBE_ID,
+                "project_id": SEEDED_PROJECT_ID,
+                "name": "Assembly Station 1",
+            }
+        )
+        | {"assistant_config_id": str(config_id)},
+    )
+    schedule_id = created["id"]
+    try:
+        assert created["project_id"] == SEEDED_PROJECT_ID
+        assert created["context"]["type"] == "wbe"
+        assert created["context"]["id"] == SEEDED_WBE_ID
+
+        fetched = (await client.get(f"/ai/agent-schedules/{schedule_id}")).json()
+        assert fetched["project_id"] == SEEDED_PROJECT_ID
+        assert fetched["context"]["type"] == "wbe"
+    finally:
+        await _cleanup_schedule(client, schedule_id)
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_invalid_context_422(client: AsyncClient) -> None:
+    """A WBE context missing project_id is rejected with 422."""
+    config_id = await _get_assistant_config_id()
+    resp = await client.post(
+        "/ai/agent-schedules",
+        json=_base_context_payload({"type": "wbe", "id": SEEDED_WBE_ID})
+        | {"assistant_config_id": str(config_id)},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_derives_project_id_from_context(
+    client: AsyncClient,
+) -> None:
+    """A project context overrides a mismatched/None project_id (server-derived)."""
+    config_id = await _get_assistant_config_id()
+    created = await _create_schedule(
+        client,
+        _base_context_payload({"type": "project", "id": SEEDED_PROJECT_ID})
+        # Explicitly WRONG project_id — the validator must overwrite it.
+        | {
+            "assistant_config_id": str(config_id),
+            "project_id": "00000000-0000-4000-8000-000000000001",
+        },
+    )
+    schedule_id = created["id"]
+    try:
+        assert created["project_id"] == SEEDED_PROJECT_ID, created["project_id"]
+    finally:
+        await _cleanup_schedule(client, schedule_id)
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_context_replaces_scope(client: AsyncClient) -> None:
+    """Patching context replaces the scope + derives a new project_id."""
+    config_id = await _get_assistant_config_id()
+    # Start as global.
+    created = await _create_schedule(
+        client,
+        _base_context_payload({"type": "general"})
+        | {"assistant_config_id": str(config_id)},
+    )
+    schedule_id = created["id"]
+    try:
+        assert created["project_id"] is None
+
+        # Patch to project scope.
+        patch_resp = await client.put(
+            f"/ai/agent-schedules/{schedule_id}",
+            json={
+                "context": {
+                    "type": "project",
+                    "id": SEEDED_PROJECT_ID,
+                    "name": "Line Alpha",
+                }
+            },
+        )
+        assert patch_resp.status_code == 200, patch_resp.text
+        patched = patch_resp.json()
+        assert patched["context"]["type"] == "project"
+        assert patched["project_id"] == SEEDED_PROJECT_ID
+
+        # Read back reflects the replaced scope.
+        fetched = (await client.get(f"/ai/agent-schedules/{schedule_id}")).json()
+        assert fetched["context"]["type"] == "project"
+        assert fetched["project_id"] == SEEDED_PROJECT_ID
+    finally:
+        await _cleanup_schedule(client, schedule_id)
+
+
+# ---------------------------------------------------------------------------
+# _authorize_scope unit tests (RBAC mocked — no non-admin user needed)
+# ---------------------------------------------------------------------------
+
+
+class _FakeRBAC:
+    """Minimal RBAC service stub returning a fixed accessible-projects list."""
+
+    def __init__(self, accessible: list[UUID]) -> None:
+        self._accessible = accessible
+
+    async def get_accessible_projects(self, user_id: UUID) -> list[UUID]:  # noqa: ARG002
+        return self._accessible
+
+
+@pytest.mark.asyncio
+async def test_authorize_scope_denies_project_access(db: AsyncSession) -> None:
+    """A project the owner cannot access raises ValueError."""
+    svc = agent_schedule_service_module.AgentScheduleService(db)
+    inaccessible = UUID("00000000-0000-4000-8000-000000000099")
+    owner = UUID("11111111-1111-4111-8111-111111111111")
+    fake = _FakeRBAC(accessible=[])
+    with patch.object(
+        agent_schedule_service_module,
+        "get_unified_rbac_service",
+        return_value=fake,
+    ):
+        with pytest.raises(ValueError, match="No access to project"):
+            await svc._authorize_scope(
+                owner_user_id=owner,
+                project_id=inaccessible,
+                context={"type": "project", "id": str(inaccessible)},
+            )
+
+
+@pytest.mark.asyncio
+async def test_authorize_scope_wbe_not_found_in_project(db: AsyncSession) -> None:
+    """A WBE not owned by the (accessible) project raises ValueError."""
+    svc = agent_schedule_service_module.AgentScheduleService(db)
+    owner = UUID("11111111-1111-4111-8111-111111111111")
+    bogus_wbe = UUID("00000000-0000-4000-8000-000000000099")
+    fake = _FakeRBAC(accessible=[UUID(SEEDED_PROJECT_ID)])
+    with patch.object(
+        agent_schedule_service_module,
+        "get_unified_rbac_service",
+        return_value=fake,
+    ):
+        with pytest.raises(ValueError, match="WBS element .* not found in project"):
+            await svc._authorize_scope(
+                owner_user_id=owner,
+                project_id=UUID(SEEDED_PROJECT_ID),
+                context={
+                    "type": "wbe",
+                    "id": str(bogus_wbe),
+                    "project_id": SEEDED_PROJECT_ID,
+                },
+            )
