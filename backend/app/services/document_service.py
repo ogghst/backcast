@@ -216,7 +216,9 @@ class DocumentService:
         if version is None:
             raise ValueError(f"Current version not found for document {document_id}")
 
-        return await self._storage.generate_presigned_url(version.storage_key)
+        return await self._storage.generate_presigned_url(
+            version.storage_key, filename=document.name
+        )
 
     async def get_document(
         self, document_id: UUID, project_id: UUID | None = None

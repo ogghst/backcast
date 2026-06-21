@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/useAuthStore";
 
 const { Text } = Typography;
 
+const API_ORIGIN = import.meta.env.VITE_API_URL || window.location.origin;
 const BASE = "/api/v1";
 
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
@@ -18,7 +19,7 @@ const getDownloadUrl = async (
 ): Promise<string> => {
   const token = useAuthStore.getState().token;
   const response = await fetch(
-    `${BASE}/${projectId}/documents/${documentId}/download`,
+    `${API_ORIGIN}${BASE}/${projectId}/documents/${documentId}/download`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!response.ok) throw new Error(`Failed to get download URL: ${response.status}`);

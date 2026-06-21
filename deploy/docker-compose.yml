@@ -294,7 +294,7 @@ services:
       - "traefik.http.routers.rustfs.rule=Host(`storage.${DOMAIN}`)"
       - "traefik.http.routers.rustfs.entrypoints=web"
       - "traefik.http.services.rustfs.loadbalancer.server.port=9000"
-      - "traefik.http.routers.rustfs.middlewares=security-headers@file"
+      - "traefik.http.routers.rustfs.middlewares=storage-headers@file"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/health/ready"]
       interval: 30s

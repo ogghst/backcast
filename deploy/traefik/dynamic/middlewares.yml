@@ -18,6 +18,30 @@ http:
         stsPreload: true
         forceSTSHeader: true
 
+    # Storage subdomain (RustFS) — CORS + framing for cross-origin preview
+    # from the SPA. The SPA is served from https://app.${DOMAIN}; presigned
+    # download/preview URLs point at https://storage.${DOMAIN}, which is a
+    # different origin, so:
+    #   - X-Frame-Options is REMOVED (would block <iframe> preview from app.*)
+    #   - CORS allows only the app origin
+    #   - CSP frame-ancestors limits who can embed storage.* (replaces X-Frame-Options)
+    storage-headers:
+      headers:
+        customResponseHeaders:
+          # Drop X-Frame-Options entirely (SAMEORIGIN blocks cross-origin iframe preview)
+          X-Frame-Options: ""
+          Access-Control-Allow-Origin: "https://app.backcast.duckdns.org"
+          Access-Control-Allow-Methods: "GET, HEAD, OPTIONS"
+          Access-Control-Allow-Headers: "*"
+          Access-Control-Expose-Headers: "Content-Disposition, Content-Length, ETag"
+          X-Content-Type-Options: "nosniff"
+          Referrer-Policy: "strict-origin-when-cross-origin"
+        contentSecurityPolicy: "frame-ancestors 'self' https://app.backcast.duckdns.org"
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+
     # Adminer IP whitelist (optional - set your allowed IPs)
     adminer-whitelist:
       ipWhiteList:
