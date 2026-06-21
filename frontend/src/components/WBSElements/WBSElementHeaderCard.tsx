@@ -1,16 +1,20 @@
 import React from "react";
-import { Card, Grid, Typography, Progress, Row, Col } from "antd";
 import { WBSElementRead } from "@/api/generated";
-import { formatCompactCurrency, getBranchColor } from "@/utils/formatters";
-import { useExtendedToken } from "@/hooks/useToken";
-import { CardTitleRow, StatusTag } from "@/components/layout";
-
-const { Text } = Typography;
+import { getBranchColor } from "@/utils/formatters";
+import { StatusTag } from "@/components/layout";
+import { EntityHeaderCard } from "@/components/common/EntityHeaderCard";
+import {
+  useEVMTimeSeries,
+  EntityType,
+  EVMTimeSeriesGranularity,
+} from "@/features/evm";
 
 interface WBSElementHeaderCardProps {
   wbsElement: WBSElementRead;
   loading?: boolean;
   actualCosts?: string | number | null;
+  currency?: string;
+  controlDate?: string;
   extraContent?: React.ReactNode;
 }
 
@@ -18,166 +22,38 @@ export const WBSElementHeaderCard = ({
   wbsElement,
   loading,
   actualCosts,
+  currency,
+  controlDate,
   extraContent,
 }: WBSElementHeaderCardProps) => {
-  const { token } = useExtendedToken();
-  const screens = Grid.useBreakpoint();
-  const isMobile = !screens.md;
-
-  // Cost ring computations
-  const costBudget = Number(wbsElement.budget_allocation) || 0;
-  const costActual = Number(actualCosts) || 0;
-  const costRevenue = Number(wbsElement.revenue_allocation) || 0;
-
-  const costsPercent = costBudget > 0
-    ? Math.min(Math.round((costActual / costBudget) * 100), 100) : 0;
-  const costsColor =
-    costsPercent > 100 ? token.colorError
-    : costsPercent > 85 ? token.colorWarning
-    : token.colorPrimary;
-
-  const revenueClamped = costRevenue > 0
-    ? Math.min(Math.round((costActual / costRevenue) * 100), 100) : 0;
-  const revenueColor =
-    costRevenue > 0 && costActual <= costRevenue
-      ? token.colorSuccess : token.colorError;
-
-  const ringSize = isMobile ? 120 : 160;
-  const innerRingSize = isMobile ? 96 : 128;
+  // Fetch WBS-level schedule window from the EVM time-series (cache-shared with
+  // the page's CostHistoryChart). start_date/end_date are top-level on the
+  // response, so this also supplies the time donut.
+  const { data: evmTs } = useEVMTimeSeries(
+    EntityType.WBS_ELEMENT,
+    wbsElement.wbs_element_id,
+    EVMTimeSeriesGranularity.WEEK,
+    { controlDate } as Parameters<typeof useEVMTimeSeries>[3],
+  );
 
   return (
-    <Card
+    <EntityHeaderCard
+      title={`${wbsElement.code} — ${wbsElement.name}`}
+      badge={
+        <StatusTag color={getBranchColor(wbsElement.branch)}>
+          {wbsElement.branch || "main"}
+        </StatusTag>
+      }
+      description={wbsElement.description ?? undefined}
       loading={loading}
-      style={{
-        marginBottom: token.marginLG,
-        borderRadius: token.borderRadiusLG,
-        border: `1px solid ${token.colorBorder}`,
-      }}
-      styles={{
-        body: {
-          padding: isMobile ? token.paddingMD : token.paddingXL,
-        },
-      }}
-    >
-      {/* Title row */}
-      <CardTitleRow
-        title={`${wbsElement.code} — ${wbsElement.name}`}
-        badge={<StatusTag color={getBranchColor(wbsElement.branch)}>{wbsElement.branch || "main"}</StatusTag>}
-      />
-
-      {/* Description */}
-      {wbsElement.description && (
-        <Typography.Paragraph
-          type="secondary"
-          style={{
-            margin: 0,
-            marginBottom: token.marginLG,
-            fontSize: token.fontSize,
-            lineHeight: token.lineHeight,
-          }}
-        >
-          {wbsElement.description}
-        </Typography.Paragraph>
-      )}
-
-      {/* Cost Progress + chart */}
-      <Row
-        gutter={[token.marginLG, token.marginLG]}
-        style={{ marginBottom: token.marginLG }}
-        align="top"
-      >
-        {/* Cost ring */}
-        <Col xs={24} sm={12} md={6}>
-          <div style={{ textAlign: "center", padding: token.paddingSM }}>
-            <div style={{ position: "relative", width: ringSize, height: ringSize, margin: "0 auto" }}>
-              {costRevenue > 0 && (
-                <div style={{ position: "absolute", inset: 0 }}>
-                  <Progress
-                    type="circle"
-                    percent={revenueClamped}
-                    size={ringSize}
-                    strokeWidth={6}
-                    strokeColor={revenueColor}
-                    showInfo={false}
-                  />
-                </div>
-              )}
-              <div style={{
-                position: costRevenue > 0 ? "absolute" : "relative",
-                top: costRevenue > 0 ? 16 : undefined,
-                left: costRevenue > 0 ? 16 : undefined,
-                margin: costRevenue > 0 ? undefined : "0 auto",
-              }}>
-                <Progress
-                  type="circle"
-                  percent={costsPercent}
-                  size={costRevenue > 0 ? innerRingSize : ringSize}
-                  strokeWidth={6}
-                  strokeColor={costsColor}
-                  format={(percent) => (
-                    <div>
-                      <div style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightSemiBold }}>
-                        {percent}%
-                      </div>
-                      <div style={{ fontSize: token.fontSizeXS, color: token.colorTextSecondary }}>
-                        of budget
-                      </div>
-                    </div>
-                  )}
-                />
-              </div>
-            </div>
-            <div style={{ marginTop: token.marginMD }}>
-              <div>
-                <Text strong>{formatCompactCurrency(costBudget)}</Text>
-                <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
-                  budget
-                </Text>
-              </div>
-              <div style={{ marginTop: token.marginXS }}>
-                <span style={{
-                  display: "inline-block",
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: costsColor,
-                  marginRight: token.marginXS,
-                }} />
-                <Text style={{ fontSize: token.fontSizeSM }}>
-                  {formatCompactCurrency(costActual)} costs
-                </Text>
-                {costBudget > 0 && (
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>
-                    ({Math.round((costActual / costBudget) * 100)}%)
-                  </Text>
-                )}
-              </div>
-              {costRevenue > 0 && (
-                <div style={{ marginTop: token.marginXS }}>
-                  <span style={{
-                    display: "inline-block",
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: revenueColor,
-                    marginRight: token.marginXS,
-                  }} />
-                  <Text style={{ fontSize: token.fontSizeSM }}>
-                    {formatCompactCurrency(costRevenue)} revenue
-                  </Text>
-                </div>
-              )}
-            </div>
-          </div>
-        </Col>
-
-        {/* PV vs EV Trend chart */}
-        {extraContent && (
-          <Col xs={24} sm={12} md={18}>
-            {extraContent}
-          </Col>
-        )}
-      </Row>
-    </Card>
+      currency={currency || "EUR"}
+      scheduleStart={evmTs?.start_date}
+      scheduleEnd={evmTs?.end_date}
+      controlDate={controlDate}
+      budget={wbsElement.budget_allocation}
+      revenue={wbsElement.revenue_allocation}
+      actualCosts={actualCosts}
+      extraContent={extraContent}
+    />
   );
 };
