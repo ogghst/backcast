@@ -23,6 +23,50 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import settings
 from app.core.logging import setup_logging
+
+# Register ALL ORM models so SQLAlchemy's ``Base.metadata`` is complete. The
+# scheduler does not import ``app.main`` (which would register them via the
+# route imports), so without this the FK target tables (e.g.
+# ``ai_assistant_configs`` referenced by ``ai_agent_schedules``) are unmapped
+# and every query raises ``NoReferencedTableError``. Mirror the list in
+# ``alembic/env.py`` — keep both in sync when adding a model.
+from app.models.domain import (  # noqa: F401
+    ai,
+    ai_agent_schedule,
+    branch,
+    change_order,
+    change_order_audit_log,
+    change_order_config,
+    control_account,
+    cost_element,
+    cost_element_type,
+    cost_event,
+    cost_event_type,
+    cost_registration,
+    cost_registration_attachment,
+    dashboard_layout,
+    document,
+    document_entity_link,
+    document_folder,
+    document_version,
+    forecast,
+    mcp_server,
+    notification,
+    notification_delivery,
+    notification_preference,
+    organizational_unit,
+    progress_entry,
+    project,
+    project_budget_settings,
+    rbac,
+    refresh_token,
+    schedule_baseline,
+    telegram_account,
+    user,
+    user_role_assignment,
+    wbs_element,
+    work_package,
+)
 from app.scheduler.tick import tick
 
 logger = logging.getLogger(__name__)
